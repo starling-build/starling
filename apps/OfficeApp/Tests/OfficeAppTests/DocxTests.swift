@@ -173,6 +173,58 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(rtfBack.paragraphs.map(\.text), ["Body"])
     }
 
+    func testDocxListsKeepTheirIdsAndFormats() throws {
+        var doc = RichDocument(plainText: "one\ntwo\nbreak\nthree\nfour\nfive")
+        for i in [0, 1, 3] {
+            doc.paragraphs[i].style.list = .numbered
+            doc.paragraphs[i].style.listId = "L"
+        }
+        doc.paragraphs[3].style.listLevel = 1
+        doc.listFormats["L"] = [0: ListLevelFormat(text: "%1)", format: .upperRoman), 1: ListLevelFormat(text: "%1.%2")]
+        // Two anonymous runs: separate lists in Word, each starting at 1.
+        doc.paragraphs[4].style.list = .numbered
+        doc.paragraphs[5].style.list = .numbered
+        let data = try DocxFormat.write(doc, pageSetup: .letter)
+        let back = try DocxFormat.read(data)
+        let ps = back.document.paragraphs
+        XCTAssertEqual(ps[0].style.listId, ps[1].style.listId)
+        XCTAssertEqual(ps[0].style.listId, ps[3].style.listId)
+        XCTAssertNotEqual(ps[0].style.listId, ps[4].style.listId)
+        XCTAssertEqual(ps[4].style.listId, ps[5].style.listId)
+        let id = try XCTUnwrap(ps[0].style.listId)
+        XCTAssertEqual(back.document.listFormats[id]?[0], ListLevelFormat(text: "%1)", format: .upperRoman))
+        XCTAssertEqual(RichListNumbering.labels(back.document), ["I)", "II)", nil, "II.1", "1.", "2."])
+    }
+
+    func testDocxWrittenByWord() throws {
+        // A real Microsoft Word document: BoringCrypto's FIPS security
+        // policy (Google; "may be freely reproduced and distributed in its
+        // entirety without modification"). 25 pages, 15 tables with merged
+        // cells, a table of contents, captions, numbered headings.
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "word-boringcrypto", withExtension: "docx", subdirectory: "Fixtures"))
+        let back = try DocxFormat.read(try Data(contentsOf: url))
+        let doc = back.document
+        XCTAssertGreaterThan(doc.paragraphs.count, 800)
+        let tables = Set(doc.paragraphs.compactMap { $0.cell?.table })
+        XCTAssertEqual(tables.count, 15)
+        // The numbered headings carry Word's list, so they count on across
+        // the body: 1., 2., 3., then 3.1 for the first Heading 2.
+        let labels = RichListNumbering.labels(doc)
+        let numbered = doc.paragraphs.indices.filter { doc.paragraphs[$0].style.heading != nil && labels[$0] != nil }
+        XCTAssertEqual(numbered.prefix(4).map { labels[$0]! }, ["1.", "2.", "3.", "3.1"])
+        XCTAssertEqual(doc.paragraphs[numbered[0]].text, "Introduction")
+        XCTAssertEqual(doc.paragraphs[numbered[3]].text, "Cryptographic Boundary")
+        // The file's Heading 1 is 16pt, not our 20; the sheet takes its word.
+        XCTAssertEqual(doc.styles["Heading1"]?.char.fontSize, 16)
+        XCTAssertEqual(doc.styles["Title"]?.char.fontSize, 18)
+        XCTAssertTrue(doc.paragraphs.contains { $0.image != nil })
+        XCTAssertTrue(doc.isValid)
+        // And it survives our writer.
+        let again = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: back.pageSetup ?? .letter))
+        XCTAssertEqual(again.document.paragraphs.map(\.text), doc.paragraphs.map(\.text))
+        XCTAssertEqual(RichListNumbering.labels(again.document), labels)
+    }
+
     func testDocxWrittenByTextEdit() throws {
         // apps/OfficeApp/Tests/OfficeAppTests/Fixtures/textedit.docx: the
         // Phase 0 document, saved as RTF by Office and converted by macOS

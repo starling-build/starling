@@ -256,6 +256,25 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(bold.fontWeight, .bold)
     }
 
+    func testListNumberingFollowsIdsAndFormats() {
+        var doc = RichDocument(plainText: "a\nb\nbody\nc\nd\ne\nf\nx\ny")
+        func item(_ i: Int, _ level: Int, id: String?) {
+            doc.paragraphs[i].style.list = .numbered
+            doc.paragraphs[i].style.listLevel = level
+            doc.paragraphs[i].style.listId = id
+        }
+        // List "L" numbers on across the body paragraph; level 2 restarts
+        // under a new level-1 item and shows both counters.
+        item(0, 0, id: "L"); item(1, 1, id: "L"); item(3, 1, id: "L"); item(4, 0, id: "L"); item(5, 1, id: "L")
+        doc.listFormats["L"] = [1: ListLevelFormat(text: "%1.%2", format: .lowerLetter)]
+        // Anonymous runs restart after an interruption.
+        item(6, 0, id: nil); item(8, 0, id: nil)
+        XCTAssertEqual(RichListNumbering.labels(doc),
+                       ["1.", "1.a", nil, "1.b", "2.", "2.a", "1.", nil, "1."])
+        XCTAssertEqual(ListNumberFormat.lowerRoman.string(14), "xiv")
+        XCTAssertEqual(ListNumberFormat.upperLetter.string(28), "BB")
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }

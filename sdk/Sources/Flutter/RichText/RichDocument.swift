@@ -84,6 +84,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var lineSpacing: Double = 1.0
     public var list: ListKind? = nil
     public var listLevel: Int = 0
+    /// Which list this paragraph belongs to, for numbering: Word's numId.
+    /// Items of one id number on across other paragraphs; nil items number
+    /// as a run, restarting after an interruption.
+    public var listId: String? = nil
     /// 1...6 for a heading, nil for body text. The outline level is what
     /// `.docx`, RTF and Markdown all carry; the look comes from the
     /// document's style sheet ("Heading1"...) when it has that entry.
@@ -99,7 +103,8 @@ public struct RichParagraphStyle: Hashable, Sendable {
                 indentRight: Double = 0, firstLineIndent: Double = 0,
                 spaceBefore: Double = 0, spaceAfter: Double = 0,
                 lineSpacing: Double = 1.0, list: ListKind? = nil, listLevel: Int = 0,
-                heading: Int? = nil, named: String? = nil, pageBreakBefore: Bool = false) {
+                listId: String? = nil, heading: Int? = nil, named: String? = nil,
+                pageBreakBefore: Bool = false) {
         self.alignment = alignment
         self.indentLeft = indentLeft
         self.indentRight = indentRight
@@ -109,6 +114,7 @@ public struct RichParagraphStyle: Hashable, Sendable {
         self.lineSpacing = lineSpacing
         self.list = list
         self.listLevel = listLevel
+        self.listId = listId
         self.heading = heading
         self.named = named
         self.pageBreakBefore = pageBreakBefore
@@ -285,6 +291,89 @@ public struct CellRef: Hashable, Sendable {
         self.table = table
         self.row = row
         self.column = column
+    }
+}
+
+// MARK: - List numbering
+
+public enum ListNumberFormat: Hashable, Sendable {
+    case decimal, lowerLetter, upperLetter, lowerRoman, upperRoman
+
+    public func string(_ n: Int) -> String {
+        switch self {
+        case .decimal: return String(n)
+        case .lowerLetter, .upperLetter:
+            guard n >= 1 else { return String(n) }
+            let scalar = (self == .lowerLetter ? 97 : 65) + (n - 1) % 26
+            return String(repeating: String(UnicodeScalar(UInt8(scalar))), count: (n - 1) / 26 + 1)
+        case .lowerRoman, .upperRoman:
+            guard n >= 1, n < 4000 else { return String(n) }
+            var out = ""
+            var v = n
+            for (value, glyph) in [(1000, "m"), (900, "cm"), (500, "d"), (400, "cd"), (100, "c"), (90, "xc"),
+                                   (50, "l"), (40, "xl"), (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i")] {
+                while v >= value { out += glyph; v -= value }
+            }
+            return self == .upperRoman ? out.uppercased() : out
+        }
+    }
+}
+
+/// One level's label: `text` with `%1`…`%9` standing for the counters of
+/// levels 1…9 ("%1.%2" gives "3.2"), each in that level's `format`.
+public struct ListLevelFormat: Hashable, Sendable {
+    public var text: String
+    public var format: ListNumberFormat
+
+    public init(text: String, format: ListNumberFormat = .decimal) {
+        self.text = text
+        self.format = format
+    }
+
+    public static func plain(_ level: Int) -> ListLevelFormat { ListLevelFormat(text: "%\(level + 1).") }
+}
+
+/// The label of every list paragraph, computed over the whole document:
+/// Word's rules — a list id numbers on across other paragraphs, a deeper
+/// level restarts when a shallower item appears, and anonymous items
+/// (no id) form runs that restart after an interruption.
+public enum RichListNumbering {
+    public static func labels(_ document: RichDocument) -> [String?] {
+        var out: [String?] = Array(repeating: nil, count: document.paragraphs.count)
+        var counters: [String: [Int]] = [:]
+        let anonymous = ""
+        for (i, p) in document.paragraphs.enumerated() {
+            let s = p.style
+            guard let kind = s.list else {
+                counters[anonymous] = nil
+                continue
+            }
+            let lvl = min(max(0, s.listLevel), 8)
+            if kind == .bullet {
+                out[i] = lvl % 2 == 0 ? "\u{2022}" : "\u{25E6}"
+                if s.listId == nil { counters[anonymous] = nil }
+                continue
+            }
+            let key = s.listId ?? anonymous
+            var c = counters[key] ?? Array(repeating: 0, count: 9)
+            c[lvl] += 1
+            for deeper in (lvl + 1) ..< 9 { c[deeper] = 0 }
+            counters[key] = c
+            let formats = s.listId.flatMap { document.listFormats[$0] } ?? [:]
+            let f = formats[lvl] ?? .plain(lvl)
+            var label = ""
+            var chars = f.text.makeIterator()
+            while let ch = chars.next() {
+                if ch == "%", let d = chars.next(), let k = Int(String(d)), k >= 1, k <= 9 {
+                    let n = max(1, c[k - 1])
+                    label += (formats[k - 1] ?? .plain(k - 1)).format.string(n)
+                } else {
+                    label.append(ch)
+                }
+            }
+            out[i] = label
+        }
+        return out
     }
 }
 
@@ -692,6 +781,9 @@ public struct RichDocument: Hashable, Sendable {
     public var tableColumns: [String: [Double]] = [:]
     /// The named styles paragraphs refer to.
     public var styles: RichStyleSheet = .word
+    /// Per list id, the label format of each level (Word's lvlText and
+    /// numFmt); a level without one is "%n." in decimal.
+    public var listFormats: [String: [Int: ListLevelFormat]] = [:]
 
     public static let pageField = "{PAGE}"
     public static let pageCountField = "{NUMPAGES}"

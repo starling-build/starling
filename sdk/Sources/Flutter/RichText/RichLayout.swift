@@ -218,7 +218,7 @@ public final class RichLayout {
     private var _spaceBefore: [Double] = []
     private var _heights: [Double] = []
     private var _tops: [Double] = []
-    private var _listNumbers: [Int] = []
+    private var _listLabels: [String?] = []
     private var _topsValid = false
     private var _listValid = false
 
@@ -239,7 +239,7 @@ public final class RichLayout {
         _spaceBefore = Array(repeating: 0, count: n)
         _heights = Array(repeating: 0, count: n)
         _tops = Array(repeating: 0, count: n)
-        _listNumbers = Array(repeating: 0, count: n)
+        _listLabels = Array(repeating: nil, count: n)
         _topsValid = false
         _listValid = false
     }
@@ -278,7 +278,7 @@ public final class RichLayout {
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _heights.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _tops.insert(contentsOf: Array(repeating: 0, count: n), at: at)
-                _listNumbers.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _listLabels.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _listValid = false
             case .removed(let at, let n):
                 let at = min(at, _painters.count)
@@ -293,7 +293,7 @@ public final class RichLayout {
                 _spaceBefore.removeSubrange(at ..< end)
                 _heights.removeSubrange(at ..< end)
                 _tops.removeSubrange(at ..< end)
-                _listNumbers.removeSubrange(at ..< end)
+                _listLabels.removeSubrange(at ..< end)
                 _listValid = false
             }
             _topsValid = false
@@ -574,18 +574,7 @@ public final class RichLayout {
     }
 
     private func _renumberLists(_ document: RichDocument) {
-        var counters = [Int](repeating: 0, count: 10)
-        for (i, p) in document.paragraphs.enumerated() {
-            if p.style.list == .numbered {
-                let lvl = min(p.style.listLevel, 9)
-                counters[lvl] += 1
-                for deeper in (lvl + 1) ..< 10 { counters[deeper] = 0 }
-                _listNumbers[i] = counters[lvl]
-            } else {
-                _listNumbers[i] = 0
-                if p.style.list == nil { for k in 0 ..< 10 { counters[k] = 0 } }
-            }
-        }
+        _listLabels = RichListNumbering.labels(document)
         _listValid = true
     }
 
@@ -717,12 +706,8 @@ public final class RichLayout {
     }
 
     public func listLabel(_ i: Int, _ document: RichDocument) -> String? {
-        let s = document.paragraphs[i].style
-        switch s.list {
-        case .none: return nil
-        case .bullet: return s.listLevel % 2 == 0 ? "•" : "◦"
-        case .numbered: return "\(_listNumbers[i])."
-        }
+        if !_listValid || _listLabels.count != document.paragraphs.count { _renumberLists(document) }
+        return _listLabels[i]
     }
 
     /// Index of the paragraph containing document y (clamped to the ends).

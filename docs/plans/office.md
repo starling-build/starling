@@ -84,9 +84,23 @@ from `theme1.xml`.
 **Navigation pane** (View → Show): the outline — Title and Heading 1–3,
 nested — with the heading the caret is under highlighted; a click moves
 the caret there and the editable scrolls it into view. That closes the
-Phase 2 feature list; what Phase 2 still owes is `.docx` testing against
-files from Word, Google Docs and LibreOffice (python-docx is the only
-outside writer checked so far) and the Text Editor catalog change.
+Phase 2 feature list.
+
+**Outside writers.** The first real Microsoft Word document — BoringCrypto's
+FIPS security policy, 25 pages, 15 tables with merged cells, a table of
+contents, captions, numbered headings, shipped in the engine tree under
+`third_party/boringssl` and now a fixture (`word-boringcrypto.docx`) — read
+whole, wrote back whole, and exported to PDF in a quarter second. It
+exposed one model gap: Word numbers per list across the document, with
+multi-level labels ("3.1"), and ours numbered every run from 1. A
+paragraph now carries its list id, the document keeps each list's level
+formats (`lvlText`/`numFmt`), `RichListNumbering` labels the whole
+document by Word's rules, and the writer gives every list — and every
+anonymous run — a numId of its own, so two separate lists no longer merge
+in Word. Google Docs and LibreOffice files are still to be checked
+(neither is on this Mac; Pages is, but its AppleScript has no styles and
+the screen was locked before it could export). The Text Editor catalog
+change waits for Phase 3.
 
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
