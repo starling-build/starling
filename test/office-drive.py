@@ -4,6 +4,12 @@
     test/office-drive.py [--out DIR] [--only STEP,...]
 
 Needs an unlocked screen. Launches apps/OfficeApp/.build/debug/OfficeApp
+KNOWN GAP (2026-09-30): a modifier held across a synthetic CLICK never
+reaches the app's chord tracker — not as a CGEvent keyDown, not as a
+flagsChanged, not via System Events "key down" — so shift-click and
+⌘-click steps show a plain click; verify those by hand. Modifiers on
+keystrokes (⌥⇧→, ⌘B) work. Menu rows are 28px; disabled rows swallow
+a click without closing the menu, so aim at an enabled row.
 on the welcome document, finds its window, runs every step below, and
 writes DIR/<nn>-<step>.png (window crop, 1x) plus DIR/index.md listing
 what each picture should show. Read the pictures; the script cannot
@@ -29,16 +35,19 @@ func post(_ t: CGEventType, _ pt: CGPoint, _ b: CGMouseButton = .left, clicks: I
 }
 let mode = a.count > 3 ? a[3] : "click"
 var flags: CGEventFlags = []
-// Modifiers are held with real key events around the click: the app's
-// chord tracker follows key events, not the flags on a mouse event.
+// Modifiers are held with key events around the click: the app's chord
+// tracker follows key events, not the flags on a mouse event. (System
+// Events' "key down shift" never reaches the app; a CGEvent does.)
 var held: [CGKeyCode] = []
 if a.contains("shift") { flags.insert(.maskShift); held.append(56) }
 if a.contains("cmd") { flags.insert(.maskCommand); held.append(55) }
 if a.contains("option") { flags.insert(.maskAlternate); held.append(58) }
 func keyEvent(_ code: CGKeyCode, down: Bool, _ f: CGEventFlags) {
+    // A modifier key is a flagsChanged event, as the hardware sends it.
     let e = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!
+    e.type = .flagsChanged
     e.flags = f
-    e.post(tap: .cghidEventTap); usleep(30_000)
+    e.post(tap: .cghidEventTap); usleep(40_000)
 }
 for k in held { keyEvent(k, down: true, flags) }
 defer { for k in held.reversed() { keyEvent(k, down: false, []) } }

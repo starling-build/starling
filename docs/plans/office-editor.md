@@ -103,6 +103,14 @@ Not there, in the order a writer meets them:
 - **Known chrome bug:** a Fluent menu item whose text is exactly 14pt
   draws with stretched letter spacing.
 
+Seen on screen 2026-09-30 (display unlocked): the whole headless batch
+works — cell blocks, drag-and-drop, squiggles, context menu, libraries,
+More Colors, table borders and header row, ⌘]. Found and fixed from
+the pictures: every Tooltip drew as an empty box (rich Text dropped its
+style root), the context menu opened at the window corner, smart
+spacing padded inside words. The ribbon was then redone Word-style at
+the user's request (flat commands, boxed gallery) — commit 36605a54.
+
 Unverified: keyboard navigation through tables, drag-select across a page
 boundary, dark mode, window resizing, Home/End/PageUp/PageDown and the
 ⌥/⌘ arrow chords, scrollbar dragging, focus after every ribbon action.
