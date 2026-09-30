@@ -361,6 +361,25 @@ func starlingFileOpened(
 }
 
 /// Scratch memory in our heap for the page to write arguments into.
+/// `starling.debug(kind)`: the app's answer to a debugging query, as
+/// UTF-8 in OUR memory (`starling_alloc`ed; the page frees it) with the
+/// length stored at `length`; null for a kind the app does not answer.
+@_expose(wasm, "starling_debug")
+@_cdecl("starling_debug")
+func starlingDebug(
+    _ kind: UnsafePointer<UInt8>?, _ kindLength: Int32, _ length: UnsafeMutablePointer<Int32>?
+) -> UnsafeMutableRawPointer? {
+    guard let kind, kindLength > 0, let query = hostDebugQuery,
+          let answer = query(String(decoding: UnsafeBufferPointer(start: kind, count: Int(kindLength)), as: UTF8.self))
+    else { return nil }
+    var bytes = Array(answer.utf8)
+    if bytes.isEmpty { bytes = [0] }
+    let out = UnsafeMutableRawPointer.allocate(byteCount: bytes.count, alignment: 8)
+    out.copyMemory(from: bytes, byteCount: bytes.count)
+    length?.pointee = Int32(answer.utf8.count)
+    return out
+}
+
 @_expose(wasm, "starling_alloc")
 @_cdecl("starling_alloc")
 func starlingAlloc(_ byteCount: Int32) -> UnsafeMutableRawPointer? {

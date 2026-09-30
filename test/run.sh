@@ -298,6 +298,14 @@ else
     echo "  SKIPPED — no wasm Swift SDK (swift sdk install …_wasm.artifactbundle.tar.gz)"
 fi
 
+# Office lays out the same natively and in the browser, and a saved copy
+# the same as its original: test/office-layout.sh diffs the line-by-line
+# layout dumps (`OfficeApp --layout`, `starling.debug('layout')`). Needs
+# the native binary, the staged browser build, Chrome and node — the
+# script skips, with the reason, when any is missing.
+step "office: layout, native vs browser vs saved copy"
+as_user "$REPO/test/office-layout.sh" || fails=$((fails + 1))
+
 step "xdg-open routing"
 python3 "$REPO/test/xdg_open_routing.py" || fails=$((fails + 1))
 

@@ -20,7 +20,7 @@
 # that renders for it, the JavaScript that introduces the two, and the fonts,
 # all reachable over HTTP from one directory:
 #
-#   .stage-web/
+#   .stage-web/                   (.stage-web-<Package> for --package)
 #     index.html  starling.js     web/host/, verbatim
 #     app.wasm                    the Swift module
 #     skwasm/skwasm.{js,wasm}     Flutter's renderer, fetched prebuilt
@@ -86,9 +86,15 @@ EOF
     exit 1
 fi
 
+# One scratch and one stage per package, so the size gate's CounterApp
+# build does not overwrite a staged Office that test/office-layout.sh is
+# about to drive.
 SCRATCH="$REPO/.build-web"
-[ "$PACKAGE" = sdk ] || SCRATCH="$REPO/.build-web-$(basename "$PACKAGE")"
 STAGE="$REPO/.stage-web"
+if [ "$PACKAGE" != sdk ]; then
+    SCRATCH="$REPO/.build-web-$(basename "$PACKAGE")"
+    STAGE="$REPO/.stage-web-$(basename "$PACKAGE")"
+fi
 
 # The web build of an app that reads zip files compiles zlib itself.
 if [ -f "$REPO/$PACKAGE/Sources/CZlib/shim.h" ]; then

@@ -99,17 +99,19 @@ function makeWasi(getMemory) {
   });
 }
 
-// Intl.v8BreakIterator yields coarse break opportunities; this refines them
-// the way Flutter's breakLinesUsingV8BreakIterator does — a break after every
-// run of spaces, and a newline makes the break mandatory. Returns
-// [position, isHard] pairs.
+// Intl.v8BreakIterator's line-break opportunities (ICU's UAX #14, the
+// same rules the native engine applies), each marked hard when the text
+// before it ends in a newline, the way Flutter's
+// breakLinesUsingV8BreakIterator classifies them. Returns [position,
+// isHard] pairs. Nothing is added to what the iterator says: a first
+// version also broke after every run of spaces, which ICU already does
+// wherever the rules allow — so the only breaks it added were the ones
+// ICU had refused ("encrypt / decrypt" broke before the slash, LB13),
+// and the browser wrapped one line differently from the desktop.
 const NEWLINES = new Set([0x0a, 0x0b, 0x0c, 0x0d, 0x85, 0x2028, 0x2029]);
-const SPACES = new Set([0x20, 0x09, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003,
-  0x2004, 0x2005, 0x2006, 0x2008, 0x2009, 0x200a, 0x205f, 0x3000]);
 
 function lineBreaks(text) {
   const breaks = [];
-  let start = 0;
   let lastHard = false;
   const push = (end, hard) => { breaks.push([end, hard]); lastHard = hard; };
   const opportunities = [];
@@ -127,16 +129,10 @@ function lineBreaks(text) {
     opportunities.push(text.length);
   }
   for (const end of opportunities) {
-    let newlines = 0;
-    let spaces = 0;
-    for (let i = start; i < end; i++) {
-      const unit = text.charCodeAt(i);
-      if (NEWLINES.has(unit)) { newlines++; spaces++; }
-      else if (SPACES.has(unit)) { spaces++; }
-      else if (spaces > 0) { push(i, false); start = i; newlines = 0; spaces = 0; }
-    }
-    push(end, newlines > 0);
-    start = end;
+    // Mandatory when the segment ends in a newline (CR LF is one break).
+    let i = end;
+    while (i > 0 && NEWLINES.has(text.charCodeAt(i - 1))) i--;
+    push(end, i < end);
   }
   if (breaks.length === 0 || lastHard) breaks.push([text.length, true]);
   return breaks;
@@ -496,5 +492,26 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], onPro
     dom.preventDefault();
   }, { passive: false });
 
-  return { skwasm, swift };
+  // A debugging door for scripts: `starling.debug('layout')` in Office
+  // returns the document's lines and pages as text, the same text
+  // `OfficeApp --layout` prints natively. null for a kind the app does
+  // not answer.
+  const debug = (kind) => {
+    const name = encoder.encode(kind);
+    const namePointer = swift.starling_alloc(name.length);
+    appBytes().set(name, namePointer);
+    const lengthPointer = swift.starling_alloc(4);
+    const pointer = swift.starling_debug(namePointer, name.length, lengthPointer);
+    swift.starling_free(namePointer);
+    let text = null;
+    if (pointer) {
+      const length = new DataView(swift.memory.buffer).getInt32(lengthPointer, true);
+      text = utf8.decode(appBytes().subarray(pointer, pointer + length));
+      swift.starling_free(pointer);
+    }
+    swift.starling_free(lengthPointer);
+    return text;
+  };
+
+  return { skwasm, swift, debug };
 }

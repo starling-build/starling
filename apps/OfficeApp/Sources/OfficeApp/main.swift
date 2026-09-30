@@ -125,6 +125,27 @@ if let i = CommandLine.arguments.firstIndex(of: "--bench") {
     exit(0)
 }
 
+// `--layout <in>`: the document's line breaks and pages, as text, for
+// comparing one layout with another (native against the browser's
+// `starling.debug('layout')`, a file against its own round trip).
+// `--layout welcome` is the document a fresh window shows.
+if let i = CommandLine.arguments.firstIndex(of: "--layout"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let src = CommandLine.arguments[i + 1]
+        if src == "welcome" {
+            print(OfficeLayoutDump.text(WelcomeDocument.make(), pageSetup: .letter), terminator: "")
+            exit(0)
+        }
+        let opened = try OfficeFormats.read(src)
+        print(OfficeLayoutDump.text(opened.document, pageSetup: opened.pageSetup ?? .letter), terminator: "")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("layout failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--convert <in> <out>`: the formats without the window, for scripts and
 // for checking our output against other readers (`textutil`, LibreOffice).
 if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {

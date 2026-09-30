@@ -519,6 +519,12 @@ enum DocxFormat {
         return built
     }
 
+    /// The space-after the layout uses for `p`: its own when set, else
+    /// Word's 8pt outside a table and 0 in a cell — RichLayout's rule.
+    static func _effectiveSpaceAfter(_ p: RichParagraph) -> Double {
+        p.style.spaceAfter > 0 ? p.style.spaceAfter : (p.cell != nil ? 0 : 8)
+    }
+
     private static func _isOff(_ node: XNode) -> Bool {
         switch node["w:val"] {
         case "0", "false", "off": return true
@@ -638,7 +644,10 @@ enum DocxFormat {
             }
             var spacing = ""
             if p.style.spaceBefore > 0 { spacing += " w:before=\"\(Int(p.style.spaceBefore * 20))\"" }
-            spacing += " w:after=\"\(Int((p.style.spaceAfter > 0 ? p.style.spaceAfter : 8) * 20))\""
+            // What the layout gives an unset (0) space-after: the theme's
+            // 8pt in the body, nothing inside a table (RichLayout). Written
+            // as that, so the file lays out on reopening as it did.
+            spacing += " w:after=\"\(Int(_effectiveSpaceAfter(p) * 20))\""
             if p.style.lineSpacing != 1.0 { spacing += " w:line=\"\(Int(p.style.lineSpacing * 240))\" w:lineRule=\"auto\"" }
             pPr += "<w:spacing\(spacing)/>"
             var ind = ""

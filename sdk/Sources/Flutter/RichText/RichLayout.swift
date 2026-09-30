@@ -904,6 +904,54 @@ public final class RichLayout {
     /// Per column slot (page × columns + column), in flow order.
     public var pieces: [[PagePiece]] { _pages }
 
+    /// The laid-out document, one text line per line: `p<page> ¶<paragraph>
+    /// <height> |<text>|`, after a first line with the page count. Two
+    /// layouts that agree — native and browser, before and after a save —
+    /// produce identical text, and where they differ, `diff` says which
+    /// line broke elsewhere. Heights are logical pixels to a tenth.
+    public func lineDump(_ document: RichDocument) -> String {
+        ensureLaidOut(document)
+        var out = "pages \(pageCount)\n"
+        for i in 0 ..< count {
+            let para = document.paragraphs[i]
+            let g = geometry(i)
+            let pieces = _pieceStart.count == count + 1 ? _allPieces[_pieceStart[i] ..< _pieceStart[i + 1]] : []
+            func page(atFlow y: Double) -> Int {
+                let piece = pieces.first { y < $0.flowBottom - 0.01 } ?? pieces.last
+                return piece.map { $0.page / _columns + 1 } ?? 0
+            }
+            // The block: its height with the spacing around the text, and
+            // where the text starts inside it — what pagination sums.
+            out += "¶\(i) block \(_tenth(g.height)) text@\(_tenth(g.textTop - g.top))\n"
+            if para.isImage {
+                out += "p\(page(atFlow: g.textTop)) ¶\(i) \(_tenth(g.height)) |<image>|\n"
+                continue
+            }
+            let utf16 = para.text.utf16
+            var y = g.textTop
+            var start = 0
+            let lines = g.painter.computeLineMetrics()
+            for line in lines {
+                let r = g.painter.getLineBoundary(TextPosition(offset: start))
+                let end = max(start, min(r.end, para.length))
+                let a = utf16.index(utf16.startIndex, offsetBy: start)
+                let b = utf16.index(utf16.startIndex, offsetBy: end)
+                let text = (String(utf16[a ..< b]) ?? "").trimmingWhitespace()
+                out += "p\(page(atFlow: y)) ¶\(i) \(_tenth(line.height)) |\(text)|\n"
+                y += line.height
+                start = end
+                if start >= para.length { break }
+            }
+            if lines.isEmpty { out += "p\(page(atFlow: y)) ¶\(i) \(_tenth(g.painter.height)) ||\n" }
+        }
+        return out
+    }
+
+    private func _tenth(_ v: Double) -> String {
+        let t = Int((v * 10).rounded())
+        return "\(t / 10).\(t % 10)"
+    }
+
     /// Page `p`'s rectangle on the canvas.
     public func pageRect(_ p: Int) -> Rect {
         Rect.fromLTWH(0, Double(p) * (_pxPageH + _pxGap), _pxPageW, _pxPageH)

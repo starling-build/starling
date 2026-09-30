@@ -70,6 +70,13 @@ final class OfficeShellState: State<StatefulWidget> {
         OfficeFonts.register()
         _recent = _loadRecent()
         _wireSession()
+        // `starling.debug('layout')` from the browser's console or a script:
+        // the open document's lines and pages, to diff against
+        // `OfficeApp --layout` natively.
+        hostDebugQuery = { [weak self] kind in
+            guard let self, kind == "layout" else { return nil }
+            return OfficeLayoutDump.text(self.controller.document, pageSetup: self.session.pageSetup)
+        }
         let env = ProcessInfo.processInfo.environment
         if let pages = env["OFFICE_DEMO_PAGES"].flatMap(Int.init), pages > 0 {
             controller.load(DemoDocument.make(pages: pages))

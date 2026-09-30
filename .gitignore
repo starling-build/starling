@@ -32,6 +32,7 @@ Package.resolved
 # The browser build: the page build/web-app.sh assembles, and the prebuilt
 # skwasm it fetches.
 .stage-web/
+.stage-web-*/
 .build-web*/
 /web/.skwasm/
 

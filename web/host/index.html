@@ -42,7 +42,8 @@
         total ? `Loading… ${mb(loaded)} of ${mb(total)} MB` : `Loading… ${mb(loaded)} MB`;
       if (total) document.getElementById('loading-fill').style.width = `${100 * loaded / total}%`;
     },
-  }).then(() => {
+  }).then((starling) => {
+    window.starling = starling;
     document.title = 'Starling — running';
     const loading = document.getElementById('loading');
     // The first frame is on screen a beat after start returns.

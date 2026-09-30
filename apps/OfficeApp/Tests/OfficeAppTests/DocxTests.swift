@@ -301,6 +301,36 @@ final class DocxTests: XCTestCase {
         let again = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: back.pageSetup ?? .letter))
         XCTAssertEqual(again.document.paragraphs.map(\.text), doc.paragraphs.map(\.text))
         XCTAssertEqual(RichListNumbering.labels(again.document), labels)
+        // With its spacing as laid out (an unset 0 reads back as the 8pt
+        // the writer spelled out): the writer once gave every cell
+        // paragraph the body's 8pt after, and the file came back four
+        // pages longer.
+        XCTAssertEqual(again.document.paragraphs.map { DocxFormat._effectiveSpaceAfter($0) },
+                       doc.paragraphs.map { DocxFormat._effectiveSpaceAfter($0) })
+        XCTAssertEqual(again.document.paragraphs.map { $0.style.lineSpacing },
+                       doc.paragraphs.map { $0.style.lineSpacing })
+    }
+
+    func testDocxRoundTripKeepsLayout() throws {
+        // The saved copy of the Word fixture paginates exactly as the
+        // original: same lines, same pages (test/office-layout.sh does
+        // the same against the browser). Laid out as the window would,
+        // with the shipped faces; without ICU in the test process lines
+        // break between characters on both sides alike, so the test
+        // holds either way — what it catches is the writer changing
+        // what the reader then measures.
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "word-boringcrypto", withExtension: "docx", subdirectory: "Fixtures"))
+        let back = try DocxFormat.read(try Data(contentsOf: url))
+        let setup = back.pageSetup ?? .letter
+        let original = OfficeLayoutDump.text(back.document, pageSetup: setup)
+        let again = try DocxFormat.read(try DocxFormat.write(back.document, pageSetup: setup))
+        let copy = OfficeLayoutDump.text(again.document, pageSetup: again.pageSetup ?? setup)
+        XCTAssertTrue(original.hasPrefix("pages "))
+        if original != copy {
+            let a = original.split(separator: "\n"), b = copy.split(separator: "\n")
+            let first = zip(a, b).enumerated().first { $0.element.0 != $0.element.1 }
+            XCTFail("the saved copy lays out differently: \(a.first ?? "") vs \(b.first ?? ""); first difference at line \(first?.offset ?? min(a.count, b.count)): \(first?.element.0 ?? "") | \(first?.element.1 ?? "")")
+        }
     }
 
     func testDocxWrittenByTextEdit() throws {

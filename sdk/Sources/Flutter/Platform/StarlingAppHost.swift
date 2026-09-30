@@ -50,6 +50,11 @@ public nonisolated(unsafe) var hostScheduleEngineFrame: (() -> Void)? = nil
 /// title channel over the DMA-BUF socket is the plan's Phase 3 item).
 public nonisolated(unsafe) var hostSetWindowTitle: ((String) -> Void)? = nil
 
+/// A debugging query the host can put to the app — the browser page's
+/// `starling.debug(kind)` — answered with text, or nil for a kind the app
+/// does not know. The app installs it; hosts with no such door leave it.
+public nonisolated(unsafe) var hostDebugQuery: ((String) -> String?)? = nil
+
 /// Opens a URL in whatever the platform uses for it — the browser, the
 /// mail client. Installed by the windowed hosts; nil where nothing can.
 public nonisolated(unsafe) var hostOpenURL: ((String) -> Void)? = nil

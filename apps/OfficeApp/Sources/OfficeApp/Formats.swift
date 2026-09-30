@@ -739,7 +739,7 @@ enum RtfFormat {
             if fi != 0 { head += "\\fi\(fi)" }
             if p.style.indentRight != 0 { head += "\\ri\(Int(p.style.indentRight * 20))" }
             if p.style.spaceBefore != 0 { head += "\\sb\(Int(p.style.spaceBefore * 20))" }
-            head += "\\sa\(Int((p.style.spaceAfter > 0 ? p.style.spaceAfter : 8) * 20))"
+            head += "\\sa\(Int(DocxFormat._effectiveSpaceAfter(p) * 20))"
             if p.style.lineSpacing != 1.0 { head += "\\sl\(Int(p.style.lineSpacing * 240))\\slmult1" }
             head += " "
             body += head + listPrefix
