@@ -64,7 +64,19 @@ declines typed characters so the plugin delivers them (the engine now
 replies whether a key was consumed, so keys the framework takes never
 reach the plugin). Off by default until seen working with the Pinyin
 and Japanese input sources, dead keys and press-and-hold; then it
-becomes the default and the key-path typing goes. Companion to `office.md`,
+becomes the default and the key-path typing goes. **2026-09-30, on
+screen:** the plumbing is proven — with `STARLING_IME=1` letters,
+Backspace and Enter all travel through the plugin (`STARLING_IME_DEBUG=1`
+logs the traffic). Two engine bugs stood in the way: the runtime
+answered `flutter/keyevent` empty, which macOS reads as "handled", so no
+key ever reached the text-input plugin; and the host made the Flutter
+view first responder after the first attach, so the editable now
+re-sends `TextInput.show` on every click. Composition itself
+(Pinyin/Japanese, dead keys, press-and-hold) is still unverified: the
+driver can switch the input source but its posted keys arrived as plain
+letters, and a native control app could not be brought to the front to
+prove the harness. Needs a hand on the keyboard; until then IME stays
+opt-in. Companion to `office.md`,
 which tracks the suite; this one is only about the editing experience in
 Writer on macOS, which is where the user has asked for the focus. Nothing
 here is Linux, Windows or iOS.

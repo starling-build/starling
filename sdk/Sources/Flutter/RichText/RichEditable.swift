@@ -658,6 +658,7 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
         _focus.requestFocus()
+        _textInput?.show()
         guard event.buttons & 1 != 0 else { return }
         _syncLayoutIfNeeded()
         guard _layout.width > 0 else { return }

@@ -36,8 +36,12 @@ public final class RichTextInputConnection {
     public var isAttached: Bool { _attached }
 
     /// Focus gained: become the platform's text-input client.
+    private static let _debug = ProcessInfo.processInfo.environment["STARLING_IME_DEBUG"] != nil
+    private static func _log(_ s: String) { if _debug { FileHandle.standardError.write(Data(("[ime] " + s + "\n").utf8)) } }
+
     public func attach() {
         guard Self.enabled, !_attached else { return }
+        Self._log("attach sender=\(PlatformDispatcher.instance.platformMessageSender != nil)")
         _attached = true
         MainActor.assumeIsolated {
             channelBuffers.setListener(Self.channel) { [weak self] data, reply in
@@ -60,6 +64,16 @@ public final class RichTextInputConnection {
         ]
         _send("TextInput.setClient", [_clientId, config])
         sync(force: true)
+        _send("TextInput.show", nil)
+    }
+
+    /// Ask the plugin to be the responder again. On macOS the host makes
+    /// the Flutter view first responder when the window shows, which is
+    /// after the first attach: the plugin's text-input context is then
+    /// inactive, plain keys still arrive (the view forwards them), but no
+    /// input method can compose. A click re-asserts it.
+    public func show() {
+        guard _attached else { return }
         _send("TextInput.show", nil)
     }
 
@@ -109,6 +123,7 @@ public final class RichTextInputConnection {
     private func _handle(_ data: Data?) {
         guard let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let method = json["method"] as? String else { return }
+        Self._log("recv \(method) \(String(data: data, encoding: .utf8)?.prefix(200) ?? "")")
         let args = json["args"]
         switch method {
         case "TextInputClient.updateEditingState":
@@ -176,6 +191,7 @@ public final class RichTextInputConnection {
         var body: [String: Any] = ["method": method]
         body["args"] = args ?? NSNull()
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { return }
+        Self._log("send \(method) sender=\(PlatformDispatcher.instance.platformMessageSender != nil) \(String(data: data, encoding: .utf8)?.prefix(160) ?? "")")
         PlatformDispatcher.instance.sendPlatformMessage(Self.channel, data) { _ in }
     }
 }

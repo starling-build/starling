@@ -22,6 +22,8 @@ Last run: 2026-09-29, screen locked for the on-screen half.
 | ⌘-click selects the sentence | needs a hand: the driver cannot hold ⌘ across a click |
 | Table Layout → Borders off hides the grid; Header Row shades row 0 and repeats it atop the next page | pass (both seen on screen 2026-09-30; repeat seen in PDF) |
 | Misspelled word gets a red underline ~0.4s after it is shown; not the word being typed; right-click offers corrections | pass (seen 2026-09-30) |
+| STARLING_IME=1: letters, Backspace, Enter arrive through the text-input plugin | pass (seen 2026-09-30) |
+| STARLING_IME=1 with Pinyin/Japanese: composing underline, candidates, commit; dead keys; press-and-hold | needs a hand (driver keys arrive uncomposed) |
 | Click inside a table cell puts the caret in that cell | pass |
 | Click on a picture selects it | pending |
 | Wheel / trackpad scrolling, incl. momentum | pass |
