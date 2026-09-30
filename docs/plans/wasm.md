@@ -180,9 +180,10 @@ How it is put together, top down:
 
 ### Not done, in the order it will matter
 
-1. **Keyboard and text input**: no `starling_key` export yet; `KeyData`
-   packets from DOM `keydown`/`keyup`, then an IME strategy (a hidden
-   `<input>`, as Flutter web does).
+1. **IME and touch keyboards.** Hardware keys work (`starling_key`, with
+   the web engine's own key tables, generated into `web/host/keymap.js`);
+   composed input — dead keys, CJK, a phone's keyboard — needs a hidden
+   `<input>` the way Flutter web does it.
 2. **Images**: the light skwasm build has no codecs. Encoded images need the
    page to decode (`createImageBitmap`) and `image_createFromTextureSource`;
    `Codec.swift` says exactly what host function it wants.
@@ -200,6 +201,18 @@ How it is put together, top down:
    `truncatingIfNeeded`).
 
 ## Traps paid for
+
+- **The default shadow stack is small, and overflowing it corrupts the
+  heap instead of trapping.** A debug build of the Todos app died with an
+  allocation failure on its very first widget: the stack had walked down
+  into the heap during the deep, uninlined build. The linker now gets
+  `-z stack-size=16MB`; `--stack-first` (which would make an overflow trap
+  at the right frame) is refused alongside the driver's `--global-base`.
+- **The Swift runtime's last words are lost on a trap.** `fatalError`'s
+  message is written without a newline and the process aborts before any
+  buffered stdio flushes, so the page's `fd_write` no longer waits for a
+  newline on stderr — and still nothing arrived, so read the stack, not
+  the message.
 
 - **Adding a header to `CSkwasm/include` does not invalidate the clang
   module cache.** New declarations come back as `cannot find X in scope`

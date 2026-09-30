@@ -11,6 +11,8 @@
 // between the two memories, hold the externref a finished render arrives
 // as, ask the browser where text may break, and drive frames and input.
 
+import { PHYSICAL, LOGICAL, LOGICAL_BY_LOCATION } from './keymap.js';
+
 const WASI_ESUCCESS = 0;
 const WASI_EBADF = 8;
 const WASI_ENOSYS = 52;
@@ -38,6 +40,12 @@ function makeWasi(getMemory) {
       while ((newline = lines[fd].indexOf('\n')) >= 0) {
         (fd === 1 ? console.log : console.error)(lines[fd].slice(0, newline));
         lines[fd] = lines[fd].slice(newline + 1);
+      }
+      // stderr is not held for a newline: the runtime's last words before
+      // a trap ("Could not allocate memory") end without one.
+      if (fd === 2 && lines[fd]) {
+        console.error(lines[fd]);
+        lines[fd] = '';
       }
       v.setUint32(nwritten, written, true);
       return WASI_ESUCCESS;
@@ -333,6 +341,66 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], onPro
   canvas.addEventListener('pointerleave', pointer(LEAVE));
   canvas.addEventListener('pointercancel', pointer(CANCEL));
   canvas.addEventListener('contextmenu', (dom) => dom.preventDefault());
+
+  // Keys. The framework wants what every engine embedder gives it: a
+  // physical id (the key's position, from `code`), a logical id (its
+  // meaning, from `key`), and the character it types, if any. The two
+  // tables are the web engine's own. A key neither knows gets an id in the
+  // "web" plane made from the name, as Flutter's web engine does, so that
+  // down and up at least agree.
+  const WEB_PLANE = 0x1700000000n;
+  const hashName = (name) => {
+    let h = 0;
+    for (const c of name) h = (h * 31 + c.codePointAt(0)) & 0xffffffff;
+    return WEB_PLANE + BigInt(h >>> 0);
+  };
+  const KEY_DOWN = 0, KEY_UP = 1, KEY_REPEAT = 2;
+  const pressed = new Set();
+  const key = (dom) => {
+    const physical = BigInt(PHYSICAL.get(dom.code) ?? 0) || hashName(dom.code || dom.key);
+    const isCharacter = dom.key.length === 1 || [...dom.key].length === 1;
+    let logical = LOGICAL.get(dom.key);
+    if (logical === undefined && LOGICAL_BY_LOCATION.has(dom.key)) {
+      logical = LOGICAL_BY_LOCATION.get(dom.key)[dom.location] ?? LOGICAL_BY_LOCATION.get(dom.key)[0];
+    }
+    if (logical === undefined && isCharacter) {
+      // Printable: the code point of the lower-case character, Flutter's
+      // "unicode plane".
+      logical = BigInt(dom.key.toLowerCase().codePointAt(0));
+    }
+    if (logical === undefined) logical = hashName(dom.key);
+
+    let type;
+    if (dom.type === 'keyup') {
+      if (!pressed.has(dom.code)) return;  // an up we never saw the down of
+      pressed.delete(dom.code);
+      type = KEY_UP;
+    } else {
+      type = pressed.has(dom.code) ? KEY_REPEAT : KEY_DOWN;
+      pressed.add(dom.code);
+    }
+    // The character typed, on down and repeat, unless a modifier makes
+    // it a shortcut rather than text.
+    const character = type !== KEY_UP && isCharacter && !dom.ctrlKey && !dom.metaKey ? dom.key : '';
+    const bytes = encoder.encode(character);
+    const pointer = bytes.length ? swift.starling_alloc(bytes.length) : 0;
+    if (pointer) appBytes().set(bytes, pointer);
+    swift.starling_key(type, physical, logical, pointer, bytes.length, dom.timeStamp);
+    if (pointer) swift.starling_free(pointer);
+    // The browser's own shortcuts (reload, new tab, find) stay the
+    // browser's; everything else is the app's, so Tab and Space do not
+    // scroll or move focus out of the canvas.
+    if (!dom.metaKey && !dom.ctrlKey) dom.preventDefault();
+  };
+  canvas.tabIndex = 0;
+  canvas.addEventListener('keydown', key);
+  canvas.addEventListener('keyup', key);
+  canvas.addEventListener('pointerdown', () => canvas.focus());
+  canvas.focus();
+  // Keys held while the tab loses focus never send an up; release them.
+  window.addEventListener('blur', () => {
+    for (const code of [...pressed]) key({ type: 'keyup', code, key: 'Unidentified', location: 0, timeStamp: performance.now() });
+  });
   canvas.addEventListener('wheel', (dom) => {
     const box = canvas.getBoundingClientRect();
     // deltaMode 1 is lines, 2 is pages; the framework wants pixels.

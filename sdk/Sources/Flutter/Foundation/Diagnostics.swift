@@ -1613,7 +1613,7 @@ public class TextTreeRenderer {
                 }
 
                 builder.write(
-                    config.isNameOnOwnLine || description.contains("\n") ? "\n" : " ",
+                    config.isNameOnOwnLine || description.contains(Character("\n")) ? "\n" : " ",
                     allowWrap: wrapName
                 )
             }
@@ -2120,7 +2120,7 @@ open class DiagnosticsNode: DiagnosticsNodeProtocol {
             if name == nil || name!.isEmpty || !showName {
                 return description
             }
-            return description.contains("\n")
+            return description.contains(Character("\n"))
                 ? "\(name!)\(separator)\n\(description)"
                 : "\(name!)\(separator) \(description)"
         }

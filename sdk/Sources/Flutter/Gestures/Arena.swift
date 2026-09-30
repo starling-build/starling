@@ -359,7 +359,7 @@ public class GestureArenaManager {
                 let count = state?.members.count
                 let s = count != 1 ? "s" : ""
                 debugPrint(
-                    "Gesture arena \(String(pointer).padding(toLength: 4, withPad: " ", startingAt: 0)) \u{2759} \(message)\(count != nil ? " with \(count!) member\(s)." : "")",
+                    "Gesture arena \(String(pointer).paddedToLength(4)) \u{2759} \(message)\(count != nil ? " with \(count!) member\(s)." : "")",
                     nil
                 )
             }

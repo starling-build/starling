@@ -116,6 +116,12 @@ public class SwiftRuntimeDelegate: @unchecked Sendable {
     platformDispatcher.onKeyData?(KeyData.fromPacket(data)) ?? false
   }
 
+  /// The same, for a host that has the fields rather than the packet
+  /// (the web host builds them from a DOM event).
+  public func dispatchKeyData(_ keyData: KeyData) {
+    _ = platformDispatcher.onKeyData?(keyData)
+  }
+
   // MARK: - Platform Messages
 
   /// Called by the engine to dispatch a platform channel message.

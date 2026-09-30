@@ -88,14 +88,14 @@ if [ "$CHECK" = 1 ]; then
 fi
 if [ "$BUILD" = 1 ]; then
     STARLING_WASM=1 swift build --package-path "$REPO/sdk" --scratch-path "$SCRATCH" \
-        --swift-sdk "$SWIFT_SDK" -c "$CONFIG" --product "$TARGET" "${LINK_FLAGS[@]}"
+        --swift-sdk "$SWIFT_SDK" -c "$CONFIG" --product "$TARGET" ${LINK_FLAGS[@]+"${LINK_FLAGS[@]}"}
 fi
 
 WASM="$SCRATCH/$CONFIG/$TARGET.wasm"
 [ -f "$WASM" ] || { echo "error: $WASM was not built" >&2; exit 1; }
 
 mkdir -p "$STAGE/skwasm" "$STAGE/fonts"
-install -m 644 "$REPO/web/host/index.html" "$REPO/web/host/starling.js" "$STAGE/"
+install -m 644 "$REPO/web/host/index.html" "$REPO/web/host/starling.js" "$REPO/web/host/keymap.js" "$STAGE/"
 # binaryen's optimizer takes a third off Swift's output (15 MB of code to
 # 9 MB in the first measurement), in ten seconds. Optional: without it the
 # page is the same page, larger. `brew install binaryen` / `apt install

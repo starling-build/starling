@@ -9,7 +9,7 @@
 //
 //   swift run -c release TodosApp
 
-#if os(Linux)
+#if os(Linux) || os(WASI)
 import CupertinoIcons
 import ExampleHost
 import Flutter
@@ -46,7 +46,7 @@ class _TodoHomePageState: State<StatefulWidget> {
     }
 
     private func _addTodo(_ title: String) {
-        let trimmed = title.trimmingCharacters(in: .whitespaces)
+        let trimmed = title.trimmingWhitespace(newlines: false)
         guard !trimmed.isEmpty else { return }
         setState {
             _todos.append(Todo(id: _nextId, title: trimmed, done: false))

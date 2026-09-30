@@ -182,6 +182,20 @@ public final class WebHost {
         }
     }
 
+    // MARK: Keys
+
+    func key(
+        type: Int32, physical: Int64, logical: Int64, character: String?, milliseconds: Double
+    ) {
+        let types: [KeyEventType] = [.down, .up, .repeat]
+        guard types.indices.contains(Int(type)) else { return }
+        delegate.dispatchKeyData(
+            KeyData(
+                timeStamp: milliseconds / 1000, type: types[Int(type)],
+                physical: physical, logical: logical, character: character,
+                synthesized: false))
+    }
+
     func scroll(
         device: Int32, x cssX: Double, y cssY: Double, deltaX: Double, deltaY: Double,
         milliseconds: Double
@@ -244,6 +258,26 @@ func starlingPointer(
         event, device: device,
         kind: kinds.indices.contains(Int(kind)) ? kinds[Int(kind)] : .mouse,
         x: x, y: y, buttons: buttons, milliseconds: milliseconds)
+}
+
+/// `type` is 0 down, 1 up, 2 repeat; the ids are Flutter's physical and
+/// logical key ids; `character` (UTF-8, in OUR memory) is what the key
+/// types, empty when nothing.
+@_expose(wasm, "starling_key")
+@_cdecl("starling_key")
+func starlingKey(
+    _ type: Int32, _ physical: Int64, _ logical: Int64,
+    _ character: UnsafePointer<UInt8>?, _ characterLength: Int32, _ milliseconds: Double
+) {
+    var text: String? = nil
+    if let character, characterLength > 0 {
+        text = String(
+            decoding: UnsafeBufferPointer(start: character, count: Int(characterLength)),
+            as: UTF8.self)
+    }
+    WebHost.shared.key(
+        type: type, physical: physical, logical: logical, character: text,
+        milliseconds: milliseconds)
 }
 
 @_expose(wasm, "starling_scroll")

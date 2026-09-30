@@ -1090,6 +1090,13 @@ if wasmBuild {
         .unsafeFlags([
             "-Xclang-linker", "-mexec-model=reactor",
             "-Xlinker", "--export-if-defined=__main_argc_argv",
+            // The shadow stack. The toolchain's default is small, and a
+            // debug build of a deep widget tree walks off the end of it —
+            // silently, into the heap, until malloc fails on a small object
+            // many frames later. 16 MB. (--stack-first, which would make
+            // an overflow trap instead, is refused: the driver fixes
+            // --global-base=4096 and the two cannot be combined.)
+            "-Xlinker", "-z", "-Xlinker", "stack-size=16777216",
         ]),
         // DWARF and the name section are a third of a release module and
         // the browser downloads them. A debug build keeps them: they are
@@ -1129,6 +1136,7 @@ if wasmBuild {
         .library(name: "FlutterWeb", targets: ["FlutterWeb"]),
         .executable(name: "WebPixels", targets: ["WebPixels"]),
         .executable(name: "CounterApp", targets: ["CounterApp"]),
+        .executable(name: "TodosApp", targets: ["TodosApp"]),
     ]
     targets = [
         .target(name: "CSkwasm"),
@@ -1186,6 +1194,14 @@ if wasmBuild {
             name: "CounterApp",
             dependencies: ["Flutter", "ExampleHost", "FlutterSwiftBridge", "CupertinoIcons"],
             path: "Examples/CounterApp",
+            swiftSettings: [.swiftLanguageMode(.v5)] + noLegacyFoundation,
+            linkerSettings: reactor
+        ),
+        // The todo list: text fields, so the keyboard path is exercised.
+        .executableTarget(
+            name: "TodosApp",
+            dependencies: ["Flutter", "ExampleHost", "FlutterSwiftBridge", "CupertinoIcons"],
+            path: "Examples/TodosApp",
             swiftSettings: [.swiftLanguageMode(.v5)] + noLegacyFoundation,
             linkerSettings: reactor
         ),
