@@ -178,7 +178,7 @@ final class Ribbon: StatelessWidget {
         let sizes: [Double] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
         let currentSize = session.effectiveFontSize
         let fontRow1 = Chrome.row([
-            SizedBox(width: 172, height: nil, child: ComboBox<String>(
+            SizedBox(width: 166, height: nil, child: ComboBox<String>(
                 value: session.effectiveFontFamily,
                 items: OfficeFonts.families.map { f in
                     ComboBoxItem<String>(value: f, child: Text(f, style: fluent.typography.body?.copyWith(color: nil)))
@@ -283,7 +283,7 @@ final class Ribbon: StatelessWidget {
                             action: @escaping () -> Void) -> Widget {
         let look = _preview(entry, fluent, cap: 18, onAccent: on)
         return Padding(padding: EdgeInsets(left: 0, top: 0, right: 4, bottom: 0),
-                child: SizedBox(width: 80, height: 56, child: ToggleButton(
+                child: SizedBox(width: 76, height: 56, child: ToggleButton(
                     checked: on, onChanged: { _ in action() },
                     child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
                         Text(entry.id == RichNamedStyle.normalId ? "AaBbCc" : "AaBb", style: look),
