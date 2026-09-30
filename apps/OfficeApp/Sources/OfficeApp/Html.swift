@@ -60,15 +60,15 @@ enum HtmlFormat {
             case .text(var t):
                 if inHead > 0 { continue }
                 if pre == 0 {
-                    t = t.replacingOccurrences(of: "\r\n", with: " ").replacingOccurrences(of: "\n", with: " ")
-                    t = t.replacingOccurrences(of: "\t", with: " ")
-                    while t.contains("  ") { t = t.replacingOccurrences(of: "  ", with: " ") }
+                    t = t.replacingAll("\r\n", with: " ").replacingAll("\n", with: " ")
+                    t = t.replacingAll("\t", with: " ")
+                    while t.containsSubstring("  ") { t = t.replacingAll("  ", with: " ") }
                     if text.isEmpty || text.hasSuffix(" ") { t = String(t.drop(while: { $0 == " " })) }
                     if t.isEmpty { continue }
                     emit(t)
                 } else {
                     // Preformatted: each line its own Code paragraph.
-                    let lines = t.replacingOccurrences(of: "\r\n", with: "\n").split(separator: "\n", omittingEmptySubsequences: false)
+                    let lines = t.replacingAll("\r\n", with: "\n").split(separator: "\n", omittingEmptySubsequences: false)
                     for (i, line) in lines.enumerated() {
                         if i > 0 { flush(); var s = RichParagraphStyle.body; sheet.apply("Code", to: &s); style = s; open = true }
                         emit(String(line))
@@ -131,7 +131,7 @@ enum HtmlFormat {
                 case "img":
                     if let src = attrs["src"], src.hasPrefix("data:image/"),
                        let comma = src.firstIndex(of: ","),
-                       let data = Data(base64Encoded: String(src[src.index(after: comma)...]).trimmingCharacters(in: .whitespacesAndNewlines)),
+                       let data = Data(base64Encoded: String(src[src.index(after: comma)...]).trimmingWhitespace()),
                        let px = ImageAttachment.pngPixelSize(data) {
                         flush()
                         var w = Double(attrs["width"].flatMap(Double.init) ?? Double(px.width) * 0.75)
@@ -169,14 +169,14 @@ enum HtmlFormat {
 
     private static func _applyInlineStyle(_ css: String, to char: inout CharStyle) {
         for decl in css.split(separator: ";") {
-            let parts = decl.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            let parts = decl.split(separator: ":", maxSplits: 1).map { $0.trimmingWhitespace(newlines: false).lowercased() }
             guard parts.count == 2 else { continue }
             switch parts[0] {
             case "font-weight": if parts[1] == "bold" || (Int(parts[1]) ?? 0) >= 600 { char.bold = true }
             case "font-style": if parts[1] == "italic" { char.italic = true }
             case "text-decoration", "text-decoration-line":
-                if parts[1].contains("underline") { char.underline = true }
-                if parts[1].contains("line-through") { char.strikethrough = true }
+                if parts[1].containsSubstring("underline") { char.underline = true }
+                if parts[1].containsSubstring("line-through") { char.strikethrough = true }
             case "color": if let c = _color(parts[1]) { char.color = c }
             case "background-color", "background": if let c = _color(parts[1]) { char.highlight = c }
             case "font-size":
@@ -190,14 +190,14 @@ enum HtmlFormat {
     private static func _color(_ s: String) -> Color? {
         if s.hasPrefix("#") {
             let hex = String(s.dropFirst())
-            if hex.count == 6, let v = Int(hex, radix: 16) { return Color(0xFF000000 | v) }
-            if hex.count == 3, let v = Int(hex, radix: 16) {
+            if hex.count == 6, let v = Int64(hex, radix: 16) { return Color(0xFF000000 | v) }
+            if hex.count == 3, let v = Int64(hex, radix: 16) {
                 let r = (v >> 8) & 0xF, g = (v >> 4) & 0xF, b = v & 0xF
                 return Color(0xFF000000 | (r * 17) << 16 | (g * 17) << 8 | (b * 17))
             }
         }
         if s.hasPrefix("rgb(") {
-            let nums = s.dropFirst(4).dropLast().split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+            let nums = s.dropFirst(4).dropLast().split(separator: ",").compactMap { Int64($0.trimmingWhitespace(newlines: false)) }
             if nums.count == 3 { return Color(0xFF000000 | nums[0] << 16 | nums[1] << 8 | nums[2]) }
         }
         return nil
@@ -222,12 +222,12 @@ enum HtmlFormat {
                     continue
                 }
                 guard let end = _find(">", chars, from: i + 1) else { break }
-                let inner = String(chars[(i + 1) ..< end]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let inner = String(chars[(i + 1) ..< end]).trimmingWhitespace()
                 i = end + 1
                 if inner.hasPrefix("!") || inner.hasPrefix("?") { continue }
                 flushText()
                 if inner.hasPrefix("/") {
-                    out.append(.close(String(inner.dropFirst()).trimmingCharacters(in: .whitespaces).lowercased()))
+                    out.append(.close(String(inner.dropFirst()).trimmingWhitespace(newlines: false).lowercased()))
                     continue
                 }
                 var body = Substring(inner)
@@ -301,7 +301,7 @@ enum HtmlFormat {
     /// anything that does not decode stays as written. Never revisits text,
     /// so no input can loop it.
     private static func _unescape(_ s: String) -> String {
-        guard s.contains("&") else { return s }
+        guard s.containsSubstring("&") else { return s }
         var out = ""
         var i = s.startIndex
         while i < s.endIndex {
@@ -416,7 +416,7 @@ enum HtmlFormat {
         for run in p.runs where run.length > 0 {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
-            var piece = _escape(String(utf16[a ..< b]) ?? "").replacingOccurrences(of: "\n", with: "<br>")
+            var piece = _escape(String(utf16[a ..< b]) ?? "").replacingAll("\n", with: "<br>")
             pos += run.length
             let s = run.style
             var css: [String] = []
@@ -439,11 +439,11 @@ enum HtmlFormat {
     }
 
     private static func _escape(_ s: String) -> String {
-        s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;")
+        s.replacingAll("&", with: "&amp;").replacingAll("<", with: "&lt;")
+            .replacingAll(">", with: "&gt;").replacingAll("\"", with: "&quot;")
     }
 
-    private static func _hex(_ c: Color) -> String { String(format: "%06X", c.value & 0xFFFFFF) }
+    private static func _hex(_ c: Color) -> String { String(printf: "%06X", UInt32(truncatingIfNeeded: c.value & 0xFFFFFF)) }
 }
 
 /// Writer's clipboard: RTF and HTML out, RTF or HTML in, through the

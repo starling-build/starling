@@ -76,7 +76,7 @@ typedef struct {
   void (*dispatch_pointer_data_packet)(void* context,
                                        const uint8_t* data,
                                        size_t data_len);
-  void (*dispatch_key_data)(void* context,
+  bool (*dispatch_key_data)(void* context,
                              const uint8_t* data,
                              size_t data_len);
   void (*dispatch_semantics_action)(void* context,
@@ -97,6 +97,23 @@ typedef struct {
   void (*set_initial_lifecycle_state)(void* context, const char* data);
 
   // -- Platform messages --------------------------------------------------
+
+  // Outbound: the host hands Swift a sender (the web host does so from its
+  // boot); `send` posts a message from the framework to the platform, and
+  // the host replies through `platform_message_response` with the id Swift
+  // chose (0 for none). Mirrors the engine's table entry for entry.
+  void (*platform_message_sender_ready)(
+      void* context,
+      void* sender,
+      void (*send)(void* sender,
+                   const char* channel,
+                   const uint8_t* data,
+                   size_t data_len,
+                   int32_t response_id));
+  void (*platform_message_response)(void* context,
+                                    int32_t response_id,
+                                    const uint8_t* data,
+                                    size_t data_len);
 
   void (*dispatch_platform_message)(void* context,
                                     const char* channel,

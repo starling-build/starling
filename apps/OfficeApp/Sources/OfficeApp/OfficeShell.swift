@@ -242,11 +242,11 @@ final class OfficeShellState: State<StatefulWidget> {
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
             PlatformDispatcher.instance.sendPlatformMessage("flutter/platform", request) { reply in
                 let text = reply.map { String(decoding: $0, as: UTF8.self) } ?? "<no reply>"
-                FileHandle.standardError.write(Data("[probe] flutter/platform Clipboard.getData -> \(text)\n".utf8))
+                fputs("[probe] flutter/platform Clipboard.getData -> \(text)\n", stderr)
                 exit(0)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(5)) {
-                FileHandle.standardError.write(Data("[probe] timed out waiting for a reply\n".utf8))
+                fputs("[probe] timed out waiting for a reply\n", stderr)
                 exit(1)
             }
         }
@@ -257,6 +257,9 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Render to a PDF in the temporary directory and hand it to the host's
     /// print dialog.
     private func _print() {
+        #if os(WASI)
+        _flash("Printing is not available in the browser yet")
+        #else
         let path = NSTemporaryDirectory() + "office-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
         guard PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,
                               to: path, title: session.title) else {
@@ -265,6 +268,7 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         setState { _backstage = nil }
         if let print = hostPrintPDF { print(path) } else { _flash("No print dialog on this host") }
+        #endif
     }
 
     // MARK: AutoSave and recovery
@@ -274,15 +278,24 @@ final class OfficeShellState: State<StatefulWidget> {
     /// that has no file yet.
     private func _recoveryPath(for path: String?) -> String {
         if let path { return path + "~" }
+        #if os(WASI)
+        return "/office-recovery/untitled.docx~"  // never written: see _scheduleAutosave
+        #else
         let dir = NSHomeDirectory() + "/.config/starling/office-recovery"
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         return dir + "/untitled.docx~"
+        #endif
     }
 
     /// Two seconds after the last edit: AutoSave writes the file itself
     /// when it is on and the document has one; either way the recovery
     /// copy is refreshed.
     private func _scheduleAutosave() {
+        #if os(WASI)
+        // The browser has no files of ours to write: the document lives in
+        // the page until the user downloads it. No recovery copy either.
+        return
+        #else
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
@@ -306,6 +319,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 try? data.write(to: URL(fileURLWithPath: recovery), options: .atomic)
             }
         }
+        #endif
     }
 
     /// On open: a recovery copy newer than the file means the last session
@@ -695,11 +709,11 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _applyLink() {
-        var url = _linkText.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var url = _linkText.text.trimmingWhitespace()
         guard !url.isEmpty else { setState { _linkOpen = false }; return }
         // A bare host becomes https, a bare address mailto.
-        if !url.contains("://") && !url.hasPrefix("mailto:") && !url.hasPrefix("#") {
-            url = url.contains("@") && !url.contains("/") ? "mailto:" + url : "https://" + url
+        if !url.containsSubstring("://") && !url.hasPrefix("mailto:") && !url.hasPrefix("#") {
+            url = url.containsSubstring("@") && !url.containsSubstring("/") ? "mailto:" + url : "https://" + url
         }
         controller.setLink(url)
         setState { _linkOpen = false }

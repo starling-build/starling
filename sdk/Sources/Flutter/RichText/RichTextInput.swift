@@ -18,7 +18,13 @@ import Foundation
 public final class RichTextInputConnection {
     public static let channel = "flutter/textinput"
     /// Whether editables connect at all.
+    #if os(WASI)
+    /// The browser has no text-input plugin behind `flutter/textinput` yet:
+    /// composed input there is a follow-up (docs/plans/wasm.md).
+    public nonisolated(unsafe) static var enabled: Bool = false
+    #else
     public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != nil
+    #endif
 
     private static var _nextClient = 1
     private let _clientId: Int
@@ -50,7 +56,7 @@ public final class RichTextInputConnection {
             }
         }
         let config: [String: Any] = [
-            "inputType": ["name": "TextInputType.multiline", "signed": NSNull(), "decimal": NSNull()],
+            "inputType": ["name": "TextInputType.multiline", "signed": Self._null, "decimal": Self._null],
             "inputAction": "TextInputAction.newline",
             "readOnly": false,
             "obscureText": false,
@@ -121,6 +127,9 @@ public final class RichTextInputConnection {
     // MARK: Incoming
 
     private func _handle(_ data: Data?) {
+        #if os(WASI)
+        return
+        #else
         guard let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let method = json["method"] as? String else { return }
         Self._log("recv \(method) \(String(data: data, encoding: .utf8)?.prefix(200) ?? "")")
@@ -148,6 +157,7 @@ public final class RichTextInputConnection {
         default:
             break
         }
+        #endif
     }
 
     /// The plugin's whole state for the paragraph: diff against ours by
@@ -167,7 +177,7 @@ public final class RichTextInputConnection {
         _applying = true
         defer { _applying = false }
         if prefix + suffix < old.count || prefix + suffix < new.count {
-            let piece = String(utf16CodeUnits: Array(new[prefix ..< new.count - suffix]), count: new.count - suffix - prefix)
+            let piece = String(decoding: new[prefix ..< new.count - suffix], as: UTF16.self)
             _controller.replaceText(in: p, prefix ..< old.count - suffix, with: piece)
         }
         let length = new.count
@@ -187,11 +197,23 @@ public final class RichTextInputConnection {
 
     // MARK: Outgoing
 
+    /// JSON `null` for the method codec (`NSNull` is legacy Foundation,
+    /// which the web build does not link).
+    private static var _null: Any {
+        #if os(WASI)
+        return Optional<Int>.none as Any
+        #else
+        return NSNull()
+        #endif
+    }
+
     private func _send(_ method: String, _ args: Any?) {
+        #if !os(WASI)
         var body: [String: Any] = ["method": method]
-        body["args"] = args ?? NSNull()
+        body["args"] = args ?? Self._null
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { return }
         Self._log("send \(method) sender=\(PlatformDispatcher.instance.platformMessageSender != nil) \(String(data: data, encoding: .utf8)?.prefix(160) ?? "")")
         PlatformDispatcher.instance.sendPlatformMessage(Self.channel, data) { _ in }
+        #endif
     }
 }

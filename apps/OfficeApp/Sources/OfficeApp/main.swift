@@ -43,6 +43,9 @@ private func windowMetric(_ key: String, _ fallback: Int) -> Int {
     return n
 }
 
+// The command-line modes — a benchmark and a converter — need a process
+// with arguments and files, which a tab is not.
+#if !os(WASI)
 /// No host boots for the command-line modes, so nobody hands the bridge its
 /// ICU data; without it a paragraph's lines break between characters. Same
 /// file the hosts use.
