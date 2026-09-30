@@ -363,7 +363,8 @@ final class Ribbon: StatelessWidget {
     /// each previewed as its first three items.
     private func _listLibrary(_ tip: String, _ library: [ListLevelFormat],
                               _ c: RichDocumentController, _ fluent: FluentThemeData) -> Widget {
-        let current = c.currentListFormat
+        let level = c.document.paragraphs[c.selection.focus.paragraph].style.listLevel
+        let current = c.currentListFormat?.asLibraryEntry(atLevel: level)
         let items: [MenuFlyoutItemBase] = library.map { f in
             let preview = f.format == .bullet ? "\(f.text)  \(f.text)  \(f.text)" : "\(f.sample(1))  \(f.sample(2))  \(f.sample(3))"
             return MenuFlyoutItem(text: Text(preview), onPressed: { c.setListFormat(f) }, selected: f == current)
@@ -586,12 +587,15 @@ private final class _SplitChevronState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let w = widget as! _SplitChevron
         let fluent = FluentTheme.of(context)
+        // The whole strip takes the click (a GestureDetector defers to its
+        // child by default, and a SizedBox has no box of its own).
         return FlyoutTarget(controller: _flyout, child: GestureDetector(
             onTap: { [weak self] in
                 guard let self else { return }
                 self._flyout.showFlyout(builder: { _ in MenuFlyout(items: w.items) }, placement: .bottom)
             },
-            child: SizedBox(width: 13, height: nil, child: Center(child: Text(
+            behavior: .opaque,
+            child: SizedBox(width: 13, height: 30, child: Center(child: Text(
                 "\u{25BC}", style: TextStyle(color: fluent.resources.textFillColorSecondary, fontSize: 8))))))
     }
 }

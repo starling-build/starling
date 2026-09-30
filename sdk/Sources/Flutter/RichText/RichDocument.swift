@@ -327,6 +327,12 @@ public struct CellRef: Hashable, Sendable {
         r >= row && r < row + rowSpan && c >= column && c < column + span
     }
 
+    /// Whether the cell's extent touches the grid rectangle.
+    public func intersects(rows: ClosedRange<Int>, columns: ClosedRange<Int>) -> Bool {
+        row <= rows.upperBound && row + rowSpan - 1 >= rows.lowerBound
+            && column <= columns.upperBound && column + span - 1 >= columns.lowerBound
+    }
+
     /// Same cell, ignoring the span.
     public func sameCell(as other: CellRef) -> Bool {
         table == other.table && row == other.row && column == other.column
@@ -392,6 +398,18 @@ public struct ListLevelFormat: Hashable, Sendable {
     public static let bulletLibrary: [ListLevelFormat] = [
         "\u{2022}", "\u{25E6}", "\u{25AA}", "\u{2013}", "\u{27A2}", "\u{2713}", "\u{2756}",
     ].map { ListLevelFormat(text: $0, format: .bullet) }
+
+    /// A library entry is written for level 1 ("%1."); at a deeper level
+    /// its counter is that level's ("%3." at level 2). The reverse gives
+    /// the entry a stored format matches, for the library's check mark.
+    public func forLevel(_ level: Int) -> ListLevelFormat {
+        ListLevelFormat(text: text.replacingOccurrences(of: "%1", with: "%\(level + 1)"), format: format)
+    }
+
+    public func asLibraryEntry(atLevel level: Int) -> ListLevelFormat {
+        guard level > 0, !text.contains("%1") else { return self }
+        return ListLevelFormat(text: text.replacingOccurrences(of: "%\(level + 1)", with: "%1"), format: format)
+    }
 
     /// What the level shows for item `n` at level `level`, as the ribbon
     /// previews it: "1.", "a)", "•".
@@ -835,9 +853,10 @@ public struct CellBlock: Hashable, Sendable {
         self.columns = columns
     }
 
-    /// Whether a cell (by its origin) lies in the block.
+    /// Whether a cell lies in the block. A block is closed over merged
+    /// cells (see `RichDocument.cellBlock`), so touching it is being in it.
     public func contains(_ c: CellRef) -> Bool {
-        c.table == table && rows.contains(c.row) && columns.contains(c.column)
+        c.table == table && c.intersects(rows: rows, columns: columns)
     }
 }
 
@@ -939,8 +958,20 @@ public struct RichDocument: Hashable, Sendable {
         guard a.paragraph < paragraphs.count, b.paragraph < paragraphs.count,
               let ca = paragraphs[a.paragraph].cell, let cb = paragraphs[b.paragraph].cell,
               ca.table == cb.table, !ca.sameCell(as: cb) else { return nil }
-        let rows = min(ca.row, cb.row) ... max(ca.row + ca.rowSpan - 1, cb.row + cb.rowSpan - 1)
-        let cols = min(ca.column, cb.column) ... max(ca.column + ca.span - 1, cb.column + cb.span - 1)
+        var rows = min(ca.row, cb.row) ... max(ca.row + ca.rowSpan - 1, cb.row + cb.rowSpan - 1)
+        var cols = min(ca.column, cb.column) ... max(ca.column + ca.span - 1, cb.column + cb.span - 1)
+        // A merged cell straddling an edge pulls the rectangle out to cover
+        // it whole, until nothing straddles: a block is always whole cells.
+        let cells = paragraphs(inTable: ca.table).compactMap { paragraphs[$0].cell }
+        var grew = true
+        while grew {
+            grew = false
+            for c in cells where c.intersects(rows: rows, columns: cols) {
+                let r = min(rows.lowerBound, c.row) ... max(rows.upperBound, c.row + c.rowSpan - 1)
+                let k = min(cols.lowerBound, c.column) ... max(cols.upperBound, c.column + c.span - 1)
+                if r != rows || k != cols { rows = r; cols = k; grew = true }
+            }
+        }
         return CellBlock(table: ca.table, rows: rows, columns: cols)
     }
 

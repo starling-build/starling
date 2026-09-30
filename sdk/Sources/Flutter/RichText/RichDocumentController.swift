@@ -460,16 +460,28 @@ public final class RichDocumentController: ChangeNotifier {
     /// `smart`, single-paragraph text is padded with a space where it
     /// would otherwise run into a word; the caret ends after the text and
     /// `lastInserted` records where the text itself went.
-    public func insertFragment(_ fragment: [RichParagraph], smart: Bool = false) {
-        guard !fragment.isEmpty else { return }
+    @discardableResult
+    public func insertFragment(_ fragment: [RichParagraph], smart: Bool = false) -> (before: Bool, after: Bool) {
+        guard !fragment.isEmpty else { return (false, false) }
+        var applied = (before: false, after: false)
         edit {
             if hasSelection { _deleteSelectionOps() }
+            if document.paragraphs[selection.focus.paragraph].isImage {
+                // Pasting or dropping on a picture goes below it, as typing does.
+                let i = selection.focus.paragraph
+                perform(.insertParagraphs(at: i + 1, [RichParagraph()]))
+                _setCaret(RichPosition(paragraph: i + 1, offset: 0))
+            }
             var fragment = fragment
             var pos = selection.focus
             if smart, fragment.count == 1, !fragment[0].isImage {
                 let pad = _smartPad(fragment[0].text, at: pos)
-                if pad.before { fragment[0].insert(" ", at: 0) }
-                if pad.after { fragment[0].insert(" ", at: fragment[0].length) }
+                // The added spaces are the destination's, not the fragment's
+                // (a pasted link must not grow by a linked space).
+                let here = [Run(length: 1, style: document.paragraphs[pos.paragraph].style(at: pos.offset))]
+                if pad.before { fragment[0].insert(" ", at: 0, runs: here) }
+                if pad.after { fragment[0].insert(" ", at: fragment[0].length, runs: here) }
+                applied = pad
             }
             for (i, para) in fragment.enumerated() {
                 if i > 0 {
@@ -488,6 +500,7 @@ public final class RichDocumentController: ChangeNotifier {
             }
             _setCaret(pos)
         }
+        return applied
     }
 
     /// Whether `text`, put at `pos`, needs a space before or after it so
@@ -500,6 +513,9 @@ public final class RichDocumentController: ChangeNotifier {
         let after = pos.offset < units.count && RichParagraph.classify(units[pos.offset]) == .word && RichParagraph.classify(l) == .word
         return (before, after)
     }
+
+    /// What a space never precedes: sentence and clause ends, closers.
+    private static let _closingPunctuation: Set<UInt16> = Set(".,;:!?)]}\u{00BB}\u{201D}\u{2019}".utf16)
 
     /// After a cut or a move removed text at the caret: one space where
     /// two met, none before a full stop or at the paragraph's start.
@@ -516,7 +532,7 @@ public final class RichDocumentController: ChangeNotifier {
         let after = pos.offset < units.count ? units[pos.offset] : nil
         var removeAt: Int? = nil
         if before == space, after == space { removeAt = pos.offset }
-        else if before == space, let a = after, RichParagraph.classify(a) == .punct { removeAt = pos.offset - 1 }
+        else if before == space, let a = after, Self._closingPunctuation.contains(a) { removeAt = pos.offset - 1 }
         else if before == nil, after == space { removeAt = pos.offset }
         guard let at = removeAt else { return nil }
         _deleteRange(in: pos.paragraph, at ..< at + 1)
@@ -548,15 +564,16 @@ public final class RichDocumentController: ChangeNotifier {
                 }
             }
             _setCaret(target)
-            let before = document.paragraphs[target.paragraph].length
-            insertFragment(fragment, smart: true)
+            let pad = insertFragment(fragment, smart: true)
             // Select the dropped text itself, not a space smart spacing added.
+            let at = selection.focus   // after the fragment (and its pad)
             let text = fragment.map(\.text).joined(separator: "\n").utf16.count
-            let grew = fragment.count == 1 ? document.paragraphs[target.paragraph].length - before - text : 0
-            let leading = grew > 0 && Array(document.paragraphs[target.paragraph].text.utf16)[target.offset] == 0x20 ? 1 : 0
-            let start = RichPosition(paragraph: target.paragraph, offset: target.offset + leading)
-            let end = fragment.count == 1 ? RichPosition(paragraph: target.paragraph, offset: start.offset + text) : selection.focus
-            selection = RichSelection(anchor: start, focus: end)
+            if fragment.count == 1 {
+                let end = RichPosition(paragraph: at.paragraph, offset: at.offset - (pad.after ? 1 : 0))
+                selection = RichSelection(anchor: RichPosition(paragraph: at.paragraph, offset: end.offset - text), focus: end)
+            } else {
+                selection = RichSelection(anchor: target, focus: at)
+            }
         }
     }
 
@@ -765,8 +782,15 @@ public final class RichDocumentController: ChangeNotifier {
             }
             for i in indices.reversed() {
                 if firstOfCell.contains(i) {
-                    let len = document.paragraphs[i].length
-                    if len > 0 { _deleteRange(in: i, 0 ..< len) }
+                    let para = document.paragraphs[i]
+                    if para.isImage {
+                        var empty = RichParagraph(style: para.style)
+                        empty.cell = para.cell
+                        perform(.removeParagraphs(at: i, [para]))
+                        perform(.insertParagraphs(at: i, [empty]))
+                    } else if para.length > 0 {
+                        _deleteRange(in: i, 0 ..< para.length)
+                    }
                 } else {
                     perform(.removeParagraphs(at: i, [document.paragraphs[i]]))
                 }
@@ -780,6 +804,16 @@ public final class RichDocumentController: ChangeNotifier {
         guard a != b else { return }
         if a.paragraph == b.paragraph {
             _deleteRange(in: a.paragraph, a.offset ..< b.offset)
+        } else if _crossesCellWall(a, b) {
+            // A range that leaves a cell (or enters one) clears what it
+            // covers and keeps every paragraph: cells never merge into
+            // the text around them, and a cell never loses its last one.
+            for i in a.paragraph ... b.paragraph {
+                let len = document.paragraphs[i].length
+                let lo = i == a.paragraph ? a.offset : 0
+                let hi = i == b.paragraph ? b.offset : len
+                _deleteRange(in: i, lo ..< hi)
+            }
         } else {
             // Tail of the first, head of the last, the middle ones whole,
             // then join first and last.
@@ -799,6 +833,30 @@ public final class RichDocumentController: ChangeNotifier {
 
     private func _setCaret(_ p: RichPosition) {
         selection = RichSelection(caret: p)
+    }
+
+    /// Whether a range's ends are in different cells, or one in a table
+    /// and the other out (or any paragraph between them is).
+    private func _crossesCellWall(_ a: RichPosition, _ b: RichPosition) -> Bool {
+        let first = document.paragraphs[a.paragraph].cell
+        for i in a.paragraph ... b.paragraph {
+            let c = document.paragraphs[i].cell
+            switch (first, c) {
+            case (nil, nil): continue
+            case let (f?, c?) where f.sameCell(as: c): continue
+            default: return true
+            }
+        }
+        return false
+    }
+
+    /// The offsets of paragraph `i` the selection covers: whole for a
+    /// block, else clipped at the ends.
+    private func _selectedRange(in i: Int) -> Range<Int> {
+        let len = document.paragraphs[i].length
+        if selection.block != nil { return 0 ..< len }
+        let a = document.clamped(selection.start), b = document.clamped(selection.end)
+        return (i == a.paragraph ? a.offset : 0) ..< (i == b.paragraph ? b.offset : len)
     }
 
     // MARK: Character formatting
@@ -943,12 +1001,14 @@ public final class RichDocumentController: ChangeNotifier {
                                       focus: RichPosition(paragraph: p.paragraph, offset: r.upperBound))
         }
         let start = selection.start, end = selection.end
+        let block = selection.block
         edit {
             var sentenceStart = true
-            for i in start.paragraph ... end.paragraph {
+            let indices = document.paragraphIndices(in: selection)
+            for i in indices {
                 let para = document.paragraphs[i]
-                let lo = i == start.paragraph ? start.offset : 0
-                let hi = i == end.paragraph ? end.offset : para.length
+                let r = _selectedRange(in: i)
+                let lo = r.lowerBound, hi = r.upperBound
                 guard hi > lo, !para.isImage else { continue }
                 let a = String.Index(utf16Offset: lo, in: para.text)
                 let b = String.Index(utf16Offset: hi, in: para.text)
@@ -967,8 +1027,10 @@ public final class RichDocumentController: ChangeNotifier {
                 guard newText != old else { continue }
                 _deleteRange(in: i, lo ..< hi)
                 perform(.insertText(RichPosition(paragraph: i, offset: lo), newText, newRuns))
-                if i == end.paragraph {
+                if block == nil, i == end.paragraph {
                     selection = RichSelection(anchor: start, focus: RichPosition(paragraph: i, offset: lo + newText.utf16.count))
+                } else if let block {
+                    selection = RichSelection(anchor: start, focus: end, block: block)
                 }
                 sentenceStart = true
             }
@@ -1132,10 +1194,10 @@ public final class RichDocumentController: ChangeNotifier {
         edit {
             let a = document.clamped(selection.start)
             let b = document.clamped(selection.end)
-            for i in a.paragraph ... b.paragraph {
+            for i in document.paragraphIndices(in: selection) {
                 let old = document.paragraphs[i]
                 var para = old
-                if selection.isCollapsed || (a.paragraph == b.paragraph) {
+                if selection.block == nil, selection.isCollapsed || (a.paragraph == b.paragraph) {
                     let lo = a.paragraph == b.paragraph ? a.offset : 0
                     let hi = a.paragraph == b.paragraph ? b.offset : para.length
                     para.applyStyle(lo ..< hi) { $0 = .plain }
@@ -1777,22 +1839,31 @@ public final class RichDocumentController: ChangeNotifier {
         let kind: ListKind = format.format == .bullet ? .bullet : .numbered
         edit {
             let indices = document.paragraphIndices(in: selection)
-            for i in indices where document.paragraphs[i].style.list != kind {
+            // Items already of this kind take their anonymous run along
+            // (that run is one list); items changing kind leave their old
+            // list and become one new list of their own.
+            for i in indices where document.paragraphs[i].style.list == kind && document.paragraphs[i].style.listId == nil {
+                _assignListId(around: i)
+            }
+            let converted = indices.filter { document.paragraphs[$0].style.list != kind }
+            let freshId = converted.isEmpty ? nil : _freshListId()
+            for i in converted {
                 let old = document.paragraphs[i].style
                 var new = old
                 new.list = kind
+                new.listId = freshId
                 perform(.setParagraphStyle(i, old: old, new: new))
             }
             var targets: [(String, Int)] = []
             for i in indices {
-                if document.paragraphs[i].style.listId == nil { _assignListId(around: i) }
                 let st = document.paragraphs[i].style
                 let t = (st.listId!, st.listLevel)
                 if !targets.contains(where: { $0 == t }) { targets.append(t) }
             }
             for (id, level) in targets {
                 let old = document.listFormats[id]?[level]
-                if old != format { perform(.setListFormat(id, level: level, old: old, new: format)) }
+                let new = format.forLevel(level)
+                if old != new { perform(.setListFormat(id, level: level, old: old, new: new)) }
             }
         }
     }
@@ -1802,13 +1873,22 @@ public final class RichDocumentController: ChangeNotifier {
     public var currentListFormat: ListLevelFormat? {
         let st = document.paragraphs[selection.focus.paragraph].style
         guard let kind = st.list else { return nil }
-        if let id = st.listId, let f = document.listFormats[id]?[st.listLevel] { return f }
+        if let id = st.listId, let f = document.listFormats[id]?[st.listLevel], (f.format == .bullet) == (kind == .bullet) {
+            return f
+        }
         return kind == .bullet ? ListLevelFormat(text: ListLevelFormat.defaultBullet(st.listLevel), format: .bullet)
                                : .plain(st.listLevel)
     }
 
     /// Give paragraph `i`'s anonymous list run — the adjacent items of the
     /// same kind with no id — a fresh id.
+    private func _freshListId() -> String {
+        let used = Set(document.paragraphs.compactMap(\.style.listId)).union(document.listFormats.keys)
+        var n = 1
+        while used.contains("list\(n)") { n += 1 }
+        return "list\(n)"
+    }
+
     private func _assignListId(around i: Int) {
         guard let kind = document.paragraphs[i].style.list else { return }
         func anonymous(_ k: Int) -> Bool {
@@ -1818,10 +1898,7 @@ public final class RichDocumentController: ChangeNotifier {
         var lo = i, hi = i
         while lo > 0, anonymous(lo - 1) { lo -= 1 }
         while hi + 1 < document.paragraphs.count, anonymous(hi + 1) { hi += 1 }
-        let used = Set(document.paragraphs.compactMap(\.style.listId)).union(document.listFormats.keys)
-        var n = 1
-        while used.contains("list\(n)") { n += 1 }
-        let id = "list\(n)"
+        let id = _freshListId()
         for k in lo ... hi {
             let old = document.paragraphs[k].style
             var new = old
@@ -1980,9 +2057,11 @@ public final class RichDocumentController: ChangeNotifier {
     /// clicked (`origin`) to the unit under the pointer, either way round.
     public func extendSelection(to p: RichPosition, byParagraph: Bool, from origin: RichSelection) {
         let unit = unitSpan(at: p, paragraph: byParagraph)
-        selection = unit.start < origin.start
+        var sel = unit.start < origin.start
             ? RichSelection(anchor: origin.end, focus: unit.start)
             : RichSelection(anchor: origin.start, focus: unit.end)
+        sel.block = document.cellBlock(from: sel.anchor, to: sel.focus)
+        selection = sel
     }
 
     public func selectParagraph(at p: RichPosition) {

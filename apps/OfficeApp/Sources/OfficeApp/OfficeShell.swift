@@ -538,13 +538,21 @@ final class OfficeShellState: State<StatefulWidget> {
                 }
                 for g in guesses {
                     item(g) { [weak self] in
+                        // The menu takes no focus, so the document may have
+                        // changed under it: replace only the word still there.
+                        guard pos.paragraph < c.document.paragraphs.count else { return }
+                        let now = c.document.paragraphs[pos.paragraph].text as NSString
+                        guard r.upperBound <= now.length,
+                              now.substring(with: NSRange(location: r.lowerBound, length: r.count)) == word else { return }
                         c.replaceText(in: pos.paragraph, r, with: g)
                         self?._flash("Corrected to “\(g)”")
                     }
                 }
                 sep()
-                item("Ignore All") { [weak self] in checker.ignore(word); self?.controller.invalidateLayout() }
-                item("Add to Dictionary") { [weak self] in checker.learn(word); self?.controller.invalidateLayout() }
+                // The layout re-reads the checker's version on its next paint;
+                // a repaint is all that is needed, not a fresh layout.
+                item("Ignore All") { [weak self] in checker.ignore(word); self?.controller.notifyListeners() }
+                item("Add to Dictionary") { [weak self] in checker.learn(word); self?.controller.notifyListeners() }
                 sep()
             }
         }

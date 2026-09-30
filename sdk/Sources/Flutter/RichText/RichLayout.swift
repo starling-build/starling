@@ -305,7 +305,8 @@ public final class RichLayout {
         var checked = false
         var queue = pendingSpellChecks
         pendingSpellChecks = []
-        while let i = queue.popLast() {
+        while !queue.isEmpty {
+            let i = queue.removeFirst()
             guard i < document.paragraphs.count else { continue }
             let text = document.paragraphs[i].text
             if _spellCache[text] != nil { continue }
@@ -1181,12 +1182,21 @@ public final class RichLayout {
             // Whole cells: each selected cell's box, once per cell.
             var rects: [Rect] = []
             var seen: Set<String> = []
+            // One rect per row a cell covers: a rect starting in a row maps
+            // through that row's page piece, which ends at the row's bottom.
+            var rowGeo: [Int: (top: Double, height: Double)] = [:]
+            for i in document.paragraphs.indices {
+                if let c = _cells[i], c.table == block.table, c.firstInRow { rowGeo[c.row] = (c.rowTop, c.ownRowHeight) }
+            }
             for i in document.paragraphs.indices {
                 guard let c = _cells[i], let ref = document.paragraphs[i].cell, block.contains(ref) else { continue }
                 let key = "\(c.row),\(c.column)"
                 if seen.contains(key) { continue }
                 seen.insert(key)
-                rects.append(Rect.fromLTWH(c.colLeft, c.rowTop, c.colWidth, c.rowHeight))
+                for r in c.row ..< c.row + c.rowSpan {
+                    guard let g = rowGeo[r] else { continue }
+                    rects.append(Rect.fromLTWH(c.colLeft, g.top, c.colWidth, g.height))
+                }
             }
             return rects
         }

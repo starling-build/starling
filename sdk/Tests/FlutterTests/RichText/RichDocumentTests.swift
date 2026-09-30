@@ -570,6 +570,103 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(ListLevelFormat.numberingLibrary[4].sample(4), "iv.")
     }
 
+    func testCellBlockClosesOverMergedCellsAndRangesNeverCrossWalls() {
+        let c = controller("")
+        c.insertTable(rows: 3, columns: 3)
+        for (i, t) in ["a", "b", "c", "d", "e", "f", "g", "h", "i"].enumerated() {
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.insertText(t)
+        }
+        // Merge b down into e: (0,1) spans two rows.
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 4, offset: 0), extend: true)
+        c.mergeCells()
+        XCTAssertEqual(c.document.paragraphs[1].cell?.rowSpan, 2)
+        // Selecting across row 1 (d → f) must take the tall cell whole:
+        // the block grows to rows 0...1.
+        let d = c.document.paragraphs.firstIndex { $0.text == "d" }!
+        let f = c.document.paragraphs.firstIndex { $0.text == "f" }!
+        c.moveTo(RichPosition(paragraph: d, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: f, offset: 1), extend: true)
+        XCTAssertEqual(c.selection.block?.rows, 0 ... 1)
+        XCTAssertEqual(c.selection.block?.columns, 0 ... 2)
+        c.mergeCells()
+        XCTAssertTrue(c.document.isValid)
+        XCTAssertEqual(c.document.paragraphs[0].cell?.span, 3)
+        XCTAssertEqual(c.document.paragraphs[0].cell?.rowSpan, 2)
+        c.undo(); c.undo()
+        // A word drag from one cell into the next is a block too.
+        let origin = c.unitSpan(at: RichPosition(paragraph: 0, offset: 0), paragraph: false)
+        c.extendSelection(to: RichPosition(paragraph: 1, offset: 0), byParagraph: false, from: origin)
+        XCTAssertNotNil(c.selection.block)
+        // A plain range leaving the table clears, and never merges a cell
+        // into the text after it.
+        let last = c.document.paragraphs.count - 1
+        c.moveTo(RichPosition(paragraph: last, offset: 0), extend: false)
+        c.insertText("after")
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 8, offset: 0), focus: RichPosition(paragraph: last, offset: 2))
+        XCTAssertNil(c.selection.block)
+        c.deleteBackward()
+        XCTAssertEqual(c.document.paragraphs.count, last + 1)
+        XCTAssertEqual(c.document.paragraphs[8].text, "")
+        XCTAssertEqual(c.document.paragraphs[last].text, "ter")
+        XCTAssertTrue(c.document.isValid)
+    }
+
+    func testSmartPadTakesDestinationStyleAndDropSelectsText() {
+        let c = controller("one two")
+        // A linked word pasted between words: the added spaces are not linked.
+        var link = RichParagraph(text: "web")
+        link.applyStyle(0 ..< 3) { $0.link = "https://x" }
+        c.moveTo(RichPosition(paragraph: 0, offset: 3), extend: false)   // "one| two"
+        c.insertFragment([link], smart: true)
+        XCTAssertEqual(c.document.paragraphs[0].text, "one web two")
+        XCTAssertNil(c.document.paragraphs[0].style(at: 3).link)
+        XCTAssertEqual(c.document.paragraphs[0].style(at: 5).link, "https://x")
+        XCTAssertNil(c.document.paragraphs[0].style(at: 8).link)
+        // A fragment that starts with a space and gets a trailing pad still
+        // selects exactly itself after a drop.
+        let d = controller("ab cd")
+        d.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 2), focus: RichPosition(paragraph: 0, offset: 5))   // " cd"
+        d.moveSelection(to: RichPosition(paragraph: 0, offset: 0), copy: false)
+        XCTAssertEqual(d.document.paragraphs[0].text, " cd ab")
+        XCTAssertEqual(d.document.text(in: d.selection), " cd")
+        // Library entries are written for level 1; deeper levels count their own.
+        let f = ListLevelFormat(text: "%1)", format: .lowerLetter)
+        XCTAssertEqual(f.forLevel(2).text, "%3)")
+        XCTAssertEqual(f.forLevel(2).asLibraryEntry(atLevel: 2), f)
+        XCTAssertEqual(ListLevelFormat.plain(1).asLibraryEntry(atLevel: 1), .plain(0))
+    }
+
+    func testSmartCutKeepsSpaceBeforeOpeners() {
+        let c = controller("foo bar (baz)")
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 4), focus: RichPosition(paragraph: 0, offset: 8))
+        _ = c.cutSelectionData()
+        XCTAssertEqual(c.document.paragraphs[0].text, "foo (baz)")
+    }
+
+    func testNumberingOnBulletItemDoesNotRestyleNeighbours() {
+        let c = controller("b1", "b2", "n1", "n2")
+        for i in 0 ... 1 { c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false); c.toggleList(.bullet) }
+        for i in 2 ... 3 { c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false); c.toggleList(.numbered) }
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.setListFormat(ListLevelFormat(text: "%1)", format: .lowerLetter))
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["\u{2022}", "a)", "1.", "2."])
+        XCTAssertNil(c.document.paragraphs[2].style.listId)
+    }
+
+    func testPasteOntoPictureGoesBelow() {
+        let c = controller("text")
+        c.moveTo(RichPosition(paragraph: 0, offset: 4), extend: false)
+        c.insertImage(ImageAttachment(data: Data(), width: 10, height: 10, name: "p"))
+        let img = c.document.paragraphs.firstIndex { $0.isImage }!
+        c.moveTo(RichPosition(paragraph: img, offset: 0), extend: false)
+        c.insertFragment([RichParagraph(text: "pasted")])
+        XCTAssertTrue(c.document.paragraphs[img].isImage)
+        XCTAssertEqual(c.document.paragraphs[img].text, "")
+        XCTAssertEqual(c.document.paragraphs[img + 1].text, "pasted")
+    }
+
     func testDragByWordsAndParagraphs() {
         let c = controller("one two three", "four five")
         // A double click on "two", then a drag to "three": whole words.

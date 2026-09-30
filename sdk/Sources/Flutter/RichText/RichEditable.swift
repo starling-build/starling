@@ -323,7 +323,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _handleKey(_ keyData: KeyData) -> Bool {
         if _chords.track(keyData) {
             // A modifier alone: the pointer over a link changes shape with ⌘.
-            if _hoverLink != nil { setState {} }
+            if _hoverLink != nil || _textDrag?.active == true { setState {} }
             return false
         }
         guard keyData.type == .down || keyData.type == .repeat else { return false }
@@ -591,7 +591,27 @@ public final class RichEditableState: State<StatefulWidget> {
         }
     }
 
+    /// A cancelled pointer (the window lost the pointer mid-press) ends
+    /// every drag; nothing from it may hijack the next gesture.
+    private func _pointerCancel(_ event: PointerEvent) {
+        let hadDrop = _dropPosition != nil || _columnDragWidths != nil || _dragSize != nil
+        _dragging = false
+        _unitDrag = nil
+        _textDrag = nil
+        _dropPosition = nil
+        _handleDrag = nil
+        _dragSize = nil
+        if let drag = _columnDrag {
+            _columnDrag = nil
+            _columnDragWidths = nil
+            _layout.previewColumns(drag.table, nil, _controller.document)
+        }
+        if hadDrop { _repaint.notifyListeners() }
+    }
+
     private func _pointerDown(_ event: PointerEvent) {
+        _textDrag = nil
+        _dropPosition = nil
         if event.buttons & kSecondaryButton != 0 {
             _focus.requestFocus()
             if _layout.width > 0 {
@@ -941,6 +961,7 @@ public final class RichEditableState: State<StatefulWidget> {
             onPointerMove: { [weak self] e in self?._pointerMove(e) },
             onPointerUp: { [weak self] e in self?._pointerUp(e) },
             onPointerHover: { [weak self] e in self?._pointerHover(e) },
+            onPointerCancel: { [weak self] e in self?._pointerCancel(e) },
             onPointerSignal: { [weak self] e in self?._pointerSignal(e) },
             behavior: .opaque,
             child: CustomPaint(painter: _painter, child: SizedBox(expand: ()))
