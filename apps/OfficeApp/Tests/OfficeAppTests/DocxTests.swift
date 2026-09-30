@@ -110,6 +110,43 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(back.document.isValid)
     }
 
+    func testDocxNamedStylesRoundTrip() throws {
+        var doc = RichDocument(plainText: "The Title\nA subtitle\nBody\nA quote\nlet x = 1\nFigure 1")
+        doc.styles = OfficeStyles.sheet
+        for (i, id) in ["Title", "Subtitle", "Normal", "Quote", "Code", "Caption"].enumerated() {
+            doc.styles.apply(id, to: &doc.paragraphs[i].style)
+        }
+        let data = try DocxFormat.write(doc, pageSetup: .letter)
+        let xml = String(decoding: try XCTUnwrap(Zip.read(data).first { $0.name == "word/document.xml" }?.data), as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:pStyle w:val=\"Quote\"/>"))
+        let styles = String(decoding: try XCTUnwrap(Zip.read(data).first { $0.name == "word/styles.xml" }?.data), as: UTF8.self)
+        XCTAssertTrue(styles.contains("w:styleId=\"Title\""))
+        let back = try DocxFormat.read(data)
+        let ids = back.document.paragraphs.map { back.document.styles.id(of: $0.style) }
+        XCTAssertEqual(ids, ["Title", "Subtitle", "Normal", "Quote", "Code", "Caption"])
+        XCTAssertEqual(back.document.paragraphs[3].style.alignment, .center)
+        XCTAssertEqual(back.document.styles["Title"]?.char.fontSize, 28)
+        XCTAssertEqual(back.document.styles["Quote"]?.char.italic, true)
+        XCTAssertEqual(back.document.styles["Code"]?.char.fontFamily, OfficeFonts.mono)
+    }
+
+    func testDocxWordStylesShapeTheSheet() throws {
+        // A package whose Heading 1 is 16pt green: the sheet takes its word.
+        var doc = RichDocument(plainText: "Heading\nBody")
+        doc.styles = OfficeStyles.sheet
+        var h1 = try XCTUnwrap(doc.styles["Heading1"])
+        h1.char.fontSize = 16
+        h1.char.color = Color(0xFF00AA00)
+        h1.paragraph.spaceBefore = 24
+        doc.styles["Heading1"] = h1
+        doc.styles.apply("Heading1", to: &doc.paragraphs[0].style)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter))
+        XCTAssertEqual(back.document.paragraphs[0].style.heading, 1)
+        XCTAssertEqual(back.document.paragraphs[0].style.spaceBefore, 24)
+        XCTAssertEqual(back.document.styles["Heading1"]?.char.fontSize, 16)
+        XCTAssertEqual(back.document.styles["Heading1"]?.char.color, Color(0xFF00AA00))
+    }
+
     func testDocxTableEndsTheDocument() throws {
         // A package whose body is just a table still gets a paragraph after it.
         var doc = RichDocument(plainText: "x")

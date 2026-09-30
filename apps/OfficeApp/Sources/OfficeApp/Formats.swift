@@ -36,8 +36,9 @@ enum OfficeFormats {
         case "md", "markdown": return OpenedDocument(document: MarkdownFormat.parse(text), pageSetup: nil)
         case "rtf": return OpenedDocument(document: RtfFormat.parse(text) ?? RichDocument(plainText: text), pageSetup: nil)
         default:
-            return OpenedDocument(document: RichDocument(plainText: text.replacingOccurrences(of: "\r\n", with: "\n")),
-                                  pageSetup: nil)
+            var doc = RichDocument(plainText: text.replacingOccurrences(of: "\r\n", with: "\n"))
+            doc.styles = OfficeStyles.sheet
+            return OpenedDocument(document: doc, pageSetup: nil)
         }
     }
 
@@ -80,6 +81,7 @@ enum MarkdownFormat {
         }
         let lines = text.replacingOccurrences(of: "\r\n", with: "\n")
             .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let sheet = OfficeStyles.sheet
         var tableCount = 0
         var li = 0
         while li < lines.count {
@@ -139,18 +141,33 @@ enum MarkdownFormat {
                 paragraphs.append(_inline(bullet.rest, style))
                 continue
             }
-            if trimmed.hasPrefix("> ") {
+            if trimmed.hasPrefix("> ") || trimmed == ">" {
                 flush()
                 var style = RichParagraphStyle.body
-                style.indentLeft = 36
-                paragraphs.append(_inline(String(trimmed.dropFirst(2)), style))
+                sheet.apply("Quote", to: &style)
+                paragraphs.append(_inline(String(trimmed.dropFirst(min(2, trimmed.count))), style))
+                continue
+            }
+            if trimmed.hasPrefix("```") {
+                // A fenced block: one Code paragraph per line, verbatim.
+                flush()
+                var style = RichParagraphStyle.body
+                sheet.apply("Code", to: &style)
+                while li < lines.count, !lines[li].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                    paragraphs.append(RichParagraph(text: lines[li], style: style))
+                    li += 1
+                }
+                li += 1
                 continue
             }
             pending.append(trimmed)
         }
         flush()
         if paragraphs.last?.cell != nil { paragraphs.append(RichParagraph()) }
-        return RichDocument(paragraphs: paragraphs)
+        var doc = RichDocument(paragraphs: paragraphs)
+        doc.styles = sheet
+        doc.styles = sheet
+        return doc
     }
 
     /// `| --- | :-: | --: |` → one alignment per column, or nil if the line
@@ -315,8 +332,22 @@ enum MarkdownFormat {
                 i = end
                 continue
             }
+            if p.style.named == "Code" {
+                // Consecutive Code paragraphs share one fence.
+                var end = i
+                while end < doc.paragraphs.count, doc.paragraphs[end].style.named == "Code",
+                      doc.paragraphs[end].cell == nil { end += 1 }
+                if p.style.pageBreakBefore { out.append("---"); out.append("") }
+                out.append("```")
+                for q in doc.paragraphs[i ..< end] { out.append(q.text) }
+                out.append("```")
+                out.append("")
+                i = end
+                continue
+            }
             var line = ""
             if p.style.pageBreakBefore { out.append("---"); out.append("") }
+            if p.style.named == "Quote" { line += "> " }
             if let h = p.style.heading { line += String(repeating: "#", count: max(1, min(6, h))) + " " }
             if let list = p.style.list {
                 line += String(repeating: "  ", count: p.style.listLevel) + (list == .bullet ? "- " : "1. ")
@@ -387,6 +418,9 @@ enum RtfFormat {
         var destDepth = 0
         var colorEntry = (r: 0, g: 0, b: 0, any: false)
         var fontEntry = (index: -1, name: "")
+        var styleEntry = (index: -1, name: "")
+        var styleNames: [Int: String] = [:]   // \sN → its name, from the stylesheet
+        let sheet = OfficeStyles.sheet
         var pendingUnicodeSkip = 0
         // List membership lives outside the group stack: Word writes it in a
         // {\*\pn …} group that closes before the paragraph's text, and
@@ -425,6 +459,7 @@ enum RtfFormat {
                 if destination == "header" { header += s }
                 if destination == "footer" { footer += s }
                 if destination == "fonttbl" { fontEntry.name += s }
+                if destination == "stylesheet" { styleEntry.name += s }
                 if destination == "colortbl" {
                     // Each ';' closes one entry; a bare ';' is "auto".
                     for ch in s where ch == ";" {
@@ -466,6 +501,10 @@ enum RtfFormat {
                 continue
             }
             if c == UInt8(ascii: "}") {
+                if destination == "stylesheet", styleEntry.index >= 0 {
+                    styleNames[styleEntry.index] = styleEntry.name.trimmingCharacters(in: CharacterSet(charactersIn: "; ")).lowercased()
+                    styleEntry = (-1, "")
+                }
                 if destination == "fonttbl", fontEntry.index >= 0 {
                     fonts[fontEntry.index] = fontEntry.name.trimmingCharacters(in: CharacterSet(charactersIn: "; "))
                     fontEntry = (-1, "")
@@ -530,8 +569,8 @@ enum RtfFormat {
                     } else {
                         destination = word
                         destDepth = groupDepth
-                        if word != "fonttbl" && word != "colortbl" && word != "header" && word != "footer",
-                           skipGroupUntil == nil { skipGroupUntil = groupDepth }
+                        if word != "fonttbl" && word != "colortbl" && word != "header" && word != "footer"
+                            && word != "stylesheet", skipGroupUntil == nil { skipGroupUntil = groupDepth }
                     }
                 case "red": colorEntry.r = param ?? 0; colorEntry.any = true
                 case "green": colorEntry.g = param ?? 0; colorEntry.any = true
@@ -577,8 +616,15 @@ enum RtfFormat {
                 case "pnlvlcont": break
                 case "page", "pagebb": state.para.pageBreakBefore = true
                 case "s":
-                    // Word's heading styles are \s1..\s3 in its default stylesheet.
-                    if let p = param, p >= 1 && p <= 6 { state.para.heading = p } else { state.para.heading = nil }
+                    if destination == "stylesheet" {
+                        styleEntry.index = param ?? 0; styleEntry.name = ""
+                    } else if let p = param, let id = _rtfStyleId(styleNames[p], number: p) {
+                        // The stylesheet's name for it; without one, Word's
+                        // default numbering has headings at \s1..\s6.
+                        sheet.apply(id, to: &state.para)
+                    } else {
+                        state.para.heading = nil; state.para.named = nil
+                    }
                 case "uc": state.skip = param ?? 1
                 case "u":
                     if let p = param {
@@ -652,6 +698,7 @@ enum RtfFormat {
             }
             if p.style.pageBreakBefore && n > 0 { head += "\\pagebb" }
             if let h = p.style.heading { head += "\\s\(h)\\keepn" }
+            else if let n = p.style.named, let num = _rtfStyleNumber(n) { head += "\\s\(num)" }
             var li = Int(p.style.indentLeft * 20)
             var fi = Int(p.style.firstLineIndent * 20)
             var listPrefix = ""
@@ -674,7 +721,9 @@ enum RtfFormat {
             body += head + listPrefix
             var pos = 0
             let utf16 = p.text.utf16
-            let headingSize: Double? = p.style.heading.map { [20, 16, 14, 12, 11, 11][min($0, 6) - 1] }
+            let named = doc.styles.resolve(p.style)
+            let headingSize: Double? = named?.char.fontSize
+                ?? p.style.heading.map { [20, 16, 14, 12, 11, 11][min($0, 6) - 1] }
             for run in p.runs where run.length > 0 {
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
                 let b = utf16.index(a, offsetBy: run.length)
@@ -682,20 +731,20 @@ enum RtfFormat {
                 pos += run.length
                 let s = run.style
                 var ctrl = "{"
-                switch s.fontFamily {
+                switch s.fontFamily ?? named?.char.fontFamily {
                 case OfficeFonts.serif?: ctrl += "\\f1"
                 case OfficeFonts.mono?: ctrl += "\\f2"
                 default: ctrl += "\\f0"
                 }
                 let size = s.fontSize ?? headingSize ?? 11
                 ctrl += "\\fs\(Int(size * 2))"
-                if s.bold || (p.style.heading.map { $0 <= 3 } ?? false) { ctrl += "\\b" }
-                if s.italic { ctrl += "\\i" }
+                if s.bold || (named?.char.bold ?? (p.style.heading.map { $0 <= 3 } ?? false)) { ctrl += "\\b" }
+                if s.italic || (named?.char.italic ?? false) { ctrl += "\\i" }
                 if s.underline { ctrl += "\\ul" }
                 if s.strikethrough { ctrl += "\\strike" }
                 if s.script == .superscript { ctrl += "\\super" }
                 if s.script == .subscript { ctrl += "\\sub" }
-                let color = s.color ?? (p.style.heading != nil ? Color(0xFF2F5496) : nil)
+                let color = s.color ?? named?.char.color ?? (p.style.heading != nil ? Color(0xFF2F5496) : nil)
                 if let color { ctrl += "\\cf\(colorIndex(color))" }
                 if let hl = s.highlight { ctrl += "\\highlight\(colorIndex(hl))" }
                 ctrl += " "
@@ -716,8 +765,50 @@ enum RtfFormat {
             hf += "{\\footer\\pard\\qc " + _escape(doc.footer).replacingOccurrences(of: RichDocument.pageField, with: "\\chpgn ") + "\\par}\n"
         }
         let fonttbl = "{\\fonttbl{\\f0\\fswiss\\fcharset0 Arial;}{\\f1\\froman\\fcharset0 Times New Roman;}{\\f2\\fmodern\\fcharset0 Courier New;}}"
-        let stylesheet = "{\\stylesheet{\\s0 Normal;}{\\s1\\b\\fs40 heading 1;}{\\s2\\b\\fs32 heading 2;}{\\s3\\b\\fs28 heading 3;}}"
+        var stylesheet = "{\\stylesheet{\\s0 Normal;}"
+        for entry in doc.styles.styles where entry.id != RichNamedStyle.normalId {
+            let num = entry.paragraph.heading ?? _rtfStyleNumber(entry.id) ?? 0
+            if num == 0 { continue }
+            var look = ""
+            if entry.char.bold { look += "\\b" }
+            if entry.char.italic { look += "\\i" }
+            if let size = entry.char.fontSize { look += "\\fs\(Int(size * 2))" }
+            let name = entry.paragraph.heading.map { "heading \($0)" } ?? entry.name
+            stylesheet += "{\\s\(num)\(look) \(_escape(name));}"
+        }
+        stylesheet += "}"
         return "{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033\\uc1\n\(fonttbl)\n\(colortbl)\n\(stylesheet)\n\\paperw12240\\paperh15840\\margl1440\\margr1440\\margt1440\\margb1440\n\(hf)\(body)}\n"
+    }
+
+    /// Word's own numbering for the styles we write, so a stylesheet-less
+    /// reader still sees headings at \s1..\s6.
+    private static func _rtfStyleNumber(_ id: String) -> Int? {
+        switch id {
+        case "Title": return 15
+        case "Subtitle": return 16
+        case "Quote": return 17
+        case "Caption": return 18
+        case "Code": return 19
+        default: return nil
+        }
+    }
+
+    private static func _rtfStyleId(_ name: String?, number: Int) -> String? {
+        if let name {
+            for level in 1 ... 6 where name == "heading \(level)" || name == "heading\(level)" {
+                return RichNamedStyle.headingId(level)
+            }
+            switch name {
+            case "normal": return RichNamedStyle.normalId
+            case "title": return "Title"
+            case "subtitle": return "Subtitle"
+            case "quote", "intense quote", "block text": return "Quote"
+            case "caption": return "Caption"
+            case "code", "html preformatted", "plain text": return "Code"
+            default: return nil
+            }
+        }
+        return number >= 1 && number <= 6 ? RichNamedStyle.headingId(number) : nil
     }
 
     private static func _escape(_ s: String) -> String {

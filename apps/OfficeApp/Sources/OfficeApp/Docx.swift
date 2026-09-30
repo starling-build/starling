@@ -97,15 +97,33 @@ enum DocxFormat {
         guard let docData = part("word/document.xml") else { throw DocxError.noDocumentPart }
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
 
-        // Styles: which paragraph styles are headings.
-        var headingByStyle: [String: Int] = [:]
+        // Styles: which paragraph styles are ours (headings, Title, Quote…),
+        // and what they look like in this package — Word's Heading 1 is
+        // not our Heading 1, so the sheet takes the file's word for it.
+        var styleByDocx: [String: String] = [:]
+        var sheet = RichStyleSheet.word
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 guard let id = style["w:styleId"] else { continue }
                 let name = (style.first("w:name")?["w:val"] ?? id).lowercased()
-                if let level = _headingLevel(name) ?? _headingLevel(id.lowercased()) {
-                    headingByStyle[id] = level
-                }
+                guard let ours = _styleId(name) ?? _styleId(id.lowercased()) else { continue }
+                // Two of the file's styles can map to one of ours (Quote and
+                // Intense Quote): the first defines the look, both use it.
+                let first = !styleByDocx.values.contains(ours)
+                styleByDocx[id] = ours
+                guard first, var entry = sheet[ours], ours != RichNamedStyle.normalId else { continue }
+                // The file's definition replaces ours: what its rPr leaves
+                // out is off (the style is based on Normal), and a missing
+                // pPr means Normal's paragraph props.
+                var cs = style.first("w:rPr").map { _charStyle($0, base: CharStyle()) } ?? CharStyle()
+                if cs.fontFamily == nil { cs.fontFamily = entry.char.fontFamily }
+                entry.char = cs
+                var ps = RichParagraphStyle.body
+                ps.heading = entry.paragraph.heading
+                if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
+                entry.paragraph = ps
+                if let next = style.first("w:next")?["w:val"] { entry.next = styleByDocx[next] ?? _styleId(next.lowercased()) }
+                sheet[ours] = entry
             }
         }
 
@@ -159,7 +177,7 @@ enum DocxFormat {
         func walkBlock(_ node: XNode, indent: Double) {
             switch node.name {
             case "w:p":
-                for p in _paragraphs(node, headingByStyle, kindByNum, rels, media, indent) {
+                for p in _paragraphs(node, styleByDocx, sheet, kindByNum, rels, media, indent) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
                 }
             case "w:tbl" where currentCell != nil:
@@ -203,6 +221,7 @@ enum DocxFormat {
         if paragraphs.isEmpty || paragraphs.last?.cell != nil { paragraphs.append(RichParagraph()) }
         var document = RichDocument(paragraphs: paragraphs)
         document.tableColumns = tableColumns
+        document.styles = sheet
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
         if let sect = body.first("w:sectPr") {
@@ -260,10 +279,44 @@ enum DocxFormat {
         return out.joined(separator: " ")
     }
 
-    private static func _headingLevel(_ name: String) -> Int? {
-        if name == "title" { return 1 }
-        for level in 1 ... 6 where name == "heading \(level)" || name == "heading\(level)" { return level }
-        return nil
+    /// Our sheet id for a Word style name (lowercased), or nil.
+    private static func _styleId(_ name: String) -> String? {
+        for level in 1 ... 6 where name == "heading \(level)" || name == "heading\(level)" {
+            return RichNamedStyle.headingId(level)
+        }
+        switch name {
+        case "normal": return RichNamedStyle.normalId
+        case "title": return "Title"
+        case "subtitle": return "Subtitle"
+        case "quote", "intense quote", "intensequote", "block text", "blocktext": return "Quote"
+        case "caption": return "Caption"
+        case "code", "html preformatted", "htmlpreformatted", "source code", "sourcecode", "plain text", "plaintext": return "Code"
+        default: return nil
+        }
+    }
+
+    /// Alignment, indents and spacing from a w:pPr, onto `style`.
+    private static func _paragraphProps(_ pPr: XNode, into style: inout RichParagraphStyle) {
+        switch pPr.first("w:jc")?["w:val"] {
+        case "center": style.alignment = .center
+        case "right", "end": style.alignment = .right
+        case "both", "distribute": style.alignment = .justify
+        case "left", "start": style.alignment = .left
+        default: break
+        }
+        if let ind = pPr.first("w:ind") {
+            if let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { style.indentLeft = v / 20 }
+            if let v = Double(ind["w:right"] ?? ind["w:end"] ?? "") { style.indentRight = v / 20 }
+            if let v = Double(ind["w:firstLine"] ?? "") { style.firstLineIndent = v / 20 }
+            if let v = Double(ind["w:hanging"] ?? "") { style.firstLineIndent = -v / 20 }
+        }
+        if let sp = pPr.first("w:spacing") {
+            if let v = Double(sp["w:before"] ?? "") { style.spaceBefore = v / 20 }
+            if let v = Double(sp["w:after"] ?? "") { style.spaceAfter = v / 20 }
+            if let v = Double(sp["w:line"] ?? ""), (sp["w:lineRule"] ?? "auto") == "auto", v > 0 {
+                style.lineSpacing = v / 240
+            }
+        }
     }
 
     private static func _pageSetup(_ sect: XNode) -> PageSetup? {
@@ -286,32 +339,16 @@ enum DocxFormat {
     }
 
     /// One w:p can become several paragraphs (a page break inside it).
-    private static func _paragraphs(_ p: XNode, _ headings: [String: Int], _ nums: [String: [Int: ListKind]],
+    private static func _paragraphs(_ p: XNode, _ styleIds: [String: String], _ sheet: RichStyleSheet,
+                                    _ nums: [String: [Int: ListKind]],
                                     _ rels: [String: String], _ media: (String) -> Data?,
                                     _ indent: Double) -> [_Built] {
         var style = RichParagraphStyle.body
-        style.indentLeft = indent
         if let pPr = p.first("w:pPr") {
-            if let id = pPr.first("w:pStyle")?["w:val"], let level = headings[id] { style.heading = level }
-            switch pPr.first("w:jc")?["w:val"] {
-            case "center": style.alignment = .center
-            case "right", "end": style.alignment = .right
-            case "both", "distribute": style.alignment = .justify
-            default: break
-            }
-            if let ind = pPr.first("w:ind") {
-                if let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { style.indentLeft += v / 20 }
-                if let v = Double(ind["w:right"] ?? ind["w:end"] ?? "") { style.indentRight = v / 20 }
-                if let v = Double(ind["w:firstLine"] ?? "") { style.firstLineIndent = v / 20 }
-                if let v = Double(ind["w:hanging"] ?? "") { style.firstLineIndent = -v / 20 }
-            }
-            if let sp = pPr.first("w:spacing") {
-                if let v = Double(sp["w:before"] ?? "") { style.spaceBefore = v / 20 }
-                if let v = Double(sp["w:after"] ?? "") { style.spaceAfter = v / 20 }
-                if let v = Double(sp["w:line"] ?? ""), (sp["w:lineRule"] ?? "auto") == "auto", v > 0 {
-                    style.lineSpacing = v / 240
-                }
-            }
+            // The named style's props first, then the paragraph's own.
+            if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] { sheet.apply(ours, to: &style) }
+            _paragraphProps(pPr, into: &style)
+            style.indentLeft += indent
             if let numPr = pPr.first("w:numPr") {
                 let ilvl = Int(numPr.first("w:ilvl")?["w:val"] ?? "0") ?? 0
                 let numId = numPr.first("w:numId")?["w:val"] ?? ""
@@ -484,7 +521,8 @@ enum DocxFormat {
             var body = ""
             var pPr = ""
             if let h = p.style.heading { pPr += "<w:pStyle w:val=\"Heading\(min(h, 6))\"/>" }
-            if p.style.list != nil { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
+            else if let n = p.style.named, doc.styles[n] != nil { pPr += "<w:pStyle w:val=\"\(_esc(n))\"/>" }
+            else if p.style.list != nil { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
             if p.style.pageBreakBefore { pPr += "<w:pageBreakBefore/>" }
             if let list = p.style.list {
                 pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(list == .bullet ? 1 : 2)\"/></w:numPr>"
@@ -661,7 +699,7 @@ enum DocxFormat {
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
-            ZipEntry(name: "word/styles.xml", data: Data(_styles.utf8)),
+            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles).utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numbering.utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
@@ -738,11 +776,49 @@ enum DocxFormat {
     <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>
     """
 
-    private static let _styles = """
-    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-    <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="80"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:color w:val="2F5496"/><w:sz w:val="40"/><w:szCs w:val="40"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="160" w:after="80"/><w:outlineLvl w:val="1"/></w:pPr><w:rPr><w:b/><w:color w:val="2F5496"/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="160" w:after="80"/><w:outlineLvl w:val="2"/></w:pPr><w:rPr><w:b/><w:color w:val="2F5496"/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading4"><w:name w:val="heading 4"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:outlineLvl w:val="3"/></w:pPr><w:rPr><w:b/><w:i/><w:color w:val="2F5496"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading5"><w:name w:val="heading 5"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:outlineLvl w:val="4"/></w:pPr><w:rPr><w:color w:val="2F5496"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading6"><w:name w:val="heading 6"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:outlineLvl w:val="5"/></w:pPr><w:rPr><w:i/><w:color w:val="2F5496"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:ind w:left="720"/><w:contextualSpacing/></w:pPr></w:style><w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style></w:styles>
-    """
-
+    /// styles.xml from the document's sheet: Normal as the default, every
+    /// other entry with its look, plus List Paragraph and Hyperlink.
+    private static func _stylesPart(_ sheet: RichStyleSheet) -> String {
+        var out = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+        out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Arial\" w:hAnsi=\"Arial\" w:cs=\"Arial\" w:eastAsia=\"Arial\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>"
+        out += "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/></w:style>"
+        for entry in sheet.styles where entry.id != RichNamedStyle.normalId {
+            let name = entry.paragraph.heading.map { "heading \($0)" } ?? entry.name
+            out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(entry.id))\"><w:name w:val=\"\(_esc(name))\"/><w:basedOn w:val=\"Normal\"/>"
+            if let next = entry.next { out += "<w:next w:val=\"\(_esc(next))\"/>" }
+            out += "<w:qFormat/><w:pPr>"
+            if entry.paragraph.heading != nil { out += "<w:keepNext/>" }
+            var spacing = ""
+            if entry.paragraph.spaceBefore > 0 { spacing += " w:before=\"\(Int(entry.paragraph.spaceBefore * 20))\"" }
+            spacing += " w:after=\"\(Int(entry.paragraph.spaceAfter * 20))\""
+            if entry.paragraph.lineSpacing != 1.0 { spacing += " w:line=\"\(Int(entry.paragraph.lineSpacing * 240))\" w:lineRule=\"auto\"" }
+            out += "<w:spacing\(spacing)/>"
+            var ind = ""
+            if entry.paragraph.indentLeft > 0 { ind += " w:left=\"\(Int(entry.paragraph.indentLeft * 20))\"" }
+            if entry.paragraph.indentRight > 0 { ind += " w:right=\"\(Int(entry.paragraph.indentRight * 20))\"" }
+            if !ind.isEmpty { out += "<w:ind\(ind)/>" }
+            switch entry.paragraph.alignment {
+            case .left: break
+            case .center: out += "<w:jc w:val=\"center\"/>"
+            case .right: out += "<w:jc w:val=\"right\"/>"
+            case .justify: out += "<w:jc w:val=\"both\"/>"
+            }
+            if let h = entry.paragraph.heading { out += "<w:outlineLvl w:val=\"\(h - 1)\"/>" }
+            out += "</w:pPr><w:rPr>"
+            if let family = entry.char.fontFamily {
+                let f = family == OfficeFonts.serif ? "Times New Roman" : family == OfficeFonts.mono ? "Courier New" : family == OfficeFonts.sans ? "Arial" : family
+                out += "<w:rFonts w:ascii=\"\(_esc(f))\" w:hAnsi=\"\(_esc(f))\" w:cs=\"\(_esc(f))\"/>"
+            }
+            if entry.char.bold { out += "<w:b/><w:bCs/>" }
+            if entry.char.italic { out += "<w:i/><w:iCs/>" }
+            if let c = entry.char.color { out += "<w:color w:val=\"\(_hex(c))\"/>" }
+            if let size = entry.char.fontSize { out += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
+            out += "</w:rPr></w:style>"
+        }
+        out += "<w:style w:type=\"paragraph\" w:styleId=\"ListParagraph\"><w:name w:val=\"List Paragraph\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:ind w:left=\"720\"/><w:contextualSpacing/></w:pPr></w:style>"
+        out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style></w:styles>"
+        return out
+    }
     private static let _numbering: String = {
         var bulletLevels = ""
         var decimalLevels = ""

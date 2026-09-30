@@ -134,7 +134,9 @@ final class OfficeShellState: State<StatefulWidget> {
     // MARK: Documents
 
     private func _new() {
-        controller.load(RichDocument())
+        var blank = RichDocument()
+        blank.styles = OfficeStyles.sheet
+        controller.load(blank)
         session.path = nil
         _savedRevision = controller.revision
         setState {

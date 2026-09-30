@@ -1,7 +1,7 @@
 # Office: a cross-platform document suite on the Starling SDK
 
 Status: **Phase 2 in progress on macOS** (Writer: docx, PDF, pictures,
-headers/footers, tables done; named styles next), 2026-09-29, branch `office`
+headers/footers, tables, named styles done), 2026-09-29, branch `office`
 (cut from `main` at 97f3c72). What exists:
 
 - `sdk/Sources/Flutter/RichText/` — the editing stack: model, controller
@@ -63,6 +63,27 @@ GFM pipe tables with alignment and a bold header row, and the PDF has them
 because the same layout paints it. Not yet: column insert/delete, merged
 cells (a `gridSpan` keeps the columns after it in place but renders in
 one), nested tables (flattened into their cell), RTF tables.
+
+**Named styles** are done: a document carries a `RichStyleSheet` (Normal,
+Title, Subtitle, Heading 1–6, Quote, Caption, Code — Word's looks), a
+paragraph refers to an entry by `named` (or by its `heading` level), and
+applying a style copies the entry's paragraph props onto the paragraph
+while the layout takes the entry's character defaults under any direct
+formatting. Enter at the end of a Title or heading goes to Normal (the
+entry's `next`); Quote and Code carry on. The Home tab's Styles group is
+four tiles plus a menu of the whole sheet, each drawn in its own look.
+`.docx` writes `w:pStyle` and a styles.xml from the sheet, and on read
+takes the file's own definitions for the styles it maps (Word's Heading 1
+is 14pt in its 2007 template, ours 20pt — the file wins, verified against
+python-docx both ways); RTF names them in the stylesheet and reads names
+back (Word's numbering 1–6 as the fallback); Markdown maps Quote to `> `
+and Code to a fence, and Title/Subtitle/Caption are plain text there. Not
+yet: modifying a style, "update to match selection", themed fonts/colours
+from `theme1.xml`.
+
+Open, noted: a Fluent menu item whose text style is exactly 14pt draws
+stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
+in the document is fine), so the gallery menu caps its previews at 13.
 
 Three more framework bugs fell out of the first drop-down ever opened in
 a debug build: `RenderFollowerLayer` held its layer by a bare reference,

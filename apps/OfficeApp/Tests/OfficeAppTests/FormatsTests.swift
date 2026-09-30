@@ -115,6 +115,32 @@ final class FormatsTests: XCTestCase {
         XCTAssertTrue(back.isValid)
     }
 
+    func testMarkdownQuoteAndCode() {
+        let md = "Intro.\n\n> A *quoted* line\n\n```\nlet x = **not bold**\n\n  indented\n```\n\nOutro.\n"
+        let doc = MarkdownFormat.parse(md)
+        let ids = doc.paragraphs.map { doc.styles.id(of: $0.style) }
+        XCTAssertEqual(ids, ["Normal", "Quote", "Code", "Code", "Code", "Normal"])
+        XCTAssertEqual(doc.paragraphs.map(\.text), ["Intro.", "A quoted line", "let x = **not bold**", "", "  indented", "Outro."])
+        XCTAssertTrue(doc.paragraphs[1].runs.contains { $0.style.italic })
+        XCTAssertEqual(MarkdownFormat.render(doc), md)
+    }
+
+    func testRtfNamedStylesRoundTrip() throws {
+        var doc = RichDocument(plainText: "The Title\nA quote\nHeading\nBody")
+        doc.styles = OfficeStyles.sheet
+        doc.styles.apply("Title", to: &doc.paragraphs[0].style)
+        doc.styles.apply("Quote", to: &doc.paragraphs[1].style)
+        doc.styles.apply("Heading2", to: &doc.paragraphs[2].style)
+        let rtf = RtfFormat.render(doc)
+        XCTAssertTrue(rtf.contains("{\\s15\\fs56 Title;}"))
+        let back = try XCTUnwrap(RtfFormat.parse(rtf))
+        XCTAssertEqual(back.paragraphs.map { back.styles.id(of: $0.style) }, ["Title", "Quote", "Heading2", "Normal"])
+        XCTAssertEqual(back.paragraphs[1].style.alignment, .center)
+        // Word's own numbering, no stylesheet names: headings still land.
+        let bare = try XCTUnwrap(RtfFormat.parse("{\\rtf1\\ansi\\pard\\s2 Two\\par\\pard Body\\par}"))
+        XCTAssertEqual(bare.paragraphs[0].style.heading, 2)
+    }
+
     func testMarkdownInline() {
         let doc = MarkdownFormat.parse("A [link](https://example.com) and `code` and ~~gone~~ and *it* plus a lone * star.")
         let p = doc.paragraphs[0]

@@ -212,6 +212,50 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.wordCount, 4)
     }
 
+    func testNamedStylesApplyAndEnterMovesToNext() {
+        let c = controller("My title", "A quote")
+        c.setNamedStyle("Title")
+        var p = c.document.paragraphs[0].style
+        XCTAssertEqual(p.named, "Title")
+        XCTAssertNil(p.heading)
+        XCTAssertEqual(p.spaceAfter, 4)
+        XCTAssertEqual(c.currentNamedStyleId, "Title")
+        // Enter at the end of a Title starts a Normal paragraph.
+        c.moveToDocumentStart(extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 8), extend: false)
+        c.insertParagraphBreak()
+        XCTAssertEqual(c.currentNamedStyleId, "Normal")
+        XCTAssertNil(c.document.paragraphs[1].style.named)
+        // A heading is the sheet's entry too, and Normal clears both.
+        c.setHeading(2)
+        p = c.document.paragraphs[1].style
+        XCTAssertEqual(p.heading, 2)
+        XCTAssertEqual(p.spaceBefore, 8)
+        XCTAssertEqual(c.currentNamedStyleId, "Heading2")
+        c.setNamedStyle("Normal")
+        XCTAssertEqual(c.document.paragraphs[1].style, .body)
+        // Quote has no next: Enter keeps it, and the list flag survives apply.
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        c.toggleList(.bullet)
+        c.setNamedStyle("Quote")
+        p = c.document.paragraphs[2].style
+        XCTAssertEqual(p.named, "Quote")
+        XCTAssertEqual(p.list, .bullet)
+        XCTAssertEqual(p.alignment, .center)
+        c.moveToDocumentEnd(extend: false)
+        c.insertParagraphBreak()
+        XCTAssertEqual(c.document.paragraphs[3].style.named, "Quote")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.count, 3)
+        // The layout resolves the sheet's look under direct formatting.
+        let theme = RichTextTheme()
+        let quote = c.document.styles.resolve(c.document.paragraphs[2].style)
+        let ts = theme.textStyle(for: CharStyle(), in: c.document.paragraphs[2].style, named: quote, scale: 1)
+        XCTAssertEqual(ts.fontStyle, .italic)
+        let bold = theme.textStyle(for: CharStyle(bold: true, italic: false), in: c.document.paragraphs[2].style, named: quote, scale: 1)
+        XCTAssertEqual(bold.fontWeight, .bold)
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }

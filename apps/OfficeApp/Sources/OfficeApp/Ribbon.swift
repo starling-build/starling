@@ -212,15 +212,23 @@ final class Ribbon: StatelessWidget {
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [Chrome.rows([paraRow1, Chrome.vgap(4), paraRow2])])
 
-        let styles = Chrome.group("Styles", fluent, [
-            _styleTile("Normal", s.heading == nil, fluent, fluent.typography.body) { c.setHeading(nil) },
-            _styleTile("Heading 1", s.heading == 1, fluent,
-                       Flutter.TextStyle(color: session.theme.headingColor, fontSize: 18, fontWeight: .bold)) { c.setHeading(1) },
-            _styleTile("Heading 2", s.heading == 2, fluent,
-                       Flutter.TextStyle(color: session.theme.headingColor, fontSize: 15, fontWeight: .bold)) { c.setHeading(2) },
-            _styleTile("Heading 3", s.heading == 3, fluent,
-                       Flutter.TextStyle(color: session.theme.headingColor, fontSize: 13, fontWeight: .bold)) { c.setHeading(3) },
-        ])
+        // The gallery: four tiles, then every style of the sheet in a menu.
+        let sheet = c.document.styles
+        var tiles: [Widget] = []
+        for id in [RichNamedStyle.normalId, "Title", RichNamedStyle.headingId(1), RichNamedStyle.headingId(2)] {
+            guard let entry = sheet[id] else { continue }
+            tiles.append(_styleTile(entry, s.styleId == id, fluent) { c.setNamedStyle(id) })
+        }
+        let more: [MenuFlyoutItemBase] = sheet.styles.map { entry in
+            MenuFlyoutItem(text: Text(entry.name, style: _preview(entry, fluent, cap: 13)),
+                           leading: Icon(s.styleId == entry.id ? FluentSystemIcons.check : FluentSystemIcons.textT,
+                                         size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                           onPressed: { c.setNamedStyle(entry.id) })
+        }
+        tiles.append(Tooltip(message: "All styles", child: DropDownButton(
+            leading: Icon(FluentSystemIcons.paintBrush, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+            items: more)))
+        let styles = Chrome.group("Styles", fluent, tiles)
 
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
@@ -231,17 +239,32 @@ final class Ribbon: StatelessWidget {
         return [clipboard, font, paragraph, styles, editing]
     }
 
-    private func _styleTile(_ name: String, _ on: Bool, _ fluent: FluentThemeData,
-                            _ style: Flutter.TextStyle?, action: @escaping () -> Void) -> Widget {
-        Padding(padding: EdgeInsets(left: 0, top: 0, right: 4, bottom: 0),
-                child: SizedBox(width: 92, height: 56, child: ToggleButton(
+    /// A gallery tile: the style's look on "AaBb", its name under it.
+    private func _styleTile(_ entry: RichNamedStyle, _ on: Bool, _ fluent: FluentThemeData,
+                            action: @escaping () -> Void) -> Widget {
+        let look = _preview(entry, fluent, cap: 18, onAccent: on)
+        return Padding(padding: EdgeInsets(left: 0, top: 0, right: 4, bottom: 0),
+                child: SizedBox(width: 80, height: 56, child: ToggleButton(
                     checked: on, onChanged: { _ in action() },
                     child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
-                        Text(name == "Normal" ? "AaBbCc" : "AaBb", style: style),
+                        Text(entry.id == RichNamedStyle.normalId ? "AaBbCc" : "AaBb", style: look),
                         Chrome.vgap(2),
-                        Text(name, style: fluent.typography.caption?.copyWith(
-                            color: on ? fluent.resources.textOnAccentFillColorPrimary : nil)),
+                        Text(entry.name, style: fluent.typography.caption?.copyWith(
+                            color: on ? fluent.resources.textOnAccentFillColorPrimary : nil),
+                             softWrap: false),
                     ]))))
+    }
+
+    /// The style's character look, sized to fit chrome.
+    private func _preview(_ entry: RichNamedStyle, _ fluent: FluentThemeData, cap: Double,
+                          onAccent: Bool = false) -> Flutter.TextStyle {
+        let size = min(cap, (entry.char.fontSize ?? session.theme.fontSize) * 0.85)
+        let color = onAccent ? fluent.resources.textOnAccentFillColorPrimary
+            : entry.char.color ?? fluent.resources.textFillColorPrimary
+        return Flutter.TextStyle(color: color, fontSize: max(9, size),
+                                 fontWeight: entry.char.bold ? .bold : .normal,
+                                 fontStyle: entry.char.italic ? .italic : .normal,
+                                 fontFamily: entry.char.fontFamily ?? session.theme.fontFamily)
     }
 
     private static func _fmt(_ n: Double) -> String {

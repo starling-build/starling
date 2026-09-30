@@ -64,6 +64,8 @@ enum DemoDocument {
                 }
             }
         }
-        return RichDocument(paragraphs: paragraphs)
+        var doc = RichDocument(paragraphs: paragraphs)
+        doc.styles = OfficeStyles.sheet
+        return doc
     }
 }

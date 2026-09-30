@@ -62,11 +62,14 @@ public final class RichTextTheme {
     /// Resolve a run's style inside a paragraph to an engine TextStyle, at
     /// `scale` (zoom, 1.0 = 100%).
     public func textStyle(for style: CharStyle, in paragraph: RichParagraphStyle,
-                          scale: Double) -> TextStyle {
-        var size = style.fontSize ?? fontSize
-        var bold = style.bold
-        var color = style.color ?? textColor
-        if let h = paragraph.heading, h >= 1 {
+                          named: RichNamedStyle? = nil, scale: Double) -> TextStyle {
+        var size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        var bold = style.bold || (named?.char.bold ?? false)
+        let italic = style.italic || (named?.char.italic ?? false)
+        var color = style.color ?? named?.char.color ?? textColor
+        let family = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        if named == nil, let h = paragraph.heading, h >= 1 {
+            // A heading the sheet has no entry for: the theme's look.
             let idx = min(h, headingSizes.count) - 1
             if style.fontSize == nil { size = headingSizes[idx] }
             if h <= 3 { bold = true }
@@ -82,11 +85,11 @@ public final class RichTextTheme {
             backgroundColor: style.highlight,
             fontSize: style.script == .normal ? px : px * 0.65,
             fontWeight: bold ? .bold : .normal,
-            fontStyle: style.italic ? .italic : .normal,
+            fontStyle: italic ? .italic : .normal,
             height: paragraph.lineSpacing * lineSpacing,
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
-            fontFamily: style.fontFamily ?? fontFamily
+            fontFamily: family
         )
     }
 }
@@ -318,7 +321,7 @@ public final class RichLayout {
         _updateTables(document)
         var changed = false
         for i in _painters.indices where _painters[i] == nil {
-            _layoutParagraph(i, document.paragraphs[i])
+            _layoutParagraph(i, document.paragraphs[i], document)
             changed = true
         }
         if changed || !_topsValid {
@@ -586,7 +589,7 @@ public final class RichLayout {
         _listValid = true
     }
 
-    private func _layoutParagraph(_ i: Int, _ p: RichParagraph) {
+    private func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         let style = p.style
         var left = _px(style.indentLeft)
             + (style.list != nil ? _px(theme.listIndent) * Double(style.listLevel + 1) : 0)
@@ -604,7 +607,7 @@ public final class RichLayout {
             _cells[i] = nil
         }
         let painter = TextPainter(
-            text: _span(for: p),
+            text: _span(for: p, document),
             textAlign: Self._textAlign(style.alignment),
             textDirection: .ltr
         )
@@ -648,12 +651,13 @@ public final class RichLayout {
     /// The paragraph's runs as a span tree. An empty paragraph lays out a
     /// single space so it has a line height; offsets are clamped to 0 by
     /// every caller.
-    private func _span(for p: RichParagraph) -> TextSpan {
+    private func _span(for p: RichParagraph, _ document: RichDocument) -> TextSpan {
+        let named = document.styles.resolve(p.style)
         if p.text.isEmpty {
-            return TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, scale: scale))
+            return TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale))
         }
         if p.runs.count == 1 {
-            return TextSpan(text: p.text, style: theme.textStyle(for: p.runs[0].style, in: p.style, scale: scale))
+            return TextSpan(text: p.text, style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale))
         }
         var children: [InlineSpan] = []
         children.reserveCapacity(p.runs.count)
@@ -663,7 +667,7 @@ public final class RichLayout {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
             children.append(TextSpan(text: String(utf16[a ..< b]) ?? "",
-                                     style: theme.textStyle(for: run.style, in: p.style, scale: scale)))
+                                     style: theme.textStyle(for: run.style, in: p.style, named: named, scale: scale)))
             pos += run.length
         }
         return TextSpan(children: children)

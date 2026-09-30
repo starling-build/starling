@@ -390,8 +390,14 @@ public final class RichDocumentController: ChangeNotifier {
             return
         }
         var tailStyle = document.paragraphs[pos.paragraph].style
-        if tailStyle.heading != nil && pos.offset == document.paragraphs[pos.paragraph].length {
-            tailStyle.heading = nil
+        if pos.offset == document.paragraphs[pos.paragraph].length {
+            // Enter at the end of a heading or title starts a Normal
+            // paragraph; a style without a `next` (Quote, Code) carries on.
+            if let entry = document.styles.resolve(tailStyle) {
+                if let next = entry.next, next != entry.id { document.styles.apply(next, to: &tailStyle) }
+            } else if tailStyle.heading != nil {
+                tailStyle.heading = nil
+            }
         }
         tailStyle.pageBreakBefore = false
         perform(.splitParagraph(pos, tailStyle: tailStyle))
@@ -1000,8 +1006,21 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     public func setHeading(_ level: Int?) {
-        applyParagraphStyle { $0.heading = level }
+        if let level, document.styles[RichNamedStyle.headingId(level)] == nil {
+            applyParagraphStyle { $0.heading = level; $0.named = nil }
+        } else {
+            setNamedStyle(level.map(RichNamedStyle.headingId) ?? RichNamedStyle.normalId)
+        }
     }
+
+    /// Apply a style from the document's sheet to the selected paragraphs.
+    public func setNamedStyle(_ id: String) {
+        let sheet = document.styles
+        applyParagraphStyle { sheet.apply(id, to: &$0) }
+    }
+
+    /// The sheet id of the caret paragraph's style ("Normal" for body text).
+    public var currentNamedStyleId: String { document.styles.id(of: currentParagraphStyle) }
 
     public func toggleList(_ kind: ListKind) {
         let allOn = selectedParagraphRange.allSatisfy { document.paragraphs[$0].style.list == kind }

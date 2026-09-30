@@ -84,16 +84,22 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var lineSpacing: Double = 1.0
     public var list: ListKind? = nil
     public var listLevel: Int = 0
-    /// 1...6 for a heading, nil for body text. Named styles (Phase 2) build
-    /// on this; the number is what `.docx` and Markdown both carry.
+    /// 1...6 for a heading, nil for body text. The outline level is what
+    /// `.docx`, RTF and Markdown all carry; the look comes from the
+    /// document's style sheet ("Heading1"...) when it has that entry.
     public var heading: Int? = nil
+    /// A named style other than a heading: "Title", "Quote", ... — an id in
+    /// the document's `RichStyleSheet`. Applying one copies its paragraph
+    /// props here and the layout takes its character defaults from the
+    /// sheet, under any direct formatting.
+    public var named: String? = nil
     public var pageBreakBefore = false
 
     public init(alignment: ParagraphAlignment = .left, indentLeft: Double = 0,
                 indentRight: Double = 0, firstLineIndent: Double = 0,
                 spaceBefore: Double = 0, spaceAfter: Double = 0,
                 lineSpacing: Double = 1.0, list: ListKind? = nil, listLevel: Int = 0,
-                heading: Int? = nil, pageBreakBefore: Bool = false) {
+                heading: Int? = nil, named: String? = nil, pageBreakBefore: Bool = false) {
         self.alignment = alignment
         self.indentLeft = indentLeft
         self.indentRight = indentRight
@@ -104,10 +110,127 @@ public struct RichParagraphStyle: Hashable, Sendable {
         self.list = list
         self.listLevel = listLevel
         self.heading = heading
+        self.named = named
         self.pageBreakBefore = pageBreakBefore
     }
 
     public static let body = RichParagraphStyle()
+}
+
+// MARK: - Named styles
+
+/// One entry of a document's style sheet: Word's Title, Heading 1, Quote…
+/// `paragraph` is copied onto a paragraph when the style is applied;
+/// `char` supplies the defaults a run's own formatting does not set.
+public struct RichNamedStyle: Hashable, Sendable {
+    public var id: String
+    public var name: String
+    public var paragraph: RichParagraphStyle
+    public var char: CharStyle
+    /// The style Enter at the end of the paragraph moves to; nil keeps it.
+    public var next: String?
+
+    public init(id: String, name: String, paragraph: RichParagraphStyle = .body,
+                char: CharStyle = CharStyle(), next: String? = nil) {
+        self.id = id
+        self.name = name
+        self.paragraph = paragraph
+        self.char = char
+        self.next = next
+    }
+
+    public static let normalId = "Normal"
+    public static func headingId(_ level: Int) -> String { "Heading\(level)" }
+}
+
+/// The style sheet, in gallery order. `word` is what a new document gets;
+/// a `.docx` replaces entries with what its own styles.xml says.
+public struct RichStyleSheet: Hashable, Sendable {
+    public var styles: [RichNamedStyle]
+
+    public init(styles: [RichNamedStyle]) { self.styles = styles }
+
+    public subscript(id: String) -> RichNamedStyle? {
+        get { styles.first { $0.id == id } }
+        set {
+            if let i = styles.firstIndex(where: { $0.id == id }) {
+                if let newValue { styles[i] = newValue } else { styles.remove(at: i) }
+            } else if let newValue {
+                styles.append(newValue)
+            }
+        }
+    }
+
+    /// The entry a paragraph's style resolves to: its named style, else
+    /// its heading's, else nil for body text.
+    public func resolve(_ style: RichParagraphStyle) -> RichNamedStyle? {
+        if let n = style.named { return self[n] }
+        if let h = style.heading { return self[RichNamedStyle.headingId(h)] }
+        return nil
+    }
+
+    public func id(of style: RichParagraphStyle) -> String {
+        resolve(style)?.id ?? (style.heading.map(RichNamedStyle.headingId) ?? RichNamedStyle.normalId)
+    }
+
+    /// Give `style` the named style `id`: the sheet's paragraph props
+    /// replace the direct ones (Word copies them the same way), the list
+    /// and page-break flags survive, and the outline level follows the
+    /// entry. Unknown ids are ignored.
+    public func apply(_ id: String, to style: inout RichParagraphStyle) {
+        let entry: RichNamedStyle
+        if id == RichNamedStyle.normalId {
+            entry = self[id] ?? RichNamedStyle(id: id, name: "Normal")
+        } else {
+            guard let e = self[id] else { return }
+            entry = e
+        }
+        var s = entry.paragraph
+        s.list = style.list
+        s.listLevel = style.listLevel
+        s.pageBreakBefore = style.pageBreakBefore
+        s.heading = entry.paragraph.heading
+        s.named = id == RichNamedStyle.normalId || entry.paragraph.heading != nil ? nil : id
+        style = s
+    }
+
+    /// Word's defaults, in points.
+    public static let word: RichStyleSheet = {
+        let blue = Color(0xFF2F5496)
+        func heading(_ n: Int, _ size: Double, bold: Bool, italic: Bool = false,
+                     before: Double, after: Double) -> RichNamedStyle {
+            RichNamedStyle(id: RichNamedStyle.headingId(n), name: "Heading \(n)",
+                           paragraph: RichParagraphStyle(spaceBefore: before, spaceAfter: after, heading: n),
+                           char: CharStyle(bold: bold, italic: italic, fontSize: size, color: blue),
+                           next: RichNamedStyle.normalId)
+        }
+        return RichStyleSheet(styles: [
+            RichNamedStyle(id: RichNamedStyle.normalId, name: "Normal"),
+            RichNamedStyle(id: "Title", name: "Title",
+                           paragraph: RichParagraphStyle(spaceAfter: 4, lineSpacing: 1.0),
+                           char: CharStyle(fontSize: 28, color: Color(0xFF1F3864)), next: RichNamedStyle.normalId),
+            RichNamedStyle(id: "Subtitle", name: "Subtitle",
+                           paragraph: RichParagraphStyle(spaceAfter: 8),
+                           char: CharStyle(fontSize: 13, color: Color(0xFF5A5A5A)), next: RichNamedStyle.normalId),
+            heading(1, 20, bold: true, before: 12, after: 4),
+            heading(2, 16, bold: true, before: 8, after: 4),
+            heading(3, 14, bold: true, before: 8, after: 4),
+            heading(4, 12, bold: true, italic: true, before: 4, after: 2),
+            heading(5, 11, bold: false, before: 4, after: 2),
+            heading(6, 11, bold: false, italic: true, before: 4, after: 2),
+            RichNamedStyle(id: "Quote", name: "Quote",
+                           paragraph: RichParagraphStyle(alignment: .center, indentLeft: 36, indentRight: 36,
+                                                         spaceBefore: 8, spaceAfter: 8),
+                           char: CharStyle(italic: true, color: Color(0xFF404040))),
+            RichNamedStyle(id: "Caption", name: "Caption",
+                           paragraph: RichParagraphStyle(spaceAfter: 10),
+                           char: CharStyle(italic: true, fontSize: 9, color: Color(0xFF44546A)),
+                           next: RichNamedStyle.normalId),
+            RichNamedStyle(id: "Code", name: "Code",
+                           paragraph: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0),
+                           char: CharStyle(fontSize: 10)),
+        ])
+    }()
 }
 
 // MARK: - Images
@@ -567,6 +690,8 @@ public struct RichDocument: Hashable, Sendable {
     /// Column widths in points per table id; a table without an entry gets
     /// equal columns across the content width.
     public var tableColumns: [String: [Double]] = [:]
+    /// The named styles paragraphs refer to.
+    public var styles: RichStyleSheet = .word
 
     public static let pageField = "{PAGE}"
     public static let pageCountField = "{NUMPAGES}"

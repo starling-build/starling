@@ -17,6 +17,7 @@ struct ToolbarSummary: Equatable {
     var fontFamily: String? = nil
     var fontSize: Double? = nil
     var heading: Int? = nil
+    var styleId = RichNamedStyle.normalId
     var list: ListKind? = nil
     var alignment: ParagraphAlignment = .left
     var lineSpacing = 1.0
@@ -85,6 +86,7 @@ final class OfficeSession {
         s.fontSize = cs.fontSize
         let ps = c.currentParagraphStyle
         s.heading = ps.heading
+        s.styleId = c.currentNamedStyleId
         s.list = ps.list
         s.alignment = ps.alignment
         s.lineSpacing = ps.lineSpacing
@@ -102,13 +104,29 @@ final class OfficeSession {
     /// else the document default.
     var effectiveFontSize: Double {
         if let size = summary.fontSize { return size }
+        if let size = controller.document.styles[summary.styleId]?.char.fontSize { return size }
         if let h = summary.heading, h >= 1 {
             return theme.headingSizes[min(h, theme.headingSizes.count) - 1]
         }
         return theme.fontSize
     }
 
-    var effectiveFontFamily: String { summary.fontFamily ?? theme.fontFamily ?? "" }
+    var effectiveFontFamily: String {
+        summary.fontFamily ?? controller.document.styles[summary.styleId]?.char.fontFamily ?? theme.fontFamily ?? ""
+    }
+}
+
+/// The style sheet a new document starts with: Word's, with Code in the
+/// bundled monospace face.
+enum OfficeStyles {
+    static let sheet: RichStyleSheet = {
+        var sheet = RichStyleSheet.word
+        if var code = sheet["Code"] {
+            code.char.fontFamily = OfficeFonts.mono
+            sheet["Code"] = code
+        }
+        return sheet
+    }()
 }
 
 /// Word's colour palettes, by name.
