@@ -75,6 +75,20 @@ case "scroll":
     let e = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: dy, wheel2: 0, wheel3: 0)!
     e.location = p
     e.post(tap: .cghidEventTap); usleep(30_000)
+case "trackpad":
+    // A two-finger scroll: began, changed×N, ended — the phases make macOS
+    // (and the app) treat it as a gesture, not a wheel.
+    let total = Int32(a[4])!
+    let steps: Int32 = 8
+    func phase(_ ph: Int64, _ d: Int32) {
+        let e = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: d, wheel2: 0, wheel3: 0)!
+        e.location = p
+        e.setIntegerValueField(.scrollWheelEventScrollPhase, value: ph)
+        e.post(tap: .cghidEventTap); usleep(16_000)
+    }
+    phase(1, 0)
+    for _ in 0..<steps { phase(2, total / steps) }
+    phase(4, 0)
 default:
     post(.leftMouseDown, p, flags: flags); post(.leftMouseUp, p, flags: flags)
 }
@@ -123,8 +137,8 @@ class Driver:
         subprocess.run(args, check=True)
         time.sleep(0.25)
 
-    def scroll(self, x, y, dy):
-        subprocess.run([self.click_bin, str(self.x + x), str(self.y + y), "scroll", str(dy)], check=True)
+    def scroll(self, x, y, dy, trackpad=False):
+        subprocess.run([self.click_bin, str(self.x + x), str(self.y + y), "trackpad" if trackpad else "scroll", str(dy)], check=True)
         time.sleep(0.25)
 
     def key(self, text=None, key=None, mods=()):

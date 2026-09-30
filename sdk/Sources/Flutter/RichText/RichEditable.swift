@@ -137,6 +137,11 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _dropPosition: RichPosition? = nil
     /// A spell-check pass is scheduled (one at a time, after an idle).
     private var _spellScheduled = false
+    /// Trackpad scrolling: the last pan's velocity (px per frame) and the
+    /// generation of the momentum run, so a new touch cancels the old one.
+    private var _panVelocity = 0.0
+    private var _panLastTime: Duration? = nil
+    private var _momentumGeneration = 0
     /// A drag begun by a double or triple click: the unit first selected,
     /// and whether the units are paragraphs (else words).
     private var _unitDrag: (origin: RichSelection, paragraphs: Bool)? = nil
@@ -806,10 +811,54 @@ public final class RichEditableState: State<StatefulWidget> {
 
     private func _pointerSignal(_ event: PointerSignalEvent) {
         guard let scroll = event as? PointerScrollEvent else { return }
+        _momentumGeneration += 1   // a wheel tick ends any trackpad glide
         let before = _scrollY
         _scrollY += scroll.scrollDelta.dy
         _clampScroll()
         if _scrollY != before { _repaint.notifyListeners() }
+    }
+
+    // A trackpad scrolls as a pan gesture on macOS (the embedder sends
+    // pan-zoom events for anything with a phase, and drops the system's
+    // momentum events for the framework to make its own), so the content
+    // follows the fingers here and glides on after they lift.
+    private func _panZoomStart(_ event: PointerPanZoomStartEvent) {
+        _momentumGeneration += 1
+        _panVelocity = 0
+        _panLastTime = event.timeStamp
+    }
+
+    private func _panZoomUpdate(_ event: PointerPanZoomUpdateEvent) {
+        let before = _scrollY
+        _scrollY -= event.panDelta.dy
+        _clampScroll()
+        if let last = _panLastTime {
+            let dt = max(1, Double((event.timeStamp - last).components.attoseconds) / 1e15)   // ms
+            let perFrame = -event.panDelta.dy / dt * 16
+            _panVelocity = _panVelocity * 0.4 + perFrame * 0.6
+        }
+        _panLastTime = event.timeStamp
+        if _scrollY != before { _repaint.notifyListeners() }
+    }
+
+    private func _panZoomEnd(_ event: PointerPanZoomEndEvent) {
+        _panLastTime = nil
+        guard abs(_panVelocity) > 1 else { return }
+        _momentumGeneration += 1
+        _glide(_momentumGeneration, velocity: _panVelocity)
+    }
+
+    private func _glide(_ gen: Int, velocity: Double) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(16)) { [weak self] in
+            guard let self, self._momentumGeneration == gen else { return }
+            let before = self._scrollY
+            self._scrollY += velocity
+            self._clampScroll()
+            if self._scrollY == before { return }   // hit an end
+            self._repaint.notifyListeners()
+            let next = velocity * 0.95
+            if abs(next) > 0.5 { self._glide(gen, velocity: next) }
+        }
     }
 
     // MARK: Paint
@@ -970,6 +1019,9 @@ public final class RichEditableState: State<StatefulWidget> {
             onPointerUp: { [weak self] e in self?._pointerUp(e) },
             onPointerHover: { [weak self] e in self?._pointerHover(e) },
             onPointerCancel: { [weak self] e in self?._pointerCancel(e) },
+            onPointerPanZoomStart: { [weak self] e in self?._panZoomStart(e) },
+            onPointerPanZoomUpdate: { [weak self] e in self?._panZoomUpdate(e) },
+            onPointerPanZoomEnd: { [weak self] e in self?._panZoomEnd(e) },
             onPointerSignal: { [weak self] e in self?._pointerSignal(e) },
             behavior: .opaque,
             child: CustomPaint(painter: _painter, child: SizedBox(expand: ()))
