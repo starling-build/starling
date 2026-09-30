@@ -111,6 +111,19 @@ enum Chrome {
             ])))
     }
 
+    /// Big toggle: the big button's shape, lit while on (Spelling).
+    static func bigToggle(_ icon: IconData, _ label: String, _ on: Bool, _ fluent: FluentThemeData,
+                          action: @escaping () -> Void) -> Widget {
+        let color = on ? fluent.resources.textOnAccentFillColorPrimary : fluent.resources.textFillColorPrimary
+        return ToggleButton(checked: on, onChanged: { _ in action() }, child: Padding(
+            padding: EdgeInsets(left: 4, top: 2, right: 4, bottom: 2),
+            child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+                Icon(icon, size: bigIconSize, color: color),
+                vgap(4),
+                Text(label, style: fluent.typography.caption?.copyWith(color: color)),
+            ])))
+    }
+
     /// Small button: icon beside label, stacked three to a column.
     static func small(_ icon: IconData, _ label: String, _ fluent: FluentThemeData,
                       enabled: Bool = true, action: @escaping () -> Void) -> Widget {

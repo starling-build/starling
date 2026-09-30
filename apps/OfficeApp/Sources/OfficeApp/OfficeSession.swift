@@ -65,6 +65,8 @@ final class OfficeSession {
     var showRuler = true
     var showNavigation = false
     var showMarks = false
+    /// Spelling: misspelled words get Word's red underline as they are shown.
+    var checkSpelling = true
     /// AutoSave: on, a titled document writes itself after every pause in
     /// editing. Off by default — a file opened to read must not change on
     /// disk — while every document keeps a recovery copy beside it.
@@ -86,6 +88,7 @@ final class OfficeSession {
     var onToggleRuler: (() -> Void)?
     var onToggleNavigation: (() -> Void)?
     var onToggleMarks: (() -> Void)?
+    var onToggleSpelling: (() -> Void)?
     var onFormatPainter: (() -> Void)?
     var onToggleAutoSave: (() -> Void)?
     var onPrint: (() -> Void)?

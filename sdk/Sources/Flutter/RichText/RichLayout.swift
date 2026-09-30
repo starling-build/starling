@@ -24,6 +24,8 @@ public final class RichTextTheme {
     public var caretColor: Color
     public var selectionColor: Color
     public var linkColor: Color
+    /// The spelling underline.
+    public var spellingColor: Color = Color(0xFFD03A2E)
     public var pixelsPerPoint: Double
     /// Heading font sizes in points, index 0 = Heading 1.
     public var headingSizes: [Double]
@@ -272,6 +274,88 @@ public final class RichLayout {
     public init(theme: RichTextTheme, paragraphCount: Int) {
         self.theme = theme
         _resize(paragraphCount)
+    }
+
+    // MARK: Spelling
+
+    /// The checker, if any. Results are cached by paragraph text, so a
+    /// paragraph is checked once per distinct text; paint records the
+    /// paragraphs it could not answer for in `pendingSpellChecks`, and the
+    /// editable runs `runSpellChecks` after a short idle.
+    public var spellChecker: RichSpellChecker? {
+        didSet {
+            if spellChecker !== oldValue { _spellCache = [:]; _spellVersion = spellChecker?.version ?? 0 }
+            onNeedsRepaint?()
+        }
+    }
+    private var _spellCache: [String: [Range<Int>]] = [:]
+    private var _spellVersion = 0
+    public private(set) var pendingSpellChecks: [Int] = []
+    /// The caret during a paint: its word is not underlined while typed.
+    private var _paintCaret: RichPosition? = nil
+
+    /// Check the paragraphs paint queued, newest first, within `budget`
+    /// milliseconds; true when anything was checked (a repaint is due).
+    @discardableResult
+    public func runSpellChecks(_ document: RichDocument, budget: Double = 8) -> Bool {
+        guard let checker = spellChecker else { pendingSpellChecks = []; return false }
+        if checker.version != _spellVersion { _spellCache = [:]; _spellVersion = checker.version }
+        if _spellCache.count > 4096 { _spellCache = [:] }
+        let start = Date()
+        var checked = false
+        var queue = pendingSpellChecks
+        pendingSpellChecks = []
+        while let i = queue.popLast() {
+            guard i < document.paragraphs.count else { continue }
+            let text = document.paragraphs[i].text
+            if _spellCache[text] != nil { continue }
+            _spellCache[text] = checker.misspelledRanges(in: text)
+            checked = true
+            if Date().timeIntervalSince(start) * 1000 > budget { break }
+        }
+        pendingSpellChecks = queue
+        return checked
+    }
+
+    /// The misspelled range at `pos`, if that paragraph has been checked.
+    public func misspelling(at pos: RichPosition, _ document: RichDocument) -> Range<Int>? {
+        guard pos.paragraph < document.paragraphs.count,
+              let ranges = _spellCache[document.paragraphs[pos.paragraph].text] else { return nil }
+        return ranges.first { $0.lowerBound <= pos.offset && pos.offset <= $0.upperBound }
+    }
+
+    private func _paintSpelling(_ i: Int, _ g: ParagraphGeometry, _ canvas: any Canvas, _ document: RichDocument) {
+        guard let checker = spellChecker else { return }
+        if checker.version != _spellVersion { _spellCache = [:]; _spellVersion = checker.version }
+        let para = document.paragraphs[i]
+        guard !para.isImage, !para.text.isEmpty else { return }
+        guard let ranges = _spellCache[para.text] else {
+            if !pendingSpellChecks.contains(i) { pendingSpellChecks.append(i) }
+            return
+        }
+        guard !ranges.isEmpty else { return }
+        let paint = Paint()
+        paint.style = .stroke
+        paint.strokeWidth = 1
+        paint.color = theme.spellingColor
+        for r in ranges {
+            if let c = _paintCaret, c.paragraph == i, r.lowerBound <= c.offset, c.offset <= r.upperBound { continue }
+            for box in g.painter.getBoxesForSelection(TextSelection(baseOffset: r.lowerBound, extentOffset: r.upperBound),
+                                                      boxHeightStyle: .max) {
+                let y = (g.textTop + box.bottom - 1.5).rounded() + 0.5
+                let x0 = g.textLeft + box.left, x1 = g.textLeft + box.right
+                let path = Path()
+                path.moveTo(x0, y)
+                var x = x0
+                var up = true
+                while x < x1 {
+                    x = min(x + 2, x1)
+                    path.lineTo(x, up ? y - 1.5 : y)
+                    up.toggle()
+                }
+                canvas.drawPath(path, paint)
+            }
+        }
     }
 
     public var count: Int { _painters.count }
@@ -1257,6 +1341,7 @@ public final class RichLayout {
             marker.dispose()
         }
         g.painter.paint(canvas, Offset(g.textLeft, g.textTop))
+        _paintSpelling(i, g, canvas, document)
         if theme.showMarks, !document.paragraphs[i].isImage {
             let end = caretRect(RichPosition(paragraph: i, offset: document.paragraphs[i].length), document)
             let style = theme.textStyle(for: CharStyle(color: theme.textColor.withOpacity(0.45)),
@@ -1302,6 +1387,7 @@ public final class RichLayout {
     public func paint(_ canvas: any Canvas, visible: Rect, document: RichDocument,
                       selection: RichSelection?, caret: Rect?,
                       pageBackground: ((Int, Rect) -> Void)? = nil) {
+        _paintCaret = selection.flatMap { $0.isCollapsed ? $0.focus : nil }
         if isPaged {
             let firstPage = page(atCanvasY: visible.top)
             let lastPage = page(atCanvasY: visible.bottom)

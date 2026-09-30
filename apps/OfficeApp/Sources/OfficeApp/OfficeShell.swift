@@ -45,6 +45,11 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _linkHover: String? = nil
     private var _autosaveGeneration = 0
     private let _contextMenu = FlyoutController()
+    #if canImport(AppKit)
+    private let _spelling: RichSpellChecker? = CocoaSpellChecker()
+    #else
+    private let _spelling: RichSpellChecker? = nil
+    #endif
     /// Set when the open document came from a recovery copy: AutoSave then
     /// refreshes only the copy until the user saves for real.
     private var _recovered = false
@@ -129,6 +134,10 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onToggleNavigation = { [weak self] in
             guard let self else { return }
             self.setState { self.session.showNavigation.toggle() }
+        }
+        session.onToggleSpelling = { [weak self] in
+            guard let self else { return }
+            self.setState { self.session.checkSpelling.toggle() }
         }
         session.onToggleMarks = { [weak self] in
             guard let self else { return }
@@ -509,6 +518,28 @@ final class OfficeShellState: State<StatefulWidget> {
             items.append(MenuFlyoutItem(text: Text(text), onPressed: enabled ? action : nil))
         }
         func sep() { if !(items.last is MenuFlyoutSeparator), !items.isEmpty { items.append(MenuFlyoutSeparator()) } }
+        // A misspelled word under the click: its corrections first, as Word.
+        if let checker = _spelling, session.checkSpelling, !c.hasSelection {
+            let pos = c.selection.focus
+            let text = c.document.paragraphs[pos.paragraph].text
+            if let r = checker.misspelledRanges(in: text).first(where: { $0.lowerBound <= pos.offset && pos.offset <= $0.upperBound }) {
+                let word = (text as NSString).substring(with: NSRange(location: r.lowerBound, length: r.count))
+                let guesses = checker.suggestions(for: word).prefix(5)
+                if guesses.isEmpty {
+                    items.append(MenuFlyoutItem(text: Text("(No Spelling Suggestions)"), onPressed: nil))
+                }
+                for g in guesses {
+                    item(g) { [weak self] in
+                        c.replaceText(in: pos.paragraph, r, with: g)
+                        self?._flash("Corrected to “\(g)”")
+                    }
+                }
+                sep()
+                item("Ignore All") { [weak self] in checker.ignore(word); self?.controller.invalidateLayout() }
+                item("Add to Dictionary") { [weak self] in checker.learn(word); self?.controller.invalidateLayout() }
+                sep()
+            }
+        }
         if let link = c.currentLink {
             item("Open Link") { hostOpenURL?(link) }
             item("Edit Link…") { [weak self] in self?._openLink() }
@@ -746,7 +777,8 @@ final class OfficeShellState: State<StatefulWidget> {
                 self._flash("Painted")
                 self.setState { self.session.summary = self.session.summarize() }
             },
-            onContextMenu: { [weak self] point in self?._showContextMenu(at: point) }
+            onContextMenu: { [weak self] point in self?._showContextMenu(at: point) },
+            spellChecker: session.checkSpelling ? _spelling : nil
         )
     }
 }

@@ -135,12 +135,13 @@ final class Ribbon: StatelessWidget {
 
     // MARK: Review
 
-    /// Word Count is real; the rest of Word's Review tab (spelling, track
-    /// changes, comments) and the Draw and References tabs are one honest
-    /// note rather than five rows of greyed buttons.
+    /// Spelling and Word Count are real; the rest of Word's Review tab
+    /// (track changes, comments) and the Draw and References tabs are one
+    /// honest note rather than five rows of greyed buttons.
     private func _review(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller
         let proofing = Chrome.group("Proofing", fluent, [
+            Chrome.bigToggle(FluentSystemIcons.textGrammarWand, "Spelling", session.checkSpelling, fluent) { [session] in session.onToggleSpelling?() },
             Chrome.big(FluentSystemIcons.textT, "Word Count", fluent) { [session] in
                 let d = c.document
                 session.onStatus?("\(d.wordCount) words, \(d.characterCount) characters, \(d.paragraphs.count) paragraphs")
@@ -148,7 +149,7 @@ final class Ribbon: StatelessWidget {
         ])
         let later = Chrome.group("Coming later", fluent, [
             Padding(padding: EdgeInsets(left: 4, top: 6, right: 4, bottom: 0), child: SizedBox(width: 300, height: nil, child: Text(
-                "Spelling, track changes, comments, footnotes, a table of contents and drawing are not in this build.",
+                "Track changes, comments, footnotes, a table of contents and drawing are not in this build.",
                 style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))),
         ])
         return [proofing, later]

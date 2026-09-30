@@ -17,7 +17,14 @@ by default, the 14pt menu bug. Everyday editing added 2026-09-30, all
 headless: right-click menu, Paste as plain text (⌘⇧V), AutoCorrect
 (smart quotes, dashes, (c)/(r)/(tm), first-letter capitals), cell blocks,
 drag-and-drop of selected text (⌥ copies; a drop caret follows the
-pointer; a press that does not move collapses the selection, as Word). First thing
+pointer; a press that does not move collapses the selection, as Word),
+the Bullets and Numbering libraries (split chevrons; .docx round-trips
+the glyphs), and spelling: `RichSpellChecker` in the SDK, NSSpellChecker
+behind it in the app, red underlines painted from a per-text cache that
+fills 350 ms after a paragraph is first shown (a bad paragraph costs
+NSSpellChecker ~5 ms, a good one ~0.3 ms, so never in the paint), the
+caret's word left alone, corrections / Ignore All / Add to Dictionary
+at the top of the right-click menu, and a Spelling toggle on Review. First thing
 once the screen is unlocked: run the driver and look at every picture.
 
 **M5, step one done:** platform messages now travel both ways. The
@@ -175,7 +182,7 @@ tabs, spaces) and Columns (two/three-column sections in `RichLayout`)
 work; move Shapes, Text Box, Draw and References into a single "Coming
 later" note rather than five greyed groups; Review keeps Word Count and
 gains Spelling only if the host spell checker is cheap to wire
-(`NSSpellChecker` is). Modify Style and Update to Match Selection in the
+(`NSSpellChecker` is — done, see the status above). Modify Style and Update to Match Selection in the
 gallery menu; the sheet edit is one undo step and re-lays out.
 
 ### M9 — Print and save

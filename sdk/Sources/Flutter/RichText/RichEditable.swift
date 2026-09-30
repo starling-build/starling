@@ -47,6 +47,8 @@ public final class RichEditable: StatefulWidget {
     /// A pointer selection gesture ended (drag, double or triple click)
     /// with a non-empty selection — when Word's Format Painter applies.
     public let onSelectionGestureEnd: (() -> Void)?
+    /// Checks paragraphs as they are shown and underlines misspellings.
+    public let spellChecker: RichSpellChecker?
     /// A right click, with the pointer's position in global coordinates.
     /// The caret has moved there unless the click was inside the selection.
     public let onContextMenu: ((Offset) -> Void)?
@@ -63,7 +65,8 @@ public final class RichEditable: StatefulWidget {
                 onLinkHover: ((String?) -> Void)? = nil,
                 onLinkActivate: ((String) -> Void)? = nil,
                 onSelectionGestureEnd: (() -> Void)? = nil,
-                onContextMenu: ((Offset) -> Void)? = nil) {
+                onContextMenu: ((Offset) -> Void)? = nil,
+                spellChecker: RichSpellChecker? = nil) {
         self.controller = controller
         self.theme = theme
         self.padding = padding
@@ -80,6 +83,7 @@ public final class RichEditable: StatefulWidget {
         self.onLinkActivate = onLinkActivate
         self.onSelectionGestureEnd = onSelectionGestureEnd
         self.onContextMenu = onContextMenu
+        self.spellChecker = spellChecker
         super.init(key: key)
     }
 
@@ -131,6 +135,8 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _textDrag: (start: Offset, active: Bool)? = nil
     /// Where the dragged text would land, painted as a second caret.
     private var _dropPosition: RichPosition? = nil
+    /// A spell-check pass is scheduled (one at a time, after an idle).
+    private var _spellScheduled = false
     static let handleSize = 8.0
     private var _clickStreak = 0
     private var _lastClickAt = 0.0
@@ -203,6 +209,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _layout.scale = _w.zoom
         _layout.pageSetup = _w.pageSetup
         _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
+        _layout.spellChecker = _w.spellChecker
         _painter = _RichEditablePainter(state: self, repaint: _repaint)
         _controller.addListener(_onControllerChanged)
         if RichTextInputConnection.enabled { _textInput = RichTextInputConnection(controller: _controller) }
@@ -224,6 +231,7 @@ public final class RichEditableState: State<StatefulWidget> {
             _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         }
         if _layout.scale != _w.zoom { _layout.scale = _w.zoom }
+        if _layout.spellChecker !== _w.spellChecker { _layout.spellChecker = _w.spellChecker }
         if _layout.pageSetup != _w.pageSetup { _layout.pageSetup = _w.pageSetup }
         _repaint.notifyListeners()
     }
@@ -450,6 +458,11 @@ public final class RichEditableState: State<StatefulWidget> {
             _syncLayout()
         }
         if _layout.width > 0 { _layout.ensureLaidOut(_controller.document) }
+    }
+
+    /// The misspelled word under the caret, once its paragraph was checked.
+    public func misspelling(at pos: RichPosition) -> Range<Int>? {
+        _layout.misspelling(at: pos, _controller.document)
     }
 
     // MARK: Clipboard
@@ -816,6 +829,16 @@ public final class RichEditableState: State<StatefulWidget> {
                           paper.style = .fill
                           canvas.drawRect(rect, paper)
                       })
+        // Paragraphs shown for the first time get checked after an idle,
+        // not in the paint: NSSpellChecker takes milliseconds on a bad one.
+        if !_layout.pendingSpellChecks.isEmpty, !_spellScheduled {
+            _spellScheduled = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                guard let self else { return }
+                self._spellScheduled = false
+                if self._layout.runSpellChecks(self._controller.document) { self._repaint.notifyListeners() }
+            }
+        }
         // Where dragged text will drop: a caret that follows the pointer.
         if let drop = _dropPosition, _layout.count > drop.paragraph {
             let r = _layout.canvasCaretRect(drop, _controller.document)
