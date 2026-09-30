@@ -142,8 +142,8 @@ final class Backstage: StatelessWidget {
             recentRows.append(FlyoutListTile(
                 onPressed: { [onOpenPath] in onOpenPath(path) },
                 icon: Icon(FluentSystemIcons.document, size: 16, color: fluent.resources.textFillColorPrimary),
-                text: Text((path as NSString).lastPathComponent),
-                trailing: Text((path as NSString).deletingLastPathComponent,
+                text: Text(path.lastPathComponent),
+                trailing: Text(path.deletingLastPathComponent,
                                style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary))))
         }
         return Column(crossAxisAlignment: .start, children: [
@@ -202,10 +202,10 @@ final class Backstage: StatelessWidget {
     }
 
     private func _panel(_ mode: FilePanelMode, _ fluent: FluentThemeData) -> Widget {
-        let dir = session.path.map { ($0 as NSString).deletingLastPathComponent }
-            ?? NSHomeDirectory() + "/Documents"
-        let start = FileManager.default.fileExists(atPath: dir) ? dir : NSHomeDirectory()
-        let suggested = session.path.map { ($0 as NSString).lastPathComponent } ?? "Document1.docx"
+        let dir = session.path.map { $0.deletingLastPathComponent }
+            ?? homeDirectory() + "/Documents"
+        let start = FileManager.default.fileExists(atPath: dir) ? dir : homeDirectory()
+        let suggested = session.path.map { $0.lastPathComponent } ?? "Document1.docx"
         return Column(crossAxisAlignment: .stretch, children: [
             _heading(mode == .open ? "Open" : "Save As", fluent),
             Expanded(child: FluentFilePanel(
@@ -219,8 +219,8 @@ final class Backstage: StatelessWidget {
     }
 
     private func _picturePanel(_ fluent: FluentThemeData) -> Widget {
-        let start = [NSHomeDirectory() + "/Pictures", NSHomeDirectory() + "/Desktop", NSHomeDirectory()]
-            .first { FileManager.default.fileExists(atPath: $0) } ?? NSHomeDirectory()
+        let start = [homeDirectory() + "/Pictures", homeDirectory() + "/Desktop", homeDirectory()]
+            .first { FileManager.default.fileExists(atPath: $0) } ?? homeDirectory()
         return Column(crossAxisAlignment: .stretch, children: [
             _heading("Insert Picture", fluent),
             Expanded(child: FluentFilePanel(
@@ -290,9 +290,20 @@ final class Backstage: StatelessWidget {
         return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening"
     }
 
+    static func todayLongDate() -> String { _today() }
+
     private static func _today() -> String {
+        #if os(WASI)
+        // DateFormatter is the legacy Foundation layer (and ICU). The
+        // calendar's numbers are enough for the greeting's date.
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        let months = ["January", "February", "March", "April", "May", "June", "July",
+                      "August", "September", "October", "November", "December"]
+        return "\(months[(parts.month ?? 1) - 1]) \(parts.day ?? 1), \(parts.year ?? 0)"
+        #else
         let f = DateFormatter()
         f.dateStyle = .long
         return f.string(from: Date())
+        #endif
     }
 }

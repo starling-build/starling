@@ -31,6 +31,17 @@ enum PdfExport {
             pages.append(PdfDocument.Page(picture: recorder.endRecording(),
                                           width: pageSetup.width, height: pageSetup.height))
         }
-        return PdfDocument.write(to: path, pages: pages, title: title, author: NSFullUserName())
+        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName())
+    }
+}
+
+extension PdfExport {
+    /// The document's author: the user's full name where there is a user.
+    static func authorName() -> String {
+        #if os(WASI)
+        return ""
+        #else
+        return NSFullUserName()
+        #endif
     }
 }

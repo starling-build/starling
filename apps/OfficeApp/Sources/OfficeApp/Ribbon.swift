@@ -222,7 +222,7 @@ final class Ribbon: StatelessWidget {
         let font = Chrome.group("Font", fluent, [Chrome.rows([fontRow1, Chrome.vgap(4), fontRow2])])
 
         let spacingChoices: [(String, () -> Void)] = [1.0, 1.15, 1.5, 2.0, 2.5, 3.0].map { m in
-            (String(format: "%.2f", m), { c.setLineSpacing(m) })
+            (String(printf: "%.2f", m), { c.setLineSpacing(m) })
         }
         let paraRow1 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.bulletList, "Bullets", s.list == .bullet, fluent) { c.toggleList(.bullet) },
@@ -320,7 +320,7 @@ final class Ribbon: StatelessWidget {
     }
 
     private static func _fmt(_ n: Double) -> String {
-        n == n.rounded() ? String(Int(n)) : String(format: "%.1f", n)
+        n == n.rounded() ? String(Int(n)) : String(printf: "%.1f", n)
     }
 
     // MARK: Insert
@@ -350,10 +350,7 @@ final class Ribbon: StatelessWidget {
             ])]),
             Chrome.group("Text", fluent, [Chrome.rows([
                 Chrome.small(FluentSystemIcons.document, "Date & Time", fluent) { [session] in
-                    let f = DateFormatter()
-                    f.dateStyle = .long
-                    f.timeStyle = .none
-                    c.insertText(f.string(from: Date()))
+                    c.insertText(Backstage.todayLongDate())
                     session.onStatus?("Inserted today's date")
                 },
             ])]),

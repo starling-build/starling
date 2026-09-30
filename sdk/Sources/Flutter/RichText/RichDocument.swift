@@ -951,8 +951,8 @@ public struct RichDocument: Hashable, Sendable {
 
     /// `header`/`footer` with the fields filled in for page `page` (1-based).
     public static func fill(_ template: String, page: Int, pageCount: Int) -> String {
-        template.replacingOccurrences(of: pageField, with: String(page))
-            .replacingOccurrences(of: pageCountField, with: String(pageCount))
+        template.replacingAll(pageField, with: String(page))
+            .replacingAll(pageCountField, with: String(pageCount))
     }
 
     public init(paragraphs: [RichParagraph] = [RichParagraph()]) {

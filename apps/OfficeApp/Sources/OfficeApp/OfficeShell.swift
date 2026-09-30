@@ -344,10 +344,10 @@ final class OfficeShellState: State<StatefulWidget> {
                 _backstage = nil
             }
             _flash(recovery != nil
-                   ? "Restored unsaved changes to \((path as NSString).lastPathComponent) — Save to keep them"
-                   : "Opened \((path as NSString).lastPathComponent)")
+                   ? "Restored unsaved changes to \(path.lastPathComponent) — Save to keep them"
+                   : "Opened \(path.lastPathComponent)")
         } catch {
-            _flash("Could not open \((path as NSString).lastPathComponent): \(error)")
+            _flash("Could not open \(path.lastPathComponent): \(error)")
             setState { _backstage = nil }
         }
     }
@@ -380,15 +380,15 @@ final class OfficeShellState: State<StatefulWidget> {
             }
             _flash(OfficeFormats.losesFormatting(path)
                    ? "Saved as plain text — formatting is not kept in .txt"
-                   : "Saved \((path as NSString).lastPathComponent)")
+                   : "Saved \(path.lastPathComponent)")
         } catch {
             _flash("Could not save: \(error)")
         }
     }
 
     private func _export(_ ext: String) {
-        let base = session.path.map { ($0 as NSString).deletingPathExtension }
-            ?? NSHomeDirectory() + "/Documents/" + session.title
+        let base = session.path.map { $0.deletingPathExtension }
+            ?? homeDirectory() + "/Documents/" + session.title
         let target = base + "." + ext
         do {
             if ext == "pdf" {
@@ -402,7 +402,7 @@ final class OfficeShellState: State<StatefulWidget> {
             }
             _remember(target)
             setState { _backstage = nil }
-            _flash("Exported \((target as NSString).lastPathComponent)")
+            _flash("Exported \(target.lastPathComponent)")
         } catch {
             _flash("Could not export: \(error)")
         }
@@ -420,12 +420,17 @@ final class OfficeShellState: State<StatefulWidget> {
 
     // Recent files live beside the user's other Starling state.
     private var _recentFile: String {
-        let dir = NSHomeDirectory() + "/.config/starling"
+        let dir = homeDirectory() + "/.config/starling"
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         return dir + "/office-recent.txt"
     }
 
     private func _loadRecent() -> [String] {
+        #if os(WASI)
+        // No files, so no recent files. (FileManager.createDirectory with
+        // intermediates recurses forever on WASI, so this cannot even try.)
+        return []
+        #endif
         guard let text = try? String(contentsOfFile: _recentFile, encoding: .utf8) else { return [] }
         return text.split(separator: "\n").map(String.init).filter { FileManager.default.fileExists(atPath: $0) }
     }
@@ -434,7 +439,9 @@ final class OfficeShellState: State<StatefulWidget> {
         _recent.removeAll { $0 == path }
         _recent.insert(path, at: 0)
         if _recent.count > 20 { _recent.removeLast(_recent.count - 20) }
+        #if !os(WASI)
         try? _recent.joined(separator: "\n").write(toFile: _recentFile, atomically: true, encoding: .utf8)
+        #endif
     }
 
     // MARK: Pictures
@@ -443,7 +450,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _insertPicture(_ path: String) {
         setState { _backstage = nil }
         guard let data = FileManager.default.contents(atPath: path) else {
-            _flash("Could not read \((path as NSString).lastPathComponent)")
+            _flash("Could not read \(path.lastPathComponent)")
             return
         }
         Task { @MainActor [weak self] in
@@ -458,11 +465,11 @@ final class OfficeShellState: State<StatefulWidget> {
                 var w = px * 0.75, h = py * 0.75
                 if w > maxW { h *= maxW / w; w = maxW }
                 self.controller.insertImage(ImageAttachment(data: data, width: w, height: h,
-                                                            name: (path as NSString).lastPathComponent,
+                                                            name: path.lastPathComponent,
                                                             naturalWidth: px * 0.75, naturalHeight: py * 0.75))
-                self._flash("Inserted \((path as NSString).lastPathComponent)")
+                self._flash("Inserted \(path.lastPathComponent)")
             } catch {
-                self._flash("Not an image Office can decode: \((path as NSString).lastPathComponent)")
+                self._flash("Not an image Office can decode: \(path.lastPathComponent)")
             }
         }
     }
@@ -475,7 +482,7 @@ final class OfficeShellState: State<StatefulWidget> {
             _findReplace = replace
             _findStatus = ""
         }
-        if controller.hasSelection, !controller.selectedText.contains("\n") {
+        if controller.hasSelection, !controller.selectedText.contains(Character("\n")) {
             _findQuery.text = controller.selectedText
         }
     }
@@ -495,7 +502,7 @@ final class OfficeShellState: State<StatefulWidget> {
         let q = _findQuery.text
         guard !q.isEmpty else { return }
         if controller.hasSelection,
-           controller.selectedText.compare(q, options: .caseInsensitive) == .orderedSame {
+           controller.selectedText.lowercased() == q.lowercased() {
             controller.insertText(_findReplacement.text)
         }
         _findNext(backwards: false)

@@ -34,3 +34,7 @@ Package.resolved
 .stage-web/
 .build-web*/
 /web/.skwasm/
+
+# zlib sources for the web build, fetched by build/tools/fetch-zlib.sh.
+apps/OfficeApp/Vendor/
+.build-macos*/

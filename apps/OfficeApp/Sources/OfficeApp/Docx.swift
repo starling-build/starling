@@ -14,7 +14,7 @@
 import Flutter
 import FlutterSwiftBridge
 import Foundation
-#if canImport(FoundationXML)
+#if canImport(FoundationXML) && !os(WASI)
 import FoundationXML
 #endif
 
@@ -49,14 +49,22 @@ final class XNode {
     /// Parse with prefixes kept ("w:p"), which is what the OOXML parts use
     /// consistently and saves resolving namespaces.
     static func parse(_ data: Data) -> XNode? {
+        #if os(WASI)
+        // FoundationXML's parser is libxml2 and an NSObject delegate, neither
+        // of which the web build has; WordprocessingML is plain, well-formed
+        // XML, which the parser below reads.
+        return MiniXML.parse([UInt8](data))
+        #else
         let builder = _Builder()
         let parser = XMLParser(data: data)
         parser.delegate = builder
         parser.shouldProcessNamespaces = false
         guard parser.parse() else { return nil }
         return builder.root
+        #endif
     }
 
+    #if !os(WASI)
     private final class _Builder: NSObject, XMLParserDelegate {
         var root: XNode?
         private var stack: [XNode] = []
@@ -77,6 +85,7 @@ final class XNode {
             stack.last?.text += string
         }
     }
+    #endif
 }
 
 // MARK: - Docx
@@ -317,13 +326,13 @@ enum DocxFormat {
                 case "w:tab": if !skipping { line += "\t" }
                 case "w:fldSimple":
                     let instr = (child["w:instr"] ?? "").uppercased()
-                    if instr.contains("NUMPAGES") { line += RichDocument.pageCountField }
-                    else if instr.contains("PAGE") { line += RichDocument.pageField }
+                    if instr.containsSubstring("NUMPAGES") { line += RichDocument.pageCountField }
+                    else if instr.containsSubstring("PAGE") { line += RichDocument.pageField }
                     else { walk(child, into: &line) }
                 case "w:instrText":
                     let instr = child.text.uppercased()
-                    if instr.contains("NUMPAGES") { line += RichDocument.pageCountField }
-                    else if instr.contains("PAGE") { line += RichDocument.pageField }
+                    if instr.containsSubstring("NUMPAGES") { line += RichDocument.pageCountField }
+                    else if instr.containsSubstring("PAGE") { line += RichDocument.pageField }
                 case "w:fldChar":
                     switch child["w:fldCharType"] {
                     case "separate": skipping = true
@@ -337,7 +346,7 @@ enum DocxFormat {
         for p in root.all("w:p") {
             var line = ""
             walk(p, into: &line)
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let trimmed = line.trimmingWhitespace(newlines: false)
             if !trimmed.isEmpty { out.append(trimmed) }
         }
         return out.joined(separator: " ")
@@ -457,7 +466,7 @@ enum DocxFormat {
             // paragraph of its own; what follows starts another.
             if !text.isEmpty { flush(pageBreakAfter: false) } else if !built.isEmpty || true { text = ""; runs = [] }
             var pic = RichParagraph(image: ImageAttachment(data: data, width: w, height: h,
-                                                           name: (target as NSString).lastPathComponent))
+                                                           name: target.lastPathComponent))
             pic.style.alignment = style.alignment
             built.append(_Built(paragraph: pic, pageBreakAfter: false))
         }
@@ -528,13 +537,13 @@ enum DocxFormat {
             case "w:sz": if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
                 if let hex = child["w:val"], hex.lowercased() != "auto", let v = Int(hex, radix: 16) {
-                    cs.color = Color(0xFF000000 | v)
+                    cs.color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
                 }
             case "w:highlight":
                 cs.highlight = _highlight(child["w:val"] ?? "none")
             case "w:shd":
                 if let hex = child["w:fill"], hex.lowercased() != "auto", let v = Int(hex, radix: 16), cs.highlight == nil {
-                    cs.highlight = Color(0xFF000000 | v)
+                    cs.highlight = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
                 }
             case "w:rFonts":
                 cs.fontFamily = _family(child["w:ascii"] ?? child["w:hAnsi"] ?? "")
@@ -566,8 +575,8 @@ enum DocxFormat {
     private static func _family(_ name: String) -> String? {
         let n = name.lowercased()
         if n.isEmpty { return nil }
-        if n.contains("times") || n.contains("serif") || n.contains("georgia") || n.contains("cambria") || n.contains("garamond") { return OfficeFonts.serif }
-        if n.contains("courier") || n.contains("mono") || n.contains("consolas") || n.contains("menlo") { return OfficeFonts.mono }
+        if n.containsSubstring("times") || n.containsSubstring("serif") || n.containsSubstring("georgia") || n.containsSubstring("cambria") || n.containsSubstring("garamond") { return OfficeFonts.serif }
+        if n.containsSubstring("courier") || n.containsSubstring("mono") || n.containsSubstring("consolas") || n.containsSubstring("menlo") { return OfficeFonts.mono }
         return nil
     }
 
@@ -812,10 +821,10 @@ enum DocxFormat {
             extraOverrides += "<Override PartName=\"/word/footer1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>"
         }
         relsXML += "</Relationships>"
-        var contentTypes = _contentTypes.replacingOccurrences(of: "</Types>", with: extraOverrides + "</Types>")
+        var contentTypes = _contentTypes.replacingAll("</Types>", with: extraOverrides + "</Types>")
         for ext in usedExtensions.sorted() {
             let mime = ext == "jpeg" ? "image/jpeg" : ext == "gif" ? "image/gif" : "image/png"
-            contentTypes = contentTypes.replacingOccurrences(of: "<Override PartName=\"/word/document.xml\"",
+            contentTypes = contentTypes.replacingAll("<Override PartName=\"/word/document.xml\"",
                                                              with: "<Default Extension=\"\(ext)\" ContentType=\"\(mime)\"/><Override PartName=\"/word/document.xml\"")
         }
 
@@ -887,7 +896,7 @@ enum DocxFormat {
     }
 
     private static func _hex(_ c: Color) -> String {
-        String(format: "%06X", c.value & 0xFFFFFF)
+        String(printf: "%06X", c.value & 0xFFFFFF)
     }
 
     private static let _contentTypes = """

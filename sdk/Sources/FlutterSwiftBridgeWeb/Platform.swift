@@ -78,3 +78,19 @@ extension flutter.swift_bridge {
         }
     }
 }
+
+// MARK: - What the engine's library does for a host, and the page does not
+
+extension flutter.swift_bridge {
+    /// ICU data for the bridge's own text stack. There is none to load: the
+    /// browser does the segmenting (starling_host_segment).
+    public static func InitializeICU(_ path: String) -> Bool { true }
+
+    // WEB-TODO: PDF. skwasm has no PDF backend; the browser's print-to-PDF
+    // over a rendered page, or a PDF writer in Swift, would be the way.
+    public static func WritePdf(
+        _ path: String, _ displayLists: UnsafePointer<UnsafeRawPointer?>?,
+        _ count: Int32, _ widths: UnsafePointer<Double>?, _ heights: UnsafePointer<Double>?,
+        _ title: String?, _ author: String?
+    ) -> Bool { false }
+}

@@ -42,6 +42,9 @@ public enum FluentSystemIcons {
     /// machine that built the app and nowhere else. This is a copy of
     /// `CupertinoIcons.fontData()`; keep the two in step.
     public static func fontData() -> Data {
+        #if os(WASI)
+        return Data()  // no files; and Bundle is the legacy Foundation layer
+        #else
         var roots: [URL] = []
         if let resources = Bundle.main.resourceURL { roots.append(resources) }
         roots.append(Bundle.main.bundleURL)
@@ -82,6 +85,7 @@ public enum FluentSystemIcons {
             }
         }
         return Data()
+        #endif
     }
 
     /// Registers the font with the Flutter engine. Synchronous; safe to call
@@ -89,6 +93,12 @@ public enum FluentSystemIcons {
     @discardableResult
     public static func registerFont() -> Bool {
         guard !_registered else { return true }
+        #if os(WASI)
+        // The page fetched and registered the face (fonts/manifest.json);
+        // there are no files here to read.
+        _registered = true
+        return true
+        #endif
         let data = fontData()
         guard !data.isEmpty else { return false }
         let success = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in

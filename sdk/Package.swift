@@ -1133,6 +1133,10 @@ if wasmBuild {
     ]
     products = [
         .library(name: "Flutter", targets: ["Flutter"]),
+        .library(name: "FlutterSwiftBridge", targets: ["FlutterSwiftBridge"]),
+        .library(name: "SwiftRuntime", targets: ["SwiftRuntime"]),
+        .library(name: "CupertinoIcons", targets: ["CupertinoIcons"]),
+        .library(name: "FluentSystemIcons", targets: ["FluentSystemIcons"]),
         .library(name: "FlutterWeb", targets: ["FlutterWeb"]),
         .executable(name: "WebPixels", targets: ["WebPixels"]),
         .executable(name: "CounterApp", targets: ["CounterApp"]),
@@ -1163,14 +1167,20 @@ if wasmBuild {
             path: "Sources/Flutter",
             // Terminal/ is a pty; it has no meaning in a tab. No resources
             // either: Bundle cannot reach files here, fonts arrive by fetch.
-            // StarlingAppHost is an app's link to the Starling desktop shell.
-            exclude: ["Terminal", "Platform/StarlingAppHost.swift"],
+            exclude: ["Terminal"],
             swiftSettings: mode5 + noLegacyFoundation
         ),
         .target(
             name: "CupertinoIcons",
             dependencies: ["Flutter", "FlutterSwiftBridge"],
             path: "Sources/CupertinoIcons",
+            exclude: ["Resources"],
+            swiftSettings: noLegacyFoundation
+        ),
+        .target(
+            name: "FluentSystemIcons",
+            dependencies: ["Flutter", "FlutterSwiftBridge"],
+            path: "Sources/FluentSystemIcons",
             exclude: ["Resources"],
             swiftSettings: noLegacyFoundation
         ),

@@ -21,6 +21,8 @@ import FlutterCocoa
 import FlutterUIKit
 #elseif STARLING_GTK
 import FlutterGTK
+#elseif os(WASI)
+import FlutterWeb
 #endif
 
 #if os(Windows)
@@ -31,6 +33,8 @@ CocoaWindowedHost.install()
 UIKitWindowedHost.install()
 #elseif STARLING_GTK
 GTKWindowedHost.install()
+#elseif os(WASI)
+WebWindowedHost.install()
 #endif
 
 private func windowMetric(_ key: String, _ fallback: Int) -> Int {
@@ -126,10 +130,10 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
     initializeHeadlessText()
     do {
         let opened = try OfficeFormats.read(src)
-        if (dst as NSString).pathExtension.lowercased() == "pdf" {
+        if dst.pathExtension.lowercased() == "pdf" {
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
             guard PdfExport.write(opened.document, pageSetup: opened.pageSetup ?? .letter, theme: theme,
-                                  to: dst, title: (src as NSString).lastPathComponent) else {
+                                  to: dst, title: src.lastPathComponent) else {
                 FileHandle.standardError.write("convert failed: could not write PDF\n".data(using: .utf8)!)
                 exit(1)
             }
@@ -143,6 +147,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
         exit(1)
     }
 }
+#endif
 
 let initialPath: String? = {
     let args = CommandLine.arguments

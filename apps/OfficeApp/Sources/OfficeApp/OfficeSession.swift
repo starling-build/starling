@@ -79,7 +79,7 @@ final class OfficeSession {
     var path: String? = nil
     var dirty = false
     var title: String {
-        path.map { ($0 as NSString).lastPathComponent } ?? "Document1"
+        path.map { $0.lastPathComponent } ?? "Document1"
     }
 
     // Set by the shell.

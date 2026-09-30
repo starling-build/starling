@@ -32,23 +32,27 @@ enum OfficeFormats {
         }
         let text = String(decoding: data, as: UTF8.self)
         if text.hasPrefix("{\\rtf"), let doc = RtfFormat.parse(text) { return OpenedDocument(document: doc, pageSetup: nil) }
-        switch (path as NSString).pathExtension.lowercased() {
+        switch path.pathExtension.lowercased() {
         case "md", "markdown": return OpenedDocument(document: MarkdownFormat.parse(text), pageSetup: nil)
         case "rtf": return OpenedDocument(document: RtfFormat.parse(text) ?? RichDocument(plainText: text), pageSetup: nil)
         default:
-            var doc = RichDocument(plainText: text.replacingOccurrences(of: "\r\n", with: "\n"))
+            var doc = RichDocument(plainText: text.replacingAll("\r\n", with: "\n"))
             doc.styles = OfficeStyles.sheet
             return OpenedDocument(document: doc, pageSetup: nil)
         }
     }
 
     static func write(_ doc: RichDocument, to path: String, pageSetup: PageSetup = .letter) throws {
-        let ext = (path as NSString).pathExtension.lowercased()
+        let ext = path.pathExtension.lowercased()
         let text: String
         switch ext {
         case "docx":
             let data = try DocxFormat.write(doc, pageSetup: pageSetup)
+            #if os(WASI)
+            try data.write(to: URL(fileURLWithPath: path))  // no temp files to be atomic with
+            #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            #endif
             return
         case "rtf": text = RtfFormat.render(doc)
         case "md", "markdown": text = MarkdownFormat.render(doc)
@@ -60,7 +64,7 @@ enum OfficeFormats {
 
     /// True when saving to `path` would drop formatting.
     static func losesFormatting(_ path: String) -> Bool {
-        let ext = (path as NSString).pathExtension.lowercased()
+        let ext = path.pathExtension.lowercased()
         return ext == "txt" || ext == "text" || ext == ""
     }
 }
@@ -79,7 +83,7 @@ enum MarkdownFormat {
             pending.removeAll()
             pendingStyle = .body
         }
-        let lines = text.replacingOccurrences(of: "\r\n", with: "\n")
+        let lines = text.replacingAll("\r\n", with: "\n")
             .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         let sheet = OfficeStyles.sheet
         var tableCount = 0
@@ -87,12 +91,12 @@ enum MarkdownFormat {
         while li < lines.count {
             let line = lines[li]
             li += 1
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let trimmed = line.trimmingWhitespace(newlines: false)
             if trimmed.isEmpty { flush(); continue }
             // A pipe table: a header row, a delimiter row, then body rows
             // until a line that is not one.
             if trimmed.hasPrefix("|"), li < lines.count,
-               let alignments = _tableDelimiter(lines[li].trimmingCharacters(in: .whitespaces)) {
+               let alignments = _tableDelimiter(lines[li].trimmingWhitespace(newlines: false)) {
                 flush()
                 tableCount += 1
                 let id = "t\(tableCount)"
@@ -100,7 +104,7 @@ enum MarkdownFormat {
                 var rows: [[String]] = [_tableCells(trimmed)]
                 li += 1
                 while li < lines.count {
-                    let next = lines[li].trimmingCharacters(in: .whitespaces)
+                    let next = lines[li].trimmingWhitespace(newlines: false)
                     guard next.hasPrefix("|") else { break }
                     rows.append(_tableCells(next))
                     li += 1
@@ -120,7 +124,7 @@ enum MarkdownFormat {
             if trimmed.hasPrefix("#") {
                 flush()
                 let level = trimmed.prefix(while: { $0 == "#" }).count
-                let rest = trimmed.dropFirst(level).trimmingCharacters(in: .whitespaces)
+                let rest = trimmed.dropFirst(level).trimmingWhitespace(newlines: false)
                 if level <= 6 && !rest.isEmpty {
                     paragraphs.append(_inline(String(rest), RichParagraphStyle(heading: level)))
                     continue
@@ -153,7 +157,7 @@ enum MarkdownFormat {
                 flush()
                 var style = RichParagraphStyle.body
                 sheet.apply("Code", to: &style)
-                while li < lines.count, !lines[li].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                while li < lines.count, !lines[li].trimmingWhitespace(newlines: false).hasPrefix("```") {
                     paragraphs.append(RichParagraph(text: lines[li], style: style))
                     li += 1
                 }
@@ -178,7 +182,7 @@ enum MarkdownFormat {
         guard !cells.isEmpty else { return nil }
         var out: [ParagraphAlignment] = []
         for cell in cells {
-            let c = cell.trimmingCharacters(in: .whitespaces)
+            let c = cell.trimmingWhitespace(newlines: false)
             guard c.count >= 3 || (c.count >= 1 && c.allSatisfy { $0 == "-" }) else { return nil }
             let left = c.hasPrefix(":"), right = c.hasSuffix(":")
             let dashes = c.dropFirst(left ? 1 : 0).dropLast(right ? 1 : 0)
@@ -201,10 +205,10 @@ enum MarkdownFormat {
             if ch == "\\", let next = chars.next() {
                 current.append(ch); current.append(next); continue
             }
-            if ch == "|" { cells.append(current.trimmingCharacters(in: .whitespaces)); current = ""; continue }
+            if ch == "|" { cells.append(current.trimmingWhitespace(newlines: false)); current = ""; continue }
             current.append(ch)
         }
-        cells.append(current.trimmingCharacters(in: .whitespaces))
+        cells.append(current.trimmingWhitespace(newlines: false))
         return cells
     }
 
@@ -314,7 +318,7 @@ enum MarkdownFormat {
                 var alignment = Array(repeating: ParagraphAlignment.left, count: cols)
                 for q in members {
                     guard let c = q.cell else { continue }
-                    let text = _inlineMarkdown(q, plainBold: c.row == 0).replacingOccurrences(of: "|", with: "\\|")
+                    let text = _inlineMarkdown(q, plainBold: c.row == 0).replacingAll("|", with: "\\|")
                     grid[c.row][c.column] += (grid[c.row][c.column].isEmpty || text.isEmpty ? "" : " ") + text
                     if c.row == 0 { alignment[c.column] = q.style.alignment }
                 }
@@ -374,7 +378,7 @@ enum MarkdownFormat {
             pos += run.length
             let s = run.style
             // Markers around whitespace render as literal stars.
-            let inert = piece.trimmingCharacters(in: .whitespaces).isEmpty
+            let inert = piece.trimmingWhitespace(newlines: false).isEmpty
             if !inert {
                 if s.fontFamily == OfficeFonts.mono { piece = "`\(piece)`" }
                 if s.bold && !plainBold { piece = "**\(piece)**" }
@@ -464,7 +468,7 @@ enum RtfFormat {
                     // Each ';' closes one entry; a bare ';' is "auto".
                     for ch in s where ch == ";" {
                         colors.append(colorEntry.any
-                            ? Color(0xFF000000 | (colorEntry.r << 16) | (colorEntry.g << 8) | colorEntry.b)
+                            ? Color(argb: 0xFF, colorEntry.r, colorEntry.g, colorEntry.b)
                             : Color(0xFF000000))
                         colorEntry = (0, 0, 0, false)
                     }
@@ -502,11 +506,11 @@ enum RtfFormat {
             }
             if c == UInt8(ascii: "}") {
                 if destination == "stylesheet", styleEntry.index >= 0 {
-                    styleNames[styleEntry.index] = styleEntry.name.trimmingCharacters(in: CharacterSet(charactersIn: "; ")).lowercased()
+                    styleNames[styleEntry.index] = styleEntry.name.trimming(charactersIn: "; ").lowercased()
                     styleEntry = (-1, "")
                 }
                 if destination == "fonttbl", fontEntry.index >= 0 {
-                    fonts[fontEntry.index] = fontEntry.name.trimmingCharacters(in: CharacterSet(charactersIn: "; "))
+                    fonts[fontEntry.index] = fontEntry.name.trimming(charactersIn: "; ")
                     fontEntry = (-1, "")
                 }
                 if let d = skipGroupUntil, d == groupDepth { skipGroupUntil = nil }
@@ -663,16 +667,16 @@ enum RtfFormat {
         if !paraText.isEmpty || !buf.isEmpty { endParagraph() }
         if paragraphs.isEmpty { return RichDocument() }
         var doc = RichDocument(paragraphs: paragraphs)
-        doc.header = header.trimmingCharacters(in: .whitespaces)
-        doc.footer = footer.trimmingCharacters(in: .whitespaces)
+        doc.header = header.trimmingWhitespace(newlines: false)
+        doc.footer = footer.trimmingWhitespace(newlines: false)
         return doc
     }
 
     /// Map Word's font names onto the faces we ship.
     private static func _family(_ name: String) -> String? {
         let n = name.lowercased()
-        if n.contains("times") || n.contains("serif") || n.contains("georgia") || n.contains("cambria") || n.contains("liberation serif") { return OfficeFonts.serif }
-        if n.contains("courier") || n.contains("mono") || n.contains("consolas") || n.contains("menlo") { return OfficeFonts.mono }
+        if n.containsSubstring("times") || n.containsSubstring("serif") || n.containsSubstring("georgia") || n.containsSubstring("cambria") || n.containsSubstring("liberation serif") { return OfficeFonts.serif }
+        if n.containsSubstring("courier") || n.containsSubstring("mono") || n.containsSubstring("consolas") || n.containsSubstring("menlo") { return OfficeFonts.mono }
         return nil   // the document default: Liberation Sans
     }
 
@@ -759,10 +763,10 @@ enum RtfFormat {
         colortbl += "}"
         var hf = ""
         if !doc.header.isEmpty {
-            hf += "{\\header\\pard\\ql " + _escape(doc.header).replacingOccurrences(of: RichDocument.pageField, with: "\\chpgn ") + "\\par}\n"
+            hf += "{\\header\\pard\\ql " + _escape(doc.header).replacingAll(RichDocument.pageField, with: "\\chpgn ") + "\\par}\n"
         }
         if !doc.footer.isEmpty {
-            hf += "{\\footer\\pard\\qc " + _escape(doc.footer).replacingOccurrences(of: RichDocument.pageField, with: "\\chpgn ") + "\\par}\n"
+            hf += "{\\footer\\pard\\qc " + _escape(doc.footer).replacingAll(RichDocument.pageField, with: "\\chpgn ") + "\\par}\n"
         }
         let fonttbl = "{\\fonttbl{\\f0\\fswiss\\fcharset0 Arial;}{\\f1\\froman\\fcharset0 Times New Roman;}{\\f2\\fmodern\\fcharset0 Courier New;}}"
         var stylesheet = "{\\stylesheet{\\s0 Normal;}"

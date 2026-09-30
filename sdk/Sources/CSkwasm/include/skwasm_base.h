@@ -58,4 +58,7 @@ HOST(decode_image)
 void starling_host_decode_image(uint32_t requestId, const void* bytes, uint32_t length,
                                 sk_ptr surface);
 
+// The tab's title (UTF-8, in OUR memory).
+HOST(set_title) void starling_host_set_title(const void* utf8, uint32_t length);
+
 #endif  // STARLING_SKWASM_BASE_H

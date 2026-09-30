@@ -51,7 +51,43 @@ extension StringProtocol {
     }
 }
 
+extension String {
+    /// `range(of:options:range:)` for the two options the framework uses:
+    /// case-insensitive and backwards. Case folding is `lowercased()` on
+    /// both sides, character by character.
+    public func findRange(
+        of query: String, caseSensitive: Bool = true, backwards: Bool = false,
+        in range: Range<Index>? = nil
+    ) -> Range<Index>? {
+        guard !query.isEmpty else { return nil }
+        let range = range ?? startIndex..<endIndex
+        let hay = Array(self[range])
+        let needle = Array(query)
+        guard hay.count >= needle.count else { return nil }
+        let fold = { (c: Character) -> String in caseSensitive ? String(c) : String(c).lowercased() }
+        let foldedNeedle = needle.map(fold)
+        func matches(at i: Int) -> Bool {
+            for j in 0..<needle.count where fold(hay[i + j]) != foldedNeedle[j] { return false }
+            return true
+        }
+        let starts = 0...(hay.count - needle.count)
+        for i in (backwards ? Array(starts.reversed()) : Array(starts)) where matches(at: i) {
+            let lower = index(range.lowerBound, offsetBy: i)
+            return lower..<index(lower, offsetBy: needle.count)
+        }
+        return nil
+    }
+}
+
 extension StringProtocol {
+    /// `trimmingCharacters(in: CharacterSet(charactersIn: chars))`.
+    public func trimming(charactersIn chars: String) -> String {
+        let set = Set(chars)
+        guard let first = firstIndex(where: { !set.contains($0) }) else { return "" }
+        let last = lastIndex(where: { !set.contains($0) })!
+        return String(self[first...last])
+    }
+
     /// `padding(toLength:withPad: " ", startingAt: 0)`: padded with spaces
     /// on the right to `length` characters, or cut to it.
     public func paddedToLength(_ length: Int) -> String {

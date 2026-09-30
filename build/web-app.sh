@@ -2,10 +2,18 @@
 # Build a Starling app for the browser and assemble the page that runs it.
 #
 #   build/web-app.sh [target] [--serve] [--debug] [--no-build] [--check]
+#                    [--package DIR]
 #
 # Default target: CounterApp. Any executable the sdk/ manifest defines under
 # STARLING_WASM works; WebPixels is milestone 0 of docs/plans/wasm.md, skwasm
-# driven directly with no framework.
+# driven directly with no framework. An app package of its own (apps/*) is
+# built with --package: `build/web-app.sh OfficeApp --package apps/OfficeApp`.
+#
+# Fonts: skwasm sees no system fonts, so every face the app draws with is
+# staged into fonts/ and listed in fonts/manifest.json with its family
+# name(s). The first entry is also the fallback for any family nobody
+# loaded. Defaults cover the framework; an app package's Resources/fonts
+# is added under the families inside the files (Office's Liberation faces).
 #
 # This is stage.sh's counterpart for the web, and for ios-app.sh's reason: the
 # thing cannot run out of .build. A .wasm is not a page — it needs the module
@@ -37,6 +45,7 @@ CONFIG="release"
 SERVE=0
 BUILD=1
 CHECK=0
+PACKAGE="sdk"
 # Release app.wasm, bytes, as staged (after wasm-opt when it is installed).
 # History: 60 MB when the gate was added; 20.3 MB once the legacy Foundation
 # module was off the link (phase 1); 11.6 MB with -Osize and wasm-opt
@@ -52,6 +61,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --serve)    SERVE=1 ;;
         --check)    CHECK=1 ;;
+        --package)  PACKAGE="$2"; shift ;;
         --debug)    CONFIG="debug" ;;
         --no-build) BUILD=0 ;;
         -*)         echo "unknown option: $1" >&2; exit 2 ;;
@@ -77,7 +87,13 @@ EOF
 fi
 
 SCRATCH="$REPO/.build-web"
+[ "$PACKAGE" = sdk ] || SCRATCH="$REPO/.build-web-$(basename "$PACKAGE")"
 STAGE="$REPO/.stage-web"
+
+# The web build of an app that reads zip files compiles zlib itself.
+if [ -f "$REPO/$PACKAGE/Sources/CZlib/shim.h" ]; then
+    "$REPO/build/tools/fetch-zlib.sh" "$REPO/$PACKAGE/Vendor/zlib" >/dev/null
+fi
 
 WHY="$SCRATCH/why-extract.tsv"
 LINK_FLAGS=()
@@ -87,7 +103,7 @@ if [ "$CHECK" = 1 ]; then
     rm -f "$WHY" "$SCRATCH/$CONFIG/$TARGET.wasm"
 fi
 if [ "$BUILD" = 1 ]; then
-    STARLING_WASM=1 swift build --package-path "$REPO/sdk" --scratch-path "$SCRATCH" \
+    STARLING_WASM=1 swift build --package-path "$REPO/$PACKAGE" --scratch-path "$SCRATCH" \
         --swift-sdk "$SWIFT_SDK" -c "$CONFIG" --product "$TARGET" ${LINK_FLAGS[@]+"${LINK_FLAGS[@]}"}
 fi
 
@@ -112,8 +128,35 @@ else
     install -m 644 "$WASM" "$STAGE/app.wasm"
     [ "$CONFIG" = release ] && echo "wasm-opt not installed: app.wasm is unoptimized (brew install binaryen)"
 fi
-install -m 644 "$REPO/sdk/Sources/Flutter/Terminal/Fonts/DejaVuSans.ttf" \
-    "$REPO/sdk/Sources/CupertinoIcons/Resources/CupertinoIcons.ttf" "$STAGE/fonts/"
+rm -f "$STAGE"/fonts/*.ttf
+# url=family pairs; an empty family takes the name inside the file.
+FONTS=(
+    "$REPO/sdk/Sources/Flutter/Terminal/Fonts/DejaVuSans.ttf=DejaVu Sans"
+    "$REPO/sdk/Sources/CupertinoIcons/Resources/CupertinoIcons.ttf=CupertinoIcons"
+    "$REPO/sdk/Sources/FluentSystemIcons/Resources/FluentSystemIcons-Regular.ttf=FluentSystemIcons"
+    "$REPO/sdk/Sources/FluentSystemIcons/Resources/Selawik-Regular.ttf=Selawik"
+    "$REPO/sdk/Sources/FluentSystemIcons/Resources/Selawik-Semibold.ttf=Selawik Semibold"
+)
+if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
+    for f in "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts"/*.ttf; do FONTS+=("$f="); done
+fi
+{
+    echo "["
+    first=1
+    for entry in "${FONTS[@]}"; do
+        src="${entry%%=*}"; family="${entry#*=}"
+        install -m 644 "$src" "$STAGE/fonts/"
+        [ "$first" = 1 ] || echo ","
+        first=0
+        if [ -n "$family" ]; then
+            printf '  {"url": "fonts/%s", "families": ["%s"]}' "$(basename "$src")" "$family"
+        else
+            printf '  {"url": "fonts/%s", "families": []}' "$(basename "$src")"
+        fi
+    done
+    echo
+    echo "]"
+} > "$STAGE/fonts/manifest.json"
 
 # Keyed by revision, so changing SKWASM_REV refetches and nothing else does.
 CACHE="$REPO/web/.skwasm/$SKWASM_REV"
@@ -140,6 +183,9 @@ if [ "$CHECK" = 1 ]; then
     # A --check without a build has no fresh why-extract; say so rather
     # than pass on a stale one.
     [ -s "$WHY" ] || { echo "error: --check needs a build (drop --no-build)" >&2; exit 1; }
+    # The budget is CounterApp's — the framework alone, near enough. An app
+    # gets its own code on top; Office (4.4k lines, zlib) was 0.6 MB more.
+    [ "$TARGET" = CounterApp ] || BUDGET=$((BUDGET + 2000000))
     [ "$CONFIG" = release ] || BUDGET=$((BUDGET * 4))
     command -v wasm-opt >/dev/null || BUDGET=$((BUDGET * 2))
     python3 "$REPO/build/tools/wasm-size.py" "$STAGE/app.wasm" --why "$WHY" --budget "$BUDGET"

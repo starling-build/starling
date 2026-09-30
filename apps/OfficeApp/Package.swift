@@ -180,16 +180,64 @@ let appTarget: Target = {
 }()
 
 // zlib for the zip container .docx lives in (macOS SDK; zlib1g-dev on Ubuntu).
-let zlibTarget: Target = .systemLibrary(name: "CZlib", path: "Sources/CZlib")
+// The web build (STARLING_WASM=1, see sdk/Package.swift): no C++ interop,
+// no engine, the host is the page. zlib is compiled in from the sources
+// build/tools/fetch-zlib.sh puts in Vendor/zlib, since the WASI sysroot has
+// no system zlib; the same CZlib module name, so Zip.swift does not know.
+let wasmBuild = !env("STARLING_WASM", default: "").isEmpty
+
+let zlibTarget: Target = wasmBuild
+    ? .target(
+        name: "CZlib",
+        path: "Vendor/zlib",
+        exclude: ["LICENSE", "VERSION"],
+        publicHeadersPath: "include",
+        cSettings: [.define("HAVE_UNISTD_H"), .define("Z_HAVE_STDARG_H")]
+    )
+    : .systemLibrary(name: "CZlib", path: "Sources/CZlib")
+
+let webAppTarget: Target = .executableTarget(
+    name: "OfficeApp",
+    dependencies: [
+        .product(name: "Flutter", package: "FlutterSwift"),
+        .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
+        .product(name: "SwiftRuntime", package: "FlutterSwift"),
+        .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+        .product(name: "FlutterWeb", package: "FlutterSwift"),
+        "CZlib",
+    ],
+    // No resources: the page fetches the fonts (build/web-app.sh stages
+    // Resources/fonts and writes the manifest).
+    exclude: ["Resources"],
+    swiftSettings: [
+        .swiftLanguageMode(.v5),
+        .unsafeFlags(
+            ["Foundation", "CoreFoundation", "FoundationInternationalization", "_FoundationICU"]
+                .flatMap { ["-Xfrontend", "-disable-autolink-library", "-Xfrontend", $0] }),
+        .unsafeFlags(["-Osize"], .when(configuration: .release)),
+    ],
+    linkerSettings: [
+        .unsafeFlags([
+            "-Xclang-linker", "-mexec-model=reactor",
+            "-Xlinker", "--export-if-defined=__main_argc_argv",
+            "-Xlinker", "-z", "-Xlinker", "stack-size=16777216",
+        ]),
+        .unsafeFlags(
+            env("STARLING_WASM_NAMES", default: "").isEmpty
+                ? ["-Xlinker", "--strip-all"] : ["-Xlinker", "--strip-debug"],
+            .when(configuration: .release)),
+    ]
+)
+
 let package = Package(
     name: "OfficeApp",
-    platforms: platformConstraints.isEmpty ? nil : platformConstraints,
+    platforms: (wasmBuild || platformConstraints.isEmpty) ? nil : platformConstraints,
     dependencies: [
         .package(name: "FlutterSwift",
                  path: sdkBundle.isEmpty ? "../../sdk" : sdkBundle),
     ],
     targets: [
-        appTarget,
+        wasmBuild ? webAppTarget : appTarget,
         zlibTarget,
         // Round-trip tests for the file formats. `swift test --package-path
         // apps/OfficeApp` — pure Swift over the document model, no window.

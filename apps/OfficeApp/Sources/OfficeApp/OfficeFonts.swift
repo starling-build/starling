@@ -50,6 +50,12 @@ enum OfficeFonts {
     static func register() -> Bool {
         if _registered { return true }
         _registered = true
+        #if os(WASI)
+        // The page fetched every face in Resources/fonts and registered it
+        // under the family name inside the file, which is the family name
+        // above (build/web-app.sh writes fonts/manifest.json).
+        return true
+        #endif
         // The ribbon's glyphs: the Fluent System Icons face ships in the SDK
         // and is registered by whoever draws it (the shell does the same).
         _ = FluentSystemIcons.registerFont()

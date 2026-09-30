@@ -33,11 +33,9 @@
     canvas: document.getElementById('starling'),
     app: 'app.wasm',
     skwasmBase: 'skwasm/',
-    // The first font is also the fallback for any family not listed.
-    fonts: [
-      { url: 'fonts/DejaVuSans.ttf', families: ['DejaVu Sans'] },
-      { url: 'fonts/CupertinoIcons.ttf', families: ['CupertinoIcons'] },
-    ],
+    // Written by build/web-app.sh; the first face is also the fallback
+    // for any family nobody loaded.
+    fonts: 'fonts/manifest.json',
     onProgress(loaded, total) {
       const mb = (n) => (n / 1e6).toFixed(1);
       document.getElementById('loading-text').textContent =

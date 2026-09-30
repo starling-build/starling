@@ -64,26 +64,30 @@ final class FluentFilePanelState: State<StatefulWidget> {
 
     private func _load(_ dir: String) {
         let fm = FileManager.default
+        #if os(WASI)
+        return  // no directories to list in a tab
+        #else
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: dir, isDirectory: &isDir), isDir.boolValue else { return }
         let names = (try? fm.contentsOfDirectory(atPath: dir)) ?? []
         var entries: [Entry] = []
         for name in names where !name.hasPrefix(".") {
-            let path = (dir as NSString).appendingPathComponent(name)
+            let path = dir.appendingPathComponent(name)
             var d: ObjCBool = false
             fm.fileExists(atPath: path, isDirectory: &d)
-            let ext = (name as NSString).pathExtension.lowercased()
+            let ext = name.pathExtension.lowercased()
             if !d.boolValue && !_w.extensions.isEmpty && !_w.extensions.contains(ext) { continue }
             entries.append(Entry(name: name, path: path, isDirectory: d.boolValue))
         }
         entries.sort { a, b in
             if a.isDirectory != b.isDirectory { return a.isDirectory }
-            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            return a.name.lowercased() < b.name.lowercased()
         }
         _dir = dir
         _entries = entries
         _selected = nil
         setState {}
+        #endif
     }
 
     private func _confirm() {
@@ -91,10 +95,10 @@ final class FluentFilePanelState: State<StatefulWidget> {
         case .open:
             if let s = _selected { _w.onDone(s) }
         case .save:
-            var name = _name.text.trimmingCharacters(in: .whitespaces)
+            var name = _name.text.trimmingWhitespace(newlines: false)
             guard !name.isEmpty else { return }
-            if (name as NSString).pathExtension.isEmpty, let ext = _w.extensions.first { name += ".\(ext)" }
-            _w.onDone((_dir as NSString).appendingPathComponent(name))
+            if name.pathExtension.isEmpty, let ext = _w.extensions.first { name += ".\(ext)" }
+            _w.onDone(_dir.appendingPathComponent(name))
         }
     }
 
@@ -115,10 +119,10 @@ final class FluentFilePanelState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         let places: [(String, String)] = [
-            ("Home", NSHomeDirectory()),
-            ("Desktop", NSHomeDirectory() + "/Desktop"),
-            ("Documents", NSHomeDirectory() + "/Documents"),
-            ("Downloads", NSHomeDirectory() + "/Downloads"),
+            ("Home", homeDirectory()),
+            ("Desktop", homeDirectory() + "/Desktop"),
+            ("Documents", homeDirectory() + "/Documents"),
+            ("Downloads", homeDirectory() + "/Downloads"),
         ]
         let sidebar = Column(crossAxisAlignment: .stretch, children: places.map { name, path in
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 2),
@@ -131,7 +135,7 @@ final class FluentFilePanelState: State<StatefulWidget> {
         let crumbs = Row(crossAxisAlignment: .center, children: [
             Chrome.icon(FluentSystemIcons.up, "Up", fluent) { [weak self] in
                 guard let self else { return }
-                let parent = (self._dir as NSString).deletingLastPathComponent
+                let parent = self._dir.deletingLastPathComponent
                 if !parent.isEmpty { self._load(parent) }
             },
             Chrome.gap(6),
@@ -155,7 +159,7 @@ final class FluentFilePanelState: State<StatefulWidget> {
             bottom.append(SizedBox(width: 140, height: nil, child: Text("File name:", style: fluent.typography.body)))
             bottom.append(Expanded(child: FluentTextBox(controller: _name, onSubmitted: { [weak self] _ in self?._confirm() })))
         } else {
-            bottom.append(Expanded(child: Text(_selected.map { ($0 as NSString).lastPathComponent } ?? "",
+            bottom.append(Expanded(child: Text(_selected.map { $0.lastPathComponent } ?? "",
                                                style: fluent.typography.body)))
         }
         bottom.append(Chrome.gap(12))

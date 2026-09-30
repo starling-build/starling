@@ -225,6 +225,9 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], onPro
       appBytes().set(skBytes().subarray(src, src + length), dst);
     },
     render_callback: () => renderCallback,
+    set_title(pointer, length) {
+      document.title = utf8.decode(appBytes().subarray(pointer, pointer + length));
+    },
     // The browser decodes what skwasm cannot (the light build has no
     // codecs). The bytes are copied out before returning — the app may
     // free them — and the bitmap becomes a texture in skwasm's context,
@@ -318,10 +321,19 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], onPro
     if (namePointer) swift.starling_free(namePointer);
     if (!ok) console.error(`starling: font for '${family}' did not parse`);
   };
+  // `fonts` is a list of {url, families}, or the URL of a JSON file holding
+  // one (build/web-app.sh writes fonts/manifest.json). An empty families
+  // list registers the face under the family name inside the file.
+  if (typeof fonts === 'string') {
+    const response = await fetch(fonts);
+    if (!response.ok) throw new Error(`starling: ${fonts}: ${response.status}`);
+    fonts = await response.json();
+  }
   await Promise.all(fonts.map(async ({ url, families }, index) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
     const bytes = new Uint8Array(await response.arrayBuffer());
+    if (families.length === 0) registerFont(bytes, null);
     for (const family of families) registerFont(bytes, family);
     if (index === 0) registerFont(bytes, SKWASM_FALLBACK_FAMILY);
   }));

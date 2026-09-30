@@ -197,6 +197,21 @@ How it is put together, top down:
    providers but no widget over them; `Examples/WebImages` goes the long
    way round.
 
+**Office runs in the browser** (`build/web-app.sh OfficeApp --package
+apps/OfficeApp --serve`): the ribbon, ruler, page, status bar; typing,
+bold, tooltips, word count. What it took, and what a second app will
+take: a web branch in the app's manifest (no C++ interop, `FlutterWeb`,
+zlib compiled in from `build/tools/fetch-zlib.sh` because the WASI sysroot
+has none); `WebWindowedHost.install()` where the other hosts install; the
+app's fonts staged and listed by name in `fonts/manifest.json`; NSString
+path arithmetic as plain Swift (`Paths.swift`); a small XML reader
+(`MiniXML.swift`) where FoundationXML would have been; `String(printf:)`
+for the app's three formats; and file dialogs, recent files, PDF export
+and the `--convert` command line fenced off — a tab has no files (and
+`FileManager.createDirectory(withIntermediateDirectories:)` recurses
+forever on WASI, so it must not be reached). Release: 12.2 MB, 0.6 MB
+over CounterApp.
+
 Done since the list was first written: keyboard (`starling_key`), Swift
 concurrency on the page's event loop (`FlutterWeb/WebExecutor.swift`),
 image decoding by the browser (`starling_host_decode_image` →

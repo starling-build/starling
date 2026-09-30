@@ -39,6 +39,9 @@ public enum SelawikFont {
     /// Registers both cuts with the engine. Safe to call more than once.
     @discardableResult
     public static func registerFont() -> Bool {
+        #if os(WASI)
+        return true  // the page registered both faces (fonts/manifest.json)
+        #endif
         guard !_registered else { return true }
         let ok = load("Selawik-Regular", as: family)
             && load("Selawik-Semibold", as: semibold)
@@ -60,6 +63,9 @@ public enum SelawikFont {
     /// and both the `.bundle` and `.resources` suffixes have to be searched
     /// or the font silently loads as nothing.
     public static func fontData(_ resource: String) -> Data {
+        #if os(WASI)
+        return Data()  // no files; and Bundle is the legacy Foundation layer
+        #else
         var roots: [URL] = []
         if let resources = Bundle.main.resourceURL { roots.append(resources) }
         roots.append(Bundle.main.bundleURL)
@@ -89,5 +95,6 @@ public enum SelawikFont {
             }
         }
         return Data()
+        #endif
     }
 }

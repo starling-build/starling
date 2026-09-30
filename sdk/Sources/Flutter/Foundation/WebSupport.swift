@@ -88,7 +88,9 @@ extension String {
     /// arity of two or more — only the one-argument form outranks the
     /// variadic. Every call in the framework passes one argument; the two
     /// that passed several (ColorPicker's hex string) were split.
-    public init(format: String, _ a: CVarArg) { self = webFormat(format, [a]) }
+    /// Internal: a public twin would be ambiguous with Foundation's in an
+    /// app. Apps use `String(printf:)`, which is one spelling everywhere.
+    init(format: String, _ a: CVarArg) { self = webFormat(format, [a]) }
 }
 
 /// Only the two standard streams; there is no file to open.

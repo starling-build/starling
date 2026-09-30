@@ -511,7 +511,7 @@ public final class RichEditableState: State<StatefulWidget> {
             }
             guard let text = data.text, !text.isEmpty else { return }
             DispatchQueue.main.async {
-                self._controller.paste(text: text.replacingOccurrences(of: "\r\n", with: "\n"))
+                self._controller.paste(text: text.replacingAll("\r\n", with: "\n"))
             }
         }
     }

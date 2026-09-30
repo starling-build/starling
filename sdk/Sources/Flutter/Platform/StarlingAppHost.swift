@@ -92,6 +92,22 @@ public func runStarlingApp(title: String, width: Int = 800, height: Int = 600,
 /// tickers can discard it — hosts retain what they must).
 /// Token holder — DispatchSourceTimer is a protocol, and the API promises
 /// a class instance the caller can retain.
+#if os(WASI)
+// No Dispatch sources here; the Timer stand-in (Foundation/WebSupport.swift)
+// repeats on the page's event loop.
+@discardableResult
+public func startPeriodicTimer(seconds: Double,
+                               _ tick: @escaping () -> Void) -> AnyObject? {
+    if let install = hostPeriodicTimerInstall {
+        return install(seconds, tick)
+    }
+    return Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { _ in tick() }
+}
+
+public func stopPeriodicTimer(_ token: AnyObject?) {
+    (token as? Timer)?.invalidate()
+}
+#else
 fileprivate final class _TimerToken {
     let timer: any DispatchSourceTimer
     init(_ timer: any DispatchSourceTimer) { self.timer = timer }
@@ -134,3 +150,4 @@ public func stopPeriodicTimer(_ token: AnyObject?) {
 }
 
 private nonisolated(unsafe) var _liveTimers: [AnyObject] = []
+#endif

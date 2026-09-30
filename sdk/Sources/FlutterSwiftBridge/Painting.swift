@@ -9997,3 +9997,19 @@ extension String {
     count >= width ? self : String(repeating: "0", count: width - count) + self
   }
 }
+
+extension String {
+  /// printf-style formatting that works on every platform the SDK builds
+  /// for. `String(format:)` is Foundation's NS layer, which the web build
+  /// does not link (docs/plans/wasm-size.md) — inside the framework a
+  /// stand-in shadows it, but an app importing Foundation would see both.
+  /// The same specifiers as `String(format:)`: `%d %x %f %e %g %@ %%`, with
+  /// flags, width and precision.
+  public init(printf format: String, _ arguments: CVarArg...) {
+    #if os(WASI)
+    self = webFormat(format, arguments)
+    #else
+    self = String(format: format, arguments: arguments)
+    #endif
+  }
+}

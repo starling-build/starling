@@ -31,7 +31,7 @@ final class NavigationPane: StatelessWidget {
             if p.style.named == "Title" { level = 0 }
             else if let h = p.style.heading, h <= 3 { level = h }
             else { continue }
-            let text = p.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = p.text.trimmingWhitespace()
             out.append((i, level, text.isEmpty ? "(empty heading)" : text))
         }
         return out

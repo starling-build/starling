@@ -394,7 +394,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// paragraphs.
     public func insertText(_ string: String) {
         guard !string.isEmpty else { return }
-        let hint: UndoKindHint = string.contains("\n") ? .other : .typing
+        let hint: UndoKindHint = string.contains(Character("\n")) ? .other : .typing
         edit(kind: hint) {
             if hasSelection { _deleteSelectionOps() }
             if document.paragraphs[selection.focus.paragraph].isImage {
@@ -1758,7 +1758,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// Word's Page Number: a centred "n" in the footer, or none.
     public func togglePageNumbers() {
         let field = "Page \(RichDocument.pageField) of \(RichDocument.pageCountField)"
-        setHeaderFooter(footer: document.footer.contains(RichDocument.pageField) ? "" : field)
+        setHeaderFooter(footer: document.footer.containsSubstring(RichDocument.pageField) ? "" : field)
     }
 
     // MARK: Find
@@ -1769,15 +1769,13 @@ public final class RichDocumentController: ChangeNotifier {
         guard !query.isEmpty else { return nil }
         let start = document.clamped(from ?? (backwards ? selection.start : selection.end))
         let n = document.paragraphs.count
-        let options: String.CompareOptions = caseSensitive ? [] : [.caseInsensitive]
-        func search(_ i: Int, lo: Int?, hi: Int?) -> RichSelection? {
+                func search(_ i: Int, lo: Int?, hi: Int?) -> RichSelection? {
             let text = document.paragraphs[i].text
             let a = lo.map { String.Index(utf16Offset: $0, in: text) } ?? text.startIndex
             let b = hi.map { String.Index(utf16Offset: $0, in: text) } ?? text.endIndex
             guard a <= b else { return nil }
-            var opts = options
-            if backwards { opts.insert(.backwards) }
-            guard let r = text.range(of: query, options: opts, range: a ..< b) else { return nil }
+            guard let r = text.findRange(of: query, caseSensitive: caseSensitive,
+                                         backwards: backwards, in: a ..< b) else { return nil }
             return RichSelection(
                 anchor: RichPosition(paragraph: i, offset: r.lowerBound.utf16Offset(in: text)),
                 focus: RichPosition(paragraph: i, offset: r.upperBound.utf16Offset(in: text)))
@@ -1806,10 +1804,10 @@ public final class RichDocumentController: ChangeNotifier {
         edit {
             for i in document.paragraphs.indices {
                 var text = document.paragraphs[i].text
-                let opts: String.CompareOptions = caseSensitive ? [.backwards] : [.caseInsensitive, .backwards]
                 // Backwards so earlier offsets stay valid.
                 var searchEnd = text.endIndex
-                while let r = text.range(of: query, options: opts, range: text.startIndex ..< searchEnd) {
+                while let r = text.findRange(of: query, caseSensitive: caseSensitive, backwards: true,
+                                             in: text.startIndex ..< searchEnd) {
                     let lo = r.lowerBound.utf16Offset(in: text)
                     let hi = r.upperBound.utf16Offset(in: text)
                     let para = document.paragraphs[i]
