@@ -111,6 +111,10 @@ class Driver:
         self.click_bin = os.path.join(d, "click")
         subprocess.run(["swiftc", "-O", "-o", self.click_bin, src], check=True, capture_output=True)
         self.proc = None
+        # Untitled recovery copies go here, not to ~/.config: a driven
+        # instance must never open (or overwrite) the copy of the user's
+        # own untitled document, which one did once.
+        self.recovery = tempfile.mkdtemp(prefix="office-recovery-")
         self.x = self.y = 0
         self.w = self.h = 0
 
@@ -119,7 +123,7 @@ class Driver:
         # the user has open keeps running (it was killed here once, unsaved
         # work and all). The process is found by its pid, not its name.
         self.quit()
-        e = dict(os.environ, SHELL="/bin/sh")
+        e = dict(os.environ, SHELL="/bin/sh", OFFICE_RECOVERY_DIR=self.recovery)
         if env: e.update(env)
         self.proc = subprocess.Popen([APP] + list(args), env=e, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(4)

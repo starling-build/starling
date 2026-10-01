@@ -124,6 +124,16 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**S8, recovery copy and AutoSave, 2026-10-01.** As Writer: two seconds
+after the last change a deck writes `name.pptx~` beside itself (an
+untitled one under the recovery directory), or with AutoSave on the file
+itself; saving removes the copy; opening a deck whose copy is newer loads
+the copy, unsaved, and says so; the first launch restores an untitled
+deck left unsaved. `OFFICE_RECOVERY_DIR` moves the untitled copies — the
+test drivers set it, after a driven Writer opened the user's own untitled
+document's copy (the "nihao shijie" screenshot of 2026-09-30 was that,
+not the user's window).
+
 **S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
 search field open Writer's find bar over the deck: every text body in
 reading order — each slide's shapes as they stack, table cells included,

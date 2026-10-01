@@ -12,10 +12,13 @@ import Foundation
 
 final class SlidesShell: StatefulWidget {
     let initialPath: String?
+    /// A new deck on request (Backstage), never an untitled recovery copy.
+    let startBlank: Bool
     let onSwitch: (DocumentKind, String?) -> Void
 
-    init(initialPath: String?, onSwitch: @escaping (DocumentKind, String?) -> Void) {
+    init(initialPath: String?, startBlank: Bool = false, onSwitch: @escaping (DocumentKind, String?) -> Void) {
         self.initialPath = initialPath
+        self.startBlank = startBlank
         self.onSwitch = onSwitch
         super.init()
     }
@@ -45,6 +48,11 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _paneFocused = false
     /// `deck.edits` when the deck was last opened or saved.
     private var _savedEdits = 0
+    /// The open deck came from a recovery copy: AutoSave leaves the file
+    /// alone until the user saves.
+    private var _recovered = false
+    private var _autosaveGeneration = 0
+    private var _lastAutosaveEdits = -1
     /// Shapes copied with ⌘C/⌘X while no text was being edited.
     private var _shapeClipboard: [ShapeState] = []
     /// Normal (canvas and notes) or Slide Sorter (a grid of every slide).
@@ -105,7 +113,18 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         _point(at: nil)
         _deckFocus.onKeyData = { [weak self] key in self?._deckKey(key) ?? false }
-        if let path = _w.initialPath { _open(path) }
+        if let path = _w.initialPath {
+            _open(path)
+        } else if !_w.startBlank, let data = FileManager.default.contents(atPath: _recoveryPath(for: nil)),
+                  let (state, theme, package) = try? Pptx.read(data) {
+            // Last time ended with an unsaved untitled deck.
+            deck.load(state, theme: theme, package: package)
+            _recovered = true
+            _savedEdits = deck.edits - 1
+            _lastAutosaveEdits = deck.edits
+            session.dirty = true
+            _flash("Restored an unsaved presentation — Save to keep it")
+        }
         _deckFocus.requestFocus()
     }
 
@@ -154,6 +173,11 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._endEditing()
             self.setState { self._headerFooter = true }
+        }
+        session.onToggleAutoSave = { [weak self] in
+            guard let self else { return }
+            self.setState { self.session.autoSave.toggle() }
+            self._flash(self.session.autoSave ? "AutoSave on" : "AutoSave off — a recovery copy is still kept")
         }
         session.onAnimationPane = { [weak self] in
             self?.setState { self?._animationPane.toggle() }
@@ -404,7 +428,62 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         session.dirty = deck.edits != _savedEdits
         session.summary = _summarize()
+        if session.dirty && deck.edits != _lastAutosaveEdits {
+            _lastAutosaveEdits = deck.edits
+            _scheduleAutosave()
+        }
         setState {}
+    }
+
+    // MARK: AutoSave and recovery
+
+    /// Beside a saved deck as `name.pptx~`; for an untitled one, under the
+    /// recovery directory (OfficeRecovery).
+    private func _recoveryPath(for path: String?) -> String {
+        path.map { $0 + "~" } ?? OfficeRecovery.untitled("pptx")
+    }
+
+    /// Two seconds after the last change: AutoSave writes the file itself
+    /// when it is on and the deck has one; otherwise the recovery copy is
+    /// refreshed — as Writer does.
+    private func _scheduleAutosave() {
+        #if !os(WASI)
+        _autosaveGeneration += 1
+        let gen = _autosaveGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
+            guard let self, self.mounted, self._autosaveGeneration == gen, self.session.dirty, self._show == nil else { return }
+            guard let data = try? Pptx.write(self.deck) else { return }
+            if self.session.autoSave, !self._recovered, let path = self.session.path,
+               path.pathExtension.lowercased() == "pptx" {
+                do {
+                    try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+                    self._savedEdits = self.deck.edits
+                    try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
+                    self.setState { self.session.dirty = false }
+                    return
+                } catch {
+                    self._flash("AutoSave could not write: \(error)")
+                }
+            }
+            try? data.write(to: URL(fileURLWithPath: self._recoveryPath(for: self.session.path)), options: .atomic)
+        }
+        #endif
+    }
+
+    /// A recovery copy newer than the file: the last session ended with
+    /// unsaved changes.
+    private func _recoveryIfNewer(than path: String) -> String? {
+        let recovery = _recoveryPath(for: path)
+        let fm = FileManager.default
+        guard let r = try? fm.attributesOfItem(atPath: recovery)[.modificationDate] as? Date,
+              let f = try? fm.attributesOfItem(atPath: path)[.modificationDate] as? Date, r > f else { return nil }
+        return recovery
+    }
+
+    /// Saved, or deliberately discarded: no copy to come back to.
+    private func _dropRecovery() {
+        try? FileManager.default.removeItem(atPath: _recoveryPath(for: session.path))
+        _recovered = false
     }
 
     // MARK: Deck commands
@@ -412,6 +491,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _newDeck() {
         _active = nil
         _point(at: nil)
+        _autosaveGeneration += 1
+        _recovered = false
         deck.newDeck()
         _savedEdits = deck.edits
         session.path = nil
@@ -428,18 +509,29 @@ final class SlidesShellState: State<StatefulWidget> {
             return
         }
         do {
+            _autosaveGeneration += 1
+            // Unsaved changes from last time win over the file, said aloud;
+            // a copy that does not read never blocks the file.
+            var recovered: (DeckState, DeckTheme, PptxPackage)? = nil
+            if let r = _recoveryIfNewer(than: path) {
+                recovered = FileManager.default.contents(atPath: r).flatMap { try? Pptx.read($0) }
+                if recovered == nil { try? FileManager.default.removeItem(atPath: r) }
+            }
             guard let data = FileManager.default.contents(atPath: path) else { throw Pptx.ReadError.noPresentation }
-            let (state, theme, package) = try Pptx.read(data)
+            let (state, theme, package) = try recovered ?? Pptx.read(data)
             _endEditing()
             deck.load(state, theme: theme, package: package)
-            _savedEdits = deck.edits
             session.path = path
+            _recovered = recovered != nil
+            _savedEdits = recovered == nil ? deck.edits : deck.edits - 1
+            _lastAutosaveEdits = deck.edits
             _recent = OfficeRecent.remember(path, in: _recent)
             setState {
-                session.dirty = false
+                session.dirty = recovered != nil
                 _backstage = nil
             }
-            _flash("Opened \(path.lastPathComponent) — \(deck.slides.count) slides")
+            _flash(recovered != nil ? "Restored unsaved changes to \(path.lastPathComponent) — Save to keep them"
+                                    : "Opened \(path.lastPathComponent) — \(deck.slides.count) slides")
         } catch {
             _flash("Could not open \(path.lastPathComponent): \(error)")
             setState { _backstage = nil }
@@ -479,7 +571,10 @@ final class SlidesShellState: State<StatefulWidget> {
         do {
             let data = try Pptx.write(deck)
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            // Saved: the copy beside the old name (or the untitled one) goes.
+            _dropRecovery()
             session.path = path
+            _dropRecovery()
             _savedEdits = deck.edits
             _recent = OfficeRecent.remember(path, in: _recent)
             setState {

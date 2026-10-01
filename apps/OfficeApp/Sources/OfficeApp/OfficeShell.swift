@@ -303,9 +303,7 @@ final class OfficeShellState: State<StatefulWidget> {
         #if os(WASI)
         return "/office-recovery/untitled.docx~"  // never written: see _scheduleAutosave
         #else
-        let dir = NSHomeDirectory() + "/.config/starling/office-recovery"
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        return dir + "/untitled.docx~"
+        return OfficeRecovery.untitled("docx")
         #endif
     }
 
@@ -932,6 +930,19 @@ final class OfficeShellState: State<StatefulWidget> {
 /// layer, which the browser build does not link.
 /// The recent-files list, shared by Writer and Slides: one file beside the
 /// user's other Starling state.
+/// Where an untitled document's recovery copy lives. `OFFICE_RECOVERY_DIR`
+/// moves it: the test drivers point it at a scratch directory, so a driven
+/// instance never opens — or overwrites — the copy of the user's own
+/// untitled document (one did, 2026-09-30).
+enum OfficeRecovery {
+    static func untitled(_ ext: String) -> String {
+        let dir = ProcessInfo.processInfo.environment["OFFICE_RECOVERY_DIR"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? NSHomeDirectory() + "/.config/starling/office-recovery"
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        return dir + "/untitled.\(ext)~"
+    }
+}
+
 enum OfficeRecent {
     private static var _file: String {
         let dir = homeDirectory() + "/.config/starling"
