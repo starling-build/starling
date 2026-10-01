@@ -203,6 +203,14 @@ void flcocoa_host_show(FlCocoaHost* host) {
   }
   @autoreleasepool {
     NSWindow* window = (__bridge NSWindow*)host->window;
+    // STARLING_WINDOW_BACKGROUND=1: on screen, behind everything, never
+    // active — for looking at the app (screencapture -l by window id) while
+    // someone else is using the machine; it takes no focus and no keys.
+    const char* background = getenv("STARLING_WINDOW_BACKGROUND");
+    if (background != NULL && background[0] != '\0' && background[0] != '0') {
+      [window orderBack:nil];
+      return;
+    }
     [window makeKeyAndOrderFront:nil];
     // The window is created before the app finishes launching, so it needs an
     // explicit activation to come to the front of a terminal-launched process.
