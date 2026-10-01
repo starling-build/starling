@@ -153,6 +153,36 @@ enum Formula {
         }
     }
 
+    /// The formula as it reads after moving or copying its cell by
+    /// (rows, cols): relative references move with it, absolute ones stay,
+    /// and a reference pushed off the sheet becomes #REF!.
+    static func shifted(_ e: FormulaExpr, rows dr: Int, cols dc: Int) -> FormulaExpr {
+        func end(_ x: RefEnd) -> RefEnd? {
+            var x = x
+            if let r = x.row, !x.rowAbs {
+                let n = r + dr
+                guard n >= 0, n < CellAddress.maxRows else { return nil }
+                x.row = n
+            }
+            if let c = x.col, !x.colAbs {
+                let n = c + dc
+                guard n >= 0, n < CellAddress.maxCols else { return nil }
+                x.col = n
+            }
+            return x
+        }
+        return mapRefs(e) { r in
+            guard let s = end(r.start) else { return nil }
+            var out = r
+            out.start = s
+            if let e = r.end {
+                guard let e2 = end(e) else { return nil }
+                out.end = e2
+            }
+            return out
+        }
+    }
+
     // MARK: Tokens
 
     enum Token: Equatable {

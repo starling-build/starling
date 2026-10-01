@@ -64,7 +64,7 @@ final class TitleRow: StatelessWidget {
                     Chrome.gap(16),
                     SizedBox(width: 230, height: 32, child: FluentTextBox(
                         controller: searchController,
-                        placeholderText: session.kind == .document ? "Find in document (⌘F)" : "Find in presentation (⌘F)",
+                        placeholderText: session.kind == .document ? "Find in document (⌘F)" : session.kind == .workbook ? "Find in workbook (⌘F)" : "Find in presentation (⌘F)",
                         onSubmitted: { [onSearch] q in onSearch(q) })),
                 ])))
     }

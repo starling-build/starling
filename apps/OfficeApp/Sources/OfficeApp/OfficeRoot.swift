@@ -83,9 +83,12 @@ private final class _OfficeRootState: State<StatefulWidget> {
                 self._generation += 1
             }
         }
-        let home: Widget = _kind == .document
-            ? OfficeShell(initialPath: _path, startBlank: _generation > 0 && _path == nil, onSwitch: onSwitch)
-            : SlidesShell(initialPath: _path, startBlank: _generation > 0 && _path == nil, onSwitch: onSwitch)
+        let home: Widget
+        switch _kind {
+        case .document: home = OfficeShell(initialPath: _path, startBlank: _generation > 0 && _path == nil, onSwitch: onSwitch)
+        case .presentation: home = SlidesShell(initialPath: _path, startBlank: _generation > 0 && _path == nil, onSwitch: onSwitch)
+        case .workbook: home = SheetsShell(initialPath: _path, onSwitch: onSwitch)
+        }
         // The key is on the app, not on `home`: FluentApp reads `home`
         // once, into its first route, so a new home under the same app is
         // never shown.

@@ -1,0 +1,235 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// The ribbon's tabs for a workbook: Home (clipboard, font, alignment,
+// number, editing), Insert, Formulas, Data and View. Each button acts on
+// the selection through the workbook's controller; the few that need the
+// grid (the clipboard, starting a formula in the editor) go through
+// `WorkbookController.onCommand`, which the shell points at the grid.
+
+import Flutter
+import FlutterSwiftBridge
+import FluentSystemIcons
+import Foundation
+
+/// What the ribbon asks of the grid.
+enum SheetCommand {
+    case cut, copy, paste
+    case startFormula(String)      // "=SUM(" into the editor, the selection's range filled in
+    case zoom(Double)
+    case toggleGridlines
+}
+
+extension Ribbon {
+    func sheetsGroups(_ fluent: FluentThemeData) -> [Widget]? {
+        guard let wb = session.workbook else { return nil }
+        switch tab {
+        case .home: return _sheetsHome(wb, fluent)
+        case .insert: return [_functionsGroup(wb, fluent)]
+        case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent)]
+        case .data: return [_sortGroup(wb, fluent)]
+        case .view: return [_sheetsZoomGroup(wb, fluent)]
+        default: return nil
+        }
+    }
+
+    private func _sheetsHome(_ wb: WorkbookController, _ fluent: FluentThemeData) -> [Widget] {
+        let st = wb.style(at: wb.active)
+        let sizes: [Double] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
+        let family = st.fontName ?? OfficeFonts.defaultFamily
+        let size = st.fontSize ?? 11
+        let clipboard = Chrome.group("Clipboard", fluent, [
+            Chrome.big(FluentSystemIcons.paste, "Paste", fluent) { wb.onCommand?(.paste) },
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.cut, "Cut", fluent) { wb.onCommand?(.cut) },
+                Chrome.small(FluentSystemIcons.copy, "Copy", fluent) { wb.onCommand?(.copy) },
+            ]),
+        ])
+        let colors: [(String, Color)] = [
+            ("Black", Color(0xFF000000)), ("White", Color(0xFFFFFFFF)), ("Dark Gray", Color(0xFF595959)),
+            ("Light Gray", Color(0xFFD9D9D9)), ("Dark Red", Color(0xFFC00000)), ("Red", Color(0xFFFF0000)),
+            ("Orange", Color(0xFFFFC000)), ("Yellow", Color(0xFFFFFF00)), ("Light Green", Color(0xFF92D050)),
+            ("Green", Color(0xFF00B050)), ("Light Blue", Color(0xFF00B0F0)), ("Blue", Color(0xFF0070C0)),
+            ("Dark Blue", Color(0xFF002060)), ("Purple", Color(0xFF7030A0)),
+        ]
+        func rgb(_ c: Color?) -> UInt32? { c.map { UInt32(truncatingIfNeeded: $0.value) & 0xFFFFFF } }
+        let font = Chrome.group("Font", fluent, [Chrome.rows([
+            Chrome.row([
+                SizedBox(width: 140, height: nil, child: ComboBox<String>(
+                    value: family,
+                    items: OfficeFonts.families(including: family).map { f in
+                        ComboBoxItem<String>(value: f, child: Text(f, style: fluent.typography.body?.copyWith(color: nil)))
+                    },
+                    onChanged: { f in if let f { wb.setStyle { $0.fontName = f } } })),
+                Chrome.gap(),
+                SizedBox(width: 64, height: nil, child: ComboBox<Double>(
+                    value: sizes.contains(size) ? size : nil,
+                    items: sizes.map { n in ComboBoxItem<Double>(value: n, child: Text(n == n.rounded() ? "\(Int(n))" : "\(n)")) },
+                    onChanged: { n in if let n { wb.setStyle { $0.fontSize = n } } },
+                    placeholder: Text("\(Int(size))"))),
+            ]),
+            Chrome.vgap(4),
+            Chrome.row([
+                Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)", st.bold, fluent) { wb.setStyle { $0.bold.toggle() } },
+                Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)", st.italic, fluent) { wb.setStyle { $0.italic.toggle() } },
+                Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)", st.underline, fluent) { wb.setStyle { $0.underline.toggle() } },
+                Chrome.toggle(FluentSystemIcons.textStrikethrough, "Strikethrough", st.strike, fluent) { wb.setStyle { $0.strike.toggle() } },
+                Chrome.gap(4),
+                Chrome.menu(nil, Icon(FluentSystemIcons.grid, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary), fluent, [
+                    ("All Borders", { wb.setStyle { $0.borders = .init(top: true, left: true, bottom: true, right: true) } }),
+                    ("Bottom Border", { wb.setStyle { $0.borders.bottom = true } }),
+                    ("Top Border", { wb.setStyle { $0.borders.top = true } }),
+                    ("No Border", { wb.setStyle { $0.borders = .init() } }),
+                ]),
+                Chrome.colorMenu(FluentSystemIcons.paintBrush, "Fill Color", fluent, colors: colors, none: "No Fill") { c in
+                    wb.setStyle { $0.fill = rgb(c) }
+                },
+                Chrome.colorMenu(FluentSystemIcons.textColor, "Font Color", fluent, colors: colors, none: "Automatic") { c in
+                    wb.setStyle { $0.color = rgb(c) }
+                },
+            ]),
+        ])])
+        let alignment = Chrome.group("Alignment", fluent, [Chrome.rows([
+            Chrome.row([
+                Chrome.toggle(FluentSystemIcons.alignLeft, "Align Left", st.hAlign == .left, fluent) {
+                    wb.setStyle { $0.hAlign = $0.hAlign == .left ? .general : .left }
+                },
+                Chrome.toggle(FluentSystemIcons.alignCenter, "Center", st.hAlign == .center, fluent) {
+                    wb.setStyle { $0.hAlign = $0.hAlign == .center ? .general : .center }
+                },
+                Chrome.toggle(FluentSystemIcons.alignRight, "Align Right", st.hAlign == .right, fluent) {
+                    wb.setStyle { $0.hAlign = $0.hAlign == .right ? .general : .right }
+                },
+            ]),
+            Chrome.vgap(4),
+            Chrome.row([
+                Chrome.textToggle("Wrap Text", st.wrap, fluent, style: fluent.typography.caption) { wb.setStyle { $0.wrap.toggle() } },
+                Chrome.menu(Text("Vertical", style: fluent.typography.caption), nil, fluent, [
+                    ("Top", { wb.setStyle { $0.vAlign = .top } }),
+                    ("Middle", { wb.setStyle { $0.vAlign = .center } }),
+                    ("Bottom", { wb.setStyle { $0.vAlign = .bottom } }),
+                ]),
+            ]),
+        ])])
+        let formats: [(String, String)] = [
+            ("General", "General"), ("Number", "0.00"), ("Currency", "$#,##0.00"),
+            ("Accounting", "_($* #,##0.00_);_($* (#,##0.00);_($* \"-\"??_);_(@_)"),
+            ("Short Date", "m/d/yyyy"), ("Long Date", "dddd, mmmm d, yyyy"), ("Time", "h:mm:ss AM/PM"),
+            ("Percentage", "0.00%"), ("Scientific", "0.00E+00"), ("Text", "@"),
+        ]
+        let currentName = formats.first { $0.1 == st.numberFormat }?.0 ?? "Custom"
+        let number = Chrome.group("Number", fluent, [Chrome.rows([
+            Chrome.row([
+                Chrome.menu(Text(currentName, style: fluent.typography.body), nil, fluent,
+                            formats.map { name, code in (name, { wb.setStyle { $0.numberFormat = code } }) }),
+            ]),
+            Chrome.vgap(4),
+            Chrome.row([
+                FlatButton(child: Text("$", style: fluent.typography.bodyStrong), tip: "Currency") { wb.setStyle { $0.numberFormat = "$#,##0.00" } },
+                FlatButton(child: Text("%", style: fluent.typography.bodyStrong), tip: "Percent Style") { wb.setStyle { $0.numberFormat = "0%" } },
+                FlatButton(child: Text(",", style: fluent.typography.bodyStrong), tip: "Comma Style") { wb.setStyle { $0.numberFormat = "#,##0.00" } },
+                FlatButton(child: Text(".0+", style: fluent.typography.caption), tip: "Increase Decimal") {
+                    wb.setStyle { $0.numberFormat = Self._decimals($0.numberFormat, wb, +1) }
+                },
+                FlatButton(child: Text(".0−", style: fluent.typography.caption), tip: "Decrease Decimal") {
+                    wb.setStyle { $0.numberFormat = Self._decimals($0.numberFormat, wb, -1) }
+                },
+            ]),
+        ])])
+        let editing = Chrome.group("Editing", fluent, [Chrome.rows([
+            Chrome.small(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },
+            Chrome.small(FluentSystemIcons.textClearFormatting, "Clear Formats", fluent) { wb.setStyle { $0 = .plain } },
+            Chrome.small(FluentSystemIcons.delete, "Clear Contents", fluent) { wb.clearContents() },
+        ])])
+        return [clipboard, font, alignment, number, editing]
+    }
+
+    /// One more or one fewer decimal place in a format (General becomes
+    /// 0.0 from the active cell's value, as Excel's buttons do).
+    static func _decimals(_ code: String, _ wb: WorkbookController, _ step: Int) -> String {
+        var c = code
+        if c == "General" {
+            var places = 0
+            if case .number(let n) = wb.sheet.value(wb.active) {
+                let s = NumberFormat.general(n)
+                places = s.split(separator: ".").count > 1 ? s.split(separator: ".")[1].count : 0
+            }
+            c = places == 0 ? "0" : "0." + String(repeating: "0", count: places)
+        }
+        // Change the zeros after the first decimal point of each section.
+        let sections = NumberFormat._sections(c).map { s -> String in
+            guard let dot = s.firstIndex(of: ".") else {
+                guard step > 0, let lastZero = s.lastIndex(where: { $0 == "0" || $0 == "#" }) else { return s }
+                var t = s; t.insert(contentsOf: ".0", at: t.index(after: lastZero)); return t
+            }
+            var end = s.index(after: dot)
+            while end < s.endIndex, s[end] == "0" || s[end] == "#" { end = s.index(after: end) }
+            let count = s.distance(from: s.index(after: dot), to: end)
+            let n = max(0, count + step)
+            return String(s[..<dot]) + (n == 0 ? "" : "." + String(repeating: "0", count: n)) + String(s[end...])
+        }
+        return sections.joined(separator: ";")
+    }
+
+    /// AutoSum: =SUM over the numbers above the active cell (or left of it).
+    static func _autoSum(_ wb: WorkbookController) {
+        let a = wb.active
+        func isNum(_ x: CellAddress) -> Bool { wb.sheet.value(x).number != nil }
+        var top = a.row
+        while top > 0, isNum(CellAddress(row: top - 1, col: a.col)) { top -= 1 }
+        if top < a.row {
+            wb.onCommand?(.startFormula("=SUM(" + CellRange(top: top, left: a.col, bottom: a.row - 1, right: a.col).a1 + ")"))
+            return
+        }
+        var left = a.col
+        while left > 0, isNum(CellAddress(row: a.row, col: left - 1)) { left -= 1 }
+        if left < a.col {
+            wb.onCommand?(.startFormula("=SUM(" + CellRange(top: a.row, left: left, bottom: a.row, right: a.col - 1).a1 + ")"))
+            return
+        }
+        wb.onCommand?(.startFormula("=SUM("))
+    }
+
+    private func _autoSumGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Function Library", fluent, [
+            Chrome.big(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },
+        ])
+    }
+
+    private func _functionsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        let groups: [(String, [String])] = [
+            ("Math", ["SUM", "AVERAGE", "MIN", "MAX", "COUNT", "ROUND", "SUMIF", "SUMIFS", "SUMPRODUCT", "MOD", "ABS"]),
+            ("Logical", ["IF", "IFS", "IFERROR", "AND", "OR", "NOT"]),
+            ("Lookup", ["VLOOKUP", "XLOOKUP", "INDEX", "MATCH", "HLOOKUP"]),
+            ("Text", ["CONCAT", "TEXTJOIN", "LEFT", "RIGHT", "MID", "LEN", "TRIM", "UPPER", "LOWER", "TEXT", "SUBSTITUTE"]),
+            ("Date & Time", ["TODAY", "NOW", "DATE", "YEAR", "MONTH", "DAY", "EDATE", "EOMONTH", "NETWORKDAYS"]),
+            ("Financial", ["PMT", "FV", "PV", "NPV"]),
+        ]
+        return Chrome.group("Functions", fluent, [Chrome.rows([
+            Chrome.row(groups.prefix(3).map { name, fns in
+                Chrome.menu(Text(name, style: fluent.typography.caption), nil, fluent,
+                            fns.map { f in (f, { wb.onCommand?(.startFormula("=" + f + "(")) }) })
+            }),
+            Chrome.vgap(4),
+            Chrome.row(groups.dropFirst(3).map { name, fns in
+                Chrome.menu(Text(name, style: fluent.typography.caption), nil, fluent,
+                            fns.map { f in (f, { wb.onCommand?(.startFormula("=" + f + "(")) }) })
+            }),
+        ])])
+    }
+
+    private func _sortGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Sort & Filter", fluent, [Chrome.rows([
+            Chrome.small(FluentSystemIcons.sort, "Sort A to Z", fluent) { wb.sortSelection(ascending: true) },
+            Chrome.small(FluentSystemIcons.sort, "Sort Z to A", fluent) { wb.sortSelection(ascending: false) },
+        ])])
+    }
+
+    private func _sheetsZoomGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Zoom", fluent, [
+            Chrome.big(FluentSystemIcons.zoomIn, "Zoom In", fluent) { wb.onCommand?(.zoom(1.1)) },
+            Chrome.big(FluentSystemIcons.zoomOut, "Zoom Out", fluent) { wb.onCommand?(.zoom(1 / 1.1)) },
+            Chrome.big(FluentSystemIcons.grid, "100%", fluent) { wb.onCommand?(.zoom(0)) },
+        ])
+    }
+}

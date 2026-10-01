@@ -300,8 +300,9 @@ let initialPath: String? = {
 }()
 
 // `--slides` starts on a blank deck; a .pptx path starts in Slides too.
-let initialKind: DocumentKind = CommandLine.arguments.contains("--slides")
-    || initialPath?.pathExtension.lowercased() == "pptx" ? .presentation : .document
+let initialKind: DocumentKind = CommandLine.arguments.contains("--slides") ? .presentation
+    : CommandLine.arguments.contains("--sheets") ? .workbook
+    : initialPath.map { DocumentKind.kind(forPath: $0) } ?? .document
 
 runStarlingApp(title: initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),

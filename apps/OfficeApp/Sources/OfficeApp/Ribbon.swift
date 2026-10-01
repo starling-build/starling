@@ -21,12 +21,15 @@ enum RibbonTab: Int, CaseIterable {
     case chartDesign
     /// Slides only.
     case design, transitions, slideShow, animations
+    /// Sheets only.
+    case formulas, data
 
     /// The tabs a kind shows, in strip order (contextual ones aside).
     static func strip(for kind: DocumentKind) -> [RibbonTab] {
         switch kind {
         case .document: return [.home, .insert, .layout, .review, .view]
         case .presentation: return [.home, .insert, .design, .transitions, .animations, .slideShow, .review, .view]
+        case .workbook: return [.home, .insert, .formulas, .data, .review, .view]
         }
     }
 
@@ -44,6 +47,8 @@ enum RibbonTab: Int, CaseIterable {
         case .transitions: return "Transitions"
         case .slideShow: return "Slide Show"
         case .animations: return "Animations"
+        case .formulas: return "Formulas"
+        case .data: return "Data"
         }
     }
 
@@ -146,6 +151,7 @@ final class Ribbon: StatelessWidget {
 
     private func _groups(_ fluent: FluentThemeData) -> [Widget] {
         if session.kind == .presentation, let groups = slidesGroups(fluent) { return groups }
+        if session.kind == .workbook, let groups = sheetsGroups(fluent) { return groups }
         switch tab {
         case .home: return _home(fluent)
         case .insert: return _insert(fluent)
@@ -154,7 +160,7 @@ final class Ribbon: StatelessWidget {
         case .pictureFormat: return _pictureFormat(fluent)
         case .tableLayout: return _tableLayout(fluent)
         case .review: return _review(fluent)
-        case .design, .transitions, .slideShow, .chartDesign, .animations: return []
+        case .design, .transitions, .slideShow, .chartDesign, .animations, .formulas, .data: return []
         }
     }
 

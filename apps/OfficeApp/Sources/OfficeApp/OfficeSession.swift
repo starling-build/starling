@@ -40,14 +40,29 @@ struct ToolbarSummary: Equatable {
     var paragraphs = 0
 }
 
-/// What the window holds: a Writer document or a Slides deck. One app opens
-/// both (docs/plans/slides.md); the ribbon and the body follow the kind.
+/// What the window holds: a Writer document, a Slides deck or a Sheets
+/// workbook. One app opens all three (docs/plans/slides.md, sheets.md);
+/// the ribbon and the body follow the kind.
 enum DocumentKind: Equatable {
     case document
     case presentation
+    case workbook
 
-    var appName: String { self == .document ? "Writer" : "Slides" }
-    var untitled: String { self == .document ? "Document1" : "Presentation1" }
+    var appName: String {
+        switch self { case .document: return "Writer"; case .presentation: return "Slides"; case .workbook: return "Sheets" }
+    }
+    var untitled: String {
+        switch self { case .document: return "Document1"; case .presentation: return "Presentation1"; case .workbook: return "Book1" }
+    }
+
+    /// The kind a file opens as, by its extension.
+    static func kind(forPath path: String) -> DocumentKind {
+        switch path.pathExtension.lowercased() {
+        case "pptx": return .presentation
+        case "xlsx", "csv", "tsv": return .workbook
+        default: return .document
+        }
+    }
 }
 
 enum ViewMode: Equatable {
@@ -67,6 +82,8 @@ final class OfficeSession {
     var controller = RichDocumentController()
     /// The deck, in Slides.
     let deck: DeckController?
+    /// The workbook, in Sheets.
+    let workbook: WorkbookController?
     var theme: RichTextTheme = {
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         // The document keeps Word's font names; this picks the shipped
@@ -78,6 +95,7 @@ final class OfficeSession {
     init(kind: DocumentKind = .document) {
         self.kind = kind
         self.deck = kind == .presentation ? DeckController() : nil
+        self.workbook = kind == .workbook ? WorkbookController() : nil
         controller.clipboardCodec = OfficeClipboardCodec()
         controller.maxPastedImageWidth = pageSetup.contentWidth
     }

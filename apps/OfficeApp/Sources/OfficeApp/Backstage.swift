@@ -156,6 +156,8 @@ final class Backstage: StatelessWidget {
                 Chrome.gap(16),
                 _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.onNewKind?(.presentation) },
                 Chrome.gap(16),
+                _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.onNewKind?(.workbook) },
+                Chrome.gap(16),
                 _template("Open", FluentSystemIcons.folderOpen, fluent) { [onPage] in onPage(.open) },
             ]),
             Chrome.vgap(28),
@@ -170,7 +172,9 @@ final class Backstage: StatelessWidget {
                 _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNewKind?(.document) },
                 Chrome.gap(16),
                 _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.onNewKind?(.presentation) },
-            ] + (session.kind == .presentation ? [] : [
+                Chrome.gap(16),
+                _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.onNewKind?(.workbook) },
+            ] + (session.kind != .document ? [] : [
                 Chrome.gap(16),
                 _template("Letter", FluentSystemIcons.document, fluent) { [session] in
                     session.onNew?()
@@ -214,13 +218,13 @@ final class Backstage: StatelessWidget {
             ?? homeDirectory() + "/Documents"
         let start = FileManager.default.fileExists(atPath: dir) ? dir : homeDirectory()
         let suggested = session.path.map { $0.lastPathComponent }
-            ?? (session.kind == .presentation ? "Presentation1.pptx" : "Document1.docx")
+            ?? (session.kind == .presentation ? "Presentation1.pptx" : session.kind == .workbook ? "Book1.csv" : "Document1.docx")
         return Column(crossAxisAlignment: .stretch, children: [
             _heading(mode == .open ? "Open" : "Save As", fluent),
             Expanded(child: FluentFilePanel(
                 mode: mode, initialDirectory: start, suggestedName: suggested,
-                extensions: mode == .open ? OfficeFormats.readable + ["pptx"]
-                    : session.kind == .presentation ? ["pptx"] : OfficeFormats.writable,
+                extensions: mode == .open ? OfficeFormats.readable + ["pptx", "xlsx", "csv", "tsv"]
+                    : session.kind == .presentation ? ["pptx"] : session.kind == .workbook ? ["csv", "tsv"] : OfficeFormats.writable,
                 onDone: { [onClose, onOpenPath, onSavePath] path in
                     guard let path else { onClose(); return }
                     if mode == .open { onOpenPath(path) } else { onSavePath(path) }

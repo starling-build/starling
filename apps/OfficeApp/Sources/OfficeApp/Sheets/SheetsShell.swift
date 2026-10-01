@@ -1,0 +1,473 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// The Sheets window: the title row and ribbon (shared with Writer and
+// Slides), the formula bar with its name box, the grid, the sheet tabs,
+// and a status bar that sums the selection. Backstage is the shared one,
+// with the workbook's own New, Open and Save.
+
+import Flutter
+import FlutterSwiftBridge
+import FluentSystemIcons
+import Foundation
+
+final class SheetsShell: StatefulWidget {
+    let initialPath: String?
+    let onSwitch: (DocumentKind, String?) -> Void
+
+    init(initialPath: String?, onSwitch: @escaping (DocumentKind, String?) -> Void) {
+        self.initialPath = initialPath
+        self.onSwitch = onSwitch
+        super.init()
+    }
+
+    override func createState() -> State<StatefulWidget> { SheetsShellState() }
+}
+
+final class SheetsShellState: State<StatefulWidget> {
+    let session = OfficeSession(kind: .workbook)
+    var wb: WorkbookController { session.workbook! }
+    private let _gridKey = GlobalKey<State<StatefulWidget>>()
+    private var _grid: SheetGridState? { _gridKey.currentState as? SheetGridState }
+    private let _formula = TextEditingController()
+    private let _nameBox = TextEditingController()
+    private let _search = TextEditingController()
+    /// The formula bar is being typed in (its text is the user's, not the cell's).
+    private var _formulaEditing = false
+    /// The shell is writing the formula bar's text itself. This port's
+    /// FluentTextBox reports a programmatic change through onChanged too
+    /// (Flutter's does not), and without this the mirror of the cell
+    /// editor read as the user typing in the bar.
+    private var _settingFormula = false
+
+    private func _setFormulaText(_ s: String) {
+        guard _formula.text != s else { return }
+        _settingFormula = true
+        _formula.text = s
+        _settingFormula = false
+    }
+    private var _tab = RibbonTab.home
+    private var _ribbonCollapsed = false
+    private var _backstage: BackstagePage? = nil
+    private var _status: String? = nil
+    private var _statusGeneration = 0
+    private var _recent: [String] = []
+    private var _zoom = 1.0
+    private var _windowTitle = ""
+    /// The sheet tab being renamed, and its text.
+    private var _renaming: Int? = nil
+    private let _renameText = TextEditingController()
+    private var _lastTabClick: (index: Int, at: Date)? = nil
+
+    private var _w: SheetsShell { widget as! SheetsShell }
+
+    // MARK: Lifecycle
+
+    override func initState() {
+        super.initState()
+        OfficeFonts.register()
+        _recent = OfficeRecent.load()
+        _wire()
+        wb.addListener({ [weak self] in self?._changed() }, owner: self)
+        wb.onCommand = { [weak self] cmd in self?._command(cmd) }
+        if let path = _w.initialPath { _open(path) }
+        _syncBars()
+    }
+
+    override func dispose() {
+        wb.removeListeners(owner: self)
+        _formula.dispose()
+        _nameBox.dispose()
+        _search.dispose()
+        _renameText.dispose()
+        super.dispose()
+    }
+
+    private func _wire() {
+        session.onBackstage = { [weak self] open in self?.setState { self?._backstage = open ? .home : nil } }
+        session.onNew = { [weak self] in self?._newWorkbook() }
+        session.onNewKind = { [weak self] kind in
+            guard let self else { return }
+            if kind == .workbook { self._newWorkbook() } else { self._w.onSwitch(kind, nil) }
+        }
+        session.onOpen = { [weak self] in self?.setState { self?._backstage = .open } }
+        session.onSave = { [weak self] in self?._save() }
+        session.onSaveAs = { [weak self] in self?.setState { self?._backstage = .saveAs } }
+        session.onExport = { [weak self] ext in self?._export(ext) }
+        session.onStatus = { [weak self] m in self?._flash(m) }
+        session.onUndo = { [weak self] in self?.wb.undo() }
+        session.onRedo = { [weak self] in self?.wb.redo() }
+    }
+
+    private func _changed() {
+        guard mounted else { return }
+        session.dirty = wb.edits != 0
+        _syncBars()
+        setState {}
+    }
+
+    /// The name box shows the active cell (or the selection's size while
+    /// dragging); the formula bar shows what was typed into it.
+    private func _syncBars() {
+        let sel = wb.selection
+        let name = sel.isSingle || sel == CellRange(wb.active) ? wb.active.a1
+            : (sel.rows == CellAddress.maxRows || sel.cols == CellAddress.maxCols ? sel.a1 : wb.active.a1)
+        if _nameBox.text != name { _nameBox.text = name }
+        if !_formulaEditing && _grid?.edit == nil { _setFormulaText(wb.input(wb.active)) }
+    }
+
+    private func _flash(_ message: String) {
+        _statusGeneration += 1
+        let gen = _statusGeneration
+        setState { _status = message }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            guard let self, self.mounted, self._statusGeneration == gen else { return }
+            self.setState { self._status = nil }
+        }
+    }
+
+    private func _command(_ cmd: SheetCommand) {
+        guard let grid = _grid else { return }
+        switch cmd {
+        case .copy: grid.copySelection()
+        case .cut: grid.copySelection(); wb.clearContents()
+        case .paste: grid.paste()
+        case .startFormula(let text):
+            grid.focus.requestFocus()
+            grid.beginEdit(replace: text)
+        case .zoom(let factor):
+            setState { _zoom = factor == 0 ? 1 : max(0.25, min(4, _zoom * factor)) }
+        case .toggleGridlines:
+            break
+        }
+    }
+
+    // MARK: Files
+
+    private func _newWorkbook() {
+        wb.load(Workbook())
+        session.path = nil
+        session.dirty = false
+        setState { _backstage = nil }
+    }
+
+    private func _open(_ path: String) {
+        let kind = DocumentKind.kind(forPath: path)
+        if kind != .workbook {
+            _w.onSwitch(kind, path)
+            return
+        }
+        #if os(WASI)
+        _flash("Opening files in the browser comes with milestone X5")
+        #else
+        let ext = path.pathExtension.lowercased()
+        if ext == "xlsx" {
+            _flash(".xlsx opens with milestone X2 — CSV for now")
+            return
+        }
+        guard let data = FileManager.default.contents(atPath: path) else {
+            _flash("Could not open \(path.lastPathComponent)")
+            return
+        }
+        let text = String(decoding: data, as: UTF8.self)
+        wb.load(Csv.read(text, name: path.lastPathComponent.deletingPathExtension))
+        session.path = path
+        session.dirty = false
+        _recent = OfficeRecent.remember(path, in: _recent)
+        setState { _backstage = nil }
+        _flash("Opened \(path.lastPathComponent)")
+        #endif
+    }
+
+    private func _save() {
+        guard let path = session.path, ["csv", "tsv"].contains(path.pathExtension.lowercased()) else {
+            setState { _backstage = .saveAs }
+            return
+        }
+        _saveTo(path)
+    }
+
+    private func _saveTo(_ chosen: String) {
+        #if os(WASI)
+        _flash("Saving from the browser comes with milestone X5")
+        #else
+        let ext = chosen.pathExtension.lowercased()
+        let path = ["csv", "tsv"].contains(ext) ? chosen : chosen + ".csv"
+        _grid?.commitEdit()
+        let text = Csv.write(wb.sheet, book: wb.book, separator: path.pathExtension.lowercased() == "tsv" ? "\t" : ",")
+        do {
+            try Data(text.utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
+            session.path = path
+            wb.markSaved()
+            _recent = OfficeRecent.remember(path, in: _recent)
+            setState {
+                session.dirty = false
+                _backstage = nil
+            }
+            _flash(wb.book.sheets.count > 1
+                   ? "Saved \(path.lastPathComponent) — CSV keeps only the active sheet"
+                   : "Saved \(path.lastPathComponent)")
+        } catch {
+            _flash("Could not save \(path.lastPathComponent): \(error)")
+        }
+        #endif
+    }
+
+    private func _export(_ ext: String) {
+        _flash("Export to \(ext.uppercased()) comes with milestone X4")
+    }
+
+    // MARK: Formula bar
+
+    private func _formulaBar(_ fluent: FluentThemeData) -> Widget {
+        let line = fluent.resources.dividerStrokeColorDefault
+        return DecoratedBox(
+            decoration: BoxDecoration(
+                color: fluent.resources.solidBackgroundFillColorBase,
+                border: Border(bottom: BorderSide(color: line, width: 1))),
+            child: Padding(padding: EdgeInsets(left: 8, top: 4, right: 8, bottom: 4), child: Row(
+                crossAxisAlignment: .center, children: [
+                    SizedBox(width: 96, height: 28, child: FluentTextBox(
+                        controller: _nameBox,
+                        onSubmitted: { [weak self] text in self?._goTo(text) })),
+                    Chrome.gap(6),
+                    Chrome.icon(FluentSystemIcons.close, "Cancel", fluent, enabled: _formulaEditing || _grid?.edit != nil) { [weak self] in
+                        self?._cancelFormula()
+                    },
+                    Chrome.icon(FluentSystemIcons.check, "Enter", fluent, enabled: _formulaEditing || _grid?.edit != nil) { [weak self] in
+                        self?._commitFormula(self?._formula.text ?? "")
+                    },
+                    Text("fx", style: fluent.typography.bodyStrong?.copyWith(fontStyle: .italic)),
+                    Chrome.gap(8),
+                    Expanded(child: SizedBox(width: nil, height: 28, child: FluentTextBox(
+                        controller: _formula,
+                        onChanged: { [weak self] text in
+                            guard let self, !self._settingFormula else { return }
+                            self._formulaEditing = true
+                            self._grid?.setEditText(text)
+                        },
+                        onSubmitted: { [weak self] text in self?._commitFormula(text) },
+                        onFocusChanged: { [weak self] focused in
+                            guard let self, !focused, self._formulaEditing else { return }
+                            // Leaving the bar keeps what was typed, as Excel does on a click elsewhere.
+                            self._commitFormula(self._formula.text, move: false)
+                        }))),
+                ])))
+    }
+
+    private func _commitFormula(_ text: String, move: Bool = true) {
+        _formulaEditing = false
+        if let grid = _grid, grid.edit != nil {
+            grid.setEditText(text)
+            grid.commitEdit()
+        } else {
+            wb.setInput(text, at: wb.active)
+        }
+        if move { wb.advance(rows: 1, cols: 0); _grid?.reveal(wb.active) }
+        _grid?.focus.requestFocus()
+        _syncBars()
+    }
+
+    private func _cancelFormula() {
+        _formulaEditing = false
+        _grid?.cancelEdit()
+        _grid?.focus.requestFocus()
+        _syncBars()
+        setState {}
+    }
+
+    /// The name box: an address (B7), a range (A1:C10), or a sheet's cell.
+    private func _goTo(_ text: String) {
+        let t = text.trimmingWhitespace()
+        if let r = CellRange(t.uppercased()) {
+            wb.select(range: r, active: r.topLeft)
+            _grid?.reveal(r.topLeft)
+        } else if let bang = t.lastIndex(of: "!"), let si = wb.book.sheet(named: String(t[..<bang]).trimming(charactersIn: "'")),
+                  let r = CellRange(String(t[t.index(after: bang)...]).uppercased()) {
+            wb.activeSheet = si
+            wb.select(range: r, active: r.topLeft)
+            _grid?.reveal(r.topLeft)
+        } else {
+            _flash("“\(t)” isn't a cell or a range")
+        }
+        _grid?.focus.requestFocus()
+        _syncBars()
+    }
+
+    // MARK: Sheet tabs
+
+    private func _sheetTabs(_ fluent: FluentThemeData) -> Widget {
+        let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
+        var tabs: [Widget] = []
+        for (i, ws) in wb.book.sheets.enumerated() {
+            let on = i == wb.activeSheet
+            if _renaming == i {
+                tabs.append(SizedBox(width: 120, height: 26, child: FluentTextBox(
+                    controller: _renameText,
+                    onSubmitted: { [weak self] name in self?._finishRename(i, name) },
+                    autofocus: true,
+                    onFocusChanged: { [weak self] f in if !f { self?._finishRename(i, self?._renameText.text ?? "") } })))
+                continue
+            }
+            let label = Text(ws.name, style: (on ? fluent.typography.bodyStrong : fluent.typography.body)?.copyWith(
+                color: on ? accent : fluent.resources.textFillColorPrimary))
+            tabs.append(FlatButton(
+                child: Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0), child: Column(
+                    mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+                        label,
+                        Chrome.vgap(2),
+                        SizedBox(width: 24, height: 2, child: ColoredBox(color: on ? accent : Color(0x00000000), child: SizedBox(expand: ()))),
+                    ])),
+                tip: on ? "Double-click to rename" : nil, checked: on, width: nil, height: 28,
+                action: { [weak self] in self?._tabClicked(i) }))
+        }
+        tabs.append(Chrome.icon(FluentSystemIcons.add, "New sheet", fluent) { [weak self] in self?.wb.addSheet() })
+        let active = wb.activeSheet
+        tabs.append(Chrome.menu(nil, Icon(FluentSystemIcons.moreHorizontal, size: Chrome.iconSize,
+                                          color: fluent.resources.textFillColorPrimary), fluent, [
+            ("Rename Sheet", { [weak self] in self?._startRename(active) }),
+            ("Insert Sheet", { [weak self] in self?.wb.addSheet() }),
+            ("Delete Sheet", { [weak self] in self?.wb.deleteSheet(active) }),
+        ]))
+        return DecoratedBox(
+            decoration: BoxDecoration(
+                color: fluent.resources.solidBackgroundFillColorBase,
+                border: Border(top: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
+            child: Padding(padding: EdgeInsets(left: 8, top: 1, right: 8, bottom: 1), child: Row(
+                crossAxisAlignment: .center, children: tabs)))
+    }
+
+    private func _tabClicked(_ i: Int) {
+        _grid?.commitEdit()
+        // Double click renames (by hand: onDoubleTap kills taps on DRM).
+        if let last = _lastTabClick, last.index == i, Date().timeIntervalSince(last.at) < 0.4 {
+            _lastTabClick = nil
+            _startRename(i)
+            return
+        }
+        _lastTabClick = (i, Date())
+        wb.activeSheet = i
+        _grid?.focus.requestFocus()
+        _syncBars()
+    }
+
+    private func _startRename(_ i: Int) {
+        _renameText.text = wb.book.sheets[i].name
+        setState { _renaming = i }
+    }
+
+    private func _finishRename(_ i: Int, _ name: String) {
+        guard _renaming == i else { return }
+        _renaming = nil
+        if name != wb.book.sheets[i].name, !wb.renameSheet(i, name) {
+            _flash("A sheet name must be 1–31 characters, unique, and without [ ] : * ? / \\")
+        }
+        setState {}
+        _grid?.focus.requestFocus()
+    }
+
+    // MARK: Status bar
+
+    private func _statusBar(_ fluent: FluentThemeData) -> Widget {
+        let caption = fluent.typography.caption
+        let dim = caption?.copyWith(color: fluent.resources.textFillColorSecondary)
+        var left: [Widget] = [Text(_grid?.edit != nil ? (_grid!.edit!.enterMode ? "Enter" : "Edit") : "Ready", style: caption)]
+        if !wb.engine.circular.isEmpty {
+            left.append(Chrome.gap(20))
+            let first = wb.engine.circular.sorted { ($0.sheet, $0.cell) < ($1.sheet, $1.cell) }.first!
+            left.append(Text("Circular References: \(first.cell.a1)", style: caption))
+        }
+        if let message = _status {
+            left.append(Chrome.gap(20))
+            left.append(Text(message, style: dim))
+        }
+        var right: [Widget] = []
+        if !wb.selection.isSingle {
+            let s = wb.selectionStats
+            if s.numbers > 0, let avg = s.average {
+                right.append(Text("Average: \(NumberFormat.general(avg))", style: caption))
+                right.append(Chrome.gap(16))
+            }
+            if s.count > 0 {
+                right.append(Text("Count: \(s.count)", style: caption))
+                right.append(Chrome.gap(16))
+            }
+            if s.numbers > 0 {
+                right.append(Text("Sum: \(NumberFormat.general(s.sum))", style: caption))
+                right.append(Chrome.gap(16))
+            }
+        }
+        right += [
+            Chrome.icon(FluentSystemIcons.zoomOut, "Zoom Out", fluent) { [weak self] in self?._command(.zoom(1 / 1.1)) },
+            SizedBox(width: 44, height: nil, child: Text("\(Int((_zoom * 100).rounded()))%", style: caption)),
+            Chrome.icon(FluentSystemIcons.zoomIn, "Zoom In", fluent) { [weak self] in self?._command(.zoom(1.1)) },
+        ]
+        return DecoratedBox(
+            decoration: BoxDecoration(
+                color: fluent.resources.solidBackgroundFillColorBase,
+                border: Border(top: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
+            child: Padding(padding: EdgeInsets(left: 12, top: 2, right: 8, bottom: 2), child: Row(
+                crossAxisAlignment: .center,
+                children: left + [Expanded(child: SizedBox(width: 0, height: 0, child: nil))] + right)))
+    }
+
+    // MARK: Build
+
+    override func build(_ context: any BuildContext) -> Widget {
+        let fluent = FluentTheme.of(context)
+        let title = "\(session.title)\(session.dirty ? " •" : "") — Sheets"
+        if title != _windowTitle {
+            _windowTitle = title
+            hostSetWindowTitle?(title)
+        }
+        let column: [Widget] = [
+            TitleRow(session: session, searchController: _search, onSearch: { [weak self] _ in
+                self?._flash("Find in workbooks comes with milestone X3")
+            }),
+            Ribbon(session: session, tab: _tab, collapsed: _ribbonCollapsed,
+                   onTab: { [weak self] t in self?.setState { self?._tab = t } },
+                   onCollapse: { [weak self] in self?.setState { self?._ribbonCollapsed.toggle() } }),
+            _formulaBar(fluent),
+            Expanded(child: SheetGrid(
+                key: _gridKey, controller: wb, zoom: _zoom,
+                onEditText: { [weak self] text in
+                    guard let self, !self._formulaEditing else { return }
+                    self._setFormulaText(text ?? self.wb.input(self.wb.active))
+                    self.setState {}
+                },
+                onShortcut: { [weak self] letter, chords in self?._shortcut(letter, chords) ?? false },
+                onStatus: { [weak self] m in self?._flash(m) })),
+            _sheetTabs(fluent),
+            _statusBar(fluent),
+        ]
+        let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
+                                child: Column(crossAxisAlignment: .stretch, children: column))
+        guard let page = _backstage else { return window }
+        return Stack(children: [
+            window,
+            Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Backstage(
+                session: session, page: page, recent: _recent,
+                onPage: { [weak self] p in self?.setState { self?._backstage = p } },
+                onClose: { [weak self] in
+                    self?.setState { self?._backstage = nil }
+                    self?._grid?.focus.requestFocus()
+                },
+                onOpenPath: { [weak self] path in self?._open(path) },
+                onSavePath: { [weak self] path in self?._saveTo(path) },
+                onPicturePath: { _ in })),
+        ])
+    }
+
+    /// ⌘S, ⌘O, ⌘N, ⌘P — the window's chords, which the grid passes up.
+    private func _shortcut(_ letter: Character, _ chords: KeyChordTracker) -> Bool {
+        switch letter {
+        case "s":
+            if chords.shift { setState { _backstage = .saveAs } } else { _save() }
+            return true
+        case "o": setState { _backstage = .open }; return true
+        case "n": _newWorkbook(); return true
+        case "f": _flash("Find in workbooks comes with milestone X3"); return true
+        default: return false
+        }
+    }
+}

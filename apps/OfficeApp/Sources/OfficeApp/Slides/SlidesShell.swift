@@ -147,7 +147,7 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onNew = { [weak self] in self?._newDeck() }
         session.onNewKind = { [weak self] kind in
             guard let self else { return }
-            if kind == .presentation { self._newDeck() } else { self._w.onSwitch(.document, nil) }
+            if kind == .presentation { self._newDeck() } else { self._w.onSwitch(kind, nil) }
         }
         session.onOpen = { [weak self] in
             guard let self else { return }
@@ -558,6 +558,10 @@ final class SlidesShellState: State<StatefulWidget> {
         let ext = path.pathExtension.lowercased()
         if OfficeFormats.readable.contains(ext) {
             _w.onSwitch(.document, path)
+            return
+        }
+        if DocumentKind.kind(forPath: path) == .workbook {
+            _w.onSwitch(.workbook, path)
             return
         }
         do {

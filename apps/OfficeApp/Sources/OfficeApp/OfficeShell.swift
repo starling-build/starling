@@ -196,7 +196,7 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onNew = { [weak self] in self?._new() }
         session.onNewKind = { [weak self] kind in
             guard let self else { return }
-            if kind == .document { self._new() } else { (self.widget as! OfficeShell).onSwitch?(.presentation, nil) }
+            if kind == .document { self._new() } else { (self.widget as! OfficeShell).onSwitch?(kind, nil) }
         }
         session.onOpen = { [weak self] in
             guard let self else { return }
@@ -372,8 +372,9 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _open(_ path: String) {
-        if path.pathExtension.lowercased() == "pptx", let onSwitch = (widget as! OfficeShell).onSwitch {
-            onSwitch(.presentation, path)
+        let kind = DocumentKind.kind(forPath: path)
+        if kind != .document, let onSwitch = (widget as! OfficeShell).onSwitch {
+            onSwitch(kind, path)
             return
         }
         do {

@@ -19,8 +19,21 @@ final class WorkbookController: ChangeNotifier {
     private(set) var edits = 0
 
     var activeSheet = 0 {
-        didSet { if activeSheet != oldValue { _notify(selectionOnly: true) } }
+        didSet {
+            guard activeSheet != oldValue else { return }
+            // Each sheet keeps its own selection, as Excel's do; a new one starts at A1.
+            if oldValue < book.sheets.count {
+                _selections[ObjectIdentifier(book.sheets[oldValue])] = (selection, active)
+            }
+            let saved = _selections[ObjectIdentifier(sheet)]
+            selection = saved?.0 ?? CellRange(CellAddress(row: 0, col: 0))
+            active = saved?.1 ?? CellAddress(row: 0, col: 0)
+            anchor = active
+            _extentEnd = selection.bottomRight
+            _notify(selectionOnly: true)
+        }
     }
+    private var _selections: [ObjectIdentifier: (CellRange, CellAddress)] = [:]
     /// The cell that typing goes into, and the selected range around it.
     private(set) var active = CellAddress(row: 0, col: 0)
     private(set) var selection = CellRange(CellAddress(row: 0, col: 0))
@@ -39,6 +52,7 @@ final class WorkbookController: ChangeNotifier {
     func load(_ b: Workbook) {
         book = b
         engine = CalcEngine(b)
+        _selections.removeAll()
         _parseAll()
         engine.recalculate()
         activeSheet = 0
@@ -240,6 +254,75 @@ final class WorkbookController: ChangeNotifier {
     func setRowHeight(_ row: Int, _ h: Double) {
         sheet.rowHeights[row] = max(0, h)
         _bump()
+    }
+
+    // MARK: Sorting
+
+    /// The ribbon's way to the grid (clipboard, a formula into the editor).
+    var onCommand: ((SheetCommand) -> Void)?
+
+    /// The block of data around a cell: the rectangle of filled cells
+    /// reachable from it, Excel's "current region".
+    func currentRegion(_ a: CellAddress) -> CellRange {
+        func filled(_ r: Int, _ c: Int) -> Bool {
+            r >= 0 && c >= 0 && !(sheet.cells[CellAddress(row: r, col: c)]?.value.isEmpty ?? true)
+        }
+        var r = CellRange(a)
+        var grew = true
+        while grew {
+            grew = false
+            if r.top > 0, (r.left - 1 ... r.right + 1).contains(where: { filled(r.top - 1, $0) }) { r.top -= 1; grew = true }
+            if (r.left - 1 ... r.right + 1).contains(where: { filled(r.bottom + 1, $0) }) { r.bottom += 1; grew = true }
+            if r.left > 0, (r.top - 1 ... r.bottom + 1).contains(where: { filled($0, r.left - 1) }) { r.left -= 1; grew = true }
+            if (r.top - 1 ... r.bottom + 1).contains(where: { filled($0, r.right + 1) }) { r.right += 1; grew = true }
+        }
+        return r
+    }
+
+    /// Sort the rows of the selection (or of the data around the active
+    /// cell) by the active cell's column. A first row of labels over data
+    /// stays put, as Excel guesses it. One undo step.
+    func sortSelection(ascending: Bool) {
+        var r = selection.isSingle ? currentRegion(active) : selection
+        let used = sheet.usedExtent
+        r = CellRange(top: r.top, left: r.left, bottom: min(r.bottom, used.row), right: min(r.right, used.col))
+        guard r.rows > 1 else { return }
+        let key = min(max(active.col, r.left), r.right)
+        // A header: the first row is all text and the key column below it is not.
+        let firstIsText = (r.left ... r.right).allSatisfy { col in
+            let v = sheet.value(CellAddress(row: r.top, col: col)); return v.isText || v.isEmpty
+        }
+        let belowHasNumbers = (r.top + 1 ... r.bottom).contains { sheet.value(CellAddress(row: $0, col: key)).number != nil }
+        let top = firstIsText && belowHasNumbers ? r.top + 1 : r.top
+        guard r.bottom > top else { return }
+        let rowsIdx = Array(top ... r.bottom)
+        let sorted = rowsIdx.sorted { a, b in
+            let va = sheet.value(CellAddress(row: a, col: key)), vb = sheet.value(CellAddress(row: b, col: key))
+            // Blanks last, whichever way.
+            if va.isEmpty != vb.isEmpty { return vb.isEmpty }
+            let c = CalcEngine.compare(va, vb)
+            if c == 0 { return a < b }   // stable
+            return ascending ? c < 0 : c > 0
+        }
+        guard sorted != rowsIdx else { return }
+        var before: [CellAddress: Cell?] = [:]
+        var moved: [CellAddress: Cell] = [:]
+        for (newRow, oldRow) in zip(rowsIdx, sorted) {
+            for col in r.left ... r.right {
+                let from = CellAddress(row: oldRow, col: col), to = CellAddress(row: newRow, col: col)
+                before[to] = .some(sheet.cells[to])
+                if var cell = sheet.cells[from] {
+                    if let f = cell.formula, newRow != oldRow {
+                        let g = Formula.shifted(f, rows: newRow - oldRow, cols: 0)
+                        cell.formula = g
+                        cell.input = Formula.text(g)
+                    }
+                    moved[to] = cell
+                }
+            }
+        }
+        for a in before.keys { sheet.cells[a] = moved[a] }
+        _record(sheet: activeSheet, before: before)
     }
 
     // MARK: Sheets
