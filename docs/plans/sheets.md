@@ -239,7 +239,19 @@ references, no embedded workbook, Excel's text sizes and white chart
 area), plus content types and the sheet's `<drawing>`/rels when the
 sheet had none; deleting the last drawing drops the part. Seen: insert,
 move, ⌘S and reopen of the fixture. Not checked in Excel itself (none
-here) — the parts follow what Excel writes, and every part parses. A stale
+here) — the parts follow what Excel writes, and every part parses.
+
+**References stay true on save (2026-10-01).** Inserting or deleting
+rows/columns, renaming or deleting a sheet now carries, besides cell
+formulas: defined names (a rename used to miss them), every defined
+name the file had — print areas and titles, `_FilterDatabase`, sheet-local
+names (`Workbook.fileNames`, regenerated on save in the file's order;
+a deleted sheet's local names go, later `localSheetId`s move up) — every
+chart's `<c:f>` (the file's chart part is rewritten in those references
+only, `SheetChart.formulas`), and every drawing anchor, which moves and
+sizes with its cells (the file's anchor element kept, its corners
+patched). Before this, a file's charts and names kept pointing at the
+old cells after a save. A stale
 `_xlnm._FilterDatabase` name in a file is kept as written (Excel
 rebuilds it).
 

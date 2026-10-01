@@ -181,6 +181,10 @@ final class Workbook {
     var package: [ZipEntry]? = nil
     /// The sheet that was in front when the file was saved.
     var activeTab = 0
+    /// Every defined name the file had, built-ins (print areas, filter
+    /// ranges) and sheet-local ones included, in order: what a save writes,
+    /// with references kept current as rows, columns and sheets move.
+    var fileNames: [DefinedName] = []
     /// What charts draw with: the file's theme, or Office's.
     var chartTheme = DeckTheme.office
 
@@ -208,4 +212,16 @@ final class Workbook {
         while sheet(named: "Sheet\(n)") != nil { n += 1 }
         return "Sheet\(n)"
     }
+}
+
+/// One `<definedName>`: its name, scope, other attributes and formula.
+struct DefinedName: Equatable, Sendable {
+    var name: String
+    /// `localSheetId`: the sheet (by position) it belongs to, or nil for the book.
+    var localSheet: Int?
+    /// hidden, comment, function… written back as read.
+    var attrs: [String: String]
+    var text: String
+
+    var isBuiltIn: Bool { name.hasPrefix("_xlnm.") }
 }

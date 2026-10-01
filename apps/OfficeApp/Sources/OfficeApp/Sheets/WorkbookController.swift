@@ -435,17 +435,11 @@ final class WorkbookController: ChangeNotifier {
 
     private func _rename(_ i: Int, _ old: String, _ n: String) {
         book.sheets[i].name = n
-        // Formulas that named the sheet follow it.
-        for ws in book.sheets {
-            for (a, c) in ws.cells {
-                guard let f = c.formula else { continue }
-                let g = Formula.mapRefs(f) { r in
-                    var r = r
-                    if r.sheet?.lowercased() == old.lowercased() { r.sheet = n }
-                    return r
-                }
-                if g != f { ws.cells[a]?.formula = g; ws.cells[a]?.input = Formula.text(g) }
-            }
+        // Formulas, defined names and charts that named the sheet follow it.
+        _rewriteFormulas { r, _ in
+            var r = r
+            if r.sheet?.lowercased() == old.lowercased() { r.sheet = n }
+            return r
         }
     }
 
@@ -454,6 +448,9 @@ final class WorkbookController: ChangeNotifier {
         structural {
             let gone = book.sheets[i].name.lowercased()
             book.sheets.remove(at: i)
+            // Names that belonged to it go with it; later sheets' move up.
+            book.fileNames.removeAll { $0.localSheet == i }
+            for k in book.fileNames.indices { if let l = book.fileNames[k].localSheet, l > i { book.fileNames[k].localSheet = l - 1 } }
             // References to the deleted sheet become #REF!, as Excel's do.
             _rewriteFormulas { ref, _ in ref.sheet?.lowercased() == gone ? nil : ref }
             _selections.removeAll()
@@ -482,6 +479,36 @@ final class WorkbookController: ChangeNotifier {
             let g = Formula.mapRefs(expr) { f($0, -1) }
             if g != expr { book.names[k] = Formula.print(g) }
         }
+        // The file's other names (print areas, filter ranges, sheet-local
+        // ones) hold references too; a union like a print title's is
+        // mapped part by part.
+        for i in book.fileNames.indices {
+            let parts = book.fileNames[i].text.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+            let mapped = parts.map { p -> String in
+                guard let e = try? Formula.parse("=" + p) else { return p }
+                let g = Formula.mapRefs(e) { f($0, -1) }
+                return g == e ? p : Formula.print(g)
+            }
+            if mapped != parts { book.fileNames[i].text = mapped.joined(separator: ",") }
+        }
+        // Charts read cells by sheet-qualified references too.
+        func map(_ t: String) -> String {
+            guard let e = try? Formula.parse("=" + t) else { return t }
+            let g = Formula.mapRefs(e) { f($0, -1) }
+            return g == e ? t : Formula.print(g)
+        }
+        for ws in book.sheets {
+            for i in ws.drawings.indices {
+                guard case .chart(var sc) = ws.drawings[i].kind else { continue }
+                let before = sc
+                sc.refs = sc.refs.map { (name: $0.name.map(map), cat: $0.cat.map(map), val: $0.val.map(map)) }
+                for (k, v) in sc.formulas { sc.formulas[k] = map(v) }
+                if sc != before {
+                    ws.drawings[i].kind = .chart(sc)
+                    ws.drawingsEdited = true
+                }
+            }
+        }
     }
 
     // MARK: Undo
@@ -498,6 +525,7 @@ final class WorkbookController: ChangeNotifier {
     struct _BookState {
         let sheets: [Worksheet]
         let names: [String: String]
+        let fileNames: [DefinedName]
         let activeSheet: Int
     }
 
@@ -532,12 +560,13 @@ final class WorkbookController: ChangeNotifier {
     }
 
     private func _bookState() -> _BookState {
-        _BookState(sheets: book.sheets.map { $0.copy() }, names: book.names, activeSheet: activeSheet)
+        _BookState(sheets: book.sheets.map { $0.copy() }, names: book.names, fileNames: book.fileNames, activeSheet: activeSheet)
     }
 
     private func _restore(_ s: _BookState) {
         book.sheets = s.sheets.map { $0.copy() }
         book.names = s.names
+        book.fileNames = s.fileNames
         _selections.removeAll()
         let target = min(s.activeSheet, book.sheets.count - 1)
         if activeSheet != target { activeSheet = target }

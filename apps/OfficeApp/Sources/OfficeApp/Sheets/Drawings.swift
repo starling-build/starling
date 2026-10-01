@@ -44,9 +44,14 @@ struct SheetChart: Equatable {
     /// The chart part it was read from; nil for one made here, whose part
     /// is written from `chart` and `refs` on save.
     var path: String? = nil
+    /// Every `<c:f>` in that part (series, titles, labels…): as read → as
+    /// it reads now, after rows, columns or sheets moved. A save rewrites
+    /// the part's references through it and keeps everything else.
+    var formulas: [String: String] = [:]
+    var formulasChanged: Bool { formulas.contains { $0.key != $0.value } }
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
-        a.chart == b.chart && a.path == b.path && a.refs.count == b.refs.count
+        a.chart == b.chart && a.path == b.path && a.formulas == b.formulas && a.refs.count == b.refs.count
             && zip(a.refs, b.refs).allSatisfy { $0.name == $1.name && $0.cat == $1.cat && $0.val == $1.val }
     }
 }
@@ -116,7 +121,9 @@ enum SheetDrawingsXML {
                       let space = parts[path].flatMap({ XNode.parse($0) }),
                       let chart = ChartXML.read(space, color: { colors.color(in: $0) }) {
                 d.name = frame.child("nvGraphicFramePr")?.child("cNvPr")?["name"] ?? "Chart"
-                d.kind = .chart(SheetChart(chart: chart, refs: _refs(space), path: path))
+                var sc = SheetChart(chart: chart, refs: _refs(space), path: path)
+                for f in _formulas(space) { sc.formulas[f] = f }
+                d.kind = .chart(sc)
                 d.relId = ref
             } else if raw == nil {
                 continue
@@ -124,6 +131,17 @@ enum SheetDrawingsXML {
             out.append(d)
         }
         return (out, drawingPath, split.rootStart)
+    }
+
+    /// The text of every `c:f` in a chart part.
+    private static func _formulas(_ n: XNode) -> [String] {
+        var out: [String] = []
+        func walk(_ n: XNode) {
+            if n.name == "c:f" || n.name.hasSuffix(":f") && n.name.hasPrefix("c") { if !n.text.isEmpty { out.append(n.text) } }
+            for c in n.children { walk(c) }
+        }
+        walk(n)
+        return out
     }
 
     /// The chart a graphic frame shows: `a:graphic/a:graphicData/c:chart@r:id`.
@@ -274,9 +292,20 @@ extension SheetDrawingsXML {
         var shapeId = 2
         for d in ws.drawings {
             shapeId += 1
-            if let raw = d.raw, d.kind == .other || d.rawAnchor == d.anchor {
-                body += raw
-                continue
+            if case .chart(let sc) = d.kind, let path = sc.path, sc.formulasChanged, let bytes = original[path] {
+                // The file's own chart, its references moved with the cells.
+                out.parts[path] = Data(_rewriteFormulas(String(decoding: bytes, as: UTF8.self), sc.formulas).utf8)
+            }
+            if let raw = d.raw {
+                if d.kind == .other || d.rawAnchor == d.anchor {
+                    body += raw
+                    continue
+                }
+                // Moved: the file's own anchor element, with new corners.
+                if case .twoCell(let from, let to) = d.anchor, let patched = _patchMarkers(raw, from, to) {
+                    body += patched
+                    continue
+                }
             }
             let name = Xlsx._esc(d.name.isEmpty ? (d.isChart ? "Chart \(shapeId)" : "Picture \(shapeId)") : d.name)
             var content: String
@@ -316,6 +345,40 @@ extension SheetDrawingsXML {
             out.element = "<drawing xmlns:r=\"\(relBase)\" r:id=\"\(id)\"/>"
         }
         return out
+    }
+
+    /// `raw` (a twoCellAnchor) with its from/to markers replaced; nil when
+    /// it is not a corner-to-corner anchor.
+    static func _patchMarkers(_ raw: String, _ from: SheetMarker, _ to: SheetMarker) -> String? {
+        let tag = raw.dropFirst().prefix { !" >\n\t\r/".contains($0) }
+        guard tag.hasSuffix("twoCellAnchor") else { return nil }
+        let prefix = tag.contains(":") ? String(tag.split(separator: ":")[0]) + ":" : ""
+        func marker(_ name: String, _ m: SheetMarker) -> String {
+            "<\(prefix)\(name)><\(prefix)col>\(m.col)</\(prefix)col><\(prefix)colOff>\(Int((m.colOff * emuPerPt).rounded()))</\(prefix)colOff>"
+                + "<\(prefix)row>\(m.row)</\(prefix)row><\(prefix)rowOff>\(Int((m.rowOff * emuPerPt).rounded()))</\(prefix)rowOff></\(prefix)\(name)>"
+        }
+        var s = raw
+        for (name, m) in [("from", from), ("to", to)] {
+            guard let a = s.findRange(of: "<\(prefix)\(name)>"), let b = s.findRange(of: "</\(prefix)\(name)>", in: a.upperBound ..< s.endIndex) else { return nil }
+            s.replaceSubrange(a.lowerBound ..< b.upperBound, with: marker(name, m))
+        }
+        return s
+    }
+
+    /// A chart part with each `<c:f>` mapped through `formulas`.
+    static func _rewriteFormulas(_ xml: String, _ formulas: [String: String]) -> String {
+        var out = ""
+        var at = xml.startIndex
+        while let a = xml.findRange(of: "<c:f>", in: at ..< xml.endIndex),
+              let b = xml.findRange(of: "</c:f>", in: a.upperBound ..< xml.endIndex) {
+            let inner = String(xml[a.upperBound ..< b.lowerBound])
+            let text = inner.replacingAll("&lt;", with: "<").replacingAll("&gt;", with: ">").replacingAll("&quot;", with: "\"")
+                .replacingAll("&apos;", with: "'").replacingAll("&amp;", with: "&")
+            out += xml[at ..< a.upperBound]
+            out += formulas[text].map { $0 == text ? inner : Xlsx._esc($0) } ?? inner
+            at = b.lowerBound
+        }
+        return out + xml[at...]
     }
 
     /// Corner to corner, moving and sizing with its cells (Excel's default

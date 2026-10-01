@@ -96,6 +96,26 @@ extension WorkbookController {
             ws.filteredRows = ws.autoFilter == nil || axis == .cols ? (ws.autoFilter == nil ? [] : ws.filteredRows)
                                                                     : Set(ws.filteredRows.compactMap(moved))
         }
+        // Pictures and charts move and size with their cells.
+        func shift(_ m: SheetMarker) -> SheetMarker {
+            var m = m
+            let i = axis == .rows ? m.row : m.col
+            var j = i
+            var cut = false
+            if delta > 0 { j = i >= index ? min(limit - 1, i + delta) : i }
+            else if i >= index { if i < deleteEnd { j = index; cut = true } else { j = i + delta } }
+            if axis == .rows { m.row = j; if cut { m.rowOff = 0 } } else { m.col = j; if cut { m.colOff = 0 } }
+            return m
+        }
+        for i in ws.drawings.indices {
+            let old = ws.drawings[i].anchor
+            switch old {
+            case .twoCell(let from, let to): ws.drawings[i].anchor = .twoCell(from: shift(from), to: shift(to))
+            case .oneCell(let from, let w, let h): ws.drawings[i].anchor = .oneCell(from: shift(from), width: w, height: h)
+            case .absolute: break
+            }
+            if ws.drawings[i].anchor != old { ws.drawingsEdited = true }
+        }
         // Formulas everywhere that point at this sheet.
         let name = ws.name.lowercased()
         _rewriteFormulas { ref, home in

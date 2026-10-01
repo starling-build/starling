@@ -123,3 +123,49 @@ final class SheetsChartTests: XCTestCase {
         XCTAssertFalse(sheet.containsSubstring("<drawing"))
     }
 }
+
+extension SheetsChartTests {
+    func testChartsFollowRowsAndSheetNames() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Data(contentsOf: url)))
+        let before = c.sheet.drawings.map(\.anchor)
+        c.insert(.rows, at: 0, count: 2)
+        _ = c.renameSheet(0, "Doubles")
+        guard case .chart(let sc) = c.sheet.drawings[0].kind else { return XCTFail("no chart") }
+        XCTAssertEqual(sc.refs[0].val, "Doubles!$E$6:$J$6")
+        if case .twoCell(let from, _) = c.sheet.drawings[0].anchor, case .twoCell(let old, _) = before[0] {
+            XCTAssertEqual(from.row, old.row + 2)
+        } else { XCTFail("anchor") }
+        // The chart still reads the same numbers, now two rows down.
+        XCTAssertEqual(c.liveChart(sc).series.map(\.values), sc.chart.series.map(\.values))
+
+        let data = try Xlsx.write(c.book)
+        let entries = try Zip.read(data)
+        for e in entries where e.name.hasSuffix(".xml") || e.name.hasSuffix(".rels") {
+            XCTAssertNotNil(XNode.parse(e.data), "\(e.name) is not well-formed")
+        }
+        let back = try Xlsx.read(data)
+        let w = WorkbookController()
+        w.load(back)
+        guard case .chart(let sc2) = back.sheets[0].drawings[0].kind else { return XCTFail("no chart after save") }
+        XCTAssertEqual(sc2.refs[0].val, "Doubles!$E$6:$J$6")
+        XCTAssertEqual(w.liveChart(sc2).series.map(\.values), sc2.chart.series.map(\.values))
+        XCTAssertEqual(back.sheets[0].drawings[0].anchor, c.sheet.drawings[0].anchor)
+        // Every other part of the chart is as the file had it: only the references differ.
+        let o = try Zip.read(try Data(contentsOf: url))
+        let path = try XCTUnwrap(sc.path)
+        let was = String(decoding: try XCTUnwrap(o.first { $0.name == path }).data, as: UTF8.self)
+        let now = String(decoding: try XCTUnwrap(entries.first { $0.name == path }).data, as: UTF8.self)
+        func withoutRefs(_ x: String) -> String {
+            var out = "", at = x.startIndex
+            while let a = x.findRange(of: "<c:f>", in: at ..< x.endIndex), let b = x.findRange(of: "</c:f>", in: a.upperBound ..< x.endIndex) {
+                out += x[at ..< a.upperBound]; at = b.lowerBound
+            }
+            return out + x[at...]
+        }
+        XCTAssertEqual(withoutRefs(was), withoutRefs(now))
+        XCTAssertTrue(now.containsSubstring("<c:f>Doubles!$E$6:$J$6</c:f>"))
+        XCTAssertFalse(now.containsSubstring("Single double"))
+    }
+}

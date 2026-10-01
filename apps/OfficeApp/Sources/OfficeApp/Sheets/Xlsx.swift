@@ -73,7 +73,12 @@ enum Xlsx {
 
         // Defined names (print areas and other built-ins are not formulas to evaluate).
         for n in wbNode.child("definedNames")?.kids("definedName") ?? [] {
-            guard let name = n["name"], !name.hasPrefix("_xlnm.") else { continue }
+            guard let name = n["name"] else { continue }
+            var attrs = n.attrs
+            attrs["name"] = nil
+            let local = attrs.removeValue(forKey: "localSheetId").flatMap { Int($0) }
+            book.fileNames.append(DefinedName(name: name, localSheet: local, attrs: attrs, text: n.text))
+            guard !name.hasPrefix("_xlnm.") else { continue }
             book.names[name.uppercased()] = n.text
             book.nameSpellings[name.uppercased()] = name
         }
@@ -586,9 +591,12 @@ enum Xlsx {
             let split = RawXML.split([UInt8](original))
             var body = ""
             var wroteSheets = false, wroteCalc = false
+            let names = _definedNamesXML(book)
+            var wroteNames = false
             for (name, text) in split.children {
                 switch name {
-                case "sheets": body += sheets; wroteSheets = true
+                case "sheets": body += sheets + (split.children.contains { $0.name == "definedNames" } ? "" : names); wroteSheets = true
+                case "definedNames": body += names; wroteNames = true
                 case "calcPr": body += calc; wroteCalc = true
                 case "bookViews": body += _bookViews(text, active: book.activeTab)
                 default:
@@ -599,19 +607,35 @@ enum Xlsx {
                     body += text
                 }
             }
-            if !wroteSheets { body = sheets + body }
+            if !wroteSheets { body = sheets + (wroteNames ? "" : names) + body }
             if !wroteCalc { body += calc }
             return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + split.rootStart + body + "</" + split.rootName + ">"
         }
-        var names = ""
-        if !book.names.isEmpty {
-            names = "<definedNames>"
-            for (k, v) in book.names.sorted(by: { $0.key < $1.key }) {
-                names += "<definedName name=\"\(_esc(book.nameSpellings[k] ?? k))\">\(_esc(v))</definedName>"
-            }
-            names += "</definedNames>"
-        }
+        let names = _definedNamesXML(book)
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + "</workbook>"
+    }
+
+    /// The file's names in order — a book-wide one with its current formula,
+    /// a built-in or sheet-local one as kept current — then names new here.
+    static func _definedNamesXML(_ book: Workbook) -> String {
+        var out = ""
+        var seen = Set<String>()
+        for n in book.fileNames {
+            var text = n.text
+            if n.localSheet == nil && !n.isBuiltIn {
+                guard let current = book.names[n.name.uppercased()] else { continue }   // deleted
+                text = current
+                seen.insert(n.name.uppercased())
+            }
+            var attrs = " name=\"\(_esc(n.name))\""
+            for (k, v) in n.attrs.sorted(by: { $0.key < $1.key }) { attrs += " \(k)=\"\(_esc(v))\"" }
+            if let l = n.localSheet { attrs += " localSheetId=\"\(l)\"" }
+            out += "<definedName\(attrs)>\(_esc(text))</definedName>"
+        }
+        for (k, v) in book.names.sorted(by: { $0.key < $1.key }) where !seen.contains(k) && !book.fileNames.contains(where: { $0.name.uppercased() == k }) {
+            out += "<definedName name=\"\(_esc(book.nameSpellings[k] ?? k))\">\(_esc(v))</definedName>"
+        }
+        return out.isEmpty ? "" : "<definedNames>" + out + "</definedNames>"
     }
 
     /// The original bookViews with activeTab set.

@@ -244,3 +244,14 @@ extension SheetsEditingTests {
         XCTAssertEqual(c.active, CellAddress("E10"))
     }
 }
+
+extension SheetsEditingTests {
+    func testRenamingASheetCarriesItsNames() {
+        let c = WorkbookController()
+        c.book.names["TOTALS"] = "Sheet1!$A$1:$A$3"
+        c.setInputs([(CellAddress("B1")!, "=SUM(Sheet1!A1:A3)")])
+        XCTAssertTrue(c.renameSheet(0, "Data"))
+        XCTAssertEqual(c.book.names["TOTALS"], "Data!$A$1:$A$3")
+        XCTAssertEqual(c.input(CellAddress("B1")!), "=SUM(Data!A1:A3)")
+    }
+}

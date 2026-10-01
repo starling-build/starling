@@ -210,3 +210,29 @@ extension XlsxTests {
         XCTAssertEqual(c.liveChart(sc).series[0].values.first, 9)
     }
 }
+
+extension XlsxTests {
+    func testDefinedNamesFollowTheSheets() throws {
+        let book = Workbook(sheets: [Worksheet(name: "Data"), Worksheet(name: "Other")])
+        book.fileNames = [
+            DefinedName(name: "_xlnm.Print_Area", localSheet: 0, attrs: [:], text: "Data!$A$1:$D$20"),
+            DefinedName(name: "_xlnm.Print_Titles", localSheet: 0, attrs: [:], text: "Data!$1:$2"),
+            DefinedName(name: "Rates", localSheet: nil, attrs: ["comment": "kept"], text: "Data!$B$2:$B$9"),
+            DefinedName(name: "_xlnm._FilterDatabase", localSheet: 1, attrs: ["hidden": "1"], text: "Other!$A$1:$C$5"),
+        ]
+        book.names["RATES"] = "Data!$B$2:$B$9"
+        book.nameSpellings["RATES"] = "Rates"
+        let c = WorkbookController()
+        c.load(book)
+        c.insert(.rows, at: 0)
+        _ = c.renameSheet(0, "Figures")
+        let xml = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/workbook.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(xml.containsSubstring("<definedName name=\"_xlnm.Print_Area\" localSheetId=\"0\">Figures!$A$2:$D$21</definedName>"), xml)
+        XCTAssertTrue(xml.containsSubstring("<definedName name=\"Rates\" comment=\"kept\">Figures!$B$3:$B$10</definedName>"), xml)
+        XCTAssertTrue(xml.containsSubstring("hidden=\"1\" localSheetId=\"1\">Other!$A$1:$C$5"), xml)
+        c.deleteSheet(0)
+        let after = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/workbook.xml" }).data, as: UTF8.self)
+        XCTAssertFalse(after.containsSubstring("Print_Area"))
+        XCTAssertTrue(after.containsSubstring("localSheetId=\"0\">Other!$A$1:$C$5"), after)
+    }
+}
