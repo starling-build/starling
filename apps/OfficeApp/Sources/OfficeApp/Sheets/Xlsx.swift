@@ -181,7 +181,11 @@ enum Xlsx {
             if row["hidden"] == "1", let af = ws.autoFilter, rowIndex > af.range.top, rowIndex <= af.range.bottom {
                 ws.filteredRows.insert(rowIndex)
                 if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
-            } else if row["hidden"] == "1" { ws.rowHeights[rowIndex] = 0 }
+            } else if row["hidden"] == "1" {
+                // Hidden by hand or by a collapsed group: its height kept for when it shows again.
+                ws.hiddenRows.insert(rowIndex)
+                if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
+            }
             else if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
             var colIndex = 0
             for c in row.kids("c") {
@@ -876,12 +880,12 @@ enum Xlsx {
                 byRow[a.row, default: []].append((a, c))
             }
         }
-        let rows = Set(byRow.keys).union(ws.rowHeights.keys).union(ws.filteredRows).union(ws.rowAttrs.keys).sorted()
+        let rows = Set(byRow.keys).union(ws.rowHeights.keys).union(ws.filteredRows).union(ws.hiddenRows).union(ws.rowAttrs.keys).sorted()
         var data = "<sheetData>"
         for r in rows {
             data += "<row r=\"\(r + 1)\""
             if let h = ws.rowHeights[r] { data += h == 0 ? " hidden=\"1\"" : " ht=\"\(_num(h))\" customHeight=\"1\"" }
-            if ws.filteredRows.contains(r) && ws.rowHeights[r] != 0 { data += " hidden=\"1\"" }
+            if (ws.filteredRows.contains(r) || ws.hiddenRows.contains(r)) && ws.rowHeights[r] != 0 { data += " hidden=\"1\"" }
             for (k, v) in (ws.rowAttrs[r] ?? [:]).sorted(by: { $0.key < $1.key }) { data += " \(k)=\"\(_esc(v))\"" }
             let cells = (byRow[r] ?? []).sorted { $0.0.col < $1.0.col }
             if cells.isEmpty { data += "/>"; continue }

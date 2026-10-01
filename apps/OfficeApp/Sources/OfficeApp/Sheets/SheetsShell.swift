@@ -553,6 +553,9 @@ final class SheetsShellState: State<StatefulWidget> {
         case "f": _openFind(replace: false); return true
         case "h": _openFind(replace: true); return true
         case "l" where chords.shift: wb.toggleAutoFilter(); return true
+        // Excel for Mac's Group and Ungroup.
+        case "k" where chords.shift: wb.groupRows(true); return true
+        case "j" where chords.shift: wb.groupRows(false); return true
         case "\u{1B}":
             if _findOpen { _closeFind(); return true }
             return false

@@ -421,6 +421,21 @@ DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
 TEXTSPLIT work too. Still unread (kept verbatim): the intersection
 operator (a space); LAMBDA is a known name but not callable.
 
+**Row outlines (2026-10-01).** `Sheets/Outline.swift`: Data → Outline's
+Group/Ungroup (⌘⇧K/⌘⇧J, Excel for Mac's) change selected rows'
+`outlineLevel`. A gutter left of the row numbers holds level buttons
+1…n+1 and, per group, a bracket and a +/− box at its summary row
+(below the rows, or above when `summaryBelow="0"`). Closing a group
+hides its rows and marks the summary row `collapsed="1"`. Opening one
+keeps its nested closed groups closed. Rows hidden by hand or by an
+outline are `Worksheet.hiddenRows`, separate from `filteredRows`, so
+they keep their heights and a filter cannot unhide them. They used to be
+a height of 0 read from the file, which lost the height and never
+reopened. `rowAttrs` now bumps `layoutVersion`: the gutter's width and
+the groups are cached on it. Columns are not outlined yet: their levels
+are kept and written back, but there is no gutter for them.
+`test/scripts/sheets-outline.txt` shows it.
+
 **Functions: 242 (2026-10-01).** `Sheets/MoreFunctions.swift` adds the
 everyday rest: LARGE, SMALL, RANK(.EQ/.AVG), PERCENTILE and QUARTILE
 (.INC/.EXC), MODE, VAR.P, GEOMEAN, HARMEAN, AVEDEV, DEVSQ, AVERAGEA,

@@ -1,0 +1,36 @@
+# Row outlines: group A2:A7 and A3:A4, close and open groups with the
+# gutter's boxes and level buttons. The gutter (3 lanes, 46pt) pushes the
+# cells right: column A's centre is x = 118 once grouped.
+# Level button k: x = 9 + 14(k-1), y = 250. A level-L box at row r: x = 9 + 14(L-1), y = 270 + 20r.
+# Collapsed, row 8 moves up to y = 290.
+click 72 270
+type Q1
+key enter
+type 10
+key enter
+type 20
+key enter
+type 30
+key enter
+type =SUBTOTAL(9,A3:A4)
+key enter
+type 40
+key enter
+type 50
+key enter
+type =SUBTOTAL(9,A2:A7)
+key enter
+drag 72 290 72 390
+chord cmd,shift k
+drag 118 310 118 330
+chord cmd,shift k
+click 300 450
+shot ${OUT}/01-grouped.png
+click 23 350
+shot ${OUT}/02-inner-closed.png
+click 9 250
+shot ${OUT}/03-level1.png
+click 9 290
+shot ${OUT}/04-outer-open.png
+click 37 250
+shot ${OUT}/05-level3.png

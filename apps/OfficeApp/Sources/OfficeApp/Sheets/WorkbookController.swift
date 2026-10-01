@@ -745,7 +745,7 @@ final class WorkbookController: ChangeNotifier {
             ? (r.top ... r.bottom).flatMap { row in (r.left ... r.right).map { CellAddress(row: row, col: $0) } }
             : sheet.cells.keys.filter { r.contains($0) }
         // Rows a filter hid are not counted, as Excel's status bar does not.
-        let hidden = sheet.filteredRows
+        let hidden = sheet.filteredRows.union(sheet.hiddenRows)
         for a in keys where !hidden.contains(a.row) {
             let v = sheet.value(a)
             if v.isEmpty { continue }

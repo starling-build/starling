@@ -29,7 +29,7 @@ extension Ribbon {
         case .home: return _sheetsHome(wb, fluent)
         case .insert: return [_chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent)]
-        case .data: return [_sortGroup(wb, fluent)]
+        case .data: return [_sortGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
         case .review: return [_notesGroup(wb, fluent)]
         default: return nil
@@ -284,6 +284,13 @@ extension Ribbon {
         Chrome.rows([
             Chrome.small(FluentSystemIcons.close, "Clear", fluent) { wb.clearFilters() },
             Chrome.small(FluentSystemIcons.refresh, "Reapply", fluent) { wb.structural { wb.reapplyFilter() } },
+        ])])
+    }
+
+    private func _outlineGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Outline", fluent, [Chrome.rows([
+            Chrome.small(FluentSystemIcons.indentIncrease, "Group", fluent) { wb.groupRows(true) },
+            Chrome.small(FluentSystemIcons.indentDecrease, "Ungroup", fluent) { wb.groupRows(false) },
         ])])
     }
 

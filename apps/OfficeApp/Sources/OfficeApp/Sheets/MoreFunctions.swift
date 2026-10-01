@@ -500,7 +500,7 @@ extension SheetFunctions {
                     let used = c.engine.usedExtent(si)
                     guard r.top <= used.row, r.left <= used.col else { continue }
                     for row in r.top ... min(r.bottom, used.row) {
-                        if ws.filteredRows.contains(row) || (skipHidden && ws.rowHeights[row] == 0) { continue }
+                        if ws.filteredRows.contains(row) || (skipHidden && (ws.hiddenRows.contains(row) || ws.rowHeights[row] == 0)) { continue }
                         for col in r.left ... min(r.right, used.col) {
                             let at = CellAddress(row: row, col: col)
                             if let f = ws.cells[at]?.formula, case .call(let n, _) = f, ["SUBTOTAL", "AGGREGATE"].contains(n.uppercased()) { continue }

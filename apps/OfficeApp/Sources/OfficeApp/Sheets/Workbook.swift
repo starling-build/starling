@@ -173,7 +173,7 @@ final class Worksheet {
     var defaultColWidthChars: Double? = nil
     /// `<row>` attributes besides its height and hidden: style (s with
     /// customFormat), outline level, collapsed, thick borders…
-    var rowAttrs: [Int: [String: String]] = [:]
+    var rowAttrs: [Int: [String: String]] = [:] { didSet { layoutVersion &+= 1 } }
     /// `<sheetFormatPr>`'s other attributes: base and default column
     /// width, outline levels, zero-height rows.
     var formatPrAttrs: [String: String] = [:]
@@ -209,6 +209,13 @@ final class Worksheet {
     var noteParts = SheetNoteParts()
     /// Rows the filter hides (kept apart from rowHeights, so each keeps its height).
     var filteredRows: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
+    /// Rows hidden by hand or by a collapsed group: kept apart from their
+    /// heights, so showing them again gives each its own height back.
+    var hiddenRows: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
+
+    /// Hidden for any reason: filtered, hidden, or height 0.
+    func isRowHidden(_ r: Int) -> Bool { filteredRows.contains(r) || hiddenRows.contains(r) || rowHeights[r] == 0 }
+    func outlineLevel(row r: Int) -> Int { rowAttrs[r]?["outlineLevel"].flatMap { Int($0) } ?? 0 }
     /// Bumped by anything that moves rows or columns on screen, so the grid
     /// can keep its geometry between paints.
     private(set) var layoutVersion = 0
@@ -250,6 +257,7 @@ final class Worksheet {
         s.linkTargets = linkTargets
         s.noteParts = noteParts
         s.filteredRows = filteredRows
+        s.hiddenRows = hiddenRows
         return s
     }
 }
