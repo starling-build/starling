@@ -229,7 +229,9 @@ enum SheetFunctions {
                 return .scalar(c.engine.value(s, CellAddress(row: rg.top + row - 1, col: rg.left + cc - 1)))
             }
             let g = c.engine.grid(src, c)
-            let row = Int(r), cc = max(1, Int(col))
+            var row = Int(r), cc = max(1, Int(col))
+            // One row and no column given: the number picks the column, as for a range.
+            if g.count == 1 && a.count < 3 { cc = row; row = 1 }
             guard row >= 1, row <= g.count, cc <= (g.first?.count ?? 0) else { return .error(.ref) }
             return .scalar(g[row - 1][cc - 1])
         }

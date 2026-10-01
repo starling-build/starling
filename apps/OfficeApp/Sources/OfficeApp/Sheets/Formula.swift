@@ -80,6 +80,8 @@ indirect enum FormulaExpr: Hashable, Sendable {
     /// table's columns, so rows moving never change its text; it is
     /// resolved against the tables when evaluated.
     case structured(String)
+    /// An array constant: {1,2;3,4} — rows of columns.
+    case array([[FormulaExpr]])
     case negate(FormulaExpr)
     case plus(FormulaExpr)
     case percent(FormulaExpr)
@@ -116,6 +118,7 @@ enum Formula {
         case .ref(let r): return r.text
         case .name(let n): return n
         case .structured(let s): return s
+        case .array(let rows): return "{" + rows.map { $0.map(print).joined(separator: ",") }.joined(separator: ";") + "}"
         case .negate(let x): return "-" + print(x)
         case .plus(let x): return "+" + print(x)
         case .percent(let x): return print(x) + "%"
@@ -234,12 +237,14 @@ enum Formula {
         case function(String)      // name, the "(" consumed
         case name(String)
         case structured(String)    // Table1[…] or […], brackets balanced
+        case lbrace, rbrace, rowSep  // an array constant's { } and its ";"
         case op(String)            // + - * / ^ & = <> < > <= >= % :
         case lparen, rparen, comma
     }
 
     static func _tokenize(_ s: Substring) throws -> [Token] {
         var out: [Token] = []
+        var braces = 0
         var i = s.startIndex
         func peek(_ k: Int = 0) -> Character? {
             var j = i
@@ -355,6 +360,9 @@ enum Formula {
             switch c {
             case "(": out.append(.lparen)
             case ")": out.append(.rparen)
+            case "{": braces += 1; out.append(.lbrace)
+            case "}": braces -= 1; out.append(.rbrace)
+            case ";" where braces > 0: out.append(.rowSep)
             case ",", ";": out.append(.comma)
             case "<":
                 if peek(1) == "=" { out.append(.op("<=")); i = s.index(after: i) }
@@ -470,6 +478,18 @@ enum Formula {
             case .ref(let r): return .ref(r)
             case .name(let n): return .name(n)
             case .structured(let t): return .structured(t)
+            case .lbrace:
+                // {a,b;c,d}: constants, columns by comma, rows by semicolon.
+                var rows: [[FormulaExpr]] = [[]]
+                while true {
+                    rows[rows.count - 1].append(try expression(0))
+                    guard let sep = next() else { throw FormulaError(message: "missing }") }
+                    if case .rbrace = sep { break }
+                    if case .rowSep = sep { rows.append([]); continue }
+                    guard case .comma = sep else { throw FormulaError(message: "expected , in {}") }
+                }
+                guard Set(rows.map(\.count)).count == 1 else { throw FormulaError(message: "uneven array") }
+                return .array(rows)
             case .lparen:
                 let e = try expression(0)
                 guard case .rparen? = next() else { throw FormulaError(message: "missing )") }

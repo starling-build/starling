@@ -350,3 +350,22 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(s.count, 3)
     }
 }
+
+extension SheetsEngineTests {
+    func testArrayConstants() throws {
+        let c = WorkbookController()
+        c.setInputs([(CellAddress("A1")!, "x"), (CellAddress("A2")!, "y"), (CellAddress("A3")!, "x"), (CellAddress("A4")!, "z")])
+        func v(_ f: String) -> CellValue { c.engine.evaluate(f, sheet: 0, at: CellAddress("H1")!) }
+        XCTAssertEqual(v("=SUM({1,2;3,4})"), .number(10))
+        XCTAssertEqual(v("=INDEX({10,20,30},2)"), .number(20))
+        XCTAssertEqual(v("=VLOOKUP(2,{1,\"a\";2,\"b\"},2,FALSE)"), .text("b"))
+        XCTAssertEqual(v("=MATCH(\"b\",{\"a\",\"b\"},0)"), .number(2))
+        XCTAssertEqual(v("=SUM({-1,2.5})"), .number(1.5))
+        for f in ["SUM({1,2;3,4})", "VLOOKUP(2,{1,\"a\";2,\"b\"},2,FALSE)", "SUM({-1,2.5})"] {
+            XCTAssertEqual(Formula.print(try Formula.parse("=" + f)), f)
+        }
+        XCTAssertThrowsError(try Formula.parse("={1,2;3}"))
+        // Still unreadable here, and so kept as written: a spill reference.
+        XCTAssertThrowsError(try Formula.parse("=SUM(A1#)"))
+    }
+}

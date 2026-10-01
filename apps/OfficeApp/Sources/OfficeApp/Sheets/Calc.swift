@@ -115,6 +115,7 @@ final class CalcEngine {
         case .paren(let x): return evaluate(x, ctx)
         case .ref(let r): return resolve(r, ctx)
         case .structured(let t): return resolveStructured(t, ctx)
+        case .array(let rows): return .array(rows.map { $0.map { scalar(evaluate($0, ctx), ctx) } })
         case .name(let n):
             guard let target = book.names[n.uppercased()],
                   let parsed = try? Formula.parse(target) else {
