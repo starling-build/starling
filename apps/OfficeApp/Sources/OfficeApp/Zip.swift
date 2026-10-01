@@ -38,7 +38,9 @@ enum Zip {
             }
             i -= 1
         }
-        guard eocd >= 0 else { throw ZipError.notAZip }
+        // No directory: a file cut short at its end. Salvage what the local
+        // headers still describe, as PowerPoint and Word repair such files.
+        guard eocd >= 0 else { return try _salvage(bytes) }
         let entryCount = Int(u16(bytes, eocd + 10))
         let cdOffset = Int(u32(bytes, eocd + 16))
         var entries: [ZipEntry] = []
@@ -68,6 +70,36 @@ enum Zip {
             default: throw ZipError.unsupported("compression method \(method)")
             }
         }
+        return entries
+    }
+
+    /// The complete entries of an archive whose central directory is gone,
+    /// read front to back from their local headers; stops at the first one
+    /// cut short, or whose size only a trailing data descriptor gives.
+    private static func _salvage(_ bytes: [UInt8]) throws -> [ZipEntry] {
+        var entries: [ZipEntry] = []
+        var p = 0
+        scan: while p + 30 <= bytes.count, u32(bytes, p) == 0x04034B50 {
+            let flags = u16(bytes, p + 6)
+            let method = u16(bytes, p + 8)
+            let csize = Int(u32(bytes, p + 18))
+            let usize = Int(u32(bytes, p + 22))
+            let nameLen = Int(u16(bytes, p + 26))
+            let extraLen = Int(u16(bytes, p + 28))
+            let dataStart = p + 30 + nameLen + extraLen
+            guard flags & 0x8 == 0, dataStart + csize <= bytes.count else { break scan }
+            let name = String(decoding: bytes[(p + 30) ..< (p + 30 + nameLen)], as: UTF8.self)
+            let raw = Data(bytes[dataStart ..< dataStart + csize])
+            switch method {
+            case 0: entries.append(ZipEntry(name: name, data: raw))
+            case 8:
+                guard let data = try? inflate(raw, expected: usize) else { break scan }
+                entries.append(ZipEntry(name: name, data: data))
+            default: break
+            }
+            p = dataStart + csize
+        }
+        guard !entries.isEmpty else { throw ZipError.notAZip }
         return entries
     }
 

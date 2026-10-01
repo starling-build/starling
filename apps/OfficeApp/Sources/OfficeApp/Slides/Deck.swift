@@ -101,6 +101,24 @@ struct KeptLine: Equatable {
     var width: Double
 }
 
+/// A shape's look as its file spelled it: the fill, line and effects in its
+/// `spPr`, and its `p:style`. The deck draws what it models (a colour, an
+/// outline); a save writes these back while the shape's fill and outline
+/// are still what was read from them.
+struct KeptLook: Equatable {
+    var fill: String?
+    var line: String?
+    var effects: String
+    var style: String?
+    var readFill: Color?
+    var readFillScheme: String?
+    var readOutline: Color?
+    var readWidth: Double
+
+    func fillKept(_ s: ShapeState) -> Bool { s.fill == readFill && s.fillScheme == readFillScheme }
+    func lineKept(_ s: ShapeState) -> Bool { s.outline == readOutline && s.outlineWidth == readWidth }
+}
+
 /// An element carried through a round trip verbatim.
 struct OpaqueObject: Equatable {
     /// The element as read (`p:graphicFrame`, `p:grpSp`, …).
@@ -255,6 +273,8 @@ final class SlideShape {
     /// the scale it is drawn at now (its sizes stay as typed).
     var autofit = false
     var fontScale = 1.0
+    /// The look as read (fill, line, effects, style), with `sourcePart`.
+    var keptLook: KeptLook? = nil
     /// What the field last showed, to tell its own updates from typing.
     var fieldShown: String? = nil
 

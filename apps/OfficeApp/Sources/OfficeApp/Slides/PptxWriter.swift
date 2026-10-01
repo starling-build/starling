@@ -24,12 +24,27 @@ enum PptxWriter {
     static func write(_ state: DeckState, theme: DeckTheme, package: PptxPackage?,
                       ownTemplates: Bool = false) throws -> Data {
         var b = PackageBuilder()
-        if let package, !ownTemplates, _presentationPart(package) != nil {
+        if let package, !ownTemplates, _usable(package) {
             try _writeThrough(package, state: state, theme: theme, into: &b)
         } else {
             _writeNew(state, theme: theme, source: package, into: &b)
         }
         return try b.zip()
+    }
+
+    /// Whether `p` has what writing through it needs: a presentation, and a
+    /// master with at least one layout, present. A damaged file (one
+    /// salvaged from a cut-short zip) is written on our own templates
+    /// instead, its kept objects still copied from it.
+    private static func _usable(_ p: PptxPackage) -> Bool {
+        guard let pres = _presentationPart(p), p.parts[pres] != nil else { return false }
+        let masters = p.rels(pres).filter { $0.kind == "slideMaster" && !$0.external }
+        // One master with a layout will do: a deck may carry masters with
+        // none of their own (bug64693's has four).
+        return masters.contains { m in
+            p.parts[m.target] != nil
+                && p.rels(m.target).contains { $0.kind == "slideLayout" && p.parts[$0.target] != nil }
+        }
     }
 
     private static func _presentationPart(_ p: PptxPackage) -> String? {
@@ -625,28 +640,45 @@ private struct SlideXML {
                 }
             }()
             spPr += "<a:prstGeom prst=\"\(prst)\"><a:avLst/></a:prstGeom>"
+            var fillXML: String, lineXML: String
             switch s.kind {
             case .placeholder:
-                if let f = s.fill { spPr += Self._fill(f) }
-                if let l = s.outline { spPr += "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill(l))</a:ln>" }
+                fillXML = s.fill.map { Self._fill($0) } ?? ""
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? ""
             default:
                 if let scheme = s.fillScheme, s.fill != nil {
-                    spPr += "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>"
+                    fillXML = "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>"
                 } else {
-                    spPr += Self._fill(s.fill)
+                    fillXML = Self._fill(s.fill)
                 }
-                spPr += s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
+                lineXML = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             }
-            var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>"
+            // The file's own fill and line while the shape's are unchanged
+            // (gradients, patterns, a style's fill stay as they were); its
+            // effects and style always.
+            let look = s.keptLook
+            if let k = look {
+                // A picture fill names its image by the source slide's
+                // relationship: re-pointed, the image copied over.
+                func own(_ xml: String) -> String {
+                    guard xml.contains("r:"), let p = source, let part = s.sourcePart else { return xml }
+                    return kept(xml, sourcePart: part, package: p, builder: &builder, patch: nil)
+                }
+                if k.fillKept(s) { fillXML = k.fill.map(own) ?? "" }
+                if k.lineKept(s) { lineXML = k.line.map(own) ?? "" }
+            }
+            spPr += fillXML + lineXML + (look?.effects ?? "")
+            var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>\(look?.style ?? "")"
             if let doc = s.text {
                 let anchor = s.anchor.rawValue
                 let ins = s.insets
                 let fit: String
-                if s.kind == .textBox {
-                    fit = "<a:spAutoFit/>"
-                } else if s.autofit {
+                if s.autofit {
+                    // Shrink to fit — a text box can say so too.
                     let scale = Int((s.fontScale * 100000).rounded())
                     fit = scale < 100000 ? "<a:normAutofit fontScale=\"\(scale)\"/>" : "<a:normAutofit/>"
+                } else if s.kind == .textBox {
+                    fit = "<a:spAutoFit/>"
                 } else {
                     fit = "<a:noAutofit/>"
                 }
@@ -764,6 +796,10 @@ private struct SlideXML {
                 guard let r = sourceRels.first(where: { $0.id == v }) else { continue }
                 if r.external {
                     n.attrs[k] = _rel(r.type, r.target, external: true, preferred: v)
+                } else if p.parts[r.target] == nil {
+                    // A part the file names but does not have (a damaged
+                    // file): no relationship to nowhere.
+                    n.attrs[k] = nil
                 } else {
                     var copied = done
                     PptxWriterCopy.copy(r.target, from: p, into: &b, done: &copied)
@@ -822,13 +858,17 @@ enum PptxText {
             case .left: pPr += " algn=\"l\""
             }
             if st.list != nil {
-                let indent = s.listIndent * Double(st.listLevel + 1)
-                pPr += " marL=\"\(Int(indent * Pptx.emu))\" indent=\"\(-Int(s.listIndent * Pptx.emu))\""
+                // Inverse of the reader: a file's own marL and indent come
+                // back as they were; a new list hangs by the list indent.
+                let marL = st.indentLeft + s.listIndent * Double(st.listLevel + 1)
+                let hang = st.firstLineIndent - s.listIndent
+                pPr += " marL=\"\(Int((marL * Pptx.emu).rounded()))\" indent=\"\(Int((hang * Pptx.emu).rounded()))\""
                 if st.listLevel > 0 { pPr += " lvl=\"\(st.listLevel)\"" }
             } else {
                 pPr += " marL=\"\(Int(st.indentLeft * Pptx.emu))\" indent=\"\(Int(st.firstLineIndent * Pptx.emu))\""
             }
-            var inner = "<a:lnSpc><a:spcPct val=\"\(Int((st.lineSpacing * 100000).rounded()))\"/></a:lnSpc>"
+            var inner = st.lineHeightPoints.map { "<a:lnSpc><a:spcPts val=\"\(Int(($0 * 100).rounded()))\"/></a:lnSpc>" }
+                ?? "<a:lnSpc><a:spcPct val=\"\(Int((st.lineSpacing * 100000).rounded()))\"/></a:lnSpc>"
             inner += "<a:spcBef><a:spcPts val=\"\(Int((st.spaceBefore * 100).rounded()))\"/></a:spcBef>"
             inner += "<a:spcAft><a:spcPts val=\"\(Int((st.spaceAfter * 100).rounded()))\"/></a:spcAft>"
             switch st.list {

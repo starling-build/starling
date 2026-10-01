@@ -91,7 +91,9 @@ public final class RichTextTheme {
             fontSize: style.script == .normal ? px : px * 0.65,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,
-            height: paragraph.lineSpacing,
+            // An exact line height is the same multiple of every run's own
+            // size: points over size.
+            height: paragraph.lineHeightPoints.map { size > 0 ? $0 / size : 1 } ?? paragraph.lineSpacing,
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
             fontFamily: family

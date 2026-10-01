@@ -578,6 +578,13 @@ private struct SlideContext {
                     add(_opaque(el, label: _frameLabel(el), transform, id: id), el)
                 }
             case "p:grpSp":
+                // A turned or mirrored group is kept whole: flattening places
+                // its members but cannot turn them with it.
+                if let gx = el.first("p:grpSpPr")?.first("a:xfrm"),
+                   (gx["rot"].flatMap(Double.init) ?? 0) != 0 || gx["flipH"] == "1" || gx["flipV"] == "1" {
+                    add(_opaque(el, label: "Group", transform, id: id), el)
+                    continue
+                }
                 // Groups are flattened: each member drawn where the group's
                 // child space maps it on the slide.
                 guard let x = el.first("p:grpSpPr")?.first("a:xfrm"), let frame = _xfrmRect(x),
@@ -659,15 +666,16 @@ private struct SlideContext {
             // A gradient shape is drawn in its middle colour for now.
             let stops = g.first("a:gsLst")?.all("a:gs").compactMap { colors.color(in: $0) } ?? []
             fill = stops.isEmpty ? nil : stops[stops.count / 2]
-        } else if case .geometry = kind, let ref = style?.first("a:fillRef") {
+        } else if let ref = style?.first("a:fillRef"), ref["idx"] != "0" {
+            // The shape style's fill (idx 0 is none), for any kind of shape.
             fill = colors.color(in: ref)
             fillScheme = Self._accentSlot(ref)
         }
         if let ln = spPr?.first("a:ln") {
             outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? outlineWidth
             if ln.has("a:noFill") { outline = nil } else if let f = ln.first("a:solidFill") { outline = colors.color(in: f) }
-            else if case .geometry = kind, let ref = style?.first("a:lnRef") { outline = colors.color(in: ref) }
-        } else if case .geometry = kind, let ref = style?.first("a:lnRef") {
+            else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" { outline = colors.color(in: ref) }
+        } else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" {
             outline = colors.color(in: ref)
         }
 
@@ -681,6 +689,21 @@ private struct SlideContext {
                             fillScheme: fillScheme)
         st.autofit = text.autofit
         st.fontScale = text.fontScale
+        // The look as the file spells it — fills this app flattens (gradients,
+        // patterns, pictures), effects it does not draw, the style it refers
+        // to — written back while the fill and outline are unchanged.
+        let fillNames: Set<String> = ["a:noFill", "a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill", "a:grpFill"]
+        let effectNames: Set<String> = ["a:effectLst", "a:effectDag", "a:scene3d", "a:sp3d"]
+        let kids = spPr?.children ?? []
+        if style != nil || kids.contains(where: { fillNames.contains($0.name) || effectNames.contains($0.name) || $0.name == "a:ln" }) {
+            st.keptLook = KeptLook(
+                fill: kids.first { fillNames.contains($0.name) }.map(PptxXML.serialize),
+                line: kids.first { $0.name == "a:ln" }.map(PptxXML.serialize),
+                effects: kids.filter { effectNames.contains($0.name) }.map(PptxXML.serialize).joined(),
+                style: style.map(PptxXML.serialize),
+                readFill: fill, readFillScheme: fillScheme, readOutline: outline, readWidth: outlineWidth)
+            st.sourcePart = part
+        }
         // A body that is one field and nothing else (a slide number, a
         // date) stays that field.
         let paras = sp.first("p:txBody")?.all("a:p").filter { !$0.all("a:r").isEmpty || !$0.all("a:fld").isEmpty } ?? []
@@ -937,6 +960,9 @@ private struct SlideContext {
 
     private func _text(_ sp: XNode, ph: XNode?, inherited: (layout: XNode?, master: XNode?),
                        kind: ShapeKind) -> TextBody {
+        // The shape style's text colour (fontRef), under any the text says.
+        let styleColor = sp.first("p:style")?.first("a:fontRef").flatMap(colors.color(in:))
+        let tx1 = styleColor ?? colors.scheme("tx1")
         let body = sp.first("p:txBody")
         // Body properties: the shape's, else its layout's, else the master's.
         let bodies = [body?.first("a:bodyPr"),
@@ -963,12 +989,21 @@ private struct SlideContext {
         }.first
         let list = body?.first("a:lstStyle")
 
-        let level0 = _level(0, shapeList: list, ph: ph, inherited: inherited)
+        // The style's text colour (fontRef) beats what the layout and master
+        // say, not what the shape's own list style or paragraph says.
+        func styled(_ l: LevelStyle, _ n: Int, _ pPr: XNode?) -> LevelStyle {
+            guard let sc = styleColor, LevelStyle.paragraph(pPr, colors).color == nil,
+                  LevelStyle.paragraph(list?.first("a:lvl\(n + 1)pPr"), colors).color == nil else { return l }
+            var l = l
+            l.color = sc
+            return l
+        }
+        let level0 = styled(_level(0, shapeList: list, ph: ph, inherited: inherited), 0, nil)
         var paragraphs: [RichParagraph] = []
         for p in body?.all("a:p") ?? [] {
             let pPr = p.first("a:pPr")
             let lvl = pPr?["lvl"].flatMap(Int.init) ?? 0
-            let level = LevelStyle.paragraph(pPr, colors).filled(from: _level(lvl, shapeList: list, ph: ph, inherited: inherited))
+            let level = styled(LevelStyle.paragraph(pPr, colors).filled(from: _level(lvl, shapeList: list, ph: ph, inherited: inherited)), lvl, pPr)
             let size = level.size ?? 18
             var style = RichParagraphStyle(spaceAfter: level.afterPoints ?? 0, lineSpacing: 1.0)
             switch level.algn {
@@ -978,12 +1013,23 @@ private struct SlideContext {
             default: style.alignment = .left
             }
             if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints {
-                style.lineSpacing = pts / (size * 1.2)
+                // Exactly that many points, whatever the runs' sizes.
+                style.lineHeightPoints = pts
             }
             style.spaceBefore = level.beforePoints ?? (level.beforePercent.map { $0 * size * 1.2 } ?? 0)
             switch level.bullet {
-            case .char?: style.list = .bullet; style.listLevel = lvl
-            case .number?: style.list = .numbered; style.listLevel = lvl
+            case .char?, .number?:
+                style.list = level.bullet == .char ? .bullet : .numbered
+                style.listLevel = lvl
+                // The file's own text edge (marL) and bullet offset (indent):
+                // the text placed where the file puts it, both written back
+                // as read. The layout indents a list by the shape's list
+                // indent per level; indentLeft carries the difference.
+                let shapeIndent = level0.marL ?? 18
+                if let marL = level.marL { style.indentLeft = marL - shapeIndent * Double(lvl + 1) }
+                // As an offset from the usual hang (-shapeIndent), so 0 is
+                // "the usual" and a file's indent="0" survives as itself.
+                if let indent = level.indent { style.firstLineIndent = indent + shapeIndent }
             default:
                 style.indentLeft = level.marL ?? 0
                 style.firstLineIndent = level.indent ?? 0
@@ -997,7 +1043,7 @@ private struct SlideContext {
                 var cs = CharStyle(bold: s.bold ?? false, italic: s.italic ?? false,
                                    underline: s.underline ?? false, strikethrough: s.strike ?? false,
                                    fontFamily: _font(s.font), fontSize: ((s.size ?? 18) * 10).rounded() / 10,
-                                   color: s.color ?? colors.scheme("tx1"))
+                                   color: s.color ?? tx1)
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 text += t
                 runs.append(Run(length: t.utf16.count, style: cs))
@@ -1015,7 +1061,7 @@ private struct SlideContext {
                 let s = end.filled(from: level)
                 paragraphs.append(RichParagraph(text: "", runs: [Run(length: 0, style: CharStyle(
                     bold: s.bold ?? false, italic: s.italic ?? false, fontFamily: _font(s.font),
-                    fontSize: ((s.size ?? 18) * 10).rounded() / 10, color: s.color ?? colors.scheme("tx1")))],
+                    fontSize: ((s.size ?? 18) * 10).rounded() / 10, color: s.color ?? tx1))],
                     style: style))
             } else {
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
@@ -1029,7 +1075,7 @@ private struct SlideContext {
         }
         return TextBody(document: RichDocument(paragraphs: paragraphs), anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,
-                        color: level0.color ?? colors.scheme("tx1") ?? Color(0xFF000000),
+                        color: level0.color ?? tx1 ?? Color(0xFF000000),
                         listIndent: level0.marL ?? 18,
                         autofit: fitRule == "a:normAutofit", fontScale: fitRule == "a:normAutofit" ? scale : 1)
     }

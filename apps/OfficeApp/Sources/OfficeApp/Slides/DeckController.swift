@@ -40,6 +40,7 @@ struct ShapeState: Equatable {
     var keptLine: KeptLine? = nil
     var autofit = false
     var fontScale = 1.0
+    var keptLook: KeptLook? = nil
 }
 
 extension ShapeState {
@@ -1065,7 +1066,7 @@ final class DeckController: ChangeNotifier {
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
-                   autofit: s.autofit, fontScale: s.fontScale)
+                   autofit: s.autofit, fontScale: s.fontScale, keptLook: s.keptLook)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -1102,6 +1103,7 @@ final class DeckController: ChangeNotifier {
         shape.keptLine = st.keptLine
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
+        shape.keptLook = st.keptLook
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
 

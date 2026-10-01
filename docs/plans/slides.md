@@ -124,6 +124,41 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**Corpus round, 2026-10-01.** Apache POI's 95 `.pptx` test files (real
+PowerPoint decks from bug reports, plus fuzzer cases), each read, saved,
+re-read and checked, then slide 1 and the middle slide drawn by Quick
+Look before and after. Every healthy file now round-trips; the nine
+fuzzer files fail cleanly (no crash, no hang) or are salvaged; visible
+render differences went from 25 of 118 to 18, the worst from 42 to 15
+(of 255). Found and fixed:
+
+- **A shape's `p:style` was dropped**, and with it every fill, line and
+  text colour a shape takes from its style — boxes saved see-through,
+  white titles saved black. The reader now resolves fillRef/lnRef for
+  every kind of shape and fontRef over the layout's and master's colours;
+  the writer keeps the style, and keeps the file's own fill, line and
+  effects (gradients, patterns, picture fills, shadows) while the shape's
+  fill and outline are unchanged.
+- **Exact line spacing (`spcPts`) became a multiple of the paragraph's
+  default size**, so lines overlapped once runs were larger. The paragraph
+  model gained `lineHeightPoints` (the layout makes every line exactly
+  that tall), read and written as points.
+- **Bullet positions were recomputed**: a file's own marL and indent now
+  come back as read (indentLeft and firstLineIndent carry them relative
+  to the shape's list indent; new lists are written as before).
+- **Turned or mirrored groups lost their turn** when flattened: they are
+  now kept whole (drawn as a labelled box, written as read).
+- **Autofit text boxes lost `normAutofit`** (S8 regression): a text box
+  that shrinks its text says so again.
+- **A zip with its end cut off would not open** (no central directory):
+  the reader now salvages every complete entry from the local headers, as
+  PowerPoint and Word repair; a package so damaged that it has no master
+  with a layout is saved on our templates, and kept objects drop
+  relationships to parts the file does not have.
+
+Left: bullet colours (`buClr`) are not modelled; Quick Look shows small
+wrap and bullet-gap differences on ~15 slides.
+
 **S8 done 2026-10-01** — dark mode, resize, keyboard. On macOS the app
 now follows the system appearance (it was always light) and changes with
 it; `OFFICE_DARK=1`/`0` overrides it. Slides' chrome darkens and slides

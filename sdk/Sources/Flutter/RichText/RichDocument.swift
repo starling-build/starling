@@ -86,6 +86,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var spaceAfter: Double = 8
     /// Multiple of the font's natural line height (1.0 = single).
     public var lineSpacing: Double = 1.08
+    /// Exact line height in points ("exactly 20 pt"), which then wins over
+    /// `lineSpacing`; nil for a multiple.
+    public var lineHeightPoints: Double? = nil
     public var list: ListKind? = nil
     public var listLevel: Int = 0
     /// Which list this paragraph belongs to, for numbering: Word's numId.
