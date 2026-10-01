@@ -5,9 +5,51 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+// MARK: - Snapshots (undo)
+
+/// Everything a shape is, as a value: what undo stores and restores.
+struct ShapeState: Equatable {
+    var id: Int
+    var name: String
+    var kind: ShapeKind
+    var frame: Rect
+    var rotation: Double
+    var fill: Color?
+    var outline: Color?
+    var outlineWidth: Double
+    var anchor: TextAnchor
+    var insets: EdgeInsets
+    var prompt: String?
+    var text: RichDocument?
+    var font: String?
+    var size: Double
+    var color: Color
+    var listIndent: Double
+}
+
+struct SlideState: Equatable {
+    var id: Int
+    var layout: SlideLayoutKind
+    var hidden: Bool
+    var notes: RichDocument
+    var shapes: [ShapeState]
+}
+
+struct DeckState: Equatable {
+    var slides: [SlideState]
+    var current: Int
+    var slideSize: Size
+}
+
 /// Every change to a deck goes through here. Listeners hear about slide
 /// edits and about typing in any text body (thumbnails and anchored text
 /// both follow the words), and `revision` moves on each.
+///
+/// Undo is by snapshot: each edit pushes the deck as it was. Text typed in
+/// a body has its own undo inside the body's controller while it is being
+/// edited; when editing ends (or any deck edit interrupts it) the whole
+/// session becomes one deck step, so ⌘Z after leaving a box takes its
+/// typing back as PowerPoint does.
 final class DeckController: ChangeNotifier {
     private(set) var slides: [Slide] = []
     private(set) var current = 0
@@ -16,7 +58,15 @@ final class DeckController: ChangeNotifier {
     private(set) var slideSize = Size(960, 540)
     var theme = DeckTheme()
     private(set) var revision = 0
+    /// Shapes selected on the current slide, in selection order.
+    private(set) var selection: [SlideShape] = []
     private var _nextId = 1
+
+    private var _undo: [DeckState] = []
+    private var _redo: [DeckState] = []
+    private var _session: (state: DeckState, revisions: [ObjectIdentifier: Int])? = nil
+    private var _sessionWanted = false
+    private static let _undoLimit = 100
 
     override init() {
         super.init()
@@ -24,19 +74,26 @@ final class DeckController: ChangeNotifier {
     }
 
     var currentSlide: Slide { slides[current] }
+    var canUndo: Bool { !_undo.isEmpty || _sessionChanged }
+    var canRedo: Bool { !_redo.isEmpty }
 
     // MARK: Deck
 
-    /// A fresh deck: one title slide.
+    /// A fresh deck: one title slide, and no history.
     func newDeck() {
         for slide in slides { _unwatch(slide) }
         slides = [_makeSlide(.titleSlide)]
         current = 0
+        selection = []
+        _undo = []
+        _redo = []
+        _session = nil
         _changed()
     }
 
     func setSlideSize(_ size: Size) {
         guard size != slideSize else { return }
+        _checkpoint()
         let sx = size.width / slideSize.width
         let sy = size.height / slideSize.height
         for slide in slides {
@@ -55,6 +112,7 @@ final class DeckController: ChangeNotifier {
         let i = max(0, min(slides.count - 1, index))
         guard i != current else { return }
         current = i
+        selection = []
         _changed()
     }
 
@@ -63,34 +121,39 @@ final class DeckController: ChangeNotifier {
     /// the current slide's layout repeats.
     @discardableResult
     func addSlide(_ layout: SlideLayoutKind? = nil) -> Slide {
+        _checkpoint()
         let base = slides.isEmpty ? SlideLayoutKind.titleSlide : currentSlide.layout
         let kind = layout ?? (base == .titleSlide ? .titleAndContent : base)
         let slide = _makeSlide(kind)
         let at = slides.isEmpty ? 0 : current + 1
         slides.insert(slide, at: at)
         current = at
+        selection = []
         _changed()
         return slide
     }
 
     func duplicateSlide(_ index: Int) {
         guard slides.indices.contains(index) else { return }
+        _checkpoint()
         let source = slides[index]
-        let copy = Slide(id: _id(), layout: source.layout, shapes: source.shapes.map(_copy),
+        let copy = Slide(id: _id(), layout: source.layout, shapes: source.shapes.map { _copy($0) },
                          notes: _textController(source.notes.document))
         copy.hidden = source.hidden
         _watch(copy)
         slides.insert(copy, at: index + 1)
         current = index + 1
+        selection = []
         _changed()
     }
 
     func deleteSlide(_ index: Int) {
         guard slides.indices.contains(index), slides.count > 1 else { return }
+        _checkpoint()
         _unwatch(slides[index])
         slides.remove(at: index)
-        current = min(current, slides.count - 1)
-        if index < current { current -= 1 }
+        if index < current || current >= slides.count { current = max(0, current - 1) }
+        selection = []
         _changed()
     }
 
@@ -98,6 +161,7 @@ final class DeckController: ChangeNotifier {
         guard slides.indices.contains(from) else { return }
         let target = max(0, min(slides.count - 1, to))
         guard target != from else { return }
+        _checkpoint()
         let slide = slides.remove(at: from)
         slides.insert(slide, at: target)
         current = target
@@ -106,6 +170,7 @@ final class DeckController: ChangeNotifier {
 
     func toggleHidden(_ index: Int) {
         guard slides.indices.contains(index) else { return }
+        _checkpoint()
         slides[index].hidden.toggle()
         _changed()
     }
@@ -118,6 +183,7 @@ final class DeckController: ChangeNotifier {
         guard slides.indices.contains(index) else { return }
         let slide = slides[index]
         guard slide.layout != layout else { return }
+        _checkpoint()
         let old = slide.shapes
         var oldTitle = old.first { $0.role == .title || $0.role == .ctrTitle }
         var oldBodies = old.filter { $0.role == .body || $0.role == .subTitle }
@@ -136,19 +202,32 @@ final class DeckController: ChangeNotifier {
         for shape in ([oldTitle].compactMap { $0 } + oldBodies) where !shape.isEmptyText {
             next.append(shape)
         }
-        // Everything that is not a placeholder (text boxes, later shapes and
+        // Everything that is not a placeholder (text boxes, shapes,
         // pictures) stays on top, untouched.
         next.append(contentsOf: old.filter { $0.role == nil })
-        for shape in old { _unwatch(shape) }
+        for shape in old where !next.contains(where: { $0 === shape }) { _unwatch(shape) }
         slide.shapes = next
         slide.layout = layout
         for shape in next { _watch(shape) }
+        selection = []
         _changed()
     }
+
+    // MARK: Selection
+
+    func selectShapes(_ shapes: [SlideShape]) {
+        let mine = shapes.filter { s in currentSlide.shapes.contains { $0 === s } }
+        guard mine.count != selection.count || zip(mine, selection).contains(where: { $0 !== $1 }) else { return }
+        selection = mine
+        _notify()
+    }
+
+    func isSelected(_ shape: SlideShape) -> Bool { selection.contains { $0 === shape } }
 
     // MARK: Shapes
 
     func addTextBox(at frame: Rect) -> SlideShape {
+        _checkpoint()
         let theme = _textTheme(font: self.theme.bodyFont, size: 18, color: self.theme.text)
         let style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
         let shape = SlideShape(id: _id(), name: "TextBox \(_nextId)", kind: .textBox, frame: frame,
@@ -156,15 +235,313 @@ final class DeckController: ChangeNotifier {
                                textTheme: theme)
         currentSlide.shapes.append(shape)
         _watch(shape)
+        selection = [shape]
         _changed()
         return shape
     }
 
-    func deleteShape(_ shape: SlideShape) {
-        guard let i = currentSlide.shapes.firstIndex(where: { $0 === shape }) else { return }
-        _unwatch(shape)
-        currentSlide.shapes.remove(at: i)
+    /// A drawn shape from the gallery, centred on the slide, in the theme's
+    /// first accent with white text — PowerPoint's default look.
+    @discardableResult
+    func addShape(_ preset: ShapePreset) -> SlideShape {
+        _checkpoint()
+        let w = preset.isLine ? 192.0 : 144.0
+        let h = preset.isLine ? 0.0 : (preset == .rightArrow ? 72.0 : 108.0)
+        let frame = Rect.fromLTWH((slideSize.width - w) / 2, (slideSize.height - h) / 2, w, h)
+        let accent = theme.accents[0]
+        let theme = _textTheme(font: self.theme.bodyFont, size: 18, color: Color(0xFFFFFFFF))
+        let style = RichParagraphStyle(alignment: .center, spaceAfter: 0, lineSpacing: 1.0)
+        let shape = SlideShape(id: _id(), name: "\(preset.name) \(_nextId)", kind: .geometry(preset), frame: frame,
+                               text: preset.isLine ? nil
+                                   : _textController(RichDocument(paragraphs: [RichParagraph(text: "", style: style)])),
+                               textTheme: preset.isLine ? nil : theme, anchor: .middle)
+        shape.fill = preset.isLine ? nil : accent
+        shape.outline = preset.isLine ? accent : Self.darker(accent)
+        shape.outlineWidth = preset.isLine ? 1.5 : 1
+        currentSlide.shapes.append(shape)
+        _watch(shape)
+        selection = [shape]
         _changed()
+        return shape
+    }
+
+    func deleteSelection() {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for shape in selection { _unwatch(shape) }
+        currentSlide.shapes.removeAll { s in selection.contains { $0 === s } }
+        selection = []
+        _changed()
+    }
+
+    /// Copies of the selection, nudged down and right, selected in its place.
+    func duplicateSelection(offset: Double = 18) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        let copies = selection.map { _copy($0, offset: offset) }
+        currentSlide.shapes.append(contentsOf: copies)
+        for c in copies { _watch(c) }
+        selection = copies
+        _changed()
+    }
+
+    /// The selection as values, for the shape clipboard.
+    func copySelection() -> [ShapeState] { selection.map(_state) }
+
+    func paste(_ states: [ShapeState], offset: Double = 18) {
+        guard !states.isEmpty else { return }
+        _checkpoint()
+        var pasted: [SlideShape] = []
+        for var s in states {
+            s.id = _id()
+            s.frame = s.frame.shift(Offset(offset, offset))
+            let shape = _make(s)
+            pasted.append(shape)
+            _watch(shape)
+        }
+        currentSlide.shapes.append(contentsOf: pasted)
+        selection = pasted
+        _changed()
+    }
+
+    // Moves and resizes come in three calls so a drag is one undo step and
+    // every frame between is cheap: begin (checkpoint), live updates (no
+    // history), end.
+
+    func beginFrameEdit() { _checkpoint() }
+
+    func setFramesLive(_ frames: [(SlideShape, Rect)]) {
+        for (shape, frame) in frames { shape.frame = frame }
+        _changed(keepSession: true)
+    }
+
+    /// The drag is over: typing after it is a step of its own.
+    func endFrameEdit() { _changed() }
+
+    func setRotationLive(_ shape: SlideShape, _ degrees: Double) {
+        var d = degrees.truncatingRemainder(dividingBy: 360)
+        if d < 0 { d += 360 }
+        shape.rotation = d
+        _changed(keepSession: true)
+    }
+
+    func nudgeSelection(dx: Double, dy: Double) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection { s.frame = s.frame.shift(Offset(dx, dy)) }
+        _changed()
+    }
+
+    func setFill(_ color: Color?) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection where s.preset?.isLine != true { s.fill = color }
+        _changed()
+    }
+
+    func setOutline(_ color: Color?) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection { s.outline = color }
+        _changed()
+    }
+
+    func setOutlineWidth(_ width: Double) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        for s in selection { s.outlineWidth = width }
+        _changed()
+    }
+
+    enum Arrange { case front, back, forward, backward }
+
+    func arrange(_ how: Arrange) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        var shapes = currentSlide.shapes
+        let picked = shapes.filter { s in selection.contains { $0 === s } }
+        switch how {
+        case .front:
+            shapes.removeAll { s in picked.contains { $0 === s } }
+            shapes.append(contentsOf: picked)
+        case .back:
+            shapes.removeAll { s in picked.contains { $0 === s } }
+            shapes.insert(contentsOf: picked, at: 0)
+        case .forward:
+            for s in picked.reversed() {
+                guard let i = shapes.firstIndex(where: { $0 === s }), i + 1 < shapes.count else { continue }
+                shapes.swapAt(i, i + 1)
+            }
+        case .backward:
+            for s in picked {
+                guard let i = shapes.firstIndex(where: { $0 === s }), i > 0 else { continue }
+                shapes.swapAt(i, i - 1)
+            }
+        }
+        currentSlide.shapes = shapes
+        _changed()
+    }
+
+    enum Align { case left, center, right, top, middle, bottom }
+
+    /// One shape aligns to the slide; several align to the box around them.
+    func align(_ how: Align) {
+        guard !selection.isEmpty else { return }
+        _checkpoint()
+        let box: Rect = selection.count == 1
+            ? Rect.fromLTWH(0, 0, slideSize.width, slideSize.height)
+            : selection.dropFirst().reduce(selection[0].frame) { $0.expandToInclude($1.frame) }
+        for s in selection {
+            let f = s.frame
+            var x = f.left, y = f.top
+            switch how {
+            case .left: x = box.left
+            case .center: x = box.left + (box.width - f.width) / 2
+            case .right: x = box.right - f.width
+            case .top: y = box.top
+            case .middle: y = box.top + (box.height - f.height) / 2
+            case .bottom: y = box.bottom - f.height
+            }
+            s.frame = Rect.fromLTWH(x, y, f.width, f.height)
+        }
+        _changed()
+    }
+
+    // MARK: Undo
+
+    /// Editing of a text body began: its typing collects into one step.
+    func beginTextSession() {
+        _sessionWanted = true
+        if _session == nil { _session = (snapshot(), _textRevisions()) }
+    }
+
+    /// Editing ended: the typing, if any, becomes one undo step.
+    func endTextSession() {
+        _flushSession()
+        _sessionWanted = false
+    }
+
+    func undo() {
+        _flushSession()
+        guard let state = _undo.popLast() else { return }
+        _redo.append(snapshot())
+        restore(state)
+    }
+
+    func redo() {
+        _flushSession()
+        guard let state = _redo.popLast() else { return }
+        _undo.append(snapshot())
+        restore(state)
+    }
+
+    private var _sessionChanged: Bool {
+        guard let s = _session else { return false }
+        return _textRevisions() != s.revisions
+    }
+
+    private func _flushSession() {
+        if let s = _session, _textRevisions() != s.revisions {
+            _undo.append(s.state)
+            if _undo.count > Self._undoLimit { _undo.removeFirst() }
+            _redo.removeAll()
+        }
+        _session = nil
+    }
+
+    /// Called first by every edit: what the deck was becomes an undo step.
+    private func _checkpoint() {
+        _flushSession()
+        _undo.append(snapshot())
+        if _undo.count > Self._undoLimit { _undo.removeFirst() }
+        _redo.removeAll()
+    }
+
+    func snapshot() -> DeckState {
+        DeckState(slides: slides.map { slide in
+            SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden,
+                       notes: slide.notes.document, shapes: slide.shapes.map(_state))
+        }, current: current, slideSize: slideSize)
+    }
+
+    /// Put the deck back as `state` was. Objects that still exist are kept
+    /// (and their text reloaded only when it differs), so an editor bound to
+    /// a body stays bound.
+    func restore(_ state: DeckState) {
+        var oldSlides: [Int: Slide] = [:]
+        var oldShapes: [Int: SlideShape] = [:]
+        for slide in slides {
+            oldSlides[slide.id] = slide
+            for shape in slide.shapes { oldShapes[shape.id] = shape }
+        }
+        var kept = Set<ObjectIdentifier>()
+        var next: [Slide] = []
+        for ss in state.slides {
+            let shapes: [SlideShape] = ss.shapes.map { st in
+                if let shape = oldShapes[st.id], shape.kind == st.kind, (shape.text == nil) == (st.text == nil) {
+                    _apply(st, to: shape)
+                    kept.insert(ObjectIdentifier(shape))
+                    return shape
+                }
+                let shape = _make(st)
+                _watch(shape)
+                return shape
+            }
+            let slide: Slide
+            if let old = oldSlides[ss.id] {
+                slide = old
+                slide.shapes = shapes
+                slide.layout = ss.layout
+                kept.insert(ObjectIdentifier(slide))
+                if slide.notes.document != ss.notes { slide.notes.load(ss.notes) }
+            } else {
+                slide = Slide(id: ss.id, layout: ss.layout, shapes: shapes, notes: _textController(ss.notes))
+                slide.notes.addListener({ [weak self] in self?._textChanged() }, owner: self)
+            }
+            slide.hidden = ss.hidden
+            next.append(slide)
+        }
+        for slide in slides {
+            if !kept.contains(ObjectIdentifier(slide)) { slide.notes.removeListeners(owner: self) }
+            for shape in slide.shapes where !kept.contains(ObjectIdentifier(shape)) { _unwatch(shape) }
+        }
+        slides = next
+        slideSize = state.slideSize
+        current = max(0, min(state.current, slides.count - 1))
+        selection = []
+        _nextId = max(_nextId, (state.slides.flatMap { [$0.id] + $0.shapes.map(\.id) }.max() ?? 0) + 1)
+        _changed()
+    }
+
+    private func _state(_ s: SlideShape) -> ShapeState {
+        ShapeState(id: s.id, name: s.name, kind: s.kind, frame: s.frame, rotation: s.rotation,
+                   fill: s.fill, outline: s.outline, outlineWidth: s.outlineWidth, anchor: s.anchor,
+                   insets: s.insets, prompt: s.prompt, text: s.text?.document,
+                   font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
+                   color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18)
+    }
+
+    private func _apply(_ st: ShapeState, to shape: SlideShape) {
+        shape.name = st.name
+        shape.frame = st.frame
+        shape.rotation = st.rotation
+        shape.fill = st.fill
+        shape.outline = st.outline
+        shape.outlineWidth = st.outlineWidth
+        shape.anchor = st.anchor
+        shape.insets = st.insets
+        shape.prompt = st.prompt
+        if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
+    }
+
+    private func _make(_ st: ShapeState) -> SlideShape {
+        let theme = st.text == nil ? nil : _textTheme(font: st.font ?? self.theme.bodyFont, size: st.size, color: st.color)
+        theme?.listIndent = st.listIndent
+        let shape = SlideShape(id: st.id, name: st.name, kind: st.kind, frame: st.frame,
+                               text: st.text.map(_textController), textTheme: theme,
+                               anchor: st.anchor, prompt: st.prompt)
+        _apply(st, to: shape)
+        return shape
     }
 
     // MARK: Building
@@ -203,20 +580,11 @@ final class DeckController: ChangeNotifier {
                           prompt: spec.prompt)
     }
 
-    private func _copy(_ shape: SlideShape) -> SlideShape {
-        let theme = shape.textTheme.map { t -> RichTextTheme in
-            let c = _textTheme(font: t.fontFamily ?? self.theme.bodyFont, size: t.fontSize, color: t.textColor)
-            c.listIndent = t.listIndent
-            return c
-        }
-        let copy = SlideShape(id: _id(), name: shape.name, kind: shape.kind, frame: shape.frame,
-                              text: shape.text.map { _textController($0.document) },
-                              textTheme: theme, anchor: shape.anchor, prompt: shape.prompt)
-        copy.fill = shape.fill
-        copy.outline = shape.outline
-        copy.outlineWidth = shape.outlineWidth
-        copy.insets = shape.insets
-        return copy
+    private func _copy(_ shape: SlideShape, offset: Double = 0) -> SlideShape {
+        var st = _state(shape)
+        st.id = _id()
+        st.frame = st.frame.shift(Offset(offset, offset))
+        return _make(st)
     }
 
     private func _textTheme(font: String, size: Double, color: Color) -> RichTextTheme {
@@ -231,6 +599,13 @@ final class DeckController: ChangeNotifier {
         c.clipboardCodec = OfficeClipboardCodec()
         c.load(doc)
         return c
+    }
+
+    static func darker(_ c: Color) -> Color {
+        let v = c.value
+        let r = Int(Double((v >> 16) & 0xFF) * 0.7), g = Int(Double((v >> 8) & 0xFF) * 0.7)
+        let b = Int(Double(v & 0xFF) * 0.7)
+        return Color(0xFF00_0000 | (r << 16) | (g << 8) | b)
     }
 
     // MARK: Change tracking
@@ -253,27 +628,38 @@ final class DeckController: ChangeNotifier {
         shape.text?.removeListeners(owner: self)
     }
 
+    private func _textRevisions() -> [ObjectIdentifier: Int] {
+        var r: [ObjectIdentifier: Int] = [:]
+        for slide in slides {
+            r[ObjectIdentifier(slide.notes)] = slide.notes.revision
+            for c in slide.shapes.compactMap(\.text) { r[ObjectIdentifier(c)] = c.revision }
+        }
+        return r
+    }
+
     private var _lastTextRevisions: [ObjectIdentifier: Int] = [:]
 
     /// Caret moves notify too; only a change to the words moves the deck on.
     private func _textChanged() {
-        var moved = false
-        for slide in slides {
-            for c in [slide.notes] + slide.shapes.compactMap(\.text) {
-                let key = ObjectIdentifier(c)
-                if _lastTextRevisions[key] != c.revision {
-                    _lastTextRevisions[key] = c.revision
-                    moved = true
-                }
-            }
-        }
-        if moved {
-            revision += 1
-            notifyListeners()
-        }
+        let now = _textRevisions()
+        guard now != _lastTextRevisions else { return }
+        _lastTextRevisions = now
+        revision += 1
+        notifyListeners()
     }
 
-    private func _changed() {
+    private func _notify() {
+        revision += 1
+        notifyListeners()
+    }
+
+    /// After an edit. An open text session restarts from here, so the edit
+    /// and the typing after it are separate steps.
+    private func _changed(keepSession: Bool = false) {
+        if _sessionWanted && !keepSession && _session == nil {
+            _session = (snapshot(), _textRevisions())
+        }
+        _lastTextRevisions = _textRevisions()
         revision += 1
         notifyListeners()
     }

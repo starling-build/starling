@@ -37,8 +37,12 @@ final class TitleRow: StatelessWidget {
                     },
                     Chrome.gap(6),
                     Chrome.icon(FluentSystemIcons.save, "Save (⌘S)", fluent) { [session] in session.onSave?() },
-                    Chrome.icon(FluentSystemIcons.undo, "Undo (⌘Z)", fluent, enabled: s.canUndo) { c.undo() },
-                    Chrome.icon(FluentSystemIcons.redo, "Redo (⇧⌘Z)", fluent, enabled: s.canRedo) { c.redo() },
+                    Chrome.icon(FluentSystemIcons.undo, "Undo (⌘Z)", fluent, enabled: s.canUndo) { [session] in
+                        if let undo = session.onUndo { undo() } else { c.undo() }
+                    },
+                    Chrome.icon(FluentSystemIcons.redo, "Redo (⇧⌘Z)", fluent, enabled: s.canRedo) { [session] in
+                        if let redo = session.onRedo { redo() } else { c.redo() }
+                    },
                     Expanded(child: Center(child: Text(name, style: fluent.typography.bodyStrong))),
                     SizedBox(width: 260, height: 30, child: FluentTextBox(
                         controller: searchController,

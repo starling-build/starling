@@ -43,6 +43,8 @@ final class SlidesShellState: State<StatefulWidget> {
     }()
     /// Last click was in the thumbnail pane: Delete then removes a slide.
     private var _paneFocused = false
+    /// Shapes copied with ⌘C/⌘X while no text was being edited.
+    private var _shapeClipboard: [ShapeState] = []
     private var _tab = RibbonTab.home
     private var _ribbonCollapsed = false
     private var _backstage: BackstagePage? = nil
@@ -109,6 +111,14 @@ final class SlidesShellState: State<StatefulWidget> {
             }
         }
         session.onInsertTextBox = { [weak self] in self?._insertTextBox() }
+        session.onInsertShape = { [weak self] preset in
+            guard let self else { return }
+            self._endEditing()
+            self.deck.addShape(preset)
+            self._deckFocus.requestFocus()
+        }
+        session.onUndo = { [weak self] in self?._undo() }
+        session.onRedo = { [weak self] in self?._redo() }
         session.onSlideShow = { [weak self] _ in self?._flash("The slide show is milestone S5") }
         session.onToggleSpelling = { [weak self] in
             guard let self else { return }
@@ -128,22 +138,61 @@ final class SlidesShellState: State<StatefulWidget> {
             next.addListener({ [weak self] in self?._textChanged() }, owner: self)
         }
         if let theme { session.theme = theme }
-        session.summary = session.summarize()
+        session.summary = _summarize()
     }
 
+    /// The ribbon's summary, with undo and redo covering the deck as well
+    /// as the text being typed.
+    private func _summarize() -> ToolbarSummary {
+        var s = session.summarize()
+        let typing = _active != nil || _notesActive
+        s.canUndo = (typing && session.controller.canUndo) || deck.canUndo
+        s.canRedo = (typing && session.controller.canRedo) || deck.canRedo
+        s.revision = deck.revision
+        return s
+    }
+
+    /// Start editing a shape's text, or stop editing (nil). Each editing
+    /// session is one deck undo step once it ends.
     private func _activate(_ shape: SlideShape?) {
         _paneFocused = false
+        if _active !== shape || _notesActive { deck.endTextSession() }
         _notesActive = false
         _active = shape
+        if shape != nil { deck.beginTextSession() }
         _point(at: shape?.text, theme: shape?.textTheme)
         if shape == nil { _deckFocus.requestFocus() }
         setState {}
     }
 
+    private func _endEditing() {
+        guard _active != nil || _notesActive else { return }
+        FocusManager.instance.focusedNode?.unfocus()
+        _activate(nil)
+    }
+
     private func _textChanged() {
-        let s = session.summarize()
+        let s = _summarize()
         guard s != session.summary else { return }
         setState { session.summary = s }
+    }
+
+    private func _undo() {
+        if (_active != nil || _notesActive) && session.controller.canUndo {
+            session.controller.undo()
+        } else {
+            _endEditing()
+            deck.undo()
+        }
+    }
+
+    private func _redo() {
+        if (_active != nil || _notesActive) && session.controller.canRedo {
+            session.controller.redo()
+        } else {
+            _endEditing()
+            deck.redo()
+        }
     }
 
     private func _deckChanged() {
@@ -157,6 +206,7 @@ final class SlidesShellState: State<StatefulWidget> {
             _point(at: nil)
         }
         session.dirty = true
+        session.summary = _summarize()
         setState {}
     }
 
@@ -184,6 +234,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _insertTextBox() {
+        _endEditing()
         let size = deck.slideSize
         let shape = deck.addTextBox(at: Rect.fromLTWH(size.width / 2 - 150, size.height / 2 - 25, 300, 50))
         _focusShape = shape
@@ -191,10 +242,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _select(_ index: Int) {
-        FocusManager.instance.focusedNode?.unfocus()
-        _active = nil
-        _notesActive = false
-        _point(at: nil)
+        _endEditing()
         deck.select(index)
         _deckFocus.requestFocus()
     }
@@ -220,12 +268,31 @@ final class SlidesShellState: State<StatefulWidget> {
         if _deckChords.primary || named == .escape {
             if _shortcut(key, _deckChords.modifiers) { return true }
         }
+        // With shapes selected, keys act on them.
+        if !deck.selection.isEmpty && !_paneFocused {
+            let step = _deckChords.shift ? 12.0 : 2.0
+            switch named {
+            case .left: deck.nudgeSelection(dx: -step, dy: 0)
+            case .right: deck.nudgeSelection(dx: step, dy: 0)
+            case .up: deck.nudgeSelection(dx: 0, dy: -step)
+            case .down: deck.nudgeSelection(dx: 0, dy: step)
+            case .delete, .backspace: deck.deleteSelection()
+            case .escape: deck.selectShapes([])
+            case .tab: _cycleSelection(back: _deckChords.shift)
+            case .enter:
+                guard deck.selection.count == 1, let shape = deck.selection.first, shape.text != nil else { return false }
+                _editAtEnd(shape)
+            default: return false
+            }
+            return true
+        }
         switch named {
         case .down, .right, .pageDown: _select(deck.current + 1)
         case .up, .left, .pageUp: _select(deck.current - 1)
         case .home: _select(0)
         case .end: _select(deck.slides.count - 1)
         case .enter where _paneFocused: deck.addSlide()
+        case .tab where !_paneFocused: _cycleSelection(back: _deckChords.shift)
         case .delete, .backspace:
             guard _paneFocused, deck.slides.count > 1 else { return false }
             deck.deleteSlide(deck.current)
@@ -234,26 +301,62 @@ final class SlidesShellState: State<StatefulWidget> {
         return true
     }
 
+    /// Tab through the shapes of the slide, as PowerPoint does.
+    private func _cycleSelection(back: Bool) {
+        let shapes = deck.currentSlide.shapes
+        guard !shapes.isEmpty else { return }
+        let at = deck.selection.last.flatMap { s in shapes.firstIndex { $0 === s } }
+        let next = at.map { (back ? $0 - 1 + shapes.count : $0 + 1) % shapes.count } ?? (back ? shapes.count - 1 : 0)
+        deck.selectShapes([shapes[next]])
+    }
+
+    /// Start typing into a shape, with the caret at the end of its text.
+    private func _editAtEnd(_ shape: SlideShape) {
+        _activate(shape)
+        FrameCallbackScheduler.shared.addPostFrameCallback { [weak self] _ in
+            guard let self, let canvas = self._canvasKey.currentState as? SlideCanvasState,
+                  let text = shape.text else { return }
+            canvas.focusNode(for: shape).requestFocus()
+            let last = text.document.paragraphs.count - 1
+            text.moveTo(RichPosition(paragraph: last, offset: text.document.paragraphs[last].length), extend: false)
+        }
+        PlatformDispatcher.instance.scheduleFrame()
+    }
+
     private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
+        let typing = _active != nil || _notesActive
         if named == .escape {
             if _backstage != nil { setState { _backstage = nil }; return true }
-            if _active != nil || _notesActive {
-                FocusManager.instance.focusedNode?.unfocus()
-                _activate(nil)
+            if typing {
+                // Esc leaves the text with its shape still selected.
+                let shape = _active
+                _endEditing()
+                if let shape { deck.selectShapes([shape]) }
                 return true
             }
+            if !deck.selection.isEmpty { deck.selectShapes([]); return true }
             return false
         }
         guard mods.contains(.primary), !mods.contains(.alt),
               let letter = KeyChordTracker.letter(key.logical) else { return false }
         let c = session.controller
+        let shapes = !typing && !deck.selection.isEmpty
         switch letter {
-        case "n" where mods.contains(.shift): deck.addSlide()
+        case "z" where mods.contains(.shift): _redo()
+        case "z": _undo()
+        case "y": _redo()
+        case "n" where mods.contains(.shift): _endEditing(); deck.addSlide()
         case "n": _newDeck()
         case "o": session.onOpen?()
         case "s": session.onSave?()
-        case "d" where _active == nil && !_notesActive: deck.duplicateSlide(deck.current)
+        case "a" where !typing: deck.selectShapes(deck.currentSlide.shapes)
+        case "c" where shapes: _shapeClipboard = deck.copySelection(); _flash("Copied")
+        case "x" where shapes: _shapeClipboard = deck.copySelection(); deck.deleteSelection()
+        case "v" where !typing && !_shapeClipboard.isEmpty: deck.paste(_shapeClipboard)
+        case "d" where shapes: deck.duplicateSelection()
+        case "d" where !typing: deck.duplicateSlide(deck.current)
+        case "g" where shapes: _flash("Grouping comes with milestone S6")
         case "e": c.setAlignment(.center)
         case "l": c.setAlignment(.left)
         case "r": c.setAlignment(.right)
@@ -294,7 +397,7 @@ final class SlidesShellState: State<StatefulWidget> {
         var work: [Widget] = [Expanded(child: SlideCanvas(
             key: _canvasKey,
             deck: deck, cache: _cache, active: _active,
-            onActivate: { [weak self] shape in self?._activate(shape) },
+            onEdit: { [weak self] shape in self?._activate(shape) },
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
             spellChecker: session.checkSpelling ? _spelling : nil))]
         if _showNotes { work.append(_notesPane(fluent)) }
@@ -381,9 +484,12 @@ final class SlidesShellState: State<StatefulWidget> {
         stack.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
             onPointerDown: { [weak self] _ in
                 guard let self, !self._notesActive else { return }
+                self.deck.endTextSession()
                 self._active = nil
                 self._paneFocused = false
                 self._notesActive = true
+                self.deck.selectShapes([])
+                self.deck.beginTextSession()
                 self._point(at: slide.notes, theme: self._notesTheme)
                 self.setState {}
             },

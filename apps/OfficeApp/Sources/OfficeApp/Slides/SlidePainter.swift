@@ -62,6 +62,33 @@ final class SlideTextCache {
     }
 }
 
+/// Draws one shape (no text) in slide coordinates at `pxPerPt` — a layer
+/// of the editing canvas, so that shapes and their live editors stack in
+/// the slide's z-order.
+final class ShapePainter: CustomPainter {
+    let shape: SlideShape
+    let px: Double
+    let revision: Int
+    let cache: SlideTextCache
+
+    init(shape: SlideShape, px: Double, revision: Int, cache: SlideTextCache) {
+        self.shape = shape
+        self.px = px
+        self.revision = revision
+        self.cache = cache
+        super.init()
+    }
+
+    override func paint(_ canvas: any Canvas, _ size: Size) {
+        SlidePainter.paintShape(shape, canvas, pxPerPt: px, cache: cache, text: false)
+    }
+
+    override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool {
+        guard let old = oldDelegate as? ShapePainter else { return true }
+        return old.shape !== shape || old.revision != revision || old.px != px
+    }
+}
+
 /// Draws a slide scaled so that it fills `size`.
 final class SlidePainter: CustomPainter {
     let slide: Slide
@@ -69,7 +96,7 @@ final class SlidePainter: CustomPainter {
     let slideSize: Size
     let revision: Int
     let cache: SlideTextCache
-    /// Skip text bodies (the editing canvas draws them live).
+    /// Only the background (the editing canvas draws shapes as layers).
     let shapesOnly: Bool
 
     init(slide: Slide, theme: DeckTheme, slideSize: Size, revision: Int, cache: SlideTextCache,
@@ -91,8 +118,10 @@ final class SlidePainter: CustomPainter {
         canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bg)
         canvas.save()
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))
-        for shape in slide.shapes {
-            Self.paintShape(shape, canvas, pxPerPt: px, cache: cache, text: !shapesOnly)
+        if !shapesOnly {
+            for shape in slide.shapes {
+                Self.paintShape(shape, canvas, pxPerPt: px, cache: cache, text: true)
+            }
         }
         canvas.restore()
     }
@@ -101,26 +130,84 @@ final class SlidePainter: CustomPainter {
                            cache: SlideTextCache, text: Bool) {
         let f = shape.frame
         let r = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
+        canvas.save()
+        if shape.rotation != 0 {
+            let c = r.center
+            canvas.translate(c.dx, c.dy)
+            canvas.rotate(shape.rotation * .pi / 180)
+            canvas.translate(-c.dx, -c.dy)
+        }
+        let path: Path? = shape.preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
         if let fill = shape.fill {
             let p = Paint()
             p.style = .fill
+            p.isAntiAlias = true
             p.color = fill
-            canvas.drawRect(r, p)
+            if let path { canvas.drawPath(path, p) } else { canvas.drawRect(r, p) }
         }
         if let line = shape.outline {
             let p = Paint()
             p.style = .stroke
+            p.isAntiAlias = true
             p.strokeWidth = max(0.5, shape.outlineWidth * px)
             p.color = line
-            canvas.drawRect(r, p)
+            if shape.preset?.isLine == true {
+                canvas.drawLine(Offset(r.left, r.top), Offset(r.right, r.bottom), p)
+            } else if let path {
+                canvas.drawPath(path, p)
+            } else {
+                canvas.drawRect(r, p)
+            }
         }
-        guard text, !shape.isEmptyText, let layout = cache.layout(shape, pxPerPt: px),
-              let doc = shape.text?.document else { return }
-        canvas.save()
-        canvas.translate(r.left + shape.insets.left * px, r.top + cache.textTop(shape, pxPerPt: px))
-        layout.paint(canvas, visible: Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000),
-                     document: doc, selection: nil, caret: nil)
+        if text, !shape.isEmptyText, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
+            canvas.translate(r.left + shape.insets.left * px, r.top + cache.textTop(shape, pxPerPt: px))
+            layout.paint(canvas, visible: Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000),
+                         document: doc, selection: nil, caret: nil)
+        }
         canvas.restore()
+    }
+
+    /// The outline of a preset shape filling `r`, with PowerPoint's default
+    /// adjustments.
+    static func geometryPath(_ preset: ShapePreset, _ r: Rect) -> Path {
+        let path = Path()
+        let w = r.width, h = r.height, l = r.left, t = r.top
+        switch preset {
+        case .rect, .line:
+            path.addRect(r)
+        case .roundRect:
+            path.addRRect(RRect(fromRectAndRadius: r, Radius(circular: min(w, h) * 0.1667)))
+        case .ellipse:
+            path.addOval(r)
+        case .triangle:
+            path.addPolygon([Offset(l + w / 2, t), Offset(r.right, r.bottom), Offset(l, r.bottom)], true)
+        case .rightArrow:
+            let head = min(w, h) * 0.5
+            let shaftTop = t + h * 0.25, shaftBottom = t + h * 0.75
+            path.addPolygon([
+                Offset(l, shaftTop), Offset(r.right - head, shaftTop), Offset(r.right - head, t),
+                Offset(r.right, t + h / 2), Offset(r.right - head, r.bottom), Offset(r.right - head, shaftBottom),
+                Offset(l, shaftBottom),
+            ], true)
+        case .star5:
+            let c = r.center
+            var points: [Offset] = []
+            for i in 0 ..< 10 {
+                let angle = -Double.pi / 2 + Double(i) * Double.pi / 5
+                let k = i % 2 == 0 ? 1.0 : 0.382
+                points.append(Offset(c.dx + cos(angle) * w / 2 * k, c.dy + sin(angle) * h / 2 * k))
+            }
+            path.addPolygon(points, true)
+        case .wedgeRectCallout:
+            // The tail leaves the bottom edge and points below-left, outside
+            // the frame, as PowerPoint's default callout does.
+            path.addPolygon([
+                Offset(l, t), Offset(r.right, t), Offset(r.right, r.bottom),
+                Offset(l + w * 0.4167, r.bottom), Offset(l + w * 0.2917, t + h * 1.125),
+                Offset(l + w * 0.1667, r.bottom), Offset(l, r.bottom),
+            ], true)
+        }
+        return path
     }
 
     override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool {
@@ -135,18 +222,25 @@ final class SlidePainter: CustomPainter {
 /// content to the space it was given (the slide canvas zooms to fit).
 final class SizeReporter: SingleChildRenderObjectWidget {
     let onSize: (Size) -> Void
+    /// The box itself, for mapping window coordinates into it (pointer
+    /// events here carry only window positions).
+    let onBox: ((RenderBox) -> Void)?
 
-    init(onSize: @escaping (Size) -> Void, child: Widget?) {
+    init(onSize: @escaping (Size) -> Void, onBox: ((RenderBox) -> Void)? = nil, child: Widget?) {
         self.onSize = onSize
+        self.onBox = onBox
         super.init(key: nil, child: child)
     }
 
     override func createRenderObject(_ context: any BuildContext) -> RenderObject {
-        _RenderSizeReporter(onSize: onSize)
+        let box = _RenderSizeReporter(onSize: onSize)
+        onBox?(box)
+        return box
     }
 
     override func updateRenderObject(_ context: any BuildContext, renderObject: RenderObject) {
         (renderObject as! _RenderSizeReporter).onSize = onSize
+        onBox?(renderObject as! RenderBox)
     }
 }
 

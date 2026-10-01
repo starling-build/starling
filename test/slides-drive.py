@@ -58,11 +58,50 @@ def run(d, only):
         d.shot("size-menu", "Design → Slide Size menu, Widescreen checked")
         d.click(160, 161)
         d.shot("four-three", "Standard 4:3: slide and thumbnails narrower, text re-laid")
+        d.click(124, 123); d.click(160, 189)         # back to Widescreen for the steps after
 
     if step("textbox"):
         d.click(156, 90); d.click(217, 140)
         d.key(text="A text box")
         d.shot("textbox", "Insert → Text Box: a box in the middle with the text, accent outline")
+
+    if step("shapes"):
+        # A blank slide of its own, from the Home tab.
+        d.click(96, 90); d.click(1250, 700)
+        d.click(207, 140)
+        d.click(300, 125); d.click(280, 329)          # Layout → Blank
+        d.click(156, 90); d.click(289, 140)           # Insert → Shapes
+        d.shot("shapes-menu", "The Shapes gallery menu: Rectangle … Callout")
+        d.click(270, 223)                            # Rounded Rectangle
+        d.shot("shape-inserted", "A blue rounded rectangle, centred, selected with 8 handles and a rotation handle")
+        d.drag(826, 498, 600, 360)
+        d.shot("shape-moved", "The shape moved up-left; still selected")
+        d.click(1250, 700)
+        d.shot("deselected", "Clicked bare slide: no selection")
+        d.click(600, 360)
+        d.drag(671, 413, 760, 470)                   # its bottom-right handle
+        d.shot("shape-resized", "Bottom-right handle dragged: the shape grew, top-left stayed")
+        d.click(156, 90); d.click(289, 140); d.click(270, 195)   # Rectangle
+        d.drag(826, 498, 826, 260)
+        d.shot("guides", "A second shape dragged up: a red guide shows while aligned (may be gone after release)")
+        d.click(96, 90)                              # Home
+        d.shot("home-drawing", "Home tab: Drawing group with Shapes, Arrange, fill and outline colours")
+        d.key(key=KEY["delete"])
+        d.shot("deleted", "The selected rectangle deleted")
+        d.key(text="z", mods=("command",))
+        d.shot("undo-delete", "⌘Z: the rectangle is back")
+        d.click(826, 260); d.click(826, 260)
+        d.key(text="Hello")
+        d.shot("shape-text", "Second click on a selected shape types into it: white centred text, dashed frame")
+        d.key(key=KEY["escape"])
+        d.shot("escape", "Esc: text kept, shape selected with a solid frame")
+        d.drag(450, 250, 1300, 720)
+        d.shot("marquee", "Marquee: the rounded rectangle (wholly inside) selected; the one over the top edge is not")
+        d.click(645, 388)
+        d.drag(645, 285, 790, 300)
+        d.shot("rotated", "Rotation handle dragged: the rounded rectangle turned about 60°, handles turned with it")
+        d.key(text="z", mods=("command",))
+        d.shot("unrotated", "⌘Z: square again")
 
     if step("switch"):
         d.click(33, 86); d.shot("backstage", "Backstage home: Blank document, Blank presentation, Open")

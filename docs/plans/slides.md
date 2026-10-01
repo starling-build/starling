@@ -99,6 +99,35 @@ body); New Slide, the layout menu (text carried by role), Duplicate,
 Delete, arrow keys between slides, 4:3/16:9, and Insert → Text Box.
 Writer is unchanged (its driver run and bench are as before).
 
+**S2 done 2026-09-30**, on screen through the `shapes` step: the shapes
+gallery (rectangle, rounded rectangle, oval, triangle, arrow, line, star,
+callout) from Insert and Home; click to select, drag to move with smart
+guides (slide edges and centre, other shapes' edges and centres), eight
+handles to resize (the opposite handle pinned, rotation included), a
+rotation handle that settles on right angles, marquee selection (what it
+wholly contains), Arrange (front/back/forward/backward, six aligns),
+Shape Fill and Outline, a second click on a selected shape types into
+it, Esc leaves the text with the shape selected, arrows nudge, Delete,
+⌘D, ⌘C/⌘X/⌘V of shapes, ⌘A, Tab through shapes. Undo is the deck's, by
+snapshot; a text-editing session folds into one step when it ends, and
+⌘Z while typing undoes the typing first.
+
+Traps paid for in S2:
+
+- **Global coordinates were device pixels.** The framework's
+  `getTransformTo(nil)` walked past the root and folded the device pixel
+  ratio into `globalToLocal`, so a dragged shape moved half as far as the
+  pointer on a 2x screen. Fixed in the framework (upstream stops below
+  the root); the colour picker, selection drags and the Linux IME caret
+  were wrong by the same factor.
+- **Drags end at the release, not the last move.** Moves are coalesced
+  while a frame is busy; the up event is applied as a final move.
+- **Every per-shape subtree is keyed and the same shape each build**, and
+  its Stack does not clip (a shape hanging off the slide is drawn whole).
+- **Driver menus**: the Shapes menu rows are 28 px from y 195; a click a
+  row off picks the neighbour silently, and a click above the menu picks
+  nothing — the first "drags go to the backdrop" was an empty slide.
+
 Traps paid for in S1:
 
 - **A Stack whose child list changes shape remounts the editor under the

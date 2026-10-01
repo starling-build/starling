@@ -106,3 +106,112 @@ final class DeckControllerTests: XCTestCase {
         XCTAssertEqual(top + h, (title.frame.height - title.insets.bottom) * px, accuracy: 0.5)
     }
 }
+
+final class DeckUndoTests: XCTestCase {
+    func testEveryEditUndoesAndRedoes() {
+        let deck = DeckController()
+        let start = deck.snapshot()
+        deck.addSlide()
+        let shape = deck.addShape(.ellipse)
+        deck.setFill(Color(0xFFFF0000))
+        XCTAssertEqual(shape.fill, Color(0xFFFF0000))
+        deck.undo()
+        XCTAssertEqual(deck.currentSlide.shapes.first { $0.id == shape.id }?.fill, deck.theme.accents[0])
+        deck.undo()
+        XCTAssertFalse(deck.currentSlide.shapes.contains { $0.preset == .ellipse })
+        deck.undo()
+        XCTAssertEqual(deck.snapshot(), start)
+        XCTAssertFalse(deck.canUndo)
+        deck.redo(); deck.redo(); deck.redo()
+        XCTAssertEqual(deck.slides.count, 2)
+        XCTAssertEqual(deck.currentSlide.shapes.last?.fill, Color(0xFFFF0000))
+    }
+
+    func testATextSessionIsOneStepAndKeepsItsEditor() {
+        let deck = DeckController()
+        let title = deck.currentSlide.shapes[0]
+        let controller = title.text!
+        deck.beginTextSession()
+        controller.insertText("Hello")
+        controller.insertText(" world")
+        deck.endTextSession()
+        XCTAssertTrue(deck.canUndo)
+        deck.undo()
+        XCTAssertEqual(deck.currentSlide.titleText, "")
+        XCTAssertTrue(deck.currentSlide.shapes[0] === title, "restore keeps the shape object")
+        XCTAssertTrue(title.text === controller, "and the controller its editor is bound to")
+        deck.redo()
+        XCTAssertEqual(deck.currentSlide.titleText, "Hello world")
+    }
+
+    func testAnEditDuringTypingSplitsTheSession() {
+        let deck = DeckController()
+        let title = deck.currentSlide.shapes[0].text!
+        deck.beginTextSession()
+        title.insertText("A")
+        deck.nudgeSelection(dx: 1, dy: 0)       // no selection: nothing, no step
+        deck.selectShapes([deck.currentSlide.shapes[1]])
+        deck.nudgeSelection(dx: 5, dy: 0)       // a deck edit mid-session
+        title.insertText("B")
+        deck.endTextSession()
+        deck.undo()
+        XCTAssertEqual(deck.currentSlide.titleText, "A", "the typing after the nudge is its own step")
+        deck.undo()
+        XCTAssertEqual(deck.currentSlide.titleText, "A", "the nudge")
+        deck.undo()
+        XCTAssertEqual(deck.currentSlide.titleText, "", "the typing before it")
+    }
+
+    func testLiveFramesAreOneStep() {
+        let deck = DeckController()
+        let shape = deck.addShape(.rect)
+        let before = shape.frame
+        deck.beginFrameEdit()
+        for i in 1 ... 10 { deck.setFramesLive([(shape, before.shift(Offset(Double(i), 0)))]) }
+        deck.endFrameEdit()
+        XCTAssertEqual(shape.frame.left, before.left + 10)
+        deck.undo()
+        XCTAssertEqual(deck.currentSlide.shapes.last?.frame, before)
+    }
+
+    func testArrangeAlignDuplicatePaste() {
+        let deck = DeckController()
+        let a = deck.addShape(.rect)
+        let b = deck.addShape(.ellipse)
+        deck.selectShapes([b])
+        deck.arrange(.back)
+        XCTAssertTrue(deck.currentSlide.shapes.first === b)
+        deck.arrange(.forward)
+        XCTAssertTrue(deck.currentSlide.shapes[1] === b)
+        deck.selectShapes([a])
+        deck.align(.left)
+        XCTAssertEqual(a.frame.left, 0)
+        deck.align(.bottom)
+        XCTAssertEqual(a.frame.bottom, deck.slideSize.height)
+        deck.duplicateSelection()
+        XCTAssertEqual(deck.selection.count, 1)
+        XCTAssertFalse(deck.selection[0] === a)
+        XCTAssertEqual(deck.selection[0].frame.left, 18)
+        let copied = deck.copySelection()
+        deck.paste(copied)
+        XCTAssertEqual(deck.selection[0].frame.left, 36)
+        XCTAssertNotEqual(deck.selection[0].id, copied[0].id)
+    }
+
+    func testResizeKeepsTheOppositeCornerOfARotatedShape() {
+        let frame = Rect.fromLTWH(100, 100, 200, 100)
+        for rotation in [0.0, 30, 90, 200] {
+            // Drag the bottom-right handle (4); top-left (0) must not move.
+            let anchor = { (f: Rect) -> Offset in
+                let v = SlideCanvasState.rotate(Offset(-f.width / 2, -f.height / 2), rotation)
+                return Offset(f.center.dx + v.dx, f.center.dy + v.dy)
+            }
+            let r = SlideCanvasState.resizedFrame(frame, rotation: rotation, handle: 4,
+                                                  delta: SlideCanvasState.rotate(Offset(40, 20), rotation))
+            XCTAssertEqual(r.width, 240, accuracy: 1e-6)
+            XCTAssertEqual(r.height, 120, accuracy: 1e-6)
+            XCTAssertEqual(anchor(r).dx, anchor(frame).dx, accuracy: 1e-6)
+            XCTAssertEqual(anchor(r).dy, anchor(frame).dy, accuracy: 1e-6)
+        }
+    }
+}

@@ -126,6 +126,10 @@ final class OfficeSession {
     // Slides.
     var onSlideShow: ((Bool) -> Void)?   // true = from the current slide
     var onInsertTextBox: (() -> Void)?
+    var onInsertShape: ((ShapePreset) -> Void)?
+    /// Undo and redo when the kind has more history than the text (a deck).
+    var onUndo: (() -> Void)?
+    var onRedo: (() -> Void)?
     var onOpen: (() -> Void)?
     var onSave: (() -> Void)?
     var onSaveAs: (() -> Void)?

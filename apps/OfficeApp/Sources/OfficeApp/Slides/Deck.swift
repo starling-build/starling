@@ -17,9 +17,32 @@ enum PlaceholderRole: String {
     case ctrTitle, subTitle, title, body
 }
 
-enum ShapeKind {
+enum ShapeKind: Equatable {
     case placeholder(PlaceholderRole)
     case textBox
+    /// A preset drawing (`prstGeom`): its DrawingML name.
+    case geometry(ShapePreset)
+}
+
+/// The shapes the gallery offers, by their DrawingML preset names so the
+/// file format needs no table.
+enum ShapePreset: String, CaseIterable {
+    case rect, roundRect, ellipse, triangle, rightArrow, line, star5, wedgeRectCallout
+
+    var name: String {
+        switch self {
+        case .rect: return "Rectangle"
+        case .roundRect: return "Rounded Rectangle"
+        case .ellipse: return "Oval"
+        case .triangle: return "Triangle"
+        case .rightArrow: return "Right Arrow"
+        case .line: return "Line"
+        case .star5: return "Star"
+        case .wedgeRectCallout: return "Callout"
+        }
+    }
+
+    var isLine: Bool { self == .line }
 }
 
 enum TextAnchor: String {
@@ -33,6 +56,8 @@ final class SlideShape {
     var kind: ShapeKind
     /// Position and size on the slide, in points.
     var frame: Rect
+    /// Clockwise, in degrees, about the frame's centre.
+    var rotation = 0.0
     var fill: Color? = nil
     var outline: Color? = nil
     var outlineWidth = 0.75
@@ -68,6 +93,15 @@ final class SlideShape {
         if case .placeholder(let r) = kind { return r }
         return nil
     }
+
+    var preset: ShapePreset? {
+        if case .geometry(let p) = kind { return p }
+        return nil
+    }
+
+    /// Text boxes and placeholders are clicked into; drawn shapes are
+    /// selected first and edited on a second click, as PowerPoint does.
+    var editsOnFirstClick: Bool { preset == nil }
 }
 
 /// The slide layouts every new deck offers — PowerPoint's familiar seven,
