@@ -510,7 +510,8 @@ final class SheetsShellState: State<StatefulWidget> {
                 onShortcut: { [weak self] letter, chords in self?._shortcut(letter, chords) ?? false },
                 onStatus: { [weak self] m in self?._flash(m) },
                 onContextMenu: { [weak self] point, area in self?._showContextMenu(at: point, area) },
-                onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) })),
+                onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) },
+                onListMenu: { [weak self] point, cell, choices in self?._showListMenu(at: point, cell: cell, choices) })),
             _sheetTabs(fluent),
             _statusBar(fluent),
         ]
@@ -591,6 +592,19 @@ final class SheetsShellState: State<StatefulWidget> {
     private func _replaceAll() {
         let n = wb.replaceAll(_findQuery.text, with: _findReplacement.text)
         setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
+    }
+
+    // MARK: Validation lists
+
+    private func _showListMenu(at point: Offset, cell: CellAddress, _ choices: [String]) {
+        guard let context, !choices.isEmpty else { return }
+        let items: [MenuFlyoutItemBase] = choices.map { choice in
+            MenuFlyoutItem(text: Text(choice), onPressed: { [weak self] in
+                self?.wb.setInputs([(cell, choice)])
+                self?._grid?.focus.requestFocus()
+            })
+        }
+        _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
     }
 
     // MARK: Filters

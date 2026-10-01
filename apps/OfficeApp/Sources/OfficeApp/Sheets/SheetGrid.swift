@@ -103,13 +103,16 @@ final class SheetGrid: StatefulWidget {
     let onContextMenu: (Offset, GridMenuArea) -> Void
     /// A filter dropdown was pressed: where to open its menu (global), and the column.
     let onFilterMenu: (Offset, Int) -> Void
+    /// A validation list's arrow was pressed: where (global), the cell, its choices.
+    let onListMenu: (Offset, CellAddress, [String]) -> Void
 
     init(key: (any Key)? = nil, controller: WorkbookController, zoom: Double,
          onEditText: @escaping (String?) -> Void,
          onShortcut: @escaping (Character, KeyChordTracker) -> Bool,
          onStatus: @escaping (String) -> Void,
          onContextMenu: @escaping (Offset, GridMenuArea) -> Void = { _, _ in },
-         onFilterMenu: @escaping (Offset, Int) -> Void = { _, _ in }) {
+         onFilterMenu: @escaping (Offset, Int) -> Void = { _, _ in },
+         onListMenu: @escaping (Offset, CellAddress, [String]) -> Void = { _, _, _ in }) {
         self.controller = controller
         self.zoom = zoom
         self.onEditText = onEditText
@@ -117,6 +120,7 @@ final class SheetGrid: StatefulWidget {
         self.onStatus = onStatus
         self.onContextMenu = onContextMenu
         self.onFilterMenu = onFilterMenu
+        self.onListMenu = onListMenu
         super.init(key: key)
     }
 
@@ -383,6 +387,15 @@ final class SheetGridState: State<StatefulWidget> {
         return nil
     }
 
+    /// A validation list's arrow: a button just right of the active cell.
+    func listButton() -> Rect? {
+        let c = controller
+        guard !printing, edit == nil, c.selectedDrawing == nil, let rule = c.validation(at: c.active),
+              rule.type == "list", rule.arrow else { return nil }
+        let r = rect(c.active)
+        return Rect.fromLTWH(r.right + 1, r.top, min(16 * zoom, max(10, r.height)), r.height)
+    }
+
     /// A filter dropdown: a square in the header cell's bottom-right corner.
     func filterButton(_ a: CellAddress) -> Rect {
         let r = rect(a)
@@ -442,6 +455,17 @@ final class SheetGridState: State<StatefulWidget> {
         if text.hasPrefix("=") {
             let open = text.filter { $0 == "(" }.count - text.filter { $0 == ")" }.count
             if open > 0 { text += String(repeating: ")", count: open) }
+        }
+        // Data validation: an entry its rule refuses is not made (Excel's
+        // Stop alert, answered Cancel); formulas are not checked.
+        if text != controller.input(e.cell), !text.hasPrefix("=") {
+            let value = text.isEmpty ? CellValue.empty : (InputParser.parse(text)?.value ?? .text(text))
+            if let why = controller.validationRefusal(value, at: e.cell) {
+                _w.onStatus(why)
+                _w.onEditText(nil)
+                _repaint.notifyListeners()
+                return true
+            }
         }
         if text != controller.input(e.cell) { controller.setInput(text, at: e.cell) }
         if let v = controller.sheet.cells[e.cell]?.value, case .text(let s) = v, s.hasPrefix("="), text.hasPrefix("=") {
@@ -780,6 +804,12 @@ final class SheetGridState: State<StatefulWidget> {
         if p.dx < headerWidth && p.dy < headerHeight {
             commitEdit()
             c.select(range: CellRange(top: 0, left: 0, bottom: CellAddress.maxRows - 1, right: CellAddress.maxCols - 1), active: c.active)
+            return
+        }
+        // A validation list's arrow.
+        if let b = listButton(), b.contains(p), let choices = c.validationChoices(at: c.active) {
+            let origin = _box?.localToGlobal(Offset(b.left - rect(c.active).width, b.bottom)) ?? Offset(b.left, b.bottom)
+            _w.onListMenu(origin, c.active, choices)
             return
         }
         // Pictures and charts sit over the cells: they take the press first.
@@ -1265,6 +1295,20 @@ final class SheetGridState: State<StatefulWidget> {
         }
 
         _paintDrawingSelection(canvas, accent: accent)
+        if let b = listButton() {
+            p.color = dark ? Color(0xFF3A3A3A) : Color(0xFFF3F3F3)
+            canvas.drawRect(b, p)
+            let edge = Paint()
+            edge.style = .stroke
+            edge.strokeWidth = 1
+            edge.color = dark ? Color(0xFF6A6A6A) : Color(0xFFABABAB)
+            canvas.drawRect(b.deflate(0.5), edge)
+            let tri = Path()
+            let cx = b.center.dx, cy = b.center.dy, u = b.width / 16
+            tri.moveTo(cx - 4 * u, cy - 2 * u); tri.lineTo(cx + 4 * u, cy - 2 * u); tri.lineTo(cx, cy + 2.5 * u); tri.close()
+            p.color = ink
+            canvas.drawPath(tri, p)
+        }
         _paintNote(canvas, ink: ink)
         // The freeze lines.
         let freeze = Paint()

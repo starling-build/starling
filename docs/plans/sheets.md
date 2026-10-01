@@ -309,6 +309,17 @@ note whose cell is deleted is removed from all three. Untouched note
 parts are written byte for byte. Not yet: adding or editing notes,
 threaded-comment replies shown as a thread.
 
+**Data validation (2026-10-01)** (`Sheets/Validation.swift`): the kept
+`<dataValidations>` are read (cached per data revision): a list rule
+gives the active cell Excel's arrow (unless `showDropDown="1"`, Excel's
+inverted flag) with its choices, inline or from a range; an entry that
+breaks a list, whole, decimal, date, time, textLength or custom rule
+whose error alert is on is refused — the cell keeps its content and the
+status bar shows the rule's message (Excel's Stop alert answered Cancel;
+there is no Retry). Formulas typed in are not checked, nor pastes (as
+Excel). Not yet: input prompts, the Warning/Information styles, editing
+rules.
+
 **Fixed 2026-10-01: formulas this engine cannot read were dropped on
 save** unless their result was text — the cell kept only its value, so a
 table's `=SUM(Table1[Amount])` or `[@Price]*[@Qty]` became a constant.

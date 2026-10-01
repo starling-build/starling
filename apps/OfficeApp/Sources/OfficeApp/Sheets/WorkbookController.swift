@@ -170,6 +170,16 @@ final class WorkbookController: ChangeNotifier {
     /// instead of cells. Any cell selection clears it.
     var selectedDrawing: Int? = nil
     private var _cf: (sheet: ObjectIdentifier, revision: Int, evaluator: CFEvaluator)? = nil
+    private var _dv: (sheet: ObjectIdentifier, revision: Int, rules: [ValidationRule])? = nil
+
+    /// The active sheet's validation rules, read once per state of its data.
+    var validationRules: [ValidationRule] {
+        let ws = sheet
+        if let d = _dv, d.sheet == ObjectIdentifier(ws), d.revision == dataRevision { return d.rules }
+        let rules = Validations.rules(ws)
+        _dv = (ObjectIdentifier(ws), dataRevision, rules)
+        return rules
+    }
 
     /// The active sheet's conditional formats, for one state of its data;
     /// nil when it has none.
