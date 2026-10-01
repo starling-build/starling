@@ -6163,9 +6163,12 @@ open class RenderLeaderLayer: RenderProxyBox {
             leaderLayer.link = link
             leaderLayer.offset = offset
         }
+        // The leader translates the layer; its children paint at local zero.
+        // Inheriting an ancestor viewport's offset bounds culls controls whose
+        // local coordinates fall outside that rectangle (e.g. ribbon menus).
         context.pushLayer(_layerHandle.layer!, { ctx, off in
             super.paint(ctx, off)
-        }, .zero)
+        }, .zero, childPaintBounds: paintBounds)
     }
 
     // MARK: - Disposal

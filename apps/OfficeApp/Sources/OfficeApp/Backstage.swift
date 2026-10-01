@@ -73,7 +73,7 @@ final class Backstage: StatelessWidget {
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
-        return ColoredBox(color: fluent.resources.solidBackgroundFillColorBase, child: Row(
+        return ColoredBox(color: OfficeAppearance.surface(fluent), child: Row(
             crossAxisAlignment: .stretch, children: [
                 _rail(fluent),
                 Expanded(child: Padding(padding: EdgeInsets(left: 40, top: 32, right: 40, bottom: 32),
@@ -84,11 +84,14 @@ final class Backstage: StatelessWidget {
     // MARK: Rail
 
     private func _rail(_ fluent: FluentThemeData) -> Widget {
-        let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
-        let ink = fluent.resources.textOnAccentFillColorPrimary
+        let accent = OfficeAppearance.titleBar
+        let ink = OfficeAppearance.white
         var items: [Widget] = [
             Padding(padding: EdgeInsets(left: 8, top: 8, right: 8, bottom: 16), child: Row(children: [
-                IconButton(icon: Icon(FluentSystemIcons.back, size: 20, color: ink), onPressed: onClose),
+                FlatButton(child: Icon(FluentSystemIcons.back, size: 20, color: ink),
+                           tip: "Back to document", width: 36, height: 36, onAccent: true, action: onClose),
+                Chrome.gap(10),
+                Text("Writer", style: fluent.typography.bodyStrong?.copyWith(color: ink)),
             ])),
         ]
         for p in BackstagePage.allCases where p != .insertPicture {

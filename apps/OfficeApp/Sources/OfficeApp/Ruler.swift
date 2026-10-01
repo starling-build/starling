@@ -29,9 +29,9 @@ final class Ruler: StatelessWidget {
         return SizedBox(width: nil, height: 22, child: CustomPaint(
             painter: _RulerPainter(setup: setup, px: pixelsPerPoint * zoom, pad: sidePadding,
                                    indentLeft: indentLeft,
-                                   background: fluent.resources.layerFillColorDefault,
+                                   background: OfficeAppearance.canvas(fluent),
                                    paper: fluent.brightness == .dark ? Color(0xFF3A3A3A) : Color(0xFFFFFFFF),
-                                   margin: fluent.brightness == .dark ? Color(0xFF2A2A2A) : Color(0xFFDADADA),
+                                   margin: fluent.brightness == .dark ? Color(0xFF28364E) : Color(0xFFDBE3F0),
                                    ink: fluent.resources.textFillColorSecondary,
                                    accent: fluent.accentColor.defaultBrushFor(fluent.brightness)),
             child: SizedBox(expand: ())))

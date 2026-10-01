@@ -27,26 +27,41 @@ final class TitleRow: StatelessWidget {
         let fluent = FluentTheme.of(context)
         let s = session.summary
         let c = session.controller
+        let white = OfficeAppearance.white
         let name = session.title + (session.dirty ? " •" : "")
-        return DecoratedBox(
-            decoration: BoxDecoration(color: fluent.resources.solidBackgroundFillColorBase),
-            child: Padding(padding: EdgeInsets(left: 8, top: 4, right: 12, bottom: 2), child: Row(
+        let titleStyle = fluent.typography.bodyStrong?.copyWith(color: white)
+        let captionStyle = fluent.typography.caption?.copyWith(color: white)
+        func command(_ icon: IconData, _ tip: String, enabled: Bool = true,
+                     action: @escaping () -> Void) -> Widget {
+            FlatButton(child: Icon(icon, size: 17, color: white.withOpacity(enabled ? 1 : 0.4)),
+                       tip: tip, enabled: enabled, width: 32, height: 32,
+                       onAccent: true, action: action)
+        }
+        return ColoredBox(color: OfficeAppearance.titleBar,
+            child: Padding(padding: EdgeInsets(left: 16, top: 10, right: 16, bottom: 10), child: Row(
                 crossAxisAlignment: .center, children: [
-                    Chrome.textToggle("AutoSave", session.autoSave, fluent, style: fluent.typography.caption) { [session] in
-                        session.onToggleAutoSave?()
-                    },
-                    Chrome.gap(6),
-                    Chrome.icon(FluentSystemIcons.save, "Save (⌘S)", fluent) { [session] in session.onSave?() },
-                    Chrome.icon(FluentSystemIcons.undo, "Undo (⌘Z)", fluent, enabled: s.canUndo) { c.undo() },
-                    Chrome.icon(FluentSystemIcons.redo, "Redo (⇧⌘Z)", fluent, enabled: s.canRedo) { c.redo() },
-                    Expanded(child: Center(child: Text(name, style: fluent.typography.bodyStrong))),
-                    SizedBox(width: 260, height: 30, child: FluentTextBox(
+                    DecoratedBox(decoration: BoxDecoration(color: white,
+                        borderRadius: BorderRadius.all(Radius(circular: 6))),
+                        child: SizedBox(width: 30, height: 32, child: Center(child: Text("W",
+                            style: Flutter.TextStyle(color: OfficeAppearance.brand, fontSize: 20, fontWeight: .w600))))),
+                    Chrome.gap(10),
+                    Text("Writer", style: titleStyle),
+                    Chrome.gap(24),
+                    command(FluentSystemIcons.save, "Save (⌘S)") { [session] in session.onSave?() },
+                    command(FluentSystemIcons.undo, "Undo (⌘Z)", enabled: s.canUndo) { c.undo() },
+                    command(FluentSystemIcons.redo, "Redo (⇧⌘Z)", enabled: s.canRedo) { c.redo() },
+                    Expanded(child: Padding(padding: EdgeInsets(left: 16, top: 0, right: 16, bottom: 0),
+                        child: Center(child: Text(name, style: titleStyle, softWrap: false, overflow: .ellipsis)))),
+                    FlatButton(child: Padding(padding: EdgeInsets(left: 9, top: 0, right: 9, bottom: 0),
+                        child: Text(session.autoSave ? "AutoSave on" : "AutoSave off", style: captionStyle)),
+                        tip: "Toggle automatic recovery copies", checked: session.autoSave,
+                        width: nil, height: 30, onAccent: true,
+                        action: { [session] in session.onToggleAutoSave?() }),
+                    Chrome.gap(16),
+                    SizedBox(width: 230, height: 32, child: FluentTextBox(
                         controller: searchController,
-                        placeholderText: "Search (⌘F)",
+                        placeholderText: "Find in document (⌘F)",
                         onSubmitted: { [onSearch] q in onSearch(q) })),
-                    Chrome.gap(8),
-                    Chrome.icon(FluentSystemIcons.share, "Share", fluent, enabled: false) {},
-                    Chrome.icon(FluentSystemIcons.person, "Account", fluent, enabled: false) {},
                 ])))
     }
 }
@@ -64,8 +79,8 @@ final class StatusBar: StatelessWidget {
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
         let s = session.summary
-        let caption = fluent.typography.caption
-        let dim = caption?.copyWith(color: fluent.resources.textFillColorSecondary)
+        let caption = fluent.typography.caption?.copyWith(color: OfficeAppearance.ink(fluent))
+        let dim = caption?.copyWith(color: OfficeAppearance.secondary(fluent))
         var left: [Widget] = [
             Text("Page \(session.pageInfo.page) of \(session.pageInfo.count)", style: caption),
             Chrome.gap(20),
@@ -92,9 +107,9 @@ final class StatusBar: StatelessWidget {
         ]
         return DecoratedBox(
             decoration: BoxDecoration(
-                color: fluent.resources.solidBackgroundFillColorBase,
-                border: Border(top: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
-            child: Padding(padding: EdgeInsets(left: 12, top: 2, right: 8, bottom: 2), child: Row(
+                color: OfficeAppearance.surface(fluent),
+                border: Border(top: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
+            child: Padding(padding: EdgeInsets(left: 18, top: 5, right: 12, bottom: 5), child: Row(
                 crossAxisAlignment: .center,
                 children: left + [Expanded(child: SizedBox(width: 0, height: 0, child: nil))] + right)))
     }

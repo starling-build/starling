@@ -58,10 +58,11 @@ final class Ribbon: StatelessWidget {
                 width: nil, height: Chrome.ribbonHeight,
                 child: DecoratedBox(
                     decoration: BoxDecoration(
-                        color: fluent.resources.layerFillColorDefault,
-                        border: Border(bottom: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
-                    child: Row(crossAxisAlignment: .stretch, children: _groups(fluent) + [
-                        Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
+                        color: OfficeAppearance.surface(fluent),
+                        border: Border(bottom: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
+                    child: Row(crossAxisAlignment: .stretch, children: [
+                        Expanded(child: SingleChildScrollView(scrollDirection: .horizontal,
+                            child: Row(crossAxisAlignment: .stretch, children: _groups(fluent)))),
                         _collapseButton(fluent),
                     ]))))
         }
@@ -77,8 +78,10 @@ final class Ribbon: StatelessWidget {
             || (t == .tableLayout && session.summary.inCell) {
             items.append(_tab(t, fluent))
         }
-        return Padding(padding: EdgeInsets(left: 8, top: 2, right: 8, bottom: 0),
-                       child: Row(crossAxisAlignment: .end, children: items))
+        return ColoredBox(color: OfficeAppearance.surface(fluent),
+            child: SizedBox(width: nil, height: 44, child: SingleChildScrollView(scrollDirection: .horizontal,
+                child: Padding(padding: EdgeInsets(left: 12, top: 5, right: 12, bottom: 0),
+                    child: Row(crossAxisAlignment: .end, children: items)))))
     }
 
     /// File is a quiet pill in the chrome's own fill, bold like a selected
@@ -87,11 +90,12 @@ final class Ribbon: StatelessWidget {
         GestureDetector(
             onTap: { [session] in session.onBackstage?(true) },
             child: Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 4), child: DecoratedBox(
-                decoration: BoxDecoration(color: fluent.resources.subtleFillColorSecondary,
-                                          border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                decoration: BoxDecoration(color: fluent.accentColor.defaultBrushFor(fluent.brightness).withOpacity(0.08),
+                                          border: Border.all(color: OfficeAppearance.border(fluent), width: 1),
                                           borderRadius: BorderRadius.all(Radius(circular: 4))),
                 child: Padding(padding: EdgeInsets(left: 14, top: 5, right: 14, bottom: 5),
-                               child: Text("File", style: fluent.typography.bodyStrong)))))
+                               child: Text("File", style: fluent.typography.bodyStrong?.copyWith(
+                                   color: fluent.accentColor.defaultBrushFor(fluent.brightness)))))))
     }
 
     private func _tab(_ t: RibbonTab, _ fluent: FluentThemeData) -> Widget {
@@ -107,8 +111,8 @@ final class Ribbon: StatelessWidget {
                 mainAxisAlignment: .end, crossAxisAlignment: .center, children: [
                     Padding(padding: EdgeInsets(left: 10, top: 6, right: 10, bottom: 4),
                             child: Text(t.title, style: selected
-                                ? fluent.typography.bodyStrong
-                                : fluent.typography.body)),
+                                ? fluent.typography.bodyStrong?.copyWith(color: accent)
+                                : fluent.typography.body?.copyWith(color: OfficeAppearance.secondary(fluent)))),
                     SizedBox(width: 36, height: 3, child: DecoratedBox(decoration: BoxDecoration(
                         color: underline, borderRadius: BorderRadius.all(Radius(circular: 2))))),
                 ])))
@@ -275,7 +279,7 @@ final class Ribbon: StatelessWidget {
         }
         // The gallery sits in one bordered box, as Word's does.
         let gallery = DecoratedBox(
-            decoration: BoxDecoration(border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+            decoration: BoxDecoration(border: Border.all(color: OfficeAppearance.border(fluent), width: 1),
                                       borderRadius: BorderRadius.all(Radius(circular: 4))),
             child: Padding(padding: EdgeInsets(left: 2, top: 2, right: 2, bottom: 2),
                            child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: tiles)))
@@ -315,8 +319,8 @@ final class Ribbon: StatelessWidget {
     private func _preview(_ entry: RichNamedStyle, _ fluent: FluentThemeData, cap: Double,
                           onAccent: Bool = false) -> Flutter.TextStyle {
         let size = min(cap, (entry.char.fontSize ?? session.theme.fontSize) * 0.85)
-        let color = onAccent ? fluent.resources.textOnAccentFillColorPrimary
-            : entry.char.color ?? fluent.resources.textFillColorPrimary
+        let color = onAccent ? fluent.accentColor.defaultBrushFor(fluent.brightness)
+            : entry.char.color ?? OfficeAppearance.ink(fluent)
         return Flutter.TextStyle(color: color, fontSize: max(9, size),
                                  fontWeight: entry.char.bold ? .bold : .normal,
                                  fontStyle: entry.char.italic ? .italic : .normal,

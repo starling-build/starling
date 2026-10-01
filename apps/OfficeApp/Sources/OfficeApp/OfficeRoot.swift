@@ -38,8 +38,8 @@ private final class _OfficeRootState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let root = widget as! OfficeRoot
         return FluentApp(
-            theme: FluentThemeData.light(),
-            darkTheme: FluentThemeData.dark(),
+            theme: OfficeAppearance.theme(.light),
+            darkTheme: OfficeAppearance.theme(.dark),
             themeMode: _dark ? .dark : .light,
             home: OfficeShell(initialPath: root.initialPath),
             title: "Writer"

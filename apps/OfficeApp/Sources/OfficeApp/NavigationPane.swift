@@ -12,7 +12,7 @@ import FluentSystemIcons
 import Foundation
 
 final class NavigationPane: StatelessWidget {
-    static let width = 240.0
+    static let width = 252.0
 
     let session: OfficeSession
     let onClose: () -> Void
@@ -45,9 +45,9 @@ final class NavigationPane: StatelessWidget {
         // The heading the caret is under: the last one at or before it.
         let current = items.lastIndex { $0.index <= caret }
 
-        let header = Padding(padding: EdgeInsets(left: 12, top: 8, right: 4, bottom: 4), child: Row(
+        let header = Padding(padding: EdgeInsets(left: 18, top: 16, right: 8, bottom: 14), child: Row(
             crossAxisAlignment: .center, children: [
-                Expanded(child: Text("Navigation", style: fluent.typography.bodyStrong)),
+                Expanded(child: Text("Document outline", style: fluent.typography.bodyStrong)),
                 Chrome.icon(FluentSystemIcons.close, "Close", fluent, action: onClose),
             ]))
 
@@ -76,8 +76,8 @@ final class NavigationPane: StatelessWidget {
 
         return SizedBox(width: Self.width, height: nil, child: DecoratedBox(
             decoration: BoxDecoration(
-                color: fluent.resources.layerFillColorDefault,
-                border: Border(right: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
+                color: OfficeAppearance.surface(fluent),
+                border: Border(right: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
             child: Column(crossAxisAlignment: .stretch, children: [header, Expanded(child: body)])))
     }
 }

@@ -46,11 +46,12 @@ final class FlatButton: StatefulWidget {
     let width: Double?
     let height: Double
     let alignLeft: Bool
+    let onAccent: Bool
     let action: (() -> Void)?
     let menu: [MenuFlyoutItemBase]?
 
     init(child: Widget, tip: String? = nil, checked: Bool = false, enabled: Bool = true,
-         width: Double? = 28, height: Double = 28, alignLeft: Bool = false,
+         width: Double? = 28, height: Double = 28, alignLeft: Bool = false, onAccent: Bool = false,
          action: (() -> Void)? = nil, menu: [MenuFlyoutItemBase]? = nil) {
         self.child = child
         self.tip = tip
@@ -59,6 +60,7 @@ final class FlatButton: StatefulWidget {
         self.width = width
         self.height = height
         self.alignLeft = alignLeft
+        self.onAccent = onAccent
         self.action = action
         self.menu = menu
         super.init(key: nil)
@@ -78,8 +80,9 @@ private final class _FlatButtonState: State<StatefulWidget> {
         var fill: Color? = nil
         var stroke: Color? = nil
         if w.enabled {
-            if w.checked { fill = accent.withOpacity(_hover ? 0.28 : 0.18); stroke = accent.withOpacity(0.35) }
-            else if _hover { fill = fluent.resources.subtleFillColorSecondary }
+            let tint = w.onAccent ? OfficeAppearance.white : accent
+            if w.checked { fill = tint.withOpacity(_hover ? 0.24 : 0.13); stroke = tint.withOpacity(0.35) }
+            else if _hover { fill = tint.withOpacity(w.onAccent ? 0.18 : 0.08) }
         }
         let inner: Widget = w.alignLeft
             ? Padding(padding: EdgeInsets(left: 6, top: 0, right: 8, bottom: 0), child: Align(alignment: Alignment.centerLeft, child: w.child))
@@ -87,7 +90,7 @@ private final class _FlatButtonState: State<StatefulWidget> {
         var box: Widget = DecoratedBox(
             decoration: BoxDecoration(color: fill ?? Color(0x00000000),
                                       border: stroke.map { Border.all(color: $0, width: 1) },
-                                      borderRadius: BorderRadius.all(Radius(circular: 3))),
+                                      borderRadius: BorderRadius.all(Radius(circular: 5))),
             child: SizedBox(width: w.width, height: w.height, child: inner))
         let items = w.menu
         box = GestureDetector(
@@ -110,7 +113,7 @@ private final class _FlatButtonState: State<StatefulWidget> {
 }
 
 enum Chrome {
-    static let ribbonHeight = 96.0
+    static let ribbonHeight = 104.0
     static let iconSize = 16.0
     static let bigIconSize = 28.0
     static let rowHeight = 28.0
@@ -125,11 +128,11 @@ enum Chrome {
             children: [
                 Row(crossAxisAlignment: .start, children: content),
                 Text(label, style: fluent.typography.caption?.copyWith(
-                    color: fluent.resources.textFillColorSecondary)),
+                    color: OfficeAppearance.secondary(fluent))),
             ]
         )
         return Row(crossAxisAlignment: .stretch, children: [
-            Padding(padding: EdgeInsets(left: 6, top: 4, right: 6, bottom: 2), child: body),
+            Padding(padding: EdgeInsets(left: 10, top: 6, right: 10, bottom: 5), child: body),
             Padding(padding: EdgeInsets(left: 0, top: 10, right: 0, bottom: 10),
                     child: Divider(direction: .vertical)),
         ])
@@ -178,7 +181,9 @@ enum Chrome {
     /// Icon toggle: tinted while on.
     static func toggle(_ icon: IconData, _ tip: String, _ on: Bool, _ fluent: FluentThemeData,
                        action: @escaping () -> Void) -> Widget {
-        FlatButton(child: Icon(icon, size: iconSize, color: fluent.resources.textFillColorPrimary),
+        FlatButton(child: Icon(icon, size: iconSize, color: on
+                              ? fluent.accentColor.defaultBrushFor(fluent.brightness)
+                              : OfficeAppearance.ink(fluent)),
                    tip: tip, checked: on, action: action)
     }
 
