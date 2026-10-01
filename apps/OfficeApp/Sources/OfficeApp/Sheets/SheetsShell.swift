@@ -620,6 +620,19 @@ final class SheetsShellState: State<StatefulWidget> {
             items.append(MenuFlyoutItem(text: Text(text), onPressed: enabled ? action : nil))
         }
         func sep() { if !(items.last is MenuFlyoutSeparator), !items.isEmpty { items.append(MenuFlyoutSeparator()) } }
+        // A picture or chart: delete it, or change what kind of chart it is.
+        if case .drawing(let i) = area {
+            item("Delete") { c.deleteDrawing(i) }
+            if c.sheet.drawings.indices.contains(i), case .chart(let sc) = c.sheet.drawings[i].kind {
+                sep()
+                for t in ChartType.allCases where t != sc.chart.type {
+                    item("Change to \(t.name) Chart") { c.setChartType(i, t) }
+                }
+            }
+            guard let context else { return }
+            _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+            return
+        }
         item("Cut") { grid.copySelection(cut: true) }
         item("Copy") { grid.copySelection() }
         item("Paste") { grid.paste() }
@@ -639,6 +652,7 @@ final class SheetsShellState: State<StatefulWidget> {
             item("Insert Columns Left") { c.insertAtSelection(.cols) }
             item("Delete Rows") { c.deleteAtSelection(.rows) }
             item("Delete Columns") { c.deleteAtSelection(.cols) }
+        case .drawing: break
         }
         item("Clear Contents") { c.clearContents() }
         item("Clear Formats") { c.setStyle { $0 = .plain } }
@@ -654,6 +668,7 @@ final class SheetsShellState: State<StatefulWidget> {
             }
             item("Sort A to Z") { c.sortSelection(ascending: true) }
             item("Sort Z to A") { c.sortSelection(ascending: false) }
+        case .drawing: break
         }
         guard let context else { return }
         _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }

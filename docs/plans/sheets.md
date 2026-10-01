@@ -220,7 +220,26 @@ Letter pages. Not yet: print areas and titles (`_xlnm.Print_Area`,
 `Print_Titles`), headers and footers, manual page breaks, Page Layout
 view.
 
-X4 is done but for those. A stale
+X4 is done but for those.
+
+**Charts made here (2026-10-01)**: Insert → Charts (column, bar, line,
+pie, area, scatter) charts the selection or the table around the active
+cell, Excel's way — a text top row names the series, a text first column
+gives the categories, series run down the longer side, 5 × 3 in beside
+the data. With a chart selected the same buttons change its kind. A
+click selects a picture or chart (frame and eight handles); drag moves,
+a handle resizes, Delete removes, Escape returns to the cells, right
+click offers Delete and the other chart kinds; every change is one undo
+step. Saving regenerates only an edited sheet's drawing part: anchors
+that did not move (and shapes, groups, `mc:AlternateContent` — never
+modelled) go back byte for byte with the part's own relationships, a
+moved one gets a new `twoCellAnchor`, a new or retyped chart a new
+`xl/charts/chartN.xml` (Slides' writer with the real `Sheet!$B$2:$B$5`
+references, no embedded workbook, Excel's text sizes and white chart
+area), plus content types and the sheet's `<drawing>`/rels when the
+sheet had none; deleting the last drawing drops the part. Seen: insert,
+move, ⌘S and reopen of the fixture. Not checked in Excel itself (none
+here) — the parts follow what Excel writes, and every part parses. A stale
 `_xlnm._FilterDatabase` name in a file is kept as written (Excel
 rebuilds it).
 

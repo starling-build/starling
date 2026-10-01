@@ -87,7 +87,7 @@ struct CellEdit {
 }
 
 /// Where a right click landed: the menu differs for headers.
-enum GridMenuArea { case cells, columns, rows }
+enum GridMenuArea: Equatable { case cells, columns, rows, drawing(Int) }
 
 final class SheetGrid: StatefulWidget {
     let controller: WorkbookController
@@ -152,6 +152,10 @@ final class SheetGridState: State<StatefulWidget> {
         /// Pointing at cells for a formula being typed: where the
         /// reference text starts in the editor, and the anchor cell.
         case point(textStart: Int, anchor: CellAddress)
+        /// Moving (handle nil) or resizing a picture or chart: its frame in
+        /// points and its anchor when the drag began, and where it began.
+        case drawing(index: Int, handle: Int?, frame: (x: Double, y: Double, width: Double, height: Double),
+                     anchor: SheetAnchor, start: Offset)
     }
     /// The fill handle's outline while it is dragged.
     private(set) var fillTarget: CellRange? = nil
@@ -270,6 +274,48 @@ final class SheetGridState: State<StatefulWidget> {
         return Rect.fromLTRB(a.left, a.top, b.right, b.bottom)
     }
 
+    /// The picture or chart under a local point, topmost first, and which
+    /// of the selected one's handles (0 top-left, clockwise to 7 left) it is on.
+    private func _drawingHit(_ p: Offset) -> (index: Int, handle: Int?)? {
+        guard p.dx >= headerWidth, p.dy >= headerHeight else { return nil }
+        let ws = controller.sheet
+        if let sel = controller.selectedDrawing, ws.drawings.indices.contains(sel) {
+            for (h, q) in _handles(drawingRect(ws.drawings[sel].anchor)).enumerated() where (q - p).distance <= 6 {
+                return (sel, h)
+            }
+        }
+        for i in ws.drawings.indices.reversed() where ws.drawings[i].kind != .other {
+            if drawingRect(ws.drawings[i].anchor).contains(p) { return (i, nil) }
+        }
+        return nil
+    }
+
+    private func _handles(_ r: Rect) -> [Offset] {
+        let cx = r.center.dx, cy = r.center.dy
+        return [Offset(r.left, r.top), Offset(cx, r.top), Offset(r.right, r.top), Offset(r.right, cy),
+                Offset(r.right, r.bottom), Offset(cx, r.bottom), Offset(r.left, r.bottom), Offset(r.left, cy)]
+    }
+
+    /// The selected drawing's frame and handles.
+    private func _paintDrawingSelection(_ canvas: any Canvas, accent: Color) {
+        let ws = controller.sheet
+        guard !printing, let i = controller.selectedDrawing, ws.drawings.indices.contains(i) else { return }
+        let r = drawingRect(ws.drawings[i].anchor)
+        let p = Paint()
+        p.style = .stroke
+        p.strokeWidth = 1
+        p.color = accent
+        canvas.drawRect(r, p)
+        for q in _handles(r) {
+            p.style = .fill
+            p.color = Color(0xFFFFFFFF)
+            canvas.drawCircle(q, 4, p)
+            p.style = .stroke
+            p.color = accent
+            canvas.drawCircle(q, 4, p)
+        }
+    }
+
     /// Where a drawing's anchor puts it on screen.
     func drawingRect(_ anchor: SheetAnchor) -> Rect {
         func at(_ m: SheetMarker) -> Offset { Offset(colX(m.col) + m.colOff * scale, rowY(m.row) + m.rowOff * scale) }
@@ -288,6 +334,7 @@ final class SheetGridState: State<StatefulWidget> {
     func _paintDrawing(_ canvas: any Canvas, _ d: SheetDrawing, chart: Chart?, in r: Rect, theme: DeckTheme) {
         guard r.width > 1, r.height > 1 else { return }
         switch d.kind {
+        case .other: return
         case .picture(let path, let data):
             if let image = _image(path, data) {
                 canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), r, Paint())
@@ -541,6 +588,16 @@ final class SheetGridState: State<StatefulWidget> {
             }
         }
 
+        // A picture or chart selected: Delete removes it, Escape goes back to
+        // the cells, and typing does nothing (as Excel).
+        if let d = c.selectedDrawing {
+            switch named {
+            case .delete, .backspace: c.deleteDrawing(d); return true
+            case .escape: c.select(c.active); return true
+            case .left, .right, .up, .down: c.select(c.active)
+            default: if _chords.typedText(k) != nil { return true }
+            }
+        }
         switch named {
         case .left, .right, .up, .down: _move(named); return true
         case .enter:
@@ -723,6 +780,16 @@ final class SheetGridState: State<StatefulWidget> {
             c.select(range: CellRange(top: 0, left: 0, bottom: CellAddress.maxRows - 1, right: CellAddress.maxCols - 1), active: c.active)
             return
         }
+        // Pictures and charts sit over the cells: they take the press first.
+        if let hit = _drawingHit(p) {
+            commitEdit()
+            c.selectedDrawing = hit.index
+            c._notify(selectionOnly: true)
+            let ws = c.sheet
+            _drag = .drawing(index: hit.index, handle: hit.handle, frame: ws.frame(ws.drawings[hit.index].anchor),
+                             anchor: ws.drawings[hit.index].anchor, start: p)
+            return
+        }
         let a = cell(atLocal: p)
         // A filter's dropdown on its header row.
         if let af = c.sheet.autoFilter, a.row == af.range.top, a.col >= af.range.left, a.col <= af.range.right,
@@ -811,6 +878,12 @@ final class SheetGridState: State<StatefulWidget> {
             return
         }
         guard p.dx >= headerWidth && p.dy >= headerHeight else { return }
+        if let hit = _drawingHit(p) {
+            c.selectedDrawing = hit.index
+            c._notify(selectionOnly: true)
+            _w.onContextMenu(e.position, .drawing(hit.index))
+            return
+        }
         let a = cell(atLocal: p)
         if !sel.contains(a) { c.select(a) }
         _w.onContextMenu(e.position, wholeCols && sel.contains(a) ? .columns : wholeRows && sel.contains(a) ? .rows : .cells)
@@ -889,6 +962,25 @@ final class SheetGridState: State<StatefulWidget> {
             let row = self.row(atLocal: p.dy)
             c.select(range: CellRange(top: anchor, left: 0, bottom: row, right: CellAddress.maxCols - 1),
                      active: c.active)
+        case .drawing(let index, let handle, let f, _, let start):
+            let dx = (p.dx - start.dx) / scale, dy = (p.dy - start.dy) / scale
+            var x = f.x, y = f.y, r = f.x + f.width, b = f.y + f.height
+            if let h = handle {
+                if [0, 6, 7].contains(h) { x = min(r - 8, x + dx) }
+                if [2, 3, 4].contains(h) { r = max(x + 8, r + dx) }
+                if [0, 1, 2].contains(h) { y = min(b - 8, y + dy) }
+                if [4, 5, 6].contains(h) { b = max(y + 8, b + dy) }
+            } else {
+                x += dx; y += dy; r += dx; b += dy
+                if x < 0 { r -= x; x = 0 }
+                if y < 0 { b -= y; y = 0 }
+            }
+            let ws = c.sheet
+            if ws.drawings.indices.contains(index) {
+                // Live, without an undo step per pixel: committed on release.
+                ws.drawings[index].anchor = ws.anchor(x: x, y: y, width: r - x, height: b - y)
+                _repaint.notifyListeners()
+            }
         case .resizeColumn(let col, let startX, let startWidth):
             let w = max(0, startWidth + p.dx - startX)
             // Live, without an undo step per pixel: the model is set on release.
@@ -936,6 +1028,13 @@ final class SheetGridState: State<StatefulWidget> {
 
     private func _up(_ e: PointerEvent) {
         _move(e)
+        if case .drawing(let index, _, _, let old, _)? = _drag {
+            let ws = controller.sheet
+            if ws.drawings.indices.contains(index) {
+                let f = ws.frame(ws.drawings[index].anchor)
+                controller.setDrawingFrame(index, x: f.x, y: f.y, width: f.width, height: f.height, from: old)
+            }
+        }
         if case .fill(let target)? = _drag {
             fillTarget = nil
             if target != controller.selection { controller.fillSeries(to: target) }
@@ -1048,24 +1147,6 @@ final class SheetGridState: State<StatefulWidget> {
             _paintRegion(canvas, rows: rs, cols: cs, clip: clip, ws: ws, book: book, merges: merges, covered: covered, colors: colors)
             canvas.restore()
         }
-        // Pictures and charts float over the cells, pane by pane.
-        if !ws.drawings.isEmpty {
-            let charts = ws.drawings.map { d -> Chart? in
-                if case .chart(let sc) = d.kind { return controller.liveChart(sc) }
-                return nil
-            }
-            for (rs, cs, clip) in regions where !rs.isEmpty && !cs.isEmpty && clip.width > 0 && clip.height > 0 {
-                canvas.save()
-                canvas.clipRect(clip)
-                for (i, d) in ws.drawings.enumerated() {
-                    let r = drawingRect(d.anchor)
-                    guard r.overlaps(clip) else { continue }
-                    _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
-                }
-                canvas.restore()
-            }
-        }
-
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(hw, hh, size.width, size.height))
         // Selection.
@@ -1106,6 +1187,25 @@ final class SheetGridState: State<StatefulWidget> {
             let r = rect(t)
             canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), outline)
         }
+        // Pictures and charts float over the cells and their selection, pane by pane.
+        if !ws.drawings.isEmpty {
+            let charts = ws.drawings.map { d -> Chart? in
+                if case .chart(let sc) = d.kind { return controller.liveChart(sc) }
+                return nil
+            }
+            for (rs, cs, clip) in regions where !rs.isEmpty && !cs.isEmpty && clip.width > 0 && clip.height > 0 {
+                canvas.save()
+                canvas.clipRect(clip)
+                for (i, d) in ws.drawings.enumerated() {
+                    let r = drawingRect(d.anchor)
+                    guard r.overlaps(clip) else { continue }
+                    _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
+                }
+                canvas.restore()
+            }
+        }
+
+        _paintDrawingSelection(canvas, accent: accent)
         // The freeze lines.
         let freeze = Paint()
         freeze.style = .stroke

@@ -26,7 +26,7 @@ extension Ribbon {
         guard let wb = session.workbook else { return nil }
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
-        case .insert: return [_functionsGroup(wb, fluent)]
+        case .insert: return [_chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
@@ -242,6 +242,24 @@ extension Ribbon {
                             fns.map { f in (f, { wb.onCommand?(.startFormula("=" + f + "(")) }) })
             }),
         ])])
+    }
+
+    /// Insert → Charts: a chart of the selection; with a chart selected,
+    /// that chart becomes the kind clicked (as Excel's buttons do).
+    private func _chartsGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        func button(_ t: ChartType) -> Widget {
+            Chrome.small(t.icon, t.name, fluent) {
+                if let i = wb.selectedDrawing, wb.sheet.drawings.indices.contains(i), wb.sheet.drawings[i].isChart {
+                    wb.setChartType(i, t)
+                } else {
+                    wb.insertChart(t)
+                }
+            }
+        }
+        return Chrome.group("Charts", fluent, [
+            Chrome.rows([button(.column), button(.bar), button(.line)]),
+            Chrome.rows([button(.pie), button(.area), button(.scatter)]),
+        ])
     }
 
     private func _sortGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {

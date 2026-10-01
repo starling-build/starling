@@ -21,6 +21,7 @@ final class WorkbookController: ChangeNotifier {
     var activeSheet = 0 {
         didSet {
             guard activeSheet != oldValue else { return }
+            selectedDrawing = nil
             // Each sheet keeps its own selection, as Excel's do; a new one starts at A1.
             if oldValue < book.sheets.count {
                 _selections[ObjectIdentifier(book.sheets[oldValue])] = (selection, active)
@@ -81,6 +82,7 @@ final class WorkbookController: ChangeNotifier {
 
     func select(_ a: CellAddress, extend: Bool = false) {
         _tabStart = nil
+        selectedDrawing = nil
         let a = _clamp(a)
         if extend {
             selection = _withMerges(CellRange(anchor, a))
@@ -148,6 +150,7 @@ final class WorkbookController: ChangeNotifier {
     /// a name box entry).
     func select(range: CellRange, active a: CellAddress? = nil) {
         _tabStart = nil
+        selectedDrawing = nil
         selection = range
         active = a ?? range.topLeft
         anchor = active
@@ -160,6 +163,9 @@ final class WorkbookController: ChangeNotifier {
     /// Where a run of Tabs began: Enter then goes to the next row in that
     /// column, as typing a table row by row in Excel does.
     private var _tabStart: Int? = nil
+    /// The picture or chart selected (an index into the sheet's drawings),
+    /// instead of cells. Any cell selection clears it.
+    var selectedDrawing: Int? = nil
 
     /// Move within a selection with Enter/Tab (Excel keeps a multi-cell
     /// selection and walks the active cell through it).
@@ -601,7 +607,7 @@ final class WorkbookController: ChangeNotifier {
         _notify()
     }
 
-    private func _notify(selectionOnly: Bool = false) {
+    func _notify(selectionOnly: Bool = false) {
         revision += 1
         notifyListeners()
     }

@@ -64,7 +64,9 @@ enum Xlsx {
         if themeRoot != nil { book.chartTheme = DeckTheme(xlsxTheme: themeRoot) }
         let colors = ColorContext(theme: PptxTheme(themeRoot))
         for ws in book.sheets {
-            if let path = ws.origin { ws.drawings = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors) }
+            if let path = ws.origin {
+                (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors)
+            }
         }
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
         book.activeTab = min(max(0, activeTab), book.sheets.count - 1)
@@ -431,9 +433,20 @@ enum Xlsx {
             sst.append(s); sstIndex[s] = sst.count - 1
             return sst.count - 1
         }
+        // Drawings changed here: their parts first, since a new one adds a
+        // <drawing> element to its sheet.
+        var taken = Set(originalParts.keys).union(paths)
+        var drawingParts: [DrawingParts] = []
+        let calc = book.sheets.contains(where: \.drawingsEdited) ? CalcEngine(book) : nil
+        for (i, ws) in book.sheets.enumerated() {
+            drawingParts.append(SheetDrawingsXML.write(ws, sheetPath: paths[i], live: { sc in
+                calc.map { sc.live(book: book, engine: $0) } ?? sc.chart
+            }, original: originalParts, taken: &taken))
+        }
         var sheetXML: [String] = []
         for (i, ws) in book.sheets.enumerated() {
-            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab, stringIndex: stringIndex))
+            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab, drawing: drawingParts[i].element,
+                                      stringIndex: stringIndex))
         }
 
         // The workbook part and its relationships.
@@ -468,14 +481,23 @@ enum Xlsx {
         for (i, p) in paths.enumerated() { generated[p] = Data(sheetXML[i].utf8) }
         generated[stylesPath] = Data(_stylesXML(book).utf8)
         generated[sstPath] = Data(_sstXML(sst).utf8)
+        var extraTypes: [(String, String)] = []
+        var droppedDrawings = Set<String>()
+        for d in drawingParts {
+            generated.merge(d.parts) { $1 }
+            extraTypes += d.overrides
+            droppedDrawings.formUnion(d.dropped)
+        }
 
         // Content types: the original's, with the parts we added and without
         // the ones we dropped.
         var dropped = removed
         for p in removed { dropped.insert(_relsPath(p)) }
         dropped.formUnion(originalParts.keys.filter { $0.hasSuffix("calcChain.xml") })
+        dropped.formUnion(droppedDrawings)
         generated["[Content_Types].xml"] = Data(_contentTypes(originalParts["[Content_Types].xml"],
-                                                              sheets: paths, styles: stylesPath, sst: sstPath, dropped: dropped).utf8)
+                                                              sheets: paths, styles: stylesPath, sst: sstPath, dropped: dropped,
+                                                              extra: extraTypes).utf8)
         if originalParts["_rels/.rels"] == nil { generated["_rels/.rels"] = Data(_rootRels.utf8) }
 
         // Everything: the original parts in their order (replaced where
@@ -503,7 +525,7 @@ enum Xlsx {
         return (dir.isEmpty ? "" : dir + "/") + "_rels/" + part.lastPathComponent + ".rels"
     }
 
-    private static func _relList(_ data: Data?) -> [(id: String, type: String, target: String)] {
+    static func _relList(_ data: Data?) -> [(id: String, type: String, target: String)] {
         guard let data, let root = XNode.parse(data) else { return [] }
         return root.kids("Relationship").compactMap { r in
             guard let id = r["Id"], let type = r["Type"], let target = r["Target"] else { return nil }
@@ -511,13 +533,13 @@ enum Xlsx {
         }
     }
 
-    private static func _freshId(_ rels: [(id: String, type: String, target: String)]) -> String {
+    static func _freshId(_ rels: [(id: String, type: String, target: String)]) -> String {
         var n = rels.count + 1
         while rels.contains(where: { $0.id == "rId\(n)" }) { n += 1 }
         return "rId\(n)"
     }
 
-    private static func _relsXML(_ rels: [(id: String, type: String, target: String)]) -> String {
+    static func _relsXML(_ rels: [(id: String, type: String, target: String)]) -> String {
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
         for r in rels { s += "<Relationship Id=\"\(_esc(r.id))\" Type=\"\(_esc(r.type))\" Target=\"\(_esc(r.target))\"/>" }
         return s + "</Relationships>"
@@ -528,7 +550,8 @@ enum Xlsx {
     <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>
     """
 
-    private static func _contentTypes(_ original: Data?, sheets: [String], styles: String, sst: String, dropped: Set<String>) -> String {
+    private static func _contentTypes(_ original: Data?, sheets: [String], styles: String, sst: String, dropped: Set<String>,
+                                      extra: [(String, String)] = []) -> String {
         var defaults: [(String, String)] = [("rels", "application/vnd.openxmlformats-package.relationships+xml"), ("xml", "application/xml")]
         var overrides: [(String, String)] = []
         if let original, let root = XNode.parse(original) {
@@ -543,6 +566,7 @@ enum Xlsx {
         for p in sheets { ensure(p, "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml") }
         ensure(styles, "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml")
         ensure(sst, "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml")
+        for (p, t) in extra { ensure(String(p.dropFirst()), t) }
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
         for (e, t) in defaults { s += "<Default Extension=\"\(_esc(e))\" ContentType=\"\(_esc(t))\"/>" }
         for (p, t) in overrides { s += "<Override PartName=\"\(_esc(p))\" ContentType=\"\(_esc(t))\"/>" }
@@ -620,8 +644,10 @@ enum Xlsx {
         "webPublishItems", "tableParts", "extLst",
     ]
 
-    private static func _sheetXML(_ ws: Worksheet, book: Workbook, selected: Bool, stringIndex: (String) -> Int) -> String {
+    private static func _sheetXML(_ ws: Worksheet, book: Workbook, selected: Bool, drawing: String? = nil,
+                                  stringIndex: (String) -> Int) -> String {
         var generated: [String: String] = [:]
+        if let drawing { generated["drawing"] = drawing }
         let used = ws.usedExtent
         generated["dimension"] = "<dimension ref=\"\(ws.cells.isEmpty ? "A1" : CellRange(CellAddress(row: 0, col: 0), used).a1)\"/>"
         // Views: the selection, frozen panes, gridlines.

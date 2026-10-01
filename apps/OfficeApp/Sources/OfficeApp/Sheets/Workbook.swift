@@ -128,6 +128,13 @@ final class Worksheet {
     var autoFilter: AutoFilter? = nil
     /// Pictures and charts, for display (the file's parts are kept as is).
     var drawings: [SheetDrawing] = []
+    /// The drawing part the file kept them in, and its root tag (with the
+    /// namespaces kept anchors use).
+    var drawingPart: String? = nil
+    var drawingRoot: String? = nil
+    /// The drawings were added to, moved or deleted here: the part is
+    /// written from the model on save (unchanged ones verbatim).
+    var drawingsEdited = false
     /// Rows the filter hides (kept apart from rowHeights, so each keeps its height).
     var filteredRows: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
     /// Bumped by anything that moves rows or columns on screen, so the grid
@@ -155,6 +162,9 @@ final class Worksheet {
         s.defaultRowHeightPt = defaultRowHeightPt
         s.autoFilter = autoFilter
         s.drawings = drawings
+        s.drawingPart = drawingPart
+        s.drawingRoot = drawingRoot
+        s.drawingsEdited = drawingsEdited
         s.filteredRows = filteredRows
         return s
     }
