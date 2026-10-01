@@ -114,5 +114,21 @@ modeled on the desktop's `FileExplorerBloc`) use one value-type `State` struct,
 one `Event` enum, and an `@Observable` bloc whose `add(_:)` is the only way the
 UI mutates anything. Widgets read `bloc.state`, dispatch events, and rebuild
 through `withObservationTracking` — not controllers, callbacks, or
-`ValueNotifier` subscriptions (`ChangeNotifier.removeListener` is a documented
-best-effort stub; avoid patterns that depend on it).
+`ValueNotifier` subscriptions.
+
+## Listeners have no identity; register them under an owner
+
+Swift closures cannot be compared, so `removeListener(closure)` cannot find
+"the one that was added": it removes the most recently added *unkeyed*
+listener, which is right only while the notifier has one. Anything that
+subscribes to a notifier it may share — a render object on an animation, a
+scroll position, a painter's repaint listenable — registers with
+`addListener(_:owner: self)` and unsubscribes with `removeListeners(owner:
+self)`; the store (`ListenerList`) removes exactly those. Every framework
+`Listenable` implements both; a forwarder that forgets to forward the keyed
+pair leaks its listeners rather than removing someone else's.
+
+`RenderObject.attach`/`detach` recurse (since 2026-09), so the attach-gated
+subscription that upstream uses is the mechanism here too: subscribe in
+`attach`, unsubscribe in `detach`, swap in the setter only `if attached`.
+Do not subscribe at init "because attach never runs" — it does now.

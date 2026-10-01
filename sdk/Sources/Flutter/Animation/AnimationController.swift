@@ -917,7 +917,7 @@ public class AnimationController: Animation<Double> {
     private func didUnregisterListener() {}
 
     // AnimationLocalListenersMixin behavior
-    private var _listeners: [VoidCallback] = []
+    private var _listeners = ListenerList()
 
     /// Calls the listener every time the value of the animation changes.
     ///
@@ -931,8 +931,18 @@ public class AnimationController: Animation<Double> {
     ///
     /// **Dart Source:** (via `AnimationLocalListenersMixin`) `listener_helpers.dart:120-125`
     public override func removeListener(_ listener: @escaping VoidCallback) {
-        if !_listeners.isEmpty {
-            _listeners.removeLast()
+        if _listeners.removeLast() {
+            didUnregisterListener()
+        }
+    }
+
+    public override func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        didRegisterListener()
+        _listeners.append(listener, owner: owner)
+    }
+
+    public override func removeListeners(owner: AnyObject) {
+        for _ in 0..<_listeners.remove(owner: owner) {
             didUnregisterListener()
         }
     }

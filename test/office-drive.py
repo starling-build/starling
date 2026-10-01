@@ -235,13 +235,13 @@ def run(d, only):
     if step("chrome"):
         d.click(159, 90); d.shot("insert-tab", "Insert tab with Table menu, Pictures, Link enabled")
         d.click(97, 90); d.shot("home-tab", "Home tab; Change Case is a menu, Show/Hide ¶ a toggle")
-        d.click(826, 126); d.shot("marks-on", "Formatting marks: a pilcrow at every paragraph end")
-        d.click(826, 126)
-        d.click(1215, 123); d.shot("styles-menu", "The all-styles menu with Update … to Match Selection at the bottom")
+        d.click(694, 122); d.shot("marks-on", "Formatting marks: a pilcrow at every paragraph end")
+        d.click(694, 122)
+        d.click(1030, 137); d.shot("styles-menu", "The all-styles menu with Update … to Match Selection at the bottom")
         d.click(720, 650)   # a click outside closes a flyout (Esc does not)
-        d.click(514, 90); d.shot("view-tab", "View tab: Navigation Pane toggle")
-        d.click(423, 126); d.shot("nav-pane", "Navigation pane with the welcome headings")
-        d.click(423, 126)
+        d.click(345, 90); d.shot("view-tab", "View tab: Navigation Pane toggle")
+        d.click(353, 123); d.shot("nav-pane", "Navigation pane with the welcome headings")
+        d.click(353, 123)
 
     d.shot("final", "Still running, no crash dialog")
     with open(os.path.join(d.out, "index.md"), "w") as f:

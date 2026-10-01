@@ -879,29 +879,15 @@ public class RenderTable: RenderBox {
     /// Called when the object is attached to a pipeline owner.
     ///
     /// **Dart Source:** `table.dart:920-925`
-    public override func attach(_ owner: PipelineOwner) {
-        super.attach(owner)
-        for child in _children {
-            child?.attach(owner)
-        }
-    }
-
-    /// Called when the object is detached from its pipeline owner.
-    ///
-    /// **Dart Source:** `table.dart:928-939`
-    public override func detach() {
-        super.detach()
-        for child in _children {
-            child?.detach()
-        }
-    }
+    // attach/detach: `RenderObject` recurses through `visitChildren`, which
+    // covers every cell (`table.dart:920-939` do the same walk by hand).
 
     // MARK: - Visit Children
 
     /// Visits each non-nil child.
     ///
     /// **Dart Source:** `table.dart:942-949`
-    public func visitChildren(_ visitor: RenderObjectVisitor) {
+    public override func visitChildren(_ visitor: RenderObjectVisitor) {
         assert(_children.count == _rows * _columns)
         for child in _children {
             if let child = child {

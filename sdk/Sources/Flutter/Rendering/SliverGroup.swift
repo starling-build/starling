@@ -63,6 +63,15 @@ open class RenderSliverCrossAxisGroup: RenderSliver {
         return parentData.nextSibling
     }
 
+    /// **Dart Source:** `ContainerRenderObjectMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        var child = firstChild
+        while let current = child {
+            visitor(current)
+            child = childAfter(current)
+        }
+    }
+
     /// Returns the previous sibling of the given child.
     ///
     /// **Dart Source:** object.dart:4399 (ContainerRenderObjectMixin)
@@ -416,6 +425,15 @@ open class RenderSliverMainAxisGroup: RenderSliver {
     public func childAfter(_ child: RenderSliver) -> RenderSliver? {
         let parentData = child.parentData as! SliverPhysicalContainerParentData
         return parentData.nextSibling
+    }
+
+    /// **Dart Source:** `ContainerRenderObjectMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        var child = firstChild
+        while let current = child {
+            visitor(current)
+            child = childAfter(current)
+        }
     }
 
     /// Returns the previous sibling of the given child.

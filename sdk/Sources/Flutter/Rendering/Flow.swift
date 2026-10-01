@@ -690,8 +690,8 @@ public class RenderFlow: RenderBox, RenderBoxContainerDefaults, FlowPaintingCont
             }
 
             if attached {
-                oldDelegate.repaint?.removeListener(_markNeedsPaintCallback)
-                newValue.repaint?.addListener(_markNeedsPaintCallback)
+                oldDelegate.repaint?.removeListeners(owner: self)
+                newValue.repaint?.addListener(_markNeedsPaintCallback, owner: self)
             }
         }
     }
@@ -734,7 +734,7 @@ public class RenderFlow: RenderBox, RenderBoxContainerDefaults, FlowPaintingCont
     /// **Dart Source:** flow.dart:249-253
     public override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _delegate.repaint?.addListener(_markNeedsPaintCallback)
+        _delegate.repaint?.addListener(_markNeedsPaintCallback, owner: self)
     }
 
     /// Detaches this render object from its pipeline owner.
@@ -743,7 +743,7 @@ public class RenderFlow: RenderBox, RenderBoxContainerDefaults, FlowPaintingCont
     ///
     /// **Dart Source:** flow.dart:255-259
     public override func detach() {
-        _delegate.repaint?.removeListener(_markNeedsPaintCallback)
+        _delegate.repaint?.removeListeners(owner: self)
         super.detach()
     }
 

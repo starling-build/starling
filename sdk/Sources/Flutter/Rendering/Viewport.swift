@@ -277,24 +277,36 @@ open class RenderViewportBase: RenderBox, RenderAbstractViewport {
         // Registered HERE, unconditionally — not in attach(). attach() never
         // runs for an interior render object in this framework (it does not
         // recurse; see markNeedsPaint's note), so an attach-gated listener
-        // meant the viewport NEVER heard its ScrollPosition: wheel scrolling
-        // moved the offset, notified, and nothing re-laid-out — the listing
-        // sat frozen while pixels advanced. _RenderSingleChildViewport
-        // (SingleChildScrollView) registers in init for the same reason.
-        // Weak, so a replaced viewport (Files keys its ListView by view
-        // mode) does not keep a dead render tree alive through a
-        // long-lived controller's position.
-        _offset.addListener(_offsetChanged)
     }
 
-    /// The one listener this viewport hangs on its offset — stored so the
-    /// offset SETTER can re-register it on a new position. Never removed:
-    /// removeListener in this port is identity-blind (it pops the LAST
-    /// listener, whoever registered it), so unhooking here could strip a
-    /// sibling's registration instead; the weak self makes a stale
-    /// registration a no-op.
+    /// The listener this viewport hangs on its offset, registered under this
+    /// object's identity in `attach` and removed in `detach`, as upstream
+    /// does. Weak, so a replaced viewport (Files keys its ListView by view
+    /// mode) does not keep a dead render tree alive through a long-lived
+    /// controller's position.
     private lazy var _offsetChanged: VoidCallback = { [weak self] in
         self?.markNeedsLayout()
+    }
+
+    /// **Dart Source:** `viewport.dart:436-440`
+    open override func attach(_ owner: PipelineOwner) {
+        super.attach(owner)
+        _offset.addListener(_offsetChanged, owner: self)
+    }
+
+    /// **Dart Source:** `viewport.dart:442-446`
+    open override func detach() {
+        _offset.removeListeners(owner: self)
+        super.detach()
+    }
+
+    /// **Dart Source:** `ContainerRenderObjectMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        var child = firstChild
+        while let current = child {
+            visitor(current)
+            child = childAfter(current)
+        }
     }
 
     // MARK: - Container child management (ContainerRenderObjectMixin<RenderSliver>)
@@ -472,11 +484,13 @@ open class RenderViewportBase: RenderBox, RenderAbstractViewport {
         get { _offset }
         set {
             if newValue === _offset { return }
-            // No removeListener on the old offset — see _offsetChanged. The
-            // old position either dies with its Scrollable (listener dies
-            // with it) or fires a weak no-op.
+            if attached {
+                _offset.removeListeners(owner: self)
+            }
             _offset = newValue
-            _offset.addListener(_offsetChanged)
+            if attached {
+                _offset.addListener(_offsetChanged, owner: self)
+            }
             markNeedsLayout()
         }
     }
@@ -549,15 +563,6 @@ open class RenderViewportBase: RenderBox, RenderAbstractViewport {
     private var _clipBehavior: Clip = .hardEdge
 
     // MARK: - Attach / Detach
-    //
-    // Upstream adds/removes the offset listener here. In this framework
-    // attach() only ever reaches the ROOT render object, so the listener
-    // lives on _offsetChanged (init + offset setter) instead — an
-    // attach-gated registration silently never happened for a viewport,
-    // and wheel scrolling repainted nothing. detach() must NOT
-    // removeListener either: removal is identity-blind here and would pop
-    // whichever listener registered last.
-
     // MARK: - Semantics update
 
     /// Mark this render object as needing a semantics update.

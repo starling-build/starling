@@ -218,6 +218,15 @@ open class RenderListWheelViewport: RenderBox, RenderAbstractViewport {
         return parentData.nextSibling
     }
 
+    /// **Dart Source:** `ContainerRenderObjectMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        var child = firstChild
+        while let current = child {
+            visitor(current)
+            child = childAfter(current)
+        }
+    }
+
     /// Returns the previous sibling of the given child.
     ///
     /// **Dart Source:** object.dart:4399 (ContainerRenderObjectMixin)
@@ -328,11 +337,11 @@ open class RenderListWheelViewport: RenderBox, RenderAbstractViewport {
         set {
             if newValue === _offset { return }
             if attached {
-                _offset.removeListener(_hasScrolled)
+                _offset.removeListeners(owner: self)
             }
             _offset = newValue
             if attached {
-                _offset.addListener(_hasScrolled)
+                _offset.addListener(_hasScrolled, owner: self)
             }
             markNeedsLayout()
         }
@@ -557,12 +566,12 @@ open class RenderListWheelViewport: RenderBox, RenderAbstractViewport {
     /// **Dart Source:** `list_wheel_viewport.dart:499-502`
     open override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _offset.addListener(_hasScrolled)
+        _offset.addListener(_hasScrolled, owner: self)
     }
 
     /// **Dart Source:** `list_wheel_viewport.dart:504-508`
     open override func detach() {
-        _offset.removeListener(_hasScrolled)
+        _offset.removeListeners(owner: self)
         super.detach()
     }
 

@@ -57,6 +57,13 @@ open class RenderSliverEdgeInsetsPadding: RenderSliver {
     }
     private var _child: RenderSliver?
 
+    /// **Dart Source:** `RenderObjectWithChildMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        if let child = _child {
+            visitor(child)
+        }
+    }
+
     // MARK: - Resolved Padding
 
     /// The amount to pad the child in each dimension.

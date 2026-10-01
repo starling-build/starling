@@ -79,6 +79,14 @@ open class CustomPainter: Listenable {
         _repaint?.removeListener(listener)
     }
 
+    public func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _repaint?.addListener(listener, owner: owner)
+    }
+
+    public func removeListeners(owner: AnyObject) {
+        _repaint?.removeListeners(owner: owner)
+    }
+
     /// Called whenever the object needs to paint. The given `Canvas` has its
     /// coordinate space configured such that the origin is at the top left of the
     /// box. The area of the box is the size of the `size` argument.
@@ -283,12 +291,6 @@ open class RenderCustomPaint: RenderProxyBox {
         self.isComplex = isComplex
         self.willChange = willChange
         super.init(child: child)
-        // Listen from birth: attach() never reaches interior nodes in this
-        // framework, so a painter's repaint listenable (a caret blink, a
-        // scroll offset, a spell check landing) would otherwise never mark
-        // this node and its paint would wait for an unrelated rebuild.
-        _painter?.addListener(_onRepaint)
-        _foregroundPainter?.addListener(_onRepaint)
     }
 
     // MARK: - Painter Properties
@@ -342,8 +344,10 @@ open class RenderCustomPaint: RenderProxyBox {
             || newPainter!.shouldRepaint(oldPainter!) {
             markNeedsPaint()
         }
-        oldPainter?.removeListener(_onRepaint)
-        newPainter?.addListener(_onRepaint)
+        if attached {
+            oldPainter?.removeListeners(owner: self)
+            newPainter?.addListener(_onRepaint, owner: self)
+        }
 
         // Check if we need to rebuild semantics.
         if newPainter == nil {
@@ -459,10 +463,11 @@ open class RenderCustomPaint: RenderProxyBox {
     ///
     /// **Dart Source:** custom_paint.dart:546-549
     public override func attach(_ owner: PipelineOwner) {
-        super.attach(owner)   // the listeners were added in init and on every painter change
+        super.attach(owner)
+        _painter?.addListener(_onRepaint, owner: self)
+        _foregroundPainter?.addListener(_onRepaint, owner: self)
     }
 
-    /// One closure for add and remove, so the remove finds what was added.
     private lazy var _onRepaint: VoidCallback = { [weak self] in self?.markNeedsPaint() }
 
     /// Called when the object is detached from its pipeline owner.
@@ -471,8 +476,8 @@ open class RenderCustomPaint: RenderProxyBox {
     ///
     /// **Dart Source:** custom_paint.dart:553-556
     public override func detach() {
-        _painter?.removeListener(_onRepaint)
-        _foregroundPainter?.removeListener(_onRepaint)
+        _painter?.removeListeners(owner: self)
+        _foregroundPainter?.removeListeners(owner: self)
         super.detach()
     }
 

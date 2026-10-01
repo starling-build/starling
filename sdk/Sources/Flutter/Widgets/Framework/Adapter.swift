@@ -651,6 +651,17 @@ func _setupWidgetBinding(_ app: Widget) {
                 + " finalize=\(us(ftComposite, ftEnd))us"
                 + " total=\(us(ftStart, ftEnd))us")
         }
+
+        // Post-frame callbacks (`RendererBinding.addPostFrameCallback`):
+        // after build, layout, paint and composite, exactly once each,
+        // with this frame's timestamp. A callback that dirties the tree
+        // has marked it, and marking requests the next frame; one that
+        // queues another callback runs it next frame (the drain snapshots
+        // the queue first). Reached on the frame-skipped path too: a
+        // clean tree is still "after the frame".
+        for callback in FrameCallbackScheduler.shared.takePostFrameCallbacks() {
+            callback(duration)
+        }
     }
     pd.onDrawFrame = { }
 

@@ -128,6 +128,13 @@ public class RenderRotatedBox: RenderBox {
     }
     private var _child: RenderBox?
 
+    /// **Dart Source:** `RenderObjectWithChildMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        if let child = _child {
+            visitor(child)
+        }
+    }
+
     // MARK: - Quarter Turns Property
 
     /// The number of clockwise quarter turns the child should be rotated.

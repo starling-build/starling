@@ -64,6 +64,31 @@ public class FrameCallbackScheduler: @unchecked Sendable {
     /// Whether any callbacks are registered (e.g. external texture apps).
     public var hasCallbacks: Bool { !_callbacks.isEmpty }
 
+    // MARK: Post-frame callbacks
+
+    private var _postFrameCallbacks: [(Duration) -> Void] = []
+
+    /// Queue a closure to run once, after the next frame's build, layout,
+    /// paint and composite have finished — `SchedulerBinding
+    /// .addPostFrameCallback`. Ordinarily reached through
+    /// `RendererBinding.addPostFrameCallback`, which also asks for the
+    /// frame. Runs on the platform thread with the frame's timestamp.
+    public func addPostFrameCallback(_ callback: @escaping (Duration) -> Void) {
+        _postFrameCallbacks.append(callback)
+    }
+
+    /// Whether a post-frame callback is waiting.
+    public var hasPostFrameCallbacks: Bool { !_postFrameCallbacks.isEmpty }
+
+    /// Drain the post-frame queue — once per frame, at the end of
+    /// `onBeginFrame`. A callback that queues another runs it next frame,
+    /// not this one, so the drain takes a snapshot first.
+    public func takePostFrameCallbacks() -> [(Duration) -> Void] {
+        let callbacks = _postFrameCallbacks
+        _postFrameCallbacks = []
+        return callbacks
+    }
+
     /// Called from `onBeginFrame` to invoke all registered callbacks.
     /// Does NOT schedule the next frame — the callbacks themselves trigger
     /// frame scheduling when they produce new content (via

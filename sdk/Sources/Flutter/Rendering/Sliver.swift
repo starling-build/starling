@@ -2100,6 +2100,13 @@ open class RenderSliverSingleBoxAdapter: RenderSliver, RenderSliverHelpers {
     }
     private var _child: RenderBox?
 
+    /// **Dart Source:** `RenderObjectWithChildMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        if let child = _child {
+            visitor(child)
+        }
+    }
+
     // MARK: - Parent Data
 
     /// Sets up `SliverPhysicalParentData` for the given child.

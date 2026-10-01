@@ -148,6 +148,14 @@ class AnimatedEvaluation<T>: Animation<T> {
         _parent.removeListener(listener)
     }
 
+    override func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _parent.addListener(listener, owner: owner)
+    }
+
+    override func removeListeners(owner: AnyObject) {
+        _parent.removeListeners(owner: owner)
+    }
+
     override func addStatusListener(_ listener: @escaping AnimationStatusListener) {
         _parent.addStatusListener(listener)
     }

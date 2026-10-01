@@ -247,7 +247,7 @@ public class ProxyAnimation: Animation<Double> {
     private var _listenerCounter: Int = 0
 
     // Embedded local listeners (from AnimationLocalListenersMixin)
-    private var _listeners: [VoidCallback] = []
+    private var _listeners = ListenerList()
 
     // Embedded local status listeners (from AnimationLocalStatusListenersMixin)
     private var _statusListeners: [AnimationStatusListener] = []
@@ -356,8 +356,18 @@ public class ProxyAnimation: Animation<Double> {
 
     /// **Dart Source:** `animations.dart:151` (from AnimationLocalListenersMixin)
     public override func removeListener(_ listener: @escaping VoidCallback) {
-        if !_listeners.isEmpty {
-            _listeners.removeLast()
+        if _listeners.removeLast() {
+            _didUnregisterListener()
+        }
+    }
+
+    public override func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _didRegisterListener()
+        _listeners.append(listener, owner: owner)
+    }
+
+    public override func removeListeners(owner: AnyObject) {
+        for _ in 0..<_listeners.remove(owner: owner) {
             _didUnregisterListener()
         }
     }
@@ -455,6 +465,16 @@ public class ReverseAnimation: Animation<Double> {
     /// **Dart Source:** `animations.dart:288-291`
     public override func removeListener(_ listener: @escaping VoidCallback) {
         parent.removeListener(listener)
+        _didUnregisterListener()
+    }
+
+    public override func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _didRegisterListener()
+        parent.addListener(listener, owner: owner)
+    }
+
+    public override func removeListeners(owner: AnyObject) {
+        parent.removeListeners(owner: owner)
         _didUnregisterListener()
     }
 
@@ -594,6 +614,14 @@ public class CurvedAnimation: Animation<Double>, AnimationWithParentMixin {
         parent.removeListener(listener)
     }
 
+    public override func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        parent.addListener(listener, owner: owner)
+    }
+
+    public override func removeListeners(owner: AnyObject) {
+        parent.removeListeners(owner: owner)
+    }
+
     public override func addStatusListener(_ listener: @escaping AnimationStatusListener) {
         parent.addStatusListener(listener)
     }
@@ -719,7 +747,7 @@ public class TrainHoppingAnimation: Animation<Double> {
     }
 
     // Embedded local listeners (from AnimationLocalListenersMixin)
-    private var _listeners: [VoidCallback] = []
+    private var _listeners = ListenerList()
 
     // Embedded local status listeners (from AnimationLocalStatusListenersMixin)
     private var _statusListeners: [AnimationStatusListener] = []
@@ -835,9 +863,15 @@ public class TrainHoppingAnimation: Animation<Double> {
 
     /// **Dart Source:** `animations.dart:120-125` (from AnimationLocalListenersMixin)
     public override func removeListener(_ listener: @escaping VoidCallback) {
-        if !_listeners.isEmpty {
-            _listeners.removeLast()
-        }
+        _listeners.removeLast()
+    }
+
+    public override func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _listeners.append(listener, owner: owner)
+    }
+
+    public override func removeListeners(owner: AnyObject) {
+        _listeners.remove(owner: owner)
     }
 
     /// **Dart Source:** `animations.dart:205-208` (from AnimationLocalStatusListenersMixin)
@@ -904,7 +938,7 @@ open class CompoundAnimation<T: Equatable>: Animation<T> {
     private var _listenerCounter: Int = 0
 
     // Embedded local listeners
-    private var _listeners: [VoidCallback] = []
+    private var _listeners = ListenerList()
 
     // Embedded local status listeners
     private var _statusListeners: [AnimationStatusListener] = []
@@ -1000,8 +1034,18 @@ open class CompoundAnimation<T: Equatable>: Animation<T> {
 
     /// **Dart Source:** (from AnimationLocalListenersMixin)
     public override func removeListener(_ listener: @escaping VoidCallback) {
-        if !_listeners.isEmpty {
-            _listeners.removeLast()
+        if _listeners.removeLast() {
+            _didUnregisterListener()
+        }
+    }
+
+    public override func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _didRegisterListener()
+        _listeners.append(listener, owner: owner)
+    }
+
+    public override func removeListeners(owner: AnyObject) {
+        for _ in 0..<_listeners.remove(owner: owner) {
             _didUnregisterListener()
         }
     }

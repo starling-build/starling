@@ -597,6 +597,18 @@ internal class _CompositeRenderEditablePainter: RenderEditablePainter {
         }
     }
 
+    override func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        for painter in painters {
+            painter.addListener(listener, owner: owner)
+        }
+    }
+
+    override func removeListeners(owner: AnyObject) {
+        for painter in painters {
+            painter.removeListeners(owner: owner)
+        }
+    }
+
     override func paint(_ canvas: any Canvas, _ size: Size, _ renderEditable: RenderEditable) {
         for painter in painters {
             painter.paint(canvas, size, renderEditable)
@@ -643,8 +655,8 @@ internal class _RenderEditableCustomPaint: RenderBox {
                 markNeedsPaint()
             }
             if attached {
-                oldPainter?.removeListener(markNeedsPaint)
-                newValue?.addListener(markNeedsPaint)
+                oldPainter?.removeListeners(owner: self)
+                newValue?.addListener(markNeedsPaint, owner: self)
             }
         }
     }
@@ -652,11 +664,11 @@ internal class _RenderEditableCustomPaint: RenderBox {
 
     override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _painter?.addListener(markNeedsPaint)
+        _painter?.addListener(markNeedsPaint, owner: self)
     }
 
     override func detach() {
-        _painter?.removeListener(markNeedsPaint)
+        _painter?.removeListeners(owner: self)
         super.detach()
     }
 
@@ -1267,7 +1279,7 @@ open class RenderEditable: RenderBox, RenderInlineChildrenContainerDefaults, Tex
         set {
             if _showCursor === newValue { return }
             if attached {
-                _showCursor.removeListener(_showHideCursor)
+                _showCursor.removeListeners(owner: self)
             }
             if _disposeShowCursor {
                 _showCursor.dispose()
@@ -1276,7 +1288,7 @@ open class RenderEditable: RenderBox, RenderInlineChildrenContainerDefaults, Tex
             _showCursor = newValue
             if attached {
                 _showHideCursor()
-                _showCursor.addListener(_showHideCursor)
+                _showCursor.addListener(_showHideCursor, owner: self)
             }
         }
     }
@@ -1415,11 +1427,11 @@ open class RenderEditable: RenderBox, RenderInlineChildrenContainerDefaults, Tex
         set {
             if _offset === newValue { return }
             if attached {
-                _offset.removeListener(markNeedsPaint)
+                _offset.removeListeners(owner: self)
             }
             _offset = newValue
             if attached {
-                _offset.addListener(markNeedsPaint)
+                _offset.addListener(markNeedsPaint, owner: self)
             }
             markNeedsLayout()
         }
@@ -2538,14 +2550,14 @@ open class RenderEditable: RenderBox, RenderInlineChildrenContainerDefaults, Tex
         super.attach(owner)
         _foregroundRenderObject?.attach(owner)
         _backgroundRenderObject?.attach(owner)
-        _offset.addListener(markNeedsPaint)
+        _offset.addListener(markNeedsPaint, owner: self)
         _showHideCursor()
-        _showCursor.addListener(_showHideCursor)
+        _showCursor.addListener(_showHideCursor, owner: self)
     }
 
     open override func detach() {
-        _offset.removeListener(markNeedsPaint)
-        _showCursor.removeListener(_showHideCursor)
+        _offset.removeListeners(owner: self)
+        _showCursor.removeListeners(owner: self)
         super.detach()
         _foregroundRenderObject?.detach()
         _backgroundRenderObject?.detach()

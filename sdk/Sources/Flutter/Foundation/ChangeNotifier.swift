@@ -49,7 +49,108 @@ public protocol Listenable {
     /// object notifies.
     ///
     /// **Dart Source:** `change_notifier.dart:79-81`
+    ///
+    /// DIFFERENCE FROM DART: Dart removes the listener whose identity matches.
+    /// Swift closures have no usable identity (see `ListenerList`), so this
+    /// removes the most recently added *unkeyed* listener — exact when the
+    /// object has one such listener, which is the common case, and wrong
+    /// otherwise. Code that may share a notifier with anyone else registers
+    /// with `addListener(_:owner:)` and removes with `removeListeners(owner:)`.
     func removeListener(_ listener: @escaping VoidCallback)
+
+    /// Register a closure under an owner's identity, so that
+    /// `removeListeners(owner:)` can later remove exactly it.
+    ///
+    /// DIFFERENCE FROM DART: no counterpart. Dart identifies a listener by the
+    /// closure itself; Swift cannot, so the owner (typically the render object
+    /// or state that registered it) stands in for the closure's identity.
+    func addListener(_ listener: @escaping VoidCallback, owner: AnyObject)
+
+    /// Remove every listener registered under `owner` by
+    /// `addListener(_:owner:)`. Unkeyed listeners are untouched.
+    func removeListeners(owner: AnyObject)
+}
+
+extension Listenable {
+    /// Fallback for a `Listenable` with no store of its own: registers
+    /// unkeyed. Every framework `Listenable` that stores or forwards
+    /// listeners overrides both keyed methods; a conformer that does not
+    /// keeps its keyed listeners forever (a leak, never a wrong removal).
+    public func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        addListener(listener)
+    }
+
+    public func removeListeners(owner: AnyObject) {}
+}
+
+// MARK: - ListenerList
+
+/// The listener store behind every framework `Listenable` that keeps its own
+/// listeners (`ChangeNotifier`, the animation stores, `SystemFontsNotifier`).
+///
+/// Swift closures carry no identity: reading the same stored closure twice
+/// yields two thunks with different function pointers, so `removeListener(_:)`
+/// cannot find "the closure that was added" — the port's original stores
+/// popped the last listener instead, which is right only while a notifier has
+/// a single listener. Once render objects detach for real (every dropped
+/// subtree, not only the root), an animation shared between a `FadeTransition`
+/// and its `RenderAnimatedOpacity` would lose whichever listener was added
+/// last. This store therefore keeps an optional owner identity per entry:
+/// keyed entries are removed by owner, exactly; the unkeyed pop never touches
+/// them.
+public struct ListenerList: Sequence {
+    private struct Entry {
+        let owner: ObjectIdentifier?
+        let call: VoidCallback
+    }
+
+    private var _entries: [Entry] = []
+
+    public init() {}
+
+    public var isEmpty: Bool { _entries.isEmpty }
+    public var count: Int { _entries.count }
+
+    /// Add an unkeyed listener.
+    public mutating func append(_ listener: @escaping VoidCallback) {
+        _entries.append(Entry(owner: nil, call: listener))
+    }
+
+    /// Add a listener under `owner`'s identity.
+    public mutating func append(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _entries.append(Entry(owner: ObjectIdentifier(owner), call: listener))
+    }
+
+    /// Remove the most recently added unkeyed listener, if any. This is the
+    /// whole of what `removeListener(_:)` can do; see the type comment.
+    @discardableResult
+    public mutating func removeLast() -> Bool {
+        guard let index = _entries.lastIndex(where: { $0.owner == nil }) else {
+            return false
+        }
+        _entries.remove(at: index)
+        return true
+    }
+
+    /// Remove every listener registered under `owner`; returns how many.
+    @discardableResult
+    public mutating func remove(owner: AnyObject) -> Int {
+        let id = ObjectIdentifier(owner)
+        let before = _entries.count
+        _entries.removeAll { $0.owner == id }
+        return before - _entries.count
+    }
+
+    public mutating func removeAll() {
+        _entries.removeAll()
+    }
+
+    /// Iterates a snapshot of the callbacks in registration order, so a
+    /// listener that adds or removes listeners while being notified does not
+    /// disturb the iteration.
+    public func makeIterator() -> IndexingIterator<[VoidCallback]> {
+        _entries.map { $0.call }.makeIterator()
+    }
 }
 
 // MARK: - ValueListenable
@@ -80,9 +181,9 @@ public protocol ValueListenable: Listenable {
 
 /// A class that can be extended or mixed in to provide change notification.
 ///
-/// Using this implementation, `addListener` and `removeListener` use identity
-/// comparison on closures (referencing the same closure object). In practice,
-/// listeners are typically added/removed using the same closure reference.
+/// Listeners live in a `ListenerList`: unkeyed ones are removed last-in
+/// first-out by `removeListener(_:)`, keyed ones exactly by
+/// `removeListeners(owner:)`.
 ///
 /// **Dart Source:** `packages/flutter/lib/src/foundation/change_notifier.dart`
 /// **Lines:** 137-352
@@ -96,7 +197,7 @@ open class ChangeNotifier: Listenable {
   public init() {}
 
   /// **Dart Source:** `change_notifier.dart:171-173`
-  private var _listeners: [VoidCallback] = []
+  private var _listeners = ListenerList()
 
   /// Whether any listeners are currently registered.
   ///
@@ -122,18 +223,23 @@ open class ChangeNotifier: Listenable {
   /// **Dart Source:** `change_notifier.dart:263-302`
   /// **Original:** `void removeListener(VoidCallback listener)`
   ///
-  /// DIFFERENCE FROM DART: Uses identity comparison by removing the last
-  /// matching closure. Dart also uses identity comparison on Function objects.
-  /// REASON: Swift closures do not support Equatable, so we remove from the end
-  /// to match Dart's behavior of removing the most-recently-added matching listener.
+  /// DIFFERENCE FROM DART: removes the most recently added unkeyed listener,
+  /// not the matching one — see `ListenerList` for why there is no matching
+  /// one. Register with `addListener(_:owner:)` when the notifier may have
+  /// other listeners.
   public func removeListener(_ listener: @escaping VoidCallback) {
-    // Swift closures are not equatable, so this is a best-effort removal.
-    // In practice, callers should keep a reference to the closure they passed to addListener.
-    // For now, remove the last element as a stub. A full implementation would
-    // need a wrapper with identity tracking.
-    if !_listeners.isEmpty {
-      _listeners.removeLast()
-    }
+    _listeners.removeLast()
+  }
+
+  /// Register a closure under `owner`'s identity; see `Listenable`.
+  public func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+    assert(!_debugDisposed, "A \(type(of: self)) was used after being disposed.\nOnce you have called dispose() on a \(type(of: self)), it can no longer be used.")
+    _listeners.append(listener, owner: owner)
+  }
+
+  /// Remove every listener registered under `owner`.
+  public func removeListeners(owner: AnyObject) {
+    _listeners.remove(owner: owner)
   }
 
   /// Discards any resources used by the object. After this is called, the

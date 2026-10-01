@@ -249,11 +249,11 @@ public class RenderImage: RenderBox {
                 return
             }
             if attached {
-                _opacity?.removeListener(markNeedsPaint)
+                _opacity?.removeListeners(owner: self)
             }
             _opacity = newValue
             if attached {
-                newValue?.addListener(markNeedsPaint)
+                newValue?.addListener(markNeedsPaint, owner: self)
             }
         }
     }
@@ -490,7 +490,7 @@ public class RenderImage: RenderBox {
     /// **Dart Source:** `image.dart:407-411`
     public override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _opacity?.addListener(markNeedsPaint)
+        _opacity?.addListener(markNeedsPaint, owner: self)
     }
 
     /// Called when the render object is detached from its pipeline owner.
@@ -499,7 +499,7 @@ public class RenderImage: RenderBox {
     ///
     /// **Dart Source:** `image.dart:413-417`
     public override func detach() {
-        _opacity?.removeListener(markNeedsPaint)
+        _opacity?.removeListeners(owner: self)
         super.detach()
     }
 

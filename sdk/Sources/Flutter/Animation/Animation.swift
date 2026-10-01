@@ -116,6 +116,16 @@ open class Animation<T> {
         fatalError("Subclass must override addListener")
     }
 
+    /// Keyed registration; see `Listenable.addListener(_:owner:)`. Stores
+    /// and forwarders override both keyed methods; the base falls back to
+    /// an unkeyed add, which a later `removeListeners(owner:)` cannot find.
+    open func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        addListener(listener)
+    }
+
+    /// Keyed removal; see `Listenable.removeListeners(owner:)`.
+    open func removeListeners(owner: AnyObject) {}
+
     /// Stop calling the listener every time the value of the animation changes.
     ///
     /// If `listener` is not currently registered as a listener, this method does
@@ -272,12 +282,16 @@ class ValueListenableDelegateAnimation<T>: Animation<T> {
     init<V: ValueListenable>(_ listenable: V, transformer: ValueListenableTransformer<T>? = nil) where V.Value == T {
         self._addListener = { listenable.addListener($0) }
         self._removeListener = { listenable.removeListener($0) }
+        self._addKeyedListener = { listenable.addListener($0, owner: $1) }
+        self._removeKeyedListeners = { listenable.removeListeners(owner: $0) }
         self._getValue = { listenable.value }
         self._transformer = transformer
     }
 
     private let _addListener: (@escaping VoidCallback) -> Void
     private let _removeListener: (@escaping VoidCallback) -> Void
+    private let _addKeyedListener: (@escaping VoidCallback, AnyObject) -> Void
+    private let _removeKeyedListeners: (AnyObject) -> Void
     private let _getValue: () -> T
     private let _transformer: ValueListenableTransformer<T>?
 
@@ -294,6 +308,14 @@ class ValueListenableDelegateAnimation<T>: Animation<T> {
     /// **Dart Source:** `animation.dart:398-400`
     override func removeListener(_ listener: @escaping VoidCallback) {
         _removeListener(listener)
+    }
+
+    override func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _addKeyedListener(listener, owner)
+    }
+
+    override func removeListeners(owner: AnyObject) {
+        _removeKeyedListeners(owner)
     }
 
     /// **Dart Source:** `animation.dart:403-405`

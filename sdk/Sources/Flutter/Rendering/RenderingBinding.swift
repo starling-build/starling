@@ -481,12 +481,13 @@ open class RendererBinding: GestureBinding {
 
     /// Stub for `SchedulerBinding.ensureVisualUpdate`.
     ///
-    /// Ensures that a new frame will be produced. The full implementation
-    /// requires SchedulerBinding.
+    /// Ensures that a new frame will be produced.
     ///
-    /// TODO: Replace with real SchedulerBinding integration.
+    /// DIFFERENCE FROM DART: `SchedulerBinding.ensureVisualUpdate` consults
+    /// `schedulerPhase`; this port has no scheduler phases, so it asks the
+    /// platform for a frame directly, which is idempotent within a frame.
     open func ensureVisualUpdate() {
-        // Stub: SchedulerBinding is not yet migrated.
+        PlatformDispatcher.instance.scheduleFrame()
     }
 
     /// Stub for `SchedulerBinding.addPersistentFrameCallback`.
@@ -496,14 +497,20 @@ open class RendererBinding: GestureBinding {
         // Stub: SchedulerBinding is not yet migrated.
     }
 
-    /// Stub for `SchedulerBinding.addPostFrameCallback`.
+    /// Schedule a callback for the end of the next frame — after build,
+    /// layout, paint and composite, with the frame's timestamp. The queue
+    /// lives on `FrameCallbackScheduler` and is drained by the Adapter's
+    /// frame closure; a frame is requested so the callback is not left
+    /// waiting on unrelated damage.
     ///
-    /// TODO: Replace with real SchedulerBinding integration.
+    /// **Dart Source:** `SchedulerBinding.addPostFrameCallback`
+    /// (`scheduler/binding.dart`)
     open func addPostFrameCallback(
         _ callback: @escaping (Duration) -> Void,
         debugLabel: String? = nil
     ) {
-        // Stub: SchedulerBinding is not yet migrated.
+        FrameCallbackScheduler.shared.addPostFrameCallback(callback)
+        ensureVisualUpdate()
     }
 
     // MARK: - Semantics Stubs

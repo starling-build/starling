@@ -746,8 +746,10 @@ private class _RenderSingleChildViewport: RenderBox, SingleChildRenderObjectHost
     var offset: ViewportOffset {
         didSet {
             if oldValue !== offset {
-                oldValue.removeListener(_onOffsetChanged)
-                offset.addListener(_onOffsetChanged)
+                if attached {
+                    oldValue.removeListeners(owner: self)
+                    offset.addListener(_onOffsetChanged, owner: self)
+                }
                 markNeedsLayout()
             }
         }
@@ -761,11 +763,20 @@ private class _RenderSingleChildViewport: RenderBox, SingleChildRenderObjectHost
         self.axisDirection = axisDirection
         self.offset = offset
         super.init()
-        offset.addListener(_onOffsetChanged)
     }
 
     private func _onOffsetChanged() {
         markNeedsPaint()
+    }
+
+    override func attach(_ owner: PipelineOwner) {
+        super.attach(owner)
+        offset.addListener(_onOffsetChanged, owner: self)
+    }
+
+    override func detach() {
+        offset.removeListeners(owner: self)
+        super.detach()
     }
 
     // MARK: - Layout
@@ -877,7 +888,7 @@ private class _RenderSingleChildViewport: RenderBox, SingleChildRenderObjectHost
 
     // MARK: - Child management
 
-    func visitChildren(_ visitor: (RenderObject) -> Void) {
+    override func visitChildren(_ visitor: RenderObjectVisitor) {
         if let child = child { visitor(child) }
     }
 }

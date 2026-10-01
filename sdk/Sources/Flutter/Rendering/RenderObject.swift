@@ -545,6 +545,10 @@ open class RenderObject: HitTestTarget {
     public func adoptChild(_ child: RenderObject) {
         setupParentData(child)
         child.parent = self
+        if let owner = _owner {
+            child.attach(owner)
+        }
+        redepthChild(child)
         markNeedsLayout()
         // A child joined: this node must re-record its painting so the new
         // subtree actually composites. Relayout alone may not dirty paint
@@ -578,18 +582,16 @@ open class RenderObject: HitTestTarget {
         child.parentData?.detach()
         child.parentData = nil
         child.parent = nil
+        if child.attached {
+            child.detach()
+        }
         markNeedsLayout()
         markNeedsCompositingBitsUpdate()
         // Mirror adoptChild: the departed child's pixels must not linger in
         // this node's retained recording.
         markNeedsPaint()
-        // DIFFERENCE FROM DART: `dropChild` also does `if (attached)
-        // child.detach()` and `markNeedsSemanticsUpdate()`.
-        // REASON: neither has a counterpart to pair with here. `adoptChild`
-        // never calls `child.attach`, so detaching on drop would be one half of
-        // a lifecycle the port does not otherwise run, and there is no
-        // semantics update to schedule. Wiring attach/detach symmetrically is a
-        // change to the live compositor, not to this method.
+        // DIFFERENCE FROM DART: no `markNeedsSemanticsUpdate()` — there is no
+        // semantics pipeline to schedule.
     }
 
     // MARK: - Depth
@@ -599,7 +601,52 @@ open class RenderObject: HitTestTarget {
     /// The depth is used to ensure that nodes are processed in depth order.
     ///
     /// **Dart Source:** `object.dart:1897`
-    public private(set) var depth: Int = 0
+    public internal(set) var depth: Int = 0
+
+    /// Adjust the depth of `child` to be one more than this object's, and of
+    /// its descendants below that — used when adopting a subtree that was
+    /// built before it was attached.
+    ///
+    /// **Dart Source:** `object.dart:1900-1907`
+    public func redepthChild(_ child: RenderObject) {
+        if child.depth <= depth {
+            child.depth = depth + 1
+            child.redepthChildren()
+        }
+    }
+
+    /// Adjust the depth of this object's children, if any.
+    ///
+    /// **Dart Source:** `object.dart:1909-1913`
+    open func redepthChildren() {
+        visitChildren(redepthChild)
+    }
+
+    /// Calls `visitor` for each immediate child of this render object.
+    ///
+    /// The default covers the two child-list shapes the port shares through
+    /// protocols — `RenderBoxContainerDefaults` (Flex, Stack, Wrap, Flow,
+    /// ListBody, CustomMultiChildLayout) and
+    /// `RenderInlineChildrenContainerDefaults` (RenderEditable). Every other
+    /// render object with children overrides this: the single-`_child`
+    /// proxies and slivers, the viewports, the sliver groups, the table and
+    /// the multi-box adaptor. A container that stores children some third
+    /// way and does not override is invisible to `attach`, `detach` and
+    /// `redepthChildren`; the symptom is a subtree whose attach-gated
+    /// listeners never fire.
+    ///
+    /// **Dart Source:** `object.dart:1978-1980`
+    open func visitChildren(_ visitor: RenderObjectVisitor) {
+        if let container = self as? any RenderBoxContainerDefaults {
+            _visitContainerChildren(container, visitor)
+        } else if let inline = self as? any RenderInlineChildrenContainerDefaults {
+            var child = inline.firstChild
+            while let current = child {
+                visitor(current)
+                child = inline.childAfter(current)
+            }
+        }
+    }
 
     // MARK: - Constraints
 
@@ -794,15 +841,36 @@ open class RenderObject: HitTestTarget {
 
     /// Called when the object is attached to a pipeline owner.
     ///
-    /// **Dart Source:** `object.dart:1912-1925`
+    /// Recurses through `visitChildren`, so a subtree adopted into an attached
+    /// tree is attached whole and every node's attach-gated setup (listeners
+    /// on animations, clippers, painters, scroll offsets) runs. Until 2026-09
+    /// this did not recurse: only the `RenderView` was ever attached, every
+    /// interior `attach` override was dead code, and each render object that
+    /// needed a listener worked around it by subscribing at init. Those
+    /// workarounds are gone; the lifecycle is the mechanism again.
+    ///
+    /// **Dart Source:** `object.dart:1912-1925`, plus
+    /// `ContainerRenderObjectMixin.attach` (`object.dart:4021-4029`)
     open func attach(_ owner: PipelineOwner) {
         _owner = owner
+        visitChildren { child in
+            if child._owner !== owner {
+                child.attach(owner)
+            }
+        }
     }
 
-    /// Called when the object is detached from its pipeline owner.
+    /// Called when the object is detached from its pipeline owner. Recurses
+    /// like `attach`.
     ///
-    /// **Dart Source:** `object.dart:1929-1935`
+    /// **Dart Source:** `object.dart:1929-1935`, plus
+    /// `ContainerRenderObjectMixin.detach` (`object.dart:4032-4040`)
     open func detach() {
+        visitChildren { child in
+            if child.attached {
+                child.detach()
+            }
+        }
         _owner = nil
     }
 
@@ -859,26 +927,26 @@ open class RenderObject: HitTestTarget {
     ///
     /// **Dart Source:** `object.dart:3242-3293`
     open func markNeedsPaint() {
-        if isRepaintBoundary {
-            if let owner = _owner {
-                // Attached boundaries dedupe here: a set flag means this
-                // boundary is already queued in _nodesNeedingPaint
-                // (flushPaint re-checks the flag anyway).
-                if needsPaint { return }
-                needsPaint = true
-                owner._nodesNeedingPaint.append(self)
-                owner.requestVisualUpdate()
-            } else {
-                // Interior boundaries are never attached in this framework
-                // (attach() doesn't recurse), so they cannot self-schedule
-                // or request a frame. Pass the mark through: the root IS
-                // attached — it schedules, repaints, and _compositeChild
-                // repaints this dirty boundary on the way down. Without
-                // this, a dirty scrollable (Viewport is a boundary)
-                // presents stale until unrelated damage forces a frame.
-                needsPaint = true
-                parent?.markNeedsPaint()
-            }
+        if isRepaintBoundary, _layer != nil, let owner = _owner {
+            // A boundary that owns a layer schedules its own repaint. It
+            // dedupes here: a set flag means it is already queued in
+            // _nodesNeedingPaint (flushPaint re-checks the flag anyway).
+            if needsPaint { return }
+            needsPaint = true
+            owner._nodesNeedingPaint.append(self)
+            owner.requestVisualUpdate()
+        } else if isRepaintBoundary {
+            // A boundary WITHOUT a layer — every interior boundary in this
+            // port, since only the RenderView is ever given one (see
+            // _compositeChild) — cannot repaint on its own: flushPaint's
+            // repaintCompositedChild returns at its layer guard. Pass the
+            // mark through so the root, which does own a layer, schedules
+            // and repaints the whole tree. Queueing here instead would
+            // request a frame that paints nothing: a dirty scrollable
+            // (Viewport is a boundary) would present stale until unrelated
+            // damage forced a real repaint.
+            needsPaint = true
+            parent?.markNeedsPaint()
         } else {
             // Deliberately NO early-return on needsPaint for non-boundary
             // nodes. A subtree skipped during a previous paint pass (a
@@ -1002,5 +1070,17 @@ public class DiagnosticsDebugCreator: DiagnosticsProperty<AnyObject> {
     /// **Dart Source:** `object.dart:6534-6535`
     public init(_ value: AnyObject) {
         super.init("debugCreator", value, level: .hidden)
+    }
+}
+
+/// Walks a `RenderBoxContainerDefaults` child list for `RenderObject.visitChildren`;
+/// generic so the existential's associated `ChildType` can be opened.
+private func _visitContainerChildren<C: RenderBoxContainerDefaults>(
+    _ container: C, _ visitor: RenderObjectVisitor
+) {
+    var child = container.firstChild
+    while let current = child {
+        visitor(current)
+        child = container.childAfter(current)
     }
 }

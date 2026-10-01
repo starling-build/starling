@@ -229,6 +229,13 @@ public class RenderView: RenderObject {
     }
     private var _child: RenderBox?
 
+    /// **Dart Source:** `RenderObjectWithChildMixin.visitChildren`
+    public override func visitChildren(_ visitor: RenderObjectVisitor) {
+        if let child = _child {
+            visitor(child)
+        }
+    }
+
     // MARK: - Size
 
     /// The current layout size of the view.

@@ -516,13 +516,6 @@ open class RenderSliverMultiBoxAdaptor: RenderSliver,
         super.dropChild(child)
     }
 
-    /// Increments the depth of the given child.
-    ///
-    /// **Dart Source:** via `RenderObject.redepthChild`
-    public func redepthChild(_ child: RenderObject) {
-        // In the full framework, this adjusts the depth field.
-    }
-
     // =========================================================================
     // MARK: - Create / Destroy or Cache Child
     // =========================================================================
@@ -583,22 +576,13 @@ open class RenderSliverMultiBoxAdaptor: RenderSliver,
     /// Called when the object is attached to a pipeline owner.
     ///
     /// **Dart Source:** `sliver_multi_box_adaptor.dart:395-399`
-    open override func attach(_ owner: PipelineOwner) {
-        super.attach(owner)
-        for child in _keepAliveBucket.values {
-            child.attach(owner)
-        }
-    }
+    // attach/detach: `RenderObject` recurses through `visitChildren`, which
+    // includes the keep-alive bucket (`sliver_multi_box_adaptor.dart:395-406`
+    // walk the bucket by hand for the same effect).
 
     /// Called when the object is detached from its pipeline owner.
     ///
     /// **Dart Source:** `sliver_multi_box_adaptor.dart:402-406`
-    open override func detach() {
-        super.detach()
-        for child in _keepAliveBucket.values {
-            child.detach()
-        }
-    }
 
     // =========================================================================
     // MARK: - Redepth / Visit Children
@@ -608,7 +592,7 @@ open class RenderSliverMultiBoxAdaptor: RenderSliver,
     /// bucket.
     ///
     /// **Dart Source:** `sliver_multi_box_adaptor.dart:409-412`
-    public func redepthChildren() {
+    public override func redepthChildren() {
         var child = firstChild
         while let current = child {
             redepthChild(current)
@@ -620,7 +604,7 @@ open class RenderSliverMultiBoxAdaptor: RenderSliver,
     /// Visits all children including those in the keep-alive bucket.
     ///
     /// **Dart Source:** `sliver_multi_box_adaptor.dart:415-418`
-    public func visitChildren(_ visitor: RenderObjectVisitor) {
+    public override func visitChildren(_ visitor: RenderObjectVisitor) {
         var child = firstChild
         while let current = child {
             visitor(current)

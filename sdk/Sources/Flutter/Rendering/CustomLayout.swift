@@ -477,8 +477,8 @@ public class RenderCustomMultiChildLayoutBox: RenderBox, RenderBoxContainerDefau
             }
             _delegate = newValue
             if attached {
-                oldDelegate.relayout?.removeListener(_markNeedsLayoutCallback)
-                newValue.relayout?.addListener(_markNeedsLayoutCallback)
+                oldDelegate.relayout?.removeListeners(owner: self)
+                newValue.relayout?.addListener(_markNeedsLayoutCallback, owner: self)
             }
         }
     }
@@ -498,7 +498,7 @@ public class RenderCustomMultiChildLayoutBox: RenderBox, RenderBoxContainerDefau
     /// **Dart Source:** custom_layout.dart:355-358
     public override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _delegate.relayout?.addListener(_markNeedsLayoutCallback)
+        _delegate.relayout?.addListener(_markNeedsLayoutCallback, owner: self)
     }
 
     /// Detaches this render object from its pipeline owner.
@@ -507,7 +507,7 @@ public class RenderCustomMultiChildLayoutBox: RenderBox, RenderBoxContainerDefau
     ///
     /// **Dart Source:** custom_layout.dart:361-364
     public override func detach() {
-        _delegate.relayout?.removeListener(_markNeedsLayoutCallback)
+        _delegate.relayout?.removeListeners(owner: self)
         super.detach()
     }
 

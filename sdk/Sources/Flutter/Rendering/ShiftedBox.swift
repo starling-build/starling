@@ -66,6 +66,13 @@ open class RenderShiftedBox: RenderBox {
     }
     private var _child: RenderBox?
 
+    /// **Dart Source:** `RenderObjectWithChildMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        if let child = _child {
+            visitor(child)
+        }
+    }
+
     /// Sets up `ParentData` for the given child.
     ///
     /// `RenderShiftedBox` uses `BoxParentData` (which has an `offset` property)
@@ -1865,8 +1872,8 @@ public class RenderCustomSingleChildLayoutBox: RenderShiftedBox {
             }
             _delegate = newValue
             if attached {
-                oldDelegate._relayout?.removeListener(_markNeedsLayoutCallback)
-                newValue._relayout?.addListener(_markNeedsLayoutCallback)
+                oldDelegate._relayout?.removeListeners(owner: self)
+                newValue._relayout?.addListener(_markNeedsLayoutCallback, owner: self)
             }
         }
     }
@@ -1882,7 +1889,7 @@ public class RenderCustomSingleChildLayoutBox: RenderShiftedBox {
     /// **Dart Source:** shifted_box.dart:1374-1378
     public override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _delegate._relayout?.addListener(_markNeedsLayoutCallback)
+        _delegate._relayout?.addListener(_markNeedsLayoutCallback, owner: self)
     }
 
     /// Detaches this render object from its pipeline owner.
@@ -1891,7 +1898,7 @@ public class RenderCustomSingleChildLayoutBox: RenderShiftedBox {
     ///
     /// **Dart Source:** shifted_box.dart:1380-1384
     public override func detach() {
-        _delegate._relayout?.removeListener(_markNeedsLayoutCallback)
+        _delegate._relayout?.removeListeners(owner: self)
         super.detach()
     }
 

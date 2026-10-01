@@ -129,6 +129,26 @@ style root), the context menu opened at the window corner, smart
 spacing padded inside words. The ribbon was then redone Word-style at
 the user's request (flat commands, boxed gallery) — commit 36605a54.
 
+Framework debt paid 2026-09-30 (sdk, commit on `office`): `RenderObject
+.attach`/`detach` recurse and `adoptChild`/`dropChild` drive them, so the
+attach-gated listeners upstream relies on (opacity animations, clippers,
+painters, scroll offsets, `RenderCustomPaint`'s repaint listenable) run
+for interior nodes; the init-time workarounds in CustomPaint and the
+viewports are gone. That needed exact listener removal first —
+`removeListener(closure)` popped the LAST listener, which is wrong the
+moment a notifier has two — so every `Listenable` now has
+`addListener(_:owner:)`/`removeListeners(owner:)` backed by
+`ListenerList`, and render objects register under `self`. Post-frame
+callbacks are real (`RendererBinding.addPostFrameCallback` queues on
+`FrameCallbackScheduler`, drained at the end of the Adapter's frame with
+the frame's timestamp; `ensureVisualUpdate` schedules a frame). A render
+box given an infinite size now asserts instead of laying out to
+infinity. Interior repaint boundaries still have no layer of their own:
+a boundary's paint mark passes up to the root as before, by design, until
+`_compositeChild` grows real layers. Verified on screen: caret, wheel
+scroll, formatting marks, the styles menu, tooltips, tab switches and the
+navigation pane, all after the change; perf gate unchanged (408 µs / 147 µs).
+
 Unverified: keyboard navigation through tables, drag-select across a page
 boundary, dark mode, window resizing, Home/End/PageUp/PageDown and the
 ⌥/⌘ arrow chords, scrollbar dragging, focus after every ribbon action.

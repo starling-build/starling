@@ -70,6 +70,13 @@ open class RenderProxySliver: RenderSliver {
     }
     private var _child: RenderSliver?
 
+    /// **Dart Source:** `RenderObjectWithChildMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        if let child = _child {
+            visitor(child)
+        }
+    }
+
     // MARK: - Semantics
 
     /// Returns the semantic bounds of this sliver.
@@ -701,11 +708,11 @@ open class RenderSliverAnimatedOpacity: RenderProxySliver {
                 return
             }
             if attached {
-                _opacity.removeListener(_updateOpacityCallback)
+                _opacity.removeListeners(owner: self)
             }
             _opacity = newValue
             if attached {
-                _opacity.addListener(_updateOpacityCallback)
+                _opacity.addListener(_updateOpacityCallback, owner: self)
             }
             _updateOpacity()
         }
@@ -774,7 +781,7 @@ open class RenderSliverAnimatedOpacity: RenderProxySliver {
     /// **Dart Source:** via RenderAnimatedOpacityMixin
     open override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _opacity.addListener(_updateOpacityCallback)
+        _opacity.addListener(_updateOpacityCallback, owner: self)
         _updateOpacity()
     }
 
@@ -782,7 +789,7 @@ open class RenderSliverAnimatedOpacity: RenderProxySliver {
     ///
     /// **Dart Source:** via RenderAnimatedOpacityMixin
     open override func detach() {
-        _opacity.removeListener(_updateOpacityCallback)
+        _opacity.removeListeners(owner: self)
         super.detach()
     }
 

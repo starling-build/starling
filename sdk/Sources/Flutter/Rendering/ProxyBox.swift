@@ -69,6 +69,13 @@ open class RenderProxyBox: RenderBox {
     }
     private var _child: RenderBox?
 
+    /// **Dart Source:** `RenderObjectWithChildMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        if let child = _child {
+            visitor(child)
+        }
+    }
+
     // MARK: - RenderProxyBoxMixin Behavior
 
     /// Sets up `ParentData` for the given child.
@@ -755,11 +762,11 @@ open class RenderAnimatedOpacity: RenderProxyBox, RenderAnimatedOpacityProtocol 
                 return
             }
             if attached {
-                _opacity.removeListener(_updateOpacityCallback)
+                _opacity.removeListeners(owner: self)
             }
             _opacity = newValue
             if attached {
-                _opacity.addListener(_updateOpacityCallback)
+                _opacity.addListener(_updateOpacityCallback, owner: self)
             }
             _updateOpacity()
         }
@@ -803,7 +810,7 @@ open class RenderAnimatedOpacity: RenderProxyBox, RenderAnimatedOpacityProtocol 
     /// **Dart Source:** `proxy_box.dart:1037-1041`
     open override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _opacity.addListener(_updateOpacityCallback)
+        _opacity.addListener(_updateOpacityCallback, owner: self)
         _updateOpacity()
     }
 
@@ -811,7 +818,7 @@ open class RenderAnimatedOpacity: RenderProxyBox, RenderAnimatedOpacityProtocol 
     ///
     /// **Dart Source:** `proxy_box.dart:1044-1047`
     open override func detach() {
-        _opacity.removeListener(_updateOpacityCallback)
+        _opacity.removeListeners(owner: self)
         super.detach()
     }
 
@@ -2125,6 +2132,14 @@ open class CustomClipper<T>: Listenable {
         _reclip?.removeListener(listener)
     }
 
+    public func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _reclip?.addListener(listener, owner: owner)
+    }
+
+    public func removeListeners(owner: AnyObject) {
+        _reclip?.removeListeners(owner: owner)
+    }
+
     /// Returns a description of the clip given that the render object being
     /// clipped is of the given size.
     ///
@@ -2260,8 +2275,8 @@ open class RenderCustomClip<T>: RenderProxyBox {
                 _markNeedsClip()
             }
             if attached {
-                oldClipper?.removeListener(_markNeedsClipCallback)
-                newValue?.addListener(_markNeedsClipCallback)
+                oldClipper?.removeListeners(owner: self)
+                newValue?.addListener(_markNeedsClipCallback, owner: self)
             }
         }
     }
@@ -2281,14 +2296,14 @@ open class RenderCustomClip<T>: RenderProxyBox {
     /// **Dart Source:** `proxy_box.dart:1448-1451`
     open override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _clipper?.addListener(_markNeedsClipCallback)
+        _clipper?.addListener(_markNeedsClipCallback, owner: self)
     }
 
     /// Called when the object is detached from its pipeline owner.
     ///
     /// **Dart Source:** `proxy_box.dart:1454-1457`
     open override func detach() {
-        _clipper?.removeListener(_markNeedsClipCallback)
+        _clipper?.removeListeners(owner: self)
         super.detach()
     }
 
@@ -2972,8 +2987,8 @@ open class RenderPhysicalModelBase<T>: RenderProxyBox {
                 _markNeedsClip()
             }
             if attached {
-                oldClipper?.removeListener(_markNeedsClipCallback)
-                newValue?.addListener(_markNeedsClipCallback)
+                oldClipper?.removeListeners(owner: self)
+                newValue?.addListener(_markNeedsClipCallback, owner: self)
             }
         }
     }
@@ -3041,14 +3056,14 @@ open class RenderPhysicalModelBase<T>: RenderProxyBox {
     /// **Dart Source:** `proxy_box.dart:1448-1451`
     open override func attach(_ owner: PipelineOwner) {
         super.attach(owner)
-        _clipper?.addListener(_markNeedsClipCallback)
+        _clipper?.addListener(_markNeedsClipCallback, owner: self)
     }
 
     /// Called when the object is detached from its pipeline owner.
     ///
     /// **Dart Source:** `proxy_box.dart:1454-1457`
     open override func detach() {
-        _clipper?.removeListener(_markNeedsClipCallback)
+        _clipper?.removeListeners(owner: self)
         super.detach()
     }
 

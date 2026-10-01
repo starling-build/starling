@@ -1402,6 +1402,18 @@ open class RenderBox: RenderObject {
                     return true
                 }()
             )
+            // box.dart:2312-2366 also refuses a non-finite size. Without this
+            // a stretching Column inside an unbounded Row laid out to
+            // infinity silently: nothing painted, no error, and the pointer
+            // hit-tested an infinite box.
+            assert(
+                newValue.width.isFinite && newValue.height.isFinite,
+                "\(type(of: self)) was given an infinite size during layout: "
+                    + "\(newValue). A render box must not size itself to "
+                    + "infinity; the usual cause is an unbounded constraint "
+                    + "(a Column in a Row, or a stretched cross axis in an "
+                    + "unbounded parent) that the widget did not clamp."
+            )
             _size = newValue
         }
     }

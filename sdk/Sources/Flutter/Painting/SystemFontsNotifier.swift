@@ -8,21 +8,6 @@
 
 import FlutterSwiftBridge
 
-// MARK: - ListenerBox
-
-/// A wrapper class that holds a listener callback.
-///
-/// This is used to give each registered listener a unique identity for storage
-/// and removal. The box itself is a reference type, so it can be compared
-/// using identity (`===`).
-private final class ListenerBox {
-    let callback: VoidCallback
-
-    init(_ callback: @escaping VoidCallback) {
-        self.callback = callback
-    }
-}
-
 // MARK: - SystemFontsNotifier
 
 /// A notifier that notifies listeners when the system fonts change.
@@ -50,7 +35,7 @@ public final class SystemFontsNotifier: Listenable {
     /// Storage for listener boxes.
     ///
     /// **Dart Source:** `binding.dart:189`
-    private var _listeners: [ListenerBox] = []
+    private var _listeners = ListenerList()
 
     /// Notifies all registered listeners that the system fonts have changed.
     ///
@@ -59,8 +44,8 @@ public final class SystemFontsNotifier: Listenable {
     ///
     /// **Dart Source:** `binding.dart:191-195`
     public func notifyListeners() {
-        for box in _listeners {
-            box.callback()
+        for listener in _listeners {
+            listener()
         }
     }
 
@@ -70,19 +55,22 @@ public final class SystemFontsNotifier: Listenable {
     ///
     /// **Dart Source:** `binding.dart:197-200`
     public func addListener(_ listener: @escaping VoidCallback) {
-        _listeners.append(ListenerBox(listener))
+        _listeners.append(listener)
     }
 
-    /// Removes the most recently added listener.
-    ///
-    /// Note: Swift closures lack stable identity, so this removes the last
-    /// listener added (LIFO order) rather than matching a specific closure.
+    /// Removes the most recently added unkeyed listener; see `ListenerList`.
     ///
     /// **Dart Source:** `binding.dart:202-205`
     public func removeListener(_ listener: @escaping VoidCallback) {
-        if !_listeners.isEmpty {
-            _listeners.removeLast()
-        }
+        _listeners.removeLast()
+    }
+
+    public func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        _listeners.append(listener, owner: owner)
+    }
+
+    public func removeListeners(owner: AnyObject) {
+        _listeners.remove(owner: owner)
     }
 
     /// The number of registered listeners.

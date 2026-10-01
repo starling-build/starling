@@ -121,14 +121,13 @@ open class AnimationEagerListenerMixin {
 /// DIFFERENCE FROM DART: Dart mixin converted to Swift open class.
 /// REASON: Swift does not have mixins with stored properties.
 ///
-/// DIFFERENCE FROM DART: Uses array-based listener list instead of
-/// `HashedObserverList`. Listener removal removes from the end (last added).
-/// REASON: Swift closures do not support equality comparison. The caller
-/// should keep a reference and pass the same closure to remove.
+/// DIFFERENCE FROM DART: Uses a `ListenerList` instead of
+/// `HashedObserverList`; unkeyed removal pops the last unkeyed listener,
+/// keyed removal is exact. See `ListenerList`.
 open class AnimationLocalListenersMixin {
     public init() {}
 
-    private var _listeners: [VoidCallback] = []
+    private var _listeners = ListenerList()
 
     /// Called immediately before a listener is added via `addListener`.
     ///
@@ -160,12 +159,23 @@ open class AnimationLocalListenersMixin {
     ///
     /// **Dart Source:** `listener_helpers.dart:120-125`
     ///
-    /// DIFFERENCE FROM DART: Removes from the end since Swift closures
-    /// don't support equality. Caller should pass the same closure reference.
-    /// REASON: Swift closures are not Equatable.
+    /// DIFFERENCE FROM DART: removes the last unkeyed listener; see
+    /// `ListenerList`.
     public func removeListener(_ listener: @escaping VoidCallback) {
-        if !_listeners.isEmpty {
-            _listeners.removeLast()
+        if _listeners.removeLast() {
+            didUnregisterListener()
+        }
+    }
+
+    /// Keyed registration; see `Listenable.addListener(_:owner:)`.
+    public func addListener(_ listener: @escaping VoidCallback, owner: AnyObject) {
+        didRegisterListener()
+        _listeners.append(listener, owner: owner)
+    }
+
+    /// Keyed removal; see `Listenable.removeListeners(owner:)`.
+    public func removeListeners(owner: AnyObject) {
+        for _ in 0..<_listeners.remove(owner: owner) {
             didUnregisterListener()
         }
     }

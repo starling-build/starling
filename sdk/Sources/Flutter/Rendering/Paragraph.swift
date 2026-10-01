@@ -434,6 +434,15 @@ open class RenderParagraph: RenderBox {
         return parentData?.nextSibling
     }
 
+    /// **Dart Source:** `ContainerRenderObjectMixin.visitChildren`
+    open override func visitChildren(_ visitor: RenderObjectVisitor) {
+        var child = firstChild
+        while let current = child {
+            visitor(current)
+            child = childAfter(current)
+        }
+    }
+
     /// Returns the child before the given child, or nil.
     ///
     /// **Dart Source:** via `ContainerRenderObjectMixin`
