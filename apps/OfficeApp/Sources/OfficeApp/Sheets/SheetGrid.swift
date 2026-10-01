@@ -1562,6 +1562,7 @@ final class SheetGridState: State<StatefulWidget> {
             }
             guard a != editing, !covered.contains(a), let cell = spilledCell ?? ws.cells[a], !cell.value.isEmpty else { continue }
             if let icon = looks[a]?.icon, !icon.showValue { continue }   // "Show Icon Only"
+            if cell.value == .number(0), ws.viewAttrs["showZeros"] == "0" { continue }   // the sheet hides zeros
             var cf = looks[a]?.dxf
             if let tl = tableLooks[a] {
                 // The table's font where the cell sets none of its own.

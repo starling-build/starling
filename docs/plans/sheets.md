@@ -396,7 +396,14 @@ style wherever the change left them alone (bolding a double-underlined
 total keeps the double underline); undoing the change maps back to the
 file's own format. The three real workbooks' styles sections round-trip
 byte for byte. Border kinds and colours are also drawn (thin, medium,
-thick, double, dashed, dotted, hair). LET (local names in
+thick, double, dashed, dotted, hair).
+
+The 1904 date system (old Mac workbooks, `workbookPr date1904`) is
+honoured — serial 0 is 1 January 1904, no phantom 29 February — through
+`ExcelDate.system1904`, set for the workbook that loads; before, such a
+file's dates showed four years early. A sheet view's other attributes
+(zoom, scroll position, showZeros — honoured on screen — right to left,
+page layout view) are kept. LET (local names in
 `EvalContext.locals`) and the Excel 365 shapers VSTACK, HSTACK, TAKE,
 DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
 TEXTSPLIT work too. Still unread (kept verbatim): the intersection

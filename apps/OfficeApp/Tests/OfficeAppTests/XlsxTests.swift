@@ -346,3 +346,17 @@ extension XlsxTests {
         XCTAssertEqual(c.sheet.cells[CellAddress("A40")!]?.style, 2)
     }
 }
+
+extension XlsxTests {
+    func testSheetViewAttributesAreKept() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        var entries = try Zip.read(try Data(contentsOf: url))
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
+        var s = String(decoding: entries[i].data, as: UTF8.self)
+        let v = try XCTUnwrap(s.findRange(of: "<sheetView "))
+        s.insert(contentsOf: "zoomScale=\"85\" showZeros=\"0\" topLeftCell=\"A3\" ", at: v.upperBound)
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(s.utf8))
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(try Xlsx.read(try Zip.write(entries)))).first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("showZeros=\"0\" topLeftCell=\"A3\" zoomScale=\"85\""), out)
+    }
+}

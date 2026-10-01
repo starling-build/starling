@@ -33,6 +33,7 @@ enum Xlsx {
         let wbRels = _rels(parts["xl/_rels/workbook.xml.rels"], base: "xl/")
         let book = Workbook(sheets: [])
         book.package = entries
+        if let pr = wbNode.child("workbookPr") { book.date1904 = pr["date1904"] == "1" || pr["date1904"] == "true" }
 
         // Theme colours, for fills and fonts that name a slot.
         let theme = _themeColors(xml("xl/theme/theme1.xml"))
@@ -142,6 +143,7 @@ enum Xlsx {
             }
             if let sel = view.kids("selection").last, let a = sel["activeCell"].flatMap({ CellAddress($0) }) { ws.savedActive = a }
             if view["showGridLines"] == "0" { ws.showGridlines = false }
+            ws.viewAttrs = view.attrs.filter { !["tabSelected", "showGridLines", "workbookViewId"].contains($0.key) }
         }
         if let f = root.child("sheetFormatPr") {
             if let h = Double(f["defaultRowHeight"] ?? "") { ws.defaultRowHeightPt = h }
@@ -800,7 +802,8 @@ enum Xlsx {
         let used = ws.usedExtent
         generated["dimension"] = "<dimension ref=\"\(ws.cells.isEmpty ? "A1" : CellRange(CellAddress(row: 0, col: 0), used).a1)\"/>"
         // Views: the selection, frozen panes, gridlines.
-        var view = "<sheetViews><sheetView" + (selected ? " tabSelected=\"1\"" : "") + (ws.showGridlines ? "" : " showGridLines=\"0\"") + " workbookViewId=\"0\">"
+        var view = "<sheetViews><sheetView" + (selected ? " tabSelected=\"1\"" : "") + (ws.showGridlines ? "" : " showGridLines=\"0\"")
+            + ws.viewAttrs.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + " workbookViewId=\"0\">"
         let active = ws.savedActive ?? CellAddress(row: 0, col: 0)
         if ws.freezeRows > 0 || ws.freezeCols > 0 {
             let tl = CellAddress(row: ws.freezeRows, col: ws.freezeCols).a1

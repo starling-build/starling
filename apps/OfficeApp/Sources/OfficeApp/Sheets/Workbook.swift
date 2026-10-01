@@ -175,6 +175,9 @@ final class Worksheet {
     /// `<sheetFormatPr>`'s other attributes: base and default column
     /// width, outline levels, zero-height rows.
     var formatPrAttrs: [String: String] = [:]
+    /// The sheet view's other attributes — zoom, scroll position, show
+    /// zeros, right to left, page layout view — written back as read.
+    var viewAttrs: [String: String] = [:]
 
     /// The style a new cell at `a` takes: its row's when the row is
     /// formatted, else its column's, as Excel does.
@@ -238,6 +241,7 @@ final class Worksheet {
         s.defaultColWidthChars = defaultColWidthChars
         s.rowAttrs = rowAttrs
         s.formatPrAttrs = formatPrAttrs
+        s.viewAttrs = viewAttrs
         s.tables = tables
         s.notes = notes
         s.linkTargets = linkTargets
@@ -262,6 +266,8 @@ final class Workbook {
     var package: [ZipEntry]? = nil
     /// The sheet that was in front when the file was saved.
     var activeTab = 0
+    /// Dates count from 1904 (workbookPr date1904): kept as read.
+    var date1904 = false
     /// Every defined name the file had, built-ins (print areas, filter
     /// ranges) and sheet-local ones included, in order: what a save writes,
     /// with references kept current as rows, columns and sheets move.

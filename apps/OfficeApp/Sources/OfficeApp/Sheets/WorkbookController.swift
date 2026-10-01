@@ -55,6 +55,7 @@ final class WorkbookController: ChangeNotifier {
     /// Replace the workbook (open a file, new workbook).
     func load(_ b: Workbook) {
         book = b
+        ExcelDate.system1904 = b.date1904
         engine = CalcEngine(b)
         _selections.removeAll()
         _parseAll()

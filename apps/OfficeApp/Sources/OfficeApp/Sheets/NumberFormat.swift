@@ -433,8 +433,19 @@ enum ExcelDate {
 
     /// 1899-12-30 as days since 1970: serial 0 for every date after the bug.
     private static let _epoch = daysFromCivil(1899, 12, 30)
+    /// The 1904 date system (old Mac workbooks, workbookPr date1904): serial
+    /// 0 is 1 January 1904 and there is no phantom 29 February 1900. Set
+    /// for the open workbook when it loads.
+    nonisolated(unsafe) static var system1904 = false
+    private static let _epoch1904 = daysFromCivil(1904, 1, 1)
 
     static func serial(_ y: Int, _ m: Int, _ d: Int) -> Double {
+        if system1904 {
+            var yy = y, mm = m
+            yy += (mm - 1) >= 0 ? (mm - 1) / 12 : -((12 - mm) / 12)
+            mm = ((mm - 1) % 12 + 12) % 12 + 1
+            return Double(daysFromCivil(yy, mm, 1) + (d - 1) - _epoch1904)
+        }
         // DATE normalises months and days that overflow.
         var yy = y, mm = m
         yy += (mm - 1) >= 0 ? (mm - 1) / 12 : -((12 - mm) / 12)
@@ -446,6 +457,7 @@ enum ExcelDate {
 
     static func ymd(_ serial: Double) -> (Int, Int, Int) {
         let s = Int(floor(serial))
+        if system1904 { return civilFromDays(s + _epoch1904) }
         if s == 60 { return (1900, 2, 29) }
         if s == 0 { return (1900, 1, 0) }
         return civilFromDays((s < 60 ? s + 1 : s) + _epoch)
@@ -454,6 +466,8 @@ enum ExcelDate {
     /// 1 = Sunday … 7 = Saturday, as WEEKDAY's default.
     static func weekday(_ serial: Double) -> Int {
         let s = Int(floor(serial))
+        // 1904-01-01 was a Friday.
+        if system1904 { return ((s + 5) % 7 + 7) % 7 + 1 }
         // Serial 1 (1900-01-01) was a Sunday in Excel's calendar.
         return ((s + 6) % 7 + 7) % 7 + 1
     }
@@ -461,6 +475,6 @@ enum ExcelDate {
     /// Now, as a serial in the local time zone.
     static func now() -> Double {
         let t = Date().timeIntervalSince1970 + Double(TimeZone.current.secondsFromGMT())
-        return t / 86400 - Double(_epoch)
+        return t / 86400 - Double(system1904 ? _epoch1904 : _epoch)
     }
 }

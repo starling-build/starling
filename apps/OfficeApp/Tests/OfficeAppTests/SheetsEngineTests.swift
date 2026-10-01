@@ -425,3 +425,25 @@ extension SheetsEngineTests {
         XCTAssertLessThan(Date().timeIntervalSince(t), 0.5)          // nothing reads D1
     }
 }
+
+extension SheetsEngineTests {
+    func testThe1904DateSystem() {
+        let book = Workbook()
+        book.date1904 = true
+        let c = WorkbookController()
+        c.load(book)
+        defer { c.load(Workbook()) }                      // back to 1900 for the other tests
+        XCTAssertEqual(c.engine.evaluate("=DATE(1904,1,1)"), .number(0))
+        XCTAssertEqual(c.engine.evaluate("=DATE(2026,10,1)"), .number(ExcelDateSerial1900(2026, 10, 1) - 1462))
+        XCTAssertEqual(c.engine.evaluate("=YEAR(45000)"), .number(2027))
+        XCTAssertEqual(c.engine.evaluate("=WEEKDAY(0)"), .number(6))   // a Friday
+        XCTAssertEqual(NumberFormat.display(.number(0), "yyyy-mm-dd", width: 20).text, "1904-01-01")
+    }
+
+    private func ExcelDateSerial1900(_ y: Int, _ m: Int, _ d: Int) -> Double {
+        let was = ExcelDate.system1904
+        ExcelDate.system1904 = false
+        defer { ExcelDate.system1904 = was }
+        return ExcelDate.serial(y, m, d)
+    }
+}
