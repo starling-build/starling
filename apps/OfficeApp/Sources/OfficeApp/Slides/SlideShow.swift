@@ -18,12 +18,16 @@ final class SlideShowView: StatefulWidget {
     let images: SlideTextCache
     /// Index into `deck.slides` to start at.
     let start: Int
+    /// Presenter view: the slide beside the next one, the notes, a timer.
+    let presenter: Bool
     let onEnd: () -> Void
 
-    init(deck: DeckController, images: SlideTextCache, start: Int, onEnd: @escaping () -> Void) {
+    init(deck: DeckController, images: SlideTextCache, start: Int, presenter: Bool = false,
+         onEnd: @escaping () -> Void) {
         self.deck = deck
         self.images = images
         self.start = start
+        self.presenter = presenter
         self.onEnd = onEnd
         super.init()
     }
@@ -53,6 +57,11 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     private var _played = 0
     private var _playing = false
     private var _build: AnimationController!
+    /// Presenter view's timer: time banked before the last start, and when
+    /// it last started (nil while paused).
+    private var _timerBanked = 0.0
+    private var _timerSince: Date? = Date()
+    private var _clockGeneration = 0
 
     private var _w: SlideShowView { widget as! SlideShowView }
 
@@ -91,7 +100,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         _enterSlide(forward: true)
         _focus.onKeyData = { [weak self] key in self?._key(key) ?? false }
         _focus.requestFocus()
-        _hideCursorSoon()
+        if _w.presenter { _tickClock() } else { _hideCursorSoon() }
     }
 
     override func dispose() {
@@ -228,6 +237,109 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         }
     }
 
+    // MARK: Presenter view
+
+    /// Redraw once a second for the timer and the clock.
+    private func _tickClock() {
+        _clockGeneration += 1
+        let gen = _clockGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, self.mounted, self._clockGeneration == gen else { return }
+            self.setState {}
+            self._tickClock()
+        }
+    }
+
+    private var _elapsed: Double {
+        _timerBanked + (_timerSince.map { Date().timeIntervalSince($0) } ?? 0)
+    }
+
+    private func _presenterView(_ context: any BuildContext, show: Widget) -> Widget {
+        let deck = _w.deck
+        let white = Color(0xFFF2F2F2), dim = Color(0xFFA8A8A8)
+        let font = OfficeFonts.sans
+        func label(_ s: String, _ size: Double, _ color: Color) -> Widget {
+            Text(s, style: Flutter.TextStyle(color: color, fontSize: size, fontFamily: font))
+        }
+        let nextIndex = _at + 1 < _order.count ? _order[_at + 1] : nil
+        let next: Widget = nextIndex.map { i in
+            AspectRatio(aspectRatio: deck.slideSize.width / deck.slideSize.height, child: CustomPaint(
+                painter: SlidePainter(slide: deck.slides[i], theme: deck.theme, slideSize: deck.slideSize,
+                                      revision: deck.revision, cache: _cache),
+                child: SizedBox(expand: ())))
+        } ?? label("End of slide show", 16, dim)
+        let remaining = _at < _order.count ? max(0, _plan.groups.count - _played) : 0
+        let notes = _at < _order.count ? deck.slides[_order[_at]].notes.document.plainText() : ""
+        let t = Int(_elapsed)
+        let timer = String(format: "%d:%02d:%02d", t / 3600, (t / 60) % 60, t % 60)
+        let clock: String = {
+            let f = DateFormatter()
+            f.dateFormat = "h:mm a"
+            return f.string(from: Date())
+        }()
+        func button(_ text: String, _ action: @escaping () -> Void) -> Widget {
+            Button(onPressed: action, child: Text(text))
+        }
+        let counter = _at < _order.count ? "Slide \(_order[_at] + 1) of \(deck.slides.count)" : "End of show"
+        let bar = Padding(padding: EdgeInsets(left: 20, top: 10, right: 20, bottom: 10), child: Row(children: [
+            label(timer, 26, white),
+            SizedBox(width: 12, height: nil, child: nil),
+            button(_timerSince == nil ? "Resume" : "Pause") { [weak self] in
+                guard let self else { return }
+                self.setState {
+                    if let since = self._timerSince {
+                        self._timerBanked += Date().timeIntervalSince(since)
+                        self._timerSince = nil
+                    } else {
+                        self._timerSince = Date()
+                    }
+                }
+            },
+            SizedBox(width: 6, height: nil, child: nil),
+            button("Reset") { [weak self] in
+                guard let self else { return }
+                self.setState {
+                    self._timerBanked = 0
+                    if self._timerSince != nil { self._timerSince = Date() }
+                }
+            },
+            Expanded(child: Center(child: label(counter, 18, white))),
+            label(clock, 22, white),
+            SizedBox(width: 16, height: nil, child: nil),
+            button("End Show") { [weak self] in self?._w.onEnd() },
+        ]))
+        let controls = Padding(padding: EdgeInsets(left: 0, top: 10, right: 0, bottom: 0), child: Row(
+            mainAxisAlignment: .center, children: [
+                button("◀  Back") { [weak self] in self?._previous() },
+                SizedBox(width: 12, height: nil, child: nil),
+                button(remaining > 0 ? "Next animation  ▶" : "Next slide  ▶") { [weak self] in self?._next() },
+            ]))
+        return ColoredBox(color: Color(0xFF1B1B1B), child: Column(crossAxisAlignment: .stretch, children: [
+            Expanded(child: Padding(padding: EdgeInsets(left: 20, top: 20, right: 20, bottom: 0), child: Row(
+                crossAxisAlignment: .stretch, children: [
+                    Expanded(flex: 3, child: Column(crossAxisAlignment: .stretch, children: [
+                        label("Current slide", 13, dim),
+                        SizedBox(width: nil, height: 6, child: nil),
+                        Expanded(child: show),
+                        controls,
+                    ])),
+                    SizedBox(width: 24, height: nil, child: nil),
+                    Expanded(flex: 2, child: Column(crossAxisAlignment: .stretch, children: [
+                        label(remaining > 0 ? "Next slide (after \(remaining) more animation\(remaining == 1 ? "" : "s") here)" : "Next slide", 13, dim),
+                        SizedBox(width: nil, height: 6, child: nil),
+                        next,
+                        SizedBox(width: nil, height: 20, child: nil),
+                        label("Notes", 13, dim),
+                        SizedBox(width: nil, height: 6, child: nil),
+                        Expanded(child: SingleChildScrollView(child: Text(
+                            notes.isEmpty ? "No notes for this slide." : notes,
+                            style: Flutter.TextStyle(color: notes.isEmpty ? dim : white, fontSize: 22, height: 1.35, fontFamily: font)))),
+                    ])),
+                ]))),
+            bar,
+        ]))
+    }
+
     // MARK: Build
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -237,13 +349,16 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         let progress = _controller.value
         let elapsed = _playing ? _build.value * _plan.length(_played) : nil
         let reveals = _plan.reveals(played: _played, elapsed: elapsed)
-        return Listener(
+        let show = Listener(
             onPointerDown: { [weak self] e in
                 guard let self else { return }
                 self._focus.requestFocus()
                 if e.buttons & kSecondaryMouseButton != 0 { self._previous() } else { self._next() }
             },
-            onPointerHover: { [weak self] _ in self?._hideCursorSoon() },
+            onPointerHover: { [weak self] _ in
+                guard let self, !self._w.presenter else { return }
+                self._hideCursorSoon()
+            },
             behavior: .opaque,
             child: CustomPaint(
                 painter: _ShowPainter(current: current, previous: progress < 1 ? previous : nil,
@@ -252,6 +367,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
                                       revision: deck.revision &+ Int(progress * 1000) &+ (_blank == nil ? 0 : 7) &+ _at * 10007
                                           &+ _played * 131 &+ Int((elapsed ?? -1) * 1000) * 7919),
                 child: SizedBox(expand: ())))
+        return _w.presenter ? _presenterView(context, show: show) : show
     }
 }
 

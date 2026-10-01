@@ -276,6 +276,7 @@ extension Ribbon {
             Chrome.group("Start Slide Show", fluent, [
                 Chrome.big(FluentSystemIcons.desktop, "From Beginning", fluent) { [session] in session.onSlideShow?(false) },
                 Chrome.big(FluentSystemIcons.window, "From Current Slide", fluent) { [session] in session.onSlideShow?(true) },
+                Chrome.big(FluentSystemIcons.laptop, "Presenter View", fluent) { [session] in session.onPresenterView?() },
             ]),
         ]
     }

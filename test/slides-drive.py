@@ -148,6 +148,14 @@ def run(d, only):
         d.click(62, 165); d.click(70, 220)
         d.shot("chart-column", "Change Chart Type → Column: one series, four categories")
 
+    if step("presenter"):
+        # Keyboard only: ⌥F5 opens presenter view on the current slide.
+        d.key(key=96, mods=("option",)); time.sleep(3)
+        d.shot_screen("presenter", "Presenter view: current slide, next slide, notes, a running timer, Slide n of N")
+        d.key(key=49); time.sleep(1)
+        d.shot_screen("presenter-next", "One click on: the next animation or slide, the timer still counting")
+        d.key(key=KEY["escape"]); time.sleep(2.5)
+
     if step("switch"):
         d.click(33, 86); d.shot("backstage", "Backstage home: Blank document, Blank presentation, Open")
         d.click(315, 210)

@@ -124,6 +124,15 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**S7 done 2026-09-30** — part 3, presenter view: Slide Show →
+Presenter View or ⌥F5 runs the show as PowerPoint's presenter layout in
+the one window — the current slide (as far as its animations have got;
+a click on it goes on), the next slide (with how many animations remain
+here), the notes in large type, a timer with pause and reset, the slide
+counter, the clock, Back / Next and End Show. One window, not a second
+display: putting the audience view on another screen wants a host hook
+for a second window, which macOS has and the framework does not yet.
+
 **S7 part 2 done 2026-09-30** — entrance animations. An Animations tab
 (Preview; None, Appear, Fade, Fly In, Wipe, Zoom; Effect Options with
 direction and As One Object / By Paragraph; Start, Duration, Delay; the

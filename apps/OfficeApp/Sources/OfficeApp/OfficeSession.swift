@@ -129,6 +129,8 @@ final class OfficeSession {
     var onInsertShape: ((ShapePreset) -> Void)?
     var onBackgroundPicture: (() -> Void)?
     var onInsertTable: ((Int, Int) -> Void)?
+    /// Slide Show → Presenter View, from the current slide.
+    var onPresenterView: (() -> Void)?
     /// Show or hide the Animation Pane (Slides).
     var onAnimationPane: (() -> Void)?
     /// Show (true) or hide the selected chart's data grid.

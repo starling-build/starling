@@ -51,6 +51,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _sorter = false
     /// The slide show, when running: the slide it started from.
     private var _show: Int? = nil
+    private var _presenter = false
     /// Where the next picture from the picture panel goes.
     private var _pictureForBackground = false
     private var _hadPicture = false
@@ -181,6 +182,10 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onSlideShow = { [weak self] fromCurrent in
             guard let self else { return }
             self._startShow(at: fromCurrent ? self.deck.current : 0)
+        }
+        session.onPresenterView = { [weak self] in
+            guard let self else { return }
+            self._startShow(at: self.deck.current, presenter: true)
         }
         session.onToggleSpelling = { [weak self] in
             guard let self else { return }
@@ -335,10 +340,13 @@ final class SlidesShellState: State<StatefulWidget> {
 
     // MARK: Slide show
 
-    private func _startShow(at index: Int) {
+    private func _startShow(at index: Int, presenter: Bool = false) {
         _endEditing()
         hostSetFullscreen?(true)
-        setState { _show = index }
+        setState {
+            _show = index
+            _presenter = presenter
+        }
     }
 
     private func _endShow() {
@@ -500,9 +508,10 @@ final class SlidesShellState: State<StatefulWidget> {
             }
             return true
         }
-        // F5 plays from the beginning, ⇧F5 from here (PowerPoint's keys).
+        // F5 plays from the beginning, ⇧F5 from here, ⌥F5 in presenter
+        // view (PowerPoint's keys).
         if named == .function(5) {
-            _startShow(at: _deckChords.shift ? deck.current : 0)
+            _startShow(at: _deckChords.shift || _deckChords.alt ? deck.current : 0, presenter: _deckChords.alt)
             return true
         }
         switch named {
@@ -664,7 +673,7 @@ final class SlidesShellState: State<StatefulWidget> {
             return Stack(children: [
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideShowView(
-                    deck: deck, images: _cache, start: start,
+                    deck: deck, images: _cache, start: start, presenter: _presenter,
                     onEnd: { [weak self] in self?._endShow() })),
             ])
         }
