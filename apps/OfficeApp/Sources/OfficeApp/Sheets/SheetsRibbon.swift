@@ -136,12 +136,28 @@ extension Ribbon {
                 },
             ]),
         ])])
+        let cells = Chrome.group("Cells", fluent, [Chrome.rows([
+            Chrome.menuButton(FluentSystemIcons.add, "Insert", "Insert cells", fluent, items: [
+                MenuFlyoutItem(text: Text("Insert Sheet Rows"), onPressed: { wb.insertAtSelection(.rows) }),
+                MenuFlyoutItem(text: Text("Insert Sheet Columns"), onPressed: { wb.insertAtSelection(.cols) }),
+                MenuFlyoutItem(text: Text("Insert Sheet"), onPressed: { wb.addSheet() }),
+            ]),
+            Chrome.menuButton(FluentSystemIcons.delete, "Delete", "Delete cells", fluent, items: [
+                MenuFlyoutItem(text: Text("Delete Sheet Rows"), onPressed: { wb.deleteAtSelection(.rows) }),
+                MenuFlyoutItem(text: Text("Delete Sheet Columns"), onPressed: { wb.deleteAtSelection(.cols) }),
+                MenuFlyoutItem(text: Text("Delete Sheet"), onPressed: wb.book.sheets.count > 1 ? { wb.deleteSheet(wb.activeSheet) } : nil),
+            ]),
+            Chrome.menuButton(FluentSystemIcons.grid, "Fill", "Fill", fluent, items: [
+                MenuFlyoutItem(text: Text("Down (⌘D)"), onPressed: { wb.fillDown() }),
+                MenuFlyoutItem(text: Text("Right (⌘R)"), onPressed: { wb.fillRight() }),
+            ]),
+        ])])
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },
             Chrome.small(FluentSystemIcons.textClearFormatting, "Clear Formats", fluent) { wb.setStyle { $0 = .plain } },
             Chrome.small(FluentSystemIcons.delete, "Clear Contents", fluent) { wb.clearContents() },
         ])])
-        return [clipboard, font, alignment, number, editing]
+        return [clipboard, font, alignment, number, cells, editing]
     }
 
     /// One more or one fewer decimal place in a format (General becomes

@@ -110,7 +110,16 @@ final class SheetGridState: State<StatefulWidget> {
         case rows(anchor: Int)
         case resizeColumn(col: Int, startX: Double, startWidth: Double)
         case resizeRow(row: Int, startY: Double, startHeight: Double)
+        /// The fill handle: the range it would fill so far.
+        case fill(target: CellRange)
+        /// Pointing at cells for a formula being typed: where the
+        /// reference text starts in the editor, and the anchor cell.
+        case point(textStart: Int, anchor: CellAddress)
     }
+    /// The fill handle's outline while it is dragged.
+    private(set) var fillTarget: CellRange? = nil
+    /// The app's own clipboard: exact cells, formulas and formats.
+    private static var _clip: WorkbookController.Clip? = nil
 
     private var _w: SheetGrid { widget as! SheetGrid }
     var controller: WorkbookController { _w.controller }
@@ -212,6 +221,7 @@ final class SheetGridState: State<StatefulWidget> {
     func commitEdit() -> Bool {
         guard let e = edit else { return false }
         edit = nil
+        _pointRef = nil
         var text = String(e.text)
         // Excel closes the parentheses a formula left open.
         if text.hasPrefix("=") {
@@ -230,6 +240,7 @@ final class SheetGridState: State<StatefulWidget> {
     func cancelEdit() {
         guard edit != nil else { return }
         edit = nil
+        _pointRef = nil
         _w.onEditText(nil)
         _repaint.notifyListeners()
     }
@@ -254,9 +265,37 @@ final class SheetGridState: State<StatefulWidget> {
 
     // MARK: Keys
 
+    /// F4: the reference at the caret cycles A1 → $A$1 → A$1 → $A1 → A1.
+    private func _cycleAbsolute() {
+        guard var e = edit, e.text.first == "=" else { return }
+        let chars = e.text
+        // The reference ending at (or containing) the caret.
+        var end = e.caret
+        while end < chars.count, chars[end].isLetter || chars[end].isNumber || chars[end] == "$" { end += 1 }
+        var start = min(e.caret, chars.count)
+        while start > 0, chars[start - 1].isLetter || chars[start - 1].isNumber || chars[start - 1] == "$" { start -= 1 }
+        let token = String(chars[start ..< end])
+        guard let p = CellRefText.parse(Substring(token)), p.rest.isEmpty, let row = p.row, let col = p.col else { return }
+        let (colAbs, rowAbs): (Bool, Bool)
+        switch (p.colAbs, p.rowAbs) {
+        case (false, false): (colAbs, rowAbs) = (true, true)
+        case (true, true): (colAbs, rowAbs) = (false, true)
+        case (false, true): (colAbs, rowAbs) = (true, false)
+        default: (colAbs, rowAbs) = (false, false)
+        }
+        let next = RefEnd(row: row, col: col, rowAbs: rowAbs, colAbs: colAbs).text
+        e.text.replaceSubrange(start ..< end, with: Array(next))
+        e.caret = start + next.count
+        edit = e
+        _w.onEditText(String(e.text))
+        _repaint.notifyListeners()
+    }
+
     private func _key(_ k: KeyData) -> Bool {
         if _chords.track(k) { return false }
         guard k.type != .up else { return false }
+        // A double click is two clicks with nothing between them.
+        _lastClick = nil
         let named = KeyChordTracker.named(k.logical)
         let c = controller
 
@@ -272,8 +311,10 @@ final class SheetGridState: State<StatefulWidget> {
             case "b" where edit == nil: c.setStyle { $0.bold.toggle() }; return true
             case "i" where edit == nil: c.setStyle { $0.italic.toggle() }; return true
             case "u" where edit == nil: c.setStyle { $0.underline.toggle() }; return true
-            case "c" where edit == nil: copySelection(); return true
-            case "x" where edit == nil: copySelection(); c.clearContents(); return true
+            case "c" where edit == nil: copySelection(cut: false); return true
+            case "x" where edit == nil: copySelection(cut: true); return true
+            case "d" where edit == nil: c.fillDown(); return true
+            case "r" where edit == nil: c.fillRight(); return true
             case "v":
                 paste()
                 return true
@@ -285,6 +326,15 @@ final class SheetGridState: State<StatefulWidget> {
 
         if var e = edit {
             switch named {
+            case .enter where _chords.control || (_chords.primary && !_chords.shift):
+                // ⌃↩ / ⌘↩: what was typed goes into every selected cell.
+                let text = String(e.text)
+                cancelEdit()
+                c.fillSelection(with: text)
+                return true
+            case .function(4):
+                _cycleAbsolute()
+                return true
             case .enter:
                 commitEdit()
                 c.advance(rows: _chords.shift ? -1 : 1, cols: 0)
@@ -304,6 +354,10 @@ final class SheetGridState: State<StatefulWidget> {
                 if e.caret < e.text.count { e.text.remove(at: e.caret) }
                 edit = e; _w.onEditText(String(e.text)); _repaint.notifyListeners(); return true
             case .left, .right, .up, .down:
+                if e.enterMode && (pointing || _pointRef != nil) {
+                    _pointWithArrow(named)
+                    return true
+                }
                 if e.enterMode {
                     commitEdit()
                     _move(named)
@@ -316,7 +370,7 @@ final class SheetGridState: State<StatefulWidget> {
             case .end: e.caret = e.text.count; edit = e; _repaint.notifyListeners(); return true
             case .function(2): e.enterMode.toggle(); edit = e; return true
             default:
-                if let t = _chords.typedText(k) { _insert(t); return true }
+                if let t = _chords.typedText(k) { _pointRef = nil; _insert(t); return true }
                 return false
             }
         }
@@ -344,6 +398,24 @@ final class SheetGridState: State<StatefulWidget> {
         }
     }
 
+    /// An arrow in Point mode: a reference to the cell next to the one
+    /// pointed at (or to the edited cell), replacing the last one inserted.
+    private var _pointRef: (start: Int, cell: CellAddress)? = nil
+
+    private func _pointWithArrow(_ named: NamedKey) {
+        guard var e = edit else { return }
+        let (dr, dc): (Int, Int) = named == .up ? (-1, 0) : named == .down ? (1, 0) : named == .left ? (0, -1) : (0, 1)
+        let from = _pointRef?.cell ?? e.cell
+        let to = CellAddress(row: max(0, from.row + dr), col: max(0, from.col + dc))
+        let start = _pointRef?.start ?? e.caret
+        e.text.replaceSubrange(start ..< e.caret, with: Array(to.a1))
+        e.caret = start + to.a1.count
+        edit = e
+        _pointRef = (start, to)
+        _w.onEditText(String(e.text))
+        reveal(to)
+    }
+
     private func _move(_ named: NamedKey) {
         let c = controller
         let (dr, dc): (Int, Int) = named == .up ? (-1, 0) : named == .down ? (1, 0) : named == .left ? (0, -1) : (0, 1)
@@ -357,7 +429,7 @@ final class SheetGridState: State<StatefulWidget> {
     // MARK: Clipboard
 
     /// The selection as tab-separated values, as every spreadsheet reads it.
-    func copySelection() {
+    func copySelection(cut: Bool = false) {
         let c = controller
         let r = c.selection
         let used = c.sheet.usedExtent
@@ -374,8 +446,12 @@ final class SheetGridState: State<StatefulWidget> {
             }
             lines.append(fields.joined(separator: "\t"))
         }
-        Clipboard.setData(ClipboardData(text: lines.joined(separator: "\n") + "\n"))
-        _w.onStatus("Copied \(r.rows > 1 || r.cols > 1 ? r.a1 : r.topLeft.a1)")
+        let text = lines.joined(separator: "\n") + "\n"
+        Clipboard.setData(ClipboardData(text: text))
+        // Inside the app a paste is exact; a cut moves on paste, as Excel's does.
+        Self._clip = c.clip(cut: cut, text: text)
+        _w.onStatus((cut ? "Cut " : "Copied ") + (r.rows > 1 || r.cols > 1 ? r.a1 : r.topLeft.a1) + (cut ? " — paste to move it" : ""))
+        _repaint.notifyListeners()
     }
 
     func paste() {
@@ -387,8 +463,16 @@ final class SheetGridState: State<StatefulWidget> {
                     self._insert(text.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).first.map(String.init) ?? "")
                     return
                 }
-                let rows = Csv.parse(text, separator: "\t")
                 let c = self.controller
+                // Our own copy (the system clipboard still holds what we put
+                // there): paste the cells themselves.
+                if let clip = Self._clip, clip.text == text {
+                    c.paste(clip)
+                    if clip.cut { Self._clip = nil }
+                    self.reveal(c.active)
+                    return
+                }
+                let rows = Csv.parse(text, separator: "\t")
                 let origin = c.selection.topLeft
                 var items: [(CellAddress, String)] = []
                 for (i, row) in rows.enumerated() {
@@ -451,10 +535,30 @@ final class SheetGridState: State<StatefulWidget> {
             return
         }
         let a = cell(atLocal: p)
-        // A click in a formula being typed would point at cells (X3);
-        // for now a click elsewhere commits it.
+        // The fill handle: the small square at the selection's corner.
+        if edit == nil {
+            let sel = rect(c.selection)
+            if abs(p.dx - sel.right) <= 5 && abs(p.dy - sel.bottom) <= 5 {
+                _drag = .fill(target: c.selection)
+                return
+            }
+        }
         if let ed = edit {
             if ed.cell == a { return }
+            // Typing a formula and at a place a reference can go: the click
+            // points at the cell (a drag at a range), as Excel's Point mode.
+            if pointing || _pointRef != nil {
+                var e = edit!
+                let start = _pointRef?.start ?? e.caret
+                e.text.replaceSubrange(start ..< e.caret, with: Array(a.a1))
+                e.caret = start + a.a1.count
+                edit = e
+                _pointRef = (start, a)
+                _w.onEditText(String(e.text))
+                _drag = .point(textStart: start, anchor: a)
+                _repaint.notifyListeners()
+                return
+            }
             commitEdit()
         }
         // Double click, detected by hand (onDoubleTap kills taps on DRM).
@@ -495,13 +599,54 @@ final class SheetGridState: State<StatefulWidget> {
             let h = max(0, startHeight + p.dy - startY)
             c.sheet.rowHeights[row] = h / scale
             _repaint.notifyListeners()
+        case .fill:
+            // Down/up or across, whichever the pointer has gone further in.
+            let sel = c.selection
+            let a = cell(atLocal: p)
+            let dRow = a.row > sel.bottom ? a.row - sel.bottom : (a.row < sel.top ? a.row - sel.top : 0)
+            let dCol = a.col > sel.right ? a.col - sel.right : (a.col < sel.left ? a.col - sel.left : 0)
+            var t = sel
+            if abs(dRow) >= abs(dCol) {
+                if dRow > 0 { t.bottom = a.row } else if dRow < 0 { t.top = a.row }
+            } else {
+                if dCol > 0 { t.right = a.col } else if dCol < 0 { t.left = a.col }
+            }
+            _drag = .fill(target: t)
+            fillTarget = t
+            _autoScroll(p)
+            _repaint.notifyListeners()
+        case .point(let start, let anchor):
+            guard var e = edit else { return }
+            let a = cell(atLocal: p)
+            let ref = a == anchor ? anchor.a1 : CellRange(anchor, a).a1
+            e.text.replaceSubrange(start ..< e.caret, with: Array(ref))
+            e.caret = start + ref.count
+            edit = e
+            _w.onEditText(String(e.text))
+            _repaint.notifyListeners()
         }
+    }
+
+    /// Whether a click (or an arrow) should insert a reference: a formula
+    /// is being typed and the caret follows an operator, "(" or ",".
+    var pointing: Bool {
+        guard let e = edit, e.text.first == "=", e.caret == e.text.count else { return false }
+        guard let last = e.text.last else { return false }
+        return "=(,+-*/^&<>:;".contains(last)
     }
 
     private func _up(_ e: PointerEvent) {
         _move(e)
-        if case .resizeColumn(let col, _, _)? = _drag { controller.setColumnWidth(col, controller.sheet.colWidth(col)) }
-        if case .resizeRow(let row, _, _)? = _drag { controller.setRowHeight(row, controller.sheet.rowHeight(row)) }
+        if case .fill(let target)? = _drag {
+            fillTarget = nil
+            if target != controller.selection { controller.fillSeries(to: target) }
+        }
+        if case .resizeColumn(let col, _, let startWidth)? = _drag {
+            controller.setColumnWidth(col, controller.sheet.colWidth(col), from: startWidth / scale)
+        }
+        if case .resizeRow(let row, _, let startHeight)? = _drag {
+            controller.setRowHeight(row, controller.sheet.rowHeight(row), from: startHeight / scale)
+        }
         _drag = nil
     }
 
@@ -679,6 +824,15 @@ final class SheetGridState: State<StatefulWidget> {
             canvas.drawRect(Rect.fromLTWH(r.right.rounded() - 5, r.bottom.rounded() - 5, 7, 1), p)
         }
 
+        // The fill handle's target, dashed as Excel's is (drawn as a thin outline).
+        if let t = fillTarget {
+            let outline = Paint()
+            outline.style = .stroke
+            outline.strokeWidth = 1
+            outline.color = dark ? Color(0xFFBDBDBD) : Color(0xFF616161)
+            let r = rect(t)
+            canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), outline)
+        }
         // The editor.
         if let e = edit {
             _paintEditor(canvas, e, ink: ink, paper: paper, accent: accent, size: size)

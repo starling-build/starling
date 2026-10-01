@@ -126,17 +126,25 @@ final class Worksheet {
     var defaultColWidthPt = Worksheet.defaultColWidth
     var defaultRowHeightPt = Worksheet.defaultRowHeight
 
+    /// A copy of every property: an undo step's snapshot. The cell
+    /// dictionary is copy-on-write, so this is cheap until one side changes.
     func copy() -> Worksheet {
         let s = Worksheet(name: name)
-        s.origin = origin
-        s.keptElements = keptElements
-        s.rootTag = rootTag
         s.cells = cells
         s.colWidths = colWidths
         s.rowHeights = rowHeights
         s.freezeRows = freezeRows
         s.freezeCols = freezeCols
         s.merges = merges
+        s.origin = origin
+        s.keptElements = keptElements
+        s.rootTag = rootTag
+        s.tabColor = tabColor
+        s.hidden = hidden
+        s.showGridlines = showGridlines
+        s.savedActive = savedActive
+        s.defaultColWidthPt = defaultColWidthPt
+        s.defaultRowHeightPt = defaultRowHeightPt
         return s
     }
 }

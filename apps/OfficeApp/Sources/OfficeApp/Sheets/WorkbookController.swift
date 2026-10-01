@@ -33,7 +33,7 @@ final class WorkbookController: ChangeNotifier {
             _notify(selectionOnly: true)
         }
     }
-    private var _selections: [ObjectIdentifier: (CellRange, CellAddress)] = [:]
+    var _selections: [ObjectIdentifier: (CellRange, CellAddress)] = [:]
     /// The cell that typing goes into, and the selected range around it.
     private(set) var active = CellAddress(row: 0, col: 0)
     private(set) var selection = CellRange(CellAddress(row: 0, col: 0))
@@ -257,14 +257,16 @@ final class WorkbookController: ChangeNotifier {
 
     func style(at a: CellAddress) -> CellStyle { book.style(sheet.cells[a]?.style ?? 0) }
 
-    func setColumnWidth(_ col: Int, _ w: Double) {
-        sheet.colWidths[col] = max(0, w)
-        _bump()
+    /// `from` is the width before a live drag changed it, so the undo
+    /// step restores what was there when the drag began.
+    func setColumnWidth(_ col: Int, _ w: Double, from: Double? = nil) {
+        if let from { sheet.colWidths[col] = from }
+        structural { sheet.colWidths[col] = max(0, w) }
     }
 
-    func setRowHeight(_ row: Int, _ h: Double) {
-        sheet.rowHeights[row] = max(0, h)
-        _bump()
+    func setRowHeight(_ row: Int, _ h: Double, from: Double? = nil) {
+        if let from { sheet.rowHeights[row] = from }
+        structural { sheet.rowHeights[row] = max(0, h) }
     }
 
     // MARK: Sorting
@@ -339,9 +341,10 @@ final class WorkbookController: ChangeNotifier {
     // MARK: Sheets
 
     func addSheet() {
-        book.sheets.insert(Worksheet(name: book.nextSheetName()), at: activeSheet + 1)
-        activeSheet += 1
-        _bump()
+        structural {
+            book.sheets.insert(Worksheet(name: book.nextSheetName()), at: activeSheet + 1)
+            activeSheet += 1
+        }
     }
 
     @discardableResult
@@ -350,6 +353,12 @@ final class WorkbookController: ChangeNotifier {
         guard !n.isEmpty, n.count <= 31, !n.contains(where: { "[]:*?/\\".contains($0) }) else { return false }
         if let j = book.sheet(named: n), j != i { return false }
         let old = book.sheets[i].name
+        guard old != n else { return true }
+        structural { _rename(i, old, n) }
+        return true
+    }
+
+    private func _rename(_ i: Int, _ old: String, _ n: String) {
         book.sheets[i].name = n
         // Formulas that named the sheet follow it.
         for ws in book.sheets {
@@ -363,64 +372,134 @@ final class WorkbookController: ChangeNotifier {
                 if g != f { ws.cells[a]?.formula = g; ws.cells[a]?.input = Formula.text(g) }
             }
         }
-        _bump()
-        return true
     }
 
     func deleteSheet(_ i: Int) {
         guard book.sheets.count > 1 else { return }
-        book.sheets.remove(at: i)
-        activeSheet = min(activeSheet, book.sheets.count - 1)
-        engine.recalculate()
-        _bump()
+        structural {
+            let gone = book.sheets[i].name.lowercased()
+            book.sheets.remove(at: i)
+            // References to the deleted sheet become #REF!, as Excel's do.
+            _rewriteFormulas { ref, _ in ref.sheet?.lowercased() == gone ? nil : ref }
+            _selections.removeAll()
+            let target = min(activeSheet, book.sheets.count - 1)
+            if activeSheet != target { activeSheet = target } else { _notify(selectionOnly: true) }
+        }
+    }
+
+    /// Pass every reference in every formula (and defined name) through
+    /// `f`, which gets the reference and the index of the sheet the formula
+    /// is on; nil makes it #REF!.
+    func _rewriteFormulas(_ f: (FormulaRef, Int) -> FormulaRef?) {
+        for (si, ws) in book.sheets.enumerated() {
+            for (a, c) in ws.cells {
+                guard let expr = c.formula else { continue }
+                let g = Formula.mapRefs(expr) { f($0, si) }
+                if g != expr {
+                    ws.cells[a]?.formula = g
+                    ws.cells[a]?.input = Formula.text(g)
+                }
+            }
+        }
+        for (k, v) in book.names {
+            guard let expr = try? Formula.parse(v) else { continue }
+            // A name's references always name their sheet; -1 means "no home sheet".
+            let g = Formula.mapRefs(expr) { f($0, -1) }
+            if g != expr { book.names[k] = Formula.print(g) }
+        }
     }
 
     // MARK: Undo
 
-    private struct Step {
-        let sheet: Int
-        let before: [CellAddress: Cell?]
-        let after: [CellAddress: Cell?]
-        let selection: CellRange
-        let active: CellAddress
+    /// One undo step: the cells one edit changed, or — for edits that
+    /// move things (rows, columns, sheets, sizes) — the sheets before and
+    /// after, whole.
+    private enum Step {
+        case cells(sheet: Int, before: [CellAddress: Cell?], after: [CellAddress: Cell?],
+                   selection: CellRange, active: CellAddress)
+        case structure(before: _BookState, after: _BookState, selection: CellRange, active: CellAddress)
     }
+
+    struct _BookState {
+        let sheets: [Worksheet]
+        let names: [String: String]
+        let activeSheet: Int
+    }
+
     private var _undo: [Step] = []
     private var _redo: [Step] = []
 
     var canUndo: Bool { !_undo.isEmpty }
     var canRedo: Bool { !_redo.isEmpty }
 
-    private func _record(sheet si: Int, before: [CellAddress: Cell?], recalc: Bool = true) {
-        let ws = book.sheets[si]
-        var after: [CellAddress: Cell?] = [:]
-        for a in before.keys { after[a] = .some(ws.cells[a]) }
-        _undo.append(Step(sheet: si, before: before, after: after, selection: selection, active: active))
+    private func _push(_ s: Step) {
+        _undo.append(s)
         if _undo.count > 500 { _undo.removeFirst(_undo.count - 500) }
         _redo.removeAll()
         edits += 1
+    }
+
+    func _record(sheet si: Int, before: [CellAddress: Cell?], recalc: Bool = true) {
+        let ws = book.sheets[si]
+        var after: [CellAddress: Cell?] = [:]
+        for a in before.keys { after[a] = .some(ws.cells[a]) }
+        _push(.cells(sheet: si, before: before, after: after, selection: selection, active: active))
         if recalc { engine.recalculate() }
+        _notify()
+    }
+
+    private func _bookState() -> _BookState {
+        _BookState(sheets: book.sheets.map { $0.copy() }, names: book.names, activeSheet: activeSheet)
+    }
+
+    private func _restore(_ s: _BookState) {
+        book.sheets = s.sheets.map { $0.copy() }
+        book.names = s.names
+        _selections.removeAll()
+        let target = min(s.activeSheet, book.sheets.count - 1)
+        if activeSheet != target { activeSheet = target }
+    }
+
+    /// Run an edit that moves things, as one undo step over whole sheets.
+    func structural(_ change: () -> Void) {
+        let before = _bookState()
+        let sel = selection, act = active
+        change()
+        _push(.structure(before: before, after: _bookState(), selection: sel, active: act))
+        engine.recalculate()
         _notify()
     }
 
     func undo() {
         guard let s = _undo.popLast() else { return }
-        _apply(s.sheet, s.before)
+        switch s {
+        case .cells(let si, let before, _, let sel, let act):
+            _apply(si, before)
+            if activeSheet != si { activeSheet = si }
+            selection = sel; active = act
+        case .structure(let before, _, let sel, let act):
+            _restore(before)
+            selection = sel; active = act
+        }
         _redo.append(s)
         edits -= 1
-        activeSheet = s.sheet
-        selection = s.selection
-        active = s.active
         anchor = active
+        _extentEnd = selection.bottomRight
         engine.recalculate()
         _notify()
     }
 
     func redo() {
         guard let s = _redo.popLast() else { return }
-        _apply(s.sheet, s.after)
+        switch s {
+        case .cells(let si, _, let after, _, _):
+            _apply(si, after)
+            if activeSheet != si { activeSheet = si }
+        case .structure(_, let after, _, _):
+            _restore(after)
+        }
         _undo.append(s)
         edits += 1
-        activeSheet = s.sheet
         engine.recalculate()
         _notify()
     }
