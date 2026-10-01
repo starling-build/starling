@@ -135,6 +135,8 @@ final class Worksheet {
     /// The drawings were added to, moved or deleted here: the part is
     /// written from the model on save (unchanged ones verbatim).
     var drawingsEdited = false
+    /// Excel tables on the sheet (their parts are kept; see Tables.swift).
+    var tables: [SheetTable] = []
     /// Rows the filter hides (kept apart from rowHeights, so each keeps its height).
     var filteredRows: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
     /// Bumped by anything that moves rows or columns on screen, so the grid
@@ -165,6 +167,7 @@ final class Worksheet {
         s.drawingPart = drawingPart
         s.drawingRoot = drawingRoot
         s.drawingsEdited = drawingsEdited
+        s.tables = tables
         s.filteredRows = filteredRows
         return s
     }

@@ -76,6 +76,7 @@ enum Xlsx {
         for ws in book.sheets {
             if let path = ws.origin {
                 (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors)
+                ws.tables = TablesXML.read(sheetPath: path, parts: parts)
             }
         }
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
@@ -512,6 +513,18 @@ enum Xlsx {
         for (i, p) in paths.enumerated() { generated[p] = Data(sheetXML[i].utf8) }
         generated[stylesPath] = Data(_stylesXML(book).utf8)
         generated[sstPath] = Data(_sstXML(sst).utf8)
+        // Tables: rewritten whenever their header cells or range could have
+        // changed, which is any save (names must match the cells exactly).
+        for ws in book.sheets {
+            for t in ws.tables {
+                guard let original = originalParts[t.path] else { continue }
+                generated[t.path] = TablesXML.write(t, original: original, header: { col in
+                    let v = ws.value(CellAddress(row: t.ref.top, col: col))
+                    return NumberFormat.display(v, book.style(ws.cells[CellAddress(row: t.ref.top, col: col)]?.style ?? 0).numberFormat,
+                                                width: 255).text
+                })
+            }
+        }
         var extraTypes: [(String, String)] = []
         var droppedDrawings = Set<String>()
         for d in drawingParts {

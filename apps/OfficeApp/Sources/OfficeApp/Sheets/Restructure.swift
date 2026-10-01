@@ -116,6 +116,26 @@ extension WorkbookController {
             }
             if ws.drawings[i].anchor != old { ws.drawingsEdited = true }
         }
+        // Tables: their range moves like a merge's; a column inserted inside
+        // gets a new entry, a deleted one loses its own. A table whose header
+        // row is deleted goes the way Excel's does — it is kept, one row down.
+        for t in ws.tables.indices {
+            var table = ws.tables[t]
+            let r = table.ref
+            let lo0 = axis == .rows ? r.top : r.left, hi0 = axis == .rows ? r.bottom : r.right
+            guard let (lo, hi) = _adjustSpan(lo0, hi0, index: index, delta: delta) else { continue }
+            if axis == .cols {
+                if delta > 0, index > r.left, index <= r.right {
+                    table.columnIds.insert(contentsOf: Array(repeating: nil, count: delta), at: index - r.left)
+                } else if delta < 0 {
+                    let a = max(index, r.left) - r.left, b = min(deleteEnd, r.right + 1) - r.left
+                    if a < b { table.columnIds.removeSubrange(a ..< b) }
+                }
+            }
+            table.ref = axis == .rows ? CellRange(top: lo, left: r.left, bottom: hi, right: r.right)
+                                      : CellRange(top: r.top, left: lo, bottom: r.bottom, right: hi)
+            if table != ws.tables[t] { table.edited = true; ws.tables[t] = table }
+        }
         // Kept elements that name cells: conditional formats, validations…
         let sheetName = ws.name.lowercased()
         ws.keptElements = ws.keptElements.compactMap { e in

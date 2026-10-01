@@ -274,6 +274,17 @@ range are cached per `WorkbookController.dataRevision`. Not drawn: icon
 sets, x14 rules in extLst, date-occurring; not editable yet. Seen on a
 fixture copy with a scale, bars and a cellIs rule.
 
+**Excel tables kept valid (2026-10-01)** (`Sheets/Tables.swift`): a
+table part's range moves with inserted/deleted rows and columns, its
+column list follows (new entries for columns inserted inside, dropped
+ones removed, positional filters cleared), and on every save its
+column names are re-read from the header cells — unique, never empty,
+control characters as `_x000a_` — because Excel discards ("repairs") a
+table whose names disagree with its header cells. The rest of the part
+is written as read; privateschools2223.xlsx's table round-trips byte
+for byte. Not yet: table styles drawn, a table deleted with all its
+rows, structured references (`Table2[Col]`) in formulas.
+
 **Fixed 2026-10-01: saves dropped the file's differential formats.**
 `styles.xml` is rebuilt from the model, and the rebuild wrote an empty
 `<dxfs count="0"/>`, so every conditional format, table style and pivot
