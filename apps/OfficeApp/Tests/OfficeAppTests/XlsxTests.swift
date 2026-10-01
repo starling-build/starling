@@ -236,3 +236,24 @@ extension XlsxTests {
         XCTAssertTrue(after.containsSubstring("localSheetId=\"0\">Other!$A$1:$C$5"), after)
     }
 }
+
+extension XlsxTests {
+    func testKeepsDifferentialFormats() throws {
+        // A package whose styles carry a dxf and an x14 extension under the
+        // root's own prefixes.
+        let book = Workbook()
+        book.keptStyleParts = [
+            "root": "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\">",
+            "dxfs": "<dxfs count=\"1\"><dxf><font><b/><color rgb=\"FF9C0006\"/></font><fill><patternFill><bgColor rgb=\"FFFFC7CE\"/></patternFill></fill></dxf></dxfs>",
+            "extLst": "<extLst><ext uri=\"{EB79DEF2-80B8-43e5-95BD-54CBDDF9020C}\"><x14:slicerStyles defaultSlicerStyle=\"SlicerStyleLight1\"/></ext></extLst>",
+        ]
+        let data = try Xlsx.write(book)
+        let styles = try XCTUnwrap(try Zip.read(data).first { $0.name == "xl/styles.xml" }).data
+        XCTAssertNotNil(XNode.parse(styles))
+        let text = String(decoding: styles, as: UTF8.self)
+        XCTAssertTrue(text.containsSubstring(book.keptStyleParts["dxfs"]!))
+        XCTAssertTrue(text.containsSubstring("<x14:slicerStyles"))
+        let back = try Xlsx.read(data)
+        XCTAssertEqual(back.dxfs, [DxfStyle(bold: true, color: 0x9C0006, fill: 0xFFC7CE)])
+    }
+}

@@ -263,6 +263,14 @@ rebuilds it).
 Script coordinates are view points: the window's 28pt title bar is not
 in them, so a screenshot's y (in points) is 28 more than the script's.
 
+**Fixed 2026-10-01: saves dropped the file's differential formats.**
+`styles.xml` is rebuilt from the model, and the rebuild wrote an empty
+`<dxfs count="0"/>`, so every conditional format, table style and pivot
+format in a saved file pointed at a dxf that no longer existed
+(privateschools2223.xlsx lost 111). The file's `dxfs`, `tableStyles`,
+`colors` and `extLst` are now kept verbatim (`Workbook.keptStyleParts`,
+under the file's own `<styleSheet>` root, whose prefixes they use).
+
 **Traps paid for:**
 
 - This port's `FluentTextBox` fires `onChanged` on programmatic text

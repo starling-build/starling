@@ -46,6 +46,15 @@ enum Xlsx {
         if let st = xml("xl/styles.xml") {
             book.styles = _styles(st, theme: theme)
             if book.styles.isEmpty { book.styles = [.plain] }
+            book.dxfs = (st.child("dxfs")?.kids("dxf") ?? []).map { _dxf($0, theme: theme) }
+        }
+        if let raw = parts["xl/styles.xml"] {
+            let split = RawXML.split([UInt8](raw))
+            for (name, text) in split.children where ["dxfs", "tableStyles", "colors", "extLst"].contains(name) {
+                book.keptStyleParts[name] = text
+            }
+            // Its root tag declares the prefixes those parts use (x14, x15…).
+            if split.rootName.hasSuffix("styleSheet") { book.keptStyleParts["root"] = split.rootStart }
         }
 
         // Sheets, in tab order.
@@ -364,6 +373,22 @@ enum Xlsx {
 
     /// A <color> as 0xRRGGBB: rgb, a theme slot with its tint, or a
     /// legacy palette index; nil for "automatic".
+    /// `<dxf>`: font and fill, as far as they are set. A solid fill's
+    /// colour is its bgColor here, unlike a cell's.
+    static func _dxf(_ d: XNode, theme: [UInt32]) -> DxfStyle {
+        var x = DxfStyle()
+        if let f = d.child("font") {
+            func on(_ n: String) -> Bool? { f.child(n).map { $0["val"] != "0" && $0["val"] != "false" } }
+            x.bold = on("b"); x.italic = on("i"); x.strike = on("strike")
+            if let u = f.child("u") { x.underline = u["val"] != "none" }
+            if let c = f.child("color") { x.color = _color(c, theme: theme) }
+        }
+        if let p = d.child("fill")?.child("patternFill") {
+            if let c = p.child("bgColor") ?? p.child("fgColor") { x.fill = _color(c, theme: theme) }
+        }
+        return x
+    }
+
     static func _color(_ c: XNode, theme: [UInt32]) -> UInt32? {
         var rgb: UInt32? = nil
         if let s = c["rgb"], let v = UInt32(s.suffix(6), radix: 16) { rgb = v }
@@ -845,7 +870,9 @@ enum Xlsx {
             xf += align.isEmpty ? "/>" : " applyAlignment=\"1\"><alignment\(align)/></xf>"
             xfs.append(xf)
         }
-        var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
+        var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+            + (book.keptStyleParts["root"].flatMap { $0.hasPrefix("<styleSheet") ? $0 : nil }
+               ?? "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">")
         if !custom.isEmpty {
             s += "<numFmts count=\"\(custom.count)\">"
             for (code, id) in custom.sorted(by: { $0.value < $1.value }) { s += "<numFmt numFmtId=\"\(id)\" formatCode=\"\(_esc(code))\"/>" }
@@ -857,7 +884,12 @@ enum Xlsx {
         s += "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
         s += "<cellXfs count=\"\(xfs.count)\">" + xfs.joined() + "</cellXfs>"
         s += "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"
-        s += "<dxfs count=\"0\"/><tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium2\" defaultPivotStyle=\"PivotStyleLight16\"/>"
+        // The file's own differential formats, table styles, palette and
+        // extensions, in schema order (conditional formats point at dxfs by index).
+        s += book.keptStyleParts["dxfs"] ?? "<dxfs count=\"0\"/>"
+        s += book.keptStyleParts["tableStyles"] ?? "<tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium2\" defaultPivotStyle=\"PivotStyleLight16\"/>"
+        s += book.keptStyleParts["colors"] ?? ""
+        s += book.keptStyleParts["extLst"] ?? ""
         return s + "</styleSheet>"
     }
 

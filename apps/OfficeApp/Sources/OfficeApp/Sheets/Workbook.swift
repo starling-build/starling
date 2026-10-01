@@ -185,6 +185,12 @@ final class Workbook {
     /// ranges) and sheet-local ones included, in order: what a save writes,
     /// with references kept current as rows, columns and sheets move.
     var fileNames: [DefinedName] = []
+    /// styles.xml's parts the model does not rebuild — `dxfs` (the formats
+    /// conditional formatting and tables point at), `tableStyles`,
+    /// `colors`, `extLst` — written back as the file had them.
+    var keptStyleParts: [String: String] = [:]
+    /// Those differential formats, read for drawing conditional formats.
+    var dxfs: [DxfStyle] = []
     /// What charts draw with: the file's theme, or Office's.
     var chartTheme = DeckTheme.office
 
@@ -224,4 +230,14 @@ struct DefinedName: Equatable, Sendable {
     var text: String
 
     var isBuiltIn: Bool { name.hasPrefix("_xlnm.") }
+}
+
+/// A differential format: only what it sets overrides the cell's own.
+struct DxfStyle: Equatable, Sendable {
+    var bold: Bool? = nil
+    var italic: Bool? = nil
+    var underline: Bool? = nil
+    var strike: Bool? = nil
+    var color: UInt32? = nil
+    var fill: UInt32? = nil
 }
