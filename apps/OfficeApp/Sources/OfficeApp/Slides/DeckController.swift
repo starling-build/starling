@@ -25,6 +25,10 @@ struct ShapeState: Equatable {
     var size: Double
     var color: Color
     var listIndent: Double
+    var phType: String? = nil
+    var phIdx: String? = nil
+    /// A picture's crop, as fractions cut from each edge.
+    var crop: EdgeInsets? = nil
 }
 
 struct SlideState: Equatable {
@@ -33,6 +37,10 @@ struct SlideState: Equatable {
     var hidden: Bool
     var notes: RichDocument
     var shapes: [ShapeState]
+    var layoutPart: String? = nil
+    var backgroundXML: String? = nil
+    var background: SlideFill? = nil
+    var sourcePart: String? = nil
 }
 
 struct DeckState: Equatable {
@@ -58,6 +66,12 @@ final class DeckController: ChangeNotifier {
     private(set) var slideSize = Size(960, 540)
     var theme = DeckTheme()
     private(set) var revision = 0
+    /// Moves on every change to the content (not on selection or moving
+    /// between slides): what "unsaved" compares against.
+    private(set) var edits = 0
+    /// The file the deck was read from, kept whole so a save can write its
+    /// masters, layouts, theme and anything not modelled back untouched.
+    private(set) var package: PptxPackage? = nil
     /// Shapes selected on the current slide, in selection order.
     private(set) var selection: [SlideShape] = []
     private var _nextId = 1
@@ -83,12 +97,29 @@ final class DeckController: ChangeNotifier {
     func newDeck() {
         for slide in slides { _unwatch(slide) }
         slides = [_makeSlide(.titleSlide)]
+        slideSize = Size(960, 540)
+        theme = DeckTheme()
+        package = nil
         current = 0
         selection = []
         _undo = []
         _redo = []
         _session = nil
         _changed()
+    }
+
+    /// Replace the deck with one read from a file: its slides, size, theme
+    /// and the package to write back through. No history.
+    func load(_ state: DeckState, theme: DeckTheme, package: PptxPackage?) {
+        for slide in slides { _unwatch(slide) }
+        slides = []
+        self.theme = theme
+        self.package = package
+        _undo = []
+        _redo = []
+        _session = nil
+        restore(state)
+        current = 0
     }
 
     func setSlideSize(_ size: Size) {
@@ -451,6 +482,7 @@ final class DeckController: ChangeNotifier {
 
     /// Called first by every edit: what the deck was becomes an undo step.
     private func _checkpoint() {
+        edits += 1
         _flushSession()
         _undo.append(snapshot())
         if _undo.count > Self._undoLimit { _undo.removeFirst() }
@@ -460,7 +492,9 @@ final class DeckController: ChangeNotifier {
     func snapshot() -> DeckState {
         DeckState(slides: slides.map { slide in
             SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden,
-                       notes: slide.notes.document, shapes: slide.shapes.map(_state))
+                       notes: slide.notes.document, shapes: slide.shapes.map(_state),
+                       layoutPart: slide.layoutPart, backgroundXML: slide.backgroundXML,
+                       background: slide.background, sourcePart: slide.sourcePart)
         }, current: current, slideSize: slideSize)
     }
 
@@ -499,6 +533,10 @@ final class DeckController: ChangeNotifier {
                 slide.notes.addListener({ [weak self] in self?._textChanged() }, owner: self)
             }
             slide.hidden = ss.hidden
+            slide.layoutPart = ss.layoutPart
+            slide.backgroundXML = ss.backgroundXML
+            slide.background = ss.background
+            slide.sourcePart = ss.sourcePart
             next.append(slide)
         }
         for slide in slides {
@@ -518,7 +556,8 @@ final class DeckController: ChangeNotifier {
                    fill: s.fill, outline: s.outline, outlineWidth: s.outlineWidth, anchor: s.anchor,
                    insets: s.insets, prompt: s.prompt, text: s.text?.document,
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
-                   color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18)
+                   color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
+                   phType: s.phType, phIdx: s.phIdx, crop: s.crop)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -531,6 +570,9 @@ final class DeckController: ChangeNotifier {
         shape.anchor = st.anchor
         shape.insets = st.insets
         shape.prompt = st.prompt
+        shape.phType = st.phType
+        shape.phIdx = st.phIdx
+        shape.crop = st.crop
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
 
@@ -574,10 +616,13 @@ final class DeckController: ChangeNotifier {
                                        spaceAfter: 0, lineSpacing: 0.9,
                                        list: spec.bullets ? .bullet : nil)
         let doc = RichDocument(paragraphs: [RichParagraph(text: "", style: style)])
-        return SlideShape(id: _id(), name: spec.name, kind: .placeholder(spec.role),
-                          frame: Rect.fromLTWH(f.left * sx, f.top * sy, f.width * sx, f.height * sy),
-                          text: _textController(doc), textTheme: theme, anchor: spec.anchor,
-                          prompt: spec.prompt)
+        let shape = SlideShape(id: _id(), name: spec.name, kind: .placeholder(spec.role),
+                               frame: Rect.fromLTWH(f.left * sx, f.top * sy, f.width * sx, f.height * sy),
+                               text: _textController(doc), textTheme: theme, anchor: spec.anchor,
+                               prompt: spec.prompt)
+        shape.phType = spec.phType
+        shape.phIdx = spec.phIdx
+        return shape
     }
 
     private func _copy(_ shape: SlideShape, offset: Double = 0) -> SlideShape {
@@ -644,6 +689,7 @@ final class DeckController: ChangeNotifier {
         let now = _textRevisions()
         guard now != _lastTextRevisions else { return }
         _lastTextRevisions = now
+        edits += 1
         revision += 1
         notifyListeners()
     }

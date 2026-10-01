@@ -43,6 +43,8 @@ final class SlidesShellState: State<StatefulWidget> {
     }()
     /// Last click was in the thumbnail pane: Delete then removes a slide.
     private var _paneFocused = false
+    /// `deck.edits` when the deck was last opened or saved.
+    private var _savedEdits = 0
     /// Shapes copied with ⌘C/⌘X while no text was being edited.
     private var _shapeClipboard: [ShapeState] = []
     /// Normal (canvas and notes) or Slide Sorter (a grid of every slide).
@@ -78,6 +80,10 @@ final class SlidesShellState: State<StatefulWidget> {
         _recent = OfficeRecent.load()
         _wire()
         deck.addListener({ [weak self] in self?._deckChanged() }, owner: self)
+        _cache.onImageDecoded = { [weak self] in
+            guard let self, self.mounted else { return }
+            self.setState {}
+        }
         _point(at: nil)
         _deckFocus.onKeyData = { [weak self] key in self?._deckKey(key) ?? false }
         if let path = _w.initialPath { _open(path) }
@@ -101,9 +107,9 @@ final class SlidesShellState: State<StatefulWidget> {
             if kind == .presentation { self._newDeck() } else { self._w.onSwitch(.document, nil) }
         }
         session.onOpen = { [weak self] in self?.setState { self?._backstage = .open } }
-        session.onSave = { [weak self] in self?._flash("Saving decks as .pptx is the next milestone") }
-        session.onSaveAs = { [weak self] in self?._flash("Saving decks as .pptx is the next milestone") }
-        session.onExport = { [weak self] _ in self?._flash("PDF export of decks comes with .pptx") }
+        session.onSave = { [weak self] in self?._save() }
+        session.onSaveAs = { [weak self] in self?.setState { self?._backstage = .saveAs } }
+        session.onExport = { [weak self] ext in self?._export(ext) }
         session.onStatus = { [weak self] m in self?._flash(m) }
         session.onPaste = { [weak self] plain in
             guard let self else { return }
@@ -219,7 +225,7 @@ final class SlidesShellState: State<StatefulWidget> {
             _notesActive = false
             _point(at: nil)
         }
-        session.dirty = true
+        session.dirty = deck.edits != _savedEdits
         session.summary = _summarize()
         setState {}
     }
@@ -230,6 +236,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _active = nil
         _point(at: nil)
         deck.newDeck()
+        _savedEdits = deck.edits
         session.path = nil
         setState {
             session.dirty = false
@@ -243,8 +250,76 @@ final class SlidesShellState: State<StatefulWidget> {
             _w.onSwitch(.document, path)
             return
         }
-        _flash("Opening .pptx is the next milestone")
+        do {
+            guard let data = FileManager.default.contents(atPath: path) else { throw Pptx.ReadError.noPresentation }
+            let (state, theme, package) = try Pptx.read(data)
+            _endEditing()
+            deck.load(state, theme: theme, package: package)
+            _savedEdits = deck.edits
+            session.path = path
+            _recent = OfficeRecent.remember(path, in: _recent)
+            setState {
+                session.dirty = false
+                _backstage = nil
+            }
+            _flash("Opened \(path.lastPathComponent) — \(deck.slides.count) slides")
+        } catch {
+            _flash("Could not open \(path.lastPathComponent): \(error)")
+            setState { _backstage = nil }
+        }
+    }
+
+    // MARK: Saving
+
+    private func _save() {
+        guard let path = session.path, path.pathExtension.lowercased() == "pptx" else {
+            setState { _backstage = .saveAs }
+            return
+        }
+        _saveTo(path)
+    }
+
+    private func _saveTo(_ chosen: String) {
+        let path = chosen.pathExtension.lowercased() == "pptx" ? chosen : chosen + ".pptx"
+        _endEditing()
+        do {
+            let data = try Pptx.write(deck)
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            session.path = path
+            _savedEdits = deck.edits
+            _recent = OfficeRecent.remember(path, in: _recent)
+            setState {
+                session.dirty = false
+                _backstage = nil
+            }
+            _flash("Saved \(path.lastPathComponent)")
+        } catch {
+            _flash("Could not save \(path.lastPathComponent): \(error)")
+        }
+    }
+
+    /// PDF or a .pptx copy, beside the deck (or in Documents), named after it.
+    private func _export(_ ext: String) {
+        let base = session.path.map { $0.deletingPathExtension } ?? homeDirectory() + "/Documents/" + session.title.deletingPathExtension
+        let target = base + "." + ext
+        _endEditing()
+        if ext == "pptx" {
+            do {
+                try Pptx.write(deck).write(to: URL(fileURLWithPath: target), options: .atomic)
+                _flash("Exported \(target.lastPathComponent)")
+            } catch {
+                _flash("Could not export: \(error)")
+            }
+            setState { _backstage = nil }
+            return
+        }
         setState { _backstage = nil }
+        _flash("Exporting \(target.lastPathComponent)…")
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let ok = await SlidesPdf.write(self.deck, cache: self._cache, to: target, title: self.session.title)
+            self._flash(ok ? "Exported \(target.lastPathComponent)" : "Could not write \(target.lastPathComponent)")
+        }
     }
 
     private func _insertTextBox() {
@@ -378,6 +453,7 @@ final class SlidesShellState: State<StatefulWidget> {
         case "n" where mods.contains(.shift): _endEditing(); deck.addSlide()
         case "n": _newDeck()
         case "o": session.onOpen?()
+        case "s" where mods.contains(.shift): session.onSaveAs?()
         case "s": session.onSave?()
         case "a" where !typing: deck.selectShapes(deck.currentSlide.shapes)
         case "c" where shapes: _shapeClipboard = deck.copySelection(); _flash("Copied")
@@ -451,7 +527,7 @@ final class SlidesShellState: State<StatefulWidget> {
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
                 onOpenPath: { [weak self] path in self?._open(path) },
-                onSavePath: { [weak self] _ in self?._flash("Saving decks as .pptx is the next milestone") },
+                onSavePath: { [weak self] path in self?._saveTo(path) },
                 onPicturePath: { [weak self] _ in self?._flash("Pictures on slides are milestone S6") })),
         ])
     }

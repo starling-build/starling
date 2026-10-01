@@ -112,6 +112,41 @@ it, Esc leaves the text with the shape selected, arrows nudge, Delete,
 snapshot; a text-editing session folds into one step when it ends, and
 ⌘Z while typing undoes the typing first.
 
+**S4 done 2026-09-30**: `.pptx` both ways, plus PDF. The reader resolves
+what PowerPoint resolves — placeholder geometry, body settings and text
+looks through slide, layout, master, the master's text styles and the
+presentation's defaults; colours through the master's map into the theme
+with lumMod/lumOff/tint/shade/alpha; backgrounds (colour, gradient,
+picture, `bgRef` into the theme) through slide, layout and master;
+pictures with their crop; connectors with flips; groups flattened; any
+preset name kept (drawn exactly for ~25, as its box otherwise). Charts,
+SmartArt, tables, video and freeforms are kept as XML and drawn as a
+labelled box. A deck from a file is written through its package
+(masters, layouts, themes copied byte for byte; kept objects re-pointed
+with the parts they reach); a new deck gets our own templates. Gates:
+`OfficeApp --deck-roundtrip in out` (read, write, read: dumps equal within
+0.1 pt), `test/pptx-check.py` (structure PowerPoint would refuse or
+"repair"), and Quick Look (`qlmanage -t`, Apple's own Office importer)
+for the first slide. Both real decks on this machine (a 117-slide
+PowerPoint talk and a 33-slide lecture with SmartArt) round-trip, pass
+the check, and render the same in Quick Look before and after. On
+screen: open, edit, ⌘S, reopen; Export → PDF writes every visible slide.
+
+Traps paid for in S4:
+
+- **An absent `anchor` means top, for every shape.** Defaulting drawn
+  shapes to centre wrote `anchor="ctr"` back, and Quick Look then stopped
+  wrapping that box — found by bisecting the written XML one attribute at
+  a time against Quick Look renders.
+- **Pictures are cropped by `a:srcRect`**: one image file fed two
+  pictures on the lecture's title slide, each showing a different part.
+- **A run that does not say "not bold" inherits bold** from its layout:
+  every run property is written explicitly, `b="0"` included.
+- **No PowerPoint here, but Quick Look is Apple's Office importer**: a
+  file it will not thumbnail is a file PowerPoint will at least repair.
+- The lecture deck lives in ~/Downloads and is the user's: read locally
+  for testing, never committed. The Boost talk is BSL-licensed.
+
 **S3 done 2026-09-30**: drag a thumbnail to reorder (an accent line
 shows where it lands), right-click a thumbnail for New/Duplicate/Delete/
 Hide Slide and the layouts, ⌘↑/⌘↓ move the current slide, Enter in the

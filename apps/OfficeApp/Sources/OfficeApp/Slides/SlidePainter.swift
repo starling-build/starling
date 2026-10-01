@@ -22,6 +22,34 @@ final class SlideTextCache {
         let layout: RichLayout
     }
     private var _entries: [ObjectIdentifier: Entry] = [:]
+    private var _images: [String: Image] = [:]
+    private var _decoding: Set<String> = []
+    /// Called when a picture finishes decoding: repaint.
+    var onImageDecoded: (() -> Void)?
+
+    /// The decoded picture, or nil while it decodes (the request starts
+    /// here, once).
+    func image(_ attachment: ImageAttachment) -> Image? {
+        if let image = _images[attachment.id] { return image }
+        if _decoding.contains(attachment.id) { return nil }
+        _decoding.insert(attachment.id)
+        let bytes = [UInt8](attachment.data)
+        let id = attachment.id
+        Task { @MainActor [weak self] in
+            var decoded: Image? = nil
+            if let codec = try? await instantiateImageCodec(bytes) {
+                decoded = (try? await codec.getNextFrame())?.image
+                codec.dispose()
+            }
+            guard let self else { decoded?.dispose(); return }
+            self._decoding.remove(id)
+            if let decoded {
+                self._images[id] = decoded
+                self.onImageDecoded?()
+            }
+        }
+        return nil
+    }
 
     /// The body of `shape` laid out at `pxPerPt` device pixels per point.
     func layout(_ shape: SlideShape, pxPerPt: Double) -> RichLayout? {
@@ -112,10 +140,8 @@ final class SlidePainter: CustomPainter {
 
     override func paint(_ canvas: any Canvas, _ size: Size) {
         let px = size.width / slideSize.width
-        let bg = Paint()
-        bg.style = .fill
-        bg.color = theme.background
-        canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bg)
+        Self.paintFill(slide.background ?? SlideFill(color: theme.background),
+                       Rect.fromLTWH(0, 0, size.width, size.height), canvas, cache: cache)
         canvas.save()
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))
         if !shapesOnly {
@@ -137,8 +163,38 @@ final class SlidePainter: CustomPainter {
             canvas.rotate(shape.rotation * .pi / 180)
             canvas.translate(-c.dx, -c.dy)
         }
+        if let image = shape.picture {
+            if let decoded = cache.image(image) {
+                let w = Double(decoded.width), h = Double(decoded.height)
+                let c = shape.crop ?? .zero
+                let src = Rect.fromLTRB(c.left * w, c.top * h, w - c.right * w, h - c.bottom * h)
+                canvas.drawImageRect(decoded, src, r, Paint())
+            } else {
+                let p = Paint()
+                p.style = .fill
+                p.color = Color(0xFFEDEDED)
+                canvas.drawRect(r, p)
+            }
+        }
+        if let opaque = shape.opaque {
+            // What the deck cannot draw yet: a labelled box where it sits.
+            let p = Paint()
+            p.style = .fill
+            p.color = Color(0xFFF1F3F6)
+            canvas.drawRect(r, p)
+            p.style = .stroke
+            p.strokeWidth = 1
+            p.color = Color(0xFF9AA4B2)
+            canvas.drawRect(r, p)
+            let tp = TextPainter(text: TextSpan(text: opaque.label, style: Flutter.TextStyle(
+                color: Color(0xFF5A6472), fontSize: max(6, 14 * px), fontFamily: OfficeFonts.sans)),
+                textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: max(1, r.width))
+            tp.paint(canvas, Offset(r.center.dx - tp.width / 2, r.center.dy - tp.height / 2))
+            tp.dispose()
+        }
         let path: Path? = shape.preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
-        if let fill = shape.fill {
+        if let fill = shape.fill, shape.preset?.isOpenPath != true {
             let p = Paint()
             p.style = .fill
             p.isAntiAlias = true
@@ -167,21 +223,101 @@ final class SlidePainter: CustomPainter {
         canvas.restore()
     }
 
+    /// A colour, gradient or picture filling `r`.
+    static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache) {
+        let p = Paint()
+        p.style = .fill
+        p.color = fill.color ?? Color(0xFFFFFFFF)
+        if fill.stops.count >= 2 {
+            let a = fill.angle * .pi / 180
+            let c = r.center
+            let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
+            let d = Offset(cos(a) * half, sin(a) * half)
+            p.shader = Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
+                                colors: fill.stops.map(\.color), colorStops: fill.stops.map(\.position))
+        }
+        canvas.drawRect(r, p)
+        if let image = fill.image, let decoded = cache.image(image) {
+            canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height)), r, Paint())
+        }
+    }
+
     /// The outline of a preset shape filling `r`, with PowerPoint's default
     /// adjustments.
     static func geometryPath(_ preset: ShapePreset, _ r: Rect) -> Path {
         let path = Path()
         let w = r.width, h = r.height, l = r.left, t = r.top
-        switch preset {
-        case .rect, .line:
-            path.addRect(r)
-        case .roundRect:
-            path.addRRect(RRect(fromRectAndRadius: r, Radius(circular: min(w, h) * 0.1667)))
-        case .ellipse:
+        let ss = min(w, h)
+        switch preset.rawValue {
+        case "roundRect":
+            path.addRRect(RRect(fromRectAndRadius: r, Radius(circular: ss * 0.1667)))
+        case "round2DiagRect":
+            path.addRRect(RRect(fromLTRBAndCorners: l, t, r.right, r.bottom,
+                                topLeft: Radius(circular: ss * 0.1667), topRight: .zero,
+                                bottomRight: Radius(circular: ss * 0.1667), bottomLeft: .zero))
+        case "ellipse", "flowChartConnector":
             path.addOval(r)
-        case .triangle:
+        case "flowChartTerminator":
+            path.addRRect(RRect(fromRectAndRadius: r, Radius(circular: h / 2)))
+        case "triangle":
             path.addPolygon([Offset(l + w / 2, t), Offset(r.right, r.bottom), Offset(l, r.bottom)], true)
-        case .rightArrow:
+        case "rtTriangle":
+            path.addPolygon([Offset(l, t), Offset(r.right, r.bottom), Offset(l, r.bottom)], true)
+        case "diamond", "flowChartDecision":
+            path.addPolygon([Offset(l + w / 2, t), Offset(r.right, t + h / 2), Offset(l + w / 2, r.bottom),
+                             Offset(l, t + h / 2)], true)
+        case "parallelogram", "flowChartInputOutput":
+            let k = ss * 0.25
+            path.addPolygon([Offset(l + k, t), Offset(r.right, t), Offset(r.right - k, r.bottom), Offset(l, r.bottom)], true)
+        case "hexagon":
+            let k = ss * 0.25
+            path.addPolygon([Offset(l + k, t), Offset(r.right - k, t), Offset(r.right, t + h / 2),
+                             Offset(r.right - k, r.bottom), Offset(l + k, r.bottom), Offset(l, t + h / 2)], true)
+        case "homePlate":
+            let k = ss * 0.5
+            path.addPolygon([Offset(l, t), Offset(r.right - k, t), Offset(r.right, t + h / 2),
+                             Offset(r.right - k, r.bottom), Offset(l, r.bottom)], true)
+        case "chevron":
+            let k = ss * 0.5
+            path.addPolygon([Offset(l, t), Offset(r.right - k, t), Offset(r.right, t + h / 2),
+                             Offset(r.right - k, r.bottom), Offset(l, r.bottom), Offset(l + k, t + h / 2)], true)
+        case "plus", "mathPlus":
+            let k = ss * 0.25
+            path.addPolygon([Offset(l + k, t), Offset(r.right - k, t), Offset(r.right - k, t + k), Offset(r.right, t + k),
+                             Offset(r.right, r.bottom - k), Offset(r.right - k, r.bottom - k), Offset(r.right - k, r.bottom),
+                             Offset(l + k, r.bottom), Offset(l + k, r.bottom - k), Offset(l, r.bottom - k),
+                             Offset(l, t + k), Offset(l + k, t + k)], true)
+        case "leftArrow":
+            let head = ss * 0.5
+            path.addPolygon([Offset(r.right, t + h * 0.25), Offset(l + head, t + h * 0.25), Offset(l + head, t),
+                             Offset(l, t + h / 2), Offset(l + head, r.bottom), Offset(l + head, t + h * 0.75),
+                             Offset(r.right, t + h * 0.75)], true)
+        case "upArrow", "downArrow":
+            let head = ss * 0.5
+            let up = preset.rawValue == "upArrow"
+            let tip = up ? t : r.bottom, base = up ? t + head : r.bottom - head, tail = up ? r.bottom : t
+            path.addPolygon([Offset(l + w * 0.25, tail), Offset(l + w * 0.25, base), Offset(l, base),
+                             Offset(l + w / 2, tip), Offset(r.right, base), Offset(l + w * 0.75, base),
+                             Offset(l + w * 0.75, tail)], true)
+        case "leftBrace", "rightBrace":
+            // Two quarter curls each side of a point, as PowerPoint's brace.
+            let left = preset.rawValue == "leftBrace"
+            let x0 = left ? r.right : l, x1 = left ? l + w / 2 : r.right - w / 2, x2 = left ? l : r.right
+            let q = min(h * 0.083, w)
+            path.moveTo(x0, t)
+            path.quadraticBezierTo(x1, t, x1, t + q)
+            path.lineTo(x1, t + h / 2 - q)
+            path.quadraticBezierTo(x1, t + h / 2, x2, t + h / 2)
+            path.quadraticBezierTo(x1, t + h / 2, x1, t + h / 2 + q)
+            path.lineTo(x1, r.bottom - q)
+            path.quadraticBezierTo(x1, r.bottom, x0, r.bottom)
+        case "leftBracket", "rightBracket":
+            let left = preset.rawValue == "leftBracket"
+            let x0 = left ? r.right : l, x1 = left ? l : r.right
+            path.moveTo(x0, t); path.lineTo(x1, t); path.lineTo(x1, r.bottom); path.lineTo(x0, r.bottom)
+        case _ where preset.rawValue.hasPrefix("bentConnector") || preset.rawValue.hasPrefix("curvedConnector"):
+            path.moveTo(l, t); path.lineTo(l + w / 2, t); path.lineTo(l + w / 2, r.bottom); path.lineTo(r.right, r.bottom)
+        case "rightArrow":
             let head = min(w, h) * 0.5
             let shaftTop = t + h * 0.25, shaftBottom = t + h * 0.75
             path.addPolygon([
@@ -189,7 +325,7 @@ final class SlidePainter: CustomPainter {
                 Offset(r.right, t + h / 2), Offset(r.right - head, r.bottom), Offset(r.right - head, shaftBottom),
                 Offset(l, shaftBottom),
             ], true)
-        case .star5:
+        case "star5":
             let c = r.center
             var points: [Offset] = []
             for i in 0 ..< 10 {
@@ -198,7 +334,7 @@ final class SlidePainter: CustomPainter {
                 points.append(Offset(c.dx + cos(angle) * w / 2 * k, c.dy + sin(angle) * h / 2 * k))
             }
             path.addPolygon(points, true)
-        case .wedgeRectCallout:
+        case "wedgeRectCallout":
             // The tail leaves the bottom edge and points below-left, outside
             // the frame, as PowerPoint's default callout does.
             path.addPolygon([
@@ -206,6 +342,9 @@ final class SlidePainter: CustomPainter {
                 Offset(l + w * 0.4167, r.bottom), Offset(l + w * 0.2917, t + h * 1.125),
                 Offset(l + w * 0.1667, r.bottom), Offset(l, r.bottom),
             ], true)
+        default:
+            // rect, flowChartProcess and every preset not drawn exactly yet.
+            path.addRect(r)
         }
         return path
     }

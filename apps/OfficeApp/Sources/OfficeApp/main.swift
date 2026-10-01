@@ -146,6 +146,89 @@ if let i = CommandLine.arguments.firstIndex(of: "--layout"), i + 1 < CommandLine
     }
 }
 
+// `--deck <file.pptx>`: what the Slides reader made of a deck, one line per
+// shape — kind, frame in points, fill, and the start of its text. The
+// round-trip gate compares these before and after a save.
+if let i = CommandLine.arguments.firstIndex(of: "--deck"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        let (state, theme, _) = try Pptx.read(data)
+        print(SlidesDump.text(state, theme: theme), terminator: "")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("deck failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
+// `--deck-roundtrip <in.pptx> <out.pptx>`: read, write, read again; the two
+// dumps must match. Exit 3 when they differ (the diff goes to stderr).
+if let i = CommandLine.arguments.firstIndex(of: "--deck-roundtrip"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        let (state, theme, package) = try Pptx.read(data)
+        let out = try PptxWriter.write(state, theme: theme, package: package)
+        try out.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 2]))
+        let (again, theme2, _) = try Pptx.read(out)
+        let a = SlidesDump.text(state, theme: theme), b = SlidesDump.text(again, theme: theme2)
+        if a == b {
+            print("round trip: \(state.slides.count) slides identical (\(data.count) -> \(out.count) bytes)")
+            exit(0)
+        }
+        let la = a.split(separator: "\n"), lb = b.split(separator: "\n")
+        // Same words, numbers within a tenth of a point: a frame inside a
+        // flattened group lands between EMU steps and rounds on the way out.
+        func same(_ x: Substring, _ y: Substring) -> Bool {
+            if x == y { return true }
+            func split(_ s: Substring) -> ([String], [Double]) {
+                var words: [String] = [], nums: [Double] = [], cur = ""
+                for ch in s {
+                    if ch.isNumber || ch == "." || ch == "-" { cur.append(ch) } else {
+                        if let v = Double(cur) { nums.append(v); words.append("#") } else if !cur.isEmpty { words.append(cur) }
+                        cur = ""; words.append(String(ch))
+                    }
+                }
+                if let v = Double(cur) { nums.append(v); words.append("#") } else if !cur.isEmpty { words.append(cur) }
+                return (words, nums)
+            }
+            let (wx, nx) = split(x), (wy, ny) = split(y)
+            return wx == wy && nx.count == ny.count && zip(nx, ny).allSatisfy { abs($0 - $1) <= 0.11 }
+        }
+        if la.count == lb.count && zip(la, lb).allSatisfy({ same($0, $1) }) {
+            print("round trip: \(state.slides.count) slides match (within 0.1 pt) (\(data.count) -> \(out.count) bytes)")
+            exit(0)
+        }
+        var shown = 0
+        for (x, y) in zip(la, lb) where !same(x, y) && shown < 20 {
+            FileHandle.standardError.write("- \(x)\n+ \(y)\n".data(using: .utf8)!)
+            shown += 1
+        }
+        if la.count != lb.count { FileHandle.standardError.write("line counts \(la.count) vs \(lb.count)\n".data(using: .utf8)!) }
+        exit(3)
+    } catch {
+        FileHandle.standardError.write("round trip failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
+// `--deck-sample <out.pptx>`: a new deck built through the controller — every
+// layout, typed text, drawn shapes, notes — written with our own templates.
+// What the new-deck path of the writer is checked with.
+if let i = CommandLine.arguments.firstIndex(of: "--deck-sample"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    let deck = SlidesSample.make()
+    do {
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        print("wrote \(deck.slides.count) slides to \(CommandLine.arguments[i + 1])")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("sample failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--convert <in> <out>`: the formats without the window, for scripts and
 // for checking our output against other readers (`textutil`, LibreOffice).
 if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
