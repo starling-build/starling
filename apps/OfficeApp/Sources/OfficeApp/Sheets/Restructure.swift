@@ -157,6 +157,28 @@ extension WorkbookController {
             })
             return text.map { (e.name, $0) }
         }
+        // The x14 copies' ranges, and manual page breaks.
+        ws.keptElements = ws.keptElements.compactMap { e in
+            switch e.name {
+            case "extLst":
+                return (e.name, KeptRefs.shiftExtRanges(e.text, range: { r in
+                    guard let (lo, hi) = axis == .rows ? self._adjustSpan(r.top, r.bottom, index: index, delta: delta)
+                                                       : self._adjustSpan(r.left, r.right, index: index, delta: delta) else { return nil }
+                    return axis == .rows ? CellRange(top: lo, left: r.left, bottom: hi, right: r.right)
+                                         : CellRange(top: r.top, left: lo, bottom: r.bottom, right: hi)
+                }))
+            case "rowBreaks" where axis == .rows, "colBreaks" where axis == .cols:
+                return KeptRefs.shiftBreaks(e.text, moved: { n in
+                    // A break before row n (1-based n+1): it moves with that row.
+                    if delta > 0 { return n >= index ? n + delta : n }
+                    if n < index { return n }
+                    if n < deleteEnd { return nil }
+                    return n + delta
+                }).map { (e.name, $0) }
+            default:
+                return e
+            }
+        }
         // Formulas everywhere that point at this sheet.
         let name = ws.name.lowercased()
         _rewriteFormulas { ref, home in

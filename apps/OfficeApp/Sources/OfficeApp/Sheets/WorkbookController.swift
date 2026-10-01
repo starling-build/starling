@@ -506,6 +506,13 @@ final class WorkbookController: ChangeNotifier {
             }
             if mapped != parts { book.fileNames[i].text = mapped.joined(separator: ",") }
         }
+        // The x14 formulas in each sheet's extLst (sparklines, rules).
+        for (si, ws) in book.sheets.enumerated() {
+            for k in ws.keptElements.indices where ws.keptElements[k].name == "extLst" {
+                let text = KeptRefs.shiftExtFormulas(ws.keptElements[k].text) { f($0, si) }
+                if text != ws.keptElements[k].text { ws.keptElements[k].text = text }
+            }
+        }
         // Charts read cells by sheet-qualified references too.
         func map(_ t: String) -> String {
             guard let e = try? Formula.parse("=" + t) else { return t }

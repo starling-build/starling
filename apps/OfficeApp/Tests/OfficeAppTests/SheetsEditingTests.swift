@@ -279,3 +279,25 @@ extension SheetsEditingTests {
         XCTAssertEqual(c.sheet.keptElements.count, 4)
     }
 }
+
+extension SheetsEditingTests {
+    func testExtensionsAndBreaksMoveWithTheirCells() {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "Data"), Worksheet(name: "Summary")]))
+        let summary = c.book.sheets[1]
+        // A sparkline on Summary reads Data; an x14 rule on Data reads Data.
+        summary.keptElements = [("extLst", "<extLst><ext><x14:sparklineGroups><x14:sparklineGroup><x14:sparklines><x14:sparkline><xm:f>Data!B2:F2</xm:f><xm:sqref>A1</xm:sqref></x14:sparkline></x14:sparklines></x14:sparklineGroup></x14:sparklineGroups></ext></extLst>")]
+        c.sheet.keptElements = [
+            ("rowBreaks", "<rowBreaks count=\"2\" manualBreakCount=\"2\"><brk id=\"10\" max=\"16383\" man=\"1\"/><brk id=\"30\" max=\"16383\" man=\"1\"/></rowBreaks>"),
+            ("extLst", "<extLst><ext><x14:conditionalFormattings><x14:conditionalFormatting><x14:cfRule type=\"expression\"><xm:f>$B3&gt;0</xm:f></x14:cfRule><xm:sqref>B3:B20</xm:sqref></x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst>"),
+        ]
+        c.insert(.rows, at: 0, count: 2)                 // on Data
+        XCTAssertTrue(summary.keptElements[0].text.containsSubstring("<xm:f>Data!B4:F4</xm:f><xm:sqref>A1</xm:sqref>"), summary.keptElements[0].text)
+        XCTAssertTrue(c.sheet.keptElements[1].text.containsSubstring("<xm:f>$B5&gt;0</xm:f></x14:cfRule><xm:sqref>B5:B22</xm:sqref>"), c.sheet.keptElements[1].text)
+        XCTAssertTrue(c.sheet.keptElements[0].text.containsSubstring("<brk id=\"12\"") && c.sheet.keptElements[0].text.containsSubstring("<brk id=\"32\""), c.sheet.keptElements[0].text)
+        c.delete(.rows, at: 12)                          // the row the first break came before
+        XCTAssertTrue(c.sheet.keptElements[0].text.hasPrefix("<rowBreaks count=\"1\" manualBreakCount=\"1\"><brk id=\"31\""), c.sheet.keptElements[0].text)
+        _ = c.renameSheet(0, "Figures")
+        XCTAssertTrue(summary.keptElements[0].text.containsSubstring("<xm:f>Figures!B4:F4</xm:f>"), summary.keptElements[0].text)
+    }
+}
