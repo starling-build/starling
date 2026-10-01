@@ -186,3 +186,27 @@ final class XlsxTests: XCTestCase {
         XCTAssertEqual(s.children[2].text, "<f><![CDATA[<g>]]></f>")
     }
 }
+
+extension XlsxTests {
+    func testReadsChartsAndTheirCells() throws {
+        let book = try Xlsx.read(try fixture())
+        let c = WorkbookController()
+        c.load(book)
+        var charts = 0
+        for (si, ws) in book.sheets.enumerated() {
+            for d in ws.drawings {
+                guard case .chart(let sc) = d.kind else { continue }
+                charts += 1
+                // The cells say what the file's cache says.
+                XCTAssertEqual(c.liveChart(sc).series.map(\.values), sc.chart.series.map(\.values), "\(ws.name) \(d.name)")
+                _ = si
+            }
+        }
+        XCTAssertEqual(charts, 10)
+        // Edit a value a chart reads, and the chart follows.
+        let sc = try XCTUnwrap(book.sheets[0].drawings.lazy.compactMap { d -> SheetChart? in
+            if case .chart(let sc) = d.kind { return sc } else { return nil } }.first)
+        c.setInputs([(a("E4"), "9")], sheet: 0)
+        XCTAssertEqual(c.liveChart(sc).series[0].values.first, 9)
+    }
+}

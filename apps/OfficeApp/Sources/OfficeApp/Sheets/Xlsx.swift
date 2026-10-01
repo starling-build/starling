@@ -59,6 +59,13 @@ enum Xlsx {
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             book.sheets.append(ws)
         }
+        // Pictures and charts, drawn from the file's own parts.
+        let themeRoot = xml("xl/theme/theme1.xml")
+        if themeRoot != nil { book.chartTheme = DeckTheme(xlsxTheme: themeRoot) }
+        let colors = ColorContext(theme: PptxTheme(themeRoot))
+        for ws in book.sheets {
+            if let path = ws.origin { ws.drawings = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors) }
+        }
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
         book.activeTab = min(max(0, activeTab), book.sheets.count - 1)
 

@@ -126,6 +126,8 @@ final class Worksheet {
     var defaultColWidthPt = Worksheet.defaultColWidth { didSet { layoutVersion &+= 1 } }
     var defaultRowHeightPt = Worksheet.defaultRowHeight { didSet { layoutVersion &+= 1 } }
     var autoFilter: AutoFilter? = nil
+    /// Pictures and charts, for display (the file's parts are kept as is).
+    var drawings: [SheetDrawing] = []
     /// Rows the filter hides (kept apart from rowHeights, so each keeps its height).
     var filteredRows: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
     /// Bumped by anything that moves rows or columns on screen, so the grid
@@ -152,6 +154,7 @@ final class Worksheet {
         s.defaultColWidthPt = defaultColWidthPt
         s.defaultRowHeightPt = defaultRowHeightPt
         s.autoFilter = autoFilter
+        s.drawings = drawings
         s.filteredRows = filteredRows
         return s
     }
@@ -168,6 +171,8 @@ final class Workbook {
     var package: [ZipEntry]? = nil
     /// The sheet that was in front when the file was saved.
     var activeTab = 0
+    /// What charts draw with: the file's theme, or Office's.
+    var chartTheme = DeckTheme.office
 
     init(sheets: [Worksheet] = [Worksheet(name: "Sheet1")]) {
         self.sheets = sheets

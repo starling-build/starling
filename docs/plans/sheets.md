@@ -193,7 +193,20 @@ groups, a sortState) keeps the element as written until the filter is
 changed here. `GridAxis` is now binary search over prefix sums, cached
 per `Worksheet.layoutVersion` — a filter can hide thousands of rows.
 Also: Enter after a run of Tabs returns to the column the run began in.
-Left in X4: pictures and charts drawn, print/PDF. A stale
+**X4 pictures and charts (2026-10-01)** (`Sheets/Drawings.swift`): read
+from each sheet's drawing part for display — the package keeps every
+drawing, chart and media part, so a save is untouched. Charts are
+Slides' `Chart` through the same `ChartXML.read` and `ChartPainter`, at
+0.75 of the pixel scale (Excel's 14/9pt text is exactly three quarters
+of PowerPoint's 18.6/12), with the file's theme (`DeckTheme(xlsxTheme:)`;
+`PptxTheme`/`ColorContext` in PptxReader.swift lost their `private`).
+Series read their cells (`Sheet1!$B$2:$B$5`) live, so a chart follows
+edits; the cache stands in when a reference does not resolve. Seen on
+the fixture's ten charts and on a logo picture. Not yet: shapes and
+text boxes, groups, selecting or moving drawings, and moving anchors
+and chart references on row/column insert or delete. Quick Look's
+thumbnails draw no charts, so they are no reference here.
+Left in X4: print/PDF. A stale
 `_xlnm._FilterDatabase` name in a file is kept as written (Excel
 rebuilds it).
 

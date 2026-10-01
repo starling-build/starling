@@ -103,7 +103,7 @@ enum Pptx {
 
 // MARK: - Theme and colours
 
-private struct PptxTheme {
+struct PptxTheme {
     var colors: [String: Color] = [:]
     var major = "Calibri Light"
     var minor = "Calibri"
@@ -133,7 +133,7 @@ private struct PptxTheme {
 }
 
 /// Colours as one slide sees them: the theme through the master's map.
-private struct ColorContext {
+struct ColorContext {
     var theme: PptxTheme
     var map: [String: String] = ["bg1": "lt1", "tx1": "dk1", "bg2": "lt2", "tx2": "dk2"]
     /// What `phClr` stands for inside a theme style (the referring colour).

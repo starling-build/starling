@@ -199,6 +199,8 @@ final class SheetGridState: State<StatefulWidget> {
         controller.removeListeners(owner: self)
         focus.dispose()
         texts.clear()
+        for image in _images.values { image.dispose() }
+        _images.removeAll()
         super.dispose()
     }
 
@@ -262,6 +264,70 @@ final class SheetGridState: State<StatefulWidget> {
     func rect(_ r: CellRange) -> Rect {
         let a = rect(r.topLeft), b = rect(r.bottomRight)
         return Rect.fromLTRB(a.left, a.top, b.right, b.bottom)
+    }
+
+    /// Where a drawing's anchor puts it on screen.
+    func drawingRect(_ anchor: SheetAnchor) -> Rect {
+        func at(_ m: SheetMarker) -> Offset { Offset(colX(m.col) + m.colOff * scale, rowY(m.row) + m.rowOff * scale) }
+        switch anchor {
+        case .twoCell(let from, let to):
+            let a = at(from), b = at(to)
+            return Rect.fromLTRB(a.dx, a.dy, max(a.dx, b.dx), max(a.dy, b.dy))
+        case .oneCell(let from, let w, let h):
+            let a = at(from)
+            return Rect.fromLTWH(a.dx, a.dy, w * scale, h * scale)
+        case .absolute(let x, let y, let w, let h):
+            return Rect.fromLTWH(headerWidth + x * scale - scrollX, headerHeight + y * scale - scrollY, w * scale, h * scale)
+        }
+    }
+
+    private func _paintDrawing(_ canvas: any Canvas, _ d: SheetDrawing, chart: Chart?, in r: Rect, theme: DeckTheme) {
+        guard r.width > 1, r.height > 1 else { return }
+        switch d.kind {
+        case .picture(let path, let data):
+            if let image = _image(path, data) {
+                canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), r, Paint())
+            }
+        case .chart:
+            guard let chart else { return }
+            // Excel's chart area: the theme's background with a light grey edge.
+            let p = Paint()
+            p.style = .fill
+            p.color = theme.background
+            canvas.drawRect(r, p)
+            p.style = .stroke
+            p.strokeWidth = 1
+            p.color = Color(0xFFD9D9D9)
+            canvas.drawRect(r.deflate(0.5), p)
+            // Excel's chart text is three quarters of PowerPoint's (14pt
+            // titles, 9pt labels against 18.6 and 12), the painter's sizes.
+            ChartPainter.paint(chart, canvas, r, pxPerPt: scale * 0.75, theme: theme)
+        }
+    }
+
+    private var _images: [String: Image] = [:]
+    private var _decoding: Set<String> = []
+
+    /// A picture, decoded once; nil (and a repaint later) while it decodes.
+    private func _image(_ key: String, _ data: Data) -> Image? {
+        if let image = _images[key] { return image }
+        guard !_decoding.contains(key) else { return nil }
+        _decoding.insert(key)
+        let bytes = [UInt8](data)
+        Task { @MainActor [weak self] in
+            var decoded: Image? = nil
+            if let codec = try? await instantiateImageCodec(bytes) {
+                decoded = (try? await codec.getNextFrame())?.image
+                codec.dispose()
+            }
+            guard let self, self.mounted else { decoded?.dispose(); return }
+            self._decoding.remove(key)
+            if let decoded {
+                self._images[key] = decoded
+                self._repaint.notifyListeners()
+            }
+        }
+        return nil
     }
 
     /// A filter dropdown: a square in the header cell's bottom-right corner.
@@ -977,6 +1043,23 @@ final class SheetGridState: State<StatefulWidget> {
             canvas.clipRect(clip)
             _paintRegion(canvas, rows: rs, cols: cs, clip: clip, ws: ws, book: book, merges: merges, covered: covered, colors: colors)
             canvas.restore()
+        }
+        // Pictures and charts float over the cells, pane by pane.
+        if !ws.drawings.isEmpty {
+            let charts = ws.drawings.map { d -> Chart? in
+                if case .chart(let sc) = d.kind { return controller.liveChart(sc) }
+                return nil
+            }
+            for (rs, cs, clip) in regions where !rs.isEmpty && !cs.isEmpty && clip.width > 0 && clip.height > 0 {
+                canvas.save()
+                canvas.clipRect(clip)
+                for (i, d) in ws.drawings.enumerated() {
+                    let r = drawingRect(d.anchor)
+                    guard r.overlaps(clip) else { continue }
+                    _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
+                }
+                canvas.restore()
+            }
         }
 
         canvas.save()
