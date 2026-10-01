@@ -61,7 +61,9 @@ struct SheetDrawing: Equatable {
         /// The media part's path (the decode cache's key) and its bytes.
         case picture(path: String, data: Data)
         case chart(SheetChart)
-        /// A shape, text box, group or anything else not modelled: not
+        /// A shape or text box (its XML always written back as read).
+        case shape(SheetShape)
+        /// A group or anything else not modelled: not
         /// drawn, and written back exactly as read.
         case other
     }
@@ -125,6 +127,9 @@ enum SheetDrawingsXML {
                 for f in _formulas(space) { sc.formulas[f] = f }
                 d.kind = .chart(sc)
                 d.relId = ref
+            } else if let sp = el.child("sp") ?? el.child("cxnSp") {
+                d.name = (sp.child("nvSpPr") ?? sp.child("nvCxnSpPr"))?.child("cNvPr")?["name"] ?? "Shape"
+                d.kind = .shape(SheetShape.read(sp, colors: colors))
             } else if raw == nil {
                 continue
             }
@@ -309,7 +314,7 @@ extension SheetDrawingsXML {
             let name = Xlsx._esc(d.name.isEmpty ? (d.isChart ? "Chart \(shapeId)" : "Picture \(shapeId)") : d.name)
             var content: String
             switch d.kind {
-            case .other: continue
+            case .other, .shape: continue      // kept by their raw text above
             case .picture(let path, _):
                 let id = d.relId.flatMap { id in rels.contains { $0.id == id } ? id : nil } ?? relTo("image", path)
                 content = "<xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"\(shapeId)\" name=\"\(name)\"/><xdr:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></xdr:cNvPicPr></xdr:nvPicPr>"

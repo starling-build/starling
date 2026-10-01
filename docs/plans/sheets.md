@@ -202,9 +202,14 @@ of PowerPoint's 18.6/12), with the file's theme (`DeckTheme(xlsxTheme:)`;
 `PptxTheme`/`ColorContext` in PptxReader.swift lost their `private`).
 Series read their cells (`Sheet1!$B$2:$B$5`) live, so a chart follows
 edits; the cache stands in when a reference does not resolve. Seen on
-the fixture's ten charts and on a logo picture. Not yet: shapes and
-text boxes, groups, selecting or moving drawings, and moving anchors
-and chart references on row/column insert or delete. Quick Look's
+the fixture's ten charts and on a logo picture. Shapes and text boxes
+(`Sheets/SheetShapes.swift`) are drawn too — preset geometry (rect,
+rounded, ellipse, triangles, diamond, block arrows, lines and
+connectors), fill and outline set on them or through their style's
+theme references, text paragraph by paragraph with runs, alignment and
+vertical anchor — and select, move and delete like charts, their XML
+kept. Not yet: groups, other preset geometries (drawn as rectangles),
+rotation, gradients beyond their first stop. Quick Look's
 thumbnails draw no charts, so they are no reference here.
 **X4 print and PDF (2026-10-01)** (`Sheets/SheetPrint.swift`): File →
 Export → PDF (or CSV), File → Print and ⌘P, for the active sheet, as

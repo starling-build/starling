@@ -341,6 +341,8 @@ final class SheetGridState: State<StatefulWidget> {
         guard r.width > 1, r.height > 1 else { return }
         switch d.kind {
         case .other: return
+        case .shape(let shape):
+            shape.paint(canvas, in: r, pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
         case .picture(let path, let data):
             if let image = _image(path, data) {
                 canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), r, Paint())

@@ -169,3 +169,34 @@ extension SheetsChartTests {
         XCTAssertFalse(now.containsSubstring("Single double"))
     }
 }
+
+extension SheetsChartTests {
+    func testShapesAreReadAndMoveKeepingTheirXML() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        var entries = try Zip.read(try Data(contentsOf: url))
+        let sp = "<xdr:twoCellAnchor><xdr:from><xdr:col>1</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>4</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>3</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp macro=\"\" textlink=\"\"><xdr:nvSpPr><xdr:cNvPr id=\"90\" name=\"TextBox 1\"/><xdr:cNvSpPr txBox=\"1\"/></xdr:nvSpPr><xdr:spPr><a:prstGeom prst=\"roundRect\"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val=\"FFF2CC\"/></a:solidFill><a:ln w=\"25400\"><a:noFill/></a:ln></xdr:spPr><xdr:txBody><a:bodyPr anchor=\"b\"/><a:p><a:pPr algn=\"r\"/><a:r><a:rPr sz=\"1400\" b=\"1\"/><a:t>Hello</a:t></a:r><a:r><a:rPr sz=\"1400\"/><a:t> there</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>"
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/drawings/drawing1.xml" })
+        var t = String(decoding: entries[i].data, as: UTF8.self)
+        let end = try XCTUnwrap(t.findRange(of: "</xdr:wsDr>"))
+        t.replaceSubrange(end, with: sp + "</xdr:wsDr>")
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(t.utf8))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Zip.write(entries)))
+        let k = try XCTUnwrap(c.sheet.drawings.firstIndex { $0.name == "TextBox 1" })
+        guard case .shape(let shape) = c.sheet.drawings[k].kind else { return XCTFail("not a shape") }
+        XCTAssertEqual(shape.geometry, "roundRect")
+        XCTAssertEqual(shape.fill?.value, 0xFFFFF2CC)
+        XCTAssertNil(shape.line)
+        XCTAssertEqual(shape.anchor, "b")
+        XCTAssertEqual(shape.paragraphs.first?.align, "r")
+        XCTAssertEqual(shape.paragraphs.first?.runs.map(\.text), ["Hello", " there"])
+        XCTAssertEqual(shape.paragraphs.first?.runs.first?.bold, true)
+        XCTAssertEqual(shape.paragraphs.first?.runs.first?.size, 14)
+        // Moved: written back as the file had it, corners aside.
+        let f = c.sheet.frame(c.sheet.drawings[k].anchor)
+        c.setDrawingFrame(k, x: f.x, y: f.y + 30, width: f.width, height: f.height)
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/drawings/drawing1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("<a:prstGeom prst=\"roundRect\"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val=\"FFF2CC\"/>"))
+        XCTAssertFalse(out.containsSubstring("<xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>4</xdr:col>"))
+    }
+}
