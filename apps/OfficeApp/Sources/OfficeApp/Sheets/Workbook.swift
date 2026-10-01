@@ -85,6 +85,9 @@ struct Cell: Sendable {
     var dynamic = false
     /// The range its result spilled over, this cell at its top-left.
     var spillRange: CellRange? = nil
+    /// The file's vm / cm / ph on this cell — an image in the cell, a
+    /// linked data type, other metadata — written back until it is edited.
+    var keptAttrs: [String: String] = [:]
 
     var isFormula: Bool { formula != nil || input.hasPrefix("=") }
 }

@@ -363,7 +363,11 @@ ref=…`) with the spilled values — every Excel shows them — and with
 Excel 365's dynamic-array mark: `cm` pointing at the XLDAPR entry of
 xl/metadata.xml (the file's own when it has one; else the part is made,
 with its relationship and content type), so Excel 365 opens it as a
-spilling formula, not a legacy {array}. LET (local names in
+spilling formula, not a legacy {array}. A cell's own `vm`/`cm`/`ph` (an image placed
+in the cell, a linked data type, other metadata) are kept
+(`Cell.keptAttrs`) and written back until the cell is typed over —
+they were dropped on every save before, which left such a cell a bare
+#VALUE! in Excel. Those images are not drawn here yet. LET (local names in
 `EvalContext.locals`) and the Excel 365 shapers VSTACK, HSTACK, TAKE,
 DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
 TEXTSPLIT work too. Still unread (kept verbatim): the intersection

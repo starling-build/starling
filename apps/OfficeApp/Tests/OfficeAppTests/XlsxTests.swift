@@ -257,3 +257,22 @@ extension XlsxTests {
         XCTAssertEqual(back.dxfs, [DxfStyle(bold: true, color: 0x9C0006, fill: 0xFFC7CE)])
     }
 }
+
+extension XlsxTests {
+    func testCellMetadataAttributesAreKept() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        var entries = try Zip.read(try Data(contentsOf: url))
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
+        var s = String(decoding: entries[i].data, as: UTF8.self)
+        let end = try XCTUnwrap(s.findRange(of: "</sheetData>"))
+        // An image in a cell (rich value metadata) and a stock data type.
+        s.replaceSubrange(end, with: "<row r=\"40\"><c r=\"A40\" t=\"e\" vm=\"1\"><v>#VALUE!</v></c><c r=\"B40\" t=\"e\" vm=\"2\"><v>#VALUE!</v></c></row></sheetData>")
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(s.utf8))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Zip.write(entries)))
+        c.setInputs([(a("B40"), "typed over")])
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("<c r=\"A40\" vm=\"1\" t=\"e\"><v>#VALUE!</v></c>"), out)
+        XCTAssertFalse(out.containsSubstring("vm=\"2\""))
+    }
+}

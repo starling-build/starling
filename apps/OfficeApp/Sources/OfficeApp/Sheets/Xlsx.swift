@@ -188,6 +188,7 @@ enum Xlsx {
                 }
                 var cell = Cell(input: "")
                 cell.style = styleIndex < book.styles.count ? styleIndex : 0
+                for k in ["vm", "cm", "ph"] { if let v = c[k] { cell.keptAttrs[k] = v } }
                 if let f = c.child("f") {
                     // As the file wrote it, for when it cannot be read.
                     let rawF: String = {
@@ -882,7 +883,9 @@ enum Xlsx {
 
     private static func _cellXML(_ a: CellAddress, _ c: Cell, dynamicCm: Int? = nil, stringIndex: (String) -> Int) -> String {
         var s = "<c r=\"\(a.a1)\"" + (c.style != 0 ? " s=\"\(c.style)\"" : "")
-        if let cm = dynamicCm, c.dynamic, c.formula != nil, c.spillRange != nil || c.arrayRef != nil { s += " cm=\"\(cm)\"" }
+        var attrs = c.keptAttrs
+        if let cm = dynamicCm, c.dynamic, c.formula != nil, c.spillRange != nil || c.arrayRef != nil { attrs["cm"] = "\(cm)" }
+        for (k, v) in attrs.sorted(by: { $0.key < $1.key }) { s += " \(k)=\"\(_esc(v))\"" }
         if c.formula == nil, let raw = c.rawFormula {
             switch c.value {
             case .text(let t): return s + " t=\"str\">\(raw)<v>\(_esc(t))</v></c>"
