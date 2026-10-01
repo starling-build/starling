@@ -82,6 +82,34 @@ struct PptxTemplates {
             + "<p:txBody><a:bodyPr anchor=\"\(anchor)\"/>\(lst)\(prompt)</p:txBody></p:sp>"
     }
 
+    /// The date, footer and slide number as PowerPoint's master and layouts
+    /// carry them (type and idx as PowerPoint's), so a slide's own — and
+    /// PowerPoint's Header & Footer dialog — have something to bind to.
+    private func _footers(startId: Int) -> String {
+        let specs: [(type: String, idx: String, left: Double, width: Double, algn: String, name: String)] = [
+            ("dt", "10", 66, 216, "l", "Date Placeholder"),
+            ("ftr", "11", 318, 324, "ctr", "Footer Placeholder"),
+            ("sldNum", "12", 678, 216, "r", "Slide Number Placeholder"),
+        ]
+        var out = ""
+        for (i, f) in specs.enumerated() {
+            let id = startId + i
+            let content: String
+            switch f.type {
+            case "dt": content = "<a:fld id=\"{8F3A1C55-2B7E-4C1D-9A60-3E5B7D2C4F10}\" type=\"datetime1\"><a:rPr lang=\"en-US\"/><a:t>1/1/2026</a:t></a:fld>"
+            case "sldNum": content = "<a:fld id=\"{2C6E9B71-4D3A-4E8F-B5C2-7A1D0F3E6B24}\" type=\"slidenum\"><a:rPr lang=\"en-US\"/><a:t>‹#›</a:t></a:fld>"
+            default: content = "<a:endParaRPr lang=\"en-US\"/>"
+            }
+            out += "<p:sp><p:nvSpPr><p:cNvPr id=\"\(id)\" name=\"\(f.name) \(id - 1)\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr>"
+                + "<p:nvPr><p:ph type=\"\(f.type)\" sz=\"quarter\" idx=\"\(f.idx)\"/></p:nvPr></p:nvSpPr>"
+                + "<p:spPr>\(_xfrm(_frame(Rect.fromLTWH(f.left, 500.5, f.width, 28.75))))</p:spPr>"
+                + "<p:txBody><a:bodyPr vert=\"horz\" lIns=\"91440\" tIns=\"45720\" rIns=\"91440\" bIns=\"45720\" rtlCol=\"0\" anchor=\"ctr\"/>"
+                + "<a:lstStyle><a:lvl1pPr algn=\"\(f.algn)\"><a:defRPr sz=\"1200\"><a:solidFill><a:schemeClr val=\"tx1\"><a:tint val=\"75000\"/></a:schemeClr></a:solidFill></a:defRPr></a:lvl1pPr></a:lstStyle>"
+                + "<a:p>\(content)</a:p></p:txBody></p:sp>"
+        }
+        return out
+    }
+
     private static let groupHead = "<p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"0\" cy=\"0\"/></a:xfrm></p:grpSpPr>"
 
     // MARK: Master and layouts
@@ -100,6 +128,7 @@ struct PptxTemplates {
         let specs = SlideLayoutKind.titleAndContent.placeholders
         var tree = ""
         for (i, s) in specs.enumerated() { tree += _placeholder(i + 2, s, onLayout: false) }
+        tree += _footers(startId: specs.count + 2)
         var layouts = ""
         for i in 0 ..< SlideLayoutKind.allCases.count {
             layouts += "<p:sldLayoutId id=\"\(2147483649 + i)\" r:id=\"rIdL\(i + 1)\"/>"
@@ -140,6 +169,7 @@ struct PptxTemplates {
         }
         var tree = ""
         for (i, s) in kind.placeholders.enumerated() { tree += _placeholder(i + 2, s, onLayout: true) }
+        tree += _footers(startId: kind.placeholders.count + 2)
         return Self.head + """
         <p:sldLayout \(Self.namespaces) type="\(type)" preserve="1"><p:cSld name="\(kind.name)"><p:spTree>\(Self.groupHead)\(tree)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>
         """

@@ -591,7 +591,7 @@ private struct SlideXML {
                 let fit = s.kind == .textBox ? "<a:spAutoFit/>" : "<a:noAutofit/>"
                 xml += "<p:txBody><a:bodyPr wrap=\"square\" lIns=\"\(Self._emu(ins.left))\" tIns=\"\(Self._emu(ins.top))\" "
                     + "rIns=\"\(Self._emu(ins.right))\" bIns=\"\(Self._emu(ins.bottom))\" anchor=\"\(anchor)\" rtlCol=\"0\">\(fit)</a:bodyPr>"
-                    + "<a:lstStyle/>" + PptxText.paragraphs(doc, defaults: s) + "</p:txBody>"
+                    + "<a:lstStyle/>" + PptxText.paragraphs(doc, defaults: s, field: s.field) + "</p:txBody>"
             }
             return xml + "</p:sp>"
         }
@@ -745,9 +745,12 @@ enum PptxText {
         return ext.isEmpty ? "png" : ext
     }
 
-    /// A text body's paragraphs, every run with its look spelled out.
-    static func paragraphs(_ doc: RichDocument, defaults s: ShapeState) -> String {
+    /// A text body's paragraphs, every run with its look spelled out. With
+    /// `field`, the first run is written as that field (`a:fld`) — the
+    /// shape is a slide number or a date, not the text it shows now.
+    static func paragraphs(_ doc: RichDocument, defaults s: ShapeState, field: SlideField? = nil) -> String {
         var out = ""
+        var pendingField = field
         for p in doc.paragraphs {
             let st = p.style
             var pPr = ""
@@ -784,7 +787,14 @@ enum PptxText {
                 let pieces = text.components(separatedBy: "\n")
                 for (i, piece) in pieces.enumerated() {
                     if i > 0 { out += "<a:br>\(rPr)</a:br>" }
-                    if !piece.isEmpty { out += "<a:r>\(rPr)<a:t>\(PptxXML.escape(piece, attribute: false))</a:t></a:r>" }
+                    guard !piece.isEmpty else { continue }
+                    if let f = pendingField {
+                        pendingField = nil
+                        out += "<a:fld id=\"\(PptxXML.escape(f.id, attribute: true))\" type=\"\(PptxXML.escape(f.type, attribute: true))\">"
+                            + "\(rPr)<a:t>\(PptxXML.escape(piece, attribute: false))</a:t></a:fld>"
+                    } else {
+                        out += "<a:r>\(rPr)<a:t>\(PptxXML.escape(piece, attribute: false))</a:t></a:r>"
+                    }
                 }
             }
             out += _rPr(p.runs.last?.style ?? CharStyle(), s, tag: "a:endParaRPr") + "</a:p>"

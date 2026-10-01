@@ -141,9 +141,9 @@ def run(d, only):
     if step("chart"):
         # Coordinates from the refreshed chrome (tab strip at y 113); the
         # steps above predate it and want re-measuring.
-        d.click(153, 113); d.click(420, 165)
+        d.click(153, 113); d.click(513, 165)
         d.shot("chart-menu", "Insert → Chart menu: Column, Bar, Line, Pie, Area, Scatter")
-        d.click(420, 304)                            # Pie, under the Chart button
+        d.click(513, 304)                            # Pie, under the Chart button
         d.shot("chart-pie", "A pie of the sample data, Chart Design tab, the data grid open beside the slide")
         d.click(62, 165); d.click(70, 220)
         d.shot("chart-column", "Change Chart Type → Column: one series, four categories")

@@ -122,6 +122,7 @@ extension Ribbon {
             _slidesGroup(deck, fluent),
             Chrome.group("Text", fluent, [
                 Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in session.onInsertTextBox?() },
+                Chrome.big(FluentSystemIcons.header, "Header & Footer", fluent) { [session] in session.onHeaderFooter?() },
             ]),
             Chrome.group("Tables", fluent, [
                 FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),

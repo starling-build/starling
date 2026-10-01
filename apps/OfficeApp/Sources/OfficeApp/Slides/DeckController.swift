@@ -35,6 +35,7 @@ struct ShapeState: Equatable {
     var sourceText: RichDocument? = nil
     var sourcePart: String? = nil
     var sourceChart: Chart? = nil
+    var field: SlideField? = nil
 }
 
 extension ShapeState {
@@ -57,6 +58,7 @@ struct SlideState: Equatable {
     var sourcePart: String? = nil
     var transition = SlideTransition()
     var timingXML: String? = nil
+    var footerFrames: [String: Rect] = [:]
 }
 
 struct DeckState: Equatable {
@@ -181,6 +183,8 @@ final class DeckController: ChangeNotifier {
         let base = slides.isEmpty ? SlideLayoutKind.titleSlide : currentSlide.layout
         let kind = layout ?? (base == .titleSlide ? .titleAndContent : base)
         let slide = _makeSlide(kind)
+        // Same master, same footer positions.
+        if !slides.isEmpty { slide.footerFrames = currentSlide.footerFrames }
         let at = slides.isEmpty ? 0 : current + 1
         slides.insert(slide, at: at)
         current = at
@@ -196,6 +200,8 @@ final class DeckController: ChangeNotifier {
         let copy = Slide(id: _id(), layout: source.layout, shapes: source.shapes.map { _copy($0) },
                          notes: _textController(source.notes.document))
         copy.hidden = source.hidden
+        copy.footerFrames = source.footerFrames
+        copy.layoutPart = source.layoutPart
         _watch(copy)
         slides.insert(copy, at: index + 1)
         current = index + 1
@@ -351,6 +357,95 @@ final class DeckController: ChangeNotifier {
         currentSlide.shapes.append(shape)
         selection = [shape]
         _changed()
+        return shape
+    }
+
+    // MARK: Header and footer
+
+    /// PowerPoint's Header & Footer settings for slides.
+    struct HeaderFooter: Equatable {
+        var date = false
+        /// The date as fixed text; nil updates automatically (a field).
+        var fixedDate: String? = nil
+        var slideNumber = false
+        /// Footer text; nil for none.
+        var footer: String? = nil
+        var skipTitleSlides = false
+    }
+
+    static let footerTypes = ["dt", "ftr", "sldNum"]
+
+    /// What `slide` shows now: where the dialog starts.
+    func headerFooter(of slide: Slide) -> HeaderFooter {
+        var hf = HeaderFooter()
+        for shape in slide.shapes {
+            switch shape.phType {
+            case "dt":
+                hf.date = true
+                if shape.field == nil { hf.fixedDate = shape.text?.document.plainText() ?? "" }
+            case "ftr": hf.footer = shape.text?.document.plainText() ?? ""
+            case "sldNum": hf.slideNumber = true
+            default: break
+            }
+        }
+        hf.skipTitleSlides = slides.contains { $0.layout == .titleSlide }
+            && slides.filter { $0.layout == .titleSlide }.allSatisfy { s in !s.shapes.contains { Self.footerTypes.contains($0.phType ?? "") } }
+            && slides.contains { s in s.shapes.contains { Self.footerTypes.contains($0.phType ?? "") } }
+        return hf
+    }
+
+    /// Date, footer and slide number placed (or taken away) on the current
+    /// slide or every slide, where the slide's layout keeps them. One undo
+    /// step.
+    func applyHeaderFooter(_ hf: HeaderFooter, toAll: Bool) {
+        _checkpoint()
+        let targets = toAll ? slides : [currentSlide]
+        for slide in targets {
+            let removed = slide.shapes.filter { Self.footerTypes.contains($0.phType ?? "") }
+            for shape in removed { _unwatch(shape) }
+            slide.shapes.removeAll { Self.footerTypes.contains($0.phType ?? "") }
+            if hf.skipTitleSlides && slide.layout == .titleSlide { continue }
+            var add: [SlideShape] = []
+            if hf.date {
+                let field = hf.fixedDate == nil ? SlideField(type: "datetime1", id: SlideField.newId()) : nil
+                add.append(_footerShape("dt", text: hf.fixedDate ?? "", field: field, slide: slide))
+            }
+            if let text = hf.footer { add.append(_footerShape("ftr", text: text, field: nil, slide: slide)) }
+            if hf.slideNumber {
+                add.append(_footerShape("sldNum", text: "", field: SlideField(type: "slidenum", id: SlideField.newId()), slide: slide))
+            }
+            for shape in add { _watch(shape) }
+            slide.shapes += add
+        }
+        selection = selection.filter { s in slides.contains { $0.shapes.contains { $0 === s } } }
+        _changed()
+    }
+
+    /// PowerPoint's own positions on a 16:9 slide, scaled to this one.
+    private func _footerFrame(_ type: String, slide: Slide) -> Rect {
+        if let f = slide.footerFrames[type] { return f }
+        let sx = slideSize.width / 960, sy = slideSize.height / 540
+        let left: Double, width: Double
+        switch type {
+        case "dt": left = 66; width = 216
+        case "ftr": left = 318; width = 324
+        default: left = 678; width = 216
+        }
+        return Rect.fromLTWH(left * sx, 500.5 * sy, width * sx, 28.75 * sy)
+    }
+
+    private func _footerShape(_ type: String, text: String, field: SlideField?, slide: Slide) -> SlideShape {
+        let align: ParagraphAlignment = type == "dt" ? .left : type == "ftr" ? .center : .right
+        let style = RichParagraphStyle(alignment: align, spaceBefore: 0, spaceAfter: 0, lineSpacing: 0.9)
+        let doc = RichDocument(paragraphs: [RichParagraph(text: text, style: style)])
+        let name = type == "dt" ? "Date Placeholder" : type == "ftr" ? "Footer Placeholder" : "Slide Number Placeholder"
+        let shape = SlideShape(id: _id(), name: "\(name) \(_nextId)", kind: .placeholder(.body),
+                               frame: _footerFrame(type, slide: slide), text: _textController(doc),
+                               textTheme: _textTheme(font: theme.bodyFont, size: 12, color: theme.subtle),
+                               anchor: .middle)
+        shape.phType = type
+        shape.phIdx = type == "dt" ? "10" : type == "ftr" ? "11" : "12"
+        shape.field = field
         return shape
     }
 
@@ -762,7 +857,8 @@ final class DeckController: ChangeNotifier {
                        layoutPart: slide.layoutPart, backgroundXML: slide.backgroundXML,
                        background: slide.background, inheritedBackground: slide.inheritedBackground,
                        sourcePart: slide.sourcePart,
-                       transition: slide.transition, timingXML: slide.timingXML)
+                       transition: slide.transition, timingXML: slide.timingXML,
+                       footerFrames: slide.footerFrames)
         }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates)
     }
 
@@ -808,6 +904,7 @@ final class DeckController: ChangeNotifier {
             slide.sourcePart = ss.sourcePart
             slide.transition = ss.transition
             slide.timingXML = ss.timingXML
+            slide.footerFrames = ss.footerFrames
             next.append(slide)
         }
         for slide in slides {
@@ -832,7 +929,7 @@ final class DeckController: ChangeNotifier {
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
-                   sourceChart: s.sourceChart)
+                   sourceChart: s.sourceChart, field: s.field)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -863,6 +960,8 @@ final class DeckController: ChangeNotifier {
         shape.sourceText = st.sourceText
         shape.sourcePart = st.sourcePart
         shape.sourceChart = st.sourceChart
+        shape.field = st.field
+        shape.fieldShown = nil
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
 
@@ -984,6 +1083,8 @@ final class DeckController: ChangeNotifier {
         let now = _textRevisions()
         guard now != _lastTextRevisions else { return }
         _lastTextRevisions = now
+        // A field showing its new value is not an edit.
+        if _updatingFields { return }
         edits += 1
         revision += 1
         notifyListeners()
@@ -996,7 +1097,39 @@ final class DeckController: ChangeNotifier {
 
     /// After an edit. An open text session restarts from here, so the edit
     /// and the typing after it are separate steps.
+    private var _updatingFields = false
+
+    /// Fields show what they stand for now: a slide number follows the
+    /// slide's place, a date is today's. Text typed over a field makes it
+    /// text, as in PowerPoint.
+    private func _updateFields() {
+        _updatingFields = true
+        defer { _updatingFields = false }
+        for (i, slide) in slides.enumerated() {
+            for shape in slide.shapes {
+                guard let field = shape.field, let c = shape.text else { continue }
+                var doc = c.document
+                let at = doc.paragraphs.firstIndex { !$0.text.isEmpty } ?? 0
+                guard doc.paragraphs.indices.contains(at) else { continue }
+                let shown = doc.paragraphs[at].text
+                if let last = shape.fieldShown, last != shown {
+                    shape.field = nil
+                    shape.fieldShown = nil
+                    continue
+                }
+                let want = field.value(slide: i + 1)
+                shape.fieldShown = want
+                guard shown != want else { continue }
+                let style = doc.paragraphs[at].runs.first?.style ?? CharStyle()
+                doc.paragraphs[at].text = want
+                doc.paragraphs[at].runs = [Run(length: want.utf16.count, style: style)]
+                c.load(doc)
+            }
+        }
+    }
+
     private func _changed(keepSession: Bool = false) {
+        _updateFields()
         if _sessionWanted && !keepSession && _session == nil {
             _session = (snapshot(), _textRevisions())
         }

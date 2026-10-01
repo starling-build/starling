@@ -57,6 +57,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _hadChart: SlideShape? = nil
     /// The chart data grid is open (for whichever chart is selected).
     private var _chartData = false
+    /// The Header & Footer dialog is up.
+    private var _headerFooter = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
@@ -138,6 +140,11 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._pictureForBackground = false
             self.setState { self._backstage = .insertPicture }
+        }
+        session.onHeaderFooter = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._headerFooter = true }
         }
         session.onChartData = { [weak self] show in
             self?.setState { self?._chartData = show }
@@ -650,6 +657,18 @@ final class SlidesShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideShowView(
                     deck: deck, images: _cache, start: start,
                     onEnd: { [weak self] in self?._endShow() })),
+            ])
+        }
+        if _headerFooter {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HeaderFooterDialog(
+                    initial: deck.headerFooter(of: deck.currentSlide),
+                    onApply: { [weak self] hf, all in
+                        self?.deck.applyHeaderFooter(hf, toAll: all)
+                        self?.setState { self?._headerFooter = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._headerFooter = false } })),
             ])
         }
         guard let page = _backstage else { return window }

@@ -45,6 +45,41 @@ extension ShapeKind {
     }
 }
 
+/// A text field (`a:fld`) that is a shape's whole text: the slide number
+/// or the date, recomputed as the deck changes and written back as a
+/// field, not as the text it happened to show.
+struct SlideField: Equatable {
+    /// PresentationML's field type: "slidenum", "datetime", "datetime1"…
+    var type: String
+    /// The field's GUID (`id`), kept so a save names the same field.
+    var id: String
+
+    var isSlideNumber: Bool { type == "slidenum" }
+
+    /// The text the field shows on slide `number` (1-based) today.
+    func value(slide number: Int, date: Date = Date()) -> String {
+        if isSlideNumber { return "\(number)" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US")
+        switch type {
+        case "datetime2": f.dateFormat = "EEEE, MMMM d, yyyy"
+        case "datetime3": f.dateFormat = "d MMMM yyyy"
+        case "datetime4": f.dateFormat = "MMMM d, yyyy"
+        case "datetime5": f.dateFormat = "d-MMM-yy"
+        case "datetime6": f.dateFormat = "MMMM yy"
+        case "datetime7": f.dateFormat = "MMM-yy"
+        case "datetime10": f.dateFormat = "H:mm"
+        case "datetime11": f.dateFormat = "H:mm:ss"
+        case "datetime12": f.dateFormat = "h:mm a"
+        case "datetime13": f.dateFormat = "h:mm:ss a"
+        default: f.dateFormat = "M/d/yyyy"
+        }
+        return f.string(from: date)
+    }
+
+    static func newId() -> String { "{" + UUID().uuidString + "}" }
+}
+
 /// An element carried through a round trip verbatim.
 struct OpaqueObject: Equatable {
     /// The element as read (`p:graphicFrame`, `p:grpSp`, …).
@@ -189,6 +224,10 @@ final class SlideShape {
     var sourcePart: String? = nil
     /// A chart as read: written back through its own part while unchanged.
     var sourceChart: Chart? = nil
+    /// The field this shape's text is, if it is one (slide number, date).
+    var field: SlideField? = nil
+    /// What the field last showed, to tell its own updates from typing.
+    var fieldShown: String? = nil
 
     init(id: Int, name: String, kind: ShapeKind, frame: Rect, text: RichDocumentController?,
          textTheme: RichTextTheme?, anchor: TextAnchor = .top, prompt: String? = nil) {
@@ -340,6 +379,10 @@ final class Slide {
     /// objects' relationship ids resolve.
     var sourcePart: String? = nil
     var transition = SlideTransition()
+    /// Where the slide's layout puts its date, footer and slide number
+    /// ("dt", "ftr", "sldNum"), from the file; Header & Footer places them
+    /// there (PowerPoint's defaults otherwise).
+    var footerFrames: [String: Rect] = [:]
     /// The slide's animations as read (`p:timing`), written back while every
     /// shape they name is still on the slide (S7 models them).
     var timingXML: String? = nil

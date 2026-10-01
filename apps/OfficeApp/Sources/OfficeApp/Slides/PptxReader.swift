@@ -368,13 +368,29 @@ private struct PptxReader {
                 }
             }
             let layoutType = layout?["type"]
+            // Where the layout (or master) keeps its date, footer and number.
+            var footerFrames: [String: Rect] = [:]
+            for type in ["dt", "ftr", "sldNum"] {
+                for tree in [layout, master] {
+                    let sps = tree?.first("p:cSld")?.first("p:spTree")?.all("p:sp") ?? []
+                    if let sp = sps.first(where: { (($0.first("p:nvSpPr")?.first("p:nvPr")?.first("p:ph"))?["type"]) == type }),
+                       let x = sp.first("p:spPr")?.first("a:xfrm"),
+                       let off = x.first("a:off"), let ext = x.first("a:ext"),
+                       let ox = off["x"].flatMap(Double.init), let oy = off["y"].flatMap(Double.init),
+                       let cx = ext["cx"].flatMap(Double.init), let cy = ext["cy"].flatMap(Double.init) {
+                        footerFrames[type] = Rect.fromLTWH(ox / Pptx.emu, oy / Pptx.emu, cx / Pptx.emu, cy / Pptx.emu)
+                        break
+                    }
+                }
+            }
             slides.append(SlideState(
                 id: id(), layout: Self._layoutKind(layoutType), hidden: slide["show"] == "0",
                 notes: ctx.notes(), shapes: shapes, layoutPart: layoutPart,
                 backgroundXML: bg.map(PptxXML.serialize), background: bgFill, inheritedBackground: inherited,
                 sourcePart: part,
                 transition: Self._transition(slide),
-                timingXML: slide.first("p:timing").map(PptxXML.serialize)))
+                timingXML: slide.first("p:timing").map(PptxXML.serialize),
+                footerFrames: footerFrames))
         }
         if slides.isEmpty {
             // An empty deck is still a deck: one blank slide to type on.
@@ -641,6 +657,13 @@ private struct SlideContext {
                             text: text.document, font: text.font, size: text.size, color: text.color,
                             listIndent: text.listIndent, phType: ph?["type"], phIdx: ph?["idx"],
                             fillScheme: fillScheme)
+        // A body that is one field and nothing else (a slide number, a
+        // date) stays that field.
+        let paras = sp.first("p:txBody")?.all("a:p").filter { !$0.all("a:r").isEmpty || !$0.all("a:fld").isEmpty } ?? []
+        if paras.count == 1, paras[0].all("a:r").isEmpty, paras[0].all("a:fld").count == 1,
+           let fld = paras[0].first("a:fld"), let type = fld["type"], let fid = fld["id"] {
+            st.field = SlideField(type: type, id: fid)
+        }
         if ph != nil, text.document.paragraphs.allSatisfy({ $0.text.isEmpty }) {
             switch kind {
             case .placeholder(.title), .placeholder(.ctrTitle): st.prompt = "Click to add title"

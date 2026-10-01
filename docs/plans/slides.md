@@ -124,6 +124,24 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**S7 part 1 done 2026-09-30** — header and footer, and fields. Insert →
+Header & Footer is PowerPoint's Slide tab: date and time (updating, or
+fixed text), slide number, footer text, "Don't show on title slide",
+Apply or Apply to All, one undo step. The three sit where the slide's
+layout keeps them (read from the file's layout or master), PowerPoint's
+positions otherwise, and our master and layouts now carry them as
+PowerPoint's do (`dt`/`ftr`/`sldNum`, idx 10–12). A shape whose text is
+one field (`a:fld`) keeps it: slide numbers follow the slide's place, dates
+are today's, both are written back as fields, and typing over one makes
+it text. Updating a field is not an edit: a file with stale cached
+numbers opens clean.
+
+Trap paid for: **every slide number was frozen on save.** The reader
+took a field's cached text as plain text, so the lecture deck's numbers
+became literal "3"s — wrong after any reorder, and wrong in PowerPoint
+for good. Nothing failed: the round trip compares text, and the text
+matched.
+
 **S6b done 2026-09-30** — charts. Insert → Chart offers column, bar,
 line, pie, area and scatter on PowerPoint's own sample data; the Chart
 Design tab changes the kind (the data kept), opens the data grid, and

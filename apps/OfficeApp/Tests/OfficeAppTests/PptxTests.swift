@@ -34,7 +34,7 @@ final class PptxTests: XCTestCase {
         let layout = package.rel("ppt/slides/slide4.xml", kind: "slideLayout")!.target
         XCTAssertEqual(package.xml(layout)?["type"], "twoObj")
         let layoutIdx = package.xml(layout)!.descendant("p:spTree")!.all("p:sp").compactMap { $0.descendant("p:ph")?["idx"] }
-        XCTAssertEqual(layoutIdx, ["1", "2"])
+        XCTAssertEqual(layoutIdx, ["1", "2", "10", "11", "12"], "the two bodies, then date, footer and number")
     }
 
     func testHiddenSlidesAndNotes() throws {
