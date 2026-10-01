@@ -80,6 +80,7 @@ final class WorkbookController: ChangeNotifier {
     // MARK: Selection
 
     func select(_ a: CellAddress, extend: Bool = false) {
+        _tabStart = nil
         let a = _clamp(a)
         if extend {
             selection = _withMerges(CellRange(anchor, a))
@@ -146,6 +147,7 @@ final class WorkbookController: ChangeNotifier {
     /// Select a whole range with `active` inside it (a click on a header,
     /// a name box entry).
     func select(range: CellRange, active a: CellAddress? = nil) {
+        _tabStart = nil
         selection = range
         active = a ?? range.topLeft
         anchor = active
@@ -155,12 +157,21 @@ final class WorkbookController: ChangeNotifier {
 
     /// The far corner of a shift-selection, which arrow keys move.
     private(set) var _extentEnd = CellAddress(row: 0, col: 0)
+    /// Where a run of Tabs began: Enter then goes to the next row in that
+    /// column, as typing a table row by row in Excel does.
+    private var _tabStart: Int? = nil
 
     /// Move within a selection with Enter/Tab (Excel keeps a multi-cell
     /// selection and walks the active cell through it).
     func advance(rows dr: Int, cols dc: Int) {
         if selection.isSingle {
-            select(CellAddress(row: active.row + dr, col: active.col + dc))
+            let start = _tabStart
+            if dc != 0 {
+                select(CellAddress(row: active.row, col: active.col + dc))
+                _tabStart = start ?? active.col - dc
+            } else {
+                select(CellAddress(row: active.row + dr, col: dr > 0 ? start ?? active.col : active.col))
+            }
             return
         }
         var r = active.row, c = active.col
@@ -358,16 +369,24 @@ final class WorkbookController: ChangeNotifier {
         let belowHasNumbers = (r.top + 1 ... r.bottom).contains { sheet.value(CellAddress(row: $0, col: key)).number != nil }
         let top = firstIsText && belowHasNumbers ? r.top + 1 : r.top
         guard r.bottom > top else { return }
-        let rowsIdx = Array(top ... r.bottom)
+        let before = sortRows(CellRange(top: top, left: r.left, bottom: r.bottom, right: r.right), key: key, ascending: ascending)
+        if !before.isEmpty { _record(sheet: activeSheet, before: before) }
+    }
+
+    /// Reorder the rows of `r` by column `key`, blanks last either way,
+    /// shifting formulas with their rows. Returns what the cells were, for
+    /// an undo step (empty when the order did not change).
+    @discardableResult
+    func sortRows(_ r: CellRange, key: Int, ascending: Bool) -> [CellAddress: Cell?] {
+        let rowsIdx = Array(r.top ... r.bottom)
         let sorted = rowsIdx.sorted { a, b in
             let va = sheet.value(CellAddress(row: a, col: key)), vb = sheet.value(CellAddress(row: b, col: key))
-            // Blanks last, whichever way.
             if va.isEmpty != vb.isEmpty { return vb.isEmpty }
             let c = CalcEngine.compare(va, vb)
             if c == 0 { return a < b }   // stable
             return ascending ? c < 0 : c > 0
         }
-        guard sorted != rowsIdx else { return }
+        guard sorted != rowsIdx else { return [:] }
         var before: [CellAddress: Cell?] = [:]
         var moved: [CellAddress: Cell] = [:]
         for (newRow, oldRow) in zip(rowsIdx, sorted) {
@@ -385,7 +404,7 @@ final class WorkbookController: ChangeNotifier {
             }
         }
         for a in before.keys { sheet.cells[a] = moved[a] }
-        _record(sheet: activeSheet, before: before)
+        return before
     }
 
     // MARK: Sheets
@@ -594,7 +613,9 @@ final class WorkbookController: ChangeNotifier {
         let keys: [CellAddress] = r.rows * r.cols <= sheet.cells.count
             ? (r.top ... r.bottom).flatMap { row in (r.left ... r.right).map { CellAddress(row: row, col: $0) } }
             : sheet.cells.keys.filter { r.contains($0) }
-        for a in keys {
+        // Rows a filter hid are not counted, as Excel's status bar does not.
+        let hidden = sheet.filteredRows
+        for a in keys where !hidden.contains(a.row) {
             let v = sheet.value(a)
             if v.isEmpty { continue }
             count += 1

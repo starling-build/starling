@@ -21,37 +21,59 @@ import Foundation
 /// Sizes along one axis: a default, and the rows or columns that differ.
 struct GridAxis {
     let def: Double
-    let overrides: [(Int, Double)]   // sorted by index
+    /// The indices with their own size, ascending, their sizes, and how far
+    /// each one starts from where it would at the default size.
+    private let _keys: [Int]
+    private let _sizes: [Double]
+    private let _shift: [Double]
 
-    init(def: Double, overrides: [Int: Double], scale: Double) {
+    init(def: Double, overrides: [Int: Double], hidden: Set<Int> = [], scale: Double) {
         self.def = def * scale
-        self.overrides = overrides.map { ($0.key, $0.value * scale) }.sorted { $0.0 < $1.0 }
+        var all = overrides
+        for i in hidden { all[i] = 0 }
+        let sorted = all.sorted { $0.key < $1.key }
+        _keys = sorted.map(\.key)
+        _sizes = sorted.map { $0.value * scale }
+        var shift: [Double] = []
+        shift.reserveCapacity(sorted.count)
+        var acc = 0.0
+        for s in _sizes { shift.append(acc); acc += s - self.def }
+        _shift = shift
+    }
+
+    /// The first position in `_keys` at or past `i`.
+    private func _lower(_ i: Int) -> Int {
+        var lo = 0, hi = _keys.count
+        while lo < hi { let mid = (lo + hi) / 2; if _keys[mid] < i { lo = mid + 1 } else { hi = mid } }
+        return lo
     }
 
     func size(_ i: Int) -> Double {
-        for (k, s) in overrides { if k == i { return s }; if k > i { break } }
-        return def
+        let n = _lower(i)
+        return n < _keys.count && _keys[n] == i ? _sizes[n] : def
     }
 
     /// Distance from index 0's start to index `i`'s start.
     func start(_ i: Int) -> Double {
-        var x = Double(i) * def
-        for (k, s) in overrides { if k >= i { break }; x += s - def }
-        return x
+        let n = _lower(i)
+        let extra = n < _keys.count ? _shift[n] : (_keys.isEmpty ? 0 : _shift[n - 1] + _sizes[n - 1] - def)
+        return Double(i) * def + extra
     }
 
-    /// The index whose span contains `x` (x ≥ 0).
+    /// The index whose span contains `x` (x ≥ 0). Zero-sized (hidden)
+    /// indices contain nothing.
     func index(at x: Double) -> Int {
-        var pos = 0.0, idx = 0
-        for (k, s) in overrides {
-            let span = Double(k - idx) * def
-            if x < pos + span { return idx + Int((x - pos) / def) }
-            pos += span
-            if x < pos + s { return k }
-            pos += s
-            idx = k + 1
+        // The last override starting at or before x.
+        var lo = 0, hi = _keys.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if Double(_keys[mid]) * def + _shift[mid] <= x { lo = mid + 1 } else { hi = mid }
         }
-        return idx + Int(max(0, x - pos) / def)
+        guard lo > 0 else { return Int(max(0, x) / def) }
+        let n = lo - 1
+        let s = Double(_keys[n]) * def + _shift[n]
+        if x < s + _sizes[n] { return _keys[n] }
+        return _keys[n] + 1 + Int((x - s - _sizes[n]) / def)
     }
 }
 
@@ -79,18 +101,22 @@ final class SheetGrid: StatefulWidget {
     /// A right click, at a global position, after the selection was
     /// moved under it (when it was not already inside).
     let onContextMenu: (Offset, GridMenuArea) -> Void
+    /// A filter dropdown was pressed: where to open its menu (global), and the column.
+    let onFilterMenu: (Offset, Int) -> Void
 
     init(key: (any Key)? = nil, controller: WorkbookController, zoom: Double,
          onEditText: @escaping (String?) -> Void,
          onShortcut: @escaping (Character, KeyChordTracker) -> Bool,
          onStatus: @escaping (String) -> Void,
-         onContextMenu: @escaping (Offset, GridMenuArea) -> Void = { _, _ in }) {
+         onContextMenu: @escaping (Offset, GridMenuArea) -> Void = { _, _ in },
+         onFilterMenu: @escaping (Offset, Int) -> Void = { _, _ in }) {
         self.controller = controller
         self.zoom = zoom
         self.onEditText = onEditText
         self.onShortcut = onShortcut
         self.onStatus = onStatus
         self.onContextMenu = onContextMenu
+        self.onFilterMenu = onFilterMenu
         super.init(key: key)
     }
 
@@ -141,8 +167,20 @@ final class SheetGridState: State<StatefulWidget> {
     var headerHeight: Double { 20 * _w.zoom }
     private var _lastVisibleRow = 0
 
-    var cols: GridAxis { GridAxis(def: controller.sheet.defaultColWidthPt, overrides: controller.sheet.colWidths, scale: scale) }
-    var rows: GridAxis { GridAxis(def: controller.sheet.defaultRowHeightPt, overrides: controller.sheet.rowHeights, scale: scale) }
+    var cols: GridAxis { _axes().cols }
+    var rows: GridAxis { _axes().rows }
+    /// The axes, rebuilt only when the sheet's sizes, hidden rows or the zoom change.
+    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, cols: GridAxis, rows: GridAxis)? = nil
+
+    private func _axes() -> (cols: GridAxis, rows: GridAxis) {
+        let ws = controller.sheet
+        let id = ObjectIdentifier(ws)
+        if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale { return (c.cols, c.rows) }
+        let cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, scale: scale)
+        let rows = GridAxis(def: ws.defaultRowHeightPt, overrides: ws.rowHeights, hidden: ws.filteredRows, scale: scale)
+        _axisCache = (id, ws.layoutVersion, scale, cols, rows)
+        return (cols, rows)
+    }
 
     override func initState() {
         super.initState()
@@ -224,6 +262,13 @@ final class SheetGridState: State<StatefulWidget> {
     func rect(_ r: CellRange) -> Rect {
         let a = rect(r.topLeft), b = rect(r.bottomRight)
         return Rect.fromLTRB(a.left, a.top, b.right, b.bottom)
+    }
+
+    /// A filter dropdown: a square in the header cell's bottom-right corner.
+    func filterButton(_ a: CellAddress) -> Rect {
+        let r = rect(a)
+        let side = max(0, min(r.height - 2, 16 * _w.zoom, r.width - 2))
+        return Rect.fromLTWH(r.right - side - 1, r.bottom - side - 1, side, side)
     }
 
     /// Scroll so the cell is fully in view (frozen cells always are).
@@ -428,7 +473,13 @@ final class SheetGridState: State<StatefulWidget> {
 
         switch named {
         case .left, .right, .up, .down: _move(named); return true
-        case .enter: c.advance(rows: _chords.shift ? -1 : 1, cols: 0); reveal(c.active); return true
+        case .enter:
+            c.advance(rows: _chords.shift ? -1 : 1, cols: 0)
+            var guardSteps = 10_000
+            while rows.size(c.active.row) == 0, c.active.row > 0, guardSteps > 0 {
+                c.advance(rows: _chords.shift ? -1 : 1, cols: 0); guardSteps -= 1
+            }
+            reveal(c.active); return true
         case .tab: c.advance(rows: 0, cols: _chords.shift ? -1 : 1); reveal(c.active); return true
         case .home:
             c.select(CellAddress(row: _chords.primary || _chords.control ? 0 : c.active.row, col: 0), extend: _chords.shift)
@@ -473,6 +524,10 @@ final class SheetGridState: State<StatefulWidget> {
         let from = _chords.shift ? c._extentEnd : c.active
         var to = CellAddress(row: from.row + dr, col: from.col + dc)
         if _chords.primary || _chords.control { to = c.edge(from: from, rows: dr, cols: dc) }
+        // Hidden rows and columns are stepped over.
+        let ra = rows, ca = cols
+        while dr != 0, to.row > 0, to.row < CellAddress.maxRows - 1, ra.size(to.row) == 0 { to.row += dr }
+        while dc != 0, to.col > 0, to.col < CellAddress.maxCols - 1, ca.size(to.col) == 0 { to.col += dc }
         c.select(to, extend: _chords.shift)
         reveal(to)
     }
@@ -599,6 +654,15 @@ final class SheetGridState: State<StatefulWidget> {
             return
         }
         let a = cell(atLocal: p)
+        // A filter's dropdown on its header row.
+        if let af = c.sheet.autoFilter, a.row == af.range.top, a.col >= af.range.left, a.col <= af.range.right,
+           filterButton(a).inflate(1).contains(p) {
+            commitEdit()
+            let b = filterButton(a)
+            let origin = _box?.localToGlobal(Offset(b.left, b.bottom)) ?? Offset(b.left, b.bottom)
+            _w.onFilterMenu(origin, a.col)
+            return
+        }
         // The fill handle: the small square at the selection's corner.
         if edit == nil {
             let sel = rect(c.selection)
@@ -978,6 +1042,8 @@ final class SheetGridState: State<StatefulWidget> {
         canvas.drawRect(Rect.fromLTWH(0, 0, hw, size.height), p)
         let headStyle = GridTextStyle(family: SelawikFontName.regular, size: 11 * _w.zoom, color: Int64(headerInk.value))
         let headStrong = GridTextStyle(family: SelawikFontName.regular, size: 11 * _w.zoom, bold: true, color: Int64(accent.value))
+        let headFiltered = GridTextStyle(family: SelawikFontName.regular, size: 11 * _w.zoom, color: Int64(0xFF2F6FDF))
+        let filterActive = !(ws.autoFilter?.columns.isEmpty ?? true)
         let wholeCols = sel.top == 0 && sel.bottom == CellAddress.maxRows - 1
         let wholeRows = sel.left == 0 && sel.right == CellAddress.maxCols - 1
         canvas.save()
@@ -1011,7 +1077,9 @@ final class SheetGridState: State<StatefulWidget> {
                 p.color = accent
                 canvas.drawRect(Rect.fromLTRB(hw - 2, y0, hw, y1), p)
             }
-            let tp = texts.painter(String(row + 1), on ? headStrong : headStyle)
+            // A filtered table's row numbers are blue, as Excel shows that rows are hidden.
+            let filtered = filterActive && row > ws.autoFilter!.range.top && row <= ws.autoFilter!.range.bottom
+            let tp = texts.painter(String(row + 1), on ? headStrong : filtered ? headFiltered : headStyle)
             if y1 - y0 > tp.height - 2 {
                 tp.paint(canvas, Offset((hw - 6 - tp.width).rounded(), ((y0 + y1) / 2 - tp.height / 2).rounded()))
             }
@@ -1124,6 +1192,36 @@ final class SheetGridState: State<StatefulWidget> {
             if b.bottom { canvas.drawLine(Offset(l, bt), Offset(rr, bt), border) }
             if b.left { canvas.drawLine(Offset(l, t), Offset(l, bt), border) }
             if b.right { canvas.drawLine(Offset(rr, t), Offset(rr, bt), border) }
+        }
+        // Filter dropdowns: ▾, or a funnel on a column that filters.
+        if let af = ws.autoFilter, rs.contains(af.range.top) {
+            for col in cs where col >= af.range.left && col <= af.range.right {
+                let b = filterButton(CellAddress(row: af.range.top, col: col))
+                guard b.width >= 6 else { continue }
+                let box = Rect.fromLTRB(b.left.rounded() + 0.5, b.top.rounded() + 0.5, b.right.rounded() - 0.5, b.bottom.rounded() - 0.5)
+                p.color = colors.paper
+                canvas.drawRect(box, p)
+                border.color = colors.grid.withAlpha(255)
+                canvas.drawRect(box, border)
+                let cx = box.center.dx, cy = box.center.dy, u = box.width / 16
+                let glyph = Path()
+                p.color = colors.ink
+                if af.columns[col] != nil {
+                    // A funnel: a wide triangle over a short stem.
+                    glyph.moveTo(cx - 5 * u, cy - 4 * u)
+                    glyph.lineTo(cx + 5 * u, cy - 4 * u)
+                    glyph.lineTo(cx + 1 * u, cy + 0.5 * u)
+                    glyph.lineTo(cx + 1 * u, cy + 4.5 * u)
+                    glyph.lineTo(cx - 1 * u, cy + 3.5 * u)
+                    glyph.lineTo(cx - 1 * u, cy + 0.5 * u)
+                } else {
+                    glyph.moveTo(cx - 4 * u, cy - 2 * u)
+                    glyph.lineTo(cx + 4 * u, cy - 2 * u)
+                    glyph.lineTo(cx, cy + 2.5 * u)
+                }
+                glyph.close()
+                canvas.drawPath(glyph, p)
+            }
         }
     }
 

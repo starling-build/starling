@@ -226,3 +226,21 @@ extension SheetsEditingTests {
         XCTAssertNotNil(paras.first { $0.text == "12.5" }?.cell)
     }
 }
+
+extension SheetsEditingTests {
+    func testEnterAfterTabsReturnsToTheFirstColumn() {
+        let c = WorkbookController()
+        c.select(CellAddress("B2")!)
+        c.advance(rows: 0, cols: 1)
+        c.advance(rows: 0, cols: 1)
+        XCTAssertEqual(c.active, CellAddress("D2"))
+        c.advance(rows: 1, cols: 0)
+        XCTAssertEqual(c.active, CellAddress("B3"))     // back under where the Tabs began
+        c.advance(rows: 1, cols: 0)
+        XCTAssertEqual(c.active, CellAddress("B4"))
+        c.advance(rows: 0, cols: 1)
+        c.select(CellAddress("E9")!)                      // a click forgets the run
+        c.advance(rows: 1, cols: 0)
+        XCTAssertEqual(c.active, CellAddress("E10"))
+    }
+}

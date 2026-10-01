@@ -64,6 +64,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private let _findQuery = TextEditingController()
     private let _findReplacement = TextEditingController()
     private let _contextMenu = FlyoutController()
+    private let _filterMenu = FlyoutController()
 
     private var _w: SheetsShell { widget as! SheetsShell }
 
@@ -397,6 +398,10 @@ final class SheetsShellState: State<StatefulWidget> {
             let first = wb.engine.circular.sorted { ($0.sheet, $0.cell) < ($1.sheet, $1.cell) }.first!
             left.append(Text("Circular References: \(first.cell.a1)", style: caption))
         }
+        if let summary = wb.filterSummary {
+            left.append(Chrome.gap(20))
+            left.append(Text(summary, style: caption))
+        }
         if let message = _status {
             left.append(Chrome.gap(20))
             left.append(Text(message, style: dim))
@@ -466,7 +471,8 @@ final class SheetsShellState: State<StatefulWidget> {
                 },
                 onShortcut: { [weak self] letter, chords in self?._shortcut(letter, chords) ?? false },
                 onStatus: { [weak self] m in self?._flash(m) },
-                onContextMenu: { [weak self] point, area in self?._showContextMenu(at: point, area) })),
+                onContextMenu: { [weak self] point, area in self?._showContextMenu(at: point, area) },
+                onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) })),
             _sheetTabs(fluent),
             _statusBar(fluent),
         ]
@@ -498,6 +504,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "n": _newWorkbook(); return true
         case "f": _openFind(replace: false); return true
         case "h": _openFind(replace: true); return true
+        case "l" where chords.shift: wb.toggleAutoFilter(); return true
         case "\u{1B}":
             if _findOpen { _closeFind(); return true }
             return false
@@ -545,6 +552,20 @@ final class SheetsShellState: State<StatefulWidget> {
     private func _replaceAll() {
         let n = wb.replaceAll(_findQuery.text, with: _findReplacement.text)
         setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
+    }
+
+    // MARK: Filters
+
+    private func _showFilterMenu(at point: Offset, col: Int) {
+        guard let context else { return }
+        let menu = _filterMenu
+        menu.showFlyout(in: context, at: point) { [weak self] _ in
+            guard let self else { return SizedBox(width: 0, height: 0, child: nil) }
+            return FilterPanel(controller: self.wb, col: col, onClose: { [weak self] in
+                menu.closeFlyout()
+                self?._grid?.focus.requestFocus()
+            })
+        }
     }
 
     // MARK: The context menu

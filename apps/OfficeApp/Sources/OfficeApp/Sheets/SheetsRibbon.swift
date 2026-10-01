@@ -248,6 +248,10 @@ extension Ribbon {
         Chrome.group("Sort & Filter", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.sort, "Sort A to Z", fluent) { wb.sortSelection(ascending: true) },
             Chrome.small(FluentSystemIcons.sort, "Sort Z to A", fluent) { wb.sortSelection(ascending: false) },
+        ]), Chrome.bigToggle(FluentSystemIcons.grid, "Filter", wb.sheet.autoFilter != nil, fluent) { wb.toggleAutoFilter() },
+        Chrome.rows([
+            Chrome.small(FluentSystemIcons.close, "Clear", fluent) { wb.clearFilters() },
+            Chrome.small(FluentSystemIcons.refresh, "Reapply", fluent) { wb.structural { wb.reapplyFilter() } },
         ])])
     }
 

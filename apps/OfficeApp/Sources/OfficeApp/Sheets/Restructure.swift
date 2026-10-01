@@ -74,6 +74,28 @@ extension WorkbookController {
                                   : CellRange(top: m.top, left: a, bottom: m.bottom, right: b)
             return r.isSingle ? nil : r
         }
+        // The filter: its range like a merge's, its hidden rows and its
+        // column criteria moved with what they belong to.
+        if var af = ws.autoFilter {
+            let r = af.range
+            let span = axis == .rows ? _adjustSpan(r.top, r.bottom, index: index, delta: delta)
+                                     : _adjustSpan(r.left, r.right, index: index, delta: delta)
+            if let (lo, hi) = span, !(axis == .rows && moved(r.top) == nil) {
+                af.range = axis == .rows ? CellRange(top: lo, left: r.left, bottom: hi, right: r.right)
+                                         : CellRange(top: r.top, left: lo, bottom: r.bottom, right: hi)
+                if axis == .cols {
+                    var cols: [Int: Set<String>] = [:]
+                    for (c, v) in af.columns { if let j = moved(c) { cols[j] = v } }
+                    af.columns = cols
+                }
+                af.raw = nil
+                ws.autoFilter = af
+            } else {
+                ws.autoFilter = nil   // its header row or every column went
+            }
+            ws.filteredRows = ws.autoFilter == nil || axis == .cols ? (ws.autoFilter == nil ? [] : ws.filteredRows)
+                                                                    : Set(ws.filteredRows.compactMap(moved))
+        }
         // Formulas everywhere that point at this sheet.
         let name = ws.name.lowercased()
         _rewriteFormulas { ref, home in

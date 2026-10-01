@@ -1,0 +1,48 @@
+# AutoFilter: ⌘⇧L, the dropdown panel, untick, OK; Down skips hidden rows.
+# Cells as sheets-editing.txt (x = 72 + 64c, y = 270 + 20r, view points).
+click 72 270
+type Region
+key tab
+type Sales
+key enter
+type East
+key tab
+type 10
+key enter
+type West
+key tab
+type 20
+key enter
+type East
+key tab
+type 30
+key enter
+key tab
+type 40
+key enter
+type North
+key tab
+type 50
+key enter
+click 72 270
+chord cmd,shift l
+wait 300
+shot ${OUT}/01-on.png
+click 96 271
+wait 500
+shot ${OUT}/02-panel.png
+click 105 460
+click 105 512
+wait 200
+shot ${OUT}/03-unticked.png
+click 269 546
+wait 400
+shot ${OUT}/04-filtered.png
+click 72 330
+key down
+wait 200
+shot ${OUT}/05-down-skips.png
+click 284 85
+wait 300
+shot ${OUT}/06-data-tab.png
+quit

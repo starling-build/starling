@@ -71,16 +71,38 @@ enum Xlsx {
         return book
     }
 
+    /// `<autoFilter ref><filterColumn colId><filters blank><filter val/>…`.
+    /// Value lists are modelled; any other kind of column filter (custom,
+    /// top 10, dynamic, colour, date groups) or a sort state keeps the
+    /// whole element as written, until the filter is changed here.
+    private static func _readAutoFilter(_ node: XNode, range: CellRange, raw: String?) -> AutoFilter {
+        var af = AutoFilter(range: range)
+        var modelled = node.kids("sortState").isEmpty
+        for fc in node.kids("filterColumn") {
+            guard let id = Int(fc["colId"] ?? "") else { modelled = false; continue }
+            guard let filters = fc.child("filters"), fc.kids("filters").count == 1,
+                  filters.kids("dateGroupItem").isEmpty else { modelled = false; continue }
+            var allowed = Set(filters.kids("filter").compactMap { $0["val"] })
+            if filters["blank"] == "1" { allowed.insert("") }
+            af.columns[range.left + id] = allowed
+        }
+        if !modelled { af.raw = raw }
+        return af
+    }
+
     private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], book: Workbook) throws {
         let bytes = [UInt8](raw)
         // The elements we do not model, kept as their original text.
         let split = RawXML.split(bytes)
         ws.rootTag = split.rootStart
-        let modeled: Set<String> = ["dimension", "sheetViews", "sheetFormatPr", "cols", "sheetData", "mergeCells"]
+        let modeled: Set<String> = ["dimension", "sheetViews", "sheetFormatPr", "cols", "sheetData", "mergeCells", "autoFilter"]
         for (name, text) in split.children where !modeled.contains(name) {
             ws.keptElements.append((name, text))
         }
         guard let root = XNode.parse(raw) else { throw ReadError.badPart(ws.origin ?? ws.name) }
+        if let node = root.child("autoFilter"), let ref = node["ref"], let range = CellRange(ref) {
+            ws.autoFilter = _readAutoFilter(node, range: range, raw: split.children.first { $0.name == "autoFilter" }?.text)
+        }
 
         if let pr = root.child("sheetPr"), let tab = pr.child("tabColor")?["rgb"] { ws.tabColor = tab }
         // Frozen panes and the selection.
@@ -114,7 +136,11 @@ enum Xlsx {
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             // `ht` is the row's height whether or not it is marked custom (a
             // larger font makes a taller row without the flag).
-            if row["hidden"] == "1" { ws.rowHeights[rowIndex] = 0 }
+            // A row a filter hid keeps its height; one hidden by hand is height 0.
+            if row["hidden"] == "1", let af = ws.autoFilter, rowIndex > af.range.top, rowIndex <= af.range.bottom {
+                ws.filteredRows.insert(rowIndex)
+                if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
+            } else if row["hidden"] == "1" { ws.rowHeights[rowIndex] = 0 }
             else if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
             var colIndex = 0
             for c in row.kids("c") {
@@ -624,11 +650,12 @@ enum Xlsx {
         // Rows and cells.
         var byRow: [Int: [(CellAddress, Cell)]] = [:]
         for (a, c) in ws.cells { byRow[a.row, default: []].append((a, c)) }
-        let rows = Set(byRow.keys).union(ws.rowHeights.keys).sorted()
+        let rows = Set(byRow.keys).union(ws.rowHeights.keys).union(ws.filteredRows).sorted()
         var data = "<sheetData>"
         for r in rows {
             data += "<row r=\"\(r + 1)\""
             if let h = ws.rowHeights[r] { data += h == 0 ? " hidden=\"1\"" : " ht=\"\(_num(h))\" customHeight=\"1\"" }
+            if ws.filteredRows.contains(r) && ws.rowHeights[r] != 0 { data += " hidden=\"1\"" }
             let cells = (byRow[r] ?? []).sorted { $0.0.col < $1.0.col }
             if cells.isEmpty { data += "/>"; continue }
             data += ">"
@@ -639,6 +666,7 @@ enum Xlsx {
         if !ws.merges.isEmpty {
             generated["mergeCells"] = "<mergeCells count=\"\(ws.merges.count)\">" + ws.merges.map { "<mergeCell ref=\"\($0.a1)\"/>" }.joined() + "</mergeCells>"
         }
+        if let af = ws.autoFilter { generated["autoFilter"] = af.raw ?? _autoFilterXML(af) }
         var kept: [String: [String]] = [:]
         for (name, text) in ws.keptElements { kept[name, default: []].append(text) }
         if let tab = ws.tabColor, kept["sheetPr"] == nil { generated["sheetPr"] = "<sheetPr><tabColor rgb=\"\(_esc(tab))\"/></sheetPr>" }
@@ -652,6 +680,18 @@ enum Xlsx {
         let root = ws.rootTag ?? "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
         let rootName = root.dropFirst().prefix { $0 != " " && $0 != ">" && $0 != "\n" && $0 != "\t" && $0 != "\r" }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + root + body + "</\(rootName)>"
+    }
+
+    private static func _autoFilterXML(_ af: AutoFilter) -> String {
+        guard !af.columns.isEmpty else { return "<autoFilter ref=\"\(af.range.a1)\"/>" }
+        var s = "<autoFilter ref=\"\(af.range.a1)\">"
+        for (col, allowed) in af.columns.sorted(by: { $0.key < $1.key }) {
+            s += "<filterColumn colId=\"\(col - af.range.left)\"><filters" + (allowed.contains("") ? " blank=\"1\"" : "")
+            let vals = allowed.filter { !$0.isEmpty }.sorted()
+            s += vals.isEmpty ? "/>" : ">" + vals.map { "<filter val=\"\(_esc($0))\"/>" }.joined() + "</filters>"
+            s += "</filterColumn>"
+        }
+        return s + "</autoFilter>"
     }
 
     private static func _cellXML(_ a: CellAddress, _ c: Cell, stringIndex: (String) -> Int) -> String {

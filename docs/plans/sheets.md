@@ -178,7 +178,24 @@ inner span, which is where Writer reads them); a paste prefers a table
 in the HTML — Excel's class-styled clipboard, Google Sheets' and web
 pages' inline styles — and keeps bold, italic, colours, fills and
 alignment, as one undo step. Tested on parsed fixtures only: a live
-test would overwrite the real pasteboard. Next: X4.
+test would overwrite the real pasteboard.
+
+**X4 AutoFilter (2026-10-01)** (`Sheets/Filter.swift`, `FilterPanel.swift`):
+⌘⇧L or Data → Filter on the table around the selection; a dropdown per
+header cell (a funnel once it filters) opens sort, clear, search and a
+tick list; hidden rows are `Worksheet.filteredRows`, apart from
+`rowHeights`, so every row keeps its height; arrows and Enter step over
+them; the status bar says "N of M records found" and its Sum/Count skip
+them. Applied when set or sorted, not on every edit (Excel's rule);
+Reapply takes in rows typed under the table. `.xlsx`: value-list filters
+are read and written; any other kind (custom, top 10, colour, date
+groups, a sortState) keeps the element as written until the filter is
+changed here. `GridAxis` is now binary search over prefix sums, cached
+per `Worksheet.layoutVersion` — a filter can hide thousands of rows.
+Also: Enter after a run of Tabs returns to the column the run began in.
+Left in X4: pictures and charts drawn, print/PDF. A stale
+`_xlnm._FilterDatabase` name in a file is kept as written (Excel
+rebuilds it).
 
 Script coordinates are view points: the window's 28pt title bar is not
 in them, so a screenshot's y (in points) is 28 more than the script's.

@@ -80,8 +80,8 @@ final class Worksheet {
     }
     private var _extent: CellAddress? = nil
     /// Column widths and row heights in points, where not the default.
-    var colWidths: [Int: Double] = [:]
-    var rowHeights: [Int: Double] = [:]
+    var colWidths: [Int: Double] = [:] { didSet { layoutVersion &+= 1 } }
+    var rowHeights: [Int: Double] = [:] { didSet { layoutVersion &+= 1 } }
     var freezeRows = 0
     var freezeCols = 0
     var merges: [CellRange] = []
@@ -123,8 +123,14 @@ final class Worksheet {
     /// The active cell as saved, restored on open and written on save.
     var savedActive: CellAddress? = nil
     /// The sheet's default sizes, in points.
-    var defaultColWidthPt = Worksheet.defaultColWidth
-    var defaultRowHeightPt = Worksheet.defaultRowHeight
+    var defaultColWidthPt = Worksheet.defaultColWidth { didSet { layoutVersion &+= 1 } }
+    var defaultRowHeightPt = Worksheet.defaultRowHeight { didSet { layoutVersion &+= 1 } }
+    var autoFilter: AutoFilter? = nil
+    /// Rows the filter hides (kept apart from rowHeights, so each keeps its height).
+    var filteredRows: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
+    /// Bumped by anything that moves rows or columns on screen, so the grid
+    /// can keep its geometry between paints.
+    private(set) var layoutVersion = 0
 
     /// A copy of every property: an undo step's snapshot. The cell
     /// dictionary is copy-on-write, so this is cheap until one side changes.
@@ -145,6 +151,8 @@ final class Worksheet {
         s.savedActive = savedActive
         s.defaultColWidthPt = defaultColWidthPt
         s.defaultRowHeightPt = defaultRowHeightPt
+        s.autoFilter = autoFilter
+        s.filteredRows = filteredRows
         return s
     }
 }
