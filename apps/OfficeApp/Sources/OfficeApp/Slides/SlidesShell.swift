@@ -77,6 +77,12 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _showNotes = true
     private var _recent: [String] = []
     private let _search = TextEditingController()
+    /// Find and Replace across the deck.
+    private var _findOpen = false
+    private var _findReplace = false
+    private var _findStatus = ""
+    private let _findQuery = TextEditingController()
+    private let _findReplacement = TextEditingController()
     #if canImport(AppKit)
     private let _spelling: RichSpellChecker? = CocoaSpellChecker()
     #else
@@ -230,6 +236,89 @@ final class SlidesShellState: State<StatefulWidget> {
         _point(at: shape?.text, theme: shape?.textTheme)
         if shape == nil { _deckFocus.requestFocus() }
         setState {}
+    }
+
+    // MARK: Find and Replace
+
+    private func _openFind(replace: Bool) {
+        let c = session.controller
+        if (_active != nil || _notesActive), c.hasSelection, !c.selectedText.contains(Character("\n")) {
+            _findQuery.text = c.selectedText
+        }
+        setState {
+            _findOpen = true
+            _findReplace = replace
+            _findStatus = ""
+        }
+    }
+
+    /// Where the search stands: the slide, the body being edited (or before
+    /// the first), and the caret in it.
+    private func _findPosition(backwards: Bool) -> (slide: Int, stop: Int, at: RichPosition) {
+        let stops = deck.textStops(deck.current)
+        let editing: Int? = _notesActive ? stops.count - 1
+            : _active.flatMap { a in stops.firstIndex { $0.shape === a } }
+        guard let stop = editing else { return (deck.current, backwards ? stops.count : -1, RichPosition(paragraph: 0, offset: 0)) }
+        let sel = stops[stop].controller.selection
+        return (deck.current, stop, backwards ? sel.start : sel.end)
+    }
+
+    private func _findNext(backwards: Bool) {
+        let q = _findQuery.text
+        let all = deck.matches(q)
+        guard !all.isEmpty else { setState { _findStatus = q.isEmpty ? "" : "No matches" }; return }
+        let here = _findPosition(backwards: backwards)
+        let pick: DeckMatch
+        if backwards {
+            pick = all.last { $0.isBefore(here.slide, here.stop, here.at) } ?? all.last!
+        } else {
+            // From the end of the selection: a match that is the selection
+            // itself starts before it and is passed over.
+            pick = all.first { !$0.isBefore(here.slide, here.stop, here.at) } ?? all.first!
+        }
+        _show(pick)
+        let n = (all.firstIndex(of: pick) ?? 0) + 1
+        setState { _findStatus = "\(n) of \(all.count)" }
+    }
+
+    /// Go to a match: its slide, its body being edited, the text selected.
+    private func _show(_ m: DeckMatch) {
+        deck.select(m.slide)
+        let stops = deck.textStops(m.slide)
+        guard stops.indices.contains(m.stop) else { return }
+        if let shape = stops[m.stop].shape {
+            deck.selectShapes([shape])
+            _activate(shape)
+            // The match selected, the keyboard left in the find field:
+            // Return there means "next", never "replace this with a break".
+            shape.text?.selection = m.selection
+        } else {
+            deck.endTextSession()
+            _active = nil
+            _notesActive = true
+            deck.selectShapes([])
+            deck.beginTextSession()
+            let notes = deck.currentSlide.notes
+            _point(at: notes, theme: _notesTheme)
+            notes.selection = m.selection
+        }
+        setState {}
+    }
+
+    private func _replaceOne() {
+        let q = _findQuery.text
+        guard !q.isEmpty else { return }
+        let c = session.controller
+        if (_active != nil || _notesActive), c.hasSelection, c.selectedText.lowercased() == q.lowercased() {
+            c.insertText(_findReplacement.text)
+        }
+        _findNext(backwards: false)
+    }
+
+    private func _replaceAll() {
+        _endEditing()
+        let n = deck.replaceEverywhere(_findQuery.text, with: _findReplacement.text)
+        setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
     }
 
     private func _endEditing() {
@@ -622,6 +711,8 @@ final class SlidesShellState: State<StatefulWidget> {
         case "d" where shapes: deck.duplicateSelection()
         case "d" where !typing: deck.duplicateSlide(deck.current)
         case "g" where shapes: _flash("Grouping comes with milestone S6")
+        case "f": _openFind(replace: false)
+        case "h": _openFind(replace: true)
         case "e": c.setAlignment(.center)
         case "l": c.setAlignment(.left)
         case "r": c.setAlignment(.right)
@@ -654,12 +745,23 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         var column: [Widget] = [
             TitleRow(session: session, searchController: _search, onSearch: { [weak self] _ in
-                self?._flash("Find in decks comes with milestone S8")
+                guard let self else { return }
+                self._findQuery.text = self._search.text
+                self._openFind(replace: false)
+                self._findNext(backwards: false)
             }),
             Ribbon(session: session, tab: _tab, collapsed: _ribbonCollapsed,
                    onTab: { [weak self] t in self?.setState { self?._tab = t } },
                    onCollapse: { [weak self] in self?.setState { self?._ribbonCollapsed.toggle() } }),
         ]
+        if _findOpen {
+            column.append(FindBar(session: session, query: _findQuery, replacement: _findReplacement,
+                                  showReplace: _findReplace, status: _findStatus,
+                                  onNext: { [weak self] back in self?._findNext(backwards: back) },
+                                  onReplace: { [weak self] in self?._replaceOne() },
+                                  onReplaceAll: { [weak self] in self?._replaceAll() },
+                                  onClose: { [weak self] in self?.setState { self?._findOpen = false } }))
+        }
         var work: [Widget] = [Expanded(child: SlideCanvas(
             key: _canvasKey,
             deck: deck, cache: _cache, active: _active,

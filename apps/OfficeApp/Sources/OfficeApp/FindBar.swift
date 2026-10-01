@@ -37,9 +37,11 @@ final class FindBar: StatelessWidget {
         let fluent = FluentTheme.of(context)
         var items: [Widget] = [
             SizedBox(width: 60, height: nil, child: Text("Find", style: fluent.typography.body)),
+            // The field takes the keyboard as the bar opens: ⌘F then type.
             SizedBox(width: 260, height: 30, child: FluentTextBox(
-                controller: query, placeholderText: "Search document",
-                onSubmitted: { [onNext] _ in onNext(false) })),
+                controller: query,
+                placeholderText: session.kind == .presentation ? "Search presentation" : "Search document",
+                onSubmitted: { [onNext] _ in onNext(false) }, autofocus: true)),
             Chrome.gap(6),
             Chrome.icon(FluentSystemIcons.chevronUp, "Previous", fluent) { [onNext] in onNext(true) },
             Chrome.icon(FluentSystemIcons.chevronDown, "Next", fluent) { [onNext] in onNext(false) },

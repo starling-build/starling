@@ -476,6 +476,22 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    // MARK: Find
+
+    /// Replace every occurrence of `query` in the deck's text — shapes,
+    /// tables and notes — as one undo step; returns how many.
+    @discardableResult
+    func replaceEverywhere(_ query: String, with replacement: String) -> Int {
+        let count = matches(query).count
+        guard count > 0 else { return 0 }
+        _checkpoint()
+        for i in slides.indices {
+            for body in textStops(i) { body.controller.replaceAll(query, with: replacement) }
+        }
+        _changed()
+        return count
+    }
+
     // MARK: Header and footer
 
     /// PowerPoint's Header & Footer settings for slides.

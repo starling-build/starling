@@ -124,6 +124,17 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
+search field open Writer's find bar over the deck: every text body in
+reading order — each slide's shapes as they stack, table cells included,
+then its notes — case-insensitively, with "n of N"; Return in the field
+goes on (the keyboard stays there: an earlier cut moved focus into the
+match, and the next Return replaced it with a paragraph break), the match
+selected on its slide. Replace replaces the selected match and goes on;
+Replace All is one undo step across the deck. Also fixed: a table row's
+shading was painted over the selection (Writer's tables too) — shading
+now has a layer of its own under it.
+
 **S8, autofit, 2026-09-30.** Placeholders shrink their text to fit as
 PowerPoint's do (`normAutofit`): as their text or box changes, the shell
 picks the largest of PowerPoint's steps (100% down to 25%) at which it

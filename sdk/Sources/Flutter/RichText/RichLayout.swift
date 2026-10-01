@@ -1359,8 +1359,9 @@ public final class RichLayout {
 
     // MARK: Painting
 
-    private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
-        let g = geometry(i)
+    /// A table row's shading — the header's, or a band's — under every cell
+    /// of the row; drawn by its first cell's paragraph, before the selection.
+    private func _paintShading(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
         if let c = _cells[i], c.firstInRow, let ts = document.tableStyles[c.table] {
             // The row's shading, under every cell of the row: the header's,
             // or a band's.
@@ -1376,6 +1377,10 @@ public final class RichLayout {
                 canvas.drawRect(Rect.fromLTWH(0, c.rowTop.rounded(), width.rounded(), c.ownRowHeight.rounded()), fill)
             }
         }
+    }
+
+    private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        let g = geometry(i)
         if let c = _cells[i], c.firstInRow, document.tableStyles[c.table]?.borders ?? true {
             let stroke = Paint()
             stroke.style = .stroke
@@ -1504,6 +1509,10 @@ public final class RichLayout {
                 _paintHeaderFooter(p, canvas, document)
             }
         }
+        // Three layers: table shading, the selection over it, then the text
+        // and rules. (Shading painted with its paragraph covered a selected
+        // cell's highlight.)
+        _paintFlow(canvas, visible: visible, document: document, shading: true)
         if let selection, !selection.isCollapsed {
             let paint = Paint()
             paint.color = theme.selectionColor
@@ -1513,6 +1522,18 @@ public final class RichLayout {
                 canvas.drawRect(r, paint)
             }
         }
+        _paintFlow(canvas, visible: visible, document: document, shading: false)
+        if let caret {
+            let paint = Paint()
+            paint.color = theme.caretColor
+            paint.style = .fill
+            canvas.drawRRect(RRect(fromRectAndRadius: caret, Radius(circular: 1)), paint)
+        }
+    }
+
+    /// Every visible paragraph, page by page and column by column: its
+    /// table row's shading only (`shading`), or everything else.
+    private func _paintFlow(_ canvas: any Canvas, visible: Rect, document: RichDocument, shading: Bool) {
         if isPaged {
             let firstPage = page(atCanvasY: visible.top)
             let lastPage = page(atCanvasY: visible.bottom)
@@ -1533,7 +1554,9 @@ public final class RichLayout {
                         canvas.save()
                         canvas.clipRect(Rect.fromLTRB(clipL, top, clipR, bottom))
                         canvas.translate(left, top - piece.flowTop)
-                        _paintParagraph(piece.paragraph, canvas, document)
+                        if shading { _paintShading(piece.paragraph, canvas, document) } else {
+                            _paintParagraph(piece.paragraph, canvas, document)
+                        }
                         canvas.restore()
                     }
                 }
@@ -1542,14 +1565,8 @@ public final class RichLayout {
             for i in paragraphs(intersecting: visible.top, visible.bottom) {
                 let g = geometry(i)
                 if g.bottom < visible.top || g.top > visible.bottom { continue }
-                _paintParagraph(i, canvas, document)
+                if shading { _paintShading(i, canvas, document) } else { _paintParagraph(i, canvas, document) }
             }
-        }
-        if let caret {
-            let paint = Paint()
-            paint.color = theme.caretColor
-            paint.style = .fill
-            canvas.drawRRect(RRect(fromRectAndRadius: caret, Radius(circular: 1)), paint)
         }
     }
 }
