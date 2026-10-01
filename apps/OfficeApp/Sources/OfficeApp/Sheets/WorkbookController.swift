@@ -286,6 +286,7 @@ final class WorkbookController: ChangeNotifier {
         for (a, text) in items {
             if before[a] == nil { before[a] = .some(ws.cells[a]) }
             var cell = ws.cells[a] ?? Cell(input: "")
+            if ws.cells[a] == nil, !text.isEmpty { cell.style = ws.defaultStyle(at: a) }   // a formatted row or column's style
             cell.rawFormula = nil      // what is typed replaces what the file had
             cell.keptAttrs = [:]
             if text.isEmpty {

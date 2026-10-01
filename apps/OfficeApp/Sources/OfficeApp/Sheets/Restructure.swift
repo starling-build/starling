@@ -65,7 +65,17 @@ extension WorkbookController {
             for (i, v) in d { if let j = moved(i) { out[j] = v } }
             return out
         }
-        if axis == .rows { ws.rowHeights = remap(ws.rowHeights) } else { ws.colWidths = remap(ws.colWidths) }
+        if axis == .rows { ws.rowHeights = remap(ws.rowHeights) } else { ws.colWidths = remap(ws.colWidths); ws.colWidthChars = remap(ws.colWidthChars) }
+        // Rows' and columns' own formats and outline levels go with them.
+        if axis == .rows {
+            var out: [Int: [String: String]] = [:]
+            for (i, v) in ws.rowAttrs { if let j = moved(i) { out[j] = v } }
+            ws.rowAttrs = out
+        } else {
+            ws.colAttrRuns = ws.colAttrRuns.compactMap { r in
+                _adjustSpan(r.lo, r.hi, index: index, delta: delta).map { ($0.0, min($0.1, CellAddress.maxCols - 1), r.attrs) }
+            }
+        }
         // Merges: shifted, shrunk, or gone.
         ws.merges = ws.merges.compactMap { m in
             let (lo, hi) = axis == .rows ? (m.top, m.bottom) : (m.left, m.right)

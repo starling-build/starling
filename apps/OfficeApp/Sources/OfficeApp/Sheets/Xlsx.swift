@@ -141,18 +141,23 @@ enum Xlsx {
             if let sel = view.kids("selection").last, let a = sel["activeCell"].flatMap({ CellAddress($0) }) { ws.savedActive = a }
             if view["showGridLines"] == "0" { ws.showGridlines = false }
         }
-        if let f = root.child("sheetFormatPr"), let h = Double(f["defaultRowHeight"] ?? "") { ws.defaultRowHeightPt = h }
+        if let f = root.child("sheetFormatPr") {
+            if let h = Double(f["defaultRowHeight"] ?? "") { ws.defaultRowHeightPt = h }
+            ws.formatPrAttrs = f.attrs.filter { $0.key != "defaultRowHeight" }
+        }
         // Column widths are in characters of the default font's widest
         // digit (7 px for Calibri 11) plus 5 px of padding.
         for col in root.child("cols")?.kids("col") ?? [] {
             guard let lo = Int(col["min"] ?? ""), let hi = Int(col["max"] ?? "") else { continue }
+            let extra = col.attrs.filter { !["min", "max", "width", "customWidth", "hidden"].contains($0.key) }
+            if !extra.isEmpty { ws.colAttrRuns.append((lo - 1, min(hi, CellAddress.maxCols) - 1, extra)) }
             let hidden = col["hidden"] == "1"
             guard let w = Double(col["width"] ?? "") ?? (hidden ? 0 : nil) else { continue }
             let pt = hidden ? 0 : _charsToPoints(w)
             // A run over the whole sheet (a default width) is not 16k entries.
-            if hi - lo > 2000 { if !hidden { ws.defaultColWidthPt = pt }; continue }
+            if hi - lo > 2000 { if !hidden { ws.defaultColWidthPt = pt; ws.defaultColWidthChars = w }; continue }
             for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols {
-                if abs(pt - Worksheet.defaultColWidth) > 0.01 || hidden { ws.colWidths[c - 1] = pt }
+                if abs(pt - Worksheet.defaultColWidth) > 0.01 || hidden { ws.colWidths[c - 1] = pt; if !hidden { ws.colWidthChars[c - 1] = w } }
             }
         }
         // Cells.
@@ -162,6 +167,8 @@ enum Xlsx {
         var rowIndex = 0
         for row in root.child("sheetData")?.kids("row") ?? [] {
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
+            let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
+            if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }
             // `ht` is the row's height whether or not it is marked custom (a
             // larger font makes a taller row without the flag).
             // A row a filter hid keeps its height; one hidden by hand is height 0.
@@ -265,6 +272,12 @@ enum Xlsx {
     static func _charsToPoints(_ w: Double) -> Double {
         ((256 * w + (128.0 / 7).rounded(.down)) / 256 * 7).rounded(.down) * 0.75
     }
+    /// A column's width for the file: as the file had it while unchanged.
+    static func _widthChars(_ ws: Worksheet, _ col: Int, _ pt: Double) -> Double {
+        if let w = ws.colWidthChars[col], _charsToPoints(w) == pt { return w }
+        return _pointsToChars(pt)
+    }
+
     static func _pointsToChars(_ pt: Double) -> Double {
         let px = (pt / 0.75).rounded()
         return (px / 7 * 256).rounded(.down) / 256
@@ -792,17 +805,45 @@ enum Xlsx {
         }
         view += "</sheetView></sheetViews>"
         generated["sheetViews"] = view
-        generated["sheetFormatPr"] = "<sheetFormatPr defaultRowHeight=\"\(_num(ws.defaultRowHeightPt))\"/>"
-        // Columns: runs of equal custom widths.
-        if !ws.colWidths.isEmpty {
+        generated["sheetFormatPr"] = "<sheetFormatPr" + ws.formatPrAttrs.filter { $0.key != "defaultRowHeight" }.sorted { $0.key < $1.key }
+            .map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + " defaultRowHeight=\"\(_num(ws.defaultRowHeightPt))\"/>"
+        // Columns: segments where the width and the file's other attributes
+        // (style, outline level…) are all the same.
+        if !ws.colAttrRuns.isEmpty {
+            var points = Set<Int>()
+            for r in ws.colAttrRuns { points.insert(r.lo); points.insert(r.hi + 1) }
+            for k in ws.colWidths.keys { points.insert(k); points.insert(k + 1) }
+            let sorted = points.sorted()
+            var cols = "<cols>"
+            var pending: (lo: Int, hi: Int, key: String)? = nil
+            func flush() { if let p = pending { cols += "<col min=\"\(p.lo + 1)\" max=\"\(p.hi + 1)\"\(p.key)/>" }; pending = nil }
+            for (k, start) in sorted.enumerated() where k + 1 < sorted.count {
+                let end = sorted[k + 1] - 1
+                var attrs: [String: String] = [:]
+                for r in ws.colAttrRuns where r.lo <= start && start <= r.hi { attrs.merge(r.attrs) { $1 } }
+                var key = ""
+                if let w = ws.colWidths[start] {
+                    key += " width=\"\(_num(_widthChars(ws, start, w)))\"" + (w == 0 ? " hidden=\"1\"" : "") + " customWidth=\"1\""
+                } else if !attrs.isEmpty {
+                    let d = ws.defaultColWidthChars.flatMap { _charsToPoints($0) == ws.defaultColWidthPt ? $0 : nil } ?? _pointsToChars(ws.defaultColWidthPt)
+                    key += " width=\"\(_num(d))\""
+                }
+                for (name, v) in attrs.sorted(by: { $0.key < $1.key }) { key += " \(name)=\"\(_esc(v))\"" }
+                if key.isEmpty { flush(); continue }
+                if let p = pending, p.key == key, p.hi + 1 == start { pending = (p.lo, end, key) } else { flush(); pending = (start, end, key) }
+            }
+            flush()
+            generated["cols"] = cols + "</cols>"
+        } else if !ws.colWidths.isEmpty {
             var cols = "<cols>"
             let keys = ws.colWidths.keys.sorted()
             var i = 0
             while i < keys.count {
                 var j = i
-                while j + 1 < keys.count, keys[j + 1] == keys[j] + 1, ws.colWidths[keys[j + 1]] == ws.colWidths[keys[i]] { j += 1 }
                 let w = ws.colWidths[keys[i]]!
-                cols += "<col min=\"\(keys[i] + 1)\" max=\"\(keys[j] + 1)\" width=\"\(_num(_pointsToChars(w)))\""
+                let chars = _widthChars(ws, keys[i], w)
+                while j + 1 < keys.count, keys[j + 1] == keys[j] + 1, ws.colWidths[keys[j + 1]] == w, _widthChars(ws, keys[j + 1], w) == chars { j += 1 }
+                cols += "<col min=\"\(keys[i] + 1)\" max=\"\(keys[j] + 1)\" width=\"\(_num(chars))\""
                     + (w == 0 ? " hidden=\"1\"" : "") + " customWidth=\"1\"/>"
                 i = j + 1
             }
@@ -822,12 +863,13 @@ enum Xlsx {
                 byRow[a.row, default: []].append((a, c))
             }
         }
-        let rows = Set(byRow.keys).union(ws.rowHeights.keys).union(ws.filteredRows).sorted()
+        let rows = Set(byRow.keys).union(ws.rowHeights.keys).union(ws.filteredRows).union(ws.rowAttrs.keys).sorted()
         var data = "<sheetData>"
         for r in rows {
             data += "<row r=\"\(r + 1)\""
             if let h = ws.rowHeights[r] { data += h == 0 ? " hidden=\"1\"" : " ht=\"\(_num(h))\" customHeight=\"1\"" }
             if ws.filteredRows.contains(r) && ws.rowHeights[r] != 0 { data += " hidden=\"1\"" }
+            for (k, v) in (ws.rowAttrs[r] ?? [:]).sorted(by: { $0.key < $1.key }) { data += " \(k)=\"\(_esc(v))\"" }
             let cells = (byRow[r] ?? []).sorted { $0.0.col < $1.0.col }
             if cells.isEmpty { data += "/>"; continue }
             data += ">"

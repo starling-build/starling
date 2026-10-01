@@ -1447,6 +1447,19 @@ final class SheetGridState: State<StatefulWidget> {
             let a = CellAddress(row: row, col: col)
             if let cell = ws.cells[a], cell.style != 0 { styled.append((a, book.style(cell.style))) }
         } }
+        // A formatted column's or row's fill, under its cells' own.
+        if !ws.colAttrRuns.isEmpty || !ws.rowAttrs.isEmpty {
+            for col in cs {
+                guard let st = ws.colStyle(col), let f = book.style(st).fill else { continue }
+                p.color = Color(Int64(0xFF00_0000) | Int64(f))
+                canvas.drawRect(Rect.fromLTRB(colX(col), clip.top, colX(col) + ca.size(col), clip.bottom), p)
+            }
+            for row in rs {
+                guard let st = ws.rowStyle(row), let f = book.style(st).fill else { continue }
+                p.color = Color(Int64(0xFF00_0000) | Int64(f))
+                canvas.drawRect(Rect.fromLTRB(clip.left, rowY(row), clip.right, rowY(row) + ra.size(row)), p)
+            }
+        }
         // Tables' built-in styles, under everything the cells set themselves.
         var tableLooks: [CellAddress: TableCellLook] = [:]
         if !ws.tables.isEmpty, let r0 = rs.first, let r1 = rs.last, let c0 = cs.first, let c1 = cs.last {

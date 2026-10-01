@@ -276,3 +276,37 @@ extension XlsxTests {
         XCTAssertFalse(out.containsSubstring("vm=\"2\""))
     }
 }
+
+extension XlsxTests {
+    func testRowAndColumnAttributesAreKept() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        var entries = try Zip.read(try Data(contentsOf: url))
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
+        var s = String(decoding: entries[i].data, as: UTF8.self)
+        // Columns B:C grouped and styled, the rest of the sheet styled; rows 5–6 grouped and row 5 formatted.
+        let cols = "<cols><col min=\"2\" max=\"3\" width=\"12\" customWidth=\"1\" style=\"1\" outlineLevel=\"1\"/><col min=\"30\" max=\"16384\" width=\"9.140625\" style=\"1\"/></cols>"
+        if let a = s.findRange(of: "<cols>"), let b = s.findRange(of: "</cols>") { s.replaceSubrange(a.lowerBound ..< b.upperBound, with: cols) }
+        else { let at = try XCTUnwrap(s.findRange(of: "<sheetData")); s.insert(contentsOf: cols, at: at.lowerBound) }
+        s = s.replacingAll("<row r=\"5\"", with: "<row r=\"5\" s=\"1\" customFormat=\"1\" outlineLevel=\"1\"")
+        s = s.replacingAll("<row r=\"6\"", with: "<row r=\"6\" outlineLevel=\"1\" collapsed=\"1\"")
+        if let f = s.findRange(of: "<sheetFormatPr ") { s.insert(contentsOf: "outlineLevelRow=\"1\" outlineLevelCol=\"1\" ", at: f.upperBound) }
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(s.utf8))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Zip.write(entries)))
+        XCTAssertEqual(c.sheet.colStyle(2), 1)
+        XCTAssertEqual(c.sheet.rowStyle(4), 1)
+        // A cell typed into a formatted row takes its style; one in a formatted column takes the column's.
+        c.setInputs([(CellAddress("Z5")!, "7"), (CellAddress("B40")!, "8")])
+        XCTAssertEqual(c.sheet.cells[CellAddress("Z5")!]?.style, 1)
+        XCTAssertEqual(c.sheet.cells[CellAddress("B40")!]?.style, 1)
+        c.insert(.rows, at: 0)
+        c.insert(.cols, at: 0)
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
+        XCTAssertNotNil(XNode.parse(Data(out.utf8)))
+        XCTAssertTrue(out.containsSubstring("<col min=\"3\" max=\"4\" width=\"12\" customWidth=\"1\" outlineLevel=\"1\" style=\"1\"/>"), out)
+        XCTAssertTrue(out.containsSubstring("max=\"16384\""))
+        XCTAssertTrue(out.containsSubstring("<row r=\"6\" customFormat=\"1\" outlineLevel=\"1\" s=\"1\""), out)
+        XCTAssertTrue(out.containsSubstring("<row r=\"7\" collapsed=\"1\" outlineLevel=\"1\""), out)
+        XCTAssertTrue(out.containsSubstring("outlineLevelCol=\"1\" outlineLevelRow=\"1\""), out)
+    }
+}

@@ -154,6 +154,36 @@ final class Worksheet {
     /// The drawings were added to, moved or deleted here: the part is
     /// written from the model on save (unchanged ones verbatim).
     var drawingsEdited = false
+    /// `<col>` attributes besides width and hidden — a column's style,
+    /// outline level, collapsed — by run (zero-based, inclusive).
+    var colAttrRuns: [(lo: Int, hi: Int, attrs: [String: String])] = []
+    /// Column widths as the file wrote them, in characters: written back
+    /// exactly while the width is unchanged (points round to whole pixels).
+    var colWidthChars: [Int: Double] = [:]
+    var defaultColWidthChars: Double? = nil
+    /// `<row>` attributes besides its height and hidden: style (s with
+    /// customFormat), outline level, collapsed, thick borders…
+    var rowAttrs: [Int: [String: String]] = [:]
+    /// `<sheetFormatPr>`'s other attributes: base and default column
+    /// width, outline levels, zero-height rows.
+    var formatPrAttrs: [String: String] = [:]
+
+    /// The style a new cell at `a` takes: its row's when the row is
+    /// formatted, else its column's, as Excel does.
+    func defaultStyle(at a: CellAddress) -> Int {
+        if let r = rowAttrs[a.row], r["customFormat"] == "1", let s = r["s"].flatMap({ Int($0) }) { return s }
+        return colStyle(a.col) ?? 0
+    }
+
+    func colStyle(_ col: Int) -> Int? {
+        colAttrRuns.last { $0.lo <= col && col <= $0.hi && $0.attrs["style"] != nil }.flatMap { $0.attrs["style"].flatMap { Int($0) } }
+    }
+
+    func rowStyle(_ row: Int) -> Int? {
+        guard let r = rowAttrs[row], r["customFormat"] == "1" else { return nil }
+        return r["s"].flatMap { Int($0) }
+    }
+
     /// Values dynamic arrays spilled into otherwise empty cells: shown and
     /// read like the cells' own, written to the file beside their formula.
     var spilled: [CellAddress: CellValue] = [:]
@@ -195,6 +225,11 @@ final class Worksheet {
         s.drawingRoot = drawingRoot
         s.drawingsEdited = drawingsEdited
         s.spilled = spilled
+        s.colAttrRuns = colAttrRuns
+        s.colWidthChars = colWidthChars
+        s.defaultColWidthChars = defaultColWidthChars
+        s.rowAttrs = rowAttrs
+        s.formatPrAttrs = formatPrAttrs
         s.tables = tables
         s.notes = notes
         s.linkTargets = linkTargets

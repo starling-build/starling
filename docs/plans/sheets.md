@@ -367,7 +367,20 @@ spilling formula, not a legacy {array}. A cell's own `vm`/`cm`/`ph` (an image pl
 in the cell, a linked data type, other metadata) are kept
 (`Cell.keptAttrs`) and written back until the cell is typed over —
 they were dropped on every save before, which left such a cell a bare
-#VALUE! in Excel. Those images are not drawn here yet. LET (local names in
+#VALUE! in Excel. Those images are not drawn here yet.
+
+**Rows and columns keep what the file said (2026-10-01).** `<col>` and
+`<row>` were rewritten with width/height and hidden only, so grouped
+rows and columns (outlineLevel, collapsed), column and row default
+styles (a currency column, a shaded band — privateschools2223.xlsx's
+column C lost its style), bestFit and `sheetFormatPr`'s base/default
+width and outline levels were dropped on save. They are kept now
+(`Worksheet.colAttrRuns`, `rowAttrs`, `formatPrAttrs`), move with
+inserted/deleted rows and columns, and a cell typed into a formatted
+row or column takes its style, as in Excel; a formatted row's or
+column's fill is drawn under its empty cells. Widths are written as the
+file had them while unchanged (`colWidthChars`): pixel rounding used to
+nudge 17.453125 to 17.42578125. LET (local names in
 `EvalContext.locals`) and the Excel 365 shapers VSTACK, HSTACK, TAKE,
 DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
 TEXTSPLIT work too. Still unread (kept verbatim): the intersection
