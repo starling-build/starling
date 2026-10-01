@@ -360,7 +360,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private func _sheetTabs(_ fluent: FluentThemeData) -> Widget {
         let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
         var tabs: [Widget] = []
-        for (i, ws) in wb.book.sheets.enumerated() {
+        for (i, ws) in wb.book.sheets.enumerated() where !ws.hidden {
             let on = i == wb.activeSheet
             if _renaming == i {
                 tabs.append(SizedBox(width: 120, height: 26, child: FluentTextBox(
@@ -384,12 +384,18 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         tabs.append(Chrome.icon(FluentSystemIcons.add, "New sheet", fluent) { [weak self] in self?.wb.addSheet() })
         let active = wb.activeSheet
-        tabs.append(Chrome.menu(nil, Icon(FluentSystemIcons.moreHorizontal, size: Chrome.iconSize,
-                                          color: fluent.resources.textFillColorPrimary), fluent, [
+        var sheetMenu: [(String, () -> Void)] = [
             ("Rename Sheet", { [weak self] in self?._startRename(active) }),
             ("Insert Sheet", { [weak self] in self?.wb.addSheet() }),
             ("Delete Sheet", { [weak self] in self?.wb.deleteSheet(active) }),
-        ]))
+            ("Hide Sheet", { [weak self] in self?.wb.hideSheet(active) }),
+        ]
+        // Hidden sheets can be shown again; very hidden ones only by code, as in Excel.
+        for (i, ws) in wb.book.sheets.enumerated() where ws.hidden && !ws.veryHidden {
+            sheetMenu.append(("Unhide “\(ws.name)”", { [weak self] in self?.wb.unhideSheet(i) }))
+        }
+        tabs.append(Chrome.menu(nil, Icon(FluentSystemIcons.moreHorizontal, size: Chrome.iconSize,
+                                          color: fluent.resources.textFillColorPrimary), fluent, sheetMenu))
         return DecoratedBox(
             decoration: BoxDecoration(
                 color: fluent.resources.solidBackgroundFillColorBase,

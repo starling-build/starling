@@ -146,6 +146,8 @@ final class Worksheet {
     var rootTag: String? = nil
     var tabColor: String? = nil
     var hidden = false
+    /// Hidden so that only code can show it again (state="veryHidden").
+    var veryHidden = false
     var showGridlines = true
     /// The active cell as saved, restored on open and written on save.
     var savedActive: CellAddress? = nil
@@ -226,6 +228,7 @@ final class Worksheet {
         s.rootTag = rootTag
         s.tabColor = tabColor
         s.hidden = hidden
+        s.veryHidden = veryHidden
         s.showGridlines = showGridlines
         s.savedActive = savedActive
         s.defaultColWidthPt = defaultColWidthPt
@@ -268,6 +271,9 @@ final class Workbook {
     var activeTab = 0
     /// Dates count from 1904 (workbookPr date1904): kept as read.
     var date1904 = false
+    /// workbookProtection lockStructure: sheets cannot be added, deleted,
+    /// renamed, hidden or shown.
+    var structureLocked = false
     /// Every defined name the file had, built-ins (print areas, filter
     /// ranges) and sheet-local ones included, in order: what a save writes,
     /// with references kept current as rows, columns and sheets move.

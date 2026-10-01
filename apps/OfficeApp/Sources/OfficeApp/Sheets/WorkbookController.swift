@@ -61,6 +61,8 @@ final class WorkbookController: ChangeNotifier {
         _parseAll()
         engine.recalculate()
         activeSheet = min(max(0, b.activeTab), b.sheets.count - 1)
+        // Never open on a hidden sheet.
+        if b.sheets[activeSheet].hidden, let first = b.sheets.indices.first(where: { !b.sheets[$0].hidden }) { activeSheet = first }
         active = sheet.savedActive ?? CellAddress(row: 0, col: 0)
         selection = CellRange(active)
         anchor = active
@@ -462,14 +464,48 @@ final class WorkbookController: ChangeNotifier {
     // MARK: Sheets
 
     func addSheet() {
+        if _structureLocked() { return }
         structural {
-            book.sheets.insert(Worksheet(name: book.nextSheetName()), at: activeSheet + 1)
-            activeSheet += 1
+            let at = activeSheet + 1
+            book.sheets.insert(Worksheet(name: book.nextSheetName()), at: at)
+            // Sheet-local names (print areas…) of the sheets after it move along.
+            for k in book.fileNames.indices { if let l = book.fileNames[k].localSheet, l >= at { book.fileNames[k].localSheet = l + 1 } }
+            activeSheet = at
+        }
+    }
+
+    private func _structureLocked() -> Bool {
+        guard book.structureLocked else { return false }
+        onCommand?(.status("The workbook's structure is protected: sheets cannot be added, removed, renamed or hidden."))
+        return true
+    }
+
+    /// Sheets the tab bar shows.
+    var visibleSheets: [Int] { book.sheets.indices.filter { !book.sheets[$0].hidden } }
+
+    func hideSheet(_ i: Int) {
+        guard !_structureLocked(), visibleSheets.count > 1, !book.sheets[i].hidden else {
+            if visibleSheets.count <= 1 { onCommand?(.status("A workbook must keep at least one visible sheet.")) }
+            return
+        }
+        structural {
+            book.sheets[i].hidden = true
+            if activeSheet == i { activeSheet = visibleSheets.first ?? 0 }
+        }
+    }
+
+    func unhideSheet(_ i: Int) {
+        guard !_structureLocked(), book.sheets[i].hidden else { return }
+        structural {
+            book.sheets[i].hidden = false
+            book.sheets[i].veryHidden = false
+            activeSheet = i
         }
     }
 
     @discardableResult
     func renameSheet(_ i: Int, _ name: String) -> Bool {
+        if _structureLocked() { return true }
         let n = name.trimmingWhitespace()
         guard !n.isEmpty, n.count <= 31, !n.contains(where: { "[]:*?/\\".contains($0) }) else { return false }
         if let j = book.sheet(named: n), j != i { return false }
@@ -490,7 +526,8 @@ final class WorkbookController: ChangeNotifier {
     }
 
     func deleteSheet(_ i: Int) {
-        guard book.sheets.count > 1 else { return }
+        if _structureLocked() { return }
+        guard book.sheets.count > 1, visibleSheets.count > 1 || book.sheets[i].hidden else { return }
         structural {
             let gone = book.sheets[i].name.lowercased()
             book.sheets.remove(at: i)

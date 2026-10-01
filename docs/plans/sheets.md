@@ -408,7 +408,14 @@ page layout view) are kept. Sheet protection is enforced as Excel does it
 cell unless its format says `locked="0"`) neither opens for editing nor
 takes typing, pasting or filling, and formatting, merging, inserting or
 deleting rows and columns, sorting and filtering are refused unless the
-protection allows each; unprotecting stays Excel's (the password is its). LET (local names in
+protection allows each; unprotecting stays Excel's (the password is its). Hidden sheets are hidden here too
+(they used to get a tab): Hide Sheet and Unhide in the sheet menu, very
+hidden ones left to code as in Excel and written back as veryHidden
+(they were demoted to hidden), at least one sheet always visible, never
+opened on a hidden one. A workbook's `lockStructure` refuses adding,
+deleting, renaming, hiding and showing sheets. Adding a sheet now moves
+the later sheets' local names (print areas, filter ranges) along — they
+used to attach to the wrong sheet. LET (local names in
 `EvalContext.locals`) and the Excel 365 shapers VSTACK, HSTACK, TAKE,
 DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
 TEXTSPLIT work too. Still unread (kept verbatim): the intersection

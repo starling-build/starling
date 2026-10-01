@@ -346,3 +346,29 @@ extension SheetsEditingTests {
         XCTAssertEqual(c.sheet.value(CellAddress("B3")!), .text("yes"))
     }
 }
+
+extension SheetsEditingTests {
+    func testHiddenSheetsAndStructure() throws {
+        let book = Workbook(sheets: [Worksheet(name: "A"), Worksheet(name: "B"), Worksheet(name: "C")])
+        book.sheets[1].hidden = true
+        book.sheets[2].hidden = true; book.sheets[2].veryHidden = true
+        book.activeTab = 2
+        book.fileNames = [DefinedName(name: "_xlnm.Print_Area", localSheet: 1, attrs: [:], text: "B!$A$1:$C$3")]
+        let c = WorkbookController()
+        c.load(book)
+        XCTAssertEqual(c.activeSheet, 0)                 // never opens on a hidden sheet
+        XCTAssertEqual(c.visibleSheets, [0])
+        c.hideSheet(0)                                   // the last visible one stays
+        XCTAssertFalse(c.book.sheets[0].hidden)
+        c.addSheet()                                     // after A: B's print area moves along
+        XCTAssertEqual(c.book.fileNames[0].localSheet, 2)
+        c.unhideSheet(2)
+        XCTAssertEqual(c.book.sheets[2].name, "B")
+        XCTAssertFalse(c.book.sheets[2].hidden)
+        let sheets = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/workbook.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(sheets.containsSubstring("name=\"C\" sheetId=\"4\" state=\"veryHidden\""), sheets)
+        c.book.structureLocked = true
+        c.addSheet()
+        XCTAssertEqual(c.book.sheets.count, 4)
+    }
+}

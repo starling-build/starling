@@ -33,6 +33,7 @@ enum Xlsx {
         let wbRels = _rels(parts["xl/_rels/workbook.xml.rels"], base: "xl/")
         let book = Workbook(sheets: [])
         book.package = entries
+        if let p = wbNode.child("workbookProtection") { book.structureLocked = p["lockStructure"] == "1" || p["lockStructure"] == "true" }
         if let pr = wbNode.child("workbookPr") { book.date1904 = pr["date1904"] == "1" || pr["date1904"] == "true" }
 
         // Theme colours, for fills and fonts that name a slot.
@@ -70,6 +71,7 @@ enum Xlsx {
             ws.origin = path
             if let raw = parts[path] { try _readSheet(raw, into: ws, sst: sst, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
+            if s["state"] == "veryHidden" { ws.veryHidden = true }
             book.sheets.append(ws)
         }
         // Pictures and charts, drawn from the file's own parts.
@@ -709,7 +711,7 @@ enum Xlsx {
     private static func _workbookXML(_ book: Workbook, ids: [String], original: Data?) -> String {
         var sheets = "<sheets>"
         for (i, ws) in book.sheets.enumerated() {
-            sheets += "<sheet name=\"\(_esc(ws.name))\" sheetId=\"\(i + 1)\"" + (ws.hidden ? " state=\"hidden\"" : "") + " r:id=\"\(ids[i])\"/>"
+            sheets += "<sheet name=\"\(_esc(ws.name))\" sheetId=\"\(i + 1)\"" + (ws.veryHidden ? " state=\"veryHidden\"" : ws.hidden ? " state=\"hidden\"" : "") + " r:id=\"\(ids[i])\"/>"
         }
         sheets += "</sheets>"
         let calc = "<calcPr calcId=\"191029\" fullCalcOnLoad=\"1\"/>"
