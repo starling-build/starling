@@ -112,6 +112,13 @@ it, Esc leaves the text with the shape selected, arrows nudge, Delete,
 snapshot; a text-editing session folds into one step when it ends, and
 ⌘Z while typing undoes the typing first.
 
+**S3 done 2026-09-30**: drag a thumbnail to reorder (an accent line
+shows where it lands), right-click a thumbnail for New/Duplicate/Delete/
+Hide Slide and the layouts, ⌘↑/⌘↓ move the current slide, Enter in the
+pane adds one and Delete removes one, hidden slides show dimmed, and the
+Slide Sorter view (View tab or the status bar) lays every slide out as a
+grid; a double click opens one in Normal view.
+
 Traps paid for in S2:
 
 - **Global coordinates were device pixels.** The framework's

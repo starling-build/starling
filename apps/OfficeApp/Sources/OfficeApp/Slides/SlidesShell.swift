@@ -45,6 +45,15 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _paneFocused = false
     /// Shapes copied with ⌘C/⌘X while no text was being edited.
     private var _shapeClipboard: [ShapeState] = []
+    /// Normal (canvas and notes) or Slide Sorter (a grid of every slide).
+    private var _sorter = false
+    /// A thumbnail being dragged to a new place: where it started, the
+    /// pointer's start, and where it would land.
+    private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
+    private let _thumbMenu = FlyoutController()
+    /// Double-click in the sorter, detected by hand: registering
+    /// onDoubleTap kills taps on the DRM embedder (CLAUDE.md).
+    private var _lastSorterTap: (index: Int, at: Date)? = nil
     private var _tab = RibbonTab.home
     private var _ribbonCollapsed = false
     private var _backstage: BackstagePage? = nil
@@ -116,6 +125,11 @@ final class SlidesShellState: State<StatefulWidget> {
             self._endEditing()
             self.deck.addShape(preset)
             self._deckFocus.requestFocus()
+        }
+        session.onSlidesView = { [weak self] sorter in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._sorter = sorter }
         }
         session.onUndo = { [weak self] in self?._undo() }
         session.onRedo = { [weak self] in self?._redo() }
@@ -265,6 +279,21 @@ final class SlidesShellState: State<StatefulWidget> {
         if _deckChords.track(key) { return false }
         guard key.type == .down || key.type == .repeat else { return false }
         let named = KeyChordTracker.named(key.logical)
+        // ⌘↑ / ⌘↓ move the current slide up and down the deck.
+        if _deckChords.primary, _paneFocused || _sorter, named == .up || named == .down {
+            deck.moveSlide(deck.current, to: deck.current + (named == .up ? -1 : 1))
+            return true
+        }
+        if _sorter {
+            switch named {
+            case .left, .up: _select(deck.current - 1); _paneFocused = true
+            case .right, .down: _select(deck.current + 1); _paneFocused = true
+            case .enter: setState { _sorter = false }
+            case .delete, .backspace where deck.slides.count > 1: deck.deleteSlide(deck.current)
+            default: break
+            }
+            if [.left, .up, .right, .down, .enter, .delete, .backspace].contains(named) { return true }
+        }
         if _deckChords.primary || named == .escape {
             if _shortcut(key, _deckChords.modifiers) { return true }
         }
@@ -372,6 +401,7 @@ final class SlidesShellState: State<StatefulWidget> {
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
+        session.slidesSorter = _sorter
         let title = "\(session.title)\(session.dirty ? " •" : "") — Slides"
         if title != _windowTitle {
             _windowTitle = title
@@ -401,10 +431,14 @@ final class SlidesShellState: State<StatefulWidget> {
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
             spellChecker: session.checkSpelling ? _spelling : nil))]
         if _showNotes { work.append(_notesPane(fluent)) }
-        column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: [
-            _thumbnailPane(fluent),
-            Expanded(child: Column(crossAxisAlignment: .stretch, children: work)),
-        ])))
+        if _sorter {
+            column.append(Expanded(child: _sorterView(fluent)))
+        } else {
+            column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: [
+                _thumbnailPane(fluent),
+                Expanded(child: Column(crossAxisAlignment: .stretch, children: work)),
+            ])))
+        }
         column.append(_statusBar(fluent))
 
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
@@ -439,24 +473,38 @@ final class SlidesShellState: State<StatefulWidget> {
                 decoration: BoxDecoration(border: Border.all(
                     color: current ? accent : fluent.resources.controlStrokeColorDefault,
                     width: current ? 2.5 : 1)),
-                child: Padding(padding: EdgeInsets(all: current ? 2.5 : 1), child: SizedBox(
+                child: Padding(padding: EdgeInsets(all: current ? 1 : 2.5), child: SizedBox(
                     width: thumbW, height: thumbH,
                     child: Opacity(opacity: slide.hidden ? 0.45 : 1, child: CustomPaint(
                         painter: SlidePainter(slide: slide, theme: deck.theme, slideSize: deck.slideSize,
                                               revision: deck.revision, cache: _cache),
                         child: SizedBox(expand: ()))))))
-            items.append(GestureDetector(
-                onTap: { [weak self] in
-                    guard let self else { return }
-                    self._select(i)
-                    self._paneFocused = true
+            // The insertion line while a thumbnail is dragged over this slot.
+            let dropHere = _thumbDrag.map { $0.moved && $0.to == i && $0.to != $0.from } ?? false
+            let dropAbove = dropHere && (_thumbDrag!.to < _thumbDrag!.from)
+            let line = SizedBox(width: thumbW, height: 3, child: ColoredBox(
+                color: dropHere ? accent : Color(0x00000000), child: SizedBox(expand: ())))
+            items.append(Listener(
+                onPointerDown: { [weak self] e in
+                    guard let self, let context = self.context else { return }
+                    self._thumbDown(i, e, context: context)
                 },
-                child: Padding(padding: EdgeInsets(left: 6, top: 6, right: 10, bottom: 6), child: Row(
+                onPointerMove: { [weak self] e in self?._thumbMove(e.position, itemHeight: thumbH + 18) },
+                onPointerUp: { [weak self] e in
+                    self?._thumbMove(e.position, itemHeight: thumbH + 18)
+                    self?._thumbUp()
+                },
+                behavior: .opaque,
+                child: Padding(padding: EdgeInsets(left: 6, top: 3, right: 10, bottom: 3), child: Row(
                     crossAxisAlignment: .start, children: [
                         SizedBox(width: 20, height: nil, child: Padding(
-                            padding: EdgeInsets(left: 0, top: 2, right: 4, bottom: 0),
+                            padding: EdgeInsets(left: 0, top: 5, right: 4, bottom: 0),
                             child: Align(alignment: Alignment.topRight, child: number))),
-                        frame,
+                        Column(crossAxisAlignment: .start, children: [
+                            dropAbove ? line : SizedBox(width: thumbW, height: 3, child: nil),
+                            frame,
+                            !dropAbove ? line : SizedBox(width: thumbW, height: 3, child: nil),
+                        ]),
                     ]))))
         }
         return SizedBox(width: thumbW + 46, height: nil, child: DecoratedBox(
@@ -466,6 +514,105 @@ final class SlidesShellState: State<StatefulWidget> {
             child: SingleChildScrollView(child: Padding(
                 padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 12),
                 child: Column(crossAxisAlignment: .start, children: items)))))
+    }
+
+    private func _thumbDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
+        if e.buttons & kSecondaryMouseButton != 0 {
+            _select(index)
+            _paneFocused = true
+            _showThumbMenu(at: e.position, context: context)
+            return
+        }
+        _select(index)
+        _paneFocused = true
+        _thumbDrag = (index, e.position.dy, e.position.dx, index, false)
+    }
+
+    private func _thumbMove(_ position: Offset, itemHeight: Double) {
+        guard var drag = _thumbDrag else { return }
+        let dy = position.dy - drag.startY
+        if !drag.moved && abs(dy) < 6 { return }
+        drag.moved = true
+        drag.to = max(0, min(deck.slides.count - 1, drag.from + Int((dy / itemHeight).rounded())))
+        if drag.to != _thumbDrag?.to || !(_thumbDrag?.moved ?? false) {
+            _thumbDrag = drag
+            setState {}
+        } else {
+            _thumbDrag = drag
+        }
+    }
+
+    private func _thumbUp() {
+        guard let drag = _thumbDrag else { return }
+        _thumbDrag = nil
+        if drag.moved, drag.to != drag.from { deck.moveSlide(drag.from, to: drag.to) } else { setState {} }
+    }
+
+    /// The thumbnail pane's right-click menu.
+    private func _showThumbMenu(at point: Offset, context: any BuildContext) {
+        let i = deck.current
+        let hidden = deck.currentSlide.hidden
+        var items: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("New Slide"), onPressed: { [weak self] in self?.deck.addSlide() }),
+            MenuFlyoutItem(text: Text("Duplicate Slide"), onPressed: { [weak self] in self?.deck.duplicateSlide(i) }),
+            MenuFlyoutItem(text: Text("Delete Slide"),
+                           onPressed: deck.slides.count > 1 ? { [weak self] in self?.deck.deleteSlide(i) } : nil),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text(hidden ? "Show Slide" : "Hide Slide"),
+                           onPressed: { [weak self] in self?.deck.toggleHidden(i) }),
+            MenuFlyoutSeparator(),
+        ]
+        for kind in SlideLayoutKind.allCases {
+            items.append(MenuFlyoutItem(text: Text("Layout: \(kind.name)"),
+                                        onPressed: kind == deck.currentSlide.layout ? nil
+                                            : { [weak self] in self?.deck.applyLayout(kind, to: i) }))
+        }
+        _thumbMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+    }
+
+    // MARK: Slide Sorter
+
+    /// Every slide as a large thumbnail, in reading order. Click selects, a
+    /// double click opens the slide in Normal view; ⌘↑/⌘↓ and the
+    /// thumbnail pane's drag reorder.
+    private func _sorterView(_ fluent: FluentThemeData) -> Widget {
+        let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
+        let w = 240.0
+        let h = (w * deck.slideSize.height / deck.slideSize.width).rounded()
+        var tiles: [Widget] = []
+        for (i, slide) in deck.slides.enumerated() {
+            let current = i == deck.current
+            tiles.append(GestureDetector(
+                onTap: { [weak self] in
+                    guard let self else { return }
+                    let now = Date()
+                    if let last = self._lastSorterTap, last.index == i, now.timeIntervalSince(last.at) < 0.4 {
+                        self._lastSorterTap = nil
+                        self.setState { self._sorter = false }
+                        return
+                    }
+                    self._lastSorterTap = (i, now)
+                    self._select(i)
+                    self._paneFocused = true
+                },
+                child: Padding(padding: EdgeInsets(all: 12), child: Column(crossAxisAlignment: .start, children: [
+                    DecoratedBox(
+                        decoration: BoxDecoration(border: Border.all(
+                            color: current ? accent : fluent.resources.controlStrokeColorDefault,
+                            width: current ? 3 : 1)),
+                        child: Padding(padding: EdgeInsets(all: current ? 1 : 3), child: SizedBox(
+                            width: w, height: h,
+                            child: Opacity(opacity: slide.hidden ? 0.45 : 1, child: CustomPaint(
+                                painter: SlidePainter(slide: slide, theme: deck.theme, slideSize: deck.slideSize,
+                                                      revision: deck.revision, cache: _cache),
+                                child: SizedBox(expand: ())))))),
+                    Chrome.vgap(4),
+                    Text("\(i + 1)\(slide.hidden ? "  (hidden)" : "")", style: fluent.typography.caption),
+                ]))))
+        }
+        let dark = fluent.brightness == .dark
+        return ColoredBox(color: dark ? Color(0xFF202020) : Color(0xFFE6E6E6), child: SingleChildScrollView(
+            child: Padding(padding: EdgeInsets(all: 16), child: Wrap(children: tiles))))
     }
 
     // MARK: Notes
@@ -514,7 +661,8 @@ final class SlidesShellState: State<StatefulWidget> {
         let caption = fluent.typography.caption
         let dim = caption?.copyWith(color: fluent.resources.textFillColorSecondary)
         var left: [Widget] = [
-            Text("Slide \(deck.current + 1) of \(deck.slides.count)", style: caption),
+            Text("Slide \(deck.current + 1) of \(deck.slides.count)"
+                 + (deck.currentSlide.hidden ? " (hidden)" : ""), style: caption),
             Chrome.gap(20),
             Text("English (United States)", style: dim),
         ]
@@ -527,7 +675,12 @@ final class SlidesShellState: State<StatefulWidget> {
                 self?.setState { self?._showNotes.toggle() }
             },
             Chrome.gap(8),
-            Chrome.toggle(FluentSystemIcons.onePage, "Normal", true, fluent) {},
+            Chrome.toggle(FluentSystemIcons.onePage, "Normal", !_sorter, fluent) { [weak self] in
+                self?.session.onSlidesView?(false)
+            },
+            Chrome.toggle(FluentSystemIcons.grid, "Slide Sorter", _sorter, fluent) { [weak self] in
+                self?.session.onSlidesView?(true)
+            },
             Chrome.gap(8),
             Chrome.icon(FluentSystemIcons.pageFit, "Fit slide to window", fluent) {},
         ]

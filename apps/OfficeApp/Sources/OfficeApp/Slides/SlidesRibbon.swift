@@ -173,7 +173,12 @@ extension Ribbon {
     private func _slidesView(_ fluent: FluentThemeData) -> [Widget] {
         [
             Chrome.group("Presentation Views", fluent, [
-                Chrome.bigToggle(FluentSystemIcons.onePage, "Normal", true, fluent) {},
+                Chrome.bigToggle(FluentSystemIcons.onePage, "Normal", !session.slidesSorter, fluent) { [session] in
+                    session.onSlidesView?(false)
+                },
+                Chrome.bigToggle(FluentSystemIcons.grid, "Slide Sorter", session.slidesSorter, fluent) { [session] in
+                    session.onSlidesView?(true)
+                },
             ]),
         ]
     }

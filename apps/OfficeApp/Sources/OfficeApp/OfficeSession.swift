@@ -127,6 +127,9 @@ final class OfficeSession {
     var onSlideShow: ((Bool) -> Void)?   // true = from the current slide
     var onInsertTextBox: (() -> Void)?
     var onInsertShape: ((ShapePreset) -> Void)?
+    /// Normal view (false) or Slide Sorter (true).
+    var onSlidesView: ((Bool) -> Void)?
+    var slidesSorter = false
     /// Undo and redo when the kind has more history than the text (a deck).
     var onUndo: (() -> Void)?
     var onRedo: (() -> Void)?

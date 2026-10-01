@@ -103,6 +103,19 @@ def run(d, only):
         d.key(text="z", mods=("command",))
         d.shot("unrotated", "⌘Z: square again")
 
+    if step("list"):
+        d.click(96, 90); d.click(1250, 700)
+        d.click(207, 140); d.click(207, 140)          # two more slides: 3+ in the pane
+        d.drag(112, 480, 112, 260)                    # drag the third thumbnail to the top
+        d.shot("thumb-drag", "The dragged slide is now first; its thumbnail moved up the pane")
+        d.click(112, 370, "right")
+        d.shot("thumb-menu", "Right-click on a thumbnail: New/Duplicate/Delete/Hide Slide and the layouts")
+        d.click(1250, 700)
+        d.click(1382, 916)
+        d.shot("sorter", "Slide Sorter: every slide as a large thumbnail in a grid, current one outlined")
+        d.click(1352, 916)
+        d.shot("normal", "Back in Normal view")
+
     if step("switch"):
         d.click(33, 86); d.shot("backstage", "Backstage home: Blank document, Blank presentation, Open")
         d.click(315, 210)
