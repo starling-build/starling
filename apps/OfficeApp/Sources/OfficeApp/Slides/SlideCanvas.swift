@@ -242,7 +242,7 @@ final class SlideCanvasState: State<StatefulWidget> {
         let showPrompt = empty && !editing && shape.prompt != nil
         let first = controller.document.paragraphs.first?.style
         let promptStyle = Flutter.TextStyle(color: Color(0xFF8A8A8A),
-                                            fontSize: theme.fontSize * px,
+                                            fontSize: theme.fontSize * px * shape.fontScale,
                                             height: first?.lineSpacing ?? 1.0,
                                             fontFamily: theme.fontFamilyResolver?(theme.fontFamily ?? "") ?? theme.fontFamily)
         let align = first?.alignment ?? .left
@@ -270,7 +270,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 key: ValueKey(shape.id),
                 controller: controller, theme: theme, padding: pad,
                 focusNode: focusNode(for: shape), autofocus: false,
-                backgroundColor: nil, zoom: px / theme.pixelsPerPoint,
+                backgroundColor: nil, zoom: px * shape.fontScale / theme.pixelsPerPoint,
                 onShortcut: _w.onShortcut,
                 spellChecker: _w.spellChecker,
                 scrolls: false))))

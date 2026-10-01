@@ -48,6 +48,7 @@ enum SlidesDump {
                 let f = s.frame
                 var line = "  \(kind) [\(n(f.left)),\(n(f.top)) \(n(f.width))x\(n(f.height))]"
                 if s.rotation != 0 { line += " rot \(n(s.rotation))" }
+                if s.autofit && s.fontScale < 1 { line += " fit \(Int((s.fontScale * 100).rounded()))%" }
                 if s.fill != nil || s.outline != nil { line += " fill \(hex(s.fill)) line \(hex(s.outline))" }
                 if let doc = s.text, !doc.plainText().isEmpty {
                     let first = doc.paragraphs.first { !$0.text.isEmpty }

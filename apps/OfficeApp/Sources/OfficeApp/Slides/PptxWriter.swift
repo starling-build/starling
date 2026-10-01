@@ -641,7 +641,15 @@ private struct SlideXML {
             if let doc = s.text {
                 let anchor = s.anchor.rawValue
                 let ins = s.insets
-                let fit = s.kind == .textBox ? "<a:spAutoFit/>" : "<a:noAutofit/>"
+                let fit: String
+                if s.kind == .textBox {
+                    fit = "<a:spAutoFit/>"
+                } else if s.autofit {
+                    let scale = Int((s.fontScale * 100000).rounded())
+                    fit = scale < 100000 ? "<a:normAutofit fontScale=\"\(scale)\"/>" : "<a:normAutofit/>"
+                } else {
+                    fit = "<a:noAutofit/>"
+                }
                 xml += "<p:txBody><a:bodyPr wrap=\"square\" lIns=\"\(Self._emu(ins.left))\" tIns=\"\(Self._emu(ins.top))\" "
                     + "rIns=\"\(Self._emu(ins.right))\" bIns=\"\(Self._emu(ins.bottom))\" anchor=\"\(anchor)\" rtlCol=\"0\">\(fit)</a:bodyPr>"
                     + "<a:lstStyle/>" + PptxText.paragraphs(doc, defaults: s, field: s.field) + "</p:txBody>"

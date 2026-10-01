@@ -270,8 +270,27 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    /// What each autofit shape was last measured at (text revision, frame):
+    /// it is measured again only once one of them changes, so a deck opens
+    /// at the scales the file says.
+    private var _fitSeen: [Int: (revision: Int, frame: Rect)] = [:]
+
+    /// PowerPoint's autofit: the largest of its scale steps at which an
+    /// autofit shape's text fits its box.
+    private func _autofit() {
+        for shape in deck.currentSlide.shapes where shape.autofit {
+            guard let text = shape.text else { continue }
+            let now = (text.revision, shape.frame)
+            guard let seen = _fitSeen[shape.id] else { _fitSeen[shape.id] = now; continue }
+            guard seen.revision != now.0 || seen.frame != now.1 else { continue }
+            _fitSeen[shape.id] = now
+            deck.setFontScale(shape, SlideTextCache.autofitScale(shape))
+        }
+    }
+
     private func _deckChanged() {
         _fitTables()
+        _autofit()
         // A selected picture opens its tab; leaving it returns Home.
         let picture = deck.selection.contains { $0.picture != nil }
         if picture && !_hadPicture { _tab = .pictureFormat }

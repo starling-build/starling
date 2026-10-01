@@ -57,11 +57,29 @@ final class SlideTextCache {
         return nil
     }
 
+    /// PowerPoint's autofit steps, largest first.
+    static let autofitSteps = [1.0, 0.925, 0.85, 0.775, 0.7, 0.625, 0.55, 0.475, 0.4, 0.325, 0.25]
+
+    /// The largest step at which `shape`'s text fits its box.
+    static func autofitScale(_ shape: SlideShape) -> Double {
+        guard let text = shape.text, let theme = shape.textTheme else { return 1 }
+        let room = shape.frame.height - shape.insets.top - shape.insets.bottom
+        let width = max(1, shape.frame.width - shape.insets.left - shape.insets.right)
+        for scale in autofitSteps {
+            let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
+            layout.scale = scale / theme.pixelsPerPoint
+            layout.width = width
+            layout.ensureLaidOut(text.document)
+            if layout.totalHeight <= room + 0.5 { return scale }
+        }
+        return autofitSteps.last!
+    }
+
     /// The body of `shape` laid out at `pxPerPt` device pixels per point.
     func layout(_ shape: SlideShape, pxPerPt: Double) -> RichLayout? {
         guard let text = shape.text, let theme = shape.textTheme else { return nil }
         let width = max(1, (shape.frame.width - shape.insets.left - shape.insets.right) * pxPerPt)
-        let scale = pxPerPt / theme.pixelsPerPoint
+        let scale = pxPerPt * shape.fontScale / theme.pixelsPerPoint
         let key = ObjectIdentifier(text)
         if let e = _entries[key], e.revision == text.revision, e.width == width, e.scale == scale,
            e.theme == ObjectIdentifier(theme) {

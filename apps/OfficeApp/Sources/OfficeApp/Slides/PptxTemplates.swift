@@ -79,7 +79,7 @@ struct PptxTemplates {
         return "<p:sp><p:nvSpPr><p:cNvPr id=\"\(id)\" name=\"\(spec.name) Placeholder \(id - 1)\"/>"
             + "<p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr><p:ph\(ph)/></p:nvPr></p:nvSpPr>"
             + "<p:spPr>\(_xfrm(_frame(spec.frame)))</p:spPr>"
-            + "<p:txBody><a:bodyPr anchor=\"\(anchor)\"/>\(lst)\(prompt)</p:txBody></p:sp>"
+            + "<p:txBody><a:bodyPr anchor=\"\(anchor)\"><a:normAutofit/></a:bodyPr>\(lst)\(prompt)</p:txBody></p:sp>"
     }
 
     /// The date, footer and slide number as PowerPoint's master and layouts

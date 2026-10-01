@@ -251,6 +251,10 @@ final class SlideShape {
     var group: ShapeGroup? = nil
     /// A connector's geometry as read (with `sourceXML`).
     var keptLine: KeptLine? = nil
+    /// Shrink the text to fit the shape (PowerPoint's `normAutofit`), and
+    /// the scale it is drawn at now (its sizes stay as typed).
+    var autofit = false
+    var fontScale = 1.0
     /// What the field last showed, to tell its own updates from typing.
     var fieldShown: String? = nil
 

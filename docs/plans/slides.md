@@ -124,6 +124,17 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**S8, autofit, 2026-09-30.** Placeholders shrink their text to fit as
+PowerPoint's do (`normAutofit`): as their text or box changes, the shell
+picks the largest of PowerPoint's steps (100% down to 25%) at which it
+fits, and the shape draws at that scale — editor, thumbnails, show and
+PDF alike — while the text keeps the sizes it was typed in. A file's own
+`fontScale` is read as such rather than baked into the sizes (which then
+went back out frozen, under `noAutofit`), written back as
+`normAutofit fontScale`, and not re-measured until the text changes, so a
+deck opens at PowerPoint's scales. Our master and layouts say
+`normAutofit` too.
+
 **S7 done 2026-09-30** — part 3, presenter view: Slide Show →
 Presenter View or ⌥F5 runs the show as PowerPoint's presenter layout in
 the one window — the current slide (as far as its animations have got;

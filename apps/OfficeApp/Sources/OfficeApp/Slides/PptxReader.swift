@@ -679,6 +679,8 @@ private struct SlideContext {
                             text: text.document, font: text.font, size: text.size, color: text.color,
                             listIndent: text.listIndent, phType: ph?["type"], phIdx: ph?["idx"],
                             fillScheme: fillScheme)
+        st.autofit = text.autofit
+        st.fontScale = text.fontScale
         // A body that is one field and nothing else (a slide number, a
         // date) stays that field.
         let paras = sp.first("p:txBody")?.all("a:p").filter { !$0.all("a:r").isEmpty || !$0.all("a:fld").isEmpty } ?? []
@@ -893,6 +895,9 @@ private struct SlideContext {
         var size: Double
         var color: Color
         var listIndent: Double
+        /// `normAutofit`: shrink the text to fit, by `fontScale` now.
+        var autofit = false
+        var fontScale = 1.0
     }
 
     /// The master text style a placeholder (or plain shape) draws from.
@@ -950,8 +955,12 @@ private struct SlideContext {
         func inset(_ n: String, _ d: Double) -> Double { attr(n).flatMap(Double.init).map { $0 / Pptx.emu } ?? d }
         let insets = EdgeInsets(left: inset("lIns", 7.2), top: inset("tIns", 3.6),
                                 right: inset("rIns", 7.2), bottom: inset("bIns", 3.6))
-        // normAutofit's fontScale: PowerPoint shrank the text to fit.
+        // normAutofit's fontScale: PowerPoint shrank the text to fit. The
+        // sizes stay the file's; the shape draws them at the scale.
         let scale = (body?.first("a:bodyPr")?.first("a:normAutofit")?["fontScale"].flatMap(Double.init)).map { $0 / 100000 } ?? 1
+        let fitRule = bodies.lazy.compactMap { b in
+            b?.children.first { ["a:normAutofit", "a:spAutoFit", "a:noAutofit"].contains($0.name) }?.name
+        }.first
         let list = body?.first("a:lstStyle")
 
         let level0 = _level(0, shapeList: list, ph: ph, inherited: inherited)
@@ -960,7 +969,7 @@ private struct SlideContext {
             let pPr = p.first("a:pPr")
             let lvl = pPr?["lvl"].flatMap(Int.init) ?? 0
             let level = LevelStyle.paragraph(pPr, colors).filled(from: _level(lvl, shapeList: list, ph: ph, inherited: inherited))
-            let size = (level.size ?? 18) * scale
+            let size = level.size ?? 18
             var style = RichParagraphStyle(spaceAfter: level.afterPoints ?? 0, lineSpacing: 1.0)
             switch level.algn {
             case "ctr": style.alignment = .center
@@ -987,7 +996,7 @@ private struct SlideContext {
                 let s = r.filled(from: level)
                 var cs = CharStyle(bold: s.bold ?? false, italic: s.italic ?? false,
                                    underline: s.underline ?? false, strikethrough: s.strike ?? false,
-                                   fontFamily: _font(s.font), fontSize: ((s.size ?? 18) * scale * 10).rounded() / 10,
+                                   fontFamily: _font(s.font), fontSize: ((s.size ?? 18) * 10).rounded() / 10,
                                    color: s.color ?? colors.scheme("tx1"))
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 text += t
@@ -1006,7 +1015,7 @@ private struct SlideContext {
                 let s = end.filled(from: level)
                 paragraphs.append(RichParagraph(text: "", runs: [Run(length: 0, style: CharStyle(
                     bold: s.bold ?? false, italic: s.italic ?? false, fontFamily: _font(s.font),
-                    fontSize: ((s.size ?? 18) * scale * 10).rounded() / 10, color: s.color ?? colors.scheme("tx1")))],
+                    fontSize: ((s.size ?? 18) * 10).rounded() / 10, color: s.color ?? colors.scheme("tx1")))],
                     style: style))
             } else {
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
@@ -1019,9 +1028,10 @@ private struct SlideContext {
             paragraphs = [RichParagraph(text: "", style: style)]
         }
         return TextBody(document: RichDocument(paragraphs: paragraphs), anchor: anchor, insets: insets,
-                        font: _font(level0.font), size: (level0.size ?? 18) * scale,
+                        font: _font(level0.font), size: level0.size ?? 18,
                         color: level0.color ?? colors.scheme("tx1") ?? Color(0xFF000000),
-                        listIndent: level0.marL ?? 18)
+                        listIndent: level0.marL ?? 18,
+                        autofit: fitRule == "a:normAutofit", fontScale: fitRule == "a:normAutofit" ? scale : 1)
     }
 
     // MARK: Notes

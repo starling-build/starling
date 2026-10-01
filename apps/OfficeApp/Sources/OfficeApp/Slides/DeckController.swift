@@ -38,6 +38,8 @@ struct ShapeState: Equatable {
     var field: SlideField? = nil
     var group: ShapeGroup? = nil
     var keptLine: KeptLine? = nil
+    var autofit = false
+    var fontScale = 1.0
 }
 
 extension ShapeState {
@@ -1046,7 +1048,8 @@ final class DeckController: ChangeNotifier {
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
-                   sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine)
+                   sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
+                   autofit: s.autofit, fontScale: s.fontScale)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -1081,6 +1084,8 @@ final class DeckController: ChangeNotifier {
         shape.fieldShown = nil
         shape.group = st.group
         shape.keptLine = st.keptLine
+        shape.autofit = st.autofit
+        shape.fontScale = st.fontScale
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
 
@@ -1130,7 +1135,18 @@ final class DeckController: ChangeNotifier {
                                prompt: spec.prompt)
         shape.phType = spec.phType
         shape.phIdx = spec.phIdx
+        // PowerPoint's placeholders shrink their text to fit.
+        shape.autofit = true
         return shape
+    }
+
+    /// The scale an autofit shape's text is drawn at, as the shell measures
+    /// it: not an edit of its own (the typing that needed it is).
+    func setFontScale(_ shape: SlideShape, _ scale: Double) {
+        guard shape.autofit, abs(shape.fontScale - scale) > 1e-6 else { return }
+        shape.fontScale = scale
+        revision += 1
+        notifyListeners()
     }
 
     private func _copy(_ shape: SlideShape, offset: Double = 0) -> SlideShape {
