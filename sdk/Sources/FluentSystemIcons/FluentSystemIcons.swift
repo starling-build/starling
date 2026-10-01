@@ -265,4 +265,11 @@ public enum FluentSystemIcons {
     public static let onePage = IconData(0xf39a, fontFamily: _kFontFamily)
     public static let readMode = IconData(0xe5f3, fontFamily: _kFontFamily)
     public static let moreHorizontal = IconData(0xe825, fontFamily: _kFontFamily)
+    public static let chartColumn = IconData(0xf340, fontFamily: _kFontFamily)
+    public static let chartBar = IconData(0xf33e, fontFamily: _kFontFamily)
+    public static let chartLine = IconData(0xf343, fontFamily: _kFontFamily)
+    public static let chartPie = IconData(0xf345, fontFamily: _kFontFamily)
+    public static let chartArea = IconData(0xf33d, fontFamily: _kFontFamily)
+    public static let chartScatter = IconData(0xf346, fontFamily: _kFontFamily)
+    public static let tableEdit = IconData(0xf768, fontFamily: _kFontFamily)
 }

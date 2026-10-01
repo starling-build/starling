@@ -78,6 +78,11 @@ enum SlidesSample {
             }
         }
 
+        let chartSlide = deck.addSlide(.titleOnly)
+        type(chartSlide.shapes.first { $0.role == .title }, "A chart")
+        let chart = deck.addChart(.column)
+        chart.frame = Rect.fromLTWH(chart.frame.left, chart.frame.top + 40, chart.frame.width, chart.frame.height)
+
         let blank = deck.addSlide(.blank)
         deck.toggleHidden(deck.slides.firstIndex { $0 === blank }!)
         deck.select(0)

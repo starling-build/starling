@@ -193,6 +193,13 @@ ROLES = [
     ("onePage",         "document_one_page"),
     ("readMode",        "eye"),
     ("moreHorizontal",  "more_horizontal"),
+    ("chartColumn",     "data_bar_vertical"),
+    ("chartBar",        "data_bar_horizontal"),
+    ("chartLine",       "data_line"),
+    ("chartPie",        "data_pie"),
+    ("chartArea",       "data_area"),
+    ("chartScatter",    "data_scatter"),
+    ("tableEdit",       "table_edit"),
 
 ]
 

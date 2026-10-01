@@ -106,22 +106,24 @@ final class ShapePainter: CustomPainter {
     let px: Double
     let revision: Int
     let cache: SlideTextCache
+    let theme: DeckTheme
 
-    init(shape: SlideShape, px: Double, revision: Int, cache: SlideTextCache) {
+    init(shape: SlideShape, px: Double, revision: Int, cache: SlideTextCache, theme: DeckTheme) {
         self.shape = shape
         self.px = px
         self.revision = revision
         self.cache = cache
+        self.theme = theme
         super.init()
     }
 
     override func paint(_ canvas: any Canvas, _ size: Size) {
-        SlidePainter.paintShape(shape, canvas, pxPerPt: px, cache: cache, text: false)
+        SlidePainter.paintShape(shape, canvas, pxPerPt: px, cache: cache, theme: theme, text: false)
     }
 
     override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool {
         guard let old = oldDelegate as? ShapePainter else { return true }
-        return old.shape !== shape || old.revision != revision || old.px != px
+        return old.shape !== shape || old.revision != revision || old.px != px || old.theme != theme
     }
 }
 
@@ -154,14 +156,14 @@ final class SlidePainter: CustomPainter {
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))
         if !shapesOnly {
             for shape in slide.shapes {
-                Self.paintShape(shape, canvas, pxPerPt: px, cache: cache, text: true)
+                Self.paintShape(shape, canvas, pxPerPt: px, cache: cache, theme: theme, text: true)
             }
         }
         canvas.restore()
     }
 
     static func paintShape(_ shape: SlideShape, _ canvas: any Canvas, pxPerPt px: Double,
-                           cache: SlideTextCache, text: Bool) {
+                           cache: SlideTextCache, theme: DeckTheme, text: Bool) {
         let f = shape.frame
         let r = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
         canvas.save()
@@ -183,6 +185,9 @@ final class SlidePainter: CustomPainter {
                 p.color = Color(0xFFEDEDED)
                 canvas.drawRect(r, p)
             }
+        }
+        if let chart = shape.chart {
+            ChartPainter.paint(chart, canvas, r, pxPerPt: px, theme: theme)
         }
         if let opaque = shape.opaque {
             // What the deck cannot draw yet: a labelled box where it sits.

@@ -417,6 +417,8 @@ struct PackageBuilder {
 struct MediaParts {
     var byId: [String: String] = [:]
     var count = 0
+    /// Charts written fresh so far (each with its part and workbook).
+    var charts = 0
 }
 
 // MARK: - Slide XML
@@ -530,6 +532,13 @@ private struct SlideXML {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
             }
             return _table(s, name: name)
+        case .chart(let chart):
+            // Unchanged since it was read: through its own part, which keeps
+            // whatever of the file's styling this app does not model.
+            if let xml = s.sourceXML, chart == s.sourceChart, let p = source, let part = s.sourcePart {
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+            }
+            return _chart(chart, s, name: name, media: &media, builder: &builder)
         case .geometry(let preset) where preset.isLine && s.text == nil:
             let id = _id(s.fileId)
             let f = s.frame
@@ -586,6 +595,26 @@ private struct SlideXML {
             }
             return xml + "</p:sp>"
         }
+    }
+
+    /// A chart of our own: its part (values cached), the workbook it was
+    /// drawn from, and the frame that places it.
+    private mutating func _chart(_ chart: Chart, _ s: ShapeState, name: String, media: inout MediaParts,
+                                 builder: inout PackageBuilder) -> String {
+        media.charts += 1
+        let n = media.charts
+        let chartPart = "ppt/charts/slides_chart\(n).xml"
+        let book = "ppt/embeddings/Microsoft_Excel_Worksheet_slides\(n).xlsx"
+        builder.add(chartPart, ChartXML.chartSpace(chart), type: ChartXML.contentType)
+        builder.addBinary(book, (try? ChartXML.workbook(chart)) ?? Data())
+        builder.defaults["xlsx"] = ChartXML.xlsxType
+        builder.rels(chartPart, [Rel(id: "rId1", type: ChartXML.packageRelType, target: Pptx.relative(book, from: chartPart))])
+        let rid = _rel(ChartXML.relType, Pptx.relative(chartPart, from: part), preferred: "rIdChart\(n)")
+        let id = _id(s.fileId)
+        return "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(id)\" name=\"\(name)\"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
+            + Self._xfrm(s.frame, rotation: 0, tag: "p:xfrm")
+            + "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\">"
+            + "<c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" r:id=\"\(rid)\"/></a:graphicData></a:graphic></p:graphicFrame>"
     }
 
     /// A table as `a:tbl`: the grid, rows as tall as the shape shares out,

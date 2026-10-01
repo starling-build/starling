@@ -54,6 +54,9 @@ final class SlidesShellState: State<StatefulWidget> {
     /// Where the next picture from the picture panel goes.
     private var _pictureForBackground = false
     private var _hadPicture = false
+    private var _hadChart: SlideShape? = nil
+    /// The chart data grid is open (for whichever chart is selected).
+    private var _chartData = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
@@ -135,6 +138,9 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._pictureForBackground = false
             self.setState { self._backstage = .insertPicture }
+        }
+        session.onChartData = { [weak self] show in
+            self?.setState { self?._chartData = show }
         }
         session.onInsertTable = { [weak self] rows, columns in
             guard let self else { return }
@@ -254,6 +260,14 @@ final class SlidesShellState: State<StatefulWidget> {
         if picture && !_hadPicture { _tab = .pictureFormat }
         if !picture && _tab == .pictureFormat { _tab = .home }
         _hadPicture = picture
+        // Likewise a chart and Chart Design; its data grid closes with it.
+        let chart = deck.selectedChart
+        if let chart, chart !== _hadChart { _tab = .chartDesign }
+        if chart == nil {
+            if _tab == .chartDesign { _tab = .home }
+            _chartData = false
+        }
+        _hadChart = chart
         // A slide that went away takes its editing with it.
         if let a = _active, !deck.currentSlide.shapes.contains(where: { $0 === a }) {
             _active = nil
@@ -616,10 +630,15 @@ final class SlidesShellState: State<StatefulWidget> {
         if _sorter {
             column.append(Expanded(child: _sorterView(fluent)))
         } else {
-            column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: [
+            var row: [Widget] = [
                 _thumbnailPane(fluent),
                 Expanded(child: Column(crossAxisAlignment: .stretch, children: work)),
-            ])))
+            ]
+            if _chartData, let chart = deck.selectedChart {
+                row.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
+                                         onClose: { [weak self] in self?.setState { self?._chartData = false } }))
+            }
+            column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: row)))
         }
         column.append(_statusBar(fluent))
 

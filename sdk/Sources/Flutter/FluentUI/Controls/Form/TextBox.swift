@@ -162,6 +162,13 @@ class _TextBoxState: State<StatefulWidget> {
     /// Keyboard focus for this field.
     private let _focusNode = FocusNode(debugLabel: "FluentTextBox")
 
+    /// Whether the platform's command key (⌘ on Apple platforms, Ctrl
+    /// elsewhere) is down. Without it ⌘A on the Mac typed an "a": the key
+    /// arrives with its character, and nothing said ⌘ was held. Tracked
+    /// here rather than with RichText's KeyChordTracker, which the web
+    /// build does not compile.
+    private var _commandDown = false
+
     /// Caret blink state. A deadline timer, NOT a Ticker: a Ticker holds the
     /// engine's frame loop hot for as long as it runs, which for a caret
     /// means a full-rate frame pump to flip two pixels twice a second —
@@ -200,6 +207,8 @@ class _TextBoxState: State<StatefulWidget> {
                 self._isFocused = focused
             }
             self.textBox.onFocusChanged?(focused)
+            // The key-ups of modifiers held as focus left go elsewhere.
+            if !focused { self._commandDown = false }
             if focused {
                 self._startCaretBlink()
                 // A focused field on a touch device has to ask for the keys.
@@ -282,13 +291,36 @@ class _TextBoxState: State<StatefulWidget> {
         static let numpadEnter: Int64 = 0x2_0000_020D
     }
 
+    /// The command modifier's keys, as X11 keysyms and as Flutter ids.
+    private static func _isCommandKey(_ logical: Int64) -> Bool {
+        #if os(macOS) || os(iOS)
+        return [0xFFE7, 0xFFE8, 0xFFEB, 0xFFEC, 0x2_0000_0106, 0x2_0000_0107].contains(logical)
+        #else
+        return [0xFFE3, 0xFFE4, 0x2_0000_0100, 0x2_0000_0101].contains(logical)
+        #endif
+    }
+
     private func _handleKey(_ keyData: KeyData) -> Bool {
+        if Self._isCommandKey(keyData.logical) {
+            _commandDown = keyData.type != .up
+            return false
+        }
         guard keyData.type == .down || keyData.type == .repeat else {
             return false
         }
         guard textBox.enabled else { return false }
 
         let controller = _effectiveController
+
+        // A chord with the platform's command key (⌘, Ctrl elsewhere) is a
+        // command, never text: Select All here, anything else left alone.
+        if _commandDown {
+            if keyData.logical == 0x61 || keyData.logical == 0x41 || keyData.character?.lowercased() == "a" {
+                controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.count)
+                return true
+            }
+            return false
+        }
 
         switch keyData.logical {
         case _Keysym.enter, _Keysym.kpEnter,

@@ -17,6 +17,8 @@ enum RibbonTab: Int, CaseIterable {
     /// Contextual: shown while a picture is selected or the caret is in a
     /// table, as Word does.
     case pictureFormat, tableLayout
+    /// Slides only; contextual while a chart is selected.
+    case chartDesign
     /// Slides only.
     case design, transitions, slideShow
 
@@ -37,13 +39,14 @@ enum RibbonTab: Int, CaseIterable {
         case .view: return "View"
         case .pictureFormat: return "Picture Format"
         case .tableLayout: return "Table Layout"
+        case .chartDesign: return "Chart Design"
         case .design: return "Design"
         case .transitions: return "Transitions"
         case .slideShow: return "Slide Show"
         }
     }
 
-    var isContextual: Bool { self == .pictureFormat || self == .tableLayout }
+    var isContextual: Bool { self == .pictureFormat || self == .tableLayout || self == .chartDesign }
 }
 
 final class Ribbon: StatelessWidget {
@@ -90,6 +93,7 @@ final class Ribbon: StatelessWidget {
         let slidePicture = session.deck?.selection.contains { $0.picture != nil } ?? false
         if session.summary.imageIndex != nil || slidePicture { items.append(_tab(.pictureFormat, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableLayout, fluent)) }
+        if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
         return ColoredBox(color: OfficeAppearance.surface(fluent),
             child: SizedBox(width: nil, height: 44, child: SingleChildScrollView(scrollDirection: .horizontal,
                 child: Padding(padding: EdgeInsets(left: 12, top: 5, right: 12, bottom: 0),
@@ -149,7 +153,7 @@ final class Ribbon: StatelessWidget {
         case .pictureFormat: return _pictureFormat(fluent)
         case .tableLayout: return _tableLayout(fluent)
         case .review: return _review(fluent)
-        case .design, .transitions, .slideShow: return []
+        case .design, .transitions, .slideShow, .chartDesign: return []
         }
     }
 

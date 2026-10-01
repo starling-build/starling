@@ -34,6 +34,14 @@ struct ShapeState: Equatable {
     var sourceXML: String? = nil
     var sourceText: RichDocument? = nil
     var sourcePart: String? = nil
+    var sourceChart: Chart? = nil
+}
+
+extension ShapeState {
+    var chart: Chart? {
+        if case .chart(let c) = kind { return c }
+        return nil
+    }
 }
 
 struct SlideState: Equatable {
@@ -344,6 +352,45 @@ final class DeckController: ChangeNotifier {
         selection = [shape]
         _changed()
         return shape
+    }
+
+    // MARK: Charts
+
+    /// A chart of `type` on PowerPoint's sample data, centred, three fifths
+    /// of the slide each way.
+    @discardableResult
+    func addChart(_ type: ChartType) -> SlideShape {
+        _checkpoint()
+        let w = (slideSize.width * 0.6).rounded(), h = (slideSize.height * 0.6).rounded()
+        let shape = SlideShape(id: _id(), name: "Chart \(_nextId)", kind: .chart(.sample(type)),
+                               frame: Rect.fromLTWH(((slideSize.width - w) / 2).rounded(), ((slideSize.height - h) / 2).rounded(), w, h),
+                               text: nil, textTheme: nil)
+        currentSlide.shapes.append(shape)
+        selection = [shape]
+        _changed()
+        return shape
+    }
+
+    /// The one selected chart, for the Chart Design tab and the data grid.
+    var selectedChart: SlideShape? {
+        selection.count == 1 && selection[0].chart != nil ? selection[0] : nil
+    }
+
+    private var _chartEdit: (key: String, at: Int)? = nil
+
+    /// A chart's data or settings replaced: one undo step — or, with
+    /// `coalesce`, one step for a run of edits with the same key and nothing
+    /// in between (typing into one cell of the data grid).
+    func setChart(_ shape: SlideShape, _ chart: Chart, coalesce key: String? = nil) {
+        guard shape.chart != nil, shape.chart != chart else { return }
+        if let key, let last = _chartEdit, last.key == key, last.at == edits {
+            edits += 1
+        } else {
+            _checkpoint()
+        }
+        _chartEdit = key.map { ($0, edits) }
+        shape.kind = .chart(chart)
+        _changed()
     }
 
     /// The selected pictures back to their natural proportions (the width
@@ -733,7 +780,7 @@ final class DeckController: ChangeNotifier {
         var next: [Slide] = []
         for ss in state.slides {
             let shapes: [SlideShape] = ss.shapes.map { st in
-                if let shape = oldShapes[st.id], shape.kind == st.kind, (shape.text == nil) == (st.text == nil) {
+                if let shape = oldShapes[st.id], shape.kind.sameObject(st.kind), (shape.text == nil) == (st.text == nil) {
                     _apply(st, to: shape)
                     kept.insert(ObjectIdentifier(shape))
                     return shape
@@ -784,11 +831,13 @@ final class DeckController: ChangeNotifier {
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId,
-                   sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart)
+                   sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
+                   sourceChart: s.sourceChart)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
         shape.name = st.name
+        shape.kind = st.kind
         shape.frame = st.frame
         shape.rotation = st.rotation
         shape.fill = st.fill
@@ -813,6 +862,7 @@ final class DeckController: ChangeNotifier {
         shape.sourceXML = st.sourceXML
         shape.sourceText = st.sourceText
         shape.sourcePart = st.sourcePart
+        shape.sourceChart = st.sourceChart
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
 
@@ -888,10 +938,13 @@ final class DeckController: ChangeNotifier {
         return c
     }
 
-    static func darker(_ c: Color) -> Color {
+    static func darker(_ c: Color) -> Color { shade(c, 0.7) }
+
+    /// DrawingML's `shade`: each channel scaled toward black.
+    static func shade(_ c: Color, _ amount: Double) -> Color {
         let v = c.value
-        let r = Int(Double((v >> 16) & 0xFF) * 0.7), g = Int(Double((v >> 8) & 0xFF) * 0.7)
-        let b = Int(Double(v & 0xFF) * 0.7)
+        let r = Int(Double((v >> 16) & 0xFF) * amount), g = Int(Double((v >> 8) & 0xFF) * amount)
+        let b = Int(Double(v & 0xFF) * amount)
         return Color(0xFF00_0000 | (r << 16) | (g << 8) | b)
     }
 

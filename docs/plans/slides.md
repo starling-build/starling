@@ -124,6 +124,49 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**S6b done 2026-09-30** — charts. Insert → Chart offers column, bar,
+line, pie, area and scatter on PowerPoint's own sample data; the Chart
+Design tab changes the kind (the data kept), opens the data grid, and
+turns the title, legend, data labels and axis titles on and off, with
+clustered / stacked / 100% stacked for the kinds that stack. The data
+grid sits beside the slide — series across, categories (a scatter's x
+values) down, Add/Remove Row and Series — and redraws the chart as it is
+typed; typing in one cell is one undo step. Charts draw in PowerPoint's
+default look (gridlines, 65% text, legend below, the theme's accents in
+its colour cycle), follow a new theme, and print, show and export like
+any shape. A `.pptx` chart is read from its part's cached values
+(category and scatter kinds, stacking, gap and overlap, titles, labels,
+explicit and theme colours); an unchanged one is written back through its
+own part, an edited or new one as our `c:chartSpace` with its cache and
+an embedded one-sheet workbook so PowerPoint's Edit Data opens on it.
+Doughnut, radar, 3-D, stock and combination charts stay kept objects.
+Checked against python-pptx's PowerPoint-style charts (all six read,
+doughnut and radar kept, an identical round trip) and Quick Look, which
+draws our written chart like PowerPoint's default.
+
+Traps paid for in S6b:
+
+- **A Row in a horizontal scroll view must be `mainAxisSize: .min`.**
+  Unbounded, it asks for infinite width; the finite-size assert added in
+  the engine-debt pass caught it as a crash on Edit Data, where it would
+  once have drawn nothing. The grid now widens the pane instead of
+  scrolling sideways.
+- **A chart's data is a value, its shape is an object.** Undo matched
+  shapes by `kind ==`, so a chart with other data came back as a new
+  shape: the selection and the open data grid lost it. Charts restore in
+  place (`ShapeKind.sameObject`).
+- **Absent `c:gapWidth`/`c:overlap` mean 150 and 0** (the schema), not
+  PowerPoint's 219 and −27 for a new chart; and a series coloured with its
+  own slot of the cycle is "follows the theme", or a chart we wrote reads
+  back unequal and is never kept.
+- **`FluentTextBox` typed an "a" for ⌘A**: it tracked no modifiers. It
+  tracks the command key now (⌘, Ctrl off Apple platforms): ⌘A selects
+  all, other ⌘ chords are not text. Inline, not RichText's
+  `KeyChordTracker` — the web build does not compile `RichText/`, and
+  `test/run.sh`'s size gate is what said so.
+- The Office driver now sends no input once its app has exited — the
+  first crash here left the next clicks to whatever window was in front.
+
 **S6 part 2 done 2026-09-30** — tables. Insert → Table offers a menu
 of sizes; the table is a Writer table inside a frame (the same cells, Tab and
 ⇧Tab between them, the Table Layout tab for rows, columns and merges), in

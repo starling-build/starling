@@ -165,7 +165,7 @@ final class SlideCanvasState: State<StatefulWidget> {
         let f = shape.frame
         let editing = _w.active === shape
         let body = Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: CustomPaint(
-            painter: ShapePainter(shape: shape, px: px, revision: deck.revision, cache: _w.cache),
+            painter: ShapePainter(shape: shape, px: px, revision: deck.revision, cache: _w.cache, theme: deck.theme),
             child: SizedBox(expand: ()))))
         let text: Widget = shape.text == nil
             ? Positioned(left: 0, top: 0, width: 0, height: 0, child: SizedBox(width: 0, height: 0, child: nil))

@@ -129,6 +129,8 @@ final class OfficeSession {
     var onInsertShape: ((ShapePreset) -> Void)?
     var onBackgroundPicture: (() -> Void)?
     var onInsertTable: ((Int, Int) -> Void)?
+    /// Show (true) or hide the selected chart's data grid.
+    var onChartData: ((Bool) -> Void)?
     /// Normal view (false) or Slide Sorter (true).
     var onSlidesView: ((Bool) -> Void)?
     var slidesSorter = false

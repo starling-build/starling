@@ -535,7 +535,8 @@ private struct SlideContext {
             case "p:cxnSp": add(_connector(el, transform, id: id), el)
             case "p:pic": add(_picture(el, transform, id: id), el)
             case "p:graphicFrame":
-                if _frameLabel(el) == "Table", let t = _table(el, transform, id: id) { add(t, el) } else {
+                if _frameLabel(el) == "Table", let t = _table(el, transform, id: id) { add(t, el) }
+                else if _frameLabel(el) == "Chart", let c = _chart(el, transform, id: id) { add(c, el) } else {
                     add(_opaque(el, label: _frameLabel(el), transform, id: id), el)
                 }
             case "p:grpSp":
@@ -776,6 +777,25 @@ private struct SlideContext {
         st.sourceXML = PptxXML.serialize(el)
         st.sourceText = doc
         st.sourcePart = part
+        return st
+    }
+
+    /// A chart this app draws, from its part's cached values; kept as read
+    /// too, and written back through that part while it is unchanged.
+    private func _chart(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
+        guard let ref = el.descendant("c:chart")?["r:id"],
+              let rel = package.rels(part).first(where: { $0.id == ref && !$0.external }),
+              let space = package.xml(rel.target),
+              let chart = ChartXML.read(space, color: { colors.color(in: $0) }),
+              var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
+        if let t = transform { frame = t(frame) }
+        var st = ShapeState(id: id(), name: el.descendant("p:cNvPr")?["name"] ?? "Chart", kind: .chart(chart), frame: frame,
+                            rotation: 0, fill: nil, outline: nil, outlineWidth: 0, anchor: .top,
+                            insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: nil,
+                            font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)
+        st.sourceXML = PptxXML.serialize(el)
+        st.sourcePart = part
+        st.sourceChart = chart
         return st
     }
 

@@ -23,6 +23,7 @@ extension Ribbon {
         case .slideShow: return _slideShowTab(fluent)
         case .view: return _slidesView(fluent)
         case .pictureFormat: return _slidePictureFormat(deck, fluent)
+        case .chartDesign: return _chartDesign(deck, fluent)
         default: return nil
         }
     }
@@ -135,6 +136,18 @@ extension Ribbon {
             ]),
             Chrome.group("Images", fluent, [
                 Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
+            ]),
+            Chrome.group("Charts", fluent, [
+                FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
+                    child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+                        Icon(FluentSystemIcons.chartColumn, size: Chrome.bigIconSize, color: fluent.resources.textFillColorPrimary),
+                        Chrome.vgap(4),
+                        Text("Chart", style: fluent.typography.caption),
+                    ])), tip: "Insert a chart", width: nil, height: Chrome.rowHeight * 2 + 6,
+                    menu: _chartTypeItems(fluent, current: nil) { [session] type in
+                        deck.addChart(type)
+                        session.onChartData?(true)
+                    }),
             ]),
             Chrome.group("Illustrations", fluent, [
                 FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
@@ -262,6 +275,72 @@ extension Ribbon {
                 Chrome.big(FluentSystemIcons.desktop, "From Beginning", fluent) { [session] in session.onSlideShow?(false) },
                 Chrome.big(FluentSystemIcons.window, "From Current Slide", fluent) { [session] in session.onSlideShow?(true) },
             ]),
+        ]
+    }
+
+    private func _chartTypeItems(_ fluent: FluentThemeData, current: ChartType?,
+                                 _ pick: @escaping (ChartType) -> Void) -> [MenuFlyoutItemBase] {
+        ChartType.allCases.map { type in
+            MenuFlyoutItem(text: Text(type.name),
+                           leading: Icon(current == type ? FluentSystemIcons.check : type.icon,
+                                         size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                           onPressed: { pick(type) })
+        }
+    }
+
+    /// The selected chart's tab: its kind, its data, the parts it shows.
+    private func _chartDesign(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
+        guard let shape = deck.selectedChart, let chart = shape.chart else { return [] }
+        func set(_ edit: @escaping (inout Chart) -> Void) -> () -> Void {
+            { var c = chart; edit(&c); deck.setChart(shape, c) }
+        }
+        let axes = chart.type.hasAxes
+        let stackable = [.column, .bar, .line, .area].contains(chart.type)
+        let groupings: [(String, Bool, Bool)] = [("Clustered", false, false), ("Stacked", true, false), ("100% Stacked", true, true)]
+        return [
+            Chrome.group("Type", fluent, [
+                FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
+                    child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+                        Icon(chart.type.icon, size: Chrome.bigIconSize, color: fluent.resources.textFillColorPrimary),
+                        Chrome.vgap(4),
+                        Text("Change Chart Type", style: fluent.typography.caption),
+                    ])), tip: "Change the kind of chart", width: nil, height: Chrome.rowHeight * 2 + 6,
+                    menu: _chartTypeItems(fluent, current: chart.type) { type in
+                        deck.setChart(shape, chart.converted(to: type))
+                    }),
+            ]),
+            Chrome.group("Data", fluent, [
+                Chrome.big(FluentSystemIcons.tableEdit, "Edit Data", fluent) { [session] in session.onChartData?(true) },
+            ]),
+            Chrome.group("Chart Elements", fluent, [
+                Chrome.rows([
+                    Chrome.small(chart.title != nil ? FluentSystemIcons.check : FluentSystemIcons.textT, "Chart Title", fluent,
+                                 action: set { $0.title = $0.title == nil ? ($0.series.count == 1 ? $0.series[0].name : "Chart Title") : nil }),
+                    Chrome.small(chart.legend ? FluentSystemIcons.check : FluentSystemIcons.bulletList, "Legend", fluent,
+                                 action: set { $0.legend.toggle() }),
+                    Chrome.small(chart.dataLabels ? FluentSystemIcons.check : FluentSystemIcons.pageNumber, "Data Labels", fluent,
+                                 action: set { $0.dataLabels.toggle() }),
+                ]),
+                Chrome.rows([
+                    Chrome.small(chart.valueAxisTitle != nil ? FluentSystemIcons.check : FluentSystemIcons.textT, "Axis Titles", fluent,
+                                 enabled: axes, action: set { c in
+                                     let on = c.valueAxisTitle != nil
+                                     c.valueAxisTitle = on ? nil : "Axis Title"
+                                     c.categoryAxisTitle = on ? nil : "Axis Title"
+                                 }),
+                    Chrome.menuButton(FluentSystemIcons.chartColumn, "Grouping", "Clustered or stacked", fluent,
+                                      items: stackable ? groupings.map { name, stacked, percent in
+                                          MenuFlyoutItem(text: Text(name),
+                                                         leading: Icon(chart.stacked == stacked && chart.percent == percent
+                                                                       ? FluentSystemIcons.check : chart.type.icon,
+                                                                       size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                                                         onPressed: set { $0.stacked = stacked; $0.percent = percent })
+                                      } : []),
+                ]),
+            ]),
+            Chrome.group("Arrange", fluent, [Chrome.rows([
+                Chrome.small(FluentSystemIcons.delete, "Delete Chart", fluent) { deck.deleteSelection() },
+            ])]),
         ]
     }
 

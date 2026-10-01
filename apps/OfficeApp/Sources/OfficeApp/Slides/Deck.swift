@@ -27,10 +27,22 @@ enum ShapeKind: Equatable {
     /// A table: its text is a document holding one table (Writer's cell
     /// model), edited in place like any text body.
     case table
-    /// Something read from a file that the deck does not model — a chart,
-    /// SmartArt, a video, a table — kept as its XML so a save writes it
-    /// back untouched, and drawn as a labelled box.
+    /// A chart, drawn from its own data (Chart.swift).
+    case chart(Chart)
+    /// Something read from a file that the deck does not model — SmartArt,
+    /// a video, a chart of a kind this app cannot draw — kept as its XML so
+    /// a save writes it back untouched, and drawn as a labelled box.
     case opaque(OpaqueObject)
+}
+
+extension ShapeKind {
+    /// Whether an undo can restore `other` into a shape of this kind in
+    /// place: the same kind, or a chart either way (its data is a value,
+    /// the shape — selected, its data grid open — stays the same object).
+    func sameObject(_ other: ShapeKind) -> Bool {
+        if case .chart = self, case .chart = other { return true }
+        return self == other
+    }
 }
 
 /// An element carried through a round trip verbatim.
@@ -175,6 +187,8 @@ final class SlideShape {
     var sourceXML: String? = nil
     var sourceText: RichDocument? = nil
     var sourcePart: String? = nil
+    /// A chart as read: written back through its own part while unchanged.
+    var sourceChart: Chart? = nil
 
     init(id: Int, name: String, kind: ShapeKind, frame: Rect, text: RichDocumentController?,
          textTheme: RichTextTheme?, anchor: TextAnchor = .top, prompt: String? = nil) {
@@ -205,6 +219,11 @@ final class SlideShape {
 
     var picture: ImageAttachment? {
         if case .picture(let image) = kind { return image }
+        return nil
+    }
+
+    var chart: Chart? {
+        if case .chart(let c) = kind { return c }
         return nil
     }
 

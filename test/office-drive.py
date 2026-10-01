@@ -139,22 +139,42 @@ class Driver:
     def alive(self):
         return self.proc is not None and self.proc.poll() is None
 
+    def _guard(self):
+        """Synthetic input goes to whatever window is in front. Send none
+        once the app this driver started has exited — a crash would
+        otherwise click and type into the user's own windows — and bring
+        ours back to the front if focus moved."""
+        if self.proc is None:
+            return
+        if self.proc.poll() is not None:
+            raise RuntimeError(f"the driven app exited ({self.proc.returncode}); no more input sent")
+        who = f"(first process whose unix id is {self.proc.pid})"
+        front = sh("osascript -e 'tell application \"System Events\" to get unix id of first process whose frontmost is true'",
+                   check=False)
+        if front != str(self.proc.pid):
+            sh(f"osascript -e 'tell application \"System Events\" to set frontmost of {who} to true'", check=False)
+            time.sleep(0.4)
+
     # window-relative points → screen points
     def click(self, x, y, mode="click", *extra):
+        self._guard()
         args = [self.click_bin, str(self.x + x), str(self.y + y), mode] + [str(v) for v in extra]
         subprocess.run(args, check=True)
         time.sleep(0.25)
 
     def drag(self, x1, y1, x2, y2, *mods):
+        self._guard()
         args = [self.click_bin, str(self.x + x1), str(self.y + y1), "drag", str(self.x + x2), str(self.y + y2)] + list(mods)
         subprocess.run(args, check=True)
         time.sleep(0.25)
 
     def scroll(self, x, y, dy, trackpad=False):
+        self._guard()
         subprocess.run([self.click_bin, str(self.x + x), str(self.y + y), "trackpad" if trackpad else "scroll", str(dy)], check=True)
         time.sleep(0.25)
 
     def key(self, text=None, key=None, mods=()):
+        self._guard()
         using = ""
         if mods:
             using = " using {" + ", ".join(m + " down" for m in mods) + "}"
