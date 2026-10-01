@@ -410,7 +410,7 @@ functions), `RichEditable` as the in-cell and formula-bar editor, CSV and
 
 **Phase 5 — Slides.** Canvas of positioned `RichEditable` boxes, shapes,
 images, thumbnails, presenter view; `.pptx`; presenting needs a fullscreen
-request per host. Own plan revision.
+request per host. Own plan revision. That revision is `docs/plans/slides.md` (2026-09-30).
 
 ## One layout everywhere (2026-09-30)
 
