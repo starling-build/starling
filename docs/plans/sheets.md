@@ -271,10 +271,12 @@ the kept `<conditionalFormatting>` rules evaluated for the cells on screen
 — cellIs, expression (relative to the range's top-left, as stored), the
 text rules, blanks, errors, top/bottom N and N%, above/below average,
 duplicate/unique, 2- and 3-colour scales (min, max, num, percent,
-percentile) and solid data bars — in priority order with stopIfTrue,
+percentile), solid data bars and icon sets (arrows, traffic lights,
+signs, symbols, flags, red-to-black, ratings, quarters; reversed and
+icon-only too) — in priority order with stopIfTrue,
 fills under the cell's text and dxf fonts over it. Figures over a
-range are cached per `WorkbookController.dataRevision`. Not drawn: icon
-sets, x14 rules in extLst, date-occurring; not editable yet. Seen on a
+range are cached per `WorkbookController.dataRevision`. Not drawn: x14
+rules in extLst (custom icon sets), date-occurring; not editable yet. Seen on a
 fixture copy with a scale, bars and a cellIs rule.
 
 **Excel tables kept valid (2026-10-01)** (`Sheets/Tables.swift`): a

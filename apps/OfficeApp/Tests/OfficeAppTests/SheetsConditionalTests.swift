@@ -75,3 +75,22 @@ final class SheetsConditionalTests: XCTestCase {
         XCTAssertEqual(look(c, "B2")?.dxf.fill, 0xC6EFCE)  // 20 is in A and B
     }
 }
+
+extension SheetsConditionalTests {
+    func testIconSets() {
+        // A1:A5 = 10…50: percent thresholds 33 and 67 of 10..50 are 23.2 and 36.8.
+        let c = sheet([
+            "<conditionalFormatting sqref=\"A1:A5\"><cfRule type=\"iconSet\" priority=\"1\"><iconSet iconSet=\"3Arrows\"><cfvo type=\"percent\" val=\"0\"/><cfvo type=\"percent\" val=\"33\"/><cfvo type=\"percent\" val=\"67\"/></iconSet></cfRule></conditionalFormatting>",
+            "<conditionalFormatting sqref=\"B1:B5\"><cfRule type=\"iconSet\" priority=\"2\"><iconSet iconSet=\"3Flags\" reverse=\"1\" showValue=\"0\"><cfvo type=\"num\" val=\"0\"/><cfvo type=\"num\" val=\"20\"/><cfvo type=\"num\" val=\"40\" gte=\"0\"/></iconSet></cfRule></conditionalFormatting>",
+        ])
+        XCTAssertEqual(look(c, "A1")?.icon?.index, 0)
+        XCTAssertEqual(look(c, "A3")?.icon?.index, 1)
+        XCTAssertEqual(look(c, "A4")?.icon?.index, 2)
+        XCTAssertEqual(look(c, "A1")?.icon?.set, "3Arrows")
+        // Reversed, value hidden; 40 is not > 40.
+        XCTAssertEqual(look(c, "B1")?.icon?.index, 2)
+        XCTAssertEqual(look(c, "B4")?.icon?.index, 1)
+        XCTAssertEqual(look(c, "B5")?.icon?.index, 0)
+        XCTAssertEqual(look(c, "B5")?.icon?.showValue, false)
+    }
+}

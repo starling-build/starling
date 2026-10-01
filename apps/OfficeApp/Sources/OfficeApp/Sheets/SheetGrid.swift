@@ -1506,10 +1506,19 @@ final class SheetGridState: State<StatefulWidget> {
             canvas.drawRect(Rect.fromLTWH(r.left + inset, r.top + inset, max(0, (r.width - 2 * inset) * bar.fraction),
                                           max(0, r.height - 2 * inset - 1)), p)
         }
+        // Icon sets, at the cell's left edge.
+        for (a, look) in looks {
+            guard let icon = look.icon else { continue }
+            let r = rect(a)
+            let side = min(r.height - 4 * zoom, 12 * zoom)
+            guard side > 3 else { continue }
+            IconSets.paint(icon.set, icon.index, canvas, in: Rect.fromLTWH(r.left + 3 * zoom, r.center.dy - side / 2, side, side))
+        }
         // Values.
         for row in rs { for col in cs {
             let a = CellAddress(row: row, col: col)
             guard a != editing, !covered.contains(a), let cell = ws.cells[a], !cell.value.isEmpty else { continue }
+            if let icon = looks[a]?.icon, !icon.showValue { continue }   // "Show Icon Only"
             var cf = looks[a]?.dxf
             if let tl = tableLooks[a] {
                 // The table's font where the cell sets none of its own.

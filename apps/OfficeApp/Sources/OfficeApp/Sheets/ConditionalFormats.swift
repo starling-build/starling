@@ -10,13 +10,14 @@
 //   beginsWith / endsWith, containsBlanks / notContainsBlanks, containsErrors
 //   / notContainsErrors, top10 (top/bottom N or N%), aboveAverage (above,
 //   below, or equal), duplicateValues / uniqueValues — each applying its
-//   dxf; colorScale (2 or 3 colours) and dataBar (a solid bar, Excel 2007's
-//   look) computed from the range.
+//   dxf; colorScale (2 or 3 colours), dataBar (a solid bar, Excel 2007's
+//   look) and iconSet (arrows, traffic lights, signs, symbols, flags,
+//   ratings, quarters) computed from the range.
 //
 // Rules apply in priority order; a cell takes the first rule's setting of
 // each property, and stopIfTrue ends the walk. Formulas are relative to the
 // top-left cell of the rule's first range, as Excel stores them.
-// Not drawn: icon sets, the x14 rules in extLst, date-occurring rules.
+// Not drawn: the x14 rules in extLst (custom icon sets), date-occurring rules.
 
 import Foundation
 
@@ -37,6 +38,9 @@ struct CFRule {
         case duplicates(unique: Bool)
         case colorScale([CFValue], [UInt32])
         case dataBar(CFValue, CFValue, UInt32)
+        /// An icon set: its name (3Arrows…), the thresholds of icons 2…n
+        /// (each with ≥ unless gte="0"), reversed, and whether the value shows.
+        case iconSet(String, [(CFValue, Bool)], reverse: Bool, showValue: Bool)
     }
     var ranges: [CellRange]
     var priority: Int
@@ -53,7 +57,10 @@ struct CFLook {
     var dxf = DxfStyle()
     var fill: UInt32? = nil            // from a colour scale
     var bar: (fraction: Double, color: UInt32)? = nil
-    var isEmpty: Bool { dxf == DxfStyle() && fill == nil && bar == nil }
+    /// An icon set's icon: the set and which icon (0 = lowest), and
+    /// whether the value still shows beside it.
+    var icon: (set: String, index: Int, showValue: Bool)? = nil
+    var isEmpty: Bool { dxf == DxfStyle() && fill == nil && bar == nil && icon == nil }
 }
 
 enum ConditionalFormats {
@@ -91,6 +98,12 @@ enum ConditionalFormats {
                     let colors = cs.kids("color").compactMap { Xlsx._color($0, theme: theme) }
                     guard vals.count >= 2, vals.count == colors.count else { continue }
                     kind = .colorScale(vals, colors)
+                case "iconSet":
+                    guard let iset = r.child("iconSet") else { continue }
+                    let vals = iset.kids("cfvo").map { (CFValue(type: $0["type"] ?? "percent", value: Double($0["val"] ?? "")), $0["gte"] != "0") }
+                    guard vals.count >= 3 else { continue }
+                    kind = .iconSet(iset["iconSet"] ?? "3TrafficLights1", Array(vals.dropFirst()),
+                                    reverse: iset["reverse"] == "1", showValue: iset["showValue"] != "0")
                 case "dataBar":
                     guard let db = r.child("dataBar") else { continue }
                     let vals = db.kids("cfvo").map { CFValue(type: $0["type"] ?? "min", value: Double($0["val"] ?? "")) }
@@ -251,6 +264,17 @@ final class CFEvaluator {
                 guard ts.allSatisfy({ $0 != nil }) else { break }
                 let t = ts.map { $0! }
                 look.fill = Self._scale(n, t, colors)
+                any = true
+                continue
+            case .iconSet(let name, let steps, let reverse, let showValue):
+                guard let n = v.number, look.icon == nil else { break }
+                var index = 0
+                for (k, step) in steps.enumerated() {
+                    guard let t = _threshold(step.0, i) else { continue }
+                    if step.1 ? n >= t : n > t { index = k + 1 }
+                }
+                if reverse { index = steps.count - index }
+                look.icon = (name, index, showValue)
                 any = true
                 continue
             case .dataBar(let lo, let hi, let color):
