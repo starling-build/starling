@@ -468,7 +468,7 @@ extension Worksheet {
             }
             return (i, max(0, v - at))
         }
-        let (c, dx) = walk(max(0, x), colWidth, CellAddress.maxCols)
+        let (c, dx) = walk(max(0, x), { self.isColHidden($0) ? 0 : self.colWidth($0) }, CellAddress.maxCols)
         let (r, dy) = walk(max(0, y), { self.isRowHidden($0) ? 0 : self.rowHeight($0) }, CellAddress.maxRows)
         return SheetMarker(col: c, colOff: dx, row: r, rowOff: dy)
     }
@@ -476,7 +476,7 @@ extension Worksheet {
     /// Where a marker is, in points from A1's corner.
     func point(_ m: SheetMarker) -> (x: Double, y: Double) {
         var x = m.colOff, y = m.rowOff
-        for c in 0 ..< m.col { x += colWidth(c) }
+        for c in 0 ..< m.col where !isColHidden(c) { x += colWidth(c) }
         for r in 0 ..< m.row where !isRowHidden(r) { y += rowHeight(r) }
         return (x, y)
     }

@@ -289,8 +289,8 @@ extension Ribbon {
 
     private func _outlineGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
         Chrome.group("Outline", fluent, [Chrome.rows([
-            Chrome.small(FluentSystemIcons.indentIncrease, "Group", fluent) { wb.groupRows(true) },
-            Chrome.small(FluentSystemIcons.indentDecrease, "Ungroup", fluent) { wb.groupRows(false) },
+            Chrome.small(FluentSystemIcons.indentIncrease, "Group", fluent) { wb.group(true) },
+            Chrome.small(FluentSystemIcons.indentDecrease, "Ungroup", fluent) { wb.group(false) },
         ])])
     }
 

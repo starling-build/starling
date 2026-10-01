@@ -166,7 +166,7 @@ final class Worksheet {
     var drawingsEdited = false
     /// `<col>` attributes besides width and hidden — a column's style,
     /// outline level, collapsed — by run (zero-based, inclusive).
-    var colAttrRuns: [(lo: Int, hi: Int, attrs: [String: String])] = []
+    var colAttrRuns: [(lo: Int, hi: Int, attrs: [String: String])] = [] { didSet { layoutVersion &+= 1 } }
     /// Column widths as the file wrote them, in characters: written back
     /// exactly while the width is unchanged (points round to whole pixels).
     var colWidthChars: [Int: Double] = [:]
@@ -213,6 +213,10 @@ final class Worksheet {
     /// heights, so showing them again gives each its own height back.
     var hiddenRows: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
 
+    /// Columns hidden by hand or by a collapsed group, apart from their widths.
+    var hiddenCols: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
+    func isColHidden(_ c: Int) -> Bool { hiddenCols.contains(c) || colWidths[c] == 0 }
+
     /// Hidden for any reason: filtered, hidden, or height 0.
     func isRowHidden(_ r: Int) -> Bool { filteredRows.contains(r) || hiddenRows.contains(r) || rowHeights[r] == 0 }
     func outlineLevel(row r: Int) -> Int { rowAttrs[r]?["outlineLevel"].flatMap { Int($0) } ?? 0 }
@@ -258,6 +262,7 @@ final class Worksheet {
         s.noteParts = noteParts
         s.filteredRows = filteredRows
         s.hiddenRows = hiddenRows
+        s.hiddenCols = hiddenCols
         return s
     }
 }

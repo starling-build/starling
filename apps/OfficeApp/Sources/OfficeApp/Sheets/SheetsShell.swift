@@ -554,8 +554,8 @@ final class SheetsShellState: State<StatefulWidget> {
         case "h": _openFind(replace: true); return true
         case "l" where chords.shift: wb.toggleAutoFilter(); return true
         // Excel for Mac's Group and Ungroup.
-        case "k" where chords.shift: wb.groupRows(true); return true
-        case "j" where chords.shift: wb.groupRows(false); return true
+        case "k" where chords.shift: wb.group(true); return true
+        case "j" where chords.shift: wb.group(false); return true
         case "\u{1B}":
             if _findOpen { _closeFind(); return true }
             return false
@@ -713,8 +713,12 @@ final class SheetsShellState: State<StatefulWidget> {
         switch area {
         case .columns:
             item("AutoFit Column Width") { grid.autofit(.cols, sel.left) }
+            item("Hide") { c.setHidden(.cols, true) }
+            item("Unhide") { c.setHidden(.cols, false) }
         case .rows:
             item("AutoFit Row Height") { grid.autofit(.rows, sel.top) }
+            item("Hide") { c.setHidden(.rows, true) }
+            item("Unhide") { c.setHidden(.rows, false) }
         case .cells:
             if sel.rows > 1 || sel.cols > 1 || c.sheet.merges.contains(where: { $0.intersects(sel) }) {
                 item(c.sheet.merges.contains(where: { $0.intersects(sel) }) ? "Unmerge Cells" : "Merge & Center") { c.toggleMerge() }

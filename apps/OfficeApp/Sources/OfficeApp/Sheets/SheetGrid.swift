@@ -178,36 +178,50 @@ final class SheetGridState: State<StatefulWidget> {
     var printing = false
     var zoom: Double { printing ? 0.75 : _w.zoom }
     var headerWidth: Double { printing ? 0 : outlineWidth + (40 + Double(max(0, String(_lastVisibleRow + 1).count - 3)) * 8) * zoom }
-    /// The outline gutter left of the row numbers: a lane per level, and
-    /// one more for the level buttons' last number.
-    var outlineWidth: Double {
-        let m = _outline().level
-        return printing || m == 0 ? 0 : (Double(m + 1) * 14 + 4) * zoom
-    }
-    private var _outlineCache: (sheet: ObjectIdentifier, version: Int, level: Int, groups: [RowGroup])? = nil
-    private func _outline() -> (level: Int, groups: [RowGroup]) {
+    /// The outline gutters, left of the row numbers and above the column
+    /// letters: a lane per level, and one more for the last level button.
+    var outlineWidth: Double { _gutter(_outline().rowLevel) }
+    var outlineHeight: Double { _gutter(_outline().colLevel) }
+    private func _gutter(_ levels: Int) -> Double { printing || levels == 0 ? 0 : (Double(levels + 1) * 14 + 4) * zoom }
+
+    private struct _Outline { var rowLevel = 0, colLevel = 0; var rowGroups: [OutlineGroup] = [], colGroups: [OutlineGroup] = [] }
+    private var _outlineCache: (sheet: ObjectIdentifier, version: Int, outline: _Outline)? = nil
+    private func _outline() -> _Outline {
         let ws = controller.sheet
         let id = ObjectIdentifier(ws)
-        if let c = _outlineCache, c.sheet == id, c.version == ws.layoutVersion { return (c.level, c.groups) }
-        let groups = ws.rowGroups()
-        let level = groups.map(\.level).max() ?? 0
-        _outlineCache = (id, ws.layoutVersion, level, groups)
-        return (level, groups)
+        if let c = _outlineCache, c.sheet == id, c.version == ws.layoutVersion { return c.outline }
+        var o = _Outline()
+        o.rowGroups = ws.outlineGroups(.rows)
+        o.colGroups = ws.outlineGroups(.cols)
+        o.rowLevel = o.rowGroups.map(\.level).max() ?? 0
+        o.colLevel = o.colGroups.map(\.level).max() ?? 0
+        _outlineCache = (id, ws.layoutVersion, o)
+        return o
     }
 
-    /// A group's +/− box, centred in its level's lane at the summary row.
-    func outlineBox(_ g: RowGroup) -> Rect? {
-        guard outlineWidth > 0, rows.size(g.summary) > 0 else { return nil }
-        let y = rowY(g.summary) + rows.size(g.summary) / 2
-        let x = (2 + 14 * Double(g.level - 1) + 7) * zoom
-        return Rect.fromLTWH(x - 5 * zoom, y - 5 * zoom, 10 * zoom, 10 * zoom)
+    /// A point given along the axis (y for rows) and across it (into the gutter).
+    private func _at(_ axis: WorkbookController.Axis, along: Double, across: Double) -> Offset {
+        axis == .rows ? Offset(across, along) : Offset(along, across)
+    }
+    private func _start(_ axis: WorkbookController.Axis, _ i: Int) -> Double { axis == .rows ? rowY(i) : colX(i) }
+    private func _size(_ axis: WorkbookController.Axis, _ i: Int) -> Double { axis == .rows ? rows.size(i) : cols.size(i) }
+
+    /// A group's +/− box, centred in its level's lane at the summary.
+    func outlineBox(_ g: OutlineGroup, _ axis: WorkbookController.Axis = .rows) -> Rect? {
+        guard (axis == .rows ? outlineWidth : outlineHeight) > 0, _size(axis, g.summary) > 0 else { return nil }
+        let c = _at(axis, along: _start(axis, g.summary) + _size(axis, g.summary) / 2, across: (2 + 14 * Double(g.level - 1) + 7) * zoom)
+        return Rect.fromLTWH(c.dx - 5 * zoom, c.dy - 5 * zoom, 10 * zoom, 10 * zoom)
     }
 
-    /// Level button `k` (1-based) in the corner above the gutter.
-    func outlineLevelButton(_ k: Int) -> Rect {
-        Rect.fromLTWH((2 + 14 * Double(k - 1) + 1) * zoom, (headerHeight - 12 * zoom) / 2, 12 * zoom, 12 * zoom)
+    /// Level button `k` (1-based): the rows' in a line beside the column
+    /// letters, the columns' in a stack beside the row numbers.
+    func outlineLevelButton(_ k: Int, _ axis: WorkbookController.Axis = .rows) -> Rect {
+        let across = (2 + 14 * Double(k - 1) + 1) * zoom
+        let along = axis == .rows ? outlineHeight + 4 * zoom : (outlineWidth + headerWidth) / 2 - 6 * zoom
+        let o = _at(axis, along: along, across: across)
+        return Rect.fromLTWH(o.dx, o.dy, 12 * zoom, 12 * zoom)
     }
-    var headerHeight: Double { printing ? 0 : 20 * zoom }
+    var headerHeight: Double { printing ? 0 : outlineHeight + 20 * zoom }
     private var _lastVisibleRow = 0
 
     var cols: GridAxis { _axes().cols }
@@ -219,7 +233,7 @@ final class SheetGridState: State<StatefulWidget> {
         let ws = controller.sheet
         let id = ObjectIdentifier(ws)
         if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale { return (c.cols, c.rows) }
-        let cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, scale: scale)
+        let cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
         let rows = GridAxis(def: ws.defaultRowHeightPt, overrides: ws.rowHeights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         _axisCache = (id, ws.layoutVersion, scale, cols, rows)
         return (cols, rows)
@@ -812,6 +826,22 @@ final class SheetGridState: State<StatefulWidget> {
             _secondaryDown(e, at: p)
             return
         }
+        // The outline gutters: level buttons and +/− boxes.
+        if p.dx < outlineWidth || p.dy < outlineHeight {
+            commitEdit()
+            let o = _outline()
+            for (axis, level, groups) in [(WorkbookController.Axis.rows, o.rowLevel, o.rowGroups), (.cols, o.colLevel, o.colGroups)] where level > 0 {
+                if let k = (1 ... level + 1).first(where: { outlineLevelButton($0, axis).inflate(2).contains(p) }) {
+                    c.showOutlineLevel(k, axis)
+                    return
+                }
+                if let g = groups.first(where: { outlineBox($0, axis)?.inflate(3).contains(p) ?? false }) {
+                    c.toggleGroup(g, axis)
+                    return
+                }
+            }
+            return
+        }
         // Column header: select columns, or resize at a border.
         if p.dy < headerHeight && p.dx >= headerWidth {
             let col = self.col(atLocal: p.dx)
@@ -827,16 +857,6 @@ final class SheetGridState: State<StatefulWidget> {
             c.select(range: CellRange(top: 0, left: col, bottom: CellAddress.maxRows - 1, right: col),
                      active: CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
             _drag = .columns(anchor: col)
-            return
-        }
-        if p.dx < outlineWidth {
-            commitEdit()
-            let o = _outline()
-            if p.dy < headerHeight {
-                if let k = (1 ... o.level + 1).first(where: { outlineLevelButton($0).inflate(2).contains(p) }) { c.showOutlineLevel(k) }
-            } else if let g = o.groups.first(where: { outlineBox($0)?.inflate(3).contains(p) ?? false }) {
-                c.toggleGroup(g)
-            }
             return
         }
         if p.dx < headerWidth && p.dy >= headerHeight {
@@ -960,6 +980,7 @@ final class SheetGridState: State<StatefulWidget> {
         let sel = c.selection
         let wholeCols = sel.top == 0 && sel.bottom == CellAddress.maxRows - 1
         let wholeRows = sel.left == 0 && sel.right == CellAddress.maxCols - 1
+        if p.dx < outlineWidth || p.dy < outlineHeight { return }
         if p.dy < headerHeight && p.dx >= headerWidth {
             let col = self.col(atLocal: p.dx)
             if !(wholeCols && col >= sel.left && col <= sel.right) {
@@ -1428,16 +1449,17 @@ final class SheetGridState: State<StatefulWidget> {
             let on = col >= sel.left && col <= sel.right
             if on {
                 p.color = wholeCols ? accent.withAlpha(60) : (dark ? Color(0xFF3A3A3A) : Color(0xFFE0E0E0))
-                canvas.drawRect(Rect.fromLTRB(x0, 0, x1, hh), p)
+                canvas.drawRect(Rect.fromLTRB(x0, outlineHeight, x1, hh), p)
                 p.color = accent
                 canvas.drawRect(Rect.fromLTRB(x0, hh - 2, x1, hh), p)
             }
             let tp = texts.painter(CellAddress.columnName(col), on ? headStrong : headStyle)
             if x1 - x0 > tp.width + 2 {
-                tp.paint(canvas, Offset(((x0 + x1) / 2 - tp.width / 2).rounded(), ((hh - tp.height) / 2).rounded()))
+                tp.paint(canvas, Offset(((x0 + x1) / 2 - tp.width / 2).rounded(), (outlineHeight + (hh - outlineHeight - tp.height) / 2).rounded()))
             }
-            canvas.drawLine(Offset(x1.rounded() - 0.5, 0), Offset(x1.rounded() - 0.5, hh), line)
+            canvas.drawLine(Offset(x1.rounded() - 0.5, outlineHeight), Offset(x1.rounded() - 0.5, hh), line)
         }
+        _paintOutline(canvas, size, .cols, ink: headerInk, line: dark ? Color(0xFF6A6A6A) : Color(0xFF9E9E9E), paper: paper)
         canvas.restore()
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(0, hh, hw, size.height))
@@ -1459,20 +1481,21 @@ final class SheetGridState: State<StatefulWidget> {
             }
             canvas.drawLine(Offset(outlineWidth, y1.rounded() - 0.5), Offset(hw, y1.rounded() - 0.5), line)
         }
-        _paintOutline(canvas, size, ink: headerInk, line: dark ? Color(0xFF6A6A6A) : Color(0xFF9E9E9E), paper: paper)
+        _paintOutline(canvas, size, .rows, ink: headerInk, line: dark ? Color(0xFF6A6A6A) : Color(0xFF9E9E9E), paper: paper)
         canvas.restore()
         line.color = dark ? Color(0xFF4A4A4A) : Color(0xFFC8C8C8)
         canvas.drawLine(Offset(0, hh - 0.5), Offset(size.width, hh - 0.5), line)
         canvas.drawLine(Offset(hw - 0.5, 0), Offset(hw - 0.5, size.height), line)
-        if outlineWidth > 0 {
-            canvas.drawLine(Offset(outlineWidth - 0.5, 0), Offset(outlineWidth - 0.5, size.height), line)
-            let o = _outline()
-            let box = Paint()
-            box.style = .stroke
-            box.strokeWidth = 1
-            box.color = headerInk
-            for k in 1 ... o.level + 1 {
-                let b = outlineLevelButton(k)
+        let o = _outline()
+        if outlineWidth > 0 { canvas.drawLine(Offset(outlineWidth - 0.5, 0), Offset(outlineWidth - 0.5, size.height), line) }
+        if outlineHeight > 0 { canvas.drawLine(Offset(0, outlineHeight - 0.5), Offset(size.width, outlineHeight - 0.5), line) }
+        let box = Paint()
+        box.style = .stroke
+        box.strokeWidth = 1
+        box.color = headerInk
+        for (axis, level) in [(WorkbookController.Axis.rows, o.rowLevel), (.cols, o.colLevel)] where level > 0 {
+            for k in 1 ... level + 1 {
+                let b = outlineLevelButton(k, axis)
                 canvas.drawRect(Rect.fromLTRB(b.left.rounded() + 0.5, b.top.rounded() + 0.5, b.right.rounded() - 0.5, b.bottom.rounded() - 0.5), box)
                 let tp = texts.painter("\(k)", GridTextStyle(family: SelawikFontName.regular, size: 9 * zoom, color: Int64(headerInk.value)))
                 tp.paint(canvas, Offset((b.center.dx - tp.width / 2).rounded(), (b.center.dy - tp.height / 2).rounded()))
@@ -1488,12 +1511,15 @@ final class SheetGridState: State<StatefulWidget> {
         canvas.drawPath(path, p)
     }
 
-    /// The gutter's brackets: a line beside each open group's rows, ending
-    /// in a tick at its last row, and the +/− box at its summary row.
-    private func _paintOutline(_ canvas: any Canvas, _ size: Size, ink: Color, line: Color, paper: Color) {
-        guard outlineWidth > 0 else { return }
+    /// A gutter's brackets: a line beside each open group, ending in a tick
+    /// at its far end, and the +/− box at its summary row (column).
+    private func _paintOutline(_ canvas: any Canvas, _ size: Size, _ axis: WorkbookController.Axis, ink: Color, line: Color, paper: Color) {
+        let groups = axis == .rows ? _outline().rowGroups : _outline().colGroups
+        guard !groups.isEmpty, (axis == .rows ? outlineWidth : outlineHeight) > 0 else { return }
         let ws = controller.sheet
-        let hh = headerHeight
+        // The span of the axis the gutter covers.
+        let lo = axis == .rows ? headerHeight : headerWidth
+        let hi = axis == .rows ? size.height : size.width
         let stroke = Paint()
         stroke.style = .stroke
         stroke.strokeWidth = 1
@@ -1501,29 +1527,32 @@ final class SheetGridState: State<StatefulWidget> {
         let fill = Paint()
         fill.style = .fill
         fill.color = paper
-        let ra = rows
-        for g in _outline().groups {
-            guard let b = outlineBox(g) else { continue }
-            if b.bottom < hh && g.rows.upperBound < g.summary { continue }
-            let x = b.center.dx.rounded() + 0.5
-            if !ws.isCollapsed(g) {
-                let top = rowY(g.rows.lowerBound) + 2 * zoom
-                let bottom = rowY(g.rows.upperBound) + ra.size(g.rows.upperBound) - 2 * zoom
-                if bottom > hh && top < size.height {
-                    let below = g.summary > g.rows.upperBound
-                    // The bracket runs from the far end of the rows to the box.
-                    let end = below ? max(top, hh) : min(bottom, size.height)
-                    canvas.drawLine(Offset(x, below ? b.top : b.bottom), Offset(x, end), stroke)
-                    canvas.drawLine(Offset(x, (below ? top : bottom).rounded() + 0.5), Offset(x + 4 * zoom, (below ? top : bottom).rounded() + 0.5), stroke)
+        func seg(_ a0: Double, _ c0: Double, _ a1: Double, _ c1: Double) {
+            canvas.drawLine(_at(axis, along: a0, across: c0), _at(axis, along: a1, across: c1), stroke)
+        }
+        for g in groups {
+            guard let b = outlineBox(g, axis) else { continue }
+            let (bLo, bHi) = axis == .rows ? (b.top, b.bottom) : (b.left, b.right)
+            let lane = (axis == .rows ? b.center.dx : b.center.dy).rounded() + 0.5
+            let collapsed = ws.isCollapsed(g, axis)
+            if !collapsed {
+                let first = _start(axis, g.span.lowerBound) + 2 * zoom
+                let last = _start(axis, g.span.upperBound) + _size(axis, g.span.upperBound) - 2 * zoom
+                if last > lo && first < hi {
+                    let after = g.summary > g.span.upperBound
+                    // The bracket runs from the far end of the span to the box.
+                    let far = after ? first : last
+                    seg(after ? bLo : bHi, lane, after ? max(far, lo) : min(far, hi), lane)
+                    if far > lo && far < hi { seg(far.rounded() + 0.5, lane, far.rounded() + 0.5, lane + 4 * zoom) }
                 }
             }
-            guard b.bottom > hh, b.top < size.height else { continue }
+            guard bHi > lo, bLo < hi else { continue }
             let r = Rect.fromLTRB(b.left.rounded() + 0.5, b.top.rounded() + 0.5, b.right.rounded() - 0.5, b.bottom.rounded() - 0.5)
             canvas.drawRect(r, fill)
             canvas.drawRect(r, stroke)
             stroke.color = ink
             canvas.drawLine(Offset(r.left + 2 * zoom, r.center.dy), Offset(r.right - 2 * zoom, r.center.dy), stroke)
-            if ws.isCollapsed(g) { canvas.drawLine(Offset(r.center.dx, r.top + 2 * zoom), Offset(r.center.dx, r.bottom - 2 * zoom), stroke) }
+            if collapsed { canvas.drawLine(Offset(r.center.dx, r.top + 2 * zoom), Offset(r.center.dx, r.bottom - 2 * zoom), stroke) }
             stroke.color = line
         }
     }

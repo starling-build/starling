@@ -431,10 +431,18 @@ keeps its nested closed groups closed. Rows hidden by hand or by an
 outline are `Worksheet.hiddenRows`, separate from `filteredRows`, so
 they keep their heights and a filter cannot unhide them. They used to be
 a height of 0 read from the file, which lost the height and never
-reopened. `rowAttrs` now bumps `layoutVersion`: the gutter's width and
-the groups are cached on it. Columns are not outlined yet: their levels
-are kept and written back, but there is no gutter for them.
-`test/scripts/sheets-outline.txt` shows it.
+reopened. `rowAttrs` and `colAttrRuns` bump `layoutVersion`, and the
+gutters' sizes and groups are cached on it. Columns outline the same way
+(one `OutlineGroup` model and `WorkbookController.Axis` throughout).
+Group on whole selected columns groups them. Their gutter sits above
+the letters, their level buttons are stacked beside the row numbers, and
+a column's level or collapsed flag is set by splitting the file's
+`<col>` run around it, so the run's style survives. Hidden columns are
+`Worksheet.hiddenCols`, apart from their widths, as rows are. A file's
+`hidden="1"` used to become a width of 0. Hide and Unhide are on the row
+and column header menus; Unhide takes in the hidden ones inside the
+selection, as in Excel, and hiding every row is refused.
+`test/scripts/sheets-outline.txt` shows both directions.
 
 **Functions: 242 (2026-10-01).** `Sheets/MoreFunctions.swift` adds the
 everyday rest: LARGE, SMALL, RANK(.EQ/.AVG), PERCENTILE and QUARTILE

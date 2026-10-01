@@ -67,7 +67,7 @@ extension WorkbookController {
             for (i, v) in d { if let j = moved(i) { out[j] = v } }
             return out
         }
-        if axis == .rows { ws.rowHeights = remap(ws.rowHeights); ws.hiddenRows = Set(ws.hiddenRows.compactMap(moved)) } else { ws.colWidths = remap(ws.colWidths); ws.colWidthChars = remap(ws.colWidthChars) }
+        if axis == .rows { ws.rowHeights = remap(ws.rowHeights); ws.hiddenRows = Set(ws.hiddenRows.compactMap(moved)) } else { ws.colWidths = remap(ws.colWidths); ws.colWidthChars = remap(ws.colWidthChars); ws.hiddenCols = Set(ws.hiddenCols.compactMap(moved)) }
         // Rows' and columns' own formats and outline levels go with them.
         if axis == .rows {
             var out: [Int: [String: String]] = [:]

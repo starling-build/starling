@@ -34,3 +34,15 @@ click 9 290
 shot ${OUT}/04-outer-open.png
 click 37 250
 shot ${OUT}/05-level3.png
+# Columns: group C:D (headers at x = 118 + 64c, y = 250). The column
+# gutter (46pt) then pushes the cells down: the grid's top is y = 240,
+# a column box sits at y = 249, column level button k at x = 66,
+# y = 249 + 14(k-1).
+drag 246 250 310 250
+chord cmd,shift k
+click 500 520
+shot ${OUT}/06-columns-grouped.png
+click 374 249
+shot ${OUT}/07-columns-closed.png
+click 66 263
+shot ${OUT}/08-columns-level2.png
