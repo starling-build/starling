@@ -361,8 +361,11 @@ formula is #SPILL!, takes a full pass; the randomized test covers
 spills too. Saved as an array formula over the spill (`t="array"
 ref=…`) with the spilled values — every Excel shows them; Excel 365's
 own dynamic-array metadata (`cm`, xl/metadata.xml) is not written, so
-there it reads as a legacy array formula. Still unread (kept verbatim):
-the intersection operator (a space).
+there it reads as a legacy array formula. LET (local names in
+`EvalContext.locals`) and the Excel 365 shapers VSTACK, HSTACK, TAKE,
+DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
+TEXTSPLIT work too. Still unread (kept verbatim): the intersection
+operator (a space); LAMBDA is a known name but not callable.
 
 **Recalculation (2026-10-01).** Evaluation used to recurse into each
 formula's inputs from sheet order, so a running total 15,000 rows long

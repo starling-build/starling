@@ -35,6 +35,8 @@ struct EvalContext {
     let cell: CellAddress
     /// A dynamic-array formula: operators work element by element.
     var dynamic = false
+    /// LET's names in scope, upper-cased.
+    var locals: [String: EvalValue] = [:]
 }
 
 final class CalcEngine {
@@ -381,6 +383,7 @@ final class CalcEngine {
         case .structured(let t): return resolveStructured(t, ctx)
         case .array(let rows): return .array(rows.map { $0.map { scalar(evaluate($0, ctx), ctx) } })
         case .name(let n):
+            if let local = ctx.locals[n.uppercased()] { return local }
             guard let target = book.names[n.uppercased()],
                   let parsed = try? Formula.parse(target) else {
                 // A table's own name is its data rows (Table1 = Table1[]).

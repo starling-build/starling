@@ -290,7 +290,8 @@ enum Xlsx {
     static let prefixed: Set<String> = [
         "XLOOKUP", "XMATCH", "IFS", "IFNA", "XOR", "CONCAT", "TEXTJOIN", "SWITCH", "MAXIFS", "MINIFS",
         "STDEV.S", "STDEV.P", "VAR.S", "VAR.P", "DAYS", "FILTER", "SORT", "SORTBY", "UNIQUE", "SEQUENCE",
-        "LET", "LAMBDA", "SINGLE", "CEILING.MATH", "FLOOR.MATH", "ISOWEEKNUM", "NUMBERVALUE", "TEXTBEFORE", "TEXTAFTER",
+        "LET", "LAMBDA", "SINGLE", "VSTACK", "HSTACK", "TAKE", "DROP", "CHOOSEROWS", "CHOOSECOLS",
+        "TOCOL", "TOROW", "WRAPROWS", "WRAPCOLS", "TEXTSPLIT", "CEILING.MATH", "FLOOR.MATH", "ISOWEEKNUM", "NUMBERVALUE", "TEXTBEFORE", "TEXTAFTER",
     ]
 
     /// The text of an <si> or <is>: its <t>, or its runs' <t>s joined.

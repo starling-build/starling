@@ -91,3 +91,27 @@ final class SheetsDynamicArrayTests: XCTestCase {
         XCTAssertEqual(back.engine.value(0, CellAddress("D5")!), .number(50))
     }
 }
+
+extension SheetsDynamicArrayTests {
+    func testLetAndShapers() {
+        let c = table()
+        func e(_ f: String) -> CellValue { c.engine.evaluate(f, sheet: 0, at: CellAddress("Z1")!) }
+        XCTAssertEqual(e("=LET(x,B2,y,B3,x*y+1)"), .number(301))
+        XCTAssertEqual(e("=LET(total,SUM(B2:B6),total/5)"), .number(21))
+        c.setInputs([
+            (CellAddress("D1")!, "=VSTACK(A2:A3,A5:A6)"),
+            (CellAddress("F1")!, "=TAKE(SORT(B2:B6,1,-1),2)"),
+            (CellAddress("H1")!, "=CHOOSECOLS(A1:B3,2,1)"),
+            (CellAddress("Q1")!, "=TOROW(B2:B4)"),
+            (CellAddress("K3")!, "=WRAPROWS(SEQUENCE(5),2,0)"),
+            (CellAddress("M1")!, "=TEXTSPLIT(\"a,b;c,d\",\",\",\";\")"),
+            (CellAddress("O1")!, "=DROP(A1:B6,1,1)"),
+        ])
+        XCTAssertEqual([v(c, "D1"), v(c, "D4")], [.text("Ann"), .text("Dee")])
+        XCTAssertEqual([v(c, "F1"), v(c, "F2")], [.number(40), .number(30)])
+        XCTAssertEqual([v(c, "H1"), v(c, "I1"), v(c, "H2")], [.text("Score"), .text("Name"), .number(10)])
+        XCTAssertEqual([v(c, "Q1"), v(c, "S1"), v(c, "M1")], [.number(10), .number(20), .text("a")])
+        XCTAssertEqual([v(c, "K5"), v(c, "L5")], [.number(5), .number(0)])
+        XCTAssertEqual([v(c, "N2"), v(c, "O5")], [.text("d"), .number(5)])
+    }
+}

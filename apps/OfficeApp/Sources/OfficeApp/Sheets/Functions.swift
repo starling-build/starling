@@ -320,6 +320,111 @@ enum SheetFunctions {
             guard a.count == 1 else { return .error(.value) }
             return .scalar(c.engine.scalar(c.engine.evaluate(a[0], c), c))
         }
+        // LET(name, value, …, calculation): values named for the calculation.
+        t["LET"] = { a, c in
+            guard a.count >= 3, a.count % 2 == 1 else { return .error(.value) }
+            var scope = c
+            for i in stride(from: 0, to: a.count - 1, by: 2) {
+                guard case .name(let n) = a[i] else { return .error(.name) }
+                scope.locals[n.uppercased()] = c.engine.evaluate(a[i + 1], scope)
+            }
+            return c.engine.evaluate(a[a.count - 1], scope)
+        }
+        // Excel 365's array shapers.
+        func g(_ e: FormulaExpr, _ c: EvalContext) -> [[CellValue]] { c.engine.gridFull(c.engine.evaluate(e, c), c) }
+        func int(_ e: FormulaExpr, _ c: EvalContext) -> Int? { if case .success(let v) = _n(e, c) { return Int(v) } else { return nil } }
+        func pad(_ rows: [[CellValue]], _ w: Int) -> [[CellValue]] { rows.map { $0 + Array(repeating: .error(.na), count: max(0, w - $0.count)) } }
+        t["VSTACK"] = { a, c in
+            let parts = a.map { g($0, c) }
+            let w = parts.map { $0.first?.count ?? 0 }.max() ?? 0
+            return .array(parts.flatMap { pad($0, w) })
+        }
+        t["HSTACK"] = { a, c in
+            let parts = a.map { g($0, c) }
+            let h = parts.map(\.count).max() ?? 0
+            return .array((0 ..< h).map { r in parts.flatMap { p in r < p.count ? p[r] : Array(repeating: .error(.na), count: p.first?.count ?? 0) } })
+        }
+        t["TAKE"] = { a, c in
+            guard a.count >= 2 else { return .error(.value) }
+            var rows = g(a[0], c)
+            if a[1] != .missing, let n = int(a[1], c) { rows = n >= 0 ? Array(rows.prefix(n)) : Array(rows.suffix(-n)) }
+            if a.count > 2, let n = int(a[2], c) { rows = rows.map { n >= 0 ? Array($0.prefix(n)) : Array($0.suffix(-n)) } }
+            return rows.isEmpty || rows[0].isEmpty ? .error(.calc) : .array(rows)
+        }
+        t["DROP"] = { a, c in
+            guard a.count >= 2 else { return .error(.value) }
+            var rows = g(a[0], c)
+            if a[1] != .missing, let n = int(a[1], c) { rows = n >= 0 ? Array(rows.dropFirst(n)) : Array(rows.dropLast(-n)) }
+            if a.count > 2, let n = int(a[2], c) { rows = rows.map { n >= 0 ? Array($0.dropFirst(n)) : Array($0.dropLast(-n)) } }
+            return rows.isEmpty || rows[0].isEmpty ? .error(.calc) : .array(rows)
+        }
+        t["CHOOSEROWS"] = { a, c in
+            guard a.count >= 2 else { return .error(.value) }
+            let rows = g(a[0], c)
+            var out: [[CellValue]] = []
+            for e in a.dropFirst() {
+                for n in g(e, c).flatMap({ $0 }).compactMap({ $0.number.map(Int.init) }) {
+                    let i = n > 0 ? n - 1 : rows.count + n
+                    guard i >= 0, i < rows.count else { return .error(.value) }
+                    out.append(rows[i])
+                }
+            }
+            return .array(out)
+        }
+        t["CHOOSECOLS"] = { a, c in
+            guard a.count >= 2 else { return .error(.value) }
+            let rows = g(a[0], c)
+            let w = rows.first?.count ?? 0
+            var cols: [Int] = []
+            for e in a.dropFirst() {
+                for n in g(e, c).flatMap({ $0 }).compactMap({ $0.number.map(Int.init) }) {
+                    let i = n > 0 ? n - 1 : w + n
+                    guard i >= 0, i < w else { return .error(.value) }
+                    cols.append(i)
+                }
+            }
+            return .array(rows.map { r in cols.map { r[$0] } })
+        }
+        func flat(_ a: [FormulaExpr], _ c: EvalContext) -> [CellValue] {
+            let rows = g(a[0], c)
+            let byCol = a.count > 2 && c.engine.scalar(c.engine.evaluate(a[2], c), c) == .bool(true)
+            let ignore = a.count > 1 ? int(a[1], c) ?? 0 : 0
+            var vals = byCol ? (0 ..< (rows.first?.count ?? 0)).flatMap { j in rows.map { $0[j] } } : rows.flatMap { $0 }
+            if ignore == 1 || ignore == 3 { vals.removeAll { $0.isEmpty } }
+            if ignore == 2 || ignore == 3 { vals.removeAll { $0.error != nil } }
+            return vals
+        }
+        t["TOCOL"] = { a, c in a.isEmpty ? .error(.value) : .array(flat(a, c).map { [$0] }) }
+        t["TOROW"] = { a, c in a.isEmpty ? .error(.value) : .array([flat(a, c)]) }
+        func wrap(_ a: [FormulaExpr], _ c: EvalContext, rowsFirst: Bool) -> EvalValue {
+            guard a.count >= 2, let n = int(a[1], c), n >= 1 else { return .error(.value) }
+            let vals = g(a[0], c).flatMap { $0 }
+            let fill = a.count > 2 ? c.engine.scalar(c.engine.evaluate(a[2], c), c) : .error(.na)
+            var chunks = stride(from: 0, to: vals.count, by: n).map { Array(vals[$0 ..< min($0 + n, vals.count)]) }
+            if let last = chunks.indices.last { chunks[last] += Array(repeating: fill, count: n - chunks[last].count) }
+            return .array(rowsFirst ? chunks : (0 ..< n).map { i in chunks.map { $0[i] } })
+        }
+        t["WRAPROWS"] = { a, c in wrap(a, c, rowsFirst: true) }
+        t["WRAPCOLS"] = { a, c in wrap(a, c, rowsFirst: false) }
+        t["TEXTSPLIT"] = { a, c in
+            guard a.count >= 2 else { return .error(.value) }
+            let text = NumberFormat.display(c.engine.scalar(c.engine.evaluate(a[0], c), c), "General", width: 32767).text
+            func delims(_ e: FormulaExpr?) -> [String] {
+                guard let e, e != .missing else { return [] }
+                return g(e, c).flatMap { $0 }.map { NumberFormat.display($0, "General", width: 255).text }.filter { !$0.isEmpty }
+            }
+            func split(_ s: String, _ ds: [String]) -> [String] {
+                guard !ds.isEmpty else { return [s] }
+                var parts = [s]
+                for d in ds { parts = parts.flatMap { $0.components(separatedBy: d) } }
+                return parts
+            }
+            let ignoreEmpty = a.count > 3 && c.engine.scalar(c.engine.evaluate(a[3], c), c) == .bool(true)
+            var rows = split(text, delims(a.count > 2 ? a[2] : nil)).map { split($0, delims(a[1])) }
+            if ignoreEmpty { rows = rows.map { $0.filter { !$0.isEmpty } }.filter { !$0.isEmpty } }
+            let w = rows.map(\.count).max() ?? 0
+            return .array(rows.map { r in r.map { CellValue.text($0) } + Array(repeating: .error(.na), count: w - r.count) })
+        }
         t["HYPERLINK"] = { a, c in
             guard !a.isEmpty else { return .error(.value) }
             return .scalar(c.engine.scalar(c.engine.evaluate(a.count > 1 ? a[1] : a[0], c), c))
