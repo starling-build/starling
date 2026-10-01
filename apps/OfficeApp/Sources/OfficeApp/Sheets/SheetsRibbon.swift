@@ -19,6 +19,7 @@ enum SheetCommand {
     case zoom(Double)
     case toggleGridlines
     case status(String)
+    case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
 
 extension Ribbon {
@@ -30,6 +31,7 @@ extension Ribbon {
         case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
+        case .review: return [_notesGroup(wb, fluent)]
         default: return nil
         }
     }
@@ -259,6 +261,18 @@ extension Ribbon {
         return Chrome.group("Charts", fluent, [
             Chrome.rows([button(.column), button(.bar), button(.line)]),
             Chrome.rows([button(.pie), button(.area), button(.scatter)]),
+        ])
+    }
+
+    private func _notesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        let has = wb.note(at: wb.active) != nil
+        return Chrome.group("Notes", fluent, [
+            Chrome.big(FluentSystemIcons.comment, has ? "Edit Note" : "New Note", fluent) { wb.onCommand?(.editNote) },
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.delete, "Delete", fluent) { wb.deleteNote(at: wb.active) },
+                Chrome.small(FluentSystemIcons.chevronUp, "Previous", fluent) { wb.goToNote(-1) },
+                Chrome.small(FluentSystemIcons.chevronDown, "Next", fluent) { wb.goToNote(1) },
+            ]),
         ])
     }
 

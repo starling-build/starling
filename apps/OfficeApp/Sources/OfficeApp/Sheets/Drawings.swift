@@ -256,16 +256,15 @@ extension SheetDrawingsXML {
     /// The parts for a sheet whose drawings changed here. `taken` holds
     /// every part name already in use and gains the new ones.
     static func write(_ ws: Worksheet, sheetPath: String, live: (SheetChart) -> Chart,
-                      original: [String: Data], taken: inout Set<String>) -> DrawingParts {
+                      original: [String: Data], taken: inout Set<String>,
+                      sheetRels: inout [(id: String, type: String, target: String)], relsChanged: inout Bool) -> DrawingParts {
         var out = DrawingParts()
         guard ws.drawingsEdited else { return out }
-        let sheetRelsPath = Xlsx._relsPath(sheetPath)
-        var sheetRels = Xlsx._relList(original[sheetRelsPath])
         let existing = sheetRels.first { $0.type.hasSuffix("/drawing") }
         if ws.drawings.isEmpty {
             if let existing, let part = ws.drawingPart {
                 sheetRels.removeAll { $0.id == existing.id }
-                out.parts[sheetRelsPath] = Data(Xlsx._relsXML(sheetRels).utf8)
+                relsChanged = true
                 out.dropped = [part, Xlsx._relsPath(part)]
             }
             out.element = ""
@@ -341,7 +340,7 @@ extension SheetDrawingsXML {
             let id = Xlsx._freshId(sheetRels)
             sheetRels.removeAll { $0.type.hasSuffix("/drawing") }
             sheetRels.append((id, "\(relBase)/drawing", "../" + String(part.dropFirst("xl/".count))))
-            out.parts[sheetRelsPath] = Data(Xlsx._relsXML(sheetRels).utf8)
+            relsChanged = true
             out.element = "<drawing xmlns:r=\"\(relBase)\" r:id=\"\(id)\"/>"
         }
         return out

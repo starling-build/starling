@@ -152,6 +152,8 @@ final class SheetsShellState: State<StatefulWidget> {
             wb.structural { wb.sheet.showGridlines.toggle() }
         case .status(let m):
             _flash(m)
+        case .editNote:
+            _editNote(at: wb.active)
         }
     }
 
@@ -594,6 +596,28 @@ final class SheetsShellState: State<StatefulWidget> {
         setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
     }
 
+    // MARK: Notes
+
+    private let _noteFlyout = FlyoutController()
+
+    private func _editNote(at a: CellAddress) {
+        guard let context, let grid = _grid else { return }
+        _ = grid.commitEdit()
+        let menu = _noteFlyout
+        let point = grid.globalTopRight(of: a)
+        let initial = wb.note(at: a)?.body ?? ""
+        menu.showFlyout(in: context, at: point) { [weak self] _ in
+            NoteEditor(initial: initial, onSave: { text in
+                menu.closeFlyout()
+                self?.wb.setNote(text, at: a)
+                self?._grid?.focus.requestFocus()
+            }, onCancel: {
+                menu.closeFlyout()
+                self?._grid?.focus.requestFocus()
+            })
+        }
+    }
+
     // MARK: Validation lists
 
     private func _showListMenu(at point: Offset, cell: CellAddress, _ choices: [String]) {
@@ -670,6 +694,12 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         item("Clear Contents") { c.clearContents() }
         item("Clear Formats") { c.setStyle { $0 = .plain } }
+        if case .cells = area {
+            sep()
+            let has = c.note(at: c.active) != nil
+            item(has ? "Edit Note" : "New Note") { [weak self] in self?._editNote(at: c.active) }
+            if has { item("Delete Note") { c.deleteNote(at: c.active) } }
+        }
         sep()
         switch area {
         case .columns:

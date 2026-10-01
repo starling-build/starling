@@ -59,3 +59,56 @@ final class SheetsNoteTests: XCTestCase {
         }
     }
 }
+
+extension SheetsNoteTests {
+    func testNewNotesOnANewWorkbook() throws {
+        let c = WorkbookController()
+        c.setInputs([(CellAddress("B2")!, "42")])
+        c.setNote("Check the source", at: CellAddress("B2")!)
+        let n = try XCTUnwrap(c.note(at: CellAddress("B2")!))
+        XCTAssertEqual(n.body, "Check the source")
+        let data = try Xlsx.write(c.book)
+        let out = try Zip.read(data)
+        for e in out where e.name.hasSuffix(".xml") || e.name.hasSuffix(".rels") || e.name.hasSuffix(".vml") {
+            XCTAssertNotNil(XNode.parse(e.data), "\(e.name)")
+        }
+        func part(_ name: String) -> String? { out.first { $0.name == name }.map { String(decoding: $0.data, as: UTF8.self) } }
+        XCTAssertNotNil(part("xl/comments1.xml"))
+        XCTAssertTrue(part("xl/drawings/vmlDrawing1.vml")?.containsSubstring("<x:Row>1</x:Row><x:Column>1</x:Column>") ?? false)
+        XCTAssertTrue(part("xl/worksheets/sheet1.xml")?.containsSubstring("<legacyDrawing") ?? false)
+        XCTAssertTrue(part("xl/worksheets/_rels/sheet1.xml.rels")?.containsSubstring("relationships/comments") ?? false)
+        XCTAssertTrue(part("[Content_Types].xml")?.containsSubstring("/xl/comments1.xml") ?? false)
+        let back = try Xlsx.read(data)
+        XCTAssertEqual(back.sheets[0].notes.first?.at, CellAddress("B2"))
+        XCTAssertEqual(back.sheets[0].notes.first?.body, "Check the source")
+        // Saved again, untouched, it is not rewritten.
+        let again = try Zip.read(try Xlsx.write(back))
+        XCTAssertEqual(again.first { $0.name == "xl/comments1.xml" }?.data, out.first { $0.name == "xl/comments1.xml" }?.data)
+    }
+
+    func testEditAddAndDeleteInAFilesNotes() throws {
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Self.withNotes()))
+        c.setNote("measured three times", at: CellAddress("E4")!)
+        c.setNote("A new one", at: CellAddress("G8")!)
+        c.setNote("cannot", at: CellAddress("F6")!)        // threaded: left alone
+        XCTAssertEqual(c.note(at: CellAddress("F6")!)?.edited, false)
+        let out = try Zip.read(try Xlsx.write(c.book))
+        let comments = String(decoding: try XCTUnwrap(out.first { $0.name == "xl/comments1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(comments.containsSubstring("measured three times"))
+        XCTAssertFalse(comments.containsSubstring("measured twice"))
+        XCTAssertTrue(comments.containsSubstring("<comment ref=\"G8\" authorId=\"2\">"), comments)   // a third author
+        let vml = String(decoding: try XCTUnwrap(out.first { $0.name == "xl/drawings/vmlDrawing1.vml" }).data, as: UTF8.self)
+        XCTAssertEqual(vml.components(separatedBy: "<v:shape ").count - 1, 3)
+        XCTAssertTrue(vml.containsSubstring("_x0000_s1031"))                 // one past the file's largest (1030)
+        let back = try Xlsx.read(try Zip.write(out))
+        XCTAssertEqual(Set(back.sheets[0].notes.compactMap(\.at)), [CellAddress("E4")!, CellAddress("F6")!, CellAddress("G8")!])
+        c.deleteNote(at: CellAddress("E4")!)
+        c.deleteNote(at: CellAddress("G8")!)
+        XCTAssertNil(c.note(at: CellAddress("E4")!))
+        let after = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/comments1.xml" }).data, as: UTF8.self)
+        XCTAssertFalse(after.containsSubstring("ref=\"E4\"") || after.containsSubstring("ref=\"G8\""))
+        c.undo(); c.undo()
+        XCTAssertNotNil(c.note(at: CellAddress("E4")!))
+    }
+}

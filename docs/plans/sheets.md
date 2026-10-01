@@ -308,8 +308,18 @@ own bold "Author:" line, text wrapped). Inserting or deleting rows and
 columns moves each note's `ref` in `commentsN.xml`, its shape's
 `x:Row`/`x:Column` in the VML drawing and a threaded comment's `ref`; a
 note whose cell is deleted is removed from all three. Untouched note
-parts are written byte for byte. Not yet: adding or editing notes,
-threaded-comment replies shown as a thread.
+parts are written byte for byte. Notes are made, edited and deleted
+here too (Review → Notes, the right-click menu; Previous/Next walk
+them): a new note is signed with the user's name, as Excel's are; the
+file's comments and VML parts are patched (text replaced, notes and
+authors appended, shapes added after the file's largest id) or created
+with their relationships, content types and `<legacyDrawing>` when the
+sheet had none. Threaded comments stay read-only (Excel owns their
+replies). Drawings and notes share one relationship list per sheet in
+the writer, so a sheet gaining both in one save keeps both links.
+
+The Review tab used to show Writer's Spelling and Word Count for a
+workbook (acting on an invisible empty document); it is Sheets' own now.
 
 **Data validation (2026-10-01)** (`Sheets/Validation.swift`): the kept
 `<dataValidations>` are read (cached per data revision): a list rule

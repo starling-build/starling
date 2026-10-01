@@ -387,6 +387,13 @@ final class SheetGridState: State<StatefulWidget> {
         return nil
     }
 
+    /// A cell's top-right corner in global coordinates (where a note opens).
+    func globalTopRight(of a: CellAddress) -> Offset {
+        let r = rect(a)
+        let local = Offset(r.right + 8, r.top)
+        return _box?.localToGlobal(local) ?? local
+    }
+
     /// A validation list's arrow: a button just right of the active cell.
     func listButton() -> Rect? {
         let c = controller

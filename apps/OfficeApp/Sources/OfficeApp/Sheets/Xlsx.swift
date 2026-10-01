@@ -477,16 +477,26 @@ enum Xlsx {
         // <drawing> element to its sheet.
         var taken = Set(originalParts.keys).union(paths)
         var drawingParts: [DrawingParts] = []
+        var noteParts: [NoteParts] = []
+        var sheetRelParts: [String: Data] = [:]
         let calc = book.sheets.contains(where: \.drawingsEdited) ? CalcEngine(book) : nil
         for (i, ws) in book.sheets.enumerated() {
+            // One relationship list per sheet, shared by whatever adds to it.
+            var rels = _relList(originalParts[_relsPath(paths[i])])
+            var changed = false
             drawingParts.append(SheetDrawingsXML.write(ws, sheetPath: paths[i], live: { sc in
                 calc.map { sc.live(book: book, engine: $0) } ?? sc.chart
-            }, original: originalParts, taken: &taken))
+            }, original: originalParts, taken: &taken, sheetRels: &rels, relsChanged: &changed))
+            noteParts.append(NotesXML.write(ws, sheetPath: paths[i], original: originalParts, taken: &taken,
+                                            sheetRels: &rels, relsChanged: &changed))
+            if changed { sheetRelParts[_relsPath(paths[i])] = Data(_relsXML(rels).utf8) }
         }
         var sheetXML: [String] = []
         for (i, ws) in book.sheets.enumerated() {
-            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab, drawing: drawingParts[i].element,
-                                      stringIndex: stringIndex))
+            var extra: [String: String] = [:]
+            if let e = drawingParts[i].element { extra["drawing"] = e }
+            if let e = noteParts[i].element { extra["legacyDrawing"] = e }
+            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab, extra: extra, stringIndex: stringIndex))
         }
 
         // The workbook part and its relationships.
@@ -533,7 +543,6 @@ enum Xlsx {
                 })
             }
         }
-        for ws in book.sheets { generated.merge(NotesXML.write(ws.notes, ws.noteParts, original: originalParts)) { $1 } }
         var extraTypes: [(String, String)] = []
         var droppedDrawings = Set<String>()
         for d in drawingParts {
@@ -541,6 +550,11 @@ enum Xlsx {
             extraTypes += d.overrides
             droppedDrawings.formUnion(d.dropped)
         }
+        for n in noteParts {
+            generated.merge(n.parts) { $1 }
+            extraTypes += n.overrides
+        }
+        generated.merge(sheetRelParts) { $1 }
 
         // Content types: the original's, with the parts we added and without
         // the ones we dropped.
@@ -716,10 +730,9 @@ enum Xlsx {
         "webPublishItems", "tableParts", "extLst",
     ]
 
-    private static func _sheetXML(_ ws: Worksheet, book: Workbook, selected: Bool, drawing: String? = nil,
+    private static func _sheetXML(_ ws: Worksheet, book: Workbook, selected: Bool, extra: [String: String] = [:],
                                   stringIndex: (String) -> Int) -> String {
-        var generated: [String: String] = [:]
-        if let drawing { generated["drawing"] = drawing }
+        var generated = extra
         let used = ws.usedExtent
         generated["dimension"] = "<dimension ref=\"\(ws.cells.isEmpty ? "A1" : CellRange(CellAddress(row: 0, col: 0), used).a1)\"/>"
         // Views: the selection, frozen panes, gridlines.
