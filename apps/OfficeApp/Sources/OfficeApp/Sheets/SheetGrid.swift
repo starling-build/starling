@@ -1311,6 +1311,19 @@ final class SheetGridState: State<StatefulWidget> {
                 canvas.drawRect(m.map { rect($0) } ?? rect(a), p)
             }
         }
+        // Conditional formats: fills over the cells' own, bars and fonts below.
+        var looks: [CellAddress: CFLook] = [:]
+        if let cf = controller.conditionalFormats() {
+            for row in rs { for col in cs {
+                let a = CellAddress(row: row, col: col)
+                if !covered.contains(a), let look = cf.look(a) { looks[a] = look }
+            } }
+        }
+        for (a, look) in looks {
+            guard let f = look.dxf.fill ?? look.fill else { continue }
+            p.color = Color(Int64(0xFF00_0000) | Int64(f))
+            canvas.drawRect(merges.first { $0.topLeft == a }.map { rect($0) } ?? rect(a), p)
+        }
         // Gridlines, then merged areas painted over the lines inside them.
         if colors.showGrid {
             let line = Paint()
@@ -1332,14 +1345,24 @@ final class SheetGridState: State<StatefulWidget> {
             p.color = st.fill.map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.paper
             canvas.drawRect(Rect.fromLTRB(r.left + 0.5, r.top + 0.5, r.right - 1, r.bottom - 1), p)
         }
+        // Data bars, under the values.
+        for (a, look) in looks {
+            guard let bar = look.bar else { continue }
+            let r = rect(a)
+            let inset = 2 * zoom
+            p.color = Color(Int64(0xFF00_0000) | Int64(bar.color))
+            canvas.drawRect(Rect.fromLTWH(r.left + inset, r.top + inset, max(0, (r.width - 2 * inset) * bar.fraction),
+                                          max(0, r.height - 2 * inset - 1)), p)
+        }
         // Values.
         for row in rs { for col in cs {
             let a = CellAddress(row: row, col: col)
             guard a != editing, !covered.contains(a), let cell = ws.cells[a], !cell.value.isEmpty else { continue }
+            let cf = looks[a]?.dxf
             if let m = merges.first(where: { $0.topLeft == a }) {
-                _paintCell(canvas, a, cell, in: rect(m), spill: false, ws: ws, book: book, ink: colors.ink)
+                _paintCell(canvas, a, cell, in: rect(m), spill: false, ws: ws, book: book, ink: colors.ink, cf: cf)
             } else {
-                _paintCell(canvas, a, cell, in: rect(a), spill: true, ws: ws, book: book, ink: colors.ink)
+                _paintCell(canvas, a, cell, in: rect(a), spill: true, ws: ws, book: book, ink: colors.ink, cf: cf)
             }
         } }
         // Merged areas whose top-left is out of this pane still draw their text.
@@ -1429,8 +1452,16 @@ final class SheetGridState: State<StatefulWidget> {
     }
 
     private func _paintCell(_ canvas: any Canvas, _ a: CellAddress, _ cell: Cell, in r: Rect, spill: Bool,
-                            ws: Worksheet, book: Workbook, ink: Color) {
-        let st = book.style(cell.style)
+                            ws: Worksheet, book: Workbook, ink: Color, cf: DxfStyle? = nil) {
+        var st = book.style(cell.style)
+        if let d = cf {
+            // A conditional format's font settings over the cell's own.
+            if let v = d.bold { st.bold = v }
+            if let v = d.italic { st.italic = v }
+            if let v = d.underline { st.underline = v }
+            if let v = d.strike { st.strike = v }
+            if let v = d.color { st.color = v }
+        }
         let ca = cols
         let left = r.left, right = r.right, top = r.top, bottom = r.bottom
         let width = right - left

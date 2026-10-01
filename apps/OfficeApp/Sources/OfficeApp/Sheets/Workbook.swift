@@ -191,6 +191,8 @@ final class Workbook {
     var keptStyleParts: [String: String] = [:]
     /// Those differential formats, read for drawing conditional formats.
     var dxfs: [DxfStyle] = []
+    /// The theme's twelve colour slots (lt1, dk1, lt2, dk2, accent1–6, links).
+    var themeColors: [UInt32] = Xlsx._themeColors(nil)
     /// What charts draw with: the file's theme, or Office's.
     var chartTheme = DeckTheme.office
 

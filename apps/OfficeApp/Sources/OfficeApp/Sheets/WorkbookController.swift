@@ -15,6 +15,9 @@ final class WorkbookController: ChangeNotifier {
     private(set) var engine: CalcEngine
     /// Bumped on every change; painters compare it to decide to repaint.
     private(set) var revision = 0
+    /// Bumped by changes to cells, not by the selection moving: what
+    /// caches of values (conditional-format statistics) key on.
+    private(set) var dataRevision = 0
     /// Edits since open or save, for the title's dirty mark.
     private(set) var edits = 0
 
@@ -166,6 +169,18 @@ final class WorkbookController: ChangeNotifier {
     /// The picture or chart selected (an index into the sheet's drawings),
     /// instead of cells. Any cell selection clears it.
     var selectedDrawing: Int? = nil
+    private var _cf: (sheet: ObjectIdentifier, revision: Int, evaluator: CFEvaluator)? = nil
+
+    /// The active sheet's conditional formats, for one state of its data;
+    /// nil when it has none.
+    func conditionalFormats() -> CFEvaluator? {
+        let ws = sheet
+        guard ws.keptElements.contains(where: { $0.name == "conditionalFormatting" }) else { return nil }
+        if let c = _cf, c.sheet == ObjectIdentifier(ws), c.revision == dataRevision { return c.evaluator }
+        let e = CFEvaluator(rules: ConditionalFormats.rules(ws, theme: book.themeColors), book: book, engine: engine, sheet: activeSheet)
+        _cf = (ObjectIdentifier(ws), dataRevision, e)
+        return e
+    }
 
     /// Move within a selection with Enter/Tab (Excel keeps a multi-cell
     /// selection and walks the active cell through it).
@@ -638,6 +653,7 @@ final class WorkbookController: ChangeNotifier {
 
     func _notify(selectionOnly: Bool = false) {
         revision += 1
+        if !selectionOnly { dataRevision += 1 }
         notifyListeners()
     }
 

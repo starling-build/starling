@@ -36,6 +36,7 @@ enum Xlsx {
 
         // Theme colours, for fills and fonts that name a slot.
         let theme = _themeColors(xml("xl/theme/theme1.xml"))
+        book.themeColors = theme
         // Shared strings.
         var sst: [String] = []
         if let s = xml("xl/sharedStrings.xml") {
