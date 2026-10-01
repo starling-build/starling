@@ -694,6 +694,7 @@ enum SheetFunctions {
             }
             return .number(total)
         }
+        addMore(&t)
         return t
     }()
 

@@ -367,6 +367,21 @@ DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
 TEXTSPLIT work too. Still unread (kept verbatim): the intersection
 operator (a space); LAMBDA is a known name but not callable.
 
+**Functions: 242 (2026-10-01).** `Sheets/MoreFunctions.swift` adds the
+everyday rest: LARGE, SMALL, RANK(.EQ/.AVG), PERCENTILE and QUARTILE
+(.INC/.EXC), MODE, VAR.P, GEOMEAN, HARMEAN, AVEDEV, DEVSQ, AVERAGEA,
+MAXA, MINA, SLOPE, INTERCEPT, RSQ, CORREL, FORECAST, FREQUENCY, the
+normal distribution (NORM.DIST, NORM.S.DIST, NORM.INV, NORM.S.INV);
+GCD, LCM, FACT, COMBIN, PERMUT, QUOTIENT, MROUND, EVEN, ODD,
+CEILING.MATH, FLOOR.MATH, the trigonometry; MAXIFS, MINIFS, SWITCH,
+XMATCH, LOOKUP, ADDRESS, OFFSET, INDIRECT, ISFORMULA, ISREF, N, T,
+TYPE, ERROR.TYPE, SUBTOTAL (skipping filtered rows and nested
+subtotals), AGGREGATE; REPLACE, CLEAN, FIXED, DOLLAR, UNICHAR,
+UNICODE, TEXTBEFORE, TEXTAFTER, NUMBERVALUE; WEEKNUM, ISOWEEKNUM,
+WORKDAY, DAYS, DAYS360, YEARFRAC, DATEVALUE, TIMEVALUE; NPER, IPMT,
+PPMT, CUMIPMT, CUMPRINC, SLN, SYD, DDB, DB, IRR, XNPV, XIRR — each
+tested against the value Excel's documentation gives.
+
 **Recalculation (2026-10-01).** Evaluation used to recurse into each
 formula's inputs from sheet order, so a running total 15,000 rows long
 recursed 15,000 deep and crashed the app (SIGSEGV, stack overflow).
