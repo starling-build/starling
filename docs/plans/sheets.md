@@ -1,0 +1,153 @@
+# Sheets — a spreadsheet app beside Writer and Slides
+
+Status: **drafted 2026-09-30, building.** Phase 4 of `docs/plans/office.md`,
+given its own revision the way Slides was. The defaults below follow the
+calls already made for Slides (one app, macOS first, nothing may break
+the wasm or iOS builds of shared code); each is marked **[default]** so
+it can be overturned without unpicking anything.
+
+## What "done" means for v1
+
+Someone can open an `.xlsx` a colleague sent — a budget, a list, a
+small model — change numbers and formulas, add a row, sort it, format a
+column as currency, and send it back; Excel opens it without complaint
+and every value the file carried that we did not touch is as it was.
+Starting from a blank workbook is the second case: type a table, total
+it, format it, chart it.
+
+Not v1: pivot tables, macros/VBA, external links, data validation
+dropdowns (kept, not edited), conditional formatting (kept and drawn
+for the simple kinds, not edited), array/dynamic-array formulas beyond
+reading their cached values, sparklines, slicers, co-authoring. A file
+carrying these opens with their cached values and keeps the XML so a
+save writes it back.
+
+## Shape of the code
+
+**One app for all three kinds [default].** `apps/OfficeApp` opens an
+`.xlsx`/`.csv` as a workbook beside `.docx` and `.pptx`;
+`DocumentKind.workbook`, appName "Sheets", untitled "Book1". The shell
+for a workbook is its own (`SheetsShell`), keyed by the root exactly as
+`SlidesShell` is, and shares the title row, Backstage, File tab and
+status bar. All new code lives in `Sources/OfficeApp/Sheets/`; the shared
+files gain only the kind and its switch arms — Slides is being built in
+the same files at the same time, so the touch is kept to a few lines.
+
+| Layer | Where | What |
+| --- | --- | --- |
+| Addresses | `Sheets/CellAddress.swift` | A1 / $A$1 / ranges / sheet-qualified refs, parse and print |
+| Model | `Sheets/Workbook.swift` | `Workbook`, `Worksheet`, `Cell`, `CellValue`, column widths, row heights, styles |
+| Formulas | `Sheets/Formula.swift` | tokenizer, parser to an AST, printer (round-trips the text) |
+| Engine | `Sheets/Calc.swift`, `Functions.swift` | evaluation, dependency graph, recalc of what changed, errors, cycles |
+| Controller | `Sheets/WorkbookController.swift` | every mutation, one undo stack, selection, fill, insert/delete with reference rewriting |
+| Grid | `Sheets/SheetGrid.swift` | the painted grid: headers, cells, selection, scrolling, frozen panes |
+| Chrome | `Sheets/SheetsShell.swift`, `SheetsRibbon.swift`, `FormulaBar.swift`, `SheetTabs.swift` | |
+| Format | `Sheets/Xlsx*.swift`, `Csv.swift` | SpreadsheetML read/write over the existing `Zip` and `MiniXML`; CSV |
+
+**The grid is painted, not built of widgets.** A screen of cells is
+thousands of rectangles; one `CustomPaint` draws the visible window
+(headers, gridlines, values, selection) from the model, with text laid
+out through a small paragraph cache keyed by (text, style, width). The
+framework has no 2D viewport (office.md), so scrolling is the grid's own
+offset, moved by wheel/trackpad and keys, and only visible rows and
+columns are touched. Editing a cell puts one single-line editor over it;
+the formula bar is a second view of the same text.
+
+## The model
+
+```
+Workbook
+  sheets [Worksheet], active
+  styles           a table of CellStyle (font, fill, border, alignment, number format)
+  names            defined names → ranges (read, evaluated; edited later)
+
+Worksheet
+  name
+  cells            sparse: [CellAddress: Cell]
+  colWidths        sparse, in characters of the default font (Excel's unit) → points
+  rowHeights       sparse, in points
+  freeze           top rows / left columns
+  merges           [Range]
+  kept             XML the model does not understand, written back as is
+
+Cell
+  input            what was typed: "12", "=SUM(A1:A3)", "Total"
+  formula          parsed AST when input starts with "="
+  value            CellValue: number | text | bool | error(#DIV/0!, #REF!, #NAME?, #VALUE!, #N/A, #NUM!, #NULL!) | empty
+  style            index into the workbook's styles
+```
+
+Numbers are `Double`, as Excel's are; dates are numbers with a date
+format (the 1900 serial system, Excel's leap-year bug included, so
+serials match). Text typed as `12` is a number, `'12` is text, `TRUE` a
+boolean, `1/2/2026` a date in the user's locale order, `12%` 0.12 with a
+percent format, `$1,200` 1200 with a currency format — Excel's input
+parsing, which is what makes typing feel right.
+
+## The engine
+
+A recursive-descent parser for Excel's grammar: numbers, strings, booleans,
+errors, cell and range references (relative/absolute, sheet-qualified,
+whole columns/rows), defined names, unary/binary operators with Excel's
+precedence (`:` `,`-union, `-` negation, `%`, `^`, `* /`, `+ -`, `&`,
+comparisons), function calls. The printer turns an AST back into the
+text Excel would show, which is how references are rewritten when rows
+and columns move.
+
+Recalculation: each formula cell records the cells and ranges it reads;
+a change marks its dependents dirty and they are evaluated in dependency
+order. A cycle gives the cells in it Excel's circular-reference warning
+and a value of 0. Every evaluation is pure over the model, so the same
+engine runs on every platform, the web included.
+
+**Functions for v1** — the ones that cover nearly every real sheet:
+SUM, AVERAGE, COUNT, COUNTA, COUNTBLANK, MIN, MAX, PRODUCT, ROUND,
+ROUNDUP, ROUNDDOWN, INT, ABS, MOD, POWER, SQRT, IF, IFS, IFERROR, AND,
+OR, NOT, SUMIF, SUMIFS, COUNTIF, COUNTIFS, AVERAGEIF, VLOOKUP, HLOOKUP,
+XLOOKUP, INDEX, MATCH, CONCAT, CONCATENATE, TEXTJOIN, LEFT, RIGHT, MID,
+LEN, UPPER, LOWER, PROPER, TRIM, TEXT, VALUE, FIND, SEARCH, SUBSTITUTE,
+TODAY, NOW, DATE, YEAR, MONTH, DAY, EDATE, EOMONTH, NETWORKDAYS, PMT,
+FV, PV, NPV, RATE (stretch), ISBLANK, ISNUMBER, ISTEXT, ISERROR, NA.
+An unknown function is `#NAME?` and keeps its text, so a file using one
+round-trips with its cached value.
+
+## Phases
+
+- **X1 — a workbook that calculates.** Model, addresses, parser, engine
+  with the v1 functions, controller with undo; the grid (headers,
+  scrolling, selection by click/drag/shift/keys, type to replace, F2 /
+  double-click to edit, Enter/Tab/arrows to commit), the formula bar
+  with the name box, sheet tabs (add, rename, switch), the status bar's
+  Sum / Average / Count of the selection; CSV open and save. Backstage
+  New → Blank workbook. Gate: engine unit tests against Excel-computed
+  values; a driver run on screen.
+- **X2 — .xlsx.** Read and write SpreadsheetML: shared strings, inline
+  strings, numbers, booleans, errors, formulas with cached values,
+  styles (fonts, fills, borders, alignment, number formats), column
+  widths, row heights, merges, freeze panes, defined names, multiple
+  sheets; unknown parts passed through. Gate: round trips of real files
+  with `qlmanage` (Apple's Excel importer) and a check script, as Slides
+  does for `.pptx`.
+- **X3 — editing like Excel.** Number formats (General, Number,
+  Currency, Accounting, Percent, Date, Time, Text, custom codes read
+  and drawn), Home ribbon (font, fill, borders, alignment, wrap, merge,
+  format buttons), column/row resize by drag and double-click autofit,
+  insert/delete rows and columns with reference rewriting, the fill
+  handle (copy, series, dates), copy/cut/paste within the app (formulas
+  shifted) and with other apps (TSV and HTML), Find and Replace.
+- **X4 — tables of data.** Freeze panes, sort (by one or more keys),
+  AutoFilter, charts (Slides' `Chart` model and painter, fed from a
+  range), print and PDF export with page breaks.
+- **X5 — everywhere.** Web (`starling.debug('sheet')` dump beside
+  Writer's layout dump), iOS, the Linux desktop.
+
+## Open questions
+
+- One app or three (Writer, Slides, Sheets as separate apps from one
+  package)? Default one, as for Slides.
+- Function list — anything the user's own sheets need that is missing
+  above.
+
+## Where it stands
+
+X1 in progress (2026-09-30), on branch `sheets` from `office` 3d65c315.

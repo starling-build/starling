@@ -1,0 +1,140 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// The workbook model: sheets of sparse cells, each holding what was typed,
+// its parsed formula and its current value. Values are Excel's: numbers
+// are Doubles, dates are numbers with a date format, errors are values.
+
+/// Excel's error values, which are values like any other — a formula
+/// can test for them, and they propagate through arithmetic.
+enum ExcelError: String, Hashable, Sendable, CaseIterable, Error {
+    case null = "#NULL!"
+    case div0 = "#DIV/0!"
+    case value = "#VALUE!"
+    case ref = "#REF!"
+    case name = "#NAME?"
+    case num = "#NUM!"
+    case na = "#N/A"
+}
+
+enum CellValue: Hashable, Sendable {
+    case empty
+    case number(Double)
+    case text(String)
+    case bool(Bool)
+    case error(ExcelError)
+
+    var isEmpty: Bool { if case .empty = self { return true }; return false }
+    var number: Double? { if case .number(let n) = self { return n }; return nil }
+    var error: ExcelError? { if case .error(let e) = self { return e }; return nil }
+}
+
+/// How a cell is drawn: an index into the workbook's style table.
+struct CellStyle: Hashable, Sendable {
+    var bold = false
+    var italic = false
+    var underline = false
+    var strike = false
+    var fontName: String? = nil
+    var fontSize: Double? = nil
+    var color: UInt32? = nil       // 0xRRGGBB
+    var fill: UInt32? = nil        // 0xRRGGBB
+    var hAlign: HAlign = .general
+    var vAlign: VAlign = .bottom
+    var wrap = false
+    var numberFormat = "General"
+    var borders = Borders()
+
+    enum HAlign: String, Hashable, Sendable { case general, left, center, right }
+    enum VAlign: String, Hashable, Sendable { case top, center, bottom }
+
+    struct Borders: Hashable, Sendable {
+        var top = false, left = false, bottom = false, right = false
+    }
+
+    static let plain = CellStyle()
+}
+
+struct Cell: Sendable {
+    /// What was typed, as shown in the formula bar: "12", "=A1*2", "Total".
+    var input: String
+    /// Parsed when `input` starts with "=".
+    var formula: FormulaExpr? = nil
+    /// The current value: the constant, or the formula's last result.
+    var value: CellValue = .empty
+    var style: Int = 0
+
+    var isFormula: Bool { formula != nil || input.hasPrefix("=") }
+}
+
+final class Worksheet {
+    var name: String
+    var cells: [CellAddress: Cell] = [:]
+    /// Column widths and row heights in points, where not the default.
+    var colWidths: [Int: Double] = [:]
+    var rowHeights: [Int: Double] = [:]
+    var freezeRows = 0
+    var freezeCols = 0
+    var merges: [CellRange] = []
+
+    /// Excel's defaults for Calibri 11: 8.43 characters (64 px) wide,
+    /// 15 pt (20 px) high.
+    static let defaultColWidth = 48.0
+    static let defaultRowHeight = 15.0
+
+    init(name: String) { self.name = name }
+
+    func colWidth(_ c: Int) -> Double { colWidths[c] ?? Worksheet.defaultColWidth }
+    func rowHeight(_ r: Int) -> Double { rowHeights[r] ?? Worksheet.defaultRowHeight }
+
+    func value(_ a: CellAddress) -> CellValue { cells[a]?.value ?? .empty }
+
+    /// The used area: from A1 to the furthest cell that holds anything.
+    var usedExtent: CellAddress {
+        var r = 0, c = 0
+        for a in cells.keys { r = max(r, a.row); c = max(c, a.col) }
+        return CellAddress(row: r, col: c)
+    }
+
+    func copy() -> Worksheet {
+        let s = Worksheet(name: name)
+        s.cells = cells
+        s.colWidths = colWidths
+        s.rowHeights = rowHeights
+        s.freezeRows = freezeRows
+        s.freezeCols = freezeCols
+        s.merges = merges
+        return s
+    }
+}
+
+final class Workbook {
+    var sheets: [Worksheet]
+    var styles: [CellStyle] = [.plain]
+    var names: [String: String] = [:]   // defined name (uppercased) → "Sheet1!$A$1:$B$4"
+
+    init(sheets: [Worksheet] = [Worksheet(name: "Sheet1")]) {
+        self.sheets = sheets
+    }
+
+    func sheet(named name: String) -> Int? {
+        let n = name.lowercased()
+        return sheets.firstIndex { $0.name.lowercased() == n }
+    }
+
+    /// The index of a style, added to the table if new.
+    func styleIndex(_ s: CellStyle) -> Int {
+        if let i = styles.firstIndex(of: s) { return i }
+        styles.append(s)
+        return styles.count - 1
+    }
+
+    func style(_ i: Int) -> CellStyle { i >= 0 && i < styles.count ? styles[i] : .plain }
+
+    /// A name for a new sheet: Sheet2, Sheet3, …
+    func nextSheetName() -> String {
+        var n = sheets.count + 1
+        while sheet(named: "Sheet\(n)") != nil { n += 1 }
+        return "Sheet\(n)"
+    }
+}
