@@ -498,6 +498,14 @@ final class WorkbookController: ChangeNotifier {
         _notify()
     }
 
+    /// Widen the last cell step's "before" to `before`, for an edit made
+    /// of a change and then setInputs that should undo as one.
+    func _foldLastStep(before: [CellAddress: Cell?]) {
+        guard case .cells(let si, var b, let after, let sel, let act)? = _undo.last else { return }
+        for (a, c) in before { b[a] = c }
+        _undo[_undo.count - 1] = .cells(sheet: si, before: b, after: after, selection: sel, active: act)
+    }
+
     private func _bookState() -> _BookState {
         _BookState(sheets: book.sheets.map { $0.copy() }, names: book.names, activeSheet: activeSheet)
     }

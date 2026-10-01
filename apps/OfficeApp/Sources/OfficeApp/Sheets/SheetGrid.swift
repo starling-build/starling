@@ -498,7 +498,10 @@ final class SheetGridState: State<StatefulWidget> {
             lines.append(fields.joined(separator: "\t"))
         }
         let text = lines.joined(separator: "\n") + "\n"
-        Clipboard.setData(ClipboardData(text: text))
+        // Other apps get the table as HTML too: Writer, Mail and Word paste
+        // it as a table with its formatting.
+        let html = HtmlTable.render(c, r, rows: r.top ... bottom, cols: r.left ... right)
+        Clipboard.setData(ClipboardData(text: text, html: html))
         // Inside the app a paste is exact; a cut moves on paste, as Excel's does.
         Self._clip = c.clip(cut: cut, text: text)
         _w.onStatus((cut ? "Cut " : "Copied ") + (r.rows > 1 || r.cols > 1 ? r.a1 : r.topLeft.a1) + (cut ? " — paste to move it" : ""))
@@ -506,8 +509,9 @@ final class SheetGridState: State<StatefulWidget> {
     }
 
     func paste() {
-        Clipboard.getData(Clipboard.kTextPlain) { [weak self] data in
-            guard let text = data?.text, !text.isEmpty else { return }
+        Clipboard.getData(Clipboard.kAll) { [weak self] data in
+            let html = data?.html
+            guard let text = data?.text ?? (html == nil ? nil : ""), !(text.isEmpty && html == nil) else { return }
             DispatchQueue.main.async {
                 guard let self, self.mounted else { return }
                 if self.edit != nil {
@@ -521,6 +525,11 @@ final class SheetGridState: State<StatefulWidget> {
                     c.paste(clip)
                     if clip.cut { Self._clip = nil }
                     self.reveal(c.active)
+                    return
+                }
+                // Another app's table, with its formatting.
+                if let html, let table = HtmlTable.parse(html) {
+                    c.pasteTable(table)
                     return
                 }
                 let rows = Csv.parse(text, separator: "\t")

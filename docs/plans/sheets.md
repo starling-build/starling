@@ -172,7 +172,13 @@ step), double-click autofit on header borders, and the right-click
 menu for cells, rows and columns (part 3). Seen on screen through
 `test/sheets-script.sh` with `test/scripts/sheets-{editing,panes,find}.txt`
 — in-process input into a background window, never the OS driver.
-Left: paste to and from other apps (TSV/HTML), then X4.
+Copy and paste with other apps (`Sheets/HtmlTable.swift`): a copy
+puts TSV and an HTML table on the pasteboard (character styles on an
+inner span, which is where Writer reads them); a paste prefers a table
+in the HTML — Excel's class-styled clipboard, Google Sheets' and web
+pages' inline styles — and keeps bold, italic, colours, fills and
+alignment, as one undo step. Tested on parsed fixtures only: a live
+test would overwrite the real pasteboard. Next: X4.
 
 Script coordinates are view points: the window's 28pt title bar is not
 in them, so a screenshot's y (in points) is 28 more than the script's.

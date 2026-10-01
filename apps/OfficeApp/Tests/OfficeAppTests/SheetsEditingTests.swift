@@ -170,3 +170,59 @@ extension SheetsEditingTests {
         XCTAssertEqual(c.book.sheets[0].value(CellAddress("C2")!), .text("Apple"))
     }
 }
+
+extension SheetsEditingTests {
+    func testHtmlTableFromExcel() throws {
+        // The shape Excel puts on the clipboard: classes in a <style> block,
+        // conditional comments, &nbsp; and a colspan.
+        let html = """
+        <html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset=utf-8>
+        <style><!--table {mso-displayed-decimal-separator:"\\.";}
+        .xl65 {font-weight:700; color:#C00000;}
+        td.xl66 {background:yellow; text-align:center}
+        --></style></head><body><!--StartFragment-->
+        <table><tr><td class=xl65>Item</td><td class="xl66">Cost</td></tr>
+        <tr><td>Rent&nbsp;&amp; bills</td><td x:num="1200" align=right>$1,200.00</td></tr>
+        <tr><td colspan=2>Total</td><td>=SUM(C3)</td></tr></table><!--EndFragment--></body></html>
+        """
+        let rows = try XCTUnwrap(HtmlTable.parse(html))
+        XCTAssertEqual(rows.map { $0.map(\.text) }, [["Item", "Cost"], ["Rent & bills", "$1,200.00"], ["Total", "", "=SUM(C3)"]])
+        XCTAssertEqual(rows[0][0].style?.bold, true)
+        XCTAssertEqual(rows[0][0].style?.color, 0xC00000)
+        XCTAssertEqual(rows[0][1].style?.fill, 0xFFFF00)
+        XCTAssertEqual(rows[0][1].style?.hAlign, .center)
+        XCTAssertEqual(rows[1][1].style?.hAlign, .right)
+        XCTAssertNil(rows[1][0].style)
+
+        let c = WorkbookController()
+        c.select(CellAddress("B2")!)
+        c.pasteTable(rows)
+        XCTAssertEqual(c.sheet.value(CellAddress("C3")!), .number(1200))
+        XCTAssertTrue(c.style(at: CellAddress("B2")!).bold)
+        XCTAssertEqual(c.sheet.value(CellAddress("D4")!), .number(1200))   // a formula goes in as written
+        XCTAssertEqual(c.selection, CellRange(top: 1, left: 1, bottom: 3, right: 3))
+        c.undo()                                                           // one step takes it all back
+        XCTAssertTrue(c.sheet.cells.isEmpty)
+    }
+
+    func testHtmlTableRoundTrip() throws {
+        let c = WorkbookController()
+        c.setInputs([(CellAddress("A1")!, "Name"), (CellAddress("B1")!, "12.5"), (CellAddress("A2")!, "<b> & co")])
+        c.select(range: CellRange(top: 0, left: 0, bottom: 0, right: 0))
+        c.setStyle { $0.bold = true; $0.fill = 0x00FF00 }
+        let r = CellRange(top: 0, left: 0, bottom: 1, right: 1)
+        let html = HtmlTable.render(c, r, rows: 0 ... 1, cols: 0 ... 1)
+        let rows = try XCTUnwrap(HtmlTable.parse(html))
+        XCTAssertEqual(rows.map { $0.map(\.text) }, [["Name", "12.5"], ["<b> & co", ""]])
+        XCTAssertEqual(rows[0][0].style?.bold, true)
+        XCTAssertEqual(rows[0][0].style?.fill, 0x00FF00)
+        XCTAssertEqual(rows[0][1].style?.hAlign, .right)   // numbers go out right-aligned
+        XCTAssertNil(HtmlTable.parse("<p>no table here</p>"))
+        // Writer pastes it as a table, the bold kept.
+        let paras = try XCTUnwrap(HtmlFormat.parse(html))
+        let name = try XCTUnwrap(paras.first { $0.text == "Name" })
+        XCTAssertNotNil(name.cell)
+        XCTAssertTrue(name.style(at: 0).bold)
+        XCTAssertNotNil(paras.first { $0.text == "12.5" }?.cell)
+    }
+}
