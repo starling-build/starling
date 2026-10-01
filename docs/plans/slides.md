@@ -112,6 +112,31 @@ it, Esc leaves the text with the shape selected, arrows nudge, Delete,
 snapshot; a text-editing session folds into one step when it ends, and
 ⌘Z while typing undoes the typing first.
 
+**S5 done 2026-09-30**: the slide show. From Beginning / From Current
+(Slide Show tab, F5 / ⇧F5, ⌘⇧↩ / ⌘↩) puts the window full screen through
+a new framework hook, `hostSetFullscreen` (Cocoa: toggleFullScreen, made
+reliable below), and plays the visible slides letterboxed on black: → ↓
+Space Return PageDown N and a click go on, ← ↑ Backspace PageUp P and a
+right click go back, Home/End, a number then Return jumps, B and W blank
+the screen, Esc ends; the pointer hides after two seconds still; the end
+screen is PowerPoint's. Transitions (None, Fade, Push, Wipe, Cover, with
+direction and duration, Apply To All) live on each slide, play on the
+way in, and round-trip through `p:transition` (kinds this app does not
+draw are kept verbatim and shown as a fade). Animations are not modelled
+until S7, but a slide's `p:timing` is kept and written back while every
+shape it names is still on the slide — so shapes now keep their file
+ids through a save. Both real decks keep every animation except three
+of the lecture's (aimed at groups, which the reader flattens).
+
+Traps paid for in S5:
+
+- **AppKit drops `toggleFullScreen` sent from inside an event handler or
+  to a window mid-transition** — the show stayed windowed one run in two.
+  The native call now runs on the next run-loop turn, marks the window
+  full-screen capable, and retries once if the state did not change.
+- **Saving renumbered every shape**, which silently orphaned the deck's
+  animations (they name shapes by `cNvPr id`). Ids are kept now.
+
 **S4 done 2026-09-30**: `.pptx` both ways, plus PDF. The reader resolves
 what PowerPoint resolves — placeholder geometry, body settings and text
 looks through slide, layout, master, the master's text styles and the

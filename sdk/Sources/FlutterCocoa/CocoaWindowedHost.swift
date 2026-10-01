@@ -39,6 +39,7 @@ public enum CocoaWindowedHost {
             host = h
             hostSetWindowTitle = { title in host?.setTitle(title) }
             hostSetMouseCursor = { kind in host?.setCursor(kind) }
+            hostSetFullscreen = { on in host?.setFullscreen(on) }
             hostOpenURL = { url in
                 if let u = URL(string: url) { NSWorkspace.shared.open(u) }
             }

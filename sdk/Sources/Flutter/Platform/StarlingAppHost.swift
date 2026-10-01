@@ -50,6 +50,11 @@ public nonisolated(unsafe) var hostScheduleEngineFrame: (() -> Void)? = nil
 /// title channel over the DMA-BUF socket is the plan's Phase 3 item).
 public nonisolated(unsafe) var hostSetWindowTitle: ((String) -> Void)? = nil
 
+/// Puts the host window into full screen (true) or back (false) — a slide
+/// show. Installed by hosts whose window can (Cocoa); nil elsewhere, and
+/// the app shows its full-screen content inside the window instead.
+public nonisolated(unsafe) var hostSetFullscreen: ((Bool) -> Void)? = nil
+
 /// A debugging query the host can put to the app — the browser page's
 /// `starling.debug(kind)` — answered with text, or nil for a kind the app
 /// does not know. The app installs it; hosts with no such door leave it.

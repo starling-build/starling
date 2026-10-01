@@ -362,7 +362,9 @@ private struct PptxReader {
             slides.append(SlideState(
                 id: id(), layout: Self._layoutKind(layoutType), hidden: slide["show"] == "0",
                 notes: ctx.notes(), shapes: shapes, layoutPart: layoutPart,
-                backgroundXML: bg.map(PptxXML.serialize), background: bgFill, sourcePart: part))
+                backgroundXML: bg.map(PptxXML.serialize), background: bgFill, sourcePart: part,
+                transition: Self._transition(slide),
+                timingXML: slide.first("p:timing").map(PptxXML.serialize)))
         }
         if slides.isEmpty {
             // An empty deck is still a deck: one blank slide to type on.
@@ -409,6 +411,30 @@ private struct PptxReader {
             return SlideFill(image: ImageAttachment(data: data, width: 0, height: 0, name: rel.target.lastPathComponent))
         }
         return nil
+    }
+
+    /// `p:transition`, plain or inside `mc:AlternateContent` (PowerPoint
+    /// 2010+ writes the timing in p14 there, with a plain fallback).
+    private static func _transition(_ slide: XNode) -> SlideTransition {
+        var t = SlideTransition()
+        let ac = slide.first("mc:AlternateContent")
+        guard let node = slide.first("p:transition") ?? ac?.first("mc:Choice")?.first("p:transition")
+            ?? ac?.first("mc:Fallback")?.first("p:transition") else { return t }
+        switch node["spd"] { case "fast": t.duration = 0.5; case "slow": t.duration = 1.0; default: t.duration = 0.75 }
+        if let ms = node["p14:dur"].flatMap(Double.init) { t.duration = ms / 1000 }
+        let effect = node.children.first { !$0.name.hasPrefix("p:snd") && $0.name != "p:sndAc" && $0.name != "p:extLst" }
+        switch effect?.name {
+        case nil: t.kind = .none
+        case "p:fade": t.kind = .fade
+        case "p:push": t.kind = .push
+        case "p:wipe": t.kind = .wipe
+        case "p:cover": t.kind = .cover
+        default:
+            t.kind = .fade
+            t.raw = PptxXML.serialize(ac ?? node)
+        }
+        if let d = effect?["dir"].flatMap(SlideTransition.Direction.init(rawValue:)) { t.direction = d }
+        return t
     }
 
     private static func _layoutKind(_ type: String?) -> SlideLayoutKind {
@@ -485,12 +511,19 @@ private struct SlideContext {
     // MARK: Shapes
 
     func shapes(in tree: XNode, transform: ((Rect) -> Rect)?, into out: inout [ShapeState], id: () -> Int) {
+        // Each shape keeps its file id (animations name shapes by it); a
+        // flattened group's members keep theirs, the group's own is lost.
+        func add(_ s: ShapeState?, _ el: XNode) {
+            guard var s else { return }
+            s.fileId = el.descendant("p:cNvPr")?["id"].flatMap(Int.init)
+            out.append(s)
+        }
         for el in tree.children {
             switch el.name {
-            case "p:sp": if let s = _shape(el, transform, id: id) { out.append(s) }
-            case "p:cxnSp": if let s = _connector(el, transform, id: id) { out.append(s) }
-            case "p:pic": if let s = _picture(el, transform, id: id) { out.append(s) }
-            case "p:graphicFrame": if let s = _opaque(el, label: _frameLabel(el), transform, id: id) { out.append(s) }
+            case "p:sp": add(_shape(el, transform, id: id), el)
+            case "p:cxnSp": add(_connector(el, transform, id: id), el)
+            case "p:pic": add(_picture(el, transform, id: id), el)
+            case "p:graphicFrame": add(_opaque(el, label: _frameLabel(el), transform, id: id), el)
             case "p:grpSp":
                 // Groups are flattened: each member drawn where the group's
                 // child space maps it on the slide.
@@ -513,7 +546,7 @@ private struct SlideContext {
             case "mc:AlternateContent":
                 // The fallback is what an older reader would draw: keep the
                 // whole thing, show it as an object.
-                if let s = _opaque(el, label: "Object", transform, id: id) { out.append(s) }
+                add(_opaque(el, label: "Object", transform, id: id), el)
             default: continue
             }
         }

@@ -49,6 +49,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _shapeClipboard: [ShapeState] = []
     /// Normal (canvas and notes) or Slide Sorter (a grid of every slide).
     private var _sorter = false
+    /// The slide show, when running: the slide it started from.
+    private var _show: Int? = nil
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
@@ -139,7 +141,10 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         session.onUndo = { [weak self] in self?._undo() }
         session.onRedo = { [weak self] in self?._redo() }
-        session.onSlideShow = { [weak self] _ in self?._flash("The slide show is milestone S5") }
+        session.onSlideShow = { [weak self] fromCurrent in
+            guard let self else { return }
+            self._startShow(at: fromCurrent ? self.deck.current : 0)
+        }
         session.onToggleSpelling = { [weak self] in
             guard let self else { return }
             self.setState { self.session.checkSpelling.toggle() }
@@ -269,6 +274,20 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    // MARK: Slide show
+
+    private func _startShow(at index: Int) {
+        _endEditing()
+        hostSetFullscreen?(true)
+        setState { _show = index }
+    }
+
+    private func _endShow() {
+        hostSetFullscreen?(false)
+        setState { _show = nil }
+        _deckFocus.requestFocus()
+    }
+
     // MARK: Saving
 
     private func _save() {
@@ -390,6 +409,11 @@ final class SlidesShellState: State<StatefulWidget> {
             }
             return true
         }
+        // F5 plays from the beginning, ⇧F5 from here (PowerPoint's keys).
+        if named == .function(5) {
+            _startShow(at: _deckChords.shift ? deck.current : 0)
+            return true
+        }
         switch named {
         case .down, .right, .pageDown: _select(deck.current + 1)
         case .up, .left, .pageUp: _select(deck.current - 1)
@@ -430,6 +454,11 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         let typing = _active != nil || _notesActive
+        // ⌘⇧↩ plays from the beginning, ⌘↩ from here (PowerPoint for Mac).
+        if named == .enter, mods.contains(.primary) {
+            _startShow(at: mods.contains(.shift) ? 0 : deck.current)
+            return true
+        }
         if named == .escape {
             if _backstage != nil { setState { _backstage = nil }; return true }
             if typing {
@@ -519,6 +548,14 @@ final class SlidesShellState: State<StatefulWidget> {
 
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
+        if let start = _show {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: SlideShowView(
+                    deck: deck, images: _cache, start: start,
+                    onEnd: { [weak self] in self?._endShow() })),
+            ])
+        }
         guard let page = _backstage else { return window }
         return Stack(children: [
             window,

@@ -85,6 +85,32 @@ struct ShapePreset: RawRepresentable, Hashable {
     }
 }
 
+/// How a slide comes on in the show.
+struct SlideTransition: Equatable {
+    enum Kind: String, CaseIterable { case none, fade, push, wipe, cover }
+    enum Direction: String { case left = "l", right = "r", up = "u", down = "d" }
+
+    var kind: Kind = .none
+    /// Where the new slide comes from (push, wipe, cover): PresentationML's
+    /// `dir`, which names the side the motion heads to.
+    var direction: Direction = .left
+    var duration = 0.5
+    /// A transition this app does not draw (morph, vortex…), as read:
+    /// shown as a fade, written back as it was until the slide's
+    /// transition is changed here.
+    var raw: String? = nil
+
+    var name: String {
+        switch kind {
+        case .none: return "None"
+        case .fade: return "Fade"
+        case .push: return "Push"
+        case .wipe: return "Wipe"
+        case .cover: return "Cover"
+        }
+    }
+}
+
 /// A slide's (or a shape's) fill: a colour, a gradient, or a picture.
 struct SlideFill: Equatable {
     var color: Color? = nil
@@ -132,6 +158,9 @@ final class SlideShape {
     var phIdx: String? = nil
     /// A picture's crop: the fraction of the image cut from each edge.
     var crop: EdgeInsets? = nil
+    /// The shape's id in the file it came from (`cNvPr id`): kept, because
+    /// the slide's animations name shapes by it.
+    var fileId: Int? = nil
 
     init(id: Int, name: String, kind: ShapeKind, frame: Rect, text: RichDocumentController?,
          textTheme: RichTextTheme?, anchor: TextAnchor = .top, prompt: String? = nil) {
@@ -225,6 +254,10 @@ final class Slide {
     /// The part this slide was read from, where its kept background's and
     /// objects' relationship ids resolve.
     var sourcePart: String? = nil
+    var transition = SlideTransition()
+    /// The slide's animations as read (`p:timing`), written back while every
+    /// shape they name is still on the slide (S7 models them).
+    var timingXML: String? = nil
 
     init(id: Int, layout: SlideLayoutKind, shapes: [SlideShape], notes: RichDocumentController) {
         self.id = id

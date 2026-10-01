@@ -26,10 +26,14 @@ final class SlideTextCache {
     private var _decoding: Set<String> = []
     /// Called when a picture finishes decoding: repaint.
     var onImageDecoded: (() -> Void)?
+    /// Another cache whose decoded pictures this one uses (the show's text
+    /// is laid out at its own size; its pictures are the editor's).
+    weak var imageSource: SlideTextCache?
 
     /// The decoded picture, or nil while it decodes (the request starts
     /// here, once).
     func image(_ attachment: ImageAttachment) -> Image? {
+        if let source = imageSource { return source.image(attachment) }
         if let image = _images[attachment.id] { return image }
         if _decoding.contains(attachment.id) { return nil }
         _decoding.insert(attachment.id)

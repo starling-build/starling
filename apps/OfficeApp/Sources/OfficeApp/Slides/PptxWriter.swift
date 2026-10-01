@@ -193,11 +193,9 @@ enum PptxWriter {
             rels.append(Rel(id: "rIdLayout", type: RT.layout, target: Pptx.relative(layoutPart, from: part)))
         }
         var w = SlideXML(part: part, source: source)
-        // Shape ids: kept objects keep theirs; ours start above them.
-        w.nextId = 2 + (slide.shapes.compactMap { s -> Int? in
-            guard case .opaque(let o) = s.kind else { return nil }
-            return XNode.parse(Data(o.xml.utf8))?.descendant("p:cNvPr")?["id"].flatMap(Int.init)
-        }.max() ?? 0)
+        // Shape ids: a shape read from a file keeps its own (the slide's
+        // animations name shapes by id); new ones start above them all.
+        w.nextId = 2 + (slide.shapes.compactMap(\.fileId).max() ?? 0)
         var body = ""
         for shape in slide.shapes { body += w.shape(shape, media: &media, builder: &b) }
         var bg = ""
@@ -208,9 +206,32 @@ enum PptxWriter {
         }
         rels += w.rels
         let hidden = slide.hidden ? " show=\"0\"" : ""
+        // Kept XML may lean on prefixes the source slide declared at its
+        // root (a14, p14, mc…): the same declarations go on ours.
+        var ns = PptxTemplates.namespaces
+        if let src = slide.sourcePart, let root = source?.xml(src) {
+            for (k, v) in root.attrs.sorted(by: { $0.key < $1.key })
+            where k.hasPrefix("xmlns:") && !["xmlns:a", "xmlns:r", "xmlns:p"].contains(k) {
+                ns += " \(k)=\"\(PptxXML.escape(v, attribute: true))\""
+            }
+        }
+        let transition = _transition(slide.transition, namespaces: &ns)
+        // Animations as read, while every shape they name is still here.
+        var timing = ""
+        if let t = slide.timingXML {
+            let named = t.components(separatedBy: "spid=\"").dropFirst().compactMap { Int($0.prefix { $0.isNumber }) }
+            if Set(named).isSubset(of: w.usedIds) {
+                timing = t
+                for (prefix, uri) in [("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main"),
+                                      ("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006")]
+                where t.contains("\(prefix):") && !ns.contains("xmlns:\(prefix)=") {
+                    ns += " xmlns:\(prefix)=\"\(uri)\""
+                }
+            }
+        }
         let xml = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <p:sld \(PptxTemplates.namespaces)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>
+        <p:sld \(ns)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>\(transition)\(timing)</p:sld>
         """
 
         // Notes, when there are any and a notes master to hang them on.
@@ -225,6 +246,28 @@ enum PptxWriter {
         }
         b.add(part, xml, type: CT.slide)
         b.rels(part, rels)
+    }
+
+    private static func _transition(_ t: SlideTransition, namespaces ns: inout String) -> String {
+        if let raw = t.raw {
+            for (prefix, uri) in [("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006"),
+                                  ("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main")]
+            where raw.contains("\(prefix):") && !ns.contains("xmlns:\(prefix)=") {
+                ns += " xmlns:\(prefix)=\"\(uri)\""
+            }
+            return raw
+        }
+        guard t.kind != .none else { return "" }
+        let spd = t.duration <= 0.5 ? "fast" : t.duration >= 1.0 ? "slow" : "med"
+        let effect: String
+        switch t.kind {
+        case .fade: effect = "<p:fade/>"
+        case .push: effect = "<p:push dir=\"\(t.direction.rawValue)\"/>"
+        case .wipe: effect = "<p:wipe dir=\"\(t.direction.rawValue)\"/>"
+        case .cover: effect = "<p:cover dir=\"\(t.direction.rawValue)\"/>"
+        case .none: effect = ""
+        }
+        return "<p:transition spd=\"\(spd)\">\(effect)</p:transition>"
     }
 
     private static func _insertAfter(_ marker: String, in s: String, _ insert: String) -> String {
@@ -385,7 +428,21 @@ private struct SlideXML {
         self.source = source
     }
 
-    private mutating func _id() -> Int { defer { nextId += 1 }; return nextId }
+    private var _used = Set<Int>()
+
+    private mutating func _id(_ preferred: Int? = nil) -> Int {
+        if let p = preferred, p > 1, !_used.contains(p) {
+            _used.insert(p)
+            return p
+        }
+        while _used.contains(nextId) { nextId += 1 }
+        _used.insert(nextId)
+        defer { nextId += 1 }
+        return nextId
+    }
+
+    /// The ids written so far, for checking the slide's kept animations.
+    var usedIds: Set<Int> { _used }
 
     private mutating func _rel(_ type: String, _ target: String, external: Bool = false, preferred: String) -> String {
         let key = type + "|" + target
@@ -427,9 +484,9 @@ private struct SlideXML {
         switch s.kind {
         case .opaque(let o):
             guard let p = source else { return "" }
-            return kept(o.xml, sourcePart: o.sourcePart, package: p, builder: &builder, patch: s.frame)
+            return kept(o.xml, sourcePart: o.sourcePart, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
         case .picture(let image):
-            let id = _id()
+            let id = _id(s.fileId)
             let mediaPart: String
             if let existing = media.byId[image.id] {
                 mediaPart = existing
@@ -445,7 +502,7 @@ private struct SlideXML {
                 + "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
                 + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
         case .geometry(let preset) where preset.isLine && s.text == nil:
-            let id = _id()
+            let id = _id(s.fileId)
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
             let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
@@ -453,7 +510,7 @@ private struct SlideXML {
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: f.right < f.left, flipV: f.bottom < f.top))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
         default:
-            let id = _id()
+            let id = _id(s.fileId)
             var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"/>"
             var ph = ""
             switch s.kind {
@@ -503,7 +560,7 @@ private struct SlideXML {
     /// relationships re-pointed — the parts they name copied over with
     /// everything those parts reach.
     mutating func kept(_ xml: String, sourcePart: String, package p: PptxPackage,
-                       builder b: inout PackageBuilder, patch frame: Rect?) -> String {
+                       builder b: inout PackageBuilder, patch frame: Rect?, fileId: Int? = nil) -> String {
         guard let node = XNode.parse(Data(xml.utf8)) else { return "" }
         if let frame {
             let x = node.first("p:xfrm") ?? node.first("p:spPr")?.first("a:xfrm") ?? node.first("p:grpSpPr")?.first("a:xfrm")
@@ -511,7 +568,7 @@ private struct SlideXML {
                 if let off = x.first("a:off") { off.attrs["x"] = "\(Self._emu(frame.left))"; off.attrs["y"] = "\(Self._emu(frame.top))" }
                 if let ext = x.first("a:ext") { ext.attrs["cx"] = "\(Self._emu(frame.width))"; ext.attrs["cy"] = "\(Self._emu(frame.height))" }
             }
-            if let c = node.descendant("p:cNvPr") { c.attrs["id"] = "\(_id())" }
+            if let c = node.descendant("p:cNvPr") { c.attrs["id"] = "\(_id(fileId ?? c["id"].flatMap(Int.init)))" }
         }
         let sourceRels = p.rels(sourcePart)
         var done = Set<String>()

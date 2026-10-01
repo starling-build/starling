@@ -165,6 +165,15 @@ class Driver:
             sh(f'''osascript -e 'tell application "System Events" to key code {key}{using}' ''')
         time.sleep(0.25)
 
+    def shot_screen(self, name, expect):
+        """The whole main display, uncropped: for a full-screen slide show,
+        whose window has left its frame for a Space of its own."""
+        self.n += 1
+        path = os.path.join(self.out, f"{self.n:02d}-{name}.png")
+        subprocess.run(["screencapture", "-x", path], check=True)
+        subprocess.run(["sips", "-Z", "1440", path, "--out", path], check=True, capture_output=True)
+        self.index.append((os.path.basename(path), expect, self.alive()))
+
     def shot(self, name, expect, cursor=False):
         self.n += 1
         path = os.path.join(self.out, f"{self.n:02d}-{name}.png")

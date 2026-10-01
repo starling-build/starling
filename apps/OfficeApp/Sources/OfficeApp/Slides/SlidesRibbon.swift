@@ -154,10 +154,37 @@ extension Ribbon {
     }
 
     private func _transitions(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
-        [
-            Chrome.group("Transition to This Slide", fluent, [
-                Chrome.bigToggle(FluentSystemIcons.onePage, "None", true, fluent) {},
+        let t = deck.currentSlide.transition
+        let icons: [SlideTransition.Kind: IconData] = [.none: FluentSystemIcons.close, .fade: FluentSystemIcons.brightness,
+                                                       .push: FluentSystemIcons.forward, .wipe: FluentSystemIcons.textClearFormatting,
+                                                       .cover: FluentSystemIcons.onePage]
+        let kinds: [Widget] = SlideTransition.Kind.allCases.map { kind in
+            Chrome.bigToggle(icons[kind] ?? FluentSystemIcons.onePage, SlideTransition(kind: kind).name,
+                             t.kind == kind && t.raw == nil, fluent) { deck.setTransition(kind) }
+        }
+        let directed = t.kind == .push || t.kind == .wipe || t.kind == .cover
+        let directions: [(String, SlideTransition.Direction)] = [
+            ("From Right", .left), ("From Left", .right), ("From Bottom", .up), ("From Top", .down),
+        ]
+        return [
+            Chrome.group("Transition to This Slide", fluent, kinds + [
+                Chrome.gap(4),
+                Chrome.rows([
+                    Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Direction", fluent,
+                                      items: directions.map { name, dir in
+                                          MenuFlyoutItem(text: Text(name),
+                                                         leading: Icon(t.direction == dir && directed ? FluentSystemIcons.check : FluentSystemIcons.forward,
+                                                                       size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                                                         onPressed: directed ? { deck.setTransition(direction: dir) } : nil)
+                                      }),
+                ]),
             ]),
+            Chrome.group("Timing", fluent, [Chrome.rows([
+                Chrome.spinner("Duration", t.duration * 100, fluent, step: 25, unit: "cs", minimum: 10) { v in
+                    deck.setTransition(duration: v / 100)
+                },
+                Chrome.small(FluentSystemIcons.copy, "Apply To All", fluent) { deck.setTransition(all: true) },
+            ])]),
         ]
     }
 

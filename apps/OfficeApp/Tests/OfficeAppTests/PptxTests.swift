@@ -97,3 +97,54 @@ final class PptxTests: XCTestCase {
         XCTAssertEqual(Pptx.resolve("ppt/presentation.xml", from: ""), "ppt/presentation.xml")
     }
 }
+
+final class TransitionTests: XCTestCase {
+    func testTransitionsRoundTrip() throws {
+        let deck = SlidesSample.make()
+        deck.select(1)
+        deck.setTransition(.push, direction: .up, duration: 1.0)
+        deck.select(2)
+        deck.setTransition(.fade, duration: 0.5)
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        XCTAssertEqual(state.slides[1].transition.kind, .push)
+        XCTAssertEqual(state.slides[1].transition.direction, .up)
+        XCTAssertEqual(state.slides[1].transition.duration, 1.0)
+        XCTAssertEqual(state.slides[2].transition.kind, .fade)
+        XCTAssertEqual(state.slides[0].transition.kind, .none)
+    }
+
+    func testApplyToAllAndUndo() {
+        let deck = SlidesSample.make()
+        deck.setTransition(.wipe, all: true)
+        XCTAssertTrue(deck.slides.allSatisfy { $0.transition.kind == .wipe })
+        deck.undo()
+        XCTAssertTrue(deck.slides.allSatisfy { $0.transition.kind == .none })
+    }
+}
+
+final class AnimationKeepTests: XCTestCase {
+    /// A slide's p:timing names shapes by file id: it survives a save while
+    /// those shapes do, and goes when one of them is deleted.
+    func testTimingKeptWhileItsShapesExist() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(data: package.parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        let firstId = slide.components(separatedBy: "<p:cNvPr id=\"")[2].prefix { $0.isNumber }
+        let timing = "<p:timing><p:tnLst><p:par><p:cTn id=\"1\" dur=\"indefinite\" nodeType=\"tmRoot\"><p:childTnLst><p:par><p:cTn id=\"2\"><p:stCondLst><p:cond delay=\"0\"/></p:stCondLst><p:childTnLst><p:set><p:cBhvr><p:cTn id=\"3\" dur=\"1\"/><p:tgtEl><p:spTgt spid=\"\(firstId)\"/></p:tgtEl></p:cBhvr><p:to><p:strVal val=\"visible\"/></p:to></p:set></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>"
+        slide = slide.replacingOccurrences(of: "</p:sld>", with: timing + "</p:sld>")
+        package.parts["ppt/slides/slide2.xml"] = Data(slide.utf8)
+        let zipped = try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) })
+        let (state, theme, pkg) = try Pptx.read(zipped)
+        XCTAssertNotNil(state.slides[1].timingXML)
+
+        let kept = String(data: PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+            .parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(kept.contains("spid=\"\(firstId)\""), "animations kept while their shape is")
+
+        var gone = state
+        gone.slides[1].shapes.removeAll { $0.fileId == Int(firstId) }
+        let dropped = String(data: PptxPackage(try Zip.read(try PptxWriter.write(gone, theme: theme, package: pkg)))
+            .parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        XCTAssertFalse(dropped.contains("<p:timing"), "and dropped once it is gone")
+    }
+}

@@ -11,7 +11,7 @@ cannot judge them. Coordinates are window-relative points at the default
 1440x932 window. The same driver limit applies: a modifier held across a
 synthetic click never reaches the app, so Shift-click is checked by hand.
 """
-import argparse, importlib.util, os, sys, tempfile
+import argparse, importlib.util, os, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("office_drive", os.path.join(HERE, "office-drive.py"))
@@ -115,6 +115,28 @@ def run(d, only):
         d.shot("sorter", "Slide Sorter: every slide as a large thumbnail in a grid, current one outlined")
         d.click(1352, 916)
         d.shot("normal", "Back in Normal view")
+
+    if step("show"):
+        d.click(96, 90); d.click(1250, 700)
+        d.click(112, 262)                             # slide 1
+        d.click(826, 450); d.key(text="First slide"); d.click(1250, 700)
+        d.click(207, 140)                             # a second slide to move to
+        d.click(826, 330); d.key(text="Second slide"); d.click(1250, 700)
+        d.click(297, 90)                              # Transitions
+        d.click(107, 140)                             # Push
+        for _ in range(6): d.click(533, 122)          # Duration up to 2 s, to catch it mid-way
+        d.shot("transitions", "Transitions tab: Push selected for slide 2, Effect Options, Duration, Apply To All")
+        d.key(key=KEY["enter"], mods=("command", "shift"))
+        time.sleep(2.5)                               # the window's full-screen animation
+        d.shot_screen("show-1", "Full screen, black, slide 1 letterboxed")
+        d.key(key=KEY["right"]); time.sleep(0.7)
+        d.shot_screen("show-push", "Mid-push: slide 1 leaving left, slide 2 coming in from the right")
+        time.sleep(2)
+        d.shot_screen("show-2", "Slide 2 in full")
+        d.key(key=KEY["right"]); time.sleep(0.6)
+        d.shot_screen("show-end", "End of slide show, click to exit.")
+        d.key(key=KEY["escape"]); time.sleep(2.5)
+        d.shot("after-show", "Back in the editor, out of full screen")
 
     if step("switch"):
         d.click(33, 86); d.shot("backstage", "Backstage home: Blank document, Blank presentation, Open")

@@ -29,6 +29,7 @@ struct ShapeState: Equatable {
     var phIdx: String? = nil
     /// A picture's crop, as fractions cut from each edge.
     var crop: EdgeInsets? = nil
+    var fileId: Int? = nil
 }
 
 struct SlideState: Equatable {
@@ -41,6 +42,8 @@ struct SlideState: Equatable {
     var backgroundXML: String? = nil
     var background: SlideFill? = nil
     var sourcePart: String? = nil
+    var transition = SlideTransition()
+    var timingXML: String? = nil
 }
 
 struct DeckState: Equatable {
@@ -199,6 +202,21 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// The current slide's transition, or every slide's.
+    func setTransition(_ kind: SlideTransition.Kind? = nil, direction: SlideTransition.Direction? = nil,
+                       duration: Double? = nil, all: Bool = false) {
+        _checkpoint()
+        for slide in all ? slides : [currentSlide] {
+            var t = all ? currentSlide.transition : slide.transition
+            if let kind { t.kind = kind }
+            if let direction { t.direction = direction }
+            if let duration { t.duration = max(0.1, min(10, duration)) }
+            t.raw = nil
+            slide.transition = t
+        }
+        _changed()
+    }
+
     func toggleHidden(_ index: Int) {
         guard slides.indices.contains(index) else { return }
         _checkpoint()
@@ -325,6 +343,7 @@ final class DeckController: ChangeNotifier {
         var pasted: [SlideShape] = []
         for var s in states {
             s.id = _id()
+            s.fileId = nil
             s.frame = s.frame.shift(Offset(offset, offset))
             let shape = _make(s)
             pasted.append(shape)
@@ -494,7 +513,8 @@ final class DeckController: ChangeNotifier {
             SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden,
                        notes: slide.notes.document, shapes: slide.shapes.map(_state),
                        layoutPart: slide.layoutPart, backgroundXML: slide.backgroundXML,
-                       background: slide.background, sourcePart: slide.sourcePart)
+                       background: slide.background, sourcePart: slide.sourcePart,
+                       transition: slide.transition, timingXML: slide.timingXML)
         }, current: current, slideSize: slideSize)
     }
 
@@ -537,6 +557,8 @@ final class DeckController: ChangeNotifier {
             slide.backgroundXML = ss.backgroundXML
             slide.background = ss.background
             slide.sourcePart = ss.sourcePart
+            slide.transition = ss.transition
+            slide.timingXML = ss.timingXML
             next.append(slide)
         }
         for slide in slides {
@@ -557,7 +579,7 @@ final class DeckController: ChangeNotifier {
                    insets: s.insets, prompt: s.prompt, text: s.text?.document,
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
-                   phType: s.phType, phIdx: s.phIdx, crop: s.crop)
+                   phType: s.phType, phIdx: s.phIdx, crop: s.crop, fileId: s.fileId)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -573,6 +595,7 @@ final class DeckController: ChangeNotifier {
         shape.phType = st.phType
         shape.phIdx = st.phIdx
         shape.crop = st.crop
+        shape.fileId = st.fileId
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
 
@@ -628,6 +651,7 @@ final class DeckController: ChangeNotifier {
     private func _copy(_ shape: SlideShape, offset: Double = 0) -> SlideShape {
         var st = _state(shape)
         st.id = _id()
+        st.fileId = nil
         st.frame = st.frame.shift(Offset(offset, offset))
         return _make(st)
     }
