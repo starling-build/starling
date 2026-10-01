@@ -150,4 +150,38 @@ round-trips with its cached value.
 
 ## Where it stands
 
-X1 in progress (2026-09-30), on branch `sheets` from `office` 3d65c315.
+**X1 nearly done (2026-09-30)**, on branch `sheets`, rebased on `office`
+ce3c4af1. Engine (9ed475e1): addresses, model, parser/printer, on-demand
+recalculation with cycles, ~110 functions, number formats, input
+parsing — 20 tests against Excel's values. Window (3db7f03d): the
+painted grid with Excel's Enter/Edit modes, formula bar and name box,
+sheet tabs, status-bar Sum/Average/Count, the Home/Formulas/Data/View
+ribbon, CSV open/save. Seen on screen through `test/sheets-drive.py`:
+typing, formulas, recalculation, range selection and its status
+figures, bold, a second sheet.
+
+Left for X1: Ctrl+Enter (fill the selection), F4 (cycle $), clicking
+cells into a formula being typed, a dependency graph instead of
+whole-workbook recalculation if a real file needs it.
+
+**Traps paid for:**
+
+- This port's `FluentTextBox` fires `onChanged` on programmatic text
+  changes (Flutter's does not). The formula bar mirrors the cell
+  editor, and without a guard the mirror read as the user typing in
+  the bar, which stole the next keystrokes. `SheetsShell._setFormulaText`.
+- **Never run a GUI driver while another session is driving the
+  screen.** On 2026-09-30 the Slides session was driving its own
+  OfficeApp instance (default frame, same as ours); the two drivers'
+  "bring my window to front" raced, and `sheets-drive.py`'s keystrokes
+  went into the other instance — blank slides added to its deck.
+  Check `ps` for a second OfficeApp, and ask, before driving. Headless
+  Chrome (`build/tools/web-drive.mjs`) never touches the screen and is
+  the safe way to see the app when someone else is at it — once the web
+  build compiles again (below).
+- The wasm build of OfficeApp is broken by Slides code as of
+  ce3c4af1: `Color(0xFF00_0000 | …)` literals overflow a 32-bit Int
+  (Chart.swift, DeckController.swift, PptxReader.swift), the layout id
+  2147483649 in PptxTemplates.swift, and `.atomic` writes in
+  SlidesShell.swift. None is in Sheets/, so the Sheets code type-checks
+  for wasm; it cannot be run there until those are fixed.
