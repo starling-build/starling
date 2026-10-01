@@ -534,7 +534,10 @@ private struct SlideContext {
             case "p:sp": add(_shape(el, transform, id: id), el)
             case "p:cxnSp": add(_connector(el, transform, id: id), el)
             case "p:pic": add(_picture(el, transform, id: id), el)
-            case "p:graphicFrame": add(_opaque(el, label: _frameLabel(el), transform, id: id), el)
+            case "p:graphicFrame":
+                if _frameLabel(el) == "Table", let t = _table(el, transform, id: id) { add(t, el) } else {
+                    add(_opaque(el, label: _frameLabel(el), transform, id: id), el)
+                }
             case "p:grpSp":
                 // Groups are flattened: each member drawn where the group's
                 // child space maps it on the slide.
@@ -692,6 +695,88 @@ private struct SlideContext {
                           outlineWidth: 0, anchor: .top, insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
                           prompt: nil, text: nil, font: nil, size: 18, color: Color(0xFF000000), listIndent: 18,
                           crop: crop)
+    }
+
+    /// `a:tbl` as an editable table: grid widths, merged cells (gridSpan,
+    /// rowSpan; the hMerge/vMerge stand-ins dropped), cell text, and the
+    /// look approximated from the table's flags in this deck's first accent.
+    /// The element is kept too, written back while the text is unchanged.
+    private func _table(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
+        guard let tbl = el.descendant("a:tbl"), var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
+        if let t = transform { frame = t(frame) }
+        let tableId = UUID().uuidString
+        let widths = (tbl.first("a:tblGrid")?.all("a:gridCol") ?? []).compactMap { $0["w"].flatMap(Double.init).map { $0 / Pptx.emu } }
+        let pr = tbl.first("a:tblPr")
+        let firstRow = pr?["firstRow"] == "1"
+        let banded = pr?["bandRow"] == "1"
+        let styleId = pr?.first("a:tableStyleId")?.text.trimmingWhitespace() ?? ""
+        let plain = ["{2D5ABB26-0587-4C30-8999-92F81FD0307C}", "{5940675A-B579-460E-94D1-54222C63F5DA}"].contains(styleId)
+        let base = LevelStyle.paragraph(defaults?.first("a:lvl1pPr"), colors)
+        var paragraphs: [RichParagraph] = []
+        for (r, tr) in tbl.all("a:tr").enumerated() {
+            var column = 0
+            for tc in tr.all("a:tc") {
+                defer { column += 1 }
+                if tc["hMerge"] == "1" || tc["vMerge"] == "1" { continue }
+                let cell = CellRef(table: tableId, row: r, column: column,
+                                   span: tc["gridSpan"].flatMap(Int.init) ?? 1, rowSpan: tc["rowSpan"].flatMap(Int.init) ?? 1)
+                // The header row's text is light and bold in every styled
+                // table PowerPoint offers.
+                var look = base
+                if r == 0 && firstRow && !plain {
+                    look.bold = look.bold ?? true
+                    look.color = colors.scheme("lt1") ?? Color(0xFFFFFFFF)
+                }
+                var cellParas: [RichParagraph] = []
+                for p in tc.first("a:txBody")?.all("a:p") ?? [] {
+                    let level = LevelStyle.paragraph(p.first("a:pPr"), colors).filled(from: look)
+                    var text = "", runs: [Run] = []
+                    for child in p.children where child.name == "a:r" || child.name == "a:br" || child.name == "a:fld" {
+                        let t = child.name == "a:br" ? "\n" : (child.first("a:t")?.text ?? "")
+                        guard !t.isEmpty else { continue }
+                        let s = (child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle()).filled(from: level)
+                        text += t
+                        runs.append(Run(length: t.utf16.count, style: CharStyle(
+                            bold: s.bold ?? false, italic: s.italic ?? false, underline: s.underline ?? false,
+                            fontFamily: _font(s.font), fontSize: s.size ?? 18,
+                            color: s.color ?? colors.scheme("tx1"))))
+                    }
+                    var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
+                    switch level.algn { case "ctr": style.alignment = .center; case "r": style.alignment = .right; default: break }
+                    var para = text.isEmpty
+                        ? RichParagraph(text: "", runs: [Run(length: 0, style: CharStyle(bold: look.bold ?? false, fontFamily: _font(look.font),
+                                                                                          fontSize: look.size ?? 18, color: look.color))], style: style)
+                        : RichParagraph(text: text, runs: runs, style: style)
+                    para.cell = cell
+                    cellParas.append(para)
+                }
+                if cellParas.isEmpty {
+                    var para = RichParagraph(text: "", style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0))
+                    para.cell = cell
+                    cellParas = [para]
+                }
+                paragraphs += cellParas
+            }
+        }
+        guard !paragraphs.isEmpty else { return nil }
+        var doc = RichDocument(paragraphs: paragraphs)
+        if !widths.isEmpty { doc.tableColumns[tableId] = widths }
+        let accent = theme.colors["accent1"] ?? Color(0xFF4472C4)
+        doc.tableStyles[tableId] = plain
+            ? TableStyle(borders: styleId.hasPrefix("{5940675A"), headerRow: false, borderColor: colors.scheme("tx1"))
+            : TableStyle(borders: true, headerRow: firstRow, headerFill: accent,
+                         bandFill: banded ? DeckController.tint(accent, 0.40) : nil,
+                         bandAltFill: banded ? DeckController.tint(accent, 0.20) : nil,
+                         borderColor: Color(0xFFFFFFFF))
+        var st = ShapeState(id: id(), name: el.descendant("p:cNvPr")?["name"] ?? "Table", kind: .table, frame: frame,
+                            rotation: 0, fill: nil, outline: nil, outlineWidth: 0, anchor: .top,
+                            insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: doc,
+                            font: _font(base.font), size: base.size ?? 18, color: base.color ?? colors.scheme("tx1") ?? Color(0xFF000000),
+                            listIndent: 18)
+        st.sourceXML = PptxXML.serialize(el)
+        st.sourceText = doc
+        st.sourcePart = part
+        return st
     }
 
     private func _frameLabel(_ el: XNode) -> String {

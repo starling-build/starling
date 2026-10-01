@@ -1361,19 +1361,26 @@ public final class RichLayout {
 
     private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
         let g = geometry(i)
-        if let c = _cells[i], c.firstInRow, c.row == 0, document.tableStyles[c.table]?.headerRow == true {
-            // The header row's shading, under every cell of the row.
-            let fill = Paint()
-            fill.style = .fill
-            fill.color = theme.textColor.withOpacity(0.06)
-            let width = (_columnWidths[c.table] ?? []).reduce(0, +)
-            canvas.drawRect(Rect.fromLTWH(0, c.rowTop.rounded(), width.rounded(), c.ownRowHeight.rounded()), fill)
+        if let c = _cells[i], c.firstInRow, let ts = document.tableStyles[c.table] {
+            // The row's shading, under every cell of the row: the header's,
+            // or a band's.
+            let header = c.row == 0 && ts.headerRow
+            let bodyRow = c.row - (ts.headerRow ? 1 : 0)
+            let color: Color? = header ? (ts.headerFill ?? theme.textColor.withOpacity(0.06))
+                : (bodyRow % 2 == 0 ? ts.bandFill : ts.bandAltFill)
+            if let color {
+                let fill = Paint()
+                fill.style = .fill
+                fill.color = color
+                let width = (_columnWidths[c.table] ?? []).reduce(0, +)
+                canvas.drawRect(Rect.fromLTWH(0, c.rowTop.rounded(), width.rounded(), c.ownRowHeight.rounded()), fill)
+            }
         }
         if let c = _cells[i], c.firstInRow, document.tableStyles[c.table]?.borders ?? true {
             let stroke = Paint()
             stroke.style = .stroke
             stroke.strokeWidth = 1
-            stroke.color = theme.textColor.withOpacity(0.6)
+            stroke.color = document.tableStyles[c.table]?.borderColor ?? theme.textColor.withOpacity(0.6)
             // Every line lies inside the row (the paint is clipped to the
             // row's page piece, so a stroke centred on the row's bottom
             // edge lost its outer half and the table's last row had no

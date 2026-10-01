@@ -524,6 +524,12 @@ private struct SlideXML {
             return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"/><p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>"
                 + "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
                 + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+        case .table:
+            // Unedited since it was read: the table as it was, in place.
+            if let xml = s.sourceXML, let doc = s.text, doc == s.sourceText, let p = source, let part = s.sourcePart {
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+            }
+            return _table(s, name: name)
         case .geometry(let preset) where preset.isLine && s.text == nil:
             let id = _id(s.fileId)
             let f = s.frame
@@ -580,6 +586,70 @@ private struct SlideXML {
             }
             return xml + "</p:sp>"
         }
+    }
+
+    /// A table as `a:tbl`: the grid, rows as tall as the shape shares out,
+    /// merges as gridSpan/rowSpan with their hMerge/vMerge stand-ins, and
+    /// every cell's fill spelled out so the look does not depend on a table
+    /// style the file may not define.
+    private mutating func _table(_ s: ShapeState, name: String) -> String {
+        guard let doc = s.text, let tableId = doc.paragraphs.first?.cell?.table else { return "" }
+        let cells = doc.paragraphs.compactMap(\.cell)
+        let rows = (cells.map { $0.row + $0.rowSpan }.max() ?? 1)
+        let cols = (cells.map { $0.column + $0.span }.max() ?? 1)
+        let widths = doc.tableColumns[tableId].flatMap { $0.count == cols ? $0 : nil }
+            ?? Array(repeating: s.frame.width / Double(cols), count: cols)
+        let style = doc.tableStyles[tableId] ?? TableStyle()
+        let rowH = Self._emu(s.frame.height / Double(rows))
+        // Which grid slots a merge covers, for the stand-ins.
+        var covered: [Int: [Int: String]] = [:]   // row → column → "hMerge"/"vMerge"
+        for c in cells {
+            for r in c.row ..< c.row + c.rowSpan {
+                for k in c.column ..< c.column + c.span where !(r == c.row && k == c.column) {
+                    covered[r, default: [:]][k] = r == c.row ? "hMerge" : "vMerge"
+                }
+            }
+        }
+        func fill(_ row: Int) -> String {
+            let header = row == 0 && style.headerRow
+            let body = row - (style.headerRow ? 1 : 0)
+            let c: Color? = header ? style.headerFill : (body % 2 == 0 ? style.bandFill : style.bandAltFill)
+            return c.map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" } ?? "<a:noFill/>"
+        }
+        func border(_ tag: String) -> String {
+            guard style.borders else { return "<\(tag) w=\"12700\"><a:noFill/></\(tag)>" }
+            let c = style.borderColor ?? Color(0xFF000000)
+            return "<\(tag) w=\"12700\"><a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill></\(tag)>"
+        }
+        let borders = border("a:lnL") + border("a:lnR") + border("a:lnT") + border("a:lnB")
+        var xml = "<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id=\"\(_id(s.fileId))\" name=\"\(name)\"/>"
+            + "<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>"
+            + Self._xfrm(s.frame, rotation: 0, tag: "p:xfrm")
+            + "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\"><a:tbl>"
+            + "<a:tblPr firstRow=\"\(style.headerRow ? 1 : 0)\" bandRow=\"\(style.bandFill != nil ? 1 : 0)\">"
+            + "<a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr><a:tblGrid>"
+            + widths.map { "<a:gridCol w=\"\(Self._emu($0))\"/>" }.joined() + "</a:tblGrid>"
+        for r in 0 ..< rows {
+            xml += "<a:tr h=\"\(rowH)\">"
+            for k in 0 ..< cols {
+                if let stand = covered[r]?[k] {
+                    xml += "<a:tc \(stand)=\"1\"><a:txBody><a:bodyPr/><a:lstStyle/><a:p/></a:txBody><a:tcPr/></a:tc>"
+                    continue
+                }
+                let paras = doc.paragraphs.filter { $0.cell?.row == r && $0.cell?.column == k }
+                guard let cell = paras.first?.cell else {
+                    xml += "<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p/></a:txBody><a:tcPr>\(borders)\(fill(r))</a:tcPr></a:tc>"
+                    continue
+                }
+                var attrs = ""
+                if cell.span > 1 { attrs += " gridSpan=\"\(cell.span)\"" }
+                if cell.rowSpan > 1 { attrs += " rowSpan=\"\(cell.rowSpan)\"" }
+                let body = PptxText.paragraphs(RichDocument(paragraphs: paras.map { var p = $0; p.cell = nil; return p }), defaults: s)
+                xml += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(body)</a:txBody><a:tcPr anchor=\"ctr\">\(borders)\(fill(r))</a:tcPr></a:tc>"
+            }
+            xml += "</a:tr>"
+        }
+        return xml + "</a:tbl></a:graphicData></a:graphic></p:graphicFrame>"
     }
 
     /// A kept element (an object or a background) written back: its frame

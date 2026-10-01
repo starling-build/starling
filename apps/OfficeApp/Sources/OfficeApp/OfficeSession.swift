@@ -128,6 +128,7 @@ final class OfficeSession {
     var onInsertTextBox: (() -> Void)?
     var onInsertShape: ((ShapePreset) -> Void)?
     var onBackgroundPicture: (() -> Void)?
+    var onInsertTable: ((Int, Int) -> Void)?
     /// Normal view (false) or Slide Sorter (true).
     var onSlidesView: ((Bool) -> Void)?
     var slidesSorter = false

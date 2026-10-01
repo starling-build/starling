@@ -52,6 +52,9 @@ public final class RichEditable: StatefulWidget {
     /// A right click, with the pointer's position in global coordinates.
     /// The caret has moved there unless the click was inside the selection.
     public let onContextMenu: ((Offset) -> Void)?
+    /// False pins the text at the top and draws no scroll thumb: a slide's
+    /// text box, whose text overflows its frame rather than scrolling.
+    public let scrolls: Bool
 
     public init(key: (any Key)? = nil, controller: RichDocumentController,
                 theme: RichTextTheme = RichTextTheme(),
@@ -66,7 +69,8 @@ public final class RichEditable: StatefulWidget {
                 onLinkActivate: ((String) -> Void)? = nil,
                 onSelectionGestureEnd: (() -> Void)? = nil,
                 onContextMenu: ((Offset) -> Void)? = nil,
-                spellChecker: RichSpellChecker? = nil) {
+                spellChecker: RichSpellChecker? = nil,
+                scrolls: Bool = true) {
         self.controller = controller
         self.theme = theme
         self.padding = padding
@@ -84,6 +88,7 @@ public final class RichEditable: StatefulWidget {
         self.onSelectionGestureEnd = onSelectionGestureEnd
         self.onContextMenu = onContextMenu
         self.spellChecker = spellChecker
+        self.scrolls = scrolls
         super.init(key: key)
     }
 
@@ -274,7 +279,7 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _clampScroll() {
-        let maxY = max(0, contentHeight - _viewport.height)
+        let maxY = _w.scrolls ? max(0, contentHeight - _viewport.height) : 0
         _scrollY = max(0, min(_scrollY, maxY))
     }
 
@@ -969,7 +974,7 @@ public final class RichEditableState: State<StatefulWidget> {
 
         // Scrollbar thumb.
         let total = contentHeight
-        if total > size.height + 1 {
+        if _w.scrolls, total > size.height + 1 {
             let trackH = size.height - 4
             let thumbH = max(24, trackH * size.height / total)
             let thumbY = 2 + (trackH - thumbH) * (_scrollY / max(1, total - size.height))

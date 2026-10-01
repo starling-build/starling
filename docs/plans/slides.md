@@ -124,6 +124,18 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**S6 part 2 done 2026-09-30** — tables. Insert → Table offers a menu
+of sizes; the table is a Writer table inside a frame (the same cells, Tab and
+⇧Tab between them, the Table Layout tab for rows, columns and merges), in
+PowerPoint's default look — an accent header row in white bold, banded
+rows in two tints, white rules — which follows the theme. Its height
+follows its rows. Read from a file: grid, column widths, merges and the
+header/band flags, with the style GUID approximated by our look; an
+unedited table is written back exactly as read, an edited one as our own
+`a:tbl` with every fill spelled out (Quick Look draws it as PowerPoint's
+Medium Style 2). The framework's `TableStyle` gained header, band and
+rule colours for it.
+
 Traps paid for in S6:
 
 - **A text theme edited in place goes unseen**: the thumbnails' layout
@@ -133,6 +145,11 @@ Traps paid for in S6:
   picture as each slide's own wrote it 117 times (0.5 MB → 2.4 MB).
   Inherited backgrounds are drawn, not written; and one image file is
   one attachment however many slides use it.
+- **Slide text must not scroll.** The table's height is fitted at 1 px
+  per point, the editor lays out at its zoom where lines round
+  differently, and the few pixels' difference drew the editor's scroll
+  thumb down the table's edge. `RichEditable(scrolls: false)` pins the
+  text and draws no thumb; shapes overflow, as in PowerPoint.
 - Pictures are grabbed whole: "edits on first click" means text boxes
   and placeholders only, or a picture is a frame of edge bands.
 

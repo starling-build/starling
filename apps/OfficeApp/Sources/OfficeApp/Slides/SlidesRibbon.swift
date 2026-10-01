@@ -122,6 +122,17 @@ extension Ribbon {
             Chrome.group("Text", fluent, [
                 Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in session.onInsertTextBox?() },
             ]),
+            Chrome.group("Tables", fluent, [
+                FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
+                    child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+                        Icon(FluentSystemIcons.table, size: Chrome.bigIconSize, color: fluent.resources.textFillColorPrimary),
+                        Chrome.vgap(4),
+                        Text("Table", style: fluent.typography.caption),
+                    ])), tip: "Insert a table", width: nil, height: Chrome.rowHeight * 2 + 6,
+                    menu: [(2, 2), (3, 2), (3, 3), (4, 3), (4, 4), (5, 4), (6, 5)].map { r, c in
+                        MenuFlyoutItem(text: Text("\(c) × \(r) table"), onPressed: { [session] in session.onInsertTable?(r, c) })
+                    }),
+            ]),
             Chrome.group("Images", fluent, [
                 Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
             ]),

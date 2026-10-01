@@ -28,6 +28,9 @@ enum SlidesDump {
                 case .geometry(let p): kind = "shape:\(p.rawValue)"
                 case .picture(let img): kind = "picture:\(img.data.count)b"
                 case .opaque(let o): kind = "kept:\(o.label)"
+                case .table:
+                    let cells = s.text?.paragraphs.compactMap(\.cell) ?? []
+                    kind = "table:\((cells.map(\.row).max() ?? -1) + 1)x\((cells.map { $0.column + $0.span }.max() ?? 0))"
                 }
                 let f = s.frame
                 var line = "  \(kind) [\(n(f.left)),\(n(f.top)) \(n(f.width))x\(n(f.height))]"

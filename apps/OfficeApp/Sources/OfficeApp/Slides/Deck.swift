@@ -24,6 +24,9 @@ enum ShapeKind: Equatable {
     case geometry(ShapePreset)
     /// A picture (`p:pic`).
     case picture(ImageAttachment)
+    /// A table: its text is a document holding one table (Writer's cell
+    /// model), edited in place like any text body.
+    case table
     /// Something read from a file that the deck does not model — a chart,
     /// SmartArt, a video, a table — kept as its XML so a save writes it
     /// back untouched, and drawn as a labelled box.
@@ -166,6 +169,12 @@ final class SlideShape {
     /// The shape's id in the file it came from (`cNvPr id`): kept, because
     /// the slide's animations name shapes by it.
     var fileId: Int? = nil
+    /// A table as read, with the text it had then: written back verbatim
+    /// while the text is unchanged (cell fills, borders and styles this app
+    /// only approximates survive), regenerated once it is edited.
+    var sourceXML: String? = nil
+    var sourceText: RichDocument? = nil
+    var sourcePart: String? = nil
 
     init(id: Int, name: String, kind: ShapeKind, frame: Rect, text: RichDocumentController?,
          textTheme: RichTextTheme?, anchor: TextAnchor = .top, prompt: String? = nil) {
@@ -209,9 +218,15 @@ final class SlideShape {
     /// pictures and kept objects have no text and are grabbed whole.
     var editsOnFirstClick: Bool {
         switch kind {
-        case .placeholder, .textBox: return true
+        case .placeholder, .textBox, .table: return true
         default: return false
         }
+    }
+
+    /// The table's id inside its document, for a table shape.
+    var tableId: String? {
+        guard kind == .table else { return nil }
+        return text?.document.paragraphs.first?.cell?.table
     }
 }
 

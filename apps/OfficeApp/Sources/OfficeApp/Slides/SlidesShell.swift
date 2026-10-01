@@ -136,6 +136,12 @@ final class SlidesShellState: State<StatefulWidget> {
             self._pictureForBackground = false
             self.setState { self._backstage = .insertPicture }
         }
+        session.onInsertTable = { [weak self] rows, columns in
+            guard let self else { return }
+            self._endEditing()
+            let table = self.deck.addTable(rows: rows, columns: columns)
+            self._editAtStart(table)
+        }
         session.onBackgroundPicture = { [weak self] in
             guard let self else { return }
             self._pictureForBackground = true
@@ -233,7 +239,16 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    /// Tables on the current slide take the height their rows need.
+    private func _fitTables() {
+        for shape in deck.currentSlide.shapes where shape.kind == .table {
+            guard let layout = _cache.layout(shape, pxPerPt: 1) else { continue }
+            deck.fitHeight(shape, (layout.totalHeight + shape.insets.top + shape.insets.bottom).rounded(.up))
+        }
+    }
+
     private func _deckChanged() {
+        _fitTables()
         // A selected picture opens its tab; leaving it returns Home.
         let picture = deck.selection.contains { $0.picture != nil }
         if picture && !_hadPicture { _tab = .pictureFormat }
@@ -486,6 +501,18 @@ final class SlidesShellState: State<StatefulWidget> {
         let at = deck.selection.last.flatMap { s in shapes.firstIndex { $0 === s } }
         let next = at.map { (back ? $0 - 1 + shapes.count : $0 + 1) % shapes.count } ?? (back ? shapes.count - 1 : 0)
         deck.selectShapes([shapes[next]])
+    }
+
+    /// Start typing into a shape at the start of its text (a new table's
+    /// first cell).
+    private func _editAtStart(_ shape: SlideShape) {
+        _activate(shape)
+        FrameCallbackScheduler.shared.addPostFrameCallback { [weak self] _ in
+            guard let self, let canvas = self._canvasKey.currentState as? SlideCanvasState else { return }
+            canvas.focusNode(for: shape).requestFocus()
+            shape.text?.moveTo(.start, extend: false)
+        }
+        PlatformDispatcher.instance.scheduleFrame()
     }
 
     /// Start typing into a shape, with the caret at the end of its text.

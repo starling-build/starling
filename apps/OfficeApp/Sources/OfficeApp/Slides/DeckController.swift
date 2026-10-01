@@ -31,6 +31,9 @@ struct ShapeState: Equatable {
     /// A picture's crop, as fractions cut from each edge.
     var crop: EdgeInsets? = nil
     var fileId: Int? = nil
+    var sourceXML: String? = nil
+    var sourceText: RichDocument? = nil
+    var sourcePart: String? = nil
 }
 
 struct SlideState: Equatable {
@@ -385,6 +388,64 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// PowerPoint's default table look in the theme's first accent: a
+    /// filled header with white bold text, banded rows, white rules.
+    func tableStyle(accent: Color) -> TableStyle {
+        TableStyle(borders: true, headerRow: true, headerFill: accent,
+                   bandFill: Self.tint(accent, 0.40), bandAltFill: Self.tint(accent, 0.20),
+                   borderColor: Color(0xFFFFFFFF))
+    }
+
+    /// A table centred on the slide, a column 144 pt wide (at most four
+    /// fifths of the slide across), rows as tall as their text.
+    @discardableResult
+    func addTable(rows: Int, columns: Int) -> SlideShape {
+        _checkpoint()
+        let rows = max(1, rows), cols = max(1, columns)
+        let id = UUID().uuidString
+        var paragraphs: [RichParagraph] = []
+        let header = CharStyle(bold: true, color: Color(0xFFFFFFFF))
+        for r in 0 ..< rows {
+            for c in 0 ..< cols {
+                var p = RichParagraph(text: "", runs: r == 0 ? [Run(length: 0, style: header)] : nil,
+                                      style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0))
+                p.cell = CellRef(table: id, row: r, column: c)
+                paragraphs.append(p)
+            }
+        }
+        var doc = RichDocument(paragraphs: paragraphs)
+        doc.tableStyles[id] = tableStyle(accent: theme.accents[0])
+        let w = min(slideSize.width * 0.8, Double(cols) * 144)
+        let h = Double(rows) * 30
+        let shape = SlideShape(id: _id(), name: "Table \(_nextId)", kind: .table,
+                               frame: Rect.fromLTWH((slideSize.width - w) / 2, (slideSize.height - h) / 2, w, h),
+                               text: _textController(doc),
+                               textTheme: _textTheme(font: theme.bodyFont, size: 18, color: theme.text))
+        shape.insets = EdgeInsets(left: 0, top: 0, right: 0, bottom: 0)
+        shape.fillScheme = "accent1"
+        currentSlide.shapes.append(shape)
+        _watch(shape)
+        selection = [shape]
+        _changed()
+        return shape
+    }
+
+    /// A table's height follows its rows: no undo step of its own, it is
+    /// part of the typing that grew it.
+    func fitHeight(_ shape: SlideShape, _ height: Double) {
+        guard abs(shape.frame.height - height) > 0.5 else { return }
+        let f = shape.frame
+        shape.frame = Rect.fromLTWH(f.left, f.top, f.width, height)
+        revision += 1
+        notifyListeners()
+    }
+
+    static func tint(_ c: Color, _ amount: Double) -> Color {
+        let v = c.value
+        func mix(_ x: Int) -> Int { Int(Double(x) * amount + 255 * (1 - amount)) }
+        return Color(0xFF00_0000 | (mix((v >> 16) & 0xFF) << 16) | (mix((v >> 8) & 0xFF) << 8) | mix(v & 0xFF))
+    }
+
     func deleteSelection() {
         guard !selection.isEmpty else { return }
         _checkpoint()
@@ -481,7 +542,11 @@ final class DeckController: ChangeNotifier {
             slide.inheritedBackground = nil
             if let bg = slide.background, bg.image == nil { slide.background = nil }
             for shape in slide.shapes {
-                if let scheme = shape.fillScheme, let i = Int(scheme.dropFirst(6)), (1 ... 6).contains(i) {
+                if shape.kind == .table, shape.fillScheme != nil, let id = shape.tableId, let text = shape.text {
+                    var doc = text.document
+                    doc.tableStyles[id] = tableStyle(accent: new.accents[0])
+                    text.load(doc)
+                } else if let scheme = shape.fillScheme, let i = Int(scheme.dropFirst(6)), (1 ... 6).contains(i) {
                     let c = new.accents[i - 1]
                     if shape.preset?.isLine == true { shape.outline = c } else {
                         shape.fill = c
@@ -718,7 +783,8 @@ final class DeckController: ChangeNotifier {
                    insets: s.insets, prompt: s.prompt, text: s.text?.document,
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
-                   phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId)
+                   phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId,
+                   sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -744,6 +810,9 @@ final class DeckController: ChangeNotifier {
         shape.crop = st.crop
         shape.fileId = st.fileId
         shape.fillScheme = st.fillScheme
+        shape.sourceXML = st.sourceXML
+        shape.sourceText = st.sourceText
+        shape.sourcePart = st.sourcePart
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
 
@@ -800,6 +869,7 @@ final class DeckController: ChangeNotifier {
         var st = _state(shape)
         st.id = _id()
         st.fileId = nil
+        st.sourceXML = nil
         st.frame = st.frame.shift(Offset(offset, offset))
         return _make(st)
     }

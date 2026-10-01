@@ -148,3 +148,70 @@ final class AnimationKeepTests: XCTestCase {
         XCTAssertFalse(dropped.contains("<p:timing"), "and dropped once it is gone")
     }
 }
+
+final class TableTests: XCTestCase {
+    private func tableShape(_ state: DeckState) -> ShapeState? {
+        state.slides.flatMap(\.shapes).first { $0.kind == .table }
+    }
+
+    private func cells(_ doc: RichDocument?) -> [String] {
+        doc?.paragraphs.map(\.text) ?? []
+    }
+
+    func testTablesRoundTrip() throws {
+        let deck = SlidesSample.make()
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let table = try XCTUnwrap(tableShape(state))
+        XCTAssertEqual(cells(table.text), ["Feature", "Writer", "Slides", "Open", "docx", "pptx", "Save", "yes", "yes"])
+        let id = try XCTUnwrap(table.text?.paragraphs.first?.cell?.table)
+        XCTAssertEqual(table.text?.tableColumns[id]?.count, 3)
+        let style = table.text?.tableStyles[id]
+        XCTAssertEqual(style?.headerFill, deck.theme.accents[0], "the header row keeps the accent fill")
+        XCTAssertEqual(table.text?.paragraphs.first?.runs.first?.style.bold, true)
+    }
+
+    func testAnUneditedTableIsKeptAndAnEditedOneRewritten() throws {
+        // Swap the written style GUID for another of PowerPoint's: kept, it
+        // survives; once a cell is edited, our own table replaces it.
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let ours = "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}", theirs = "{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}"
+        let part = try XCTUnwrap(package.parts.keys.first { k in
+            k.hasPrefix("ppt/slides/slide") && String(data: package.parts[k]!, encoding: .utf8)!.contains("<a:tbl>")
+        })
+        let slide = String(data: package.parts[part]!, encoding: .utf8)!
+        package.parts[part] = Data(slide.replacingOccurrences(of: ours, with: theirs).utf8)
+        var entries: [ZipEntry] = []
+        for (k, v) in package.parts { entries.append(ZipEntry(name: k, data: v)) }
+        var (state, theme, pkg) = try Pptx.read(try Zip.write(entries))
+
+        func written(_ state: DeckState) throws -> String {
+            let out = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+            let k = try XCTUnwrap(out.parts.keys.first { k in
+                k.hasPrefix("ppt/slides/slide") && String(data: out.parts[k]!, encoding: .utf8)!.contains("<a:tbl>")
+            })
+            return String(data: out.parts[k]!, encoding: .utf8)!
+        }
+        XCTAssertTrue(try written(state).contains(theirs), "unedited: kept as read")
+
+        let s = try XCTUnwrap(state.slides.firstIndex { $0.shapes.contains { $0.kind == .table } })
+        let i = state.slides[s].shapes.firstIndex { $0.kind == .table }!
+        var doc = state.slides[s].shapes[i].text!
+        doc.paragraphs[4].insert(" (both)", at: 4)
+        state.slides[s].shapes[i].text = doc
+        let edited = try written(state)
+        XCTAssertTrue(edited.contains(ours) && !edited.contains(theirs), "edited: our table")
+        XCTAssertTrue(edited.contains("docx (both)"))
+    }
+
+    func testThemeRecoloursOurTables() {
+        let deck = SlidesSample.make()
+        let table = deck.slides.flatMap(\.shapes).first { $0.kind == .table }!
+        let ocean = DeckTheme.presets.first { $0.name == "Ocean" }!
+        deck.applyTheme(ocean)
+        XCTAssertEqual(table.text?.document.tableStyles[table.tableId!]?.headerFill, ocean.accents[0])
+        deck.undo()
+        XCTAssertEqual(deck.slides.flatMap(\.shapes).first { $0.kind == .table }?
+            .text?.document.tableStyles[table.tableId!]?.headerFill, deck.theme.accents[0])
+    }
+}

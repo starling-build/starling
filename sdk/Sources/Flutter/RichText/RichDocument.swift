@@ -353,10 +353,23 @@ public struct CellRef: Hashable, Sendable {
 public struct TableStyle: Hashable, Sendable {
     public var borders = true
     public var headerRow = false
+    /// The header row's fill (nil: a faint tint of the text colour).
+    public var headerFill: Color? = nil
+    /// Banded rows: every other body row filled with this, the rest with
+    /// `bandAltFill` (PowerPoint's default table look). nil: no bands.
+    public var bandFill: Color? = nil
+    public var bandAltFill: Color? = nil
+    /// Border colour (nil: the text colour at 60%).
+    public var borderColor: Color? = nil
 
-    public init(borders: Bool = true, headerRow: Bool = false) {
+    public init(borders: Bool = true, headerRow: Bool = false, headerFill: Color? = nil,
+                bandFill: Color? = nil, bandAltFill: Color? = nil, borderColor: Color? = nil) {
         self.borders = borders
         self.headerRow = headerRow
+        self.headerFill = headerFill
+        self.bandFill = bandFill
+        self.bandAltFill = bandAltFill
+        self.borderColor = borderColor
     }
 }
 

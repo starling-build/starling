@@ -268,7 +268,8 @@ final class SlideCanvasState: State<StatefulWidget> {
                 focusNode: focusNode(for: shape), autofocus: false,
                 backgroundColor: nil, zoom: px / theme.pixelsPerPoint,
                 onShortcut: _w.onShortcut,
-                spellChecker: _w.spellChecker))))
+                spellChecker: _w.spellChecker,
+                scrolls: false))))
         return Stack(children: stack)
     }
 

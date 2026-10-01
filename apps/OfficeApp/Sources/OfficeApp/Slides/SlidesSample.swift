@@ -68,6 +68,16 @@ enum SlidesSample {
                             naturalSize: Size(480, 360))
         }
 
+        let tableSlide = deck.addSlide(.titleOnly)
+        type(tableSlide.shapes.first { $0.role == .title }, "A table")
+        let table = deck.addTable(rows: 3, columns: 3)
+        if let c = table.text {
+            for (i, word) in ["Feature", "Writer", "Slides", "Open", "docx", "pptx", "Save", "yes", "yes"].enumerated() {
+                if i > 0 { c.moveToAdjacentCell(forward: true) }
+                c.insertText(word)
+            }
+        }
+
         let blank = deck.addSlide(.blank)
         deck.toggleHidden(deck.slides.firstIndex { $0 === blank }!)
         deck.select(0)
