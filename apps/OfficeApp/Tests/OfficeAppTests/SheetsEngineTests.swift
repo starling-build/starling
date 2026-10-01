@@ -369,3 +369,54 @@ extension SheetsEngineTests {
         XCTAssertThrowsError(try Formula.parse("=SUM(A1#)"))
     }
 }
+
+extension SheetsEngineTests {
+    /// After every edit, the incremental pass agrees with a full one.
+    func testIncrementalRecalcMatchesAFullOne() {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "One"), Worksheet(name: "Two")]))
+        var rng = SystemRandomNumberGenerator()
+        func ref() -> String { "\(["A", "B", "C", "D"].randomElement(using: &rng)!)\(Int.random(in: 1 ... 12, using: &rng))" }
+        let formulas = [
+            { "=\(ref())+\(ref())" }, { "=SUM(A1:\(ref()))" }, { "=Two!\(ref())*2" }, { "=SUMIF(A1:A12,\">5\",B1:B12)" },
+            { "=IF(\(ref())>3,\(ref()),0)" }, { "=COUNT(One!A:B)" }, { "=VLOOKUP(\(ref()),A1:D12,2,FALSE)" }, { "=RATE_ME+1" },
+        ]
+        c.book.names["RATE_ME"] = "One!$C$3"
+        for round in 0 ..< 300 {
+            let sheet = Int.random(in: 0 ... 1, using: &rng)
+            let a = CellAddress(ref())!
+            let text = Int.random(in: 0 ..< 3, using: &rng) == 0 ? formulas.randomElement(using: &rng)!() : "\(Int.random(in: 0 ... 9, using: &rng))"
+            c.setInputs([(a, text)], sheet: sheet)
+            // Values as the incremental pass left them, then as a full pass computes them.
+            let incremental = c.book.sheets.map { ws in ws.cells.mapValues(\.value) }
+            c.engine.recalculate()
+            let full = c.book.sheets.map { ws in ws.cells.mapValues(\.value) }
+            if incremental != full {
+                XCTFail("round \(round): \(text) into \(sheet):\(a.a1) left values stale")
+                return
+            }
+        }
+    }
+}
+
+extension SheetsEngineTests {
+    /// A running total 50,000 rows long: evaluated in dependency order, so
+    /// it neither recurses 50,000 deep (a stack overflow, before) nor
+    /// recomputes everything when an unrelated cell changes.
+    func testLongChainsAndIncrementalEdits() {
+        let c = WorkbookController()
+        var items: [(CellAddress, String)] = []
+        let n = 50_000
+        for r in 0 ..< n {
+            items.append((CellAddress(row: r, col: 0), "1"))
+            items.append((CellAddress(row: r, col: 1), r == 0 ? "=A1" : "=B\(r)+A\(r + 1)"))
+        }
+        c.setInputs(items)
+        XCTAssertEqual(c.sheet.value(CellAddress(row: n - 1, col: 1)), .number(Double(n)))
+        c.setInputs([(CellAddress("A1")!, "11")])
+        XCTAssertEqual(c.sheet.value(CellAddress(row: n - 1, col: 1)), .number(Double(n + 10)))
+        let t = Date()
+        c.setInputs([(CellAddress("D1")!, "7")])
+        XCTAssertLessThan(Date().timeIntervalSince(t), 0.5)          // nothing reads D1
+    }
+}

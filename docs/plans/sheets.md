@@ -345,6 +345,26 @@ place is selected. Array constants (`{1,2;3,4}`) parse, print back and
 evaluate. Still unread (kept verbatim): spill references (`A1#`) and
 the dynamic-array functions that make them.
 
+**Recalculation (2026-10-01).** Evaluation used to recurse into each
+formula's inputs from sheet order, so a running total 15,000 rows long
+recursed 15,000 deep and crashed the app (SIGSEGV, stack overflow).
+`CalcEngine.recalculate()` now orders the formulas first — an iterative
+walk over their static references (cells, ranges as shared nodes,
+defined names) — and evaluates inputs first; a 50,000-row chain is a
+test. The graph is kept between edits: an edit that changes only values
+recomputes what reads the changed cells (by cell, and by ranges indexed
+by column) plus volatile formulas (NOW, TODAY, RAND, OFFSET, INDIRECT,
+CELL, INFO, table references); a formula typed or removed, or anything
+structural, rebuilds it. A randomized test checks every incremental
+pass against a full one. A range's values are gathered once per pass
+for SUMIF/COUNTIF/AVERAGEIF(S), and the used extent is cached per pass
+(writing computed values back used to invalidate the sheet's, so every
+whole-column criterion rescanned the sheet). Release build, 30,000
+formulas (a running total + 15,000 SUMIFs over 200 cells): a full pass
+1.2 s → 0.14 s; editing a cell nothing reads 1.2 s → 0.05 ms; editing
+the cell everything reads 0.09 s. `SHEETS_CALC_TRACE=1` prints a full
+pass's ordering and evaluation times.
+
 **Fixed 2026-10-01: formulas this engine cannot read were dropped on
 save** unless their result was text — the cell kept only its value, so a
 table's `=SUM(Table1[Amount])` or `[@Price]*[@Qty]` became a constant.

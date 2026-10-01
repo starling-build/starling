@@ -39,6 +39,7 @@ final class CalcEngine {
     let book: Workbook
     /// Formula cells of this pass: being computed, or done.
     private var _visiting: [SheetCell] = []
+    private var _visitingSet: Set<SheetCell> = []
     private var _done: Set<SheetCell> = []
     /// Cells found in a cycle during the last recalculation.
     private(set) var circular: Set<SheetCell> = []
@@ -50,19 +51,222 @@ final class CalcEngine {
         let cell: CellAddress
     }
 
+    /// Read the values the cells already hold instead of computing them
+    /// (a saver's or a reader's engine over a book a recalculation has
+    /// filled in): never recurses.
+    var storedValuesOnly = false
+
+    /// SHEETS_CALC_TRACE=1: each full pass's ordering and evaluation times on stderr.
+    private static let _trace = ProcessInfo.processInfo.environment["SHEETS_CALC_TRACE"] != nil
+
     init(_ book: Workbook) { self.book = book }
 
-    /// Recompute every formula in the workbook.
+    /// Recompute every formula in the workbook, inputs before the
+    /// formulas that read them.
     func recalculate() {
+        _graph = nil
+        _rangeCache.removeAll(keepingCapacity: true)
+        _extents.removeAll()
         _done.removeAll(keepingCapacity: true)
         _visiting.removeAll()
+        _visitingSet.removeAll()
         circular.removeAll()
         now = ExcelDate.now()
-        for (si, sheet) in book.sheets.enumerated() {
-            for (addr, cell) in sheet.cells where cell.formula != nil {
-                _ = value(si, addr)
+        // Evaluation recurses into the cells a formula reads; in sheet order
+        // a long chain (a running total down 100,000 rows) would recurse once
+        // per row and overflow the stack. So the order comes first, from an
+        // iterative walk over each formula's references, and each value is
+        // then computed with its inputs already done.
+        let t0 = Date()
+        let order = _evaluationOrder()
+        if Self._trace { FileHandle.standardError.write(Data("[calc] order \(order.count) in \(Date().timeIntervalSince(t0))s\n".utf8)) }
+        let t1 = Date()
+        for key in order { _ = value(key.sheet, key.cell) }
+        if Self._trace { FileHandle.standardError.write(Data("[calc] values in \(Date().timeIntervalSince(t1))s\n".utf8)) }
+    }
+
+    /// A node of the walk: a formula cell, or a range whose formula cells
+    /// are its inputs (shared by every formula reading that range).
+    private enum _Node: Hashable {
+        case cell(SheetCell)
+        case range(Int, CellRange)
+    }
+
+    /// The dependency graph of the last full pass, kept while formulas stay
+    /// as they are, so an edit to values recomputes only what reads them.
+    private struct _Graph {
+        var order: [SheetCell]
+        var formulaCells: Set<SheetCell>
+        /// Who reads a single cell, by that cell; who reads a range, by the
+        /// range's columns (wide ranges apart, checked always).
+        var cellReaders: [SheetCell: [SheetCell]] = [:]
+        var ranges: [(sheet: Int, range: CellRange, readers: [SheetCell])] = []
+        var byColumn: [Int: [Int: [Int]]] = [:]      // sheet → column → indexes into ranges
+        var wide: [Int] = []
+        /// Formulas whose inputs cannot be known ahead (NOW, OFFSET, a
+        /// table reference): always recomputed.
+        var volatile: Set<SheetCell> = []
+    }
+    private var _graph: _Graph? = nil
+
+    /// A range's values, row by row, gathered once per pass: every formula
+    /// in a range is computed before anything that reads the range (the
+    /// order says so), so all its readers can share one copy.
+    private struct _RangeKey: Hashable { let sheet: Int; let range: CellRange }
+    private var _rangeCache: [_RangeKey: [CellValue]] = [:]
+
+    /// A sheet's used extent, for one pass (and after it while no cell is
+    /// added or removed): writing computed values back would otherwise make
+    /// every reader of a whole column rescan the sheet. Each pass starts
+    /// afresh, since moving rows keeps the count and changes the extent.
+    private var _extents: [Int: (count: Int, extent: CellAddress)] = [:]
+
+    func usedExtent(_ sheet: Int) -> CellAddress {
+        let ws = book.sheets[sheet]
+        if let e = _extents[sheet], e.count == ws.cells.count { return e.extent }
+        let e = ws.usedExtent
+        _extents[sheet] = (ws.cells.count, e)
+        return e
+    }
+
+    func rangeValues(_ sheet: Int, _ r: CellRange) -> [CellValue] {
+        let key = _RangeKey(sheet: sheet, range: r)
+        if let v = _rangeCache[key] { return v }
+        let ws = book.sheets[sheet]
+        var out: [CellValue] = []
+        out.reserveCapacity(r.rows * r.cols)
+        for row in r.top ... r.bottom {
+            for col in r.left ... r.right {
+                let a = CellAddress(row: row, col: col)
+                if let cell = ws.cells[a] { out.append(cell.formula == nil ? cell.value : value(sheet, a)) } else { out.append(.empty) }
             }
         }
+        // Not kept while a cycle is being walked: its cells are not final.
+        if _visiting.count <= 1 { _rangeCache[key] = out }
+        return out
+    }
+
+    /// Recompute after `changed` cells (on `sheet`) took new values: only
+    /// the formulas that read them, directly or not, and the volatile ones —
+    /// or everything, when formulas themselves changed.
+    func recalculate(changed: [CellAddress], sheet: Int, formulasChanged: Bool) {
+        guard !formulasChanged, let g = _graph, circular.isEmpty else { recalculate(); return }
+        now = ExcelDate.now()
+        _rangeCache.removeAll(keepingCapacity: true)
+        _extents.removeAll()
+        var dirty = Set<SheetCell>()
+        var queue = changed.map { SheetCell(sheet: sheet, cell: $0) } + Array(g.volatile)
+        for v in g.volatile { dirty.insert(v) }
+        while let x = queue.popLast() {
+            var readers = g.cellReaders[x] ?? []
+            var candidates = g.wide
+            if let cols = g.byColumn[x.sheet], let list = cols[x.cell.col] { candidates += list }
+            for i in candidates where g.ranges[i].sheet == x.sheet && g.ranges[i].range.contains(x.cell) {
+                readers += g.ranges[i].readers
+            }
+            for r in readers where dirty.insert(r).inserted { queue.append(r) }
+        }
+        _visiting.removeAll()
+        _visitingSet.removeAll()
+        _done = g.formulaCells.subtracting(dirty)
+        for key in g.order where dirty.contains(key) { _ = value(key.sheet, key.cell) }
+    }
+
+    private func _evaluationOrder() -> [SheetCell] {
+        // Formula cells by sheet and column, rows sorted: what a range holds.
+        var index: [Int: [Int: [Int]]] = [:]
+        var all: [SheetCell] = []
+        for (si, sheet) in book.sheets.enumerated() {
+            for (addr, cell) in sheet.cells where cell.formula != nil {
+                index[si, default: [:]][addr.col, default: []].append(addr.row)
+                all.append(SheetCell(sheet: si, cell: addr))
+            }
+        }
+        for si in index.keys { for c in index[si]!.keys { index[si]![c]!.sort() } }
+        all.sort { ($0.sheet, $0.cell.row, $0.cell.col) < ($1.sheet, $1.cell.row, $1.cell.col) }
+
+        func formulaCells(_ si: Int, _ r: CellRange) -> [_Node] {
+            guard let cols = index[si] else { return [] }
+            var out: [_Node] = []
+            let colKeys = r.cols <= cols.count ? Array(r.left ... r.right).filter { cols[$0] != nil } : cols.keys.filter { $0 >= r.left && $0 <= r.right }
+            for c in colKeys {
+                let rows = cols[c]!
+                var lo = 0, hi = rows.count
+                while lo < hi { let m = (lo + hi) / 2; if rows[m] < r.top { lo = m + 1 } else { hi = m } }
+                while lo < rows.count, rows[lo] <= r.bottom {
+                    out.append(.cell(SheetCell(sheet: si, cell: CellAddress(row: rows[lo], col: c))))
+                    lo += 1
+                }
+            }
+            return out
+        }
+        func inputs(_ node: _Node) -> [_Node] {
+            switch node {
+            case .range(let si, let r):
+                return r.isSingle ? (book.sheets[si].cells[r.topLeft]?.formula != nil ? [.cell(SheetCell(sheet: si, cell: r.topLeft))] : [])
+                                  : formulaCells(si, r)
+            case .cell(let k):
+                guard let f = book.sheets[k.sheet].cells[k.cell]?.formula else { return [] }
+                if Formula.isVolatile(f) { graph.volatile.insert(k) }
+                var refs: [FormulaRef] = []
+                Formula.references(f, into: &refs)
+                // Defined names read cells too.
+                var names: [String] = []
+                Formula.names(f, into: &names)
+                for n in names {
+                    if let t = book.names[n.uppercased()], let e = try? Formula.parse(t) { Formula.references(e, into: &refs) }
+                }
+                return refs.compactMap { ref in
+                    let si = ref.sheet.flatMap { book.sheet(named: $0) } ?? k.sheet
+                    guard si >= 0, si < book.sheets.count else { return nil }
+                    let r = ref.range
+                    if r.isSingle {
+                        graph.cellReaders[SheetCell(sheet: si, cell: r.topLeft), default: []].append(k)
+                    } else {
+                        rangeReaders[_Node.range(si, r), default: []].append(k)
+                    }
+                    return .range(si, r)
+                }
+            }
+        }
+        var graph = _Graph(order: [], formulaCells: Set(all))
+        var rangeReaders: [_Node: [SheetCell]] = [:]
+        var order: [SheetCell] = []
+        order.reserveCapacity(all.count)
+        var state: [_Node: Bool] = [:]          // false: on the walk now, true: finished
+        for start in all {
+            let root = _Node.cell(start)
+            guard state[root] == nil else { continue }
+            var stack: [(node: _Node, inputs: [_Node], next: Int)] = [(root, inputs(root), 0)]
+            state[root] = false
+            while !stack.isEmpty {
+                let top = stack.count - 1
+                if stack[top].next < stack[top].inputs.count {
+                    let child = stack[top].inputs[stack[top].next]
+                    stack[top].next += 1
+                    // On the walk already: a cycle, which value() reports.
+                    if state[child] == nil {
+                        state[child] = false
+                        stack.append((child, inputs(child), 0))
+                    }
+                } else {
+                    let done = stack.removeLast().node
+                    state[done] = true
+                    if case .cell(let k) = done { order.append(k) }
+                }
+            }
+        }
+        // Who reads which range, findable by column.
+        for (node, readers) in rangeReaders {
+            guard case .range(let si, let r) = node else { continue }
+            let i = graph.ranges.count
+            graph.ranges.append((si, r, readers))
+            if r.cols > 64 { graph.wide.append(i); continue }
+            for c in r.left ... r.right { graph.byColumn[si, default: [:]][c, default: []].append(i) }
+        }
+        graph.order = order
+        _graph = graph
+        return order
     }
 
     /// A cell's value, computing its formula if this pass has not yet.
@@ -70,19 +274,21 @@ final class CalcEngine {
         guard sheet >= 0, sheet < book.sheets.count else { return .error(.ref) }
         let ws = book.sheets[sheet]
         guard let cell = ws.cells[addr] else { return .empty }
-        guard let f = cell.formula else { return cell.value }
+        guard let f = cell.formula, !storedValuesOnly else { return cell.value }
         let key = SheetCell(sheet: sheet, cell: addr)
         if _done.contains(key) { return cell.value }
-        if let at = _visiting.firstIndex(of: key) {
+        if _visitingSet.contains(key), let at = _visiting.firstIndex(of: key) {
             // Every cell on the loop shows 0, as Excel's do.
             for k in _visiting[at...] { circular.insert(k) }
             return .number(0)
         }
         _visiting.append(key)
+        _visitingSet.insert(key)
         let ctx = EvalContext(engine: self, sheet: sheet, cell: addr)
         var v = scalar(evaluate(f, ctx), ctx)
         if circular.contains(key) { v = .number(0) }
         _visiting.removeLast()
+        _visitingSet.remove(key)
         _done.insert(key)
         // A function we do not have: show what the file last computed.
         if v == .error(.name), let cached = cell.cached, Formula.usesUnknownFunction(f) { v = cached }
@@ -312,7 +518,7 @@ final class CalcEngine {
             // A big range over a sparse sheet: walk the cells that exist.
             return ws.cells.keys.filter { r.contains($0) }.sorted().map { value(sheet, $0) }
         }
-        let used = ws.usedExtent
+        let used = usedExtent(sheet)
         let bottom = includeEmpty ? r.bottom : min(r.bottom, used.row)
         let right = includeEmpty ? r.right : min(r.right, used.col)
         guard bottom >= r.top, right >= r.left else { return [] }
@@ -336,7 +542,7 @@ final class CalcEngine {
         case .array(let a): return a
         case .range(let sheet, let r):
             guard sheet >= 0, sheet < book.sheets.count else { return [[.error(.ref)]] }
-            let used = book.sheets[sheet].usedExtent
+            let used = usedExtent(sheet)
             let bottom = min(r.bottom, max(used.row, r.top))
             let right = min(r.right, max(used.col, r.left))
             return (r.top ... bottom).map { row in

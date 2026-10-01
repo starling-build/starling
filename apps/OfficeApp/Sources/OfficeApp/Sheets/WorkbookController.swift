@@ -592,7 +592,12 @@ final class WorkbookController: ChangeNotifier {
         var after: [CellAddress: Cell?] = [:]
         for a in before.keys { after[a] = .some(ws.cells[a]) }
         _push(.cells(sheet: si, before: before, after: after, selection: selection, active: active))
-        if recalc { engine.recalculate() }
+        if recalc {
+            // Values only: recompute what reads them. A formula typed, changed
+            // or removed: the dependencies themselves changed, so everything.
+            let formulasChanged = before.contains { a, c in (c ?? nil)?.formula != ws.cells[a]?.formula }
+            engine.recalculate(changed: Array(before.keys), sheet: si, formulasChanged: formulasChanged)
+        }
         _notify()
     }
 

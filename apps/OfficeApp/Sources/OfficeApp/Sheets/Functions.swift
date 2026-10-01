@@ -749,24 +749,28 @@ enum SheetFunctions {
         }
         // Rows and columns beyond the data cannot match a non-blank criterion;
         // clip whole columns to the used area.
-        let used = c.engine.book.sheets[first.0].usedExtent
+        let used = c.engine.usedExtent(first.0)
         let rows = min(first.1.rows, max(0, used.row - first.1.top + 1))
         let cols = min(first.1.cols, max(0, used.col - first.1.left + 1))
         var xs: [Double] = []
         var count = 0
-        for dr in 0 ..< max(rows, 0) {
-            for dc in 0 ..< max(cols, 0) {
+        // Each area's cells once (shared with every other formula reading
+        // the same range this pass), then the criteria over plain arrays.
+        let r = max(rows, 0), cc = max(cols, 0)
+        if r > 0 && cc > 0 {
+            func block(_ area: (Int, CellRange)) -> [CellValue] {
+                let rg = CellRange(top: area.1.top, left: area.1.left, bottom: area.1.top + r - 1, right: area.1.left + cc - 1)
+                guard rg.bottom < CellAddress.maxRows, rg.right < CellAddress.maxCols else { return [] }
+                return c.engine.rangeValues(area.0, rg)
+            }
+            let blocks = areas.map(block)
+            let targetBlock = targetArea.map(block)
+            for i in 0 ..< r * cc {
                 var ok = true
-                for (k, area) in areas.enumerated() {
-                    let v = c.engine.value(area.0, CellAddress(row: area.1.top + dr, col: area.1.left + dc))
-                    if !crits[k].matches(v) { ok = false; break }
-                }
+                for k in 0 ..< blocks.count where !crits[k].matches(i < blocks[k].count ? blocks[k][i] : .empty) { ok = false; break }
                 guard ok else { continue }
                 count += 1
-                if let t = targetArea {
-                    let v = c.engine.value(t.0, CellAddress(row: t.1.top + dr, col: t.1.left + dc))
-                    if let n = v.number { xs.append(n) }
-                }
+                if let t = targetBlock, i < t.count, let n = t[i].number { xs.append(n) }
             }
         }
         // Cells past the used area are blank: they count when every

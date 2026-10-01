@@ -155,6 +155,33 @@ enum Formula {
         return n
     }
 
+    /// Reads something its references do not show: the clock, chance,
+    /// a reference built at run time, a table — recomputed every time.
+    static func isVolatile(_ e: FormulaExpr) -> Bool {
+        switch e {
+        case .structured: return true
+        case .call(let n, let args):
+            let u = unprefixed(n).uppercased()
+            if ["NOW", "TODAY", "RAND", "RANDBETWEEN", "RANDARRAY", "OFFSET", "INDIRECT", "CELL", "INFO"].contains(u) { return true }
+            return args.contains(where: isVolatile)
+        case .negate(let x), .plus(let x), .percent(let x), .paren(let x): return isVolatile(x)
+        case .binary(_, let a, let b): return isVolatile(a) || isVolatile(b)
+        case .array(let rows): return rows.contains { $0.contains(where: isVolatile) }
+        default: return false
+        }
+    }
+
+    /// Every defined name the formula reads.
+    static func names(_ e: FormulaExpr, into out: inout [String]) {
+        switch e {
+        case .name(let n): out.append(n)
+        case .negate(let x), .plus(let x), .percent(let x), .paren(let x): names(x, into: &out)
+        case .binary(_, let a, let b): names(a, into: &out); names(b, into: &out)
+        case .call(_, let args): for a in args { names(a, into: &out) }
+        default: break
+        }
+    }
+
     /// Every reference the formula reads, for the dependency graph.
     static func references(_ e: FormulaExpr, into out: inout [FormulaRef]) {
         switch e {

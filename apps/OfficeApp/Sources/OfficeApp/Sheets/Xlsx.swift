@@ -479,7 +479,8 @@ enum Xlsx {
         var drawingParts: [DrawingParts] = []
         var noteParts: [NoteParts] = []
         var sheetRelParts: [String: Data] = [:]
-        let calc = book.sheets.contains(where: \.drawingsEdited) ? CalcEngine(book) : nil
+        let calc: CalcEngine? = book.sheets.contains(where: \.drawingsEdited) ? CalcEngine(book) : nil
+        calc?.storedValuesOnly = true
         for (i, ws) in book.sheets.enumerated() {
             // One relationship list per sheet, shared by whatever adds to it.
             var rels = _relList(originalParts[_relsPath(paths[i])])
