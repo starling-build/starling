@@ -1628,10 +1628,36 @@ final class SheetGridState: State<StatefulWidget> {
             let r = rect(a)
             let l = r.left.rounded() - 0.5, rr = r.right.rounded() - 0.5
             let t = r.top.rounded() - 0.5, bt = r.bottom.rounded() - 0.5
-            if b.top { canvas.drawLine(Offset(l, t), Offset(rr, t), border) }
-            if b.bottom { canvas.drawLine(Offset(l, bt), Offset(rr, bt), border) }
-            if b.left { canvas.drawLine(Offset(l, t), Offset(l, bt), border) }
-            if b.right { canvas.drawLine(Offset(rr, t), Offset(rr, bt), border) }
+            /// One side as the file drew it: thicker, doubled, dashed or dotted.
+            func line(_ side: String, _ a: Offset, _ z: Offset, inward: Offset) {
+                let kind = b.kinds[side] ?? "thin"
+                border.color = b.colors[side].map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.ink
+                border.strokeWidth = kind == "medium" || kind.hasPrefix("medium") ? 2 : kind == "thick" ? 3 : 1
+                if kind == "hair" { border.color = border.color.withAlpha(140) }
+                if kind == "double" {
+                    canvas.drawLine(a, z, border)
+                    canvas.drawLine(a + inward * 2, z + inward * 2, border)
+                    return
+                }
+                if kind.contains("ash") || kind.contains("otted") {
+                    // Dashes and dots, drawn as short runs along the side.
+                    let dash = kind.contains("otted") ? 1.0 : 3.0, gap = kind.contains("otted") ? 2.0 : 2.0
+                    let length = (z - a).distance
+                    guard length > 0 else { return }
+                    let step = (z - a) / length
+                    var at = 0.0
+                    while at < length {
+                        canvas.drawLine(a + step * at, a + step * min(length, at + dash), border)
+                        at += dash + gap
+                    }
+                    return
+                }
+                canvas.drawLine(a, z, border)
+            }
+            if b.top { line("top", Offset(l, t), Offset(rr, t), inward: Offset(0, 1)) }
+            if b.bottom { line("bottom", Offset(l, bt), Offset(rr, bt), inward: Offset(0, -1)) }
+            if b.left { line("left", Offset(l, t), Offset(l, bt), inward: Offset(1, 0)) }
+            if b.right { line("right", Offset(rr, t), Offset(rr, bt), inward: Offset(-1, 0)) }
         }
         // Filter dropdowns: ▾, or a funnel on a column that filters.
         if !printing, let af = ws.autoFilter, rs.contains(af.range.top) {

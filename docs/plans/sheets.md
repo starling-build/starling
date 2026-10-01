@@ -380,7 +380,23 @@ inserted/deleted rows and columns, and a cell typed into a formatted
 row or column takes its style, as in Excel; a formatted row's or
 column's fill is drawn under its empty cells. Widths are written as the
 file had them while unchanged (`colWidthChars`): pixel rounding used to
-nudge 17.453125 to 17.42578125. LET (local names in
+nudge 17.453125 to 17.42578125.
+
+**Cell formats kept exactly (2026-10-01).** styles.xml was rebuilt from
+the simplified style model: border kinds and colours (a total's double
+underline), theme font colours and schemes, pattern and gradient fills,
+indents, rotation, protection and named cell styles all came back
+plainer on save. Now the file's numFmts, fonts, fills, borders,
+cellStyleXfs, cellStyles and each cellXfs entry are kept as written
+(`Workbook.styleSource`, container tags included) and written first,
+verbatim, so every original style index means what it meant; a format
+made here records the one it came from (`CellStyle.baseXf`) and reuses
+its font, fill, border, number format, alignment, protection and named
+style wherever the change left them alone (bolding a double-underlined
+total keeps the double underline); undoing the change maps back to the
+file's own format. The three real workbooks' styles sections round-trip
+byte for byte. Border kinds and colours are also drawn (thin, medium,
+thick, double, dashed, dotted, hair). LET (local names in
 `EvalContext.locals`) and the Excel 365 shapers VSTACK, HSTACK, TAKE,
 DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
 TEXTSPLIT work too. Still unread (kept verbatim): the intersection

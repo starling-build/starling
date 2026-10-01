@@ -310,3 +310,39 @@ extension XlsxTests {
         XCTAssertTrue(out.containsSubstring("outlineLevelCol=\"1\" outlineLevelRow=\"1\""), out)
     }
 }
+
+extension XlsxTests {
+    func testDerivedStylesKeepWhatTheModelDoesNotHold() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        var entries = try Zip.read(try Data(contentsOf: url))
+        let si = try XCTUnwrap(entries.firstIndex { $0.name == "xl/styles.xml" })
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        // A double bottom border, and a format using it with an indent and locked off.
+        let borders = try XCTUnwrap(styles.findRange(of: "</borders>"))
+        styles.replaceSubrange(borders, with: "<border><left/><right/><top/><bottom style=\"double\"><color theme=\"4\"/></bottom><diagonal/></border></borders>")
+        styles = styles.replacingAll("<borders count=\"1\">", with: "<borders count=\"2\">")
+        let xfs = try XCTUnwrap(styles.findRange(of: "</cellXfs>"))
+        styles.replaceSubrange(xfs, with: "<xf numFmtId=\"4\" fontId=\"0\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyBorder=\"1\"><alignment indent=\"2\"/><protection locked=\"0\"/></xf></cellXfs>")
+        styles = styles.replacingAll("<cellXfs count=\"2\">", with: "<cellXfs count=\"3\">")
+        entries[si] = ZipEntry(name: entries[si].name, data: Data(styles.utf8))
+        let c = WorkbookController()
+        let book = try Xlsx.read(try Zip.write(entries))
+        XCTAssertEqual(book.styles.count, 3)
+        c.load(book)
+        c.setInputs([(CellAddress("A40")!, "1234.5")])
+        c.sheet.cells[CellAddress("A40")!]?.style = 2
+        c.select(CellAddress("A40")!)
+        c.setStyle { $0.bold = true }
+        let new = try XCTUnwrap(c.sheet.cells[CellAddress("A40")!]?.style)
+        XCTAssertEqual(c.book.styles[new].baseXf, 2)
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/styles.xml" }).data, as: UTF8.self)
+        XCTAssertNotNil(XNode.parse(Data(out.utf8)))
+        // The bolded format: a new font, the file's border (1), number format (4), indent and protection.
+        XCTAssertTrue(out.containsSubstring("numFmtId=\"4\" fontId=\"1\" fillId=\"0\" borderId=\"1\" xfId=\"0\""), out)
+        XCTAssertTrue(out.containsSubstring("<alignment indent=\"2\"/><protection locked=\"0\"/></xf></cellXfs>"), out)
+        XCTAssertTrue(out.containsSubstring("<bottom style=\"double\"><color theme=\"4\"/></bottom>"))
+        // Unbolded again: back to the file's own format.
+        c.setStyle { $0.bold = false }
+        XCTAssertEqual(c.sheet.cells[CellAddress("A40")!]?.style, 2)
+    }
+}

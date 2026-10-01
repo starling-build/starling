@@ -48,12 +48,20 @@ struct CellStyle: Hashable, Sendable {
     var wrap = false
     var numberFormat = "General"
     var borders = Borders()
+    /// The file's cell format this one is, or was derived from: whatever
+    /// the model does not hold (border kinds and colours, pattern fills,
+    /// theme colours, indents, protection, the named style) comes from it.
+    var baseXf: Int? = nil
 
     enum HAlign: String, Hashable, Sendable { case general, left, center, right }
     enum VAlign: String, Hashable, Sendable { case top, center, bottom }
 
     struct Borders: Hashable, Sendable {
         var top = false, left = false, bottom = false, right = false
+        /// A side's line as the file drew it — thin, medium, thick, double,
+        /// dashed, dotted, hair… — and its colour; absent: thin, automatic.
+        var kinds: [String: String] = [:]
+        var colors: [String: UInt32] = [:]
     }
 
     static let plain = CellStyle()
@@ -245,6 +253,10 @@ final class Workbook {
     var names: [String: String] = [:]   // defined name (uppercased) → "Sheet1!$A$1:$B$4"
     /// The names as the file spelled them, for writing back.
     var nameSpellings: [String: String] = [:]
+    /// The file's own styles.xml pieces, so its cell formats are written
+    /// back exactly as read (see Xlsx._stylesXML).
+    var styleSource: StyleSource? = nil
+
     /// The .xlsx package it was read from: every part, so a save keeps
     /// what the model does not (charts, drawings, themes, pivot caches).
     var package: [ZipEntry]? = nil
@@ -276,7 +288,14 @@ final class Workbook {
 
     /// The index of a style, added to the table if new.
     func styleIndex(_ s: CellStyle) -> Int {
+        // Back to exactly the file's format it came from: that one, as read.
+        if let b = s.baseXf, b < styles.count, styles[b] == s { return b }
         if let i = styles.firstIndex(of: s) { return i }
+        // A style with no origin that one of the file's formats matches
+        // (Clear Formats → Normal): that format, as the file had it.
+        if s.baseXf == nil, let i = styles.indices.first(where: { styles[$0].baseXf == $0 && { var t = s; t.baseXf = $0; return t == styles[$0] }($0) }) {
+            return i
+        }
         styles.append(s)
         return styles.count - 1
     }
@@ -311,4 +330,25 @@ struct DxfStyle: Equatable, Sendable {
     var strike: Bool? = nil
     var color: UInt32? = nil
     var fill: UInt32? = nil
+}
+
+/// A styles.xml as read: its numFmts, fonts, fills and borders as written,
+/// its named styles, and each cell format's attributes and children.
+struct StyleSource: Sendable {
+    struct Xf: Sendable {
+        var attrs: [String: String]
+        var alignment: String?
+        var protection: String?
+        var extra: String               // any other children (extLst), as written
+        var raw = ""                    // the whole element, as written
+    }
+    var numFmts: [(id: Int, code: String, raw: String)] = []
+    var fonts: [String] = []
+    var fills: [String] = []
+    var borders: [String] = []
+    /// The container start tags as written (they can carry x14ac:knownFonts…).
+    var tags: [String: String] = [:]
+    var cellStyleXfs: String? = nil
+    var cellStyles: String? = nil
+    var xfs: [Xf] = []
 }

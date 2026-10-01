@@ -46,6 +46,8 @@ enum Xlsx {
         // `s` is its index in the book's table.
         if let st = xml("xl/styles.xml") {
             book.styles = _styles(st, theme: theme)
+            for i in book.styles.indices { book.styles[i].baseXf = i }
+            book.styleSource = parts["xl/styles.xml"].map(_styleSource)
             if book.styles.isEmpty { book.styles = [.plain] }
             book.dxfs = (st.child("dxfs")?.kids("dxf") ?? []).map { _dxf($0, theme: theme) }
         }
@@ -379,7 +381,13 @@ enum Xlsx {
         var borders: [CellStyle.Borders] = []
         for b in st.child("borders")?.kids("border") ?? [] {
             func has(_ side: String) -> Bool { b.child(side).map { $0["style"] != nil && $0["style"] != "none" } ?? false }
-            borders.append(CellStyle.Borders(top: has("top"), left: has("left"), bottom: has("bottom"), right: has("right")))
+            var bd = CellStyle.Borders(top: has("top"), left: has("left"), bottom: has("bottom"), right: has("right"))
+            for side in ["top", "left", "bottom", "right"] where has(side) {
+                let n = b.child(side)!
+                if let k = n["style"], k != "thin" { bd.kinds[side] = k }
+                if let c = n.child("color").flatMap({ _color($0, theme: theme) }), c != 0 { bd.colors[side] = c }
+            }
+            borders.append(bd)
         }
         var out: [CellStyle] = []
         for xf in st.child("cellXfs")?.kids("xf") ?? [] {
@@ -985,6 +993,36 @@ enum Xlsx {
         return s + "</sst>"
     }
 
+    /// The pieces of a styles.xml to write back as they were.
+    static func _styleSource(_ data: Data) -> StyleSource {
+        var src = StyleSource()
+        let split = RawXML.split([UInt8](data))
+        func kids(_ name: String) -> [(name: String, text: String)] {
+            guard let t = split.children.first(where: { $0.name == name })?.text else { return [] }
+            let inner = RawXML.split([UInt8](t.utf8))
+            src.tags[name] = inner.rootStart.hasSuffix("/>") ? String(inner.rootStart.dropLast(2)) + ">" : inner.rootStart
+            return inner.children
+        }
+        for k in kids("numFmts") where k.name == "numFmt" {
+            if let n = XNode.parse(Data(k.text.utf8)), let id = Int(n["numFmtId"] ?? ""), let code = n["formatCode"] { src.numFmts.append((id, code, k.text)) }
+        }
+        src.fonts = kids("fonts").filter { $0.name == "font" }.map(\.text)
+        src.fills = kids("fills").filter { $0.name == "fill" }.map(\.text)
+        src.borders = kids("borders").filter { $0.name == "border" }.map(\.text)
+        src.cellStyleXfs = split.children.first { $0.name == "cellStyleXfs" }?.text
+        src.cellStyles = split.children.first { $0.name == "cellStyles" }?.text
+        for k in kids("cellXfs") where k.name == "xf" {
+            guard let n = XNode.parse(Data(k.text.utf8)) else { src.xfs.append(StyleSource.Xf(attrs: [:], extra: "", raw: k.text)); continue }
+            let inner = RawXML.split([UInt8](k.text.utf8)).children
+            src.xfs.append(StyleSource.Xf(attrs: n.attrs,
+                                          alignment: inner.first { $0.name == "alignment" }?.text,
+                                          protection: inner.first { $0.name == "protection" }?.text,
+                                          extra: inner.filter { $0.name != "alignment" && $0.name != "protection" }.map(\.text).joined(),
+                                          raw: k.text))
+        }
+        return src
+    }
+
     private static func _stylesXML(_ book: Workbook) -> String {
         let reverseBuiltin = Dictionary(builtinFormats.map { ($0.value, $0.key) }, uniquingKeysWith: { min($0, $1) })
         var custom: [String: Int] = [:]
@@ -993,13 +1031,33 @@ enum Xlsx {
             if let i = list.firstIndex(of: item) { return i }
             list.append(item); return list.count - 1
         }
-        // The default font first, and Excel's two required fills.
-        _ = index(&fonts, "<font><sz val=\"11\"/><color theme=\"1\"/><name val=\"Calibri\"/><family val=\"2\"/><scheme val=\"minor\"/></font>")
-        _ = index(&fills, "<fill><patternFill patternType=\"none\"/></fill>")
-        _ = index(&fills, "<fill><patternFill patternType=\"gray125\"/></fill>")
-        _ = index(&borders, "<border><left/><right/><top/><bottom/><diagonal/></border>")
+        let src = book.styleSource
+        if let src, !src.fonts.isEmpty {
+            // The file's own, first and as written: its formats point at them.
+            fonts = src.fonts; fills = src.fills; borders = src.borders
+            for f in src.numFmts { custom[f.code] = f.id }
+        } else {
+            // The default font first, and Excel's two required fills.
+            _ = index(&fonts, "<font><sz val=\"11\"/><color theme=\"1\"/><name val=\"Calibri\"/><family val=\"2\"/><scheme val=\"minor\"/></font>")
+            _ = index(&fills, "<fill><patternFill patternType=\"none\"/></fill>")
+            _ = index(&fills, "<fill><patternFill patternType=\"gray125\"/></fill>")
+            _ = index(&borders, "<border><left/><right/><top/><bottom/><diagonal/></border>")
+        }
+        let fileCustom = Set(custom.values)
+        var nextFmt = max(163, custom.values.max() ?? 163) + 1
         var xfs: [String] = []
-        for st in book.styles {
+        for (i, st) in book.styles.enumerated() {
+            // A format the file had, unchanged: exactly as it was.
+            if let src, i < src.xfs.count, st.baseXf == i {
+                xfs.append(src.xfs[i].raw)
+                continue
+            }
+            // One made here: from the format it was derived from, every part the
+            // change did not touch is kept as the file had it.
+            let base: (style: CellStyle, xf: StyleSource.Xf)? = st.baseXf.flatMap { b in
+                guard let src, b < src.xfs.count, b < book.styles.count else { return nil }
+                return (book.styles[b], src.xfs[b])
+            }
             var font = "<font>"
             if st.bold { font += "<b/>" }
             if st.italic { font += "<i/>" }
@@ -1010,16 +1068,30 @@ enum Xlsx {
             font += "<name val=\"\(_esc(st.fontName ?? "Calibri"))\"/><family val=\"2\"/>"
             if st.fontName == nil { font += "<scheme val=\"minor\"/>" }
             font += "</font>"
-            let fontId = index(&fonts, font)
-            let fillId = st.fill.map { index(&fills, "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF\(_hex($0))\"/><bgColor indexed=\"64\"/></patternFill></fill>") } ?? 0
-            let b = st.borders
-            func side(_ name: String, _ on: Bool) -> String { on ? "<\(name) style=\"thin\"><color indexed=\"64\"/></\(name)>" : "<\(name)/>" }
-            let borderId = index(&borders, "<border>" + side("left", b.left) + side("right", b.right) + side("top", b.top) + side("bottom", b.bottom) + "<diagonal/></border>")
-            var fmtId = reverseBuiltin[st.numberFormat] ?? -1
-            if fmtId < 0 {
-                if let c = custom[st.numberFormat] { fmtId = c } else { fmtId = 164 + custom.count; custom[st.numberFormat] = fmtId }
+            func same(_ a: CellStyle, _ b: CellStyle, _ keys: [PartialKeyPath<CellStyle>]) -> Bool {
+                keys.allSatisfy { k in String(describing: a[keyPath: k]) == String(describing: b[keyPath: k]) }
             }
-            var xf = "<xf numFmtId=\"\(fmtId)\" fontId=\"\(fontId)\" fillId=\"\(fillId)\" borderId=\"\(borderId)\" xfId=\"0\""
+            let fontKeys: [PartialKeyPath<CellStyle>] = [\.bold, \.italic, \.underline, \.strike, \.fontName, \.fontSize, \.color]
+            var fontId = 0, fillId = 0, borderId = 0
+            if let base, same(st, base.style, fontKeys), let f = Int(base.xf.attrs["fontId"] ?? "0") { fontId = f }
+            else { fontId = index(&fonts, font) }
+            if let base, st.fill == base.style.fill, let f = Int(base.xf.attrs["fillId"] ?? "0") { fillId = f }
+            else { fillId = st.fill.map { index(&fills, "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF\(_hex($0))\"/><bgColor indexed=\"64\"/></patternFill></fill>") } ?? 0 }
+            let b = st.borders
+            func side(_ name: String, _ on: Bool) -> String {
+                guard on else { return "<\(name)/>" }
+                let color = b.colors[name].map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color indexed=\"64\"/>"
+                return "<\(name) style=\"\(b.kinds[name] ?? "thin")\">\(color)</\(name)>"
+            }
+            if let base, st.borders == base.style.borders, let f = Int(base.xf.attrs["borderId"] ?? "0") { borderId = f }
+            else { borderId = index(&borders, "<border>" + side("left", b.left) + side("right", b.right) + side("top", b.top) + side("bottom", b.bottom) + "<diagonal/></border>") }
+            var fmtId = reverseBuiltin[st.numberFormat] ?? -1
+            if let base, st.numberFormat == base.style.numberFormat, let f = Int(base.xf.attrs["numFmtId"] ?? "") { fmtId = f }
+            if fmtId < 0 {
+                if let c = custom[st.numberFormat] { fmtId = c } else { fmtId = nextFmt; nextFmt += 1; custom[st.numberFormat] = fmtId }
+            }
+            let xfId = base?.xf.attrs["xfId"] ?? "0"
+            var xf = "<xf numFmtId=\"\(fmtId)\" fontId=\"\(fontId)\" fillId=\"\(fillId)\" borderId=\"\(borderId)\" xfId=\"\(xfId)\""
             if fmtId != 0 { xf += " applyNumberFormat=\"1\"" }
             if fontId != 0 { xf += " applyFont=\"1\"" }
             if fillId != 0 { xf += " applyFill=\"1\"" }
@@ -1028,23 +1100,42 @@ enum Xlsx {
             switch st.hAlign { case .left: align += " horizontal=\"left\""; case .center: align += " horizontal=\"center\""; case .right: align += " horizontal=\"right\""; case .general: break }
             switch st.vAlign { case .top: align += " vertical=\"top\""; case .center: align += " vertical=\"center\""; case .bottom: break }
             if st.wrap { align += " wrapText=\"1\"" }
-            xf += align.isEmpty ? "/>" : " applyAlignment=\"1\"><alignment\(align)/></xf>"
+            // Alignment the change left alone keeps its indent, rotation…
+            var alignment = align.isEmpty ? "" : "<alignment\(align)/>"
+            if let base, st.hAlign == base.style.hAlign, st.vAlign == base.style.vAlign, st.wrap == base.style.wrap {
+                alignment = base.xf.alignment ?? ""
+            }
+            let inner = alignment + (base?.xf.protection ?? "")
+            xf += inner.isEmpty ? "/>" : (alignment.isEmpty ? "" : " applyAlignment=\"1\"") + ">" + inner + "</xf>"
             xfs.append(xf)
         }
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
             + (book.keptStyleParts["root"].flatMap { $0.hasPrefix("<styleSheet") ? $0 : nil }
                ?? "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">")
+        /// The file's start tag for a list, its count brought up to date.
+        func open(_ name: String, _ count: Int) -> String {
+            guard var tag = src?.tags[name] else { return "<\(name) count=\"\(count)\">" }
+            if let r = tag.findRange(of: " count=\""), let q = tag.findRange(of: "\"", in: r.upperBound ..< tag.endIndex) {
+                tag.replaceSubrange(r.upperBound ..< q.lowerBound, with: "\(count)")
+            } else {
+                tag.insert(contentsOf: " count=\"\(count)\"", at: tag.index(before: tag.endIndex))
+            }
+            return tag
+        }
         if !custom.isEmpty {
-            s += "<numFmts count=\"\(custom.count)\">"
-            for (code, id) in custom.sorted(by: { $0.value < $1.value }) { s += "<numFmt numFmtId=\"\(id)\" formatCode=\"\(_esc(code))\"/>" }
+            s += open("numFmts", custom.count)
+            for f in src?.numFmts ?? [] { s += f.raw }
+            for (code, id) in custom.sorted(by: { $0.value < $1.value }) where !fileCustom.contains(id) {
+                s += "<numFmt numFmtId=\"\(id)\" formatCode=\"\(_esc(code))\"/>"
+            }
             s += "</numFmts>"
         }
-        s += "<fonts count=\"\(fonts.count)\">" + fonts.joined() + "</fonts>"
-        s += "<fills count=\"\(fills.count)\">" + fills.joined() + "</fills>"
-        s += "<borders count=\"\(borders.count)\">" + borders.joined() + "</borders>"
-        s += "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
-        s += "<cellXfs count=\"\(xfs.count)\">" + xfs.joined() + "</cellXfs>"
-        s += "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"
+        s += open("fonts", fonts.count) + fonts.joined() + "</fonts>"
+        s += open("fills", fills.count) + fills.joined() + "</fills>"
+        s += open("borders", borders.count) + borders.joined() + "</borders>"
+        s += src?.cellStyleXfs ?? "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
+        s += open("cellXfs", xfs.count) + xfs.joined() + "</cellXfs>"
+        s += src?.cellStyles ?? "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"
         // The file's own differential formats, table styles, palette and
         // extensions, in schema order (conditional formats point at dxfs by index).
         s += book.keptStyleParts["dxfs"] ?? "<dxfs count=\"0\"/>"
