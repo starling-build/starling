@@ -301,3 +301,22 @@ extension SheetsEditingTests {
         XCTAssertTrue(summary.keptElements[0].text.containsSubstring("<xm:f>Figures!B4:F4</xm:f>"), summary.keptElements[0].text)
     }
 }
+
+extension SheetsEditingTests {
+    func testLinks() {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "One"), Worksheet(name: "Two Sheet")]))
+        c.sheet.linkTargets = ["rId1": "https://example.com/x"]
+        c.sheet.keptElements = [("hyperlinks", "<hyperlinks><hyperlink ref=\"A1\" r:id=\"rId1\"/><hyperlink ref=\"B2:B3\" location=\"'Two Sheet'!C5\" display=\"go\"/></hyperlinks>")]
+        c.setInputs([(CellAddress("D1")!, "=HYPERLINK(\"https://example.org\",\"Example\")")])
+        XCTAssertEqual(c.link(at: CellAddress("A1")!), .url("https://example.com/x"))
+        XCTAssertEqual(c.link(at: CellAddress("B3")!), .place("'Two Sheet'!C5"))
+        XCTAssertEqual(c.link(at: CellAddress("D1")!), .url("https://example.org"))
+        XCTAssertEqual(c.sheet.value(CellAddress("D1")!), .text("Example"))
+        XCTAssertNil(c.link(at: CellAddress("C9")!))
+        XCTAssertTrue(c.go(to: "'Two Sheet'!C5"))
+        XCTAssertEqual(c.activeSheet, 1)
+        XCTAssertEqual(c.active, CellAddress("C5"))
+        XCTAssertFalse(c.go(to: "Nowhere!Z"))
+    }
+}

@@ -858,6 +858,22 @@ final class SheetGridState: State<StatefulWidget> {
             }
             commitEdit()
         }
+        // ⌘-click on a link follows it; a plain click selects, as everywhere.
+        if _chords.primary && edit == nil, let link = c.link(at: a) {
+            switch link {
+            case .url(let u):
+                let lower = u.lowercased()
+                if lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("mailto:") {
+                    hostOpenURL?(u)
+                    _w.onStatus("Opening \(u)")
+                } else {
+                    _w.onStatus("Links to \(u) are not opened from here")
+                }
+            case .place(let p):
+                if !c.go(to: p) { _w.onStatus("Reference isn't valid: \(p)") } else { reveal(c.active) }
+            }
+            return
+        }
         // Double click, detected by hand (onDoubleTap kills taps on DRM).
         let now = Date().timeIntervalSince1970
         if let last = _lastClick, last.cell == a, now - last.at < 0.4 {

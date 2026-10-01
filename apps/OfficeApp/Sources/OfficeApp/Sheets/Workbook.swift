@@ -144,6 +144,8 @@ final class Worksheet {
     var tables: [SheetTable] = []
     /// Notes on cells, and the parts they came from (see Notes.swift).
     var notes: [SheetNote] = []
+    /// The sheet's hyperlink relationships: id → URL.
+    var linkTargets: [String: String] = [:]
     var noteParts = SheetNoteParts()
     /// Rows the filter hides (kept apart from rowHeights, so each keeps its height).
     var filteredRows: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
@@ -177,6 +179,7 @@ final class Worksheet {
         s.drawingsEdited = drawingsEdited
         s.tables = tables
         s.notes = notes
+        s.linkTargets = linkTargets
         s.noteParts = noteParts
         s.filteredRows = filteredRows
         return s

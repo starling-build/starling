@@ -320,6 +320,14 @@ there is no Retry). Formulas typed in are not checked, nor pastes (as
 Excel). Not yet: input prompts, the Warning/Information styles, editing
 rules.
 
+**Links and array constants (2026-10-01)**: ⌘-click follows a cell's
+link (`Sheets/Hyperlinks.swift`) — the kept `<hyperlinks>` (URLs through
+the sheet's relationships, `location`s in the workbook) and HYPERLINK()
+formulas, now a function; http(s) and mailto open in the browser, a
+place is selected. Array constants (`{1,2;3,4}`) parse, print back and
+evaluate. Still unread (kept verbatim): spill references (`A1#`) and
+the dynamic-array functions that make them.
+
 **Fixed 2026-10-01: formulas this engine cannot read were dropped on
 save** unless their result was text — the cell kept only its value, so a
 table's `=SUM(Table1[Amount])` or `[@Price]*[@Qty]` became a constant.

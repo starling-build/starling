@@ -211,6 +211,12 @@ enum SheetFunctions {
         // Lookup.
         t["VLOOKUP"] = { a, c in _hvlookup(a, c, vertical: true) }
         t["HLOOKUP"] = { a, c in _hvlookup(a, c, vertical: false) }
+        // HYPERLINK(location, [name]): shows the name (or the location);
+        // ⌘-click on the cell follows it (Hyperlinks.swift).
+        t["HYPERLINK"] = { a, c in
+            guard !a.isEmpty else { return .error(.value) }
+            return .scalar(c.engine.scalar(c.engine.evaluate(a.count > 1 ? a[1] : a[0], c), c))
+        }
         t["INDEX"] = { a, c in
             guard a.count >= 2 else { return .error(.value) }
             let src = c.engine.evaluate(a[0], c)

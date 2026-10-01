@@ -78,6 +78,7 @@ enum Xlsx {
                 (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors)
                 ws.tables = TablesXML.read(sheetPath: path, parts: parts)
                 (ws.notes, ws.noteParts) = NotesXML.read(sheetPath: path, parts: parts)
+                for r in _relList(parts[_relsPath(path)]) where r.type.hasSuffix("/hyperlink") { ws.linkTargets[r.id] = r.target }
             }
         }
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
