@@ -1,0 +1,36 @@
+# cell(c, r) centre in view points: x = 72 + 64c, y = 270 + 20r
+click 72 270
+type 1
+key enter
+type 2
+key enter
+type 3
+key enter
+click 136 270
+type =A1*2
+key enter
+drag 136 270 136 310
+chord cmd d
+shot ${OUT}/01-filldown.png
+drag 72 270 72 290
+wait 500
+drag 104 300 104 375
+shot ${OUT}/02-fillhandle.png
+drag 136 270 136 310
+chord cmd c
+wait 500
+click 328 270
+chord cmd v
+wait 400
+shot ${OUT}/03-paste.png
+drag 136 270 136 310
+chord cmd x
+wait 500
+click 200 330
+chord cmd v
+wait 400
+shot ${OUT}/04-cutmove.png
+chord cmd z
+wait 300
+shot ${OUT}/05-undo.png
+quit

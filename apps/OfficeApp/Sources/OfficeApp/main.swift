@@ -322,6 +322,10 @@ let initialKind: DocumentKind = CommandLine.arguments.contains("--slides") ? .pr
     : CommandLine.arguments.contains("--sheets") ? .workbook
     : initialPath.map { DocumentKind.kind(forPath: $0) } ?? .document
 
+#if os(macOS)
+ScriptedInput.startIfRequested()
+#endif
+
 runStarlingApp(title: initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),
                height: windowMetric("STARLING_WINDOW_H", 900)) {
