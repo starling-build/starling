@@ -75,6 +75,11 @@ indirect enum FormulaExpr: Hashable, Sendable {
     case error(ExcelError)
     case ref(FormulaRef)
     case name(String)
+    /// A table's structured reference, as written: `Table1[Amount]`,
+    /// `[@Qty]`, `Table1[[#Totals],[Price]:[Tax]]`. It names cells by the
+    /// table's columns, so rows moving never change its text; it is
+    /// resolved against the tables when evaluated.
+    case structured(String)
     case negate(FormulaExpr)
     case plus(FormulaExpr)
     case percent(FormulaExpr)
@@ -110,6 +115,7 @@ enum Formula {
         case .error(let err): return err.rawValue
         case .ref(let r): return r.text
         case .name(let n): return n
+        case .structured(let s): return s
         case .negate(let x): return "-" + print(x)
         case .plus(let x): return "+" + print(x)
         case .percent(let x): return print(x) + "%"
@@ -160,6 +166,20 @@ enum Formula {
     /// The formula with every reference passed through `f` — for moving,
     /// copying and inserting. `f` returns nil for a reference that no
     /// longer exists (it becomes #REF!).
+    /// Every structured reference's text through `f`.
+    static func mapStructured(_ e: FormulaExpr, _ f: (String) -> String) -> FormulaExpr {
+        switch e {
+        case .structured(let t): return .structured(f(t))
+        case .negate(let x): return .negate(mapStructured(x, f))
+        case .plus(let x): return .plus(mapStructured(x, f))
+        case .percent(let x): return .percent(mapStructured(x, f))
+        case .paren(let x): return .paren(mapStructured(x, f))
+        case .binary(let op, let a, let b): return .binary(op, mapStructured(a, f), mapStructured(b, f))
+        case .call(let n, let args): return .call(n, args.map { mapStructured($0, f) })
+        default: return e
+        }
+    }
+
     static func mapRefs(_ e: FormulaExpr, _ f: (FormulaRef) -> FormulaRef?) -> FormulaExpr {
         switch e {
         case .ref(let r): return f(r).map { .ref($0) } ?? .error(.ref)
@@ -213,6 +233,7 @@ enum Formula {
         case ref(FormulaRef)
         case function(String)      // name, the "(" consumed
         case name(String)
+        case structured(String)    // Table1[…] or […], brackets balanced
         case op(String)            // + - * / ^ & = <> < > <= >= % :
         case lparen, rparen, comma
     }
@@ -299,6 +320,16 @@ enum Formula {
                         sheet = String(s[j ..< k]); j = s.index(after: k)
                     }
                 }
+                // A table name and its brackets: a structured reference
+                // (before trying a cell reference: "Tab1" reads as a cell).
+                if sheet == nil {
+                    var k = j
+                    while k < s.endIndex, s[k].isLetter || s[k].isNumber || s[k] == "_" || s[k] == "." || s[k] == "\\" { k = s.index(after: k) }
+                    if k > j, k < s.endIndex, s[k] == "[" {
+                        let end = try _bracketEnd(s, from: k)
+                        out.append(.structured(String(s[j ..< end]))); i = end; continue
+                    }
+                }
                 // After a sheet prefix only a reference may follow.
                 if let r = _reference(s[j...], sheet: sheet) { out.append(.ref(r.ref)); i = r.end; continue }
                 if sheet != nil { throw FormulaError(message: "bad reference after \(sheet!)!") }
@@ -316,6 +347,11 @@ enum Formula {
                 }
                 i = k; continue
             }
+            // A structured reference inside its own table: [@Qty], [Price].
+            if c == "[" {
+                let end = try _bracketEnd(s, from: i)
+                out.append(.structured(String(s[i ..< end]))); i = end; continue
+            }
             switch c {
             case "(": out.append(.lparen)
             case ")": out.append(.rparen)
@@ -332,6 +368,21 @@ enum Formula {
             i = s.index(after: i)
         }
         return out
+    }
+
+    /// Just past the "]" matching the "[" at `from`; inside, "'" escapes
+    /// the next character (a bracket, "#", "'" in a column name).
+    static func _bracketEnd(_ s: Substring, from: Substring.Index) throws -> Substring.Index {
+        var depth = 0
+        var j = from
+        while j < s.endIndex {
+            let ch = s[j]
+            if ch == "'" { j = s.index(after: j); if j < s.endIndex { j = s.index(after: j) }; continue }
+            if ch == "[" { depth += 1 }
+            if ch == "]" { depth -= 1; if depth == 0 { return s.index(after: j) } }
+            j = s.index(after: j)
+        }
+        throw FormulaError(message: "unclosed [")
     }
 
     /// A cell or range reference at the start of `s`: A1, $A$1, A1:B2,
@@ -418,6 +469,7 @@ enum Formula {
             case .error(let e): return .error(e)
             case .ref(let r): return .ref(r)
             case .name(let n): return .name(n)
+            case .structured(let t): return .structured(t)
             case .lparen:
                 let e = try expression(0)
                 guard case .rparen? = next() else { throw FormulaError(message: "missing )") }

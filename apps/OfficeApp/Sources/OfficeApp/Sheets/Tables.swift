@@ -32,6 +32,10 @@ struct SheetTable: Equatable, Sendable {
     var firstColumn = false
     var lastColumn = false
     var totalsRow = false
+    /// The name formulas use for it (displayName), and its columns' names
+    /// as the file wrote them.
+    var name = ""
+    var columnNames: [String] = []
 }
 
 enum TablesXML {
@@ -52,6 +56,8 @@ enum TablesXML {
                 t.lastColumn = info["showLastColumn"] == "1"
             }
             t.totalsRow = (Int(root["totalsRowCount"] ?? "0") ?? 0) > 0
+            t.name = root["displayName"] ?? root["name"] ?? ""
+            t.columnNames = root.child("tableColumns")?.kids("tableColumn").map { $0["name"] ?? "" } ?? []
             return t
         }
     }
@@ -209,5 +215,147 @@ enum TableStyles {
         if edgeCol && !header { x.bold = true }
         if totals { x.bold = true; x.top = x.top ?? base }
         return x
+    }
+}
+
+// MARK: - Structured references
+
+extension CalcEngine {
+    /// `Table1[Amount]` and its kin, as cells: the table by name (or the
+    /// one the formula sits in, for `[@Qty]`), the rows by special item
+    /// (#All, #Data, #Headers, #Totals, #This Row / @), the columns by
+    /// name or `[A]:[B]` span. Unknown tables or columns are #REF!.
+    func resolveStructured(_ text: String, _ ctx: EvalContext) -> EvalValue {
+        guard let open = text.firstIndex(of: "[") else { return .error(.ref) }
+        let tableName = String(text[..<open]).lowercased()
+        var found: (Int, SheetTable)? = nil
+        for (si, ws) in book.sheets.enumerated() {
+            for t in ws.tables {
+                if tableName.isEmpty ? (si == ctx.sheet && t.ref.contains(ctx.cell)) : t.name.lowercased() == tableName {
+                    found = (si, t)
+                }
+            }
+        }
+        guard let (si, t) = found else { return .error(.ref) }
+        let ws = book.sheets[si]
+        // What is inside the outer brackets, split into items.
+        var inner = String(text[text.index(after: open)...].dropLast())
+        var items: [String] = []
+        if inner.hasPrefix("@") {
+            items = ["#This Row"]
+            inner.removeFirst()
+            if !inner.isEmpty { items.append(inner.hasPrefix("[") ? inner : "[" + inner + "]") }
+        } else if !inner.hasPrefix("[") {
+            if !inner.isEmpty { items = [inner.hasPrefix("#") ? inner : "[" + inner + "]"] }
+        } else {
+            // [a],[b]:[c] — split at top-level commas.
+            var depth = 0, cur = "", escaped = false
+            for ch in inner {
+                if escaped { cur.append(ch); escaped = false; continue }
+                if ch == "'" { cur.append(ch); escaped = true; continue }
+                if ch == "[" { depth += 1 }
+                if ch == "]" { depth -= 1 }
+                if ch == "," && depth == 0 { items.append(cur); cur = ""; continue }
+                cur.append(ch)
+            }
+            if !cur.isEmpty { items.append(cur) }
+        }
+        func unbracket(_ s: String) -> String {
+            var x = s.trimmingWhitespace()
+            if x.hasPrefix("[") && x.hasSuffix("]") { x = String(x.dropFirst().dropLast()) }
+            var out = "", esc = false
+            for ch in x { if esc { out.append(ch); esc = false } else if ch == "'" { esc = true } else { out.append(ch) } }
+            return out
+        }
+        // Rows.
+        let header = t.headerRow ? t.ref.top : nil
+        let totals = t.totalsRow ? t.ref.bottom : nil
+        let dataTop = t.ref.top + (t.headerRow ? 1 : 0), dataBottom = t.ref.bottom - (t.totalsRow ? 1 : 0)
+        var rows: ClosedRange<Int>? = nil
+        var cols: ClosedRange<Int>? = nil
+        func addRows(_ r: ClosedRange<Int>) { rows = rows.map { min($0.lowerBound, r.lowerBound) ... max($0.upperBound, r.upperBound) } ?? r }
+        func column(_ name: String) -> Int? {
+            let n = name.lowercased()
+            for c in t.ref.left ... t.ref.right {
+                let i = c - t.ref.left
+                let shown = NumberFormat.display(ws.value(CellAddress(row: t.ref.top, col: c)), "General", width: 255).text
+                if t.headerRow && shown.lowercased() == n { return c }
+                if i < t.columnNames.count && t.columnNames[i].lowercased() == n { return c }
+            }
+            return nil
+        }
+        for item in items {
+            let x = unbracket(item)
+            switch x.lowercased() {
+            case "#all": addRows(t.ref.top ... t.ref.bottom)
+            case "#data": if dataTop <= dataBottom { addRows(dataTop ... dataBottom) }
+            case "#headers": guard let h = header else { return .error(.ref) }; addRows(h ... h)
+            case "#totals": guard let r = totals else { return .error(.ref) }; addRows(r ... r)
+            case "#this row":
+                guard ctx.cell.row >= dataTop, ctx.cell.row <= dataBottom else { return .error(.value) }
+                addRows(ctx.cell.row ... ctx.cell.row)
+            default:
+                // A column, or a span of them: [A]:[B].
+                let parts = item.split(separator: ":", maxSplits: 1).map { unbracket(String($0)) }
+                let found = parts.compactMap(column)
+                guard found.count == parts.count, let a = found.first, let b = found.last else { return .error(.ref) }
+                let span = min(a, b) ... max(a, b)
+                cols = cols.map { min($0.lowerBound, span.lowerBound) ... max($0.upperBound, span.upperBound) } ?? span
+            }
+        }
+        let r = rows ?? (dataTop <= dataBottom ? dataTop ... dataBottom : dataTop ... dataTop)
+        let c = cols ?? (t.ref.left ... t.ref.right)
+        let range = CellRange(top: r.lowerBound, left: c.lowerBound, bottom: r.upperBound, right: c.upperBound)
+        return range.isSingle ? .scalar(value(si, range.topLeft)) : .range(sheet: si, range)
+    }
+}
+
+extension WorkbookController {
+    /// Header cells about to change: (table, old name) for each, so the
+    /// structured references to them can follow (as Excel's do).
+    func _tableHeaderNames(_ addresses: [CellAddress], sheet si: Int) -> [CellAddress: (table: SheetTable, name: String)] {
+        let ws = book.sheets[si]
+        var out: [CellAddress: (SheetTable, String)] = [:]
+        for t in ws.tables where t.headerRow {
+            for a in addresses where a.row == t.ref.top && a.col >= t.ref.left && a.col <= t.ref.right {
+                out[a] = (t, NumberFormat.display(ws.value(a), "General", width: 255).text)
+            }
+        }
+        return out
+    }
+
+    /// After header cells changed: every formula's `[Old]` / `[@Old]` for
+    /// that table becomes the new name.
+    func _renameTableColumns(_ before: [CellAddress: (table: SheetTable, name: String)], sheet si: Int) {
+        let ws = book.sheets[si]
+        func escape(_ s: String) -> String {
+            var out = ""
+            for ch in s { if "[]#'".contains(ch) { out.append("'") }; out.append(ch) }
+            return out
+        }
+        for (a, old) in before {
+            let new = NumberFormat.display(ws.value(a), "General", width: 255).text
+            guard !old.name.isEmpty, !new.isEmpty, old.name != new else { continue }
+            let table = old.table
+            for (osi, other) in book.sheets.enumerated() {
+                for (addr, cell) in other.cells {
+                    guard let f = cell.formula else { continue }
+                    let g = Formula.mapStructured(f) { text in
+                        let lower = text.lowercased()
+                        let named = lower.hasPrefix(table.name.lowercased() + "[")
+                        let implicit = text.hasPrefix("[") && osi == si && table.ref.contains(addr)
+                        guard named || implicit else { return text }
+                        var t = text
+                        for (from, to) in [("[" + escape(old.name) + "]", "[" + escape(new) + "]"),
+                                           ("[@" + escape(old.name) + "]", "[@" + escape(new) + "]"),
+                                           ("@" + escape(old.name) + "]", "@" + escape(new) + "]")] {
+                            t = t.replacingAll(from, with: to)
+                        }
+                        return t
+                    }
+                    if g != f { other.cells[addr]?.formula = g; other.cells[addr]?.input = Formula.text(g) }
+                }
+            }
+        }
     }
 }

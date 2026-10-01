@@ -114,9 +114,16 @@ final class CalcEngine {
         case .missing: return .scalar(.empty)
         case .paren(let x): return evaluate(x, ctx)
         case .ref(let r): return resolve(r, ctx)
+        case .structured(let t): return resolveStructured(t, ctx)
         case .name(let n):
             guard let target = book.names[n.uppercased()],
-                  let parsed = try? Formula.parse(target) else { return .error(.name) }
+                  let parsed = try? Formula.parse(target) else {
+                // A table's own name is its data rows (Table1 = Table1[]).
+                if book.sheets.contains(where: { $0.tables.contains { $0.name.lowercased() == n.lowercased() } }) {
+                    return resolveStructured(n + "[]", ctx)
+                }
+                return .error(.name)
+            }
             return evaluate(parsed, ctx)
         case .negate(let x):
             switch number(evaluate(x, ctx), ctx) {

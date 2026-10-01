@@ -271,6 +271,7 @@ final class WorkbookController: ChangeNotifier {
     func setInputs(_ items: [(CellAddress, String)], sheet si: Int? = nil) {
         let si = si ?? activeSheet
         let ws = book.sheets[si]
+        let headers = ws.tables.isEmpty ? [:] : _tableHeaderNames(items.map(\.0), sheet: si)
         var before: [CellAddress: Cell?] = [:]
         for (a, text) in items {
             if before[a] == nil { before[a] = .some(ws.cells[a]) }
@@ -303,6 +304,17 @@ final class WorkbookController: ChangeNotifier {
                 }
             }
             ws.cells[a] = cell
+        }
+        if !headers.isEmpty {
+            // Renaming a table's column renames the references to it; their
+            // cells join this undo step.
+            let formulas = book.sheets.enumerated().flatMap { (osi, o) in o.cells.compactMap { $0.value.formula != nil ? (osi, $0.key) : nil } }
+            var was: [Int: [CellAddress: Cell?]] = [:]
+            for (osi, a) in formulas { was[osi, default: [:]][a] = .some(book.sheets[osi].cells[a]) }
+            _renameTableColumns(headers, sheet: si)
+            for (osi, cells) in was where osi == si {
+                for (a, c) in cells where book.sheets[si].cells[a]?.input != c?.input && before[a] == nil { before[a] = c }
+            }
         }
         _record(sheet: si, before: before)
     }

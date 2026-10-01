@@ -290,7 +290,15 @@ Light 1–21, Medium 1–28, Dark 1–11 over the dark colour and six
 accents — header, stripes, totals, lines; an approximation of Excel's
 presets, seen for Medium 2, Medium 9 and Light 9), under the cells' own
 formats. Not yet: custom table styles from the file, a table deleted
-with all its rows, structured references (`Table2[Col]`) in formulas.
+with all its rows.
+
+**Structured references (2026-10-01)**: `Table1[Col]`, `Table1`,
+`[@Col]`, `Table1[[#This Row],[Col]]`, `[[#Headers],[A]:[B]]`, `#All`,
+`#Data`, `#Totals`, with `'` escapes, parse to `FormulaExpr.structured`
+— kept as written, so rows moving never touch them and they print back
+verbatim — and resolve against the tables when evaluated (by header
+text, then the file's column names). Typing a new header renames every
+reference to that column, as Excel does, in the same undo step.
 
 **Notes (2026-10-01)** (`Sheets/Notes.swift`): a file's notes show as
 Excel's red corner triangle, and on hover as the pale yellow box (its
