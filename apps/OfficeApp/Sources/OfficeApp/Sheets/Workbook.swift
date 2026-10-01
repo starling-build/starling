@@ -63,13 +63,22 @@ struct Cell: Sendable {
     /// The current value: the constant, or the formula's last result.
     var value: CellValue = .empty
     var style: Int = 0
+    /// The value a file carried for this formula. Kept when our engine
+    /// cannot compute it (a function we do not have), so the cell shows
+    /// what Excel last computed instead of #NAME?.
+    var cached: CellValue? = nil
+    /// An array formula's range, as the file had it (t="array" ref=…).
+    var arrayRef: String? = nil
 
     var isFormula: Bool { formula != nil || input.hasPrefix("=") }
 }
 
 final class Worksheet {
     var name: String
-    var cells: [CellAddress: Cell] = [:]
+    var cells: [CellAddress: Cell] = [:] {
+        didSet { _extent = nil }
+    }
+    private var _extent: CellAddress? = nil
     /// Column widths and row heights in points, where not the default.
     var colWidths: [Int: Double] = [:]
     var rowHeights: [Int: Double] = [:]
@@ -84,20 +93,44 @@ final class Worksheet {
 
     init(name: String) { self.name = name }
 
-    func colWidth(_ c: Int) -> Double { colWidths[c] ?? Worksheet.defaultColWidth }
-    func rowHeight(_ r: Int) -> Double { rowHeights[r] ?? Worksheet.defaultRowHeight }
+    func colWidth(_ c: Int) -> Double { colWidths[c] ?? defaultColWidthPt }
+    func rowHeight(_ r: Int) -> Double { rowHeights[r] ?? defaultRowHeightPt }
 
     func value(_ a: CellAddress) -> CellValue { cells[a]?.value ?? .empty }
 
     /// The used area: from A1 to the furthest cell that holds anything.
+    /// Cached: ranges ask for it on every evaluation.
     var usedExtent: CellAddress {
+        if let e = _extent { return e }
         var r = 0, c = 0
         for a in cells.keys { r = max(r, a.row); c = max(c, a.col) }
-        return CellAddress(row: r, col: c)
+        let e = CellAddress(row: r, col: c)
+        _extent = e
+        return e
     }
+
+    /// Where this sheet came from in an .xlsx (xl/worksheets/sheet3.xml),
+    /// and the elements of it we do not model, written back as they were:
+    /// drawings, tables, conditional formats, data validations…
+    var origin: String? = nil
+    var keptElements: [(name: String, text: String)] = []
+    /// The sheet's root start tag as the file wrote it (its namespaces,
+    /// which kept elements may use).
+    var rootTag: String? = nil
+    var tabColor: String? = nil
+    var hidden = false
+    var showGridlines = true
+    /// The active cell as saved, restored on open and written on save.
+    var savedActive: CellAddress? = nil
+    /// The sheet's default sizes, in points.
+    var defaultColWidthPt = Worksheet.defaultColWidth
+    var defaultRowHeightPt = Worksheet.defaultRowHeight
 
     func copy() -> Worksheet {
         let s = Worksheet(name: name)
+        s.origin = origin
+        s.keptElements = keptElements
+        s.rootTag = rootTag
         s.cells = cells
         s.colWidths = colWidths
         s.rowHeights = rowHeights
@@ -112,6 +145,13 @@ final class Workbook {
     var sheets: [Worksheet]
     var styles: [CellStyle] = [.plain]
     var names: [String: String] = [:]   // defined name (uppercased) → "Sheet1!$A$1:$B$4"
+    /// The names as the file spelled them, for writing back.
+    var nameSpellings: [String: String] = [:]
+    /// The .xlsx package it was read from: every part, so a save keeps
+    /// what the model does not (charts, drawings, themes, pivot caches).
+    var package: [ZipEntry]? = nil
+    /// The sheet that was in front when the file was saved.
+    var activeTab = 0
 
     init(sheets: [Worksheet] = [Worksheet(name: "Sheet1")]) {
         self.sheets = sheets

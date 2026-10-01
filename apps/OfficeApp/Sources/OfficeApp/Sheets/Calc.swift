@@ -84,6 +84,10 @@ final class CalcEngine {
         if circular.contains(key) { v = .number(0) }
         _visiting.removeLast()
         _done.insert(key)
+        // A function we do not have: show what the file last computed.
+        if v == .error(.name), let cached = cell.cached, Formula.usesUnknownFunction(f) { v = cached }
+        // So does an array formula's cell, until arrays spill here.
+        if cell.arrayRef != nil, let cached = cell.cached { v = cached }
         // An empty result of a formula shows as 0, as Excel's does.
         if v.isEmpty { v = .number(0) }
         ws.cells[addr]?.value = v

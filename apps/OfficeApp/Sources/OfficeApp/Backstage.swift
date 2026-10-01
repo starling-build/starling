@@ -218,13 +218,13 @@ final class Backstage: StatelessWidget {
             ?? homeDirectory() + "/Documents"
         let start = FileManager.default.fileExists(atPath: dir) ? dir : homeDirectory()
         let suggested = session.path.map { $0.lastPathComponent }
-            ?? (session.kind == .presentation ? "Presentation1.pptx" : session.kind == .workbook ? "Book1.csv" : "Document1.docx")
+            ?? (session.kind == .presentation ? "Presentation1.pptx" : session.kind == .workbook ? "Book1.xlsx" : "Document1.docx")
         return Column(crossAxisAlignment: .stretch, children: [
             _heading(mode == .open ? "Open" : "Save As", fluent),
             Expanded(child: FluentFilePanel(
                 mode: mode, initialDirectory: start, suggestedName: suggested,
                 extensions: mode == .open ? OfficeFormats.readable + ["pptx", "xlsx", "csv", "tsv"]
-                    : session.kind == .presentation ? ["pptx"] : session.kind == .workbook ? ["csv", "tsv"] : OfficeFormats.writable,
+                    : session.kind == .presentation ? ["pptx"] : session.kind == .workbook ? ["xlsx", "csv", "tsv"] : OfficeFormats.writable,
                 onDone: { [onClose, onOpenPath, onSavePath] path in
                     guard let path else { onClose(); return }
                     if mode == .open { onOpenPath(path) } else { onSavePath(path) }

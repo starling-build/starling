@@ -126,6 +126,26 @@ enum Formula {
         return plain ? name : "'" + name.replacingAll("'", with: "''") + "'"
     }
 
+    /// Whether a function the engine does not have appears in it.
+    static func usesUnknownFunction(_ e: FormulaExpr) -> Bool {
+        switch e {
+        case .call(let n, let args):
+            if SheetFunctions.table[n] == nil && SheetFunctions.table[unprefixed(n)] == nil { return true }
+            return args.contains(where: usesUnknownFunction)
+        case .negate(let x), .plus(let x), .percent(let x), .paren(let x): return usesUnknownFunction(x)
+        case .binary(_, let a, let b): return usesUnknownFunction(a) || usesUnknownFunction(b)
+        default: return false
+        }
+    }
+
+    /// _xlfn.XLOOKUP → XLOOKUP: functions newer than Excel 2007 carry a
+    /// prefix in files, and none in the formula bar.
+    static func unprefixed(_ n: String) -> String {
+        let u = n.uppercased()
+        for p in ["_XLFN._XLWS.", "_XLFN.", "_XLWS."] where u.hasPrefix(p) { return String(n.dropFirst(p.count)) }
+        return n
+    }
+
     /// Every reference the formula reads, for the dependency graph.
     static func references(_ e: FormulaExpr, into out: inout [FormulaRef]) {
         switch e {

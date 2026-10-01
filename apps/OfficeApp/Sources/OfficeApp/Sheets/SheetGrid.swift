@@ -121,8 +121,8 @@ final class SheetGridState: State<StatefulWidget> {
     var headerHeight: Double { 20 * _w.zoom }
     private var _lastVisibleRow = 0
 
-    var cols: GridAxis { GridAxis(def: Worksheet.defaultColWidth, overrides: controller.sheet.colWidths, scale: scale) }
-    var rows: GridAxis { GridAxis(def: Worksheet.defaultRowHeight, overrides: controller.sheet.rowHeights, scale: scale) }
+    var cols: GridAxis { GridAxis(def: controller.sheet.defaultColWidthPt, overrides: controller.sheet.colWidths, scale: scale) }
+    var rows: GridAxis { GridAxis(def: controller.sheet.defaultRowHeightPt, overrides: controller.sheet.rowHeights, scale: scale) }
 
     override func initState() {
         super.initState()
@@ -582,9 +582,18 @@ final class SheetGridState: State<StatefulWidget> {
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(hw, hh, size.width, size.height))
 
+        // The styled cells in view: looked up by position, so a sheet of a
+        // hundred thousand cells costs what is on screen, not what is in it.
+        var styled: [(CellAddress, CellStyle)] = []
+        for row in firstRow ... lastRow {
+            for col in firstCol ... lastCol {
+                let a = CellAddress(row: row, col: col)
+                if let cell = ws.cells[a], cell.style != 0 { styled.append((a, book.style(cell.style))) }
+            }
+        }
         // Fills.
-        for (a, cell) in ws.cells where cell.style != 0 && a.row >= firstRow && a.row <= lastRow && a.col >= firstCol && a.col <= lastCol {
-            if let f = book.style(cell.style).fill {
+        for (a, st) in styled {
+            if let f = st.fill {
                 p.color = Color(Int64(0xFF00_0000) | Int64(f))
                 canvas.drawRect(Rect.fromLTRB(xs[a.col - firstCol], ys[a.row - firstRow], xs[a.col - firstCol + 1], ys[a.row - firstRow + 1]), p)
             }
@@ -631,8 +640,8 @@ final class SheetGridState: State<StatefulWidget> {
         border.style = .stroke
         border.strokeWidth = 1
         border.color = ink
-        for (a, cell) in ws.cells where cell.style != 0 && a.row >= firstRow && a.row <= lastRow && a.col >= firstCol && a.col <= lastCol {
-            let b = book.style(cell.style).borders
+        for (a, st) in styled {
+            let b = st.borders
             guard b.top || b.left || b.bottom || b.right else { continue }
             let l = xs[a.col - firstCol].rounded() - 0.5, r = xs[a.col - firstCol + 1].rounded() - 0.5
             let t = ys[a.row - firstRow].rounded() - 0.5, bt = ys[a.row - firstRow + 1].rounded() - 0.5
@@ -731,11 +740,19 @@ final class SheetGridState: State<StatefulWidget> {
         canvas.drawPath(path, p)
     }
 
+    /// Excel lays cells out with hinted, whole-pixel glyphs: a Calibri 11
+    /// digit is exactly 7 px at 96 dpi, the unit column widths are defined
+    /// in. Carlito's unhinted digit is 7.43 px, so text drawn at the
+    /// nominal size runs ~6% wider than Excel's and a number that fits
+    /// there shows #### here. Cell text is drawn at the size that makes a
+    /// digit 7 px.
+    static let excelTextScale = 7.0 / 7.43
+
     /// The text style a cell draws with.
     private func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
         return GridTextStyle(family: OfficeFonts.substitute(st.fontName ?? OfficeFonts.defaultFamily),
-                             size: (st.fontSize ?? 11) * scale, bold: st.bold, italic: st.italic,
+                             size: (st.fontSize ?? 11) * scale * Self.excelTextScale, bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c)
     }
 
@@ -764,7 +781,7 @@ final class SheetGridState: State<StatefulWidget> {
             default: align = .left
             }
         }
-        let pad = 3 * _w.zoom
+        let pad = 2 * _w.zoom   // Excel's cell margin
         var tp = texts.painter(text, style)
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, tp.width > width - pad * 2 {
@@ -815,7 +832,7 @@ final class SheetGridState: State<StatefulWidget> {
         if e.text.first == "=" { style.family = OfficeFonts.substitute("Calibri") }
         let text = String(e.text)
         let tp = texts.painter(text.isEmpty ? " " : text, style)
-        let pad = 3 * _w.zoom
+        let pad = 2 * _w.zoom
         // The editor grows to the right to show what is typed, as Excel's does.
         let w = max(r.width, min(size.width - r.left - 2, tp.width + pad * 2 + 4))
         let box = Rect.fromLTWH(r.left, r.top, w, r.height)

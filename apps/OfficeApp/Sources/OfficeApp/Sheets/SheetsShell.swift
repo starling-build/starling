@@ -161,16 +161,18 @@ final class SheetsShellState: State<StatefulWidget> {
         _flash("Opening files in the browser comes with milestone X5")
         #else
         let ext = path.pathExtension.lowercased()
-        if ext == "xlsx" {
-            _flash(".xlsx opens with milestone X2 — CSV for now")
-            return
-        }
         guard let data = FileManager.default.contents(atPath: path) else {
             _flash("Could not open \(path.lastPathComponent)")
             return
         }
-        let text = String(decoding: data, as: UTF8.self)
-        wb.load(Csv.read(text, name: path.lastPathComponent.deletingPathExtension))
+        if ext == "xlsx" {
+            do { wb.load(try Xlsx.read(data)) } catch {
+                _flash("Could not open \(path.lastPathComponent): it isn't a workbook Sheets can read")
+                return
+            }
+        } else {
+            wb.load(Csv.read(String(decoding: data, as: UTF8.self), name: path.lastPathComponent.deletingPathExtension))
+        }
         session.path = path
         session.dirty = false
         _recent = OfficeRecent.remember(path, in: _recent)
@@ -180,7 +182,7 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     private func _save() {
-        guard let path = session.path, ["csv", "tsv"].contains(path.pathExtension.lowercased()) else {
+        guard let path = session.path, ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else {
             setState { _backstage = .saveAs }
             return
         }
@@ -192,11 +194,18 @@ final class SheetsShellState: State<StatefulWidget> {
         _flash("Saving from the browser comes with milestone X5")
         #else
         let ext = chosen.pathExtension.lowercased()
-        let path = ["csv", "tsv"].contains(ext) ? chosen : chosen + ".csv"
+        let path = ["xlsx", "csv", "tsv"].contains(ext) ? chosen : chosen + ".xlsx"
+        let format = path.pathExtension.lowercased()
         _grid?.commitEdit()
-        let text = Csv.write(wb.sheet, book: wb.book, separator: path.pathExtension.lowercased() == "tsv" ? "\t" : ",")
+        wb.stashViewState()
         do {
-            try Data(text.utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
+            let data: Data
+            if format == "xlsx" {
+                data = try Xlsx.write(wb.book)
+            } else {
+                data = Data(Csv.write(wb.sheet, book: wb.book, separator: format == "tsv" ? "\t" : ",").utf8)
+            }
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
             session.path = path
             wb.markSaved()
             _recent = OfficeRecent.remember(path, in: _recent)
@@ -204,7 +213,7 @@ final class SheetsShellState: State<StatefulWidget> {
                 session.dirty = false
                 _backstage = nil
             }
-            _flash(wb.book.sheets.count > 1
+            _flash(wb.book.sheets.count > 1 && format != "xlsx"
                    ? "Saved \(path.lastPathComponent) — CSV keeps only the active sheet"
                    : "Saved \(path.lastPathComponent)")
         } catch {

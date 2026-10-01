@@ -55,16 +55,27 @@ final class WorkbookController: ChangeNotifier {
         _selections.removeAll()
         _parseAll()
         engine.recalculate()
-        activeSheet = 0
-        active = CellAddress(row: 0, col: 0)
+        activeSheet = min(max(0, b.activeTab), b.sheets.count - 1)
+        active = sheet.savedActive ?? CellAddress(row: 0, col: 0)
         selection = CellRange(active)
         anchor = active
+        _extentEnd = active
         _undo.removeAll(); _redo.removeAll()
         edits = 0
         _notify()
     }
 
     func markSaved() { edits = 0; _notify(selectionOnly: true) }
+
+    /// Before writing a file: each sheet's active cell and the front tab,
+    /// so the file reopens where it was left.
+    func stashViewState() {
+        for (i, ws) in book.sheets.enumerated() {
+            if i == activeSheet { ws.savedActive = active }
+            else if let saved = _selections[ObjectIdentifier(ws)] { ws.savedActive = saved.1 }
+        }
+        book.activeTab = activeSheet
+    }
 
     // MARK: Selection
 

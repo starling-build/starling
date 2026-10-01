@@ -265,6 +265,24 @@ if let i = CommandLine.arguments.firstIndex(of: "--deck-sample"), i + 1 < Comman
     }
 }
 
+// `--xlsx-roundtrip <in> <out>`: read a workbook and write it back, for
+// checking our .xlsx against Excel's importers (qlmanage) and its parts.
+if let i = CommandLine.arguments.firstIndex(of: "--xlsx-roundtrip"), i + 2 < CommandLine.arguments.count {
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(data))
+        let out = try Xlsx.write(c.book)
+        try out.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 2]))
+        let cells = c.book.sheets.reduce(0) { $0 + $1.cells.count }
+        print("round trip: \(c.book.sheets.count) sheets, \(cells) cells (\(data.count) -> \(out.count) bytes)")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("round trip failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--convert <in> <out>`: the formats without the window, for scripts and
 // for checking our output against other readers (`textutil`, LibreOffice).
 if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
