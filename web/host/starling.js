@@ -150,20 +150,38 @@ const HARD_LINE_BREAK = 100;
 // headers (application/wasm among them) kept. `total` is what the server
 // said, which for a precompressed response is the compressed size — the
 // bar still ends at 100%.
+//
+// A URL ending in `.gz` is a gzip file the page inflates itself, with
+// DecompressionStream, into a Response typed application/wasm so streaming
+// compilation still applies. That is for a host that cannot be told to
+// serve a precompressed file with Content-Encoding (GitHub Pages, where
+// writer.starling.build lives): the 12 MB module travels as 4 MB, which
+// is what a server with brotli_static would have done with the .br.
 async function fetchWithProgress(url, onProgress) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
-  if (!onProgress || !response.body) return response;
+  const gzipped = String(url).endsWith('.gz');
+  if ((!onProgress && !gzipped) || !response.body) return response;
   const total = Number(response.headers.get('Content-Length')) || 0;
   let loaded = 0;
-  const counted = response.body.pipeThrough(new TransformStream({
-    transform(chunk, controller) {
-      loaded += chunk.byteLength;
-      onProgress(loaded, total);
-      controller.enqueue(chunk);
-    },
-  }));
-  return new Response(counted, { headers: response.headers, status: response.status });
+  let body = response.body;
+  if (onProgress) {
+    body = body.pipeThrough(new TransformStream({
+      transform(chunk, controller) {
+        loaded += chunk.byteLength;
+        onProgress(loaded, total);
+        controller.enqueue(chunk);
+      },
+    }));
+  }
+  const headers = new Headers(response.headers);
+  if (gzipped) {
+    body = body.pipeThrough(new DecompressionStream('gzip'));
+    headers.set('Content-Type', 'application/wasm');
+    headers.delete('Content-Length');
+    headers.delete('Content-Encoding');
+  }
+  return new Response(body, { headers, status: response.status });
 }
 
 export async function startStarling({ canvas, app, skwasmBase, fonts = [], onProgress }) {
