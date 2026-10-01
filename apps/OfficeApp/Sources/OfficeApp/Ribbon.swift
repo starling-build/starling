@@ -86,7 +86,8 @@ final class Ribbon: StatelessWidget {
     private func _strip(_ fluent: FluentThemeData) -> Widget {
         var items: [Widget] = [_fileTab(fluent)]
         for t in RibbonTab.strip(for: session.kind) { items.append(_tab(t, fluent)) }
-        if session.summary.imageIndex != nil { items.append(_tab(.pictureFormat, fluent)) }
+        let slidePicture = session.deck?.selection.contains { $0.picture != nil } ?? false
+        if session.summary.imageIndex != nil || slidePicture { items.append(_tab(.pictureFormat, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableLayout, fluent)) }
         return Padding(padding: EdgeInsets(left: 8, top: 2, right: 8, bottom: 0),
                        child: Row(crossAxisAlignment: .end, children: items))

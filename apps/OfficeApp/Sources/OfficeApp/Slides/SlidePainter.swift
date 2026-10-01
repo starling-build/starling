@@ -19,6 +19,8 @@ final class SlideTextCache {
         let revision: Int
         let width: Double
         let scale: Double
+        /// The text theme laid out with: a new one (a theme applied) is a miss.
+        let theme: ObjectIdentifier
         let layout: RichLayout
     }
     private var _entries: [ObjectIdentifier: Entry] = [:]
@@ -61,14 +63,16 @@ final class SlideTextCache {
         let width = max(1, (shape.frame.width - shape.insets.left - shape.insets.right) * pxPerPt)
         let scale = pxPerPt / theme.pixelsPerPoint
         let key = ObjectIdentifier(text)
-        if let e = _entries[key], e.revision == text.revision, e.width == width, e.scale == scale {
+        if let e = _entries[key], e.revision == text.revision, e.width == width, e.scale == scale,
+           e.theme == ObjectIdentifier(theme) {
             return e.layout
         }
         let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
         layout.scale = scale
         layout.width = width
         layout.ensureLaidOut(text.document)
-        _entries[key] = Entry(revision: text.revision, width: width, scale: scale, layout: layout)
+        _entries[key] = Entry(revision: text.revision, width: width, scale: scale, theme: ObjectIdentifier(theme),
+                              layout: layout)
         return layout
     }
 
@@ -144,7 +148,7 @@ final class SlidePainter: CustomPainter {
 
     override func paint(_ canvas: any Canvas, _ size: Size) {
         let px = size.width / slideSize.width
-        Self.paintFill(slide.background ?? SlideFill(color: theme.background),
+        Self.paintFill(slide.background ?? slide.inheritedBackground ?? theme.backgroundFill,
                        Rect.fromLTWH(0, 0, size.width, size.height), canvas, cache: cache)
         canvas.save()
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))

@@ -21,12 +21,13 @@ import FlutterSwiftBridge
 import Foundation
 
 enum PptxWriter {
-    static func write(_ state: DeckState, theme: DeckTheme, package: PptxPackage?) throws -> Data {
+    static func write(_ state: DeckState, theme: DeckTheme, package: PptxPackage?,
+                      ownTemplates: Bool = false) throws -> Data {
         var b = PackageBuilder()
-        if let package, package.parts["ppt/presentation.xml"] != nil || _presentationPart(package) != nil {
+        if let package, !ownTemplates, _presentationPart(package) != nil {
             try _writeThrough(package, state: state, theme: theme, into: &b)
         } else {
-            _writeNew(state, theme: theme, into: &b)
+            _writeNew(state, theme: theme, source: package, into: &b)
         }
         return try b.zip()
     }
@@ -38,7 +39,11 @@ enum PptxWriter {
 
     // MARK: A new deck
 
-    private static func _writeNew(_ state: DeckState, theme: DeckTheme, into b: inout PackageBuilder) {
+    /// Our own templates. `source` is the file the deck came from, if any:
+    /// its kept objects' parts are still copied from it.
+    private static func _writeNew(_ state: DeckState, theme: DeckTheme, source: PptxPackage?,
+                                  into b: inout PackageBuilder) {
+        if let source { b.defaults.merge(source.defaults) { mine, _ in mine } }
         let t = PptxTemplates(theme: theme, slideSize: state.slideSize)
         b.add("ppt/theme/theme1.xml", t.themeXML(), type: CT.theme)
         b.add("ppt/theme/theme2.xml", t.themeXML(), type: CT.theme)
@@ -81,7 +86,7 @@ enum PptxWriter {
             let layout = slide.layoutPart.flatMap { lp in layoutParts.values.contains(lp) ? lp : nil }
                 ?? layoutParts[slide.layout] ?? "ppt/slideLayouts/slideLayout2.xml"
             _slide(slide, number: i + 1, part: part, layoutPart: layout, notesMaster: "ppt/notesMasters/notesMaster1.xml",
-                   source: nil, media: &media, into: &b)
+                   source: source, media: &media, into: &b)
             presRels.append(Rel(id: "rIdS\(i + 1)", type: RT.slide, target: "slides/slide\(i + 1).xml"))
             ids += "<p:sldId id=\"\(256 + i)\" r:id=\"rIdS\(i + 1)\"/>"
         }
@@ -201,8 +206,8 @@ enum PptxWriter {
         var bg = ""
         if let xml = slide.backgroundXML, let src = slide.sourcePart, let p = source {
             bg = w.kept(xml, sourcePart: src, package: p, builder: &b, patch: nil)
-        } else if let fill = slide.background, slide.backgroundXML == nil, let c = fill.color, fill.image == nil, fill.stops.isEmpty {
-            bg = "<p:bg><p:bgPr><a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>"
+        } else if let fill = slide.background {
+            bg = "<p:bg><p:bgPr>" + w.fill(fill, media: &media, builder: &b) + "<a:effectLst/></p:bgPr></p:bg>"
         }
         rels += w.rels
         let hidden = slide.hidden ? " show=\"0\"" : ""
@@ -307,7 +312,7 @@ extension Pptx {
 
     /// The deck as a .pptx file.
     static func write(_ deck: DeckController) throws -> Data {
-        try PptxWriter.write(deck.snapshot(), theme: deck.theme, package: deck.package)
+        try PptxWriter.write(deck.snapshot(), theme: deck.theme, package: deck.package, ownTemplates: deck.ownTemplates)
     }
 }
 
@@ -466,6 +471,34 @@ private struct SlideXML {
             + "<a:ext cx=\"\(_emu(max(0, f.width)))\" cy=\"\(_emu(max(0, f.height)))\"/></\(tag)>"
     }
 
+    /// A picture's part (one per image however many slides use it) and this
+    /// slide's relationship to it.
+    private mutating func _media(_ image: ImageAttachment, media: inout MediaParts, builder: inout PackageBuilder) -> String {
+        let mediaPart: String
+        if let existing = media.byId[image.id] {
+            mediaPart = existing
+        } else {
+            media.count += 1
+            mediaPart = "ppt/media/slides_image\(media.count).\(PptxText.imageExtension(image))"
+            media.byId[image.id] = mediaPart
+            builder.addBinary(mediaPart, image.data)
+        }
+        return _rel(RT.image, Pptx.relative(mediaPart, from: part), preferred: "rIdImg\(media.count)")
+    }
+
+    /// A fill element: solid, linear gradient or stretched picture.
+    mutating func fill(_ f: SlideFill, media: inout MediaParts, builder: inout PackageBuilder) -> String {
+        if let image = f.image {
+            let rid = _media(image, media: &media, builder: &builder)
+            return "<a:blipFill dpi=\"0\" rotWithShape=\"1\"><a:blip r:embed=\"\(rid)\"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>"
+        }
+        if f.stops.count >= 2 {
+            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\"/></a:gs>" }.joined()
+            return "<a:gradFill rotWithShape=\"1\"><a:gsLst>\(stops)</a:gsLst><a:lin ang=\"\(Int((f.angle * 60000).rounded()))\" scaled=\"0\"/></a:gradFill>"
+        }
+        return Self._fill(f.color ?? Color(0xFFFFFFFF))
+    }
+
     private static func _crop(_ c: EdgeInsets?) -> String {
         guard let c, c != .zero else { return "" }
         func v(_ x: Double) -> Int { Int((x * 100000).rounded()) }
@@ -487,17 +520,7 @@ private struct SlideXML {
             return kept(o.xml, sourcePart: o.sourcePart, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
         case .picture(let image):
             let id = _id(s.fileId)
-            let mediaPart: String
-            if let existing = media.byId[image.id] {
-                mediaPart = existing
-            } else {
-                media.count += 1
-                let ext = PptxText.imageExtension(image)
-                mediaPart = "ppt/media/slides_image\(media.count).\(ext)"
-                media.byId[image.id] = mediaPart
-                builder.addBinary(mediaPart, image.data)
-            }
-            let rid = _rel(RT.image, Pptx.relative(mediaPart, from: part), preferred: "rIdImg\(media.count)")
+            let rid = _media(image, media: &media, builder: &builder)
             return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"/><p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>"
                 + "<p:blipFill><a:blip r:embed=\"\(rid)\"/>\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
                 + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
@@ -539,7 +562,11 @@ private struct SlideXML {
                 if let f = s.fill { spPr += Self._fill(f) }
                 if let l = s.outline { spPr += "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill(l))</a:ln>" }
             default:
-                spPr += Self._fill(s.fill)
+                if let scheme = s.fillScheme, s.fill != nil {
+                    spPr += "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>"
+                } else {
+                    spPr += Self._fill(s.fill)
+                }
                 spPr += s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             }
             var xml = "<p:sp><p:nvSpPr>\(nv)<p:nvPr>\(ph)</p:nvPr></p:nvSpPr><p:spPr>\(spPr)</p:spPr>"

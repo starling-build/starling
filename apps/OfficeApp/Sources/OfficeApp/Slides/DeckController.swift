@@ -27,6 +27,7 @@ struct ShapeState: Equatable {
     var listIndent: Double
     var phType: String? = nil
     var phIdx: String? = nil
+    var fillScheme: String? = nil
     /// A picture's crop, as fractions cut from each edge.
     var crop: EdgeInsets? = nil
     var fileId: Int? = nil
@@ -41,6 +42,7 @@ struct SlideState: Equatable {
     var layoutPart: String? = nil
     var backgroundXML: String? = nil
     var background: SlideFill? = nil
+    var inheritedBackground: SlideFill? = nil
     var sourcePart: String? = nil
     var transition = SlideTransition()
     var timingXML: String? = nil
@@ -50,6 +52,9 @@ struct DeckState: Equatable {
     var slides: [SlideState]
     var current: Int
     var slideSize: Size
+    /// Undo restores the look too: applying a theme is one step.
+    var theme: DeckTheme? = nil
+    var ownTemplates: Bool? = nil
 }
 
 /// Every change to a deck goes through here. Listeners hear about slide
@@ -75,6 +80,10 @@ final class DeckController: ChangeNotifier {
     /// The file the deck was read from, kept whole so a save can write its
     /// masters, layouts, theme and anything not modelled back untouched.
     private(set) var package: PptxPackage? = nil
+    /// Write with our own master, layouts and theme even though the deck
+    /// came from a file — set once a theme of ours is applied. The package
+    /// still supplies kept objects' parts.
+    private(set) var ownTemplates = false
     /// Shapes selected on the current slide, in selection order.
     private(set) var selection: [SlideShape] = []
     private var _nextId = 1
@@ -103,6 +112,7 @@ final class DeckController: ChangeNotifier {
         slideSize = Size(960, 540)
         theme = DeckTheme()
         package = nil
+        ownTemplates = false
         current = 0
         selection = []
         _undo = []
@@ -118,6 +128,7 @@ final class DeckController: ChangeNotifier {
         slides = []
         self.theme = theme
         self.package = package
+        ownTemplates = package == nil
         _undo = []
         _redo = []
         _session = nil
@@ -306,12 +317,72 @@ final class DeckController: ChangeNotifier {
                                textTheme: preset.isLine ? nil : theme, anchor: .middle)
         shape.fill = preset.isLine ? nil : accent
         shape.outline = preset.isLine ? accent : Self.darker(accent)
+        shape.fillScheme = "accent1"
         shape.outlineWidth = preset.isLine ? 1.5 : 1
         currentSlide.shapes.append(shape)
         _watch(shape)
         selection = [shape]
         _changed()
         return shape
+    }
+
+    /// A picture, centred, at its natural size shrunk to fit four fifths of
+    /// the slide.
+    @discardableResult
+    func addPicture(_ image: ImageAttachment, naturalSize: Size) -> SlideShape {
+        _checkpoint()
+        var w = naturalSize.width, h = naturalSize.height
+        let fit = min(1, slideSize.width * 0.8 / max(w, 1), slideSize.height * 0.8 / max(h, 1))
+        w *= fit; h *= fit
+        let shape = SlideShape(id: _id(), name: "Picture \(_nextId)", kind: .picture(image),
+                               frame: Rect.fromLTWH((slideSize.width - w) / 2, (slideSize.height - h) / 2, w, h),
+                               text: nil, textTheme: nil)
+        currentSlide.shapes.append(shape)
+        selection = [shape]
+        _changed()
+        return shape
+    }
+
+    /// The selected pictures back to their natural proportions (the width
+    /// kept), and uncropped.
+    func resetPictures() {
+        let pics = selection.filter { $0.picture != nil }
+        guard !pics.isEmpty else { return }
+        _checkpoint()
+        for s in pics {
+            guard let img = s.picture else { continue }
+            s.crop = nil
+            if let nw = img.naturalWidth, let nh = img.naturalHeight, nw > 0 {
+                s.frame = Rect.fromLTWH(s.frame.left, s.frame.top, s.frame.width, s.frame.width * nh / nw)
+            }
+        }
+        _changed()
+    }
+
+    /// Crop the selected pictures to a shape: width over height, centred.
+    func cropPictures(aspect: Double) {
+        let pics = selection.filter { $0.picture != nil }
+        guard !pics.isEmpty, aspect > 0 else { return }
+        _checkpoint()
+        for s in pics {
+            guard let img = s.picture else { continue }
+            let nw = img.naturalWidth ?? s.frame.width, nh = img.naturalHeight ?? s.frame.height
+            let natural = nw / max(nh, 0.001)
+            var c = EdgeInsets.zero
+            if natural > aspect {
+                let cut = (1 - aspect / natural) / 2
+                c = EdgeInsets(left: cut, top: 0, right: cut, bottom: 0)
+            } else {
+                let cut = (1 - natural / aspect) / 2
+                c = EdgeInsets(left: 0, top: cut, right: 0, bottom: cut)
+            }
+            s.crop = c
+            // The cropped picture fits inside the box it had, centred.
+            let f = s.frame
+            let w = min(f.width, f.height * aspect), h = w / aspect
+            s.frame = Rect.fromLTWH(f.center.dx - w / 2, f.center.dy - h / 2, w, h)
+        }
+        _changed()
     }
 
     func deleteSelection() {
@@ -382,10 +453,74 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
-    func setFill(_ color: Color?) {
+    func setFill(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
         _checkpoint()
-        for s in selection where s.preset?.isLine != true { s.fill = color }
+        for s in selection where s.preset?.isLine != true {
+            s.fill = color
+            s.fillScheme = scheme
+        }
+        _changed()
+    }
+
+    // MARK: Design
+
+    /// Restyle the deck with one of our themes. Placeholders take its fonts
+    /// and text colour, shapes coloured from the old theme take the new
+    /// one's, and text that simply followed the old theme follows this one.
+    /// A deck read from a file is written with our master and layouts from
+    /// here on (its kept objects still travel with it).
+    func applyTheme(_ new: DeckTheme) {
+        _checkpoint()
+        let old = theme
+        theme = new
+        ownTemplates = true
+        for slide in slides {
+            slide.layoutPart = nil
+            slide.backgroundXML = nil
+            slide.inheritedBackground = nil
+            if let bg = slide.background, bg.image == nil { slide.background = nil }
+            for shape in slide.shapes {
+                if let scheme = shape.fillScheme, let i = Int(scheme.dropFirst(6)), (1 ... 6).contains(i) {
+                    let c = new.accents[i - 1]
+                    if shape.preset?.isLine == true { shape.outline = c } else {
+                        shape.fill = c
+                        shape.outline = Self.darker(c)
+                    }
+                }
+                guard let tt = shape.textTheme, let text = shape.text else { continue }
+                let heading = shape.role == .title || shape.role == .ctrTitle
+                if shape.role != nil || shape.kind == .textBox {
+                    let fresh = _textTheme(font: heading ? new.headingFont : new.bodyFont, size: tt.fontSize,
+                                           color: tt.textColor == old.subtle ? new.subtle : new.text)
+                    fresh.listIndent = tt.listIndent
+                    shape.textTheme = fresh
+                }
+                // Runs that spelled out the old theme's look follow the new one.
+                var doc = text.document
+                var touched = false
+                for p in doc.paragraphs.indices {
+                    for r in doc.paragraphs[p].runs.indices {
+                        var st = doc.paragraphs[p].runs[r].style
+                        if st.color == old.text || st.color == old.subtle { st.color = nil; touched = true }
+                        if st.fontFamily == old.headingFont || st.fontFamily == old.bodyFont { st.fontFamily = nil; touched = true }
+                        doc.paragraphs[p].runs[r].style = st
+                    }
+                }
+                if touched { text.load(doc) }
+            }
+        }
+        _changed()
+    }
+
+    /// The current slide's background, or every slide's; nil returns to
+    /// the theme's.
+    func setBackground(_ fill: SlideFill?, all: Bool = false) {
+        _checkpoint()
+        for slide in all ? slides : [currentSlide] {
+            slide.background = fill
+            slide.backgroundXML = nil
+        }
         _changed()
     }
 
@@ -513,9 +648,10 @@ final class DeckController: ChangeNotifier {
             SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden,
                        notes: slide.notes.document, shapes: slide.shapes.map(_state),
                        layoutPart: slide.layoutPart, backgroundXML: slide.backgroundXML,
-                       background: slide.background, sourcePart: slide.sourcePart,
+                       background: slide.background, inheritedBackground: slide.inheritedBackground,
+                       sourcePart: slide.sourcePart,
                        transition: slide.transition, timingXML: slide.timingXML)
-        }, current: current, slideSize: slideSize)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -556,6 +692,7 @@ final class DeckController: ChangeNotifier {
             slide.layoutPart = ss.layoutPart
             slide.backgroundXML = ss.backgroundXML
             slide.background = ss.background
+            slide.inheritedBackground = ss.inheritedBackground
             slide.sourcePart = ss.sourcePart
             slide.transition = ss.transition
             slide.timingXML = ss.timingXML
@@ -567,6 +704,8 @@ final class DeckController: ChangeNotifier {
         }
         slides = next
         slideSize = state.slideSize
+        if let t = state.theme { theme = t }
+        if let o = state.ownTemplates { ownTemplates = o }
         current = max(0, min(state.current, slides.count - 1))
         selection = []
         _nextId = max(_nextId, (state.slides.flatMap { [$0.id] + $0.shapes.map(\.id) }.max() ?? 0) + 1)
@@ -579,7 +718,7 @@ final class DeckController: ChangeNotifier {
                    insets: s.insets, prompt: s.prompt, text: s.text?.document,
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
-                   phType: s.phType, phIdx: s.phIdx, crop: s.crop, fileId: s.fileId)
+                   phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -594,8 +733,17 @@ final class DeckController: ChangeNotifier {
         shape.prompt = st.prompt
         shape.phType = st.phType
         shape.phIdx = st.phIdx
+        // The text's look: a new theme object when it differs (undoing a
+        // theme), never an edit in place.
+        if st.text != nil, let tt = shape.textTheme,
+           tt.fontFamily != st.font || tt.fontSize != st.size || tt.textColor != st.color || tt.listIndent != st.listIndent {
+            let fresh = _textTheme(font: st.font ?? theme.bodyFont, size: st.size, color: st.color)
+            fresh.listIndent = st.listIndent
+            shape.textTheme = fresh
+        }
         shape.crop = st.crop
         shape.fileId = st.fileId
+        shape.fillScheme = st.fillScheme
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
 

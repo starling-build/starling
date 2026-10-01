@@ -127,6 +127,7 @@ final class OfficeSession {
     var onSlideShow: ((Bool) -> Void)?   // true = from the current slide
     var onInsertTextBox: (() -> Void)?
     var onInsertShape: ((ShapePreset) -> Void)?
+    var onBackgroundPicture: (() -> Void)?
     /// Normal view (false) or Slide Sorter (true).
     var onSlidesView: ((Bool) -> Void)?
     var slidesSorter = false

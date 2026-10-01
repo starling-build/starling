@@ -51,6 +51,9 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _sorter = false
     /// The slide show, when running: the slide it started from.
     private var _show: Int? = nil
+    /// Where the next picture from the picture panel goes.
+    private var _pictureForBackground = false
+    private var _hadPicture = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
@@ -128,6 +131,16 @@ final class SlidesShellState: State<StatefulWidget> {
             }
         }
         session.onInsertTextBox = { [weak self] in self?._insertTextBox() }
+        session.onInsertPicture = { [weak self] in
+            guard let self else { return }
+            self._pictureForBackground = false
+            self.setState { self._backstage = .insertPicture }
+        }
+        session.onBackgroundPicture = { [weak self] in
+            guard let self else { return }
+            self._pictureForBackground = true
+            self.setState { self._backstage = .insertPicture }
+        }
         session.onInsertShape = { [weak self] preset in
             guard let self else { return }
             self._endEditing()
@@ -221,6 +234,11 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     private func _deckChanged() {
+        // A selected picture opens its tab; leaving it returns Home.
+        let picture = deck.selection.contains { $0.picture != nil }
+        if picture && !_hadPicture { _tab = .pictureFormat }
+        if !picture && _tab == .pictureFormat { _tab = .home }
+        _hadPicture = picture
         // A slide that went away takes its editing with it.
         if let a = _active, !deck.currentSlide.shapes.contains(where: { $0 === a }) {
             _active = nil
@@ -338,6 +356,38 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             let ok = await SlidesPdf.write(self.deck, cache: self._cache, to: target, title: self.session.title)
             self._flash(ok ? "Exported \(target.lastPathComponent)" : "Could not write \(target.lastPathComponent)")
+        }
+    }
+
+    private func _insertPicture(_ path: String) {
+        setState { _backstage = nil }
+        guard let data = FileManager.default.contents(atPath: path) else {
+            _flash("Could not read \(path.lastPathComponent)")
+            return
+        }
+        let forBackground = _pictureForBackground
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let codec = try await instantiateImageCodec([UInt8](data))
+                let frame = try await codec.getNextFrame()
+                codec.dispose()
+                // Pixels read as 96 per inch, the convention pictures use.
+                let w = Double(frame.image.width) * 0.75, h = Double(frame.image.height) * 0.75
+                frame.image.dispose()
+                let image = ImageAttachment(data: data, width: w, height: h, name: path.lastPathComponent,
+                                            naturalWidth: w, naturalHeight: h)
+                self._endEditing()
+                if forBackground {
+                    self.deck.setBackground(SlideFill(image: image))
+                } else {
+                    self.deck.addPicture(image, naturalSize: Size(w, h))
+                }
+                self._deckFocus.requestFocus()
+                self._flash("Inserted \(path.lastPathComponent)")
+            } catch {
+                self._flash("Not a picture Slides can decode: \(path.lastPathComponent)")
+            }
         }
     }
 
@@ -565,7 +615,7 @@ final class SlidesShellState: State<StatefulWidget> {
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
                 onOpenPath: { [weak self] path in self?._open(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
-                onPicturePath: { [weak self] _ in self?._flash("Pictures on slides are milestone S6") })),
+                onPicturePath: { [weak self] path in self?._insertPicture(path) })),
         ])
     }
 

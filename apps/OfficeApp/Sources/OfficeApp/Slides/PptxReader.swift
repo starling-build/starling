@@ -307,6 +307,7 @@ private struct LevelStyle {
 
 private struct PptxReader {
     let package: PptxPackage
+    let images = PptxImages()
 
     init(_ package: PptxPackage) { self.package = package }
 
@@ -345,24 +346,33 @@ private struct PptxReader {
             if let map = master?.first("p:clrMap") { for (k, v) in map.attrs { colors.map[k] = v } }
             if n == 0 { deckTheme = Self._deckTheme(theme, colors) }
             let ctx = SlideContext(package: package, part: part, slide: slide, layout: layout, master: master,
-                                   colors: colors, theme: theme, defaults: defaults, slideSize: size)
+                                   colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images)
             var shapes: [ShapeState] = []
             if let tree = slide.first("p:cSld")?.first("p:spTree") {
                 ctx.shapes(in: tree, transform: nil, into: &shapes, id: id)
             }
             let bg = slide.first("p:cSld")?.first("p:bg")
             let themeRoot = themePart.flatMap(package.xml)
+            // The slide's own background is its; one from its layout or
+            // master is only drawn (writing it per slide would copy the
+            // master's picture into every slide).
             var bgFill: SlideFill? = nil
-            for (owner, xml) in [(part, Optional(slide)), (layoutPart, layout), (masterPart, master)] {
-                guard let owner, let b = xml?.first("p:cSld")?.first("p:bg") else { continue }
-                bgFill = _background(b, owner: owner, colors: colors, theme: themeRoot)
-                break
+            var inherited: SlideFill? = nil
+            if let b = slide.first("p:cSld")?.first("p:bg") {
+                bgFill = _background(b, owner: part, colors: colors, theme: themeRoot)
+            } else {
+                for (owner, xml) in [(layoutPart, layout), (masterPart, master)] {
+                    guard let owner, let b = xml?.first("p:cSld")?.first("p:bg") else { continue }
+                    inherited = _background(b, owner: owner, colors: colors, theme: themeRoot)
+                    break
+                }
             }
             let layoutType = layout?["type"]
             slides.append(SlideState(
                 id: id(), layout: Self._layoutKind(layoutType), hidden: slide["show"] == "0",
                 notes: ctx.notes(), shapes: shapes, layoutPart: layoutPart,
-                backgroundXML: bg.map(PptxXML.serialize), background: bgFill, sourcePart: part,
+                backgroundXML: bg.map(PptxXML.serialize), background: bgFill, inheritedBackground: inherited,
+                sourcePart: part,
                 transition: Self._transition(slide),
                 timingXML: slide.first("p:timing").map(PptxXML.serialize)))
         }
@@ -407,8 +417,8 @@ private struct PptxReader {
         }
         if let b = pr.first("a:blipFill"), let rid = b.first("a:blip")?["r:embed"],
            let rel = package.rels(owner).first(where: { $0.id == rid }), !rel.external,
-           let data = package.parts[rel.target] {
-            return SlideFill(image: ImageAttachment(data: data, width: 0, height: 0, name: rel.target.lastPathComponent))
+           package.parts[rel.target] != nil {
+            return SlideFill(image: images.attachment(rel.target, package))
         }
         return nil
     }
@@ -473,6 +483,7 @@ private struct SlideContext {
     let theme: PptxTheme
     let defaults: XNode?
     let slideSize: Size
+    let images: PptxImages
 
     // MARK: Placeholders
 
@@ -593,6 +604,7 @@ private struct SlideContext {
 
         // Fill and line: the shape's own, else its style's references.
         var fill: Color? = nil
+        var fillScheme: String? = nil
         var outline: Color? = nil
         var outlineWidth = 0.75
         let style = sp.first("p:style")
@@ -600,12 +612,14 @@ private struct SlideContext {
             fill = nil
         } else if let f = spPr?.first("a:solidFill") {
             fill = colors.color(in: f)
+            fillScheme = Self._accentSlot(f)
         } else if let g = spPr?.first("a:gradFill") {
             // A gradient shape is drawn in its middle colour for now.
             let stops = g.first("a:gsLst")?.all("a:gs").compactMap { colors.color(in: $0) } ?? []
             fill = stops.isEmpty ? nil : stops[stops.count / 2]
         } else if case .geometry = kind, let ref = style?.first("a:fillRef") {
             fill = colors.color(in: ref)
+            fillScheme = Self._accentSlot(ref)
         }
         if let ln = spPr?.first("a:ln") {
             outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? outlineWidth
@@ -621,7 +635,8 @@ private struct SlideContext {
                             fill: fill, outline: outline, outlineWidth: outlineWidth,
                             anchor: text.anchor, insets: text.insets, prompt: nil,
                             text: text.document, font: text.font, size: text.size, color: text.color,
-                            listIndent: text.listIndent, phType: ph?["type"], phIdx: ph?["idx"])
+                            listIndent: text.listIndent, phType: ph?["type"], phIdx: ph?["idx"],
+                            fillScheme: fillScheme)
         if ph != nil, text.document.paragraphs.allSatisfy({ $0.text.isEmpty }) {
             switch kind {
             case .placeholder(.title), .placeholder(.ctrTitle): st.prompt = "Click to add title"
@@ -630,6 +645,13 @@ private struct SlideContext {
             }
         }
         return st
+    }
+
+    /// "accent3" when a fill is a plain theme accent (no modifiers), so a
+    /// new theme can recolour it.
+    private static func _accentSlot(_ fill: XNode) -> String? {
+        guard let c = fill.first("a:schemeClr"), c.children.isEmpty, let v = c["val"], v.hasPrefix("accent") else { return nil }
+        return v
     }
 
     private func _connector(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
@@ -651,13 +673,12 @@ private struct SlideContext {
     private func _picture(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
         guard let rid = el.first("p:blipFill")?.first("a:blip")?["r:embed"],
               let target = package.rels(part).first(where: { $0.id == rid }), !target.external,
-              let data = package.parts[target.target],
+              package.parts[target.target] != nil,
               var frame = el.first("p:spPr")?.first("a:xfrm").flatMap(_xfrmRect) else {
             return _opaque(el, label: "Picture", transform, id: id)
         }
         if let t = transform { frame = t(frame) }
-        let image = ImageAttachment(data: data, width: frame.width, height: frame.height,
-                                    name: target.target.lastPathComponent)
+        let image = images.attachment(target.target, package)
         let rotation = (el.first("p:spPr")?.first("a:xfrm")?["rot"].flatMap(Double.init) ?? 0) / 60000
         // The crop: fractions of the picture cut from each edge.
         var crop: EdgeInsets? = nil
@@ -855,6 +876,19 @@ private struct SlideContext {
             return RichDocument(paragraphs: paras.isEmpty ? [RichParagraph()] : paras)
         }
         return RichDocument()
+    }
+}
+
+/// One attachment per media part, so a picture used on many slides (or a
+/// master's background) is one image to decode and one part to write.
+final class PptxImages {
+    private var _byPart: [String: ImageAttachment] = [:]
+
+    func attachment(_ part: String, _ package: PptxPackage) -> ImageAttachment {
+        if let a = _byPart[part] { return a }
+        let a = ImageAttachment(data: package.parts[part] ?? Data(), width: 0, height: 0, name: part.lastPathComponent)
+        _byPart[part] = a
+        return a
     }
 }
 

@@ -9,6 +9,9 @@ import Foundation
 /// text in every placeholder, drawn shapes with text, a rotated one, a line,
 /// a hidden slide and notes. `OfficeApp --deck-sample` and the tests use it.
 enum SlidesSample {
+    /// Four vertical colour bands, as a PNG.
+    static let bandsPNG = "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAIAAAAuKetIAAAAWElEQVR4nO3PMRHAIBAAMDTggoUFMSzMNVUBmEAPBjCABX7PXQwk7V5DzswhpY2Q718hSUBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEDg1QXJtaTxVi8LVgAAAABJRU5ErkJggg=="
+
     static func make() -> DeckController {
         let deck = DeckController()
         func type(_ shape: SlideShape?, _ text: String) {
@@ -55,6 +58,15 @@ enum SlidesSample {
         let tb = deck.addTextBox(at: Rect.fromLTWH(600, 380, 260, 40))
         type(tb, "A text box")
         drawing.notes.insertText("Point at the star.")
+
+        // A picture: four colour bands, 64 x 48 px (48 x 36 pt at 96/in).
+        let picture = deck.addSlide(.titleOnly)
+        type(picture.shapes.first { $0.role == .title }, "A picture")
+        if let data = Data(base64Encoded: bandsPNG) {
+            deck.addPicture(ImageAttachment(data: data, width: 48, height: 36, name: "bands.png",
+                                            naturalWidth: 48, naturalHeight: 36),
+                            naturalSize: Size(480, 360))
+        }
 
         let blank = deck.addSlide(.blank)
         deck.toggleHidden(deck.slides.firstIndex { $0 === blank }!)

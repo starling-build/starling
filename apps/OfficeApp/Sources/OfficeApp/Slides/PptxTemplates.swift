@@ -110,11 +110,21 @@ struct PptxTemplates {
         let other = (0 ..< 9).map { n in _level(n, size: 18, bullet: false, before: 0, font: "+mn-lt") }.joined()
         let title = _level(0, size: 44, bullet: false, before: 0, font: "+mj-lt")
         return Self.head + """
-        <p:sldMaster \(Self.namespaces)><p:cSld><p:bg><p:bgRef idx="1001"><a:schemeClr val="bg1"/></p:bgRef></p:bg><p:spTree>\(Self.groupHead)\(tree)</p:spTree></p:cSld>\
+        <p:sldMaster \(Self.namespaces)><p:cSld>\(_masterBackground())<p:spTree>\(Self.groupHead)\(tree)</p:spTree></p:cSld>\
         <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>\
         <p:sldLayoutIdLst>\(layouts)</p:sldLayoutIdLst>\
         <p:txStyles><p:titleStyle>\(title)</p:titleStyle><p:bodyStyle>\(body)</p:bodyStyle><p:otherStyle>\(other)</p:otherStyle></p:txStyles></p:sldMaster>
         """
+    }
+
+    /// The theme's background: its colour by reference, or its gradient.
+    private func _masterBackground() -> String {
+        let f = theme.backgroundFill
+        guard f.stops.count >= 2 else {
+            return "<p:bg><p:bgRef idx=\"1001\"><a:schemeClr val=\"bg1\"/></p:bgRef></p:bg>"
+        }
+        let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(_hex($0.color))\"/></a:gs>" }.joined()
+        return "<p:bg><p:bgPr><a:gradFill rotWithShape=\"1\"><a:gsLst>\(stops)</a:gsLst><a:lin ang=\"\(Int(f.angle * 60000))\" scaled=\"0\"/></a:gradFill><a:effectLst/></p:bgPr></p:bg>"
     }
 
     func layout(_ kind: SlideLayoutKind) -> String {

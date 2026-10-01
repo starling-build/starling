@@ -112,6 +112,30 @@ it, Esc leaves the text with the shape selected, arrows nudge, Delete,
 snapshot; a text-editing session folds into one step when it ends, and
 ⌘Z while typing undoes the typing first.
 
+**S6 part 1 done 2026-09-30** — themes, backgrounds, pictures. Six
+themes of our own (Starling, Slate, Paper, Ocean, Forest, Sunrise) in the
+Design tab; applying one restyles placeholders, theme-coloured shapes
+(their accent slot travels in the file as `schemeClr`) and text that
+followed the old theme, and from then on the deck is written with our
+master, layouts and theme (a gradient theme's master paints it) while
+kept objects still come from the file; one undo step. Format Background:
+theme, colour, two gradients, a picture, Apply to All — written as solid,
+`gradFill` or `blipFill`. Insert → Pictures places a picture at its
+natural size within the slide; the Picture Format tab resets it or crops
+it to an aspect (inside its box). Tables are part 2.
+
+Traps paid for in S6:
+
+- **A text theme edited in place goes unseen**: the thumbnails' layout
+  cache and the editors kept the old colours (white on cream). Text
+  themes are replaced, never mutated, and the cache keys on the object.
+- **An inherited background is not the slide's**: storing the master's
+  picture as each slide's own wrote it 117 times (0.5 MB → 2.4 MB).
+  Inherited backgrounds are drawn, not written; and one image file is
+  one attachment however many slides use it.
+- Pictures are grabbed whole: "edits on first click" means text boxes
+  and placeholders only, or a picture is a frame of edge bands.
+
 **S5 done 2026-09-30**: the slide show. From Beginning / From Current
 (Slide Show tab, F5 / ⇧F5, ⌘⇧↩ / ⌘↩) puts the window full screen through
 a new framework hook, `hostSetFullscreen` (Cocoa: toggleFullScreen, made

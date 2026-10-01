@@ -141,11 +141,16 @@ final class SlideShape {
     var rotation = 0.0
     var fill: Color? = nil
     var outline: Color? = nil
+    /// The theme slot the fill came from ("accent1"), so a new theme
+    /// recolours it; nil for a colour picked as itself.
+    var fillScheme: String? = nil
     var outlineWidth = 0.75
     /// The text body, if the shape has one.
     let text: RichDocumentController?
     /// The look an empty body types with: the shape's own text theme.
-    let textTheme: RichTextTheme?
+    /// Replaced, never edited in place: editors and cached layouts notice a
+    /// new theme object, and miss a changed one.
+    var textTheme: RichTextTheme?
     var anchor: TextAnchor = .top
     /// PowerPoint's default body insets: 0.1 in left and right, 0.05 in top
     /// and bottom.
@@ -200,8 +205,14 @@ final class SlideShape {
     }
 
     /// Text boxes and placeholders are clicked into; drawn shapes are
-    /// selected first and edited on a second click, as PowerPoint does.
-    var editsOnFirstClick: Bool { preset == nil }
+    /// selected first and edited on a second click, as PowerPoint does;
+    /// pictures and kept objects have no text and are grabbed whole.
+    var editsOnFirstClick: Bool {
+        switch kind {
+        case .placeholder, .textBox: return true
+        default: return false
+        }
+    }
 }
 
 /// The slide layouts every new deck offers — PowerPoint's familiar seven,
@@ -224,16 +235,53 @@ enum SlideLayoutKind: String, CaseIterable {
 
 /// Colours and fonts a deck draws with. The default is our own, not any
 /// shipped Office theme.
-struct DeckTheme {
+struct DeckTheme: Equatable {
     var name = "Starling"
     var headingFont = "Calibri Light"
     var bodyFont = "Calibri"
     var background = Color(0xFFFFFFFF)
+    /// A gradient behind every slide, top to bottom, when the theme has one.
+    var backgroundStops: [Color] = []
     var text = Color(0xFF1B1B1B)
     var subtle = Color(0xFF595959)
     var accents: [Color] = [
         Color(0xFF2B6CB0), Color(0xFFDD6B20), Color(0xFF718096),
         Color(0xFFD69E2E), Color(0xFF319795), Color(0xFF38A169),
+    ]
+
+    /// The slide background this theme paints.
+    var backgroundFill: SlideFill {
+        guard backgroundStops.count >= 2 else { return SlideFill(color: background) }
+        let n = Double(backgroundStops.count - 1)
+        return SlideFill(color: backgroundStops[0],
+                         stops: backgroundStops.enumerated().map { SlideFill.GradientStop(position: Double($0.offset) / n, color: $0.element) },
+                         angle: 90)
+    }
+
+    /// The Design tab's gallery: our own, named for what they look like.
+    static let presets: [DeckTheme] = [
+        DeckTheme(),
+        DeckTheme(name: "Slate", headingFont: "Calibri Light", bodyFont: "Calibri",
+                  background: Color(0xFF1E2430), text: Color(0xFFF2F4F8), subtle: Color(0xFFB4BCCB),
+                  accents: [Color(0xFF5AA9E6), Color(0xFFF2A65A), Color(0xFF8C9AB0),
+                            Color(0xFFF6D365), Color(0xFF5CC8B8), Color(0xFF7BD389)]),
+        DeckTheme(name: "Paper", headingFont: "Cambria", bodyFont: "Calibri",
+                  background: Color(0xFFFBF7EF), text: Color(0xFF2B2622), subtle: Color(0xFF6E655C),
+                  accents: [Color(0xFF8C3B2E), Color(0xFF3E6B5A), Color(0xFFB08B4F),
+                            Color(0xFF5B5F97), Color(0xFFA26769), Color(0xFF6B8F71)]),
+        DeckTheme(name: "Ocean", headingFont: "Calibri Light", bodyFont: "Calibri",
+                  background: Color(0xFF0B3C5D), backgroundStops: [Color(0xFF0B3C5D), Color(0xFF05213A)],
+                  text: Color(0xFFFFFFFF), subtle: Color(0xFFC7DCEB),
+                  accents: [Color(0xFF34C3EB), Color(0xFFFFB547), Color(0xFF7FA7C2),
+                            Color(0xFFF5E663), Color(0xFF3ED6A0), Color(0xFFFF7A6B)]),
+        DeckTheme(name: "Forest", headingFont: "Cambria", bodyFont: "Calibri",
+                  background: Color(0xFF1F3A2E), text: Color(0xFFF4F1E8), subtle: Color(0xFFC8D5C0),
+                  accents: [Color(0xFF9CCB86), Color(0xFFE9B44C), Color(0xFF7C9A88),
+                            Color(0xFFD9E7A6), Color(0xFF6FB3A6), Color(0xFFE07A5F)]),
+        DeckTheme(name: "Sunrise", headingFont: "Calibri Light", bodyFont: "Calibri",
+                  background: Color(0xFFFFFFFF), text: Color(0xFF2D1E2F), subtle: Color(0xFF6D5A6E),
+                  accents: [Color(0xFFE4572E), Color(0xFFF3A712), Color(0xFF29335C),
+                            Color(0xFFA8C686), Color(0xFF669BBC), Color(0xFF8E5572)]),
     ]
 }
 
@@ -249,8 +297,11 @@ final class Slide {
     var layoutPart: String? = nil
     /// The slide's own background, as read (`p:bg`), written back as is.
     var backgroundXML: String? = nil
-    /// The slide's background as drawn (nil: the theme's colour).
+    /// The slide's own background (nil: its layout's, master's or theme's).
     var background: SlideFill? = nil
+    /// What the slide's layout or master paints behind it, from the file it
+    /// came from: drawn, never written (the master already says it).
+    var inheritedBackground: SlideFill? = nil
     /// The part this slide was read from, where its kept background's and
     /// objects' relationship ids resolve.
     var sourcePart: String? = nil

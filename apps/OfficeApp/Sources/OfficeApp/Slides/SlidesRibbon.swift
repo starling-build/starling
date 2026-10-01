@@ -22,6 +22,7 @@ extension Ribbon {
         case .transitions: return _transitions(deck, fluent)
         case .slideShow: return _slideShowTab(fluent)
         case .view: return _slidesView(fluent)
+        case .pictureFormat: return _slidePictureFormat(deck, fluent)
         default: return nil
         }
     }
@@ -121,6 +122,9 @@ extension Ribbon {
             Chrome.group("Text", fluent, [
                 Chrome.big(FluentSystemIcons.textT, "Text Box", fluent) { [session] in session.onInsertTextBox?() },
             ]),
+            Chrome.group("Images", fluent, [
+                Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
+            ]),
             Chrome.group("Illustrations", fluent, [
                 FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
                     child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
@@ -132,13 +136,66 @@ extension Ribbon {
         ]
     }
 
+    /// A theme as a tile: its background, "Aa" in its heading font and
+    /// colour, and its first accents as dots.
+    private func _themeTile(_ t: DeckTheme, on: Bool, _ fluent: FluentThemeData, _ action: @escaping () -> Void) -> Widget {
+        let dots: [Widget] = t.accents.prefix(4).map { c in
+            Padding(padding: EdgeInsets(left: 1.5, top: 0, right: 1.5, bottom: 0), child: SizedBox(width: 7, height: 7, child: DecoratedBox(
+                decoration: BoxDecoration(color: c, borderRadius: BorderRadius.all(Radius(circular: 3.5))),
+                child: SizedBox(expand: ()))))
+        }
+        let face = DecoratedBox(
+            decoration: BoxDecoration(color: t.background,
+                                      border: Border.all(color: on ? fluent.accentColor.defaultBrushFor(fluent.brightness)
+                                                                 : fluent.resources.controlStrokeColorDefault, width: on ? 2 : 1),
+                                      borderRadius: BorderRadius.all(Radius(circular: 3))),
+            child: SizedBox(width: 64, height: 40, child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+                Text("Aa", style: Flutter.TextStyle(color: t.text, fontSize: 15,
+                                                    fontFamily: OfficeFonts.substitute(t.headingFont))),
+                Chrome.vgap(2),
+                Row(mainAxisSize: .min, children: dots),
+            ])))
+        return FlatButton(child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+            face, Chrome.vgap(3), Text(t.name, style: fluent.typography.caption),
+        ]), tip: "\(t.name) theme", checked: false, width: 76, height: Chrome.rowHeight * 2 + 6, action: action)
+    }
+
     private func _design(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         let wide = abs(deck.slideSize.width / deck.slideSize.height - 16.0 / 9.0) < 0.01
+        let palette = Self.shapeColors(deck.theme)
+        var background: [MenuFlyoutItemBase] = [
+            MenuFlyoutItem(text: Text("Theme Background"), onPressed: { deck.setBackground(nil) }),
+            MenuFlyoutSeparator(),
+        ]
+        for (name, color) in palette {
+            background.append(MenuFlyoutItem(text: Text(name), leading: Chrome.swatch(color, fluent),
+                                             onPressed: { deck.setBackground(SlideFill(color: color)) }))
+        }
+        let a = deck.theme.accents
+        background += [
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Gradient: Light"), onPressed: {
+                deck.setBackground(SlideFill(color: Color(0xFFFFFFFF), stops: [
+                    .init(position: 0, color: Color(0xFFFFFFFF)), .init(position: 1, color: Color(0xFFE6ECF2))], angle: 90))
+            }),
+            MenuFlyoutItem(text: Text("Gradient: Accent"), onPressed: {
+                deck.setBackground(SlideFill(color: a[0], stops: [
+                    .init(position: 0, color: a[0]), .init(position: 1, color: DeckController.darker(a[0]))], angle: 90))
+            }),
+            MenuFlyoutItem(text: Text("Picture…"), onPressed: { [session] in session.onBackgroundPicture?() }),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Apply to All Slides"), onPressed: {
+                deck.setBackground(deck.currentSlide.background, all: true)
+            }),
+        ]
         return [
-            Chrome.group("Themes", fluent, [
-                Chrome.bigToggle(FluentSystemIcons.personalize, deck.theme.name, true, fluent) {},
-            ]),
-            Chrome.group("Customize", fluent, [
+            Chrome.group("Themes", fluent, DeckTheme.presets.map { t in
+                _themeTile(t, on: deck.theme.name == t.name, fluent) { deck.applyTheme(t) }
+            }),
+            Chrome.group("Customize", fluent, [Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.paintBrush, "Format Background", "Slide background", fluent, items: background),
+            ])]),
+            Chrome.group("Size", fluent, [
                 Chrome.menuButton(FluentSystemIcons.pageFit, "Slide Size", "Slide Size", fluent, items: [
                     MenuFlyoutItem(text: Text("Standard (4:3)"),
                                    leading: Icon(wide ? FluentSystemIcons.onePage : FluentSystemIcons.check,
@@ -194,6 +251,25 @@ extension Ribbon {
                 Chrome.big(FluentSystemIcons.desktop, "From Beginning", fluent) { [session] in session.onSlideShow?(false) },
                 Chrome.big(FluentSystemIcons.window, "From Current Slide", fluent) { [session] in session.onSlideShow?(true) },
             ]),
+        ]
+    }
+
+    private func _slidePictureFormat(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
+        let crops: [(String, Double)] = [("Square", 1), ("4:3", 4.0 / 3), ("3:2", 1.5), ("16:9", 16.0 / 9), ("3:4 Portrait", 0.75)]
+        return [
+            Chrome.group("Adjust", fluent, [
+                Chrome.big(FluentSystemIcons.refresh, "Reset Picture", fluent) { deck.resetPictures() },
+            ]),
+            Chrome.group("Size", fluent, [Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.pageFit, "Crop to Aspect", "Crop the picture to a shape", fluent,
+                                  items: crops.map { name, ratio in
+                                      MenuFlyoutItem(text: Text(name), onPressed: { deck.cropPictures(aspect: ratio) })
+                                  }),
+            ])]),
+            Chrome.group("Arrange", fluent, [Chrome.rows([
+                Chrome.small(FluentSystemIcons.chevronUp, "Bring to Front", fluent) { deck.arrange(.front) },
+                Chrome.small(FluentSystemIcons.chevronDown, "Send to Back", fluent) { deck.arrange(.back) },
+            ])]),
         ]
     }
 

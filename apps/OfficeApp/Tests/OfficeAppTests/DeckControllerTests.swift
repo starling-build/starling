@@ -215,3 +215,55 @@ final class DeckUndoTests: XCTestCase {
         }
     }
 }
+
+final class ThemeTests: XCTestCase {
+    func testApplyThemeRestylesAndUndoes() {
+        let deck = SlidesSample.make()
+        let slate = DeckTheme.presets.first { $0.name == "Slate" }!
+        let title = deck.slides[0].shapes[0]
+        let shape = deck.slides.flatMap(\.shapes).first { $0.preset == .roundRect }!
+        let before = (title.textTheme!.textColor, shape.fill)
+        deck.applyTheme(slate)
+        XCTAssertEqual(title.textTheme?.textColor, slate.text)
+        XCTAssertEqual(title.textTheme?.fontFamily, slate.headingFont)
+        XCTAssertEqual(shape.fill, slate.accents[0], "theme-coloured shapes recolour")
+        XCTAssertTrue(deck.ownTemplates)
+        deck.undo()
+        XCTAssertEqual(deck.theme.name, "Starling")
+        XCTAssertEqual(title.textTheme?.textColor, before.0)
+        XCTAssertEqual(shape.fill, before.1)
+    }
+
+    func testThemedDeckWritesOurMasterWithItsColours() throws {
+        let deck = SlidesSample.make()
+        deck.applyTheme(DeckTheme.presets.first { $0.name == "Ocean" }!)
+        let package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let theme = String(data: package.parts["ppt/theme/theme1.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(theme.contains("name=\"Ocean\""))
+        let master = String(data: package.parts["ppt/slideMasters/slideMaster1.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(master.contains("<a:gradFill"), "Ocean's gradient is the master background")
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let shape = state.slides.flatMap(\.shapes).first { $0.kind == .geometry(.roundRect) }!
+        XCTAssertEqual(shape.fillScheme, "accent1", "theme fills travel as theme references")
+    }
+}
+
+final class PictureTests: XCTestCase {
+    func testCropFitsInsideTheOldBoxAndResets() throws {
+        let deck = SlidesSample.make()
+        deck.select(deck.slides.firstIndex { $0.titleText == "A picture" }!)
+        let pic = deck.currentSlide.shapes.first { $0.picture != nil }!
+        let before = pic.frame
+        deck.selectShapes([pic])
+        deck.cropPictures(aspect: 1)
+        XCTAssertEqual(pic.frame.width, pic.frame.height, accuracy: 0.001)
+        XCTAssertLessThanOrEqual(pic.frame.width, before.width + 0.001)
+        XCTAssertEqual(pic.frame.center.dx, before.center.dx, accuracy: 0.001)
+        XCTAssertEqual(pic.crop!.left, 0.125, accuracy: 0.001, "a 4:3 picture loses an eighth each side")
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let read = state.slides[deck.current].shapes.first { if case .picture = $0.kind { return true }; return false }!
+        XCTAssertEqual(read.crop!.left, 0.125, accuracy: 0.001, "the crop travels as a:srcRect")
+        deck.resetPictures()
+        XCTAssertNil(pic.crop)
+    }
+}
