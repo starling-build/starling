@@ -1304,6 +1304,24 @@ final class SheetGridState: State<StatefulWidget> {
             let a = CellAddress(row: row, col: col)
             if let cell = ws.cells[a], cell.style != 0 { styled.append((a, book.style(cell.style))) }
         } }
+        // Tables' built-in styles, under everything the cells set themselves.
+        var tableLooks: [CellAddress: TableCellLook] = [:]
+        if !ws.tables.isEmpty, let r0 = rs.first, let r1 = rs.last, let c0 = cs.first, let c1 = cs.last {
+            let view = CellRange(top: min(r0, r1), left: min(c0, c1), bottom: max(r0, r1), right: max(c0, c1))
+            for t in ws.tables where t.ref.intersects(view) {
+                for row in rs where row >= t.ref.top && row <= t.ref.bottom {
+                    for col in cs where col >= t.ref.left && col <= t.ref.right {
+                        let a = CellAddress(row: row, col: col)
+                        if let look = TableStyles.look(t, a, theme: book.themeColors) { tableLooks[a] = look }
+                    }
+                }
+            }
+            for (a, look) in tableLooks {
+                guard let f = look.fill else { continue }
+                p.color = Color(Int64(0xFF00_0000) | Int64(f))
+                canvas.drawRect(rect(a), p)
+            }
+        }
         for (a, st) in styled where !covered.contains(a) {
             if let f = st.fill {
                 p.color = Color(Int64(0xFF00_0000) | Int64(f))
@@ -1345,6 +1363,20 @@ final class SheetGridState: State<StatefulWidget> {
             p.color = st.fill.map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.paper
             canvas.drawRect(Rect.fromLTRB(r.left + 0.5, r.top + 0.5, r.right - 1, r.bottom - 1), p)
         }
+        // Tables' lines, over the gridlines.
+        if !tableLooks.isEmpty {
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1
+            for (a, look) in tableLooks {
+                let r = rect(a)
+                let l = r.left.rounded() - 0.5, rr = r.right.rounded() - 0.5, t = r.top.rounded() - 0.5, b = r.bottom.rounded() - 0.5
+                if let c = look.bottom { line.color = Color(Int64(0xFF00_0000) | Int64(c)); canvas.drawLine(Offset(l, b), Offset(rr, b), line) }
+                if let c = look.top { line.color = Color(Int64(0xFF00_0000) | Int64(c)); canvas.drawLine(Offset(l, t), Offset(rr, t), line) }
+                if let c = look.left { line.color = Color(Int64(0xFF00_0000) | Int64(c)); canvas.drawLine(Offset(l, t), Offset(l, b), line) }
+                if let c = look.right { line.color = Color(Int64(0xFF00_0000) | Int64(c)); canvas.drawLine(Offset(rr, t), Offset(rr, b), line) }
+            }
+        }
         // Data bars, under the values.
         for (a, look) in looks {
             guard let bar = look.bar else { continue }
@@ -1358,7 +1390,15 @@ final class SheetGridState: State<StatefulWidget> {
         for row in rs { for col in cs {
             let a = CellAddress(row: row, col: col)
             guard a != editing, !covered.contains(a), let cell = ws.cells[a], !cell.value.isEmpty else { continue }
-            let cf = looks[a]?.dxf
+            var cf = looks[a]?.dxf
+            if let tl = tableLooks[a] {
+                // The table's font where the cell sets none of its own.
+                let own = book.style(cell.style)
+                var d = cf ?? DxfStyle()
+                if d.bold == nil, tl.bold, !own.bold { d.bold = true }
+                if d.color == nil, own.color == nil { d.color = tl.color }
+                cf = d
+            }
             if let m = merges.first(where: { $0.topLeft == a }) {
                 _paintCell(canvas, a, cell, in: rect(m), spill: false, ws: ws, book: book, ink: colors.ink, cf: cf)
             } else {

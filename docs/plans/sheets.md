@@ -282,8 +282,12 @@ column names are re-read from the header cells — unique, never empty,
 control characters as `_x000a_` — because Excel discards ("repairs") a
 table whose names disagree with its header cells. The rest of the part
 is written as read; privateschools2223.xlsx's table round-trips byte
-for byte. Not yet: table styles drawn, a table deleted with all its
-rows, structured references (`Table2[Col]`) in formulas.
+for byte. Built-in table styles are drawn by family (`TableStyles`:
+Light 1–21, Medium 1–28, Dark 1–11 over the dark colour and six
+accents — header, stripes, totals, lines; an approximation of Excel's
+presets, seen for Medium 2, Medium 9 and Light 9), under the cells' own
+formats. Not yet: custom table styles from the file, a table deleted
+with all its rows, structured references (`Table2[Col]`) in formulas.
 
 **Fixed 2026-10-01: saves dropped the file's differential formats.**
 `styles.xml` is rebuilt from the model, and the rebuild wrote an empty

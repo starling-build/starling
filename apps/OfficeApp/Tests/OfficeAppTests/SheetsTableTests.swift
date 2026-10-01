@@ -68,3 +68,20 @@ final class SheetsTableTests: XCTestCase {
         XCTAssertEqual(was.replacingAll("name=\"Run\"", with: "name=\"Column1\""), now)
     }
 }
+
+extension SheetsTableTests {
+    func testBuiltInStyleLooks() {
+        let theme = Xlsx._themeColors(nil)          // Office 2013: accent1 4472C4
+        var t = SheetTable(path: "", ref: CellRange("B2:D6")!, columnIds: [1, 2, 3], headerRow: true)
+        t.style = "TableStyleMedium2"
+        let head = TableStyles.look(t, CellAddress("C2")!, theme: theme)
+        XCTAssertEqual(head?.fill, 0x4472C4)
+        XCTAssertEqual(head?.color, 0xFFFFFF)
+        XCTAssertEqual(head?.bold, true)
+        XCTAssertEqual(TableStyles.look(t, CellAddress("C3")!, theme: theme)?.fill, CFEvaluator._mix(0x4472C4, 0xFFFFFF, 0.8))
+        XCTAssertNil(TableStyles.look(t, CellAddress("C4")!, theme: theme)?.fill)      // the plain stripe
+        XCTAssertNil(TableStyles.look(t, CellAddress("E4")!, theme: theme))            // outside
+        t.style = nil
+        XCTAssertNil(TableStyles.look(t, CellAddress("C2")!, theme: theme))
+    }
+}

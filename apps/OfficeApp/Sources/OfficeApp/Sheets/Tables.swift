@@ -25,6 +25,13 @@ struct SheetTable: Equatable, Sendable {
     var headerRow: Bool
     /// Something about it changed here: the part is rewritten on save.
     var edited = false
+    /// `tableStyleInfo`: the style's name and which of its parts show.
+    var style: String? = nil
+    var rowStripes = true
+    var columnStripes = false
+    var firstColumn = false
+    var lastColumn = false
+    var totalsRow = false
 }
 
 enum TablesXML {
@@ -36,7 +43,16 @@ enum TablesXML {
             guard let id = tp["r:id"], let path = rels[id], let root = parts[path].flatMap({ XNode.parse($0) }),
                   let ref = root["ref"].flatMap({ CellRange($0) }) else { return nil }
             let ids = root.child("tableColumns")?.kids("tableColumn").map { Int($0["id"] ?? "") } ?? []
-            return SheetTable(path: path, ref: ref, columnIds: ids, headerRow: root["headerRowCount"] != "0")
+            var t = SheetTable(path: path, ref: ref, columnIds: ids, headerRow: root["headerRowCount"] != "0")
+            if let info = root.child("tableStyleInfo") {
+                t.style = info["name"]
+                t.rowStripes = info["showRowStripes"] == "1"
+                t.columnStripes = info["showColumnStripes"] == "1"
+                t.firstColumn = info["showFirstColumn"] == "1"
+                t.lastColumn = info["showLastColumn"] == "1"
+            }
+            t.totalsRow = (Int(root["totalsRowCount"] ?? "0") ?? 0) > 0
+            return t
         }
     }
 
@@ -107,5 +123,91 @@ enum TablesXML {
             s.insert(contentsOf: " \(name)=\"\(value)\"", at: insertAt)
         }
         return s
+    }
+}
+
+// MARK: - Drawing
+
+/// How a table's built-in style dresses one cell.
+struct TableCellLook: Equatable {
+    var fill: UInt32? = nil
+    var bold = false
+    var color: UInt32? = nil
+    /// Lines under / over the cell, and down its left and right.
+    var bottom: UInt32? = nil
+    var top: UInt32? = nil
+    var left: UInt32? = nil
+    var right: UInt32? = nil
+    var sides: UInt32? { get { left } set { left = newValue; right = newValue } }
+}
+
+/// Excel's built-in table styles, by family: each family repeats one
+/// pattern over the theme's dark colour (1st) and six accents (2nd–7th).
+/// An approximation of presetTableStyles — the header, stripes and lines
+/// that make a table read as one, not every rule of every style.
+enum TableStyles {
+    static func look(_ t: SheetTable, _ a: CellAddress, theme: [UInt32]) -> TableCellLook? {
+        guard t.ref.contains(a), let name = t.style, name.hasPrefix("TableStyle") else { return nil }
+        let rest = name.dropFirst("TableStyle".count)
+        let family = rest.prefix { $0.isLetter }
+        guard let n = Int(rest.dropFirst(family.count)), n >= 1 else { return nil }
+        let k = (n - 1) % 7                    // 0: the dark colour; 1–6: accent1–6
+        let group = (n - 1) / 7                // which pattern in the family
+        let base: UInt32 = k == 0 ? (theme.count > 1 ? theme[1] : 0) : (theme.count > k + 3 ? theme[k + 3] : 0x4472C4)
+        func tint(_ f: Double) -> UInt32 { CFEvaluator._mix(base, 0xFFFFFF, f) }
+        func shade(_ f: Double) -> UInt32 { CFEvaluator._mix(base, 0x000000, f) }
+        let white: UInt32 = 0xFFFFFF
+        let header = t.headerRow && a.row == t.ref.top
+        let totals = t.totalsRow && a.row == t.ref.bottom
+        let dataRow = a.row - t.ref.top - (t.headerRow ? 1 : 0)
+        let dataCol = a.col - t.ref.left
+        let stripe = (t.rowStripes && dataRow % 2 == 0) || (t.columnStripes && dataCol % 2 == 0)
+        let edgeCol = (t.firstColumn && a.col == t.ref.left) || (t.lastColumn && a.col == t.ref.right)
+        var x = TableCellLook()
+        switch (family, group) {
+        case ("Light", 0):                     // Light 1–7: lines above and below, light stripes
+            if header { x.bold = true; x.bottom = base }
+            else if !totals && stripe { x.fill = tint(0.8) }
+            if a.row == t.ref.top || totals { x.top = base }
+            if a.row == t.ref.bottom { x.bottom = base }
+            if k > 0 { x.color = shade(0.25) }
+        case ("Light", 1):                     // Light 8–14: a filled header, an outline
+            if header { x.fill = base; x.color = white; x.bold = true }
+            if a.row == t.ref.bottom { x.bottom = base }
+            if a.col == t.ref.left { x.left = base }
+            if a.col == t.ref.right { x.right = base }
+            if !header && stripe { x.bottom = base }
+        case ("Light", _):                     // Light 15–21: a grid
+            if header { x.bold = true }
+            else if stripe { x.fill = tint(0.8) }
+            x.bottom = base; x.top = base; x.sides = base
+        case ("Medium", 0):                    // Medium 1–7: filled header, light stripes, thin lines
+            if header { x.fill = base; x.color = white; x.bold = true }
+            else if !totals && stripe { x.fill = tint(0.8) }
+            if !header { x.bottom = tint(0.4) }
+            if totals { x.top = base; x.bold = true }
+        case ("Medium", 1):                    // Medium 8–14: two-tone stripes, white lines
+            if header { x.fill = base; x.color = white; x.bold = true }
+            else { x.fill = stripe ? tint(0.6) : tint(0.8) }
+            x.bottom = white; x.sides = white
+        case ("Medium", 2):                    // Medium 15–21: dark header over a light grid
+            if header { x.fill = theme.count > 1 ? theme[1] : 0; x.color = white; x.bold = true }
+            else if stripe { x.fill = 0xD9D9D9 }
+            x.bottom = 0x000000
+        case ("Medium", _):                    // Medium 22–28: tinted body, a grid
+            if header { x.bold = true; x.fill = tint(0.8) } else { x.fill = stripe ? tint(0.6) : tint(0.8) }
+            x.bottom = tint(0.4); x.sides = tint(0.4)
+        case ("Dark", 0):                      // Dark 1–7: shaded body, white text
+            if header { x.fill = 0x000000; x.color = white; x.bold = true; x.bottom = white }
+            else { x.fill = stripe ? shade(0.25) : base; x.color = white }
+        case ("Dark", _):                      // Dark 8–11: light body, dark header
+            if header { x.fill = 0x000000; x.color = white; x.bold = true }
+            else { x.fill = stripe ? tint(0.6) : tint(0.8) }
+        default:
+            return nil
+        }
+        if edgeCol && !header { x.bold = true }
+        if totals { x.bold = true; x.top = x.top ?? base }
+        return x
     }
 }
