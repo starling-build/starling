@@ -91,7 +91,7 @@ final class Backstage: StatelessWidget {
                 FlatButton(child: Icon(FluentSystemIcons.back, size: 20, color: ink),
                            tip: "Back to document", width: 36, height: 36, onAccent: true, action: onClose),
                 Chrome.gap(10),
-                Text("Writer", style: fluent.typography.bodyStrong?.copyWith(color: ink)),
+                Text(session.kind.appName, style: fluent.typography.bodyStrong?.copyWith(color: ink)),
             ])),
         ]
         for p in BackstagePage.allCases where p != .insertPicture {
@@ -152,7 +152,9 @@ final class Backstage: StatelessWidget {
         return Column(crossAxisAlignment: .start, children: [
             _heading("Good \(Self._daypart())", fluent),
             Row(children: [
-                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNew?() },
+                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNewKind?(.document) },
+                Chrome.gap(16),
+                _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.onNewKind?(.presentation) },
                 Chrome.gap(16),
                 _template("Open", FluentSystemIcons.folderOpen, fluent) { [onPage] in onPage(.open) },
             ]),
@@ -165,7 +167,10 @@ final class Backstage: StatelessWidget {
         Column(crossAxisAlignment: .start, children: [
             _heading("New", fluent),
             Row(children: [
-                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNew?() },
+                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNewKind?(.document) },
+                Chrome.gap(16),
+                _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.onNewKind?(.presentation) },
+            ] + (session.kind == .presentation ? [] : [
                 Chrome.gap(16),
                 _template("Letter", FluentSystemIcons.document, fluent) { [session] in
                     session.onNew?()
@@ -186,7 +191,7 @@ final class Backstage: StatelessWidget {
                     c.insertText("[Start writing here.]")
                     c.moveTo(.start, extend: false)
                 },
-            ]),
+            ])),
         ])
     }
 
@@ -208,12 +213,14 @@ final class Backstage: StatelessWidget {
         let dir = session.path.map { $0.deletingLastPathComponent }
             ?? homeDirectory() + "/Documents"
         let start = FileManager.default.fileExists(atPath: dir) ? dir : homeDirectory()
-        let suggested = session.path.map { $0.lastPathComponent } ?? "Document1.docx"
+        let suggested = session.path.map { $0.lastPathComponent }
+            ?? (session.kind == .presentation ? "Presentation1.pptx" : "Document1.docx")
         return Column(crossAxisAlignment: .stretch, children: [
             _heading(mode == .open ? "Open" : "Save As", fluent),
             Expanded(child: FluentFilePanel(
                 mode: mode, initialDirectory: start, suggestedName: suggested,
-                extensions: mode == .open ? OfficeFormats.readable : OfficeFormats.writable,
+                extensions: mode == .open ? OfficeFormats.readable + ["pptx"]
+                    : session.kind == .presentation ? ["pptx"] : OfficeFormats.writable,
                 onDone: { [onClose, onOpenPath, onSavePath] path in
                     guard let path else { onClose(); return }
                     if mode == .open { onOpenPath(path) } else { onSavePath(path) }
@@ -254,7 +261,7 @@ final class Backstage: StatelessWidget {
             ]))
         } + [
             Chrome.vgap(24),
-            _heading("About Writer", fluent),
+            _heading("About \(session.kind.appName)", fluent),
             Text("Built with Fluent UI System Icons and the fluent_ui controls (MIT), the Selawik, Liberation, Carlito and Caladea fonts (SIL OFL), zlib, and the Flutter engine (BSD).",
                  style: secondary),
             Chrome.vgap(4),
@@ -268,7 +275,11 @@ final class Backstage: StatelessWidget {
             Text("Choose a format. The file lands beside the document, or in Documents.",
                  style: fluent.typography.body?.copyWith(color: fluent.resources.textFillColorSecondary)),
             Chrome.vgap(16),
-            Row(children: [
+            session.kind == .presentation ? Row(children: [
+                _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { [session] in session.onExport?("pdf") },
+                Chrome.gap(16),
+                _template("PowerPoint (.pptx)", FluentSystemIcons.desktop, fluent) { [session] in session.onExport?("pptx") },
+            ]) : Row(children: [
                 _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { [session] in session.onExport?("pdf") },
                 Chrome.gap(16),
                 _template("Word (.docx)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("docx") },

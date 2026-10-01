@@ -15,9 +15,16 @@ import FlutterWeb
 
 final class OfficeShell: StatefulWidget {
     let initialPath: String?
+    /// Hand the window to the other kind: a new or opened deck.
+    let onSwitch: ((DocumentKind, String?) -> Void)?
+    /// Start on a blank document, not on the welcome page or a recovery
+    /// copy: the window came here from Slides' "Blank document".
+    let startBlank: Bool
 
-    init(initialPath: String?) {
+    init(initialPath: String?, startBlank: Bool = false, onSwitch: ((DocumentKind, String?) -> Void)? = nil) {
         self.initialPath = initialPath
+        self.startBlank = startBlank
+        self.onSwitch = onSwitch
         super.init()
     }
 
@@ -82,6 +89,10 @@ final class OfficeShellState: State<StatefulWidget> {
             controller.load(DemoDocument.make(pages: pages))
         } else if let path = (widget as! OfficeShell).initialPath {
             _open(path)
+        } else if (widget as! OfficeShell).startBlank {
+            var blank = RichDocument()
+            blank.styles = OfficeStyles.sheet
+            controller.load(blank)
         } else if FileManager.default.fileExists(atPath: _recoveryPath(for: nil)),
                   let opened = try? OfficeFormats.read(_recoveryPath(for: nil)) {
             // Last time ended with an unsaved untitled document.
@@ -181,6 +192,10 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._backstage = open ? .home : nil }
         }
         session.onNew = { [weak self] in self?._new() }
+        session.onNewKind = { [weak self] kind in
+            guard let self else { return }
+            if kind == .document { self._new() } else { (self.widget as! OfficeShell).onSwitch?(.presentation, nil) }
+        }
         session.onOpen = { [weak self] in
             guard let self else { return }
             #if os(WASI)
@@ -357,6 +372,10 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _open(_ path: String) {
+        if path.pathExtension.lowercased() == "pptx", let onSwitch = (widget as! OfficeShell).onSwitch {
+            onSwitch(.presentation, path)
+            return
+        }
         do {
             _autosaveGeneration += 1
             var recovery = _recoveryIfNewer(than: path)
@@ -513,31 +532,9 @@ final class OfficeShellState: State<StatefulWidget> {
         }
     }
 
-    // Recent files live beside the user's other Starling state.
-    private var _recentFile: String {
-        let dir = homeDirectory() + "/.config/starling"
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        return dir + "/office-recent.txt"
-    }
+    private func _loadRecent() -> [String] { OfficeRecent.load() }
 
-    private func _loadRecent() -> [String] {
-        #if os(WASI)
-        // No files, so no recent files. (FileManager.createDirectory with
-        // intermediates recurses forever on WASI, so this cannot even try.)
-        return []
-        #endif
-        guard let text = try? String(contentsOfFile: _recentFile, encoding: .utf8) else { return [] }
-        return text.split(separator: "\n").map(String.init).filter { FileManager.default.fileExists(atPath: $0) }
-    }
-
-    private func _remember(_ path: String) {
-        _recent.removeAll { $0 == path }
-        _recent.insert(path, at: 0)
-        if _recent.count > 20 { _recent.removeLast(_recent.count - 20) }
-        #if !os(WASI)
-        try? _recent.joined(separator: "\n").write(toFile: _recentFile, atomically: true, encoding: .utf8)
-        #endif
-    }
+    private func _remember(_ path: String) { _recent = OfficeRecent.remember(path, in: _recent) }
 
     // MARK: Pictures
 
@@ -933,6 +930,38 @@ final class OfficeShellState: State<StatefulWidget> {
 /// `text` between two UTF-16 offsets (the spell checker's ranges), as a
 /// String — `NSString.substring(with:)` without the legacy Foundation
 /// layer, which the browser build does not link.
+/// The recent-files list, shared by Writer and Slides: one file beside the
+/// user's other Starling state.
+enum OfficeRecent {
+    private static var _file: String {
+        let dir = homeDirectory() + "/.config/starling"
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        return dir + "/office-recent.txt"
+    }
+
+    static func load() -> [String] {
+        #if os(WASI)
+        // No files, so no recent files. (FileManager.createDirectory with
+        // intermediates recurses forever on WASI, so this cannot even try.)
+        return []
+        #else
+        guard let text = try? String(contentsOfFile: _file, encoding: .utf8) else { return [] }
+        return text.split(separator: "\n").map(String.init).filter { FileManager.default.fileExists(atPath: $0) }
+        #endif
+    }
+
+    static func remember(_ path: String, in list: [String]) -> [String] {
+        var recent = list
+        recent.removeAll { $0 == path }
+        recent.insert(path, at: 0)
+        if recent.count > 20 { recent.removeLast(recent.count - 20) }
+        #if !os(WASI)
+        try? recent.joined(separator: "\n").write(toFile: _file, atomically: true, encoding: .utf8)
+        #endif
+        return recent
+    }
+}
+
 func _utf16Slice(_ text: String, _ r: Range<Int>) -> String {
     let u = text.utf16
     guard r.lowerBound >= 0, r.upperBound <= u.count else { return "" }

@@ -22,7 +22,7 @@ import FoundationXML
 
 final class XNode {
     let name: String
-    let attrs: [String: String]
+    var attrs: [String: String]
     var children: [XNode] = []
     var text = ""
 

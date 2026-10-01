@@ -287,15 +287,37 @@ void flcocoa_host_set_title(FlCocoaHost* host, const char* title) {
   }
 }
 
+// Off the key or pointer handler that asked, on the next turn of the run
+// loop, with the window marked as able to go full screen: a toggle sent
+// from inside an event callback, or to a window mid-transition, is dropped
+// silently by AppKit — seen as a slide show that sometimes stayed windowed.
+// One retry after the transition's length covers the mid-transition case.
+static void flcocoa_set_fullscreen_attempt(NSWindow* window, BOOL want, int tries) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    window.collectionBehavior |= NSWindowCollectionBehaviorFullScreenPrimary;
+    BOOL isFullscreen = (window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+    if (isFullscreen == want) {
+      return;
+    }
+    [window makeKeyAndOrderFront:nil];
+    [window toggleFullScreen:nil];
+    if (tries > 0) {
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(900 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+        BOOL now = (window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+        if (now != want) {
+          flcocoa_set_fullscreen_attempt(window, want, tries - 1);
+        }
+      });
+    }
+  });
+}
+
 void flcocoa_host_set_fullscreen(FlCocoaHost* host, int32_t fullscreen) {
   if (host == NULL) {
     return;
   }
   @autoreleasepool {
     NSWindow* window = (__bridge NSWindow*)host->window;
-    BOOL isFullscreen = (window.styleMask & NSWindowStyleMaskFullScreen) != 0;
-    if (isFullscreen != (fullscreen != 0)) {
-      [window toggleFullScreen:nil];
-    }
+    flcocoa_set_fullscreen_attempt(window, fullscreen != 0, 1);
   }
 }

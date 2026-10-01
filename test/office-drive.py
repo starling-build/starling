@@ -114,17 +114,27 @@ class Driver:
         self.x = self.y = 0
         self.w = self.h = 0
 
-    def launch(self, env=None):
-        subprocess.run(["pkill", "-x", "OfficeApp"])
-        time.sleep(0.5)
+    def launch(self, env=None, args=()):
+        # Only the instance this driver starts is touched: a Writer window
+        # the user has open keeps running (it was killed here once, unsaved
+        # work and all). The process is found by its pid, not its name.
+        self.quit()
         e = dict(os.environ, SHELL="/bin/sh")
         if env: e.update(env)
-        self.proc = subprocess.Popen([APP], env=e, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.proc = subprocess.Popen([APP] + list(args), env=e, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(4)
-        frame = sh('''osascript -e 'tell application "System Events" to get {position, size} of window 1 of (first process whose name is "OfficeApp")' ''')
+        who = f"(first process whose unix id is {self.proc.pid})"
+        frame = sh(f'''osascript -e 'tell application "System Events" to get {{position, size}} of window 1 of {who}' ''')
         self.x, self.y, self.w, self.h = [int(v) for v in frame.split(", ")]
-        sh('''osascript -e 'tell application "System Events" to set frontmost of (first process whose name is "OfficeApp") to true' ''')
+        sh(f'''osascript -e 'tell application "System Events" to set frontmost of {who} to true' ''')
         time.sleep(0.5)
+
+    def quit(self):
+        if self.proc is not None and self.proc.poll() is None:
+            self.proc.terminate()
+            try: self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired: self.proc.kill()
+        self.proc = None
 
     def alive(self):
         return self.proc is not None and self.proc.poll() is None
@@ -154,6 +164,15 @@ class Driver:
         else:
             sh(f'''osascript -e 'tell application "System Events" to key code {key}{using}' ''')
         time.sleep(0.25)
+
+    def shot_screen(self, name, expect):
+        """The whole main display, uncropped: for a full-screen slide show,
+        whose window has left its frame for a Space of its own."""
+        self.n += 1
+        path = os.path.join(self.out, f"{self.n:02d}-{name}.png")
+        subprocess.run(["screencapture", "-x", path], check=True)
+        subprocess.run(["sips", "-Z", "1440", path, "--out", path], check=True, capture_output=True)
+        self.index.append((os.path.basename(path), expect, self.alive()))
 
     def shot(self, name, expect, cursor=False):
         self.n += 1
@@ -258,5 +277,8 @@ if __name__ == "__main__":
     if not os.path.exists(APP):
         sys.exit("build the app first: swift build --package-path apps/OfficeApp")
     d = Driver(a.out)
-    run(d, set(filter(None, a.only.split(","))))
+    try:
+        run(d, set(filter(None, a.only.split(","))))
+    finally:
+        d.quit()
     print("wrote", len(d.index), "pictures to", a.out, "- read index.md, then the pictures")

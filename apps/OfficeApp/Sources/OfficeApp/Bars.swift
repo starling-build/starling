@@ -42,14 +42,18 @@ final class TitleRow: StatelessWidget {
                 crossAxisAlignment: .center, children: [
                     DecoratedBox(decoration: BoxDecoration(color: white,
                         borderRadius: BorderRadius.all(Radius(circular: 6))),
-                        child: SizedBox(width: 30, height: 32, child: Center(child: Text("W",
+                        child: SizedBox(width: 30, height: 32, child: Center(child: Text(session.kind == .document ? "W" : "S",
                             style: Flutter.TextStyle(color: OfficeAppearance.brand, fontSize: 20, fontWeight: .w600))))),
                     Chrome.gap(10),
-                    Text("Writer", style: titleStyle),
+                    Text(session.kind.appName, style: titleStyle),
                     Chrome.gap(24),
                     command(FluentSystemIcons.save, "Save (⌘S)") { [session] in session.onSave?() },
-                    command(FluentSystemIcons.undo, "Undo (⌘Z)", enabled: s.canUndo) { c.undo() },
-                    command(FluentSystemIcons.redo, "Redo (⇧⌘Z)", enabled: s.canRedo) { c.redo() },
+                    command(FluentSystemIcons.undo, "Undo (⌘Z)", enabled: s.canUndo) { [session] in
+                        if let undo = session.onUndo { undo() } else { c.undo() }
+                    },
+                    command(FluentSystemIcons.redo, "Redo (⇧⌘Z)", enabled: s.canRedo) { [session] in
+                        if let redo = session.onRedo { redo() } else { c.redo() }
+                    },
                     Expanded(child: Padding(padding: EdgeInsets(left: 16, top: 0, right: 16, bottom: 0),
                         child: Center(child: Text(name, style: titleStyle, softWrap: false, overflow: .ellipsis)))),
                     FlatButton(child: Padding(padding: EdgeInsets(left: 9, top: 0, right: 9, bottom: 0),
@@ -60,7 +64,7 @@ final class TitleRow: StatelessWidget {
                     Chrome.gap(16),
                     SizedBox(width: 230, height: 32, child: FluentTextBox(
                         controller: searchController,
-                        placeholderText: "Find in document (⌘F)",
+                        placeholderText: session.kind == .document ? "Find in document (⌘F)" : "Find in presentation (⌘F)",
                         onSubmitted: { [onSearch] q in onSearch(q) })),
                 ])))
     }
