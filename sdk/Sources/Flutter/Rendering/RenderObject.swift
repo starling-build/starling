@@ -1030,16 +1030,28 @@ open class RenderObject: HitTestTarget {
     ///
     /// **Dart Source:** `object.dart:3403-3426`
     public func getTransformTo(_ ancestor: RenderObject?) -> Matrix4 {
-        // Collect the chain of render objects from this to ancestor.
-        // Walk up, accumulating transforms.
+        // With no ancestor the target is the root, and — as upstream — the
+        // root's OWN transform is left out: the RenderView's applyPaintTransform
+        // is the device pixel ratio, and "global" here means logical pixels.
+        // Walking past the root folded that ratio in, so on a 2x display every
+        // globalToLocal came back halved (a dragged slide shape moved half as
+        // far as the pointer; the colour picker, text-selection drags and the
+        // Linux text box's IME caret were all off by the same factor).
+        let ancestorSpecified = ancestor != nil
+        var target = ancestor
+        if target == nil {
+            var root: RenderObject = self
+            while let p = root.parent { root = p }
+            target = root
+        }
         var renderers: [RenderObject] = []
         var renderer: RenderObject? = self
-        while renderer !== ancestor {
+        while renderer !== target {
             renderers.append(renderer!)
             renderer = renderer?.parent
         }
-        if ancestor != nil {
-            renderers.append(ancestor!)
+        if ancestorSpecified {
+            renderers.append(target!)
         }
 
         var transform = Matrix4.identity()
