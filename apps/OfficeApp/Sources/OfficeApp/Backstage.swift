@@ -149,7 +149,9 @@ final class Backstage: StatelessWidget {
         return Column(crossAxisAlignment: .start, children: [
             _heading("Good \(Self._daypart())", fluent),
             Row(children: [
-                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNew?() },
+                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNewKind?(.document) },
+                Chrome.gap(16),
+                _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.onNewKind?(.presentation) },
                 Chrome.gap(16),
                 _template("Open", FluentSystemIcons.folderOpen, fluent) { [onPage] in onPage(.open) },
             ]),
@@ -162,7 +164,10 @@ final class Backstage: StatelessWidget {
         Column(crossAxisAlignment: .start, children: [
             _heading("New", fluent),
             Row(children: [
-                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNew?() },
+                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNewKind?(.document) },
+                Chrome.gap(16),
+                _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.onNewKind?(.presentation) },
+            ] + (session.kind == .presentation ? [] : [
                 Chrome.gap(16),
                 _template("Letter", FluentSystemIcons.document, fluent) { [session] in
                     session.onNew?()
@@ -183,7 +188,7 @@ final class Backstage: StatelessWidget {
                     c.insertText("[Start writing here.]")
                     c.moveTo(.start, extend: false)
                 },
-            ]),
+            ])),
         ])
     }
 
@@ -251,7 +256,7 @@ final class Backstage: StatelessWidget {
             ]))
         } + [
             Chrome.vgap(24),
-            _heading("About Writer", fluent),
+            _heading("About \(session.kind.appName)", fluent),
             Text("Built with Fluent UI System Icons and the fluent_ui controls (MIT), the Selawik, Liberation, Carlito and Caladea fonts (SIL OFL), zlib, and the Flutter engine (BSD).",
                  style: secondary),
             Chrome.vgap(4),

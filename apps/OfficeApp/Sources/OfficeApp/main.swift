@@ -180,8 +180,12 @@ let initialPath: String? = {
     return nil
 }()
 
-runStarlingApp(title: "Writer",
+// `--slides` starts on a blank deck; a .pptx path starts in Slides too.
+let initialKind: DocumentKind = CommandLine.arguments.contains("--slides")
+    || initialPath?.pathExtension.lowercased() == "pptx" ? .presentation : .document
+
+runStarlingApp(title: initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),
                height: windowMetric("STARLING_WINDOW_H", 900)) {
-    OfficeRoot(initialPath: initialPath)
+    OfficeRoot(initialPath: initialPath, kind: initialKind)
 }

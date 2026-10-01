@@ -17,6 +17,16 @@ enum RibbonTab: Int, CaseIterable {
     /// Contextual: shown while a picture is selected or the caret is in a
     /// table, as Word does.
     case pictureFormat, tableLayout
+    /// Slides only.
+    case design, transitions, slideShow
+
+    /// The tabs a kind shows, in strip order (contextual ones aside).
+    static func strip(for kind: DocumentKind) -> [RibbonTab] {
+        switch kind {
+        case .document: return [.home, .insert, .layout, .review, .view]
+        case .presentation: return [.home, .insert, .design, .transitions, .slideShow, .review, .view]
+        }
+    }
 
     var title: String {
         switch self {
@@ -27,6 +37,9 @@ enum RibbonTab: Int, CaseIterable {
         case .view: return "View"
         case .pictureFormat: return "Picture Format"
         case .tableLayout: return "Table Layout"
+        case .design: return "Design"
+        case .transitions: return "Transitions"
+        case .slideShow: return "Slide Show"
         }
     }
 
@@ -72,11 +85,9 @@ final class Ribbon: StatelessWidget {
 
     private func _strip(_ fluent: FluentThemeData) -> Widget {
         var items: [Widget] = [_fileTab(fluent)]
-        for t in RibbonTab.allCases where !t.isContextual
-            || (t == .pictureFormat && session.summary.imageIndex != nil)
-            || (t == .tableLayout && session.summary.inCell) {
-            items.append(_tab(t, fluent))
-        }
+        for t in RibbonTab.strip(for: session.kind) { items.append(_tab(t, fluent)) }
+        if session.summary.imageIndex != nil { items.append(_tab(.pictureFormat, fluent)) }
+        if session.summary.inCell { items.append(_tab(.tableLayout, fluent)) }
         return Padding(padding: EdgeInsets(left: 8, top: 2, right: 8, bottom: 0),
                        child: Row(crossAxisAlignment: .end, children: items))
     }
@@ -124,6 +135,7 @@ final class Ribbon: StatelessWidget {
     // MARK: Groups per tab
 
     private func _groups(_ fluent: FluentThemeData) -> [Widget] {
+        if session.kind == .presentation, let groups = slidesGroups(fluent) { return groups }
         switch tab {
         case .home: return _home(fluent)
         case .insert: return _insert(fluent)
@@ -132,6 +144,7 @@ final class Ribbon: StatelessWidget {
         case .pictureFormat: return _pictureFormat(fluent)
         case .tableLayout: return _tableLayout(fluent)
         case .review: return _review(fluent)
+        case .design, .transitions, .slideShow: return []
         }
     }
 
@@ -140,7 +153,7 @@ final class Ribbon: StatelessWidget {
     /// Spelling and Word Count are real; the rest of Word's Review tab
     /// (track changes, comments) and the Draw and References tabs are one
     /// honest note rather than five rows of greyed buttons.
-    private func _review(_ fluent: FluentThemeData) -> [Widget] {
+    func _review(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller
         let proofing = Chrome.group("Proofing", fluent, [
             Chrome.bigToggle(FluentSystemIcons.textGrammarWand, "Spelling", session.checkSpelling, fluent) { [session] in session.onToggleSpelling?() },
@@ -162,7 +175,59 @@ final class Ribbon: StatelessWidget {
     private func _home(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller
         let s = session.summary
-        let clipboard = Chrome.group("Clipboard", fluent, [
+        let fontParagraph = fontAndParagraphGroups(fluent)
+        let font = fontParagraph[0]
+        let paragraph = fontParagraph[1]
+        let clipboard = clipboardGroup(fluent)
+
+        // The gallery: four tiles, then every style of the sheet in a menu.
+        let sheet = c.document.styles
+        var tiles: [Widget] = []
+        for id in [RichNamedStyle.normalId, "Title", RichNamedStyle.headingId(1), RichNamedStyle.headingId(2)] {
+            guard let entry = sheet[id] else { continue }
+            tiles.append(_styleTile(entry, s.styleId == id, fluent) { c.setNamedStyle(id) })
+        }
+        var more: [MenuFlyoutItemBase] = sheet.styles.map { entry in
+            MenuFlyoutItem(text: Text(entry.name, style: _preview(entry, fluent, cap: Self._menuPreviewCap)),
+                           leading: Icon(s.styleId == entry.id ? FluentSystemIcons.check : FluentSystemIcons.textT,
+                                         size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                           onPressed: { c.setNamedStyle(entry.id) })
+        }
+        if let current = sheet[s.styleId] {
+            more.append(MenuFlyoutSeparator())
+            more.append(MenuFlyoutItem(text: Text("Update \(current.name) to Match Selection"),
+                                       onPressed: { [session] in
+                                           c.updateStyleToMatchSelection(current.id)
+                                           session.onStatus?("\(current.name) now matches the selection")
+                                       }))
+            more.append(MenuFlyoutItem(text: Text("Modify \(current.name)…"),
+                                       onPressed: { [session] in session.onModifyStyle?(current.id) }))
+        }
+        // The gallery sits in one bordered box, as Word's does.
+        let gallery = DecoratedBox(
+            decoration: BoxDecoration(border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                      borderRadius: BorderRadius.all(Radius(circular: 4))),
+            child: Padding(padding: EdgeInsets(left: 2, top: 2, right: 2, bottom: 2),
+                           child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: tiles)))
+        let styles = Chrome.group("Styles", fluent, [
+            gallery, Chrome.gap(2),
+            FlatButton(child: Chrome.chevron(fluent), tip: "All styles", width: 16, height: 58, menu: more),
+        ])
+
+        let editing = Chrome.group("Editing", fluent, [Chrome.rows([
+            Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
+            Chrome.small(FluentSystemIcons.textGrammarWand, "Replace", fluent) { [session] in session.onFind?(true) },
+            Chrome.small(FluentSystemIcons.textT, "Select All", fluent) { c.selectAll() },
+        ])])
+
+        return [clipboard, font, paragraph, styles, editing]
+    }
+
+    /// Paste, Cut, Copy and Format Painter, acting on the session's text.
+    func clipboardGroup(_ fluent: FluentThemeData) -> Widget {
+        let c = session.controller
+        let s = session.summary
+        return Chrome.group("Clipboard", fluent, [
             Chrome.big(FluentSystemIcons.paste, "Paste", fluent) { [session] in session.onPaste?(false) },
             Chrome.gap(2),
             Chrome.rows([
@@ -177,7 +242,13 @@ final class Ribbon: StatelessWidget {
                 Chrome.small(FluentSystemIcons.paintBrush, s.painting ? "Painting…" : "Format Painter", fluent) { [session] in session.onFormatPainter?() },
             ]),
         ])
+    }
 
+    /// Font and Paragraph: Writer's Home groups, shared by Slides, acting on
+    /// whatever text the session points at.
+    func fontAndParagraphGroups(_ fluent: FluentThemeData) -> [Widget] {
+        let c = session.controller
+        let s = session.summary
         let sizes: [Double] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
         let currentSize = session.effectiveFontSize
         let fontRow1 = Chrome.row([
@@ -249,48 +320,7 @@ final class Ribbon: StatelessWidget {
                                   color: fluent.resources.textFillColorPrimary), fluent, spacingChoices),
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [Chrome.rows([paraRow1, Chrome.vgap(4), paraRow2])])
-
-        // The gallery: four tiles, then every style of the sheet in a menu.
-        let sheet = c.document.styles
-        var tiles: [Widget] = []
-        for id in [RichNamedStyle.normalId, "Title", RichNamedStyle.headingId(1), RichNamedStyle.headingId(2)] {
-            guard let entry = sheet[id] else { continue }
-            tiles.append(_styleTile(entry, s.styleId == id, fluent) { c.setNamedStyle(id) })
-        }
-        var more: [MenuFlyoutItemBase] = sheet.styles.map { entry in
-            MenuFlyoutItem(text: Text(entry.name, style: _preview(entry, fluent, cap: Self._menuPreviewCap)),
-                           leading: Icon(s.styleId == entry.id ? FluentSystemIcons.check : FluentSystemIcons.textT,
-                                         size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
-                           onPressed: { c.setNamedStyle(entry.id) })
-        }
-        if let current = sheet[s.styleId] {
-            more.append(MenuFlyoutSeparator())
-            more.append(MenuFlyoutItem(text: Text("Update \(current.name) to Match Selection"),
-                                       onPressed: { [session] in
-                                           c.updateStyleToMatchSelection(current.id)
-                                           session.onStatus?("\(current.name) now matches the selection")
-                                       }))
-            more.append(MenuFlyoutItem(text: Text("Modify \(current.name)…"),
-                                       onPressed: { [session] in session.onModifyStyle?(current.id) }))
-        }
-        // The gallery sits in one bordered box, as Word's does.
-        let gallery = DecoratedBox(
-            decoration: BoxDecoration(border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
-                                      borderRadius: BorderRadius.all(Radius(circular: 4))),
-            child: Padding(padding: EdgeInsets(left: 2, top: 2, right: 2, bottom: 2),
-                           child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: tiles)))
-        let styles = Chrome.group("Styles", fluent, [
-            gallery, Chrome.gap(2),
-            FlatButton(child: Chrome.chevron(fluent), tip: "All styles", width: 16, height: 58, menu: more),
-        ])
-
-        let editing = Chrome.group("Editing", fluent, [Chrome.rows([
-            Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
-            Chrome.small(FluentSystemIcons.textGrammarWand, "Replace", fluent) { [session] in session.onFind?(true) },
-            Chrome.small(FluentSystemIcons.textT, "Select All", fluent) { c.selectAll() },
-        ])])
-
-        return [clipboard, font, paragraph, styles, editing]
+        return [font, paragraph]
     }
 
     /// A gallery tile: the style's look on "AaBb", its name under it.

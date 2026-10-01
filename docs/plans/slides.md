@@ -1,6 +1,8 @@
 # Slides — a presentation app beside Writer
 
-Status: **plan, awaiting approval** (2026-09-30). Phase 5 of
+Status: **approved 2026-09-30** with three answers: one app for both
+kinds, charts in v1, 16:9 by default (PowerPoint's own default since
+2013: Widescreen, 13.333 x 7.5 in). Phase 5 of
 `docs/plans/office.md`, given its own revision as that plan promised.
 macOS first, like Writer; nothing here may break the wasm or iOS builds
 of the shared code.
@@ -14,27 +16,23 @@ slides we touched. Starting a deck from scratch is the second case:
 pick a theme, add slides from layouts, type, drop in pictures and
 shapes, present.
 
-Not v1: charts, SmartArt, video and audio, morph and motion-path
+Charts are v1 (the user's call): column, bar, line, pie, area and
+scatter, drawn from the values the file caches, with their data edited
+in a small grid. Not v1: SmartArt, video and audio, morph and motion-path
 animation, comments, co-authoring, ink, 3D. A file carrying any of
 these opens, shows a labelled placeholder box where the object sits,
 and keeps the original XML so a save writes it back untouched.
 
 ## Shape of the code
 
-**One package, two apps.** `apps/OfficeApp` grows a library target
-(`OfficeKit`: ribbon chrome, Backstage, Zip, MiniXML, fonts, PDF export,
-find, colour bars) and two executable products, `Writer` and `Slides`.
-Each package compiles its own copy of the framework (~100 s), so a second
-*package* would double that; a second *product* in the same package
-costs seconds. Two products, rather than one binary that switches kind,
-give two bundles with their own name, icon and document types — which
-is what Finder, the Dock and "Open With" expect — while the shared
-chrome stays one copy. `build/macos-app.sh` already takes the display
-name per bundle.
-
-The split of Writer's 6.6k lines into `OfficeKit` + `Writer` is the
-first milestone's work and changes no behaviour; Writer's tests and
-`test/office-drive.py` must pass unchanged after it.
+**One app for both kinds.** `apps/OfficeApp` opens a `.docx` as a
+Writer document and a `.pptx` as a deck, and Backstage's New offers
+both. The session carries a document kind; the shell swaps the ribbon's
+kind-specific tabs and the body (pages for Writer; thumbnails, slide
+canvas and notes for Slides) while the title bar, Backstage, File tab,
+status bar, colour bars, find and the recovery copy stay shared. No
+package split is needed. The window title names the kind
+("Deck1 — Slides"); the bundle's own name is an open question below.
 
 **New code, by layer:**
 
@@ -46,6 +44,7 @@ first milestone's work and changes no behaviour; Writer's tests and
 | Painter | `Slides/SlidePainter.swift` | paints a slide at any scale; canvas, thumbnails, show and PDF all use it |
 | Format | `Slides/Pptx.swift` | PresentationML read/write over the existing `Zip` and `MiniXML` |
 | Show | `Slides/SlideShow.swift` | full screen, transitions, keys, presenter layout |
+| Charts | `Slides/Chart.swift`, `ChartPainter.swift` | chart model, DrawingML chart read/write, painter, data grid |
 | Chrome | `Slides/SlidesRibbon.swift`, `ThumbnailPane.swift`, `NotesPane.swift` | |
 
 Text in a shape is a `RichDocument` edited by the existing
@@ -88,14 +87,42 @@ the resolved result plus "inherited" flags so a save writes back only
 what the user changed. `opaque(xml)` is how unsupported objects survive a
 round trip.
 
+## Where it stands
+
+**S1 done 2026-09-30**, seen on screen through `test/slides-drive.py`:
+Backstage offers Blank document and Blank presentation and the window
+switches kind; a deck opens on a 16:9 title slide with the ribbon's
+Slides tabs, a live thumbnail pane, the slide canvas zoomed to fit, and a
+notes pane; placeholders show their prompts and take typing at the
+layout's size and anchoring (60 pt bottom-anchored title, bullets in the
+body); New Slide, the layout menu (text carried by role), Duplicate,
+Delete, arrow keys between slides, 4:3/16:9, and Insert → Text Box.
+Writer is unchanged (its driver run and bench are as before).
+
+Traps paid for in S1:
+
+- **A Stack whose child list changes shape remounts the editor under the
+  click.** Each text shape was [outline, prompt, editor] while empty and
+  [outline, editor] once editing — the editor element moved index,
+  remounted mid-gesture, took the typing and never painted it. Every
+  shape now builds the same three children and hides what is off.
+- **FluentApp reads `home` once.** A new home under the same app is never
+  shown; the kind switch keys the whole app instead.
+- **No LayoutBuilder in the framework.** The canvas learns its size
+  through `SizeReporter`, a proxy box that reports from `performLayout`
+  through a post-frame callback (real since the engine-debt commit).
+- **Shapes are classes**, not the values the model section first said:
+  a text shape owns the controller its editor binds to, and that
+  identity must survive every deck edit.
+
 ## Milestones
 
 Each one ends on screen, through a driver script like
 `test/office-drive.py` (`test/slides-drive.py`), with pictures read by a
 person before it is called done.
 
-**S1 — Split and skeleton.** `OfficeKit` extracted; `Slides` launches
-with a blank 16:9 deck, the ribbon (Home, Insert, Design, Transitions,
+**S1 — Skeleton.** The session gains a document kind; New → Blank
+Presentation (and `OfficeApp --slides`) opens a blank 16:9 deck, the ribbon (Home, Insert, Design, Transitions,
 Slide Show, View), a thumbnail pane, the slide canvas zoomed to fit, and
 a notes pane. Title and subtitle placeholders take typing. Writer
 unchanged and re-verified.
@@ -137,6 +164,13 @@ theme names or artwork), slide size, background colour/gradient/picture,
 Format Background. Tables (insert grid, type in cells, add/remove rows
 and columns, banded style) reusing Writer's table cell model where it
 fits. Pictures: insert, crop, replace, reset size.
+
+**S6b — Charts.** Insert Chart (column, bar, line, pie, area, scatter)
+with sample data; edit data in a grid pane; chart title, legend, axis
+titles, data labels; colours from the theme. `.pptx` charts read from
+their `c:chartSpace` part and its cached values; a written chart carries
+its cache plus an embedded workbook (a minimal `.xlsx` over the same Zip
+layer) so PowerPoint's Edit Data opens it.
 
 **S7 — Show extras.** Entrance animations on click (Appear, Fade, Fly
 In, Wipe, Zoom) with an animation pane for order; presenter view
@@ -210,16 +244,14 @@ library is added.
 ## Order and estimate
 
 S1–S5 are the useful product: open, edit, present, save. Roughly in
-proportion to Writer's milestones, S1–S2 are the largest (the split,
+proportion to Writer's milestones, S1–S2 are the largest (the kind switch,
 then the canvas interaction model), S4 is the riskiest (PresentationML
 inheritance), and S5–S8 are each smaller. Work goes on branch `office`
 with engine fixes on `starling`, as Writer's did.
 
-## Questions for the user
+## Open question
 
-1. Two products in one package (plan), or one binary that opens either
-   kind?
-2. Is the v1 cut right — specifically, are charts needed in v1? They
-   are the most common thing the cut leaves out, and a reader that only
-   shows a placeholder for them may not be enough.
-3. Default slide size 16:9 (plan, matches current PowerPoint) or 4:3.
+The app is one bundle for both kinds, and its name is "Writer" today.
+A suite name is needed before the macOS bundle and the About box can
+say anything sensible; until then the bundle stays "Writer" and each
+window's title names its kind.

@@ -40,6 +40,16 @@ struct ToolbarSummary: Equatable {
     var paragraphs = 0
 }
 
+/// What the window holds: a Writer document or a Slides deck. One app opens
+/// both (docs/plans/slides.md); the ribbon and the body follow the kind.
+enum DocumentKind: Equatable {
+    case document
+    case presentation
+
+    var appName: String { self == .document ? "Writer" : "Slides" }
+    var untitled: String { self == .document ? "Document1" : "Presentation1" }
+}
+
 enum ViewMode: Equatable {
     case printLayout
     case webLayout
@@ -50,8 +60,14 @@ enum ViewMode: Equatable {
 /// One object shared by the shell and every ribbon/backstage widget; the
 /// shell sets the `on*` callbacks and rebuilds when `summary` changes.
 final class OfficeSession {
-    let controller = RichDocumentController()
-    let theme: RichTextTheme = {
+    let kind: DocumentKind
+    /// The text the chrome acts on. Writer's document; in Slides, the text
+    /// body being edited (the shell points this at it), so the Font and
+    /// Paragraph groups, undo and the clipboard work unchanged.
+    var controller = RichDocumentController()
+    /// The deck, in Slides.
+    let deck: DeckController?
+    var theme: RichTextTheme = {
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         // The document keeps Word's font names; this picks the shipped
         // clone each is drawn with (OfficeFonts, Resources/fonts/README.md).
@@ -59,7 +75,9 @@ final class OfficeSession {
         return theme
     }()
 
-    init() {
+    init(kind: DocumentKind = .document) {
+        self.kind = kind
+        self.deck = kind == .presentation ? DeckController() : nil
         controller.clipboardCodec = OfficeClipboardCodec()
         controller.maxPastedImageWidth = pageSetup.contentWidth
     }
@@ -85,7 +103,7 @@ final class OfficeSession {
     var path: String? = nil
     var dirty = false
     var title: String {
-        path.map { $0.lastPathComponent } ?? "Document1"
+        path.map { $0.lastPathComponent } ?? kind.untitled
     }
 
     // Set by the shell.
@@ -101,6 +119,13 @@ final class OfficeSession {
     var onPageSetup: ((PageSetup) -> Void)?
     var onBackstage: ((Bool) -> Void)?
     var onNew: (() -> Void)?
+    /// Start the other kind (a deck from Writer, a document from Slides).
+    var onNewKind: ((DocumentKind) -> Void)?
+    /// Open a file of the other kind: the root swaps shells.
+    var onOpenKind: ((DocumentKind, String) -> Void)?
+    // Slides.
+    var onSlideShow: ((Bool) -> Void)?   // true = from the current slide
+    var onInsertTextBox: (() -> Void)?
     var onOpen: (() -> Void)?
     var onSave: (() -> Void)?
     var onSaveAs: (() -> Void)?
