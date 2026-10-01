@@ -365,8 +365,10 @@ extension SheetsEngineTests {
             XCTAssertEqual(Formula.print(try Formula.parse("=" + f)), f)
         }
         XCTAssertThrowsError(try Formula.parse("={1,2;3}"))
-        // Still unreadable here, and so kept as written: a spill reference.
-        XCTAssertThrowsError(try Formula.parse("=SUM(A1#)"))
+        // Still unreadable here, and so kept as written: the intersection operator.
+        XCTAssertThrowsError(try Formula.parse("=SUM(A1:C3 B2:D4)"))
+        // @ is Excel's implicit intersection: SINGLE in files, @ on screen.
+        XCTAssertEqual(Formula.print(try Formula.parse("=@A1:A3*2")), "@A1:A3*2")
     }
 }
 
@@ -380,6 +382,7 @@ extension SheetsEngineTests {
         let formulas = [
             { "=\(ref())+\(ref())" }, { "=SUM(A1:\(ref()))" }, { "=Two!\(ref())*2" }, { "=SUMIF(A1:A12,\">5\",B1:B12)" },
             { "=IF(\(ref())>3,\(ref()),0)" }, { "=COUNT(One!A:B)" }, { "=VLOOKUP(\(ref()),A1:D12,2,FALSE)" }, { "=RATE_ME+1" },
+            { "=SEQUENCE(\(Int.random(in: 1 ... 3, using: &rng)))" }, { "=FILTER(A1:A12,A1:A12>4,0)" }, { "=SUM(A1#)" },
         ]
         c.book.names["RATE_ME"] = "One!$C$3"
         for round in 0 ..< 300 {
@@ -389,8 +392,10 @@ extension SheetsEngineTests {
             c.setInputs([(a, text)], sheet: sheet)
             // Values as the incremental pass left them, then as a full pass computes them.
             let incremental = c.book.sheets.map { ws in ws.cells.mapValues(\.value) }
+            let incSpilled = c.book.sheets.map(\.spilled)
             c.engine.recalculate()
             let full = c.book.sheets.map { ws in ws.cells.mapValues(\.value) }
+            if incSpilled != c.book.sheets.map(\.spilled) { XCTFail("round \(round): spills differ"); return }
             if incremental != full {
                 XCTFail("round \(round): \(text) into \(sheet):\(a.a1) left values stale")
                 return

@@ -1319,6 +1319,20 @@ final class SheetGridState: State<StatefulWidget> {
             }
         }
 
+        // The active cell in a spill: the whole spilled range outlined, as Excel does.
+        if !ws.spilled.isEmpty || ws.cells[c.active]?.spillRange != nil {
+            let act = c.active
+            let spill = ws.cells[act]?.spillRange
+                ?? ws.cells.values.lazy.compactMap(\.spillRange).first { $0.contains(act) }
+            if let spill {
+                let r = rect(spill)
+                let edge = Paint()
+                edge.style = .stroke
+                edge.strokeWidth = 1
+                edge.color = Color(0xFF2F6FDF)
+                canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), edge)
+            }
+        }
         _paintDrawingSelection(canvas, accent: accent)
         if let b = listButton() {
             p.color = dark ? Color(0xFF3A3A3A) : Color(0xFFF3F3F3)
@@ -1526,7 +1540,14 @@ final class SheetGridState: State<StatefulWidget> {
         // Values.
         for row in rs { for col in cs {
             let a = CellAddress(row: row, col: col)
-            guard a != editing, !covered.contains(a), let cell = ws.cells[a], !cell.value.isEmpty else { continue }
+            // A dynamic array's spilled value shows in an otherwise empty cell, in that cell's format.
+            var spilledCell: Cell? = nil
+            if let v = ws.spilled[a], ws.cells[a].map({ $0.value.isEmpty && $0.formula == nil }) ?? true {
+                var c = ws.cells[a] ?? Cell(input: "")
+                c.value = v
+                spilledCell = c
+            }
+            guard a != editing, !covered.contains(a), let cell = spilledCell ?? ws.cells[a], !cell.value.isEmpty else { continue }
             if let icon = looks[a]?.icon, !icon.showValue { continue }   // "Show Icon Only"
             var cf = looks[a]?.dxf
             if let tl = tableLooks[a] {

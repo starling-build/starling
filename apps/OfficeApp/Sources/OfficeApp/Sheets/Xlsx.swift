@@ -157,6 +157,7 @@ enum Xlsx {
         }
         // Cells.
         var shared: [String: (CellAddress, FormulaExpr)] = [:]
+        var spillAreas: [(CellAddress, CellRange)] = []
         var cells: [CellAddress: Cell] = [:]
         var rowIndex = 0
         for row in root.child("sheetData")?.kids("row") ?? [] {
@@ -211,6 +212,12 @@ enum Xlsx {
                         cell.input = Formula.text(expr)
                         cell.cached = value
                         cell.value = value
+                        // An array formula computes here: a dynamic one, whose
+                        // range's other cells are its last spill (recomputed).
+                        if let ref = cell.arrayRef, !Formula.usesUnknownFunction(expr) {
+                            cell.dynamic = true
+                            if let r = CellRange(ref), !r.isSingle { spillAreas.append((a, r)) }
+                        }
                     } else {
                         // A formula we cannot parse (or a shared one built on
                         // one): its result stays, and its <f> goes back as it was.
@@ -233,6 +240,17 @@ enum Xlsx {
                 cells[a] = cell
             }
             rowIndex += 1
+        }
+        // The spill values an array formula left in the file go: computing it
+        // puts them back (where the formula cannot be computed, they stay).
+        for (anchor, r) in spillAreas {
+            for row in r.top ... r.bottom {
+                for col in r.left ... r.right {
+                    let a = CellAddress(row: row, col: col)
+                    guard a != anchor, let c = cells[a], c.formula == nil, c.rawFormula == nil else { continue }
+                    if c.style == 0 { cells[a] = nil } else { cells[a]?.value = .empty; cells[a]?.input = "" }
+                }
+            }
         }
         ws.cells = cells
         for m in root.child("mergeCells")?.kids("mergeCell") ?? [] {
@@ -272,7 +290,7 @@ enum Xlsx {
     static let prefixed: Set<String> = [
         "XLOOKUP", "XMATCH", "IFS", "IFNA", "XOR", "CONCAT", "TEXTJOIN", "SWITCH", "MAXIFS", "MINIFS",
         "STDEV.S", "STDEV.P", "VAR.S", "VAR.P", "DAYS", "FILTER", "SORT", "SORTBY", "UNIQUE", "SEQUENCE",
-        "LET", "LAMBDA", "CEILING.MATH", "FLOOR.MATH", "ISOWEEKNUM", "NUMBERVALUE", "TEXTBEFORE", "TEXTAFTER",
+        "LET", "LAMBDA", "SINGLE", "CEILING.MATH", "FLOOR.MATH", "ISOWEEKNUM", "NUMBERVALUE", "TEXTBEFORE", "TEXTAFTER",
     ]
 
     /// The text of an <si> or <is>: its <t>, or its runs' <t>s joined.
@@ -769,6 +787,17 @@ enum Xlsx {
         // Rows and cells.
         var byRow: [Int: [(CellAddress, Cell)]] = [:]
         for (a, c) in ws.cells { byRow[a.row, default: []].append((a, c)) }
+        // Spilled values are written as the cells' values, as Excel writes them.
+        for (a, v) in ws.spilled {
+            if let i = byRow[a.row]?.firstIndex(where: { $0.0 == a }) {
+                var c = byRow[a.row]![i].1
+                if c.value.isEmpty && c.formula == nil { c.value = v; byRow[a.row]![i].1 = c }
+            } else {
+                var c = Cell(input: "")
+                c.value = v
+                byRow[a.row, default: []].append((a, c))
+            }
+        }
         let rows = Set(byRow.keys).union(ws.rowHeights.keys).union(ws.filteredRows).sorted()
         var data = "<sheetData>"
         for r in rows {
@@ -852,7 +881,9 @@ enum Xlsx {
     }
 
     private static func _arrayAttrs(_ c: Cell) -> String {
-        c.arrayRef.map { " t=\"array\" ref=\"\(_esc($0))\"" } ?? ""
+        // A spill is written as an array formula over its range: every Excel
+        // shows its values there.
+        (c.spillRange?.a1 ?? c.arrayRef).map { " t=\"array\" ref=\"\(_esc($0))\"" } ?? ""
     }
 
     /// A number as Excel writes it: shortest round-trip, no trailing .0.

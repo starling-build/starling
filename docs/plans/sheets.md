@@ -342,8 +342,27 @@ link (`Sheets/Hyperlinks.swift`) — the kept `<hyperlinks>` (URLs through
 the sheet's relationships, `location`s in the workbook) and HYPERLINK()
 formulas, now a function; http(s) and mailto open in the browser, a
 place is selected. Array constants (`{1,2;3,4}`) parse, print back and
-evaluate. Still unread (kept verbatim): spill references (`A1#`) and
-the dynamic-array functions that make them.
+evaluate.
+
+**Dynamic arrays (2026-10-01).** A formula typed here (`Cell.dynamic`),
+or an array formula from a file, works as in Excel 365: operators go
+element by element (`B2:B6*2`, `B2:B6>15`, a one-row or one-column side
+stretching), and an array result spills from its cell into the empty
+cells below and right (`Worksheet.spilled`, drawn in those cells'
+formats, read by other formulas, outlined when one is selected) —
+#SPILL! when something is in the way, back when it is cleared. FILTER
+(#CALC! when nothing is kept, or its if_empty), UNIQUE (by column,
+exactly once), SORT, SORTBY, SEQUENCE, TRANSPOSE; `A1#` reads a whole
+spill; `@x` is implicit intersection (`_xlfn.SINGLE` in files). A
+file's other formulas keep implicit intersection, as Excel 365 does for
+pre-dynamic formulas. Ordering knows spills: a pass that finds a new
+one runs again with it known; typing into a spill, or any edit while a
+formula is #SPILL!, takes a full pass; the randomized test covers
+spills too. Saved as an array formula over the spill (`t="array"
+ref=…`) with the spilled values — every Excel shows them; Excel 365's
+own dynamic-array metadata (`cm`, xl/metadata.xml) is not written, so
+there it reads as a legacy array formula. Still unread (kept verbatim):
+the intersection operator (a space).
 
 **Recalculation (2026-10-01).** Evaluation used to recurse into each
 formula's inputs from sheet order, so a running total 15,000 rows long

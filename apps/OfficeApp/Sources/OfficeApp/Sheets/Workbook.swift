@@ -15,6 +15,10 @@ enum ExcelError: String, Hashable, Sendable, CaseIterable, Error {
     case name = "#NAME?"
     case num = "#NUM!"
     case na = "#N/A"
+    /// A dynamic array with something in the way of its spill.
+    case spill = "#SPILL!"
+    /// A calculation with no result to give (FILTER keeping nothing).
+    case calc = "#CALC!"
 }
 
 enum CellValue: Hashable, Sendable {
@@ -74,6 +78,13 @@ struct Cell: Sendable {
     /// written back exactly until the cell is edited. Its value is the
     /// file's cached result.
     var rawFormula: String? = nil
+    /// A dynamic-array formula (typed here, or an array formula from a
+    /// file): an array result spills into the cells below and right,
+    /// operators work element by element. A file's other formulas keep
+    /// Excel's implicit intersection, as they were written for it.
+    var dynamic = false
+    /// The range its result spilled over, this cell at its top-left.
+    var spillRange: CellRange? = nil
 
     var isFormula: Bool { formula != nil || input.hasPrefix("=") }
 }
@@ -140,6 +151,9 @@ final class Worksheet {
     /// The drawings were added to, moved or deleted here: the part is
     /// written from the model on save (unchanged ones verbatim).
     var drawingsEdited = false
+    /// Values dynamic arrays spilled into otherwise empty cells: shown and
+    /// read like the cells' own, written to the file beside their formula.
+    var spilled: [CellAddress: CellValue] = [:]
     /// Excel tables on the sheet (their parts are kept; see Tables.swift).
     var tables: [SheetTable] = []
     /// Notes on cells, and the parts they came from (see Notes.swift).
@@ -177,6 +191,7 @@ final class Worksheet {
         s.drawingPart = drawingPart
         s.drawingRoot = drawingRoot
         s.drawingsEdited = drawingsEdited
+        s.spilled = spilled
         s.tables = tables
         s.notes = notes
         s.linkTargets = linkTargets

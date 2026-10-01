@@ -213,6 +213,113 @@ enum SheetFunctions {
         t["HLOOKUP"] = { a, c in _hvlookup(a, c, vertical: false) }
         // HYPERLINK(location, [name]): shows the name (or the location);
         // ⌘-click on the cell follows it (Hyperlinks.swift).
+        // Dynamic arrays: results spill from a dynamic formula's cell.
+        t["SEQUENCE"] = { a, c in
+            guard !a.isEmpty, case .success(let r) = _n(a[0], c) else { return .error(.value) }
+            func opt(_ i: Int, _ d: Double) -> Double? {
+                guard a.count > i, a[i] != .missing else { return d }
+                if case .success(let v) = _n(a[i], c) { return v } else { return nil }
+            }
+            guard let cols = opt(1, 1), let start = opt(2, 1), let step = opt(3, 1) else { return .error(.value) }
+            let nr = Int(r), nc = Int(cols)
+            guard nr >= 1, nc >= 1, nr * nc <= 1_000_000 else { return .error(nr < 1 || nc < 1 ? .calc : .num) }
+            return .array((0 ..< nr).map { i in (0 ..< nc).map { j in .number(start + Double(i * nc + j) * step) } })
+        }
+        t["TRANSPOSE"] = { a, c in
+            guard a.count == 1 else { return .error(.value) }
+            let g = c.engine.gridFull(c.engine.evaluate(a[0], c), c)
+            guard let w = g.first?.count, w > 0 else { return .error(.value) }
+            return .array((0 ..< w).map { j in g.map { $0.count > j ? $0[j] : .empty } })
+        }
+        t["FILTER"] = { a, c in
+            guard a.count >= 2 else { return .error(.value) }
+            let g = c.engine.gridFull(c.engine.evaluate(a[0], c), c)
+            var dyn = c
+            dyn.dynamic = true
+            let inc = c.engine.gridFull(c.engine.evaluate(a[1], dyn), dyn)
+            func keep(_ v: CellValue) -> Bool {
+                if case .bool(let b) = v { return b }
+                return (v.number ?? 0) != 0
+            }
+            var out: [[CellValue]]
+            if inc.count == g.count, inc.first?.count == 1 {
+                out = zip(g, inc).filter { keep($0.1[0]) }.map(\.0)
+            } else if inc.count == 1, inc[0].count == (g.first?.count ?? 0) {
+                let cols = inc[0].indices.filter { keep(inc[0][$0]) }
+                out = cols.isEmpty ? [] : g.map { row in cols.map { row[$0] } }
+            } else {
+                return .error(.value)
+            }
+            if out.isEmpty || out.first?.isEmpty == true {
+                return a.count > 2 ? c.engine.evaluate(a[2], c) : .error(.calc)
+            }
+            return .array(out)
+        }
+        t["UNIQUE"] = { a, c in
+            guard !a.isEmpty else { return .error(.value) }
+            var g = c.engine.gridFull(c.engine.evaluate(a[0], c), c)
+            let byCol = a.count > 1 && c.engine.scalar(c.engine.evaluate(a[1], c), c) == .bool(true)
+            let once = a.count > 2 && c.engine.scalar(c.engine.evaluate(a[2], c), c) == .bool(true)
+            if byCol, let w = g.first?.count { g = (0 ..< w).map { j in g.map { $0[j] } } }
+            func key(_ row: [CellValue]) -> String {
+                row.map { v in v.number.map { "n\($0)" } ?? "t" + NumberFormat.display(v, "General", width: 255).text.lowercased() }.joined(separator: "\u{1}")
+            }
+            var counts: [String: Int] = [:]
+            for row in g { counts[key(row), default: 0] += 1 }
+            var seen = Set<String>(), out: [[CellValue]] = []
+            for row in g where seen.insert(key(row)).inserted && (!once || counts[key(row)] == 1) { out.append(row) }
+            guard !out.isEmpty else { return .error(.calc) }
+            if byCol, let h = out.first?.count { out = (0 ..< h).map { i in out.map { $0[i] } } }
+            return .array(out)
+        }
+        func sortRows(_ g: [[CellValue]], keys: [(values: [CellValue], ascending: Bool)]) -> [[CellValue]] {
+            let order = g.indices.sorted { x, y in
+                for k in keys {
+                    let a = x < k.values.count ? k.values[x] : .empty, b = y < k.values.count ? k.values[y] : .empty
+                    // Blanks last, whichever way.
+                    if a.isEmpty != b.isEmpty { return b.isEmpty }
+                    let cmp = CalcEngine.compare(a, b)
+                    if cmp != 0 { return k.ascending ? cmp < 0 : cmp > 0 }
+                }
+                return x < y
+            }
+            return order.map { g[$0] }
+        }
+        t["SORT"] = { a, c in
+            guard !a.isEmpty else { return .error(.value) }
+            var g = c.engine.gridFull(c.engine.evaluate(a[0], c), c)
+            func num(_ i: Int, _ d: Double) -> Double {
+                guard a.count > i, a[i] != .missing, case .success(let v) = _n(a[i], c) else { return d }
+                return v
+            }
+            let index = Int(num(1, 1)), ascending = num(2, 1) >= 0
+            let byCol = a.count > 3 && c.engine.scalar(c.engine.evaluate(a[3], c), c) == .bool(true)
+            if byCol, let w = g.first?.count { g = (0 ..< w).map { j in g.map { $0[j] } } }
+            guard index >= 1, index <= (g.first?.count ?? 0) else { return .error(.value) }
+            var out = sortRows(g, keys: [(g.map { $0[index - 1] }, ascending)])
+            if byCol, let h = out.first?.count { out = (0 ..< h).map { i in out.map { $0[i] } } }
+            return .array(out)
+        }
+        t["SORTBY"] = { a, c in
+            guard a.count >= 2 else { return .error(.value) }
+            let g = c.engine.gridFull(c.engine.evaluate(a[0], c), c)
+            var keys: [(values: [CellValue], ascending: Bool)] = []
+            var i = 1
+            while i < a.count {
+                let by = c.engine.gridFull(c.engine.evaluate(a[i], c), c)
+                let column = by.count == g.count ? by.map { $0.first ?? .empty } : (by.first ?? [])
+                var ascending = true
+                if i + 1 < a.count, a[i + 1] != .missing, case .success(let o) = _n(a[i + 1], c) { ascending = o >= 0 }
+                keys.append((column, ascending))
+                i += 2
+            }
+            return .array(sortRows(g, keys: keys))
+        }
+        // @x: one value of x, the one in the formula's row or column.
+        t["SINGLE"] = { a, c in
+            guard a.count == 1 else { return .error(.value) }
+            return .scalar(c.engine.scalar(c.engine.evaluate(a[0], c), c))
+        }
         t["HYPERLINK"] = { a, c in
             guard !a.isEmpty else { return .error(.value) }
             return .scalar(c.engine.scalar(c.engine.evaluate(a.count > 1 ? a[1] : a[0], c), c))

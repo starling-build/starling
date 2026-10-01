@@ -306,6 +306,7 @@ final class WorkbookController: ChangeNotifier {
             } else {
                 do {
                     cell.formula = try Formula.parse(text)
+                    cell.dynamic = true          // as in Excel 365: an array result spills
                     cell.value = .empty
                 } catch {
                     // Excel refuses the entry; we keep it as text so nothing typed is lost.

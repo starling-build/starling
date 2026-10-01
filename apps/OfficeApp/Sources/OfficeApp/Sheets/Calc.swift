@@ -33,6 +33,8 @@ struct EvalContext {
     let engine: CalcEngine
     let sheet: Int
     let cell: CellAddress
+    /// A dynamic-array formula: operators work element by element.
+    var dynamic = false
 }
 
 final class CalcEngine {
@@ -77,6 +79,32 @@ final class CalcEngine {
         // per row and overflow the stack. So the order comes first, from an
         // iterative walk over each formula's references, and each value is
         // then computed with its inputs already done.
+        // Spills from the last pass order this one (a cell reading a spilled
+        // value comes after the formula that spills it); a pass that finds new
+        // ones runs again with them known, until nothing moves.
+        // Spills are recomputed from nothing: rows moved or formulas changed
+        // since, so the old ones are only a guide to the order.
+        _knownSpills = _collectSpills()
+        for ws in book.sheets {
+            ws.spilled.removeAll()
+            for (a, c) in ws.cells where c.spillRange != nil { ws.cells[a]?.spillRange = nil }
+        }
+        for round in 0 ..< 4 {
+            if round > 0 {
+                _knownSpills = _collectSpills()
+                _graph = nil
+                _done.removeAll(keepingCapacity: true)
+                _rangeCache.removeAll(keepingCapacity: true)
+                _extents.removeAll()
+                circular.removeAll()
+            }
+            spillsChanged = false
+            _pass()
+            if !spillsChanged || round == 3 { break }
+        }
+    }
+
+    private func _pass() {
         let t0 = Date()
         let order = _evaluationOrder()
         if Self._trace { FileHandle.standardError.write(Data("[calc] order \(order.count) in \(Date().timeIntervalSince(t0))s\n".utf8)) }
@@ -151,6 +179,13 @@ final class CalcEngine {
     /// or everything, when formulas themselves changed.
     func recalculate(changed: [CellAddress], sheet: Int, formulasChanged: Bool) {
         guard !formulasChanged, let g = _graph, circular.isEmpty else { recalculate(); return }
+        // Typing into a spill's cells, or anything while a formula is blocked
+        // (#SPILL!), changes what spills where: a full pass sorts it out.
+        let ws0 = book.sheets[sheet]
+        if changed.contains(where: { ws0.spilled[$0] != nil })
+            || book.sheets.contains(where: { $0.cells.values.contains { $0.formula != nil && $0.value == .error(.spill) } }) {
+            recalculate(); return
+        }
         now = ExcelDate.now()
         _rangeCache.removeAll(keepingCapacity: true)
         _extents.removeAll()
@@ -169,7 +204,14 @@ final class CalcEngine {
         _visiting.removeAll()
         _visitingSet.removeAll()
         _done = g.formulaCells.subtracting(dirty)
+        spillsChanged = false
+        // A spill that grew, shrank or appeared may change what other cells
+        // read: then everything, in an order that knows it.
+        let before = g.formulaCells.filter { dirty.contains($0) }.map { ($0, book.sheets[$0.sheet].cells[$0.cell]?.spillRange) }
         for key in g.order where dirty.contains(key) { _ = value(key.sheet, key.cell) }
+        if spillsChanged, before.contains(where: { book.sheets[$0.0.sheet].cells[$0.0.cell]?.spillRange != $0.1 }) {
+            recalculate()
+        }
     }
 
     private func _evaluationOrder() -> [SheetCell] {
@@ -203,8 +245,13 @@ final class CalcEngine {
         func inputs(_ node: _Node) -> [_Node] {
             switch node {
             case .range(let si, let r):
-                return r.isSingle ? (book.sheets[si].cells[r.topLeft]?.formula != nil ? [.cell(SheetCell(sheet: si, cell: r.topLeft))] : [])
-                                  : formulaCells(si, r)
+                var out = r.isSingle ? (book.sheets[si].cells[r.topLeft]?.formula != nil ? [_Node.cell(SheetCell(sheet: si, cell: r.topLeft))] : [])
+                                     : formulaCells(si, r)
+                // A spill over this range: its formula is an input too.
+                for (anchor, spill) in _knownSpills[si] ?? [] where spill.intersects(r) {
+                    out.append(.cell(SheetCell(sheet: si, cell: anchor)))
+                }
+                return out
             case .cell(let k):
                 guard let f = book.sheets[k.sheet].cells[k.cell]?.formula else { return [] }
                 if Formula.isVolatile(f) { graph.volatile.insert(k) }
@@ -230,6 +277,7 @@ final class CalcEngine {
             }
         }
         var graph = _Graph(order: [], formulaCells: Set(all))
+
         var rangeReaders: [_Node: [SheetCell]] = [:]
         var order: [SheetCell] = []
         order.reserveCapacity(all.count)
@@ -273,8 +321,10 @@ final class CalcEngine {
     func value(_ sheet: Int, _ addr: CellAddress) -> CellValue {
         guard sheet >= 0, sheet < book.sheets.count else { return .error(.ref) }
         let ws = book.sheets[sheet]
-        guard let cell = ws.cells[addr] else { return .empty }
-        guard let f = cell.formula, !storedValuesOnly else { return cell.value }
+        guard let cell = ws.cells[addr] else { return ws.spilled[addr] ?? .empty }
+        guard let f = cell.formula, !storedValuesOnly else {
+            return cell.value.isEmpty && cell.formula == nil ? (ws.spilled[addr] ?? cell.value) : cell.value
+        }
         let key = SheetCell(sheet: sheet, cell: addr)
         if _done.contains(key) { return cell.value }
         if _visitingSet.contains(key), let at = _visiting.firstIndex(of: key) {
@@ -284,16 +334,24 @@ final class CalcEngine {
         }
         _visiting.append(key)
         _visitingSet.insert(key)
-        let ctx = EvalContext(engine: self, sheet: sheet, cell: addr)
-        var v = scalar(evaluate(f, ctx), ctx)
+        let ctx = EvalContext(engine: self, sheet: sheet, cell: addr, dynamic: cell.dynamic)
+        // Whatever it spilled last time is cleared before it computes again.
+        if let old = cell.spillRange { _unspill(ws, addr, old) }
+        let result = evaluate(f, ctx)
+        var v: CellValue
+        if cell.dynamic, let g = spillGrid(result, ctx), g.count > 1 || (g.first?.count ?? 0) > 1 {
+            v = _spill(ws, sheet, addr, g)
+        } else {
+            v = scalar(result, ctx)
+        }
         if circular.contains(key) { v = .number(0) }
         _visiting.removeLast()
         _visitingSet.remove(key)
         _done.insert(key)
         // A function we do not have: show what the file last computed.
         if v == .error(.name), let cached = cell.cached, Formula.usesUnknownFunction(f) { v = cached }
-        // So does an array formula's cell, until arrays spill here.
-        if cell.arrayRef != nil, let cached = cell.cached { v = cached }
+        // So does a legacy array formula's cell that is not dynamic here.
+        if cell.arrayRef != nil, !cell.dynamic, let cached = cell.cached { v = cached }
         // An empty result of a formula shows as 0, as Excel's does.
         if v.isEmpty { v = .number(0) }
         ws.cells[addr]?.value = v
@@ -333,7 +391,11 @@ final class CalcEngine {
             }
             return evaluate(parsed, ctx)
         case .negate(let x):
-            switch number(evaluate(x, ctx), ctx) {
+            let ex = evaluate(x, ctx)
+            if ctx.dynamic, _isMulti(ex) {
+                return _elementwise(ex, .scalar(.number(-1)), ctx) { self.binary(.mul, $0, $1) }
+            }
+            switch number(ex, ctx) {
             case .success(let n): return .number(-n)
             case .failure(let err): return .error(err)
             }
@@ -344,7 +406,18 @@ final class CalcEngine {
             case .failure(let err): return .error(err)
             }
         case .binary(let op, let a, let b):
-            return binary(op, scalar(evaluate(a, ctx), ctx), scalar(evaluate(b, ctx), ctx))
+            let ea = evaluate(a, ctx), eb = evaluate(b, ctx)
+            if ctx.dynamic, _isMulti(ea) || _isMulti(eb) { return _elementwise(ea, eb, ctx) { self.binary(op, $0, $1) } }
+            return binary(op, scalar(ea, ctx), scalar(eb, ctx))
+        case .spill(let r):
+            // The range the formula at r spilled over; #REF! if it has not.
+            let si = r.sheet.flatMap { book.sheet(named: $0) } ?? ctx.sheet
+            guard si >= 0, si < book.sheets.count, let anchor = r.start.row.flatMap({ row in r.start.col.map { CellAddress(row: row, col: $0) } }) else { return .error(.ref) }
+            _ = value(si, anchor)
+            guard let range = book.sheets[si].cells[anchor]?.spillRange else {
+                return book.sheets[si].cells[anchor]?.formula != nil ? .range(sheet: si, CellRange(anchor)) : .error(.ref)
+            }
+            return .range(sheet: si, range)
         case .call(let name, let args):
             guard let f = SheetFunctions.table[name] ?? SheetFunctions.table[_stripPrefix(name)] else {
                 return .error(.name)
@@ -536,6 +609,94 @@ final class CalcEngine {
     /// A range or array as a grid of values, empties included — for
     /// lookups and INDEX, which address by position. Clipped to the
     /// sheet's used area (a whole column has a million rows).
+    // MARK: Dynamic arrays
+
+    func _isMulti(_ v: EvalValue) -> Bool {
+        switch v {
+        case .array(let rows): return rows.count > 1 || (rows.first?.count ?? 0) > 1
+        case .range(_, let r): return !r.isSingle
+        case .scalar: return false
+        }
+    }
+
+    /// Every cell of a range (up to 100,000; a bigger one stops at the used
+    /// area), or an array's rows, or a scalar as 1×1.
+    func gridFull(_ v: EvalValue, _ ctx: EvalContext) -> [[CellValue]] {
+        guard case .range(let sheet, let r) = v else { return grid(v, ctx) }
+        guard sheet >= 0, sheet < book.sheets.count else { return [[.error(.ref)]] }
+        if r.rows * r.cols > 100_000 { return grid(v, ctx) }
+        return (r.top ... r.bottom).map { row in (r.left ... r.right).map { col in value(sheet, CellAddress(row: row, col: col)) } }
+    }
+
+    /// `f` over two arrays, cell by cell: a one-row or one-column side
+    /// stretches across the other; past either's end is #N/A.
+    func _elementwise(_ a: EvalValue, _ b: EvalValue, _ ctx: EvalContext, _ f: (CellValue, CellValue) -> EvalValue) -> EvalValue {
+        let ga = gridFull(a, ctx), gb = gridFull(b, ctx)
+        let rows = max(ga.count, gb.count), cols = max(ga.first?.count ?? 0, gb.first?.count ?? 0)
+        func at(_ g: [[CellValue]], _ r: Int, _ c: Int) -> CellValue {
+            let rr = g.count == 1 ? 0 : r, cc = (g.first?.count ?? 0) == 1 ? 0 : c
+            guard rr < g.count, cc < g[rr].count else { return .error(.na) }
+            return g[rr][cc]
+        }
+        return .array((0 ..< rows).map { r in (0 ..< cols).map { c in scalar(f(at(ga, r, c), at(gb, r, c)), ctx) } })
+    }
+
+    /// A dynamic formula's result as rows to spill, when it is more than one cell.
+    func spillGrid(_ v: EvalValue, _ ctx: EvalContext) -> [[CellValue]]? {
+        switch v {
+        case .scalar: return nil
+        case .array(let rows): return rows.isEmpty ? nil : rows
+        case .range(_, let r): return r.isSingle ? nil : gridFull(v, ctx)
+        }
+    }
+
+    /// Spill `g` from `anchor`: its value is the top-left; the rest go into
+    /// cells that must be empty, else the anchor is #SPILL!.
+    private func _spill(_ ws: Worksheet, _ sheet: Int, _ anchor: CellAddress, _ g: [[CellValue]]) -> CellValue {
+        let rows = g.count, cols = g.map(\.count).max() ?? 1
+        guard anchor.row + rows <= CellAddress.maxRows, anchor.col + cols <= CellAddress.maxCols else { return .error(.spill) }
+        let range = CellRange(top: anchor.row, left: anchor.col, bottom: anchor.row + rows - 1, right: anchor.col + cols - 1)
+        for row in range.top ... range.bottom {
+            for col in range.left ... range.right {
+                let a = CellAddress(row: row, col: col)
+                if a == anchor { continue }
+                if let c = ws.cells[a], !c.input.isEmpty || c.formula != nil { return .error(.spill) }
+                if ws.spilled[a] != nil { return .error(.spill) }
+            }
+        }
+        for (r, row) in g.enumerated() {
+            for (c, v) in row.enumerated() where !(r == 0 && c == 0) {
+                ws.spilled[CellAddress(row: anchor.row + r, col: anchor.col + c)] = v.isEmpty ? .number(0) : v
+            }
+        }
+        ws.cells[anchor]?.spillRange = range
+        spillsChanged = true
+        return g[0].first ?? .empty
+    }
+
+    private func _unspill(_ ws: Worksheet, _ anchor: CellAddress, _ range: CellRange) {
+        for row in range.top ... range.bottom {
+            for col in range.left ... range.right where !(row == anchor.row && col == anchor.col) {
+                ws.spilled[CellAddress(row: row, col: col)] = nil
+            }
+        }
+        ws.cells[anchor]?.spillRange = nil
+        spillsChanged = true
+    }
+
+    private var _knownSpills: [Int: [(CellAddress, CellRange)]] = [:]
+
+    private func _collectSpills() -> [Int: [(CellAddress, CellRange)]] {
+        var out: [Int: [(CellAddress, CellRange)]] = [:]
+        for (si, sheet) in book.sheets.enumerated() {
+            for (a, cell) in sheet.cells { if let r = cell.spillRange { out[si, default: []].append((a, r)) } }
+        }
+        return out
+    }
+
+    /// A spill appeared, moved or went this pass.
+    private(set) var spillsChanged = false
+
     func grid(_ v: EvalValue, _ ctx: EvalContext) -> [[CellValue]] {
         switch v {
         case .scalar(let s): return [[s]]

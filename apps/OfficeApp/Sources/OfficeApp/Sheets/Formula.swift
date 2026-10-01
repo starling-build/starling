@@ -80,6 +80,8 @@ indirect enum FormulaExpr: Hashable, Sendable {
     /// table's columns, so rows moving never change its text; it is
     /// resolved against the tables when evaluated.
     case structured(String)
+    /// A spill reference, A1#: the range the formula in A1 spilled over.
+    case spill(FormulaRef)
     /// An array constant: {1,2;3,4} — rows of columns.
     case array([[FormulaExpr]])
     case negate(FormulaExpr)
@@ -118,12 +120,15 @@ enum Formula {
         case .ref(let r): return r.text
         case .name(let n): return n
         case .structured(let s): return s
+        case .spill(let r): return print(.ref(r)) + "#"
         case .array(let rows): return "{" + rows.map { $0.map(print).joined(separator: ",") }.joined(separator: ";") + "}"
         case .negate(let x): return "-" + print(x)
         case .plus(let x): return "+" + print(x)
         case .percent(let x): return print(x) + "%"
         case .binary(let op, let a, let b): return print(a) + op.rawValue + print(b)
-        case .call(let f, let args): return f + "(" + args.map(print).joined(separator: ",") + ")"
+        case .call(let f, let args):
+            if unprefixed(f).uppercased() == "SINGLE", args.count == 1 { return "@" + print(args[0]) }
+            return f + "(" + args.map(print).joined(separator: ",") + ")"
         case .missing: return ""
         case .paren(let x): return "(" + print(x) + ")"
         }
@@ -185,7 +190,7 @@ enum Formula {
     /// Every reference the formula reads, for the dependency graph.
     static func references(_ e: FormulaExpr, into out: inout [FormulaRef]) {
         switch e {
-        case .ref(let r): out.append(r)
+        case .ref(let r), .spill(let r): out.append(r)
         case .negate(let x), .plus(let x), .percent(let x), .paren(let x): references(x, into: &out)
         case .binary(_, let a, let b): references(a, into: &out); references(b, into: &out)
         case .call(_, let args): for a in args { references(a, into: &out) }
@@ -213,6 +218,7 @@ enum Formula {
     static func mapRefs(_ e: FormulaExpr, _ f: (FormulaRef) -> FormulaRef?) -> FormulaExpr {
         switch e {
         case .ref(let r): return f(r).map { .ref($0) } ?? .error(.ref)
+        case .spill(let r): return f(r).map { .spill($0) } ?? .error(.ref)
         case .negate(let x): return .negate(mapRefs(x, f))
         case .plus(let x): return .plus(mapRefs(x, f))
         case .percent(let x): return .percent(mapRefs(x, f))
@@ -264,6 +270,7 @@ enum Formula {
         case function(String)      // name, the "(" consumed
         case name(String)
         case structured(String)    // Table1[…] or […], brackets balanced
+        case spill(FormulaRef)     // A1#
         case lbrace, rbrace, rowSep  // an array constant's { } and its ";"
         case op(String)            // + - * / ^ & = <> < > <= >= % :
         case lparen, rparen, comma
@@ -363,7 +370,13 @@ enum Formula {
                     }
                 }
                 // After a sheet prefix only a reference may follow.
-                if let r = _reference(s[j...], sheet: sheet) { out.append(.ref(r.ref)); i = r.end; continue }
+                if let r = _reference(s[j...], sheet: sheet) {
+                    // A1#: the spill of the formula in A1.
+                    if r.ref.isCell, r.end < s.endIndex, s[r.end] == "#" {
+                        out.append(.spill(r.ref)); i = s.index(after: r.end); continue
+                    }
+                    out.append(.ref(r.ref)); i = r.end; continue
+                }
                 if sheet != nil { throw FormulaError(message: "bad reference after \(sheet!)!") }
                 var k = j
                 while k < s.endIndex, s[k].isLetter || s[k].isNumber || s[k] == "_" || s[k] == "." { k = s.index(after: k) }
@@ -397,7 +410,7 @@ enum Formula {
                 else { out.append(.op("<")) }
             case ">":
                 if peek(1) == "=" { out.append(.op(">=")); i = s.index(after: i) } else { out.append(.op(">")) }
-            case "+", "-", "*", "/", "^", "&", "=", "%", ":": out.append(.op(String(c)))
+            case "+", "-", "*", "/", "^", "&", "=", "%", ":", "@": out.append(.op(String(c)))
             default: throw FormulaError(message: "unexpected \(c)")
             }
             i = s.index(after: i)
@@ -485,6 +498,8 @@ enum Formula {
 
         mutating func unary() throws -> FormulaExpr {
             if case .op("-")? = peek() { _ = next(); return .negate(try unary()) }
+            // @x: Excel's implicit intersection (in files, _xlfn.SINGLE(x)).
+            if case .op("@")? = peek() { _ = next(); return .call("SINGLE", [try unary()]) }
             if case .op("+")? = peek() { _ = next(); return .plus(try unary()) }
             return try postfix()
         }
@@ -505,6 +520,7 @@ enum Formula {
             case .ref(let r): return .ref(r)
             case .name(let n): return .name(n)
             case .structured(let t): return .structured(t)
+            case .spill(let r): return .spill(r)
             case .lbrace:
                 // {a,b;c,d}: constants, columns by comma, rows by semicolon.
                 var rows: [[FormulaExpr]] = [[]]
