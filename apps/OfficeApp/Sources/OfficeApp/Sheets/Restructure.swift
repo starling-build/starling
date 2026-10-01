@@ -375,3 +375,95 @@ extension CellRange {
         CellRange(top: Swift.min(top, o.top), left: Swift.min(left, o.left), bottom: Swift.max(bottom, o.bottom), right: Swift.max(right, o.right))
     }
 }
+
+// MARK: - Find and replace
+
+extension WorkbookController {
+    /// What a cell is searched as: its formula text for a formula (Excel's
+    /// "Look in: Formulas"), else what it shows.
+    func _searchText(_ c: Cell, _ a: CellAddress, sheet ws: Worksheet) -> String {
+        if let f = c.formula { return Formula.text(f) }
+        return NumberFormat.display(c.value, book.style(c.style).numberFormat, width: 255).text
+    }
+
+    /// The next cell after the active one (row by row, then the following
+    /// sheets) whose text contains `query`, case-insensitively; selects it.
+    @discardableResult
+    func findNext(_ query: String, backwards: Bool = false) -> Bool {
+        guard !query.isEmpty else { return false }
+        let q = query.lowercased()
+        let n = book.sheets.count
+        for step in 0 ... n {
+            let si = ((activeSheet + (backwards ? -step : step)) % n + n) % n
+            let ws = book.sheets[si]
+            var hits = ws.cells.filter { _searchText($0.value, $0.key, sheet: ws).lowercased().containsSubstring(q) }.map(\.key).sorted()
+            if backwards { hits.reverse() }
+            let here = active
+            let next: CellAddress?
+            if step == 0 {
+                next = hits.first { backwards ? $0 < here : $0 > here }
+            } else if step == n {
+                next = hits.first   // wrapped back round to where we started
+            } else {
+                next = hits.first
+            }
+            if let a = next {
+                if si != activeSheet { activeSheet = si }
+                select(a)
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Replace in the active cell if it matches, then move to the next match.
+    @discardableResult
+    func replaceCurrent(_ query: String, with replacement: String) -> Bool {
+        let q = query.lowercased()
+        if let c = sheet.cells[active], _searchText(c, active, sheet: sheet).lowercased().containsSubstring(q) {
+            setInput(_replacing(input(active), query, replacement), at: active)
+        }
+        return findNext(query)
+    }
+
+    /// Every match on every sheet, as one undo step. Returns the count.
+    @discardableResult
+    func replaceAll(_ query: String, with replacement: String) -> Int {
+        guard !query.isEmpty else { return 0 }
+        let q = query.lowercased()
+        var count = 0
+        structural {
+            for ws in book.sheets {
+                for (a, c) in ws.cells where _searchText(c, a, sheet: ws).lowercased().containsSubstring(q) {
+                    let text = c.formula.map(Formula.text) ?? c.input
+                    let new = _replacing(text, query, replacement)
+                    guard new != text else { continue }
+                    count += 1
+                    var cell = c
+                    cell.input = new
+                    if new.hasPrefix("="), let f = try? Formula.parse(new) {
+                        cell.formula = f; cell.value = .empty
+                    } else if let parsed = InputParser.parse(new) {
+                        cell.formula = nil; cell.value = parsed.value
+                    } else {
+                        cell.formula = nil; cell.value = .text(new)
+                    }
+                    ws.cells[a] = cell
+                }
+            }
+        }
+        return count
+    }
+
+    /// Case-insensitive replace of every occurrence.
+    func _replacing(_ s: String, _ query: String, _ replacement: String) -> String {
+        var out = ""
+        var from = s.startIndex
+        while let r = s.findRange(of: query, caseSensitive: false, in: from ..< s.endIndex) {
+            out += s[from ..< r.lowerBound]
+            out += replacement
+            from = r.upperBound
+        }
+        return out + s[from...]
+    }
+}

@@ -58,6 +58,12 @@ final class SheetsShellState: State<StatefulWidget> {
     private var _renaming: Int? = nil
     private let _renameText = TextEditingController()
     private var _lastTabClick: (index: Int, at: Date)? = nil
+    private var _findOpen = false
+    private var _findReplace = false
+    private var _findStatus = ""
+    private let _findQuery = TextEditingController()
+    private let _findReplacement = TextEditingController()
+    private let _contextMenu = FlyoutController()
 
     private var _w: SheetsShell { widget as! SheetsShell }
 
@@ -70,6 +76,7 @@ final class SheetsShellState: State<StatefulWidget> {
         _wire()
         wb.addListener({ [weak self] in self?._changed() }, owner: self)
         wb.onCommand = { [weak self] cmd in self?._command(cmd) }
+        session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         if let path = _w.initialPath { _open(path) }
         _syncBars()
     }
@@ -78,6 +85,8 @@ final class SheetsShellState: State<StatefulWidget> {
         wb.removeListeners(owner: self)
         _formula.dispose()
         _nameBox.dispose()
+        _findQuery.dispose()
+        _findReplacement.dispose()
         _search.dispose()
         _renameText.dispose()
         super.dispose()
@@ -130,7 +139,7 @@ final class SheetsShellState: State<StatefulWidget> {
         guard let grid = _grid else { return }
         switch cmd {
         case .copy: grid.copySelection()
-        case .cut: grid.copySelection(); wb.clearContents()
+        case .cut: grid.copySelection(cut: true)
         case .paste: grid.paste()
         case .startFormula(let text):
             grid.focus.requestFocus()
@@ -432,12 +441,21 @@ final class SheetsShellState: State<StatefulWidget> {
             hostSetWindowTitle?(title)
         }
         let column: [Widget] = [
-            TitleRow(session: session, searchController: _search, onSearch: { [weak self] _ in
-                self?._flash("Find in workbooks comes with milestone X3")
+            TitleRow(session: session, searchController: _search, onSearch: { [weak self] q in
+                guard let self else { return }
+                self._findQuery.text = q
+                self._openFind(replace: false)
+                self._findNext(backwards: false)
             }),
             Ribbon(session: session, tab: _tab, collapsed: _ribbonCollapsed,
                    onTab: { [weak self] t in self?.setState { self?._tab = t } },
                    onCollapse: { [weak self] in self?.setState { self?._ribbonCollapsed.toggle() } }),
+        ] + (_findOpen ? [FindBar(session: session, query: _findQuery, replacement: _findReplacement,
+                                 showReplace: _findReplace, status: _findStatus,
+                                 onNext: { [weak self] back in self?._findNext(backwards: back) },
+                                 onReplace: { [weak self] in self?._replaceOne() },
+                                 onReplaceAll: { [weak self] in self?._replaceAll() },
+                                 onClose: { [weak self] in self?._closeFind() })] : []) + [
             _formulaBar(fluent),
             Expanded(child: SheetGrid(
                 key: _gridKey, controller: wb, zoom: _zoom,
@@ -447,7 +465,8 @@ final class SheetsShellState: State<StatefulWidget> {
                     self.setState {}
                 },
                 onShortcut: { [weak self] letter, chords in self?._shortcut(letter, chords) ?? false },
-                onStatus: { [weak self] m in self?._flash(m) })),
+                onStatus: { [weak self] m in self?._flash(m) },
+                onContextMenu: { [weak self] point, area in self?._showContextMenu(at: point, area) })),
             _sheetTabs(fluent),
             _statusBar(fluent),
         ]
@@ -477,8 +496,106 @@ final class SheetsShellState: State<StatefulWidget> {
             return true
         case "o": setState { _backstage = .open }; return true
         case "n": _newWorkbook(); return true
-        case "f": _flash("Find in workbooks comes with milestone X3"); return true
+        case "f": _openFind(replace: false); return true
+        case "h": _openFind(replace: true); return true
+        case "\u{1B}":
+            if _findOpen { _closeFind(); return true }
+            return false
         default: return false
         }
+    }
+
+    // MARK: Find
+
+    private func _openFind(replace: Bool) {
+        setState {
+            _findOpen = true
+            _findReplace = replace
+            _findStatus = ""
+        }
+    }
+
+    private func _closeFind() {
+        setState { _findOpen = false }
+        _grid?.focus.requestFocus()
+    }
+
+    private func _findNext(backwards: Bool) {
+        let q = _findQuery.text
+        guard !q.isEmpty else { return }
+        if wb.findNext(q, backwards: backwards) {
+            _grid?.reveal(wb.active)
+            setState { _findStatus = "" }
+        } else {
+            setState { _findStatus = "No matches" }
+        }
+    }
+
+    private func _replaceOne() {
+        let q = _findQuery.text
+        guard !q.isEmpty else { return }
+        if wb.replaceCurrent(q, with: _findReplacement.text) {
+            _grid?.reveal(wb.active)
+            setState { _findStatus = "" }
+        } else {
+            setState { _findStatus = "No matches" }
+        }
+    }
+
+    private func _replaceAll() {
+        let n = wb.replaceAll(_findQuery.text, with: _findReplacement.text)
+        setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
+    }
+
+    // MARK: The context menu
+
+    /// Excel's right-click menu: the clipboard, then insert/delete for
+    /// what was clicked (cells, whole rows, whole columns), then clear,
+    /// merge and the size of rows or columns.
+    private func _showContextMenu(at point: Offset, _ area: GridMenuArea) {
+        guard let grid = _grid else { return }
+        let c = wb
+        var items: [MenuFlyoutItemBase] = []
+        func item(_ text: String, enabled: Bool = true, _ action: @escaping () -> Void) {
+            items.append(MenuFlyoutItem(text: Text(text), onPressed: enabled ? action : nil))
+        }
+        func sep() { if !(items.last is MenuFlyoutSeparator), !items.isEmpty { items.append(MenuFlyoutSeparator()) } }
+        item("Cut") { grid.copySelection(cut: true) }
+        item("Copy") { grid.copySelection() }
+        item("Paste") { grid.paste() }
+        sep()
+        let sel = c.selection
+        switch area {
+        case .columns:
+            let n = sel.cols
+            item(n > 1 ? "Insert \(n) Columns" : "Insert Column") { c.insertAtSelection(.cols) }
+            item(n > 1 ? "Delete \(n) Columns" : "Delete Column") { c.deleteAtSelection(.cols) }
+        case .rows:
+            let n = sel.rows
+            item(n > 1 ? "Insert \(n) Rows" : "Insert Row") { c.insertAtSelection(.rows) }
+            item(n > 1 ? "Delete \(n) Rows" : "Delete Row") { c.deleteAtSelection(.rows) }
+        case .cells:
+            item("Insert Rows Above") { c.insertAtSelection(.rows) }
+            item("Insert Columns Left") { c.insertAtSelection(.cols) }
+            item("Delete Rows") { c.deleteAtSelection(.rows) }
+            item("Delete Columns") { c.deleteAtSelection(.cols) }
+        }
+        item("Clear Contents") { c.clearContents() }
+        item("Clear Formats") { c.setStyle { $0 = .plain } }
+        sep()
+        switch area {
+        case .columns:
+            item("AutoFit Column Width") { grid.autofit(.cols, sel.left) }
+        case .rows:
+            item("AutoFit Row Height") { grid.autofit(.rows, sel.top) }
+        case .cells:
+            if sel.rows > 1 || sel.cols > 1 || c.sheet.merges.contains(where: { $0.intersects(sel) }) {
+                item(c.sheet.merges.contains(where: { $0.intersects(sel) }) ? "Unmerge Cells" : "Merge & Center") { c.toggleMerge() }
+            }
+            item("Sort A to Z") { c.sortSelection(ascending: true) }
+            item("Sort Z to A") { c.sortSelection(ascending: false) }
+        }
+        guard let context else { return }
+        _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
     }
 }

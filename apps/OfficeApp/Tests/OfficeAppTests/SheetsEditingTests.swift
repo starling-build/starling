@@ -144,3 +144,29 @@ final class SheetsEditingTests: XCTestCase {
         XCTAssertEqual(c.sheet.value(a("A1")), .number(10))
     }
 }
+
+extension SheetsEditingTests {
+    func testFindAndReplace() {
+        let c = WorkbookController()
+        c.load(Workbook(sheets: [Worksheet(name: "One"), Worksheet(name: "Two")]))
+        c.setInputs([(CellAddress("A1")!, "apple pie"), (CellAddress("B3")!, "=SUM(A1:A2)"), (CellAddress("C2")!, "Apple")])
+        c.setInputs([(CellAddress("D4")!, "pineapple")], sheet: 1)
+        c.select(CellAddress("A1")!)
+        XCTAssertTrue(c.findNext("apple"))
+        XCTAssertEqual(c.active, CellAddress("C2"))            // row by row: C2 comes before nothing else on row 2
+        XCTAssertTrue(c.findNext("apple"))
+        XCTAssertEqual(c.activeSheet, 1)                        // then the next sheet
+        XCTAssertEqual(c.active, CellAddress("D4"))
+        XCTAssertTrue(c.findNext("apple"))
+        XCTAssertEqual(c.activeSheet, 0)                        // and round again
+        XCTAssertEqual(c.active, CellAddress("A1"))
+        XCTAssertTrue(c.findNext("sum("))                       // formulas are searched as written
+        XCTAssertEqual(c.active, CellAddress("B3"))
+        XCTAssertFalse(c.findNext("nothing like this"))
+        XCTAssertEqual(c.replaceAll("APPLE", with: "pear"), 3)
+        XCTAssertEqual(c.book.sheets[0].value(CellAddress("A1")!), .text("pear pie"))
+        XCTAssertEqual(c.book.sheets[1].value(CellAddress("D4")!), .text("pinepear"))
+        c.undo()
+        XCTAssertEqual(c.book.sheets[0].value(CellAddress("C2")!), .text("Apple"))
+    }
+}

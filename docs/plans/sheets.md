@@ -164,6 +164,19 @@ Left for X1: Ctrl+Enter (fill the selection), F4 (cycle $), clicking
 cells into a formula being typed, a dependency graph instead of
 whole-workbook recalculation if a real file needs it.
 
+**X3 editing (2026-09-30)**: rows/columns, fill handle and series,
+copy/cut/paste with reference shifting, pointing, F4, ⌃Enter (part 1);
+frozen panes, merges, wrapped text (part 2); Find & Replace across
+sheets (⌘F/⌘H, formulas searched as written, Replace All one undo
+step), double-click autofit on header borders, and the right-click
+menu for cells, rows and columns (part 3). Seen on screen through
+`test/sheets-script.sh` with `test/scripts/sheets-{editing,panes,find}.txt`
+— in-process input into a background window, never the OS driver.
+Left: paste to and from other apps (TSV/HTML), then X4.
+
+Script coordinates are view points: the window's 28pt title bar is not
+in them, so a screenshot's y (in points) is 28 more than the script's.
+
 **Traps paid for:**
 
 - This port's `FluentTextBox` fires `onChanged` on programmatic text

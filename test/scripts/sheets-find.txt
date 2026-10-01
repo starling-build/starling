@@ -1,0 +1,40 @@
+# Find & Replace (⌘H), header-border autofit, right-click menus.
+# Cells as sheets-editing.txt; the find bar sits at y=224 and pushes the grid down 42.
+click 72 270
+type A fairly long heading text
+key enter
+type apple
+key enter
+type pineapple
+key enter
+type Apple pie
+key enter
+click 136 270
+type =LEN(A2)
+key enter
+dclick 104 250
+wait 300
+shot ${OUT}/00-autofit.png
+chord cmd h
+wait 400
+click 202 224
+type apple
+key enter
+wait 200
+key enter
+wait 300
+shot ${OUT}/01-found.png
+click 608 224
+type pear
+click 838 225
+wait 300
+shot ${OUT}/02-replaced.png
+rclick 136 292
+wait 400
+shot ${OUT}/03-colmenu.png
+key escape
+click 330 352
+rclick 330 352
+wait 400
+shot ${OUT}/04-cellmenu.png
+quit

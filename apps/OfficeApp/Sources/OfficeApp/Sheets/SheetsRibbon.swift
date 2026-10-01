@@ -163,6 +163,9 @@ extension Ribbon {
                 ("Clear Formats", { wb.setStyle { $0 = .plain } }),
                 ("Clear Contents", { wb.clearContents() }),
             ]),
+        ]), Chrome.rows([
+            Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
+            Chrome.small(FluentSystemIcons.textGrammarWand, "Replace", fluent) { [session] in session.onFind?(true) },
         ])])
         return [clipboard, font, alignment, number, cells, editing]
     }

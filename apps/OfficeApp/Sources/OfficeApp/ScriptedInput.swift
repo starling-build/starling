@@ -15,6 +15,7 @@
 //   wait MS                     sleep (default between commands: 120 ms)
 //   click X Y [shift|cmd|ctrl|alt …]
 //   dclick X Y                  a double click
+//   rclick X Y                  a right (secondary) click
 //   drag X1 Y1 X2 Y2
 //   scroll X Y DX DY            a wheel turn
 //   key NAME [mods…]            enter tab escape backspace delete left right
@@ -59,6 +60,9 @@ enum ScriptedInput {
             _pointer(Double(parts[1])!, Double(parts[2])!, .down)
             _pointer(Double(parts[1])!, Double(parts[2])!, .up)
             _modifiers(mods, down: false)
+        case "rclick":
+            _pointer(Double(parts[1])!, Double(parts[2])!, .down, buttons: 2)
+            _pointer(Double(parts[1])!, Double(parts[2])!, .up)
         case "dclick":
             for _ in 0 ..< 2 {
                 _pointer(Double(parts[1])!, Double(parts[2])!, .down)
@@ -115,7 +119,7 @@ enum ScriptedInput {
 
     private enum _Change { case down, move, up }
 
-    private static func _pointer(_ x: Double, _ y: Double, _ change: _Change) {
+    private static func _pointer(_ x: Double, _ y: Double, _ change: _Change, buttons: Int64 = 1) {
         let dpr = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 2
         _time += 0.02
         var packet: [PointerData] = []
@@ -130,7 +134,7 @@ enum ScriptedInput {
             packet.append(PointerData(timeStamp: t, change: .hover, kind: .mouse, device: 0, physicalX: px, physicalY: py))
             _pointerId += 1
             packet.append(PointerData(timeStamp: t, change: .down, kind: .mouse, device: 0, pointerIdentifier: _pointerId,
-                                      physicalX: px, physicalY: py, buttons: 1, pressure: 1, pressureMax: 1))
+                                      physicalX: px, physicalY: py, buttons: buttons, pressure: 1, pressureMax: 1))
         case .move:
             packet.append(PointerData(timeStamp: t, change: .move, kind: .mouse, device: 0, pointerIdentifier: _pointerId,
                                       physicalX: px, physicalY: py, buttons: 1, pressure: 1, pressureMax: 1))

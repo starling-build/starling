@@ -64,6 +64,9 @@ struct CellEdit {
     var enterMode: Bool
 }
 
+/// Where a right click landed: the menu differs for headers.
+enum GridMenuArea { case cells, columns, rows }
+
 final class SheetGrid: StatefulWidget {
     let controller: WorkbookController
     let zoom: Double
@@ -73,16 +76,21 @@ final class SheetGrid: StatefulWidget {
     /// A chord the grid does not handle itself (the shell's ⌘S, ⌘O…).
     let onShortcut: (Character, KeyChordTracker) -> Bool
     let onStatus: (String) -> Void
+    /// A right click, at a global position, after the selection was
+    /// moved under it (when it was not already inside).
+    let onContextMenu: (Offset, GridMenuArea) -> Void
 
     init(key: (any Key)? = nil, controller: WorkbookController, zoom: Double,
          onEditText: @escaping (String?) -> Void,
          onShortcut: @escaping (Character, KeyChordTracker) -> Bool,
-         onStatus: @escaping (String) -> Void) {
+         onStatus: @escaping (String) -> Void,
+         onContextMenu: @escaping (Offset, GridMenuArea) -> Void = { _, _ in }) {
         self.controller = controller
         self.zoom = zoom
         self.onEditText = onEditText
         self.onShortcut = onShortcut
         self.onStatus = onStatus
+        self.onContextMenu = onContextMenu
         super.init(key: key)
     }
 
@@ -102,6 +110,9 @@ final class SheetGridState: State<StatefulWidget> {
     private(set) var edit: CellEdit? = nil
     private var _drag: _Drag? = nil
     private var _lastClick: (cell: CellAddress, at: Double)? = nil
+    /// The last press on a header border (column or row, and which), for
+    /// double-click autofit.
+    private var _lastBorder: (axis: WorkbookController.Axis, index: Int, at: Double)? = nil
     let texts = _TextCache()
 
     private enum _Drag {
@@ -431,7 +442,7 @@ final class SheetGridState: State<StatefulWidget> {
         case .function(2): beginEdit(); return true
         case .delete: c.clearContents(); return true
         case .backspace: beginEdit(replace: ""); return true
-        case .escape: return false
+        case .escape: return _w.onShortcut("\u{1B}", _chords)  // the shell closes its find bar
         default:
             if let t = _chords.typedText(k) { beginEdit(replace: t); return true }
             return false
@@ -537,6 +548,10 @@ final class SheetGridState: State<StatefulWidget> {
         focus.requestFocus()
         let p = _local(e)
         let c = controller
+        if e.buttons & kSecondaryMouseButton != 0 {
+            _secondaryDown(e, at: p)
+            return
+        }
         // Column header: select columns, or resize at a border.
         if p.dy < headerHeight && p.dx >= headerWidth {
             let col = self.col(atLocal: p.dx)
@@ -544,6 +559,7 @@ final class SheetGridState: State<StatefulWidget> {
             if abs(p.dx - edgeRight) <= 4 || (col > 0 && abs(p.dx - edgeLeft) <= 4) {
                 let target = abs(p.dx - edgeRight) <= 4 ? col : col - 1
                 commitEdit()
+                if _isBorderDoubleClick(.cols, target) { autofit(.cols, target); return }
                 _drag = .resizeColumn(col: target, startX: p.dx, startWidth: cols.size(target))
                 return
             }
@@ -558,6 +574,7 @@ final class SheetGridState: State<StatefulWidget> {
             let edgeBottom = rowY(row) + rows.size(row)
             if abs(p.dy - edgeBottom) <= 3 {
                 commitEdit()
+                if _isBorderDoubleClick(.rows, row) { autofit(.rows, row); return }
                 _drag = .resizeRow(row: row, startY: p.dy, startHeight: rows.size(row))
                 return
             }
@@ -610,6 +627,107 @@ final class SheetGridState: State<StatefulWidget> {
         _lastClick = (a, now)
         c.select(a, extend: _chords.shift)
         _drag = .cells
+    }
+
+    private func _isBorderDoubleClick(_ axis: WorkbookController.Axis, _ index: Int) -> Bool {
+        let now = Date().timeIntervalSince1970
+        if let last = _lastBorder, last.axis == axis, last.index == index, now - last.at < 0.4 {
+            _lastBorder = nil
+            return true
+        }
+        _lastBorder = (axis, index, now)
+        return false
+    }
+
+    /// A right click: inside the selection it keeps it (Excel acts on the
+    /// whole selection); outside, it selects what is under the pointer
+    /// first. Headers select whole rows or columns.
+    private func _secondaryDown(_ e: PointerEvent, at p: Offset) {
+        let c = controller
+        commitEdit()
+        _lastClick = nil
+        let sel = c.selection
+        let wholeCols = sel.top == 0 && sel.bottom == CellAddress.maxRows - 1
+        let wholeRows = sel.left == 0 && sel.right == CellAddress.maxCols - 1
+        if p.dy < headerHeight && p.dx >= headerWidth {
+            let col = self.col(atLocal: p.dx)
+            if !(wholeCols && col >= sel.left && col <= sel.right) {
+                c.select(range: CellRange(top: 0, left: col, bottom: CellAddress.maxRows - 1, right: col),
+                         active: CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
+            }
+            _w.onContextMenu(e.position, .columns)
+            return
+        }
+        if p.dx < headerWidth && p.dy >= headerHeight {
+            let row = self.row(atLocal: p.dy)
+            if !(wholeRows && row >= sel.top && row <= sel.bottom) {
+                c.select(range: CellRange(top: row, left: 0, bottom: row, right: CellAddress.maxCols - 1),
+                         active: CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
+            }
+            _w.onContextMenu(e.position, .rows)
+            return
+        }
+        guard p.dx >= headerWidth && p.dy >= headerHeight else { return }
+        let a = cell(atLocal: p)
+        if !sel.contains(a) { c.select(a) }
+        _w.onContextMenu(e.position, wholeCols && sel.contains(a) ? .columns : wholeRows && sel.contains(a) ? .rows : .cells)
+    }
+
+    // MARK: Autofit
+
+    /// Double-click on a header border: the column as wide as its widest
+    /// value, or the row as tall as its tallest — for every selected
+    /// whole column (row) when the one clicked is among them, as Excel.
+    func autofit(_ axis: WorkbookController.Axis, _ index: Int) {
+        let c = controller
+        let sel = c.selection
+        var targets = [index]
+        if axis == .cols, sel.top == 0, sel.bottom == CellAddress.maxRows - 1, index >= sel.left, index <= sel.right {
+            targets = Array(sel.left ... sel.right)
+        }
+        if axis == .rows, sel.left == 0, sel.right == CellAddress.maxCols - 1, index >= sel.top, index <= sel.bottom {
+            targets = Array(sel.top ... sel.bottom)
+        }
+        let want = Set(targets)
+        let ws = c.sheet
+        // Cells under a merge are not measured (Excel ignores them too).
+        let merged = ws.merges.filter { $0.rows > 1 || $0.cols > 1 }
+        var best: [Int: Double] = [:]
+        for (a, cell) in ws.cells where want.contains(axis == .cols ? a.col : a.row) && !cell.value.isEmpty {
+            if merged.contains(where: { $0.contains(a) }) { continue }
+            let st = c.book.style(cell.style)
+            let tstyle = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
+            let size = st.fontSize ?? 11
+            if axis == .cols {
+                if st.wrap && cell.value.isText { continue }
+                // The full text: autofit is how long numbers stop being ####.
+                let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+                let w = (texts.painter(text, tstyle).width + 4 * _w.zoom) / scale + 1.5
+                best[a.col] = max(best[a.col] ?? 0, w)
+            } else {
+                // Calibri 11 is 15pt in Excel; other sizes scale with it.
+                var lines = 1.0
+                if st.wrap && cell.value.isText {
+                    let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+                    let width = cols.size(a.col) - 4 * _w.zoom
+                    let tp = texts.painter(text, tstyle, maxWidth: max(1, width))
+                    let one = texts.painter("X", tstyle).height
+                    lines = max(1, (tp.height / max(1, one)).rounded())
+                }
+                best[a.row] = max(best[a.row] ?? 0, lines * size * 15 / 11)
+            }
+        }
+        c.structural {
+            for t in targets {
+                if axis == .cols {
+                    // An empty column goes back to the sheet's default width.
+                    if let w = best[t] { ws.colWidths[t] = (w * 4).rounded(.up) / 4 } else { ws.colWidths[t] = nil }
+                } else {
+                    if let h = best[t] { ws.rowHeights[t] = (h * 4).rounded(.up) / 4 } else { ws.rowHeights[t] = nil }
+                }
+            }
+        }
+        _repaint.notifyListeners()
     }
 
     private func _move(_ e: PointerEvent) {
