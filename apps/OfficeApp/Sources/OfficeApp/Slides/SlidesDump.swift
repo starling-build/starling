@@ -20,6 +20,16 @@ enum SlidesDump {
                 return hex(b.color)
             }()
             out += "slide \(i + 1) \(slide.layout.rawValue)\(slide.hidden ? " hidden" : "") bg \(bg)\n"
+            if !slide.animations.isEmpty {
+                let names = slide.animations.map { a in
+                    let shape = slide.shapes.firstIndex { $0.id == a.shapeId }.map { "#\($0 + 1)" } ?? "?"
+                    return "\(a.effect.rawValue)\(a.effect.hasDirection ? "-" + a.direction.rawValue : "")"
+                        + "\(a.start == .onClick ? "" : a.start == .withPrevious ? "+with" : "+after")@\(shape)"
+                }
+                out += "  animations: " + names.joined(separator: " ") + "\n"
+            } else if slide.timingXML != nil && slide.sourceAnimations == nil {
+                out += "  animations: kept as read\n"
+            }
             for s in slide.shapes {
                 let kind: String
                 switch s.kind {

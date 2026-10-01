@@ -136,15 +136,18 @@ final class SlidePainter: CustomPainter {
     let cache: SlideTextCache
     /// Only the background (the editing canvas draws shapes as layers).
     let shapesOnly: Bool
+    /// Entrances under way in the show; shapes absent are drawn whole.
+    let reveals: ShapeReveals
 
     init(slide: Slide, theme: DeckTheme, slideSize: Size, revision: Int, cache: SlideTextCache,
-         shapesOnly: Bool = false) {
+         shapesOnly: Bool = false, reveals: ShapeReveals = ShapeReveals()) {
         self.slide = slide
         self.theme = theme
         self.slideSize = slideSize
         self.revision = revision
         self.cache = cache
         self.shapesOnly = shapesOnly
+        self.reveals = reveals
         super.init()
     }
 
@@ -155,15 +158,78 @@ final class SlidePainter: CustomPainter {
         canvas.save()
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))
         if !shapesOnly {
+            let area = Rect.fromLTWH(0, 0, size.width, size.height)
             for shape in slide.shapes {
-                Self.paintShape(shape, canvas, pxPerPt: px, cache: cache, theme: theme, text: true)
+                let f = shape.frame
+                let box = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
+                let draw = {
+                    Self.paintShape(shape, canvas, pxPerPt: px, cache: self.cache, theme: self.theme, text: true,
+                                    paragraphs: self.reveals.paragraphs[shape.id], slide: area)
+                }
+                if let r = reveals.whole[shape.id] {
+                    Self.reveal(r, box, slide: area, canvas, draw)
+                } else {
+                    draw()
+                }
             }
         }
         canvas.restore()
     }
 
+    /// Draw `draw` (which paints within `box`) as far into entrance `r` as
+    /// it has got: nothing at 0, all of it at 1. `slide` is the slide's
+    /// rectangle in the same coordinates, which Fly In comes in from beyond.
+    static func reveal(_ r: ShapeReveal, _ box: Rect, slide: Rect, _ canvas: any Canvas, _ draw: () -> Void) {
+        guard r.progress > 0 else { return }
+        guard r.progress < 1 else { draw(); return }
+        let t = r.progress
+        let e = 1 - pow(1 - t, 3)
+        canvas.save()
+        func faded(_ alpha: Double, _ bounds: Rect) {
+            let p = Paint()
+            p.color = Color(Int((max(0, min(1, alpha)) * 255).rounded()) << 24)
+            canvas.saveLayer(bounds, p)
+            draw()
+            canvas.restore()
+        }
+        switch r.effect {
+        case .appear:
+            draw()
+        case .fade:
+            faded(t, box.inflate(4))
+        case .flyIn:
+            var dx = 0.0, dy = 0.0
+            switch r.direction {
+            case .bottom: dy = (slide.bottom - box.top) * (1 - e)
+            case .top: dy = (slide.top - box.bottom) * (1 - e)
+            case .left: dx = (slide.left - box.right) * (1 - e)
+            case .right: dx = (slide.right - box.left) * (1 - e)
+            }
+            canvas.translate(dx, dy)
+            draw()
+        case .wipe:
+            let clip: Rect
+            switch r.direction {
+            case .bottom: clip = Rect.fromLTRB(box.left - 4, box.bottom - box.height * t, box.right + 4, box.bottom + 4)
+            case .top: clip = Rect.fromLTRB(box.left - 4, box.top - 4, box.right + 4, box.top + box.height * t)
+            case .left: clip = Rect.fromLTRB(box.left - 4, box.top - 4, box.left + box.width * t, box.bottom + 4)
+            case .right: clip = Rect.fromLTRB(box.right - box.width * t, box.top - 4, box.right + 4, box.bottom + 4)
+            }
+            canvas.clipRect(clip)
+            draw()
+        case .zoom:
+            let c = box.center
+            canvas.translate(c.dx, c.dy)
+            canvas.scale(max(0.01, e), max(0.01, e))
+            canvas.translate(-c.dx, -c.dy)
+            faded(t, box.inflate(4))
+        }
+        canvas.restore()
+    }
+
     static func paintShape(_ shape: SlideShape, _ canvas: any Canvas, pxPerPt px: Double,
-                           cache: SlideTextCache, theme: DeckTheme, text: Bool) {
+                           cache: SlideTextCache, theme: DeckTheme, text: Bool,
+                           paragraphs: [Int: ShapeReveal]? = nil, slide: Rect? = nil) {
         let f = shape.frame
         let r = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
         canvas.save()
@@ -229,9 +295,31 @@ final class SlidePainter: CustomPainter {
             }
         }
         if text, !shape.isEmptyText, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
-            canvas.translate(r.left + shape.insets.left * px, r.top + cache.textTop(shape, pxPerPt: px))
-            layout.paint(canvas, visible: Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000),
-                         document: doc, selection: nil, caret: nil)
+            let ox = r.left + shape.insets.left * px, oy = r.top + cache.textTop(shape, pxPerPt: px)
+            canvas.translate(ox, oy)
+            let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
+            if let paragraphs, !paragraphs.isEmpty {
+                // Built by paragraph: each paragraph's band drawn on its own,
+                // as far into its entrance as it has got.
+                let area = (slide ?? Rect.fromLTWH(0, 0, 10_000, 10_000)).shift(Offset(-ox, -oy))
+                for i in 0 ..< layout.count {
+                    let g = layout.geometry(i)
+                    let band = Rect.fromLTRB(-10_000, g.top, 10_000, g.top + g.height)
+                    let draw = {
+                        canvas.save()
+                        canvas.clipRect(band)
+                        layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
+                        canvas.restore()
+                    }
+                    if let rv = paragraphs[i] {
+                        Self.reveal(rv, Rect.fromLTWH(0, g.top, layout.width, g.height), slide: area, canvas, draw)
+                    } else {
+                        draw()
+                    }
+                }
+            } else {
+                layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
+            }
         }
         canvas.restore()
     }

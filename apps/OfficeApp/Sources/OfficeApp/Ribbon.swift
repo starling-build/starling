@@ -20,13 +20,13 @@ enum RibbonTab: Int, CaseIterable {
     /// Slides only; contextual while a chart is selected.
     case chartDesign
     /// Slides only.
-    case design, transitions, slideShow
+    case design, transitions, slideShow, animations
 
     /// The tabs a kind shows, in strip order (contextual ones aside).
     static func strip(for kind: DocumentKind) -> [RibbonTab] {
         switch kind {
         case .document: return [.home, .insert, .layout, .review, .view]
-        case .presentation: return [.home, .insert, .design, .transitions, .slideShow, .review, .view]
+        case .presentation: return [.home, .insert, .design, .transitions, .animations, .slideShow, .review, .view]
         }
     }
 
@@ -43,6 +43,7 @@ enum RibbonTab: Int, CaseIterable {
         case .design: return "Design"
         case .transitions: return "Transitions"
         case .slideShow: return "Slide Show"
+        case .animations: return "Animations"
         }
     }
 
@@ -153,7 +154,7 @@ final class Ribbon: StatelessWidget {
         case .pictureFormat: return _pictureFormat(fluent)
         case .tableLayout: return _tableLayout(fluent)
         case .review: return _review(fluent)
-        case .design, .transitions, .slideShow, .chartDesign: return []
+        case .design, .transitions, .slideShow, .chartDesign, .animations: return []
         }
     }
 

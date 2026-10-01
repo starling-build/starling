@@ -59,6 +59,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _chartData = false
     /// The Header & Footer dialog is up.
     private var _headerFooter = false
+    /// The Animation Pane is open beside the slide.
+    private var _animationPane = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
@@ -145,6 +147,9 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._endEditing()
             self.setState { self._headerFooter = true }
+        }
+        session.onAnimationPane = { [weak self] in
+            self?.setState { self?._animationPane.toggle() }
         }
         session.onChartData = { [weak self] show in
             self?.setState { self?._chartData = show }
@@ -632,7 +637,8 @@ final class SlidesShellState: State<StatefulWidget> {
             deck: deck, cache: _cache, active: _active,
             onEdit: { [weak self] shape in self?._activate(shape) },
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
-            spellChecker: session.checkSpelling ? _spelling : nil))]
+            spellChecker: session.checkSpelling ? _spelling : nil,
+            animationBadges: _tab == .animations || _animationPane))]
         if _showNotes { work.append(_notesPane(fluent)) }
         if _sorter {
             column.append(Expanded(child: _sorterView(fluent)))
@@ -641,6 +647,9 @@ final class SlidesShellState: State<StatefulWidget> {
                 _thumbnailPane(fluent),
                 Expanded(child: Column(crossAxisAlignment: .stretch, children: work)),
             ]
+            if _animationPane {
+                row.append(AnimationPane(deck: deck, onClose: { [weak self] in self?.setState { self?._animationPane = false } }))
+            }
             if _chartData, let chart = deck.selectedChart {
                 row.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
                                          onClose: { [weak self] in self?.setState { self?._chartData = false } }))

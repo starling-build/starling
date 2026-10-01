@@ -29,6 +29,13 @@ enum SlidesSample {
         let content = deck.addSlide(.titleAndContent)
         type(content.shapes.first { $0.role == .title }, "What shipped")
         type(content.shapes.first { $0.role == .body }, "Writer opens and saves docx\nSlides starts today\nEngine debt paid")
+        // The bullets fly in from the bottom a paragraph at a time.
+        if let body = content.shapes.first(where: { $0.role == .body }) {
+            deck.selectShapes([body])
+            deck.setEntrance(.flyIn)
+            deck.setByParagraph(true)
+            deck.selectShapes([])
+        }
 
         let section = deck.addSlide(.sectionHeader)
         type(section.shapes.first { $0.role == .title }, "Next quarter")
@@ -58,6 +65,12 @@ enum SlidesSample {
         let tb = deck.addTextBox(at: Rect.fromLTWH(600, 380, 260, 40))
         type(tb, "A text box")
         drawing.notes.insertText("Point at the star.")
+        // Animations: the box fades in on a click, the star zooms in with it.
+        deck.selectShapes([box])
+        deck.setEntrance(.fade)
+        deck.selectShapes([star])
+        deck.setEntrance(.zoom)
+        deck.editAnimations { $0.start = .withPrevious }
 
         // A picture: four colour bands, 64 x 48 px (48 x 36 pt at 96/in).
         let picture = deck.addSlide(.titleOnly)

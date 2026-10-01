@@ -202,7 +202,20 @@ enum PptxWriter {
         // animations name shapes by id); new ones start above them all.
         w.nextId = 2 + (slide.shapes.compactMap(\.fileId).max() ?? 0)
         var body = ""
-        for shape in slide.shapes { body += w.shape(shape, media: &media, builder: &b) }
+        // Members of a group read from the file, still side by side, are
+        // grouped again under the group's own id.
+        var i = 0
+        while i < slide.shapes.count {
+            guard let g = slide.shapes[i].group else {
+                body += w.shape(slide.shapes[i], media: &media, builder: &b)
+                i += 1
+                continue
+            }
+            var j = i
+            while j < slide.shapes.count, slide.shapes[j].group?.key == g.key { j += 1 }
+            body += w.group(g, members: Array(slide.shapes[i ..< j]), media: &media, builder: &b)
+            i = j
+        }
         var bg = ""
         if let xml = slide.backgroundXML, let src = slide.sourcePart, let p = source {
             bg = w.kept(xml, sourcePart: src, package: p, builder: &b, patch: nil)
@@ -221,9 +234,18 @@ enum PptxWriter {
             }
         }
         let transition = _transition(slide.transition, namespaces: &ns)
-        // Animations as read, while every shape they name is still here.
+        // Animations: as read while unchanged (or, for timing this app does
+        // not model, while every shape it names is still here); our own
+        // timing tree once they are edited.
         var timing = ""
-        if let t = slide.timingXML {
+        let modelled = slide.sourceAnimations != nil
+        if modelled && slide.animations != slide.sourceAnimations || !modelled && slide.timingXML == nil {
+            if !slide.animations.isEmpty {
+                let written = w.written
+                let text = Set(slide.shapes.filter { $0.text != nil }.map(\.id))
+                timing = AnimationXML.write(slide.animations, spid: { written[$0] }, textShapes: text)
+            }
+        } else if let t = slide.timingXML {
             let named = t.components(separatedBy: "spid=\"").dropFirst().compactMap { Int($0.prefix { $0.isNumber }) }
             if Set(named).isSubset(of: w.usedIds) {
                 timing = t
@@ -436,16 +458,24 @@ private struct SlideXML {
     }
 
     private var _used = Set<Int>()
+    /// The id each shape was written under (deck id → `cNvPr id`), which
+    /// the slide's animations name it by.
+    private(set) var written: [Int: Int] = [:]
+    private var _current: Int? = nil
 
     private mutating func _id(_ preferred: Int? = nil) -> Int {
+        let id: Int
         if let p = preferred, p > 1, !_used.contains(p) {
             _used.insert(p)
-            return p
+            id = p
+        } else {
+            while _used.contains(nextId) { nextId += 1 }
+            _used.insert(nextId)
+            id = nextId
+            nextId += 1
         }
-        while _used.contains(nextId) { nextId += 1 }
-        _used.insert(nextId)
-        defer { nextId += 1 }
-        return nextId
+        if let c = _current, written[c] == nil { written[c] = id }
+        return id
     }
 
     /// The ids written so far, for checking the slide's kept animations.
@@ -514,7 +544,24 @@ private struct SlideXML {
         return "<a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\">\(a)</a:srgbClr></a:solidFill>"
     }
 
+    /// A group around `members`, its child space the same as the slide's
+    /// (the members carry their slide positions).
+    mutating func group(_ g: ShapeGroup, members: [ShapeState], media: inout MediaParts,
+                        builder: inout PackageBuilder) -> String {
+        let id = _id(g.fileId)
+        var inner = ""
+        for m in members { inner += shape(m, media: &media, builder: &builder) }
+        let fs = members.map(\.frame)
+        let l = fs.map { min($0.left, $0.right) }.min() ?? 0, t = fs.map { min($0.top, $0.bottom) }.min() ?? 0
+        let r = fs.map { max($0.left, $0.right) }.max() ?? 0, b = fs.map { max($0.top, $0.bottom) }.max() ?? 0
+        let off = "x=\"\(Self._emu(l))\" y=\"\(Self._emu(t))\"", ext = "cx=\"\(Self._emu(r - l))\" cy=\"\(Self._emu(b - t))\""
+        return "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"\(id)\" name=\"\(PptxXML.escape(g.name, attribute: true))\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"
+            + "<p:grpSpPr><a:xfrm><a:off \(off)/><a:ext \(ext)/><a:chOff \(off)/><a:chExt \(ext)/></a:xfrm></p:grpSpPr>\(inner)</p:grpSp>"
+    }
+
     mutating func shape(_ s: ShapeState, media: inout MediaParts, builder: inout PackageBuilder) -> String {
+        _current = s.id
+        defer { _current = nil }
         let name = PptxXML.escape(s.name, attribute: true)
         switch s.kind {
         case .opaque(let o):
@@ -540,6 +587,12 @@ private struct SlideXML {
             }
             return _chart(chart, s, name: name, media: &media, builder: &builder)
         case .geometry(let preset) where preset.isLine && s.text == nil:
+            // A connector as read, while its line and outline are: the
+            // original, at its frame on the slide.
+            if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
+               k.width == s.outlineWidth, let p = source, let part = s.sourcePart {
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: k.box, fileId: s.fileId)
+            }
             let id = _id(s.fileId)
             let f = s.frame
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))

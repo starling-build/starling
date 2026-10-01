@@ -126,25 +126,26 @@ final class AnimationKeepTests: XCTestCase {
     /// A slide's p:timing names shapes by file id: it survives a save while
     /// those shapes do, and goes when one of them is deleted.
     func testTimingKeptWhileItsShapesExist() throws {
+        // Slide 3: the sample's slide 2 carries animations of its own.
         let deck = SlidesSample.make()
         var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
-        var slide = String(data: package.parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        var slide = String(data: package.parts["ppt/slides/slide3.xml"]!, encoding: .utf8)!
         let firstId = slide.components(separatedBy: "<p:cNvPr id=\"")[2].prefix { $0.isNumber }
         let timing = "<p:timing><p:tnLst><p:par><p:cTn id=\"1\" dur=\"indefinite\" nodeType=\"tmRoot\"><p:childTnLst><p:par><p:cTn id=\"2\"><p:stCondLst><p:cond delay=\"0\"/></p:stCondLst><p:childTnLst><p:set><p:cBhvr><p:cTn id=\"3\" dur=\"1\"/><p:tgtEl><p:spTgt spid=\"\(firstId)\"/></p:tgtEl></p:cBhvr><p:to><p:strVal val=\"visible\"/></p:to></p:set></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>"
         slide = slide.replacingOccurrences(of: "</p:sld>", with: timing + "</p:sld>")
-        package.parts["ppt/slides/slide2.xml"] = Data(slide.utf8)
+        package.parts["ppt/slides/slide3.xml"] = Data(slide.utf8)
         let zipped = try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) })
         let (state, theme, pkg) = try Pptx.read(zipped)
-        XCTAssertNotNil(state.slides[1].timingXML)
+        XCTAssertNotNil(state.slides[2].timingXML)
 
         let kept = String(data: PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
-            .parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+            .parts["ppt/slides/slide3.xml"]!, encoding: .utf8)!
         XCTAssertTrue(kept.contains("spid=\"\(firstId)\""), "animations kept while their shape is")
 
         var gone = state
-        gone.slides[1].shapes.removeAll { $0.fileId == Int(firstId) }
+        gone.slides[2].shapes.removeAll { $0.fileId == Int(firstId) }
         let dropped = String(data: PptxPackage(try Zip.read(try PptxWriter.write(gone, theme: theme, package: pkg)))
-            .parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+            .parts["ppt/slides/slide3.xml"]!, encoding: .utf8)!
         XCTAssertFalse(dropped.contains("<p:timing"), "and dropped once it is gone")
     }
 }
@@ -213,5 +214,71 @@ final class TableTests: XCTestCase {
         deck.undo()
         XCTAssertEqual(deck.slides.flatMap(\.shapes).first { $0.kind == .table }?
             .text?.document.tableStyles[table.tableId!]?.headerFill, deck.theme.accents[0])
+    }
+}
+
+final class GroupAndConnectorTests: XCTestCase {
+    /// The sample with slide 6's box and star wrapped in a group whose own
+    /// id an animation names, and a curved, rotated, flipped connector with
+    /// an arrowhead.
+    private func package() throws -> PptxPackage {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(data: package.parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        // Drop our own timing; group the first two drawn shapes under id 77.
+        if let t = slide.range(of: "<p:timing>"), let e = slide.range(of: "</p:timing>") {
+            slide.removeSubrange(t.lowerBound ..< e.upperBound)
+        }
+        let open = "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"77\" name=\"Pair\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"12192000\" cy=\"6858000\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"12192000\" cy=\"6858000\"/></a:xfrm></p:grpSpPr>"
+        let firstSp = slide.range(of: "<p:sp>", range: slide.range(of: "</p:sp>")!.upperBound ..< slide.endIndex)!
+        let afterSecond = slide.range(of: "</p:sp>", range: slide.range(of: "</p:sp>", range: firstSp.upperBound ..< slide.endIndex)!.upperBound ..< slide.endIndex)!
+        slide.insert(contentsOf: "</p:grpSp>", at: afterSecond.upperBound)
+        slide.insert(contentsOf: open, at: firstSp.lowerBound)
+        let connector = "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"88\" name=\"Arrow\"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm rot=\"5400000\" flipH=\"1\" flipV=\"1\"><a:off x=\"1270000\" y=\"1270000\"/><a:ext cx=\"1270000\" cy=\"635000\"/></a:xfrm><a:prstGeom prst=\"curvedConnector3\"><a:avLst/></a:prstGeom><a:ln w=\"25400\"><a:solidFill><a:srgbClr val=\"1F497D\"/></a:solidFill><a:tailEnd type=\"triangle\"/></a:ln></p:spPr></p:cxnSp>"
+        let timing = "<p:timing><p:tnLst><p:par><p:cTn id=\"1\" dur=\"indefinite\" restart=\"never\" nodeType=\"tmRoot\"><p:childTnLst><p:seq concurrent=\"1\" nextAc=\"seek\"><p:cTn id=\"2\" dur=\"indefinite\" nodeType=\"mainSeq\"><p:childTnLst><p:par><p:cTn id=\"3\" fill=\"hold\"><p:stCondLst><p:cond delay=\"indefinite\"/></p:stCondLst><p:childTnLst><p:par><p:cTn id=\"4\" fill=\"hold\"><p:stCondLst><p:cond delay=\"0\"/></p:stCondLst><p:childTnLst><p:par><p:cTn id=\"5\" presetID=\"1\" presetClass=\"entr\" presetSubtype=\"0\" fill=\"hold\" nodeType=\"clickEffect\"><p:stCondLst><p:cond delay=\"0\"/></p:stCondLst><p:childTnLst><p:set><p:cBhvr><p:cTn id=\"6\" dur=\"1\" fill=\"hold\"><p:stCondLst><p:cond delay=\"0\"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid=\"77\"/></p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr><p:to><p:strVal val=\"visible\"/></p:to></p:set></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn><p:prevCondLst><p:cond evt=\"onPrev\" delay=\"0\"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt=\"onNext\" delay=\"0\"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>"
+        slide = slide.replacingOccurrences(of: "</p:spTree>", with: connector + "</p:spTree>")
+        slide = slide.replacingOccurrences(of: "</p:sld>", with: timing + "</p:sld>")
+        package.parts["ppt/slides/slide6.xml"] = Data(slide.utf8)
+        return package
+    }
+
+    private func reread(_ p: PptxPackage) throws -> (DeckState, DeckTheme, PptxPackage) {
+        try Pptx.read(try Zip.write(p.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+    }
+
+    func testGroupsComeBackWithTheirIdAndAnimations() throws {
+        let (state, theme, pkg) = try reread(try package())
+        let members = state.slides[5].shapes.filter { $0.group != nil }
+        XCTAssertEqual(members.count, 2)
+        XCTAssertTrue(state.slides[5].sourceAnimations == nil && state.slides[5].timingXML != nil, "aimed at the group itself: kept as read")
+        let out = String(data: PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+            .parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(out.contains("<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"77\" name=\"Pair\"/>"))
+        XCTAssertTrue(out.contains("spid=\"77\""), "its animation survives")
+        let (again, _, _) = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg))
+        XCTAssertEqual(again.slides[5].shapes.filter { $0.group != nil }.map(\.frame), members.map(\.frame))
+    }
+
+    func testConnectorsDrawTheirRealDirectionAndKeepTheirShape() throws {
+        var (state, theme, pkg) = try reread(try package())
+        let i = try XCTUnwrap(state.slides[5].shapes.firstIndex { $0.name == "Arrow" })
+        let f = state.slides[5].shapes[i].frame
+        // Box 100,100 100x50; flipped both ways it runs (200,150)→(100,100),
+        // and a quarter turn about (150,125) makes that (125,175)→(150,75).
+        XCTAssertEqual(f.left, 125, accuracy: 0.01)
+        XCTAssertEqual(f.top, 175, accuracy: 0.01)
+        XCTAssertEqual(f.right, 175, accuracy: 0.01)
+        XCTAssertEqual(f.bottom, 75, accuracy: 0.01)
+        func slide6(_ s: DeckState) throws -> String {
+            String(data: PptxPackage(try Zip.read(try PptxWriter.write(s, theme: theme, package: pkg)))
+                .parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        }
+        let kept = try slide6(state)
+        XCTAssertTrue(kept.contains("prst=\"curvedConnector3\"") && kept.contains("<a:tailEnd type=\"triangle\"/>"))
+        XCTAssertTrue(kept.contains("<a:off x=\"1270000\" y=\"1270000\"/><a:ext cx=\"1270000\" cy=\"635000\"/>"))
+        state.slides[5].shapes[i].outline = Color(0xFFFF0000)
+        let edited = try slide6(state)
+        XCTAssertFalse(edited.contains("curvedConnector3"), "recoloured: our own line")
+        XCTAssertTrue(edited.contains("FF0000"))
     }
 }

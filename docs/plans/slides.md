@@ -124,6 +124,35 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**S7 part 2 done 2026-09-30** — entrance animations. An Animations tab
+(Preview; None, Appear, Fade, Fly In, Wipe, Zoom; Effect Options with
+direction and As One Object / By Paragraph; Start, Duration, Delay; the
+Animation Pane; Move Earlier/Later), click numbers beside animated shapes
+(by paragraph: beside each paragraph) while the tab or pane is open, and
+a pane listing the slide's entrances in play order. The show plays them a
+click at a time — a click finishes a group still running, Back takes the
+last one away, a first group that starts by itself plays on arrival, and
+a slide reached by stepping back arrives fully built. A slide's
+`p:timing` is read when it holds only these entrances (whole shapes or
+single paragraphs, including PowerPoint's empty root on slides without
+animations): written back byte for byte while unchanged, as PowerPoint's
+own tree once edited. Timing with anything else — exits, emphasis,
+motion paths, other entrances — is kept as read and the tab says so
+rather than editing it. Of the real decks, X3 models 110 of 117 slides
+(the rest use Blinds, Dissolve and an exit) and the lecture 28 of 33.
+
+Two S4 losses found and fixed on the way:
+
+- **Groups lost their own id**, so a group's animation went on save (the
+  lecture's three). Members still edit as shapes, but remember their
+  outermost group; a save groups the ones still side by side again under
+  its id, and the lecture keeps all 23 groups and all its animations.
+- **Every connector became a straight line** — no curve, no arrowhead,
+  and pointing the wrong way when rotated and flipped. Connectors now draw
+  between their real ends (flips, then rotation about the box) and, while
+  the line and outline are as read, are written back as the original
+  element; Quick Look draws the lecture's curved arrow again.
+
 **S7 part 1 done 2026-09-30** — header and footer, and fields. Insert →
 Header & Footer is PowerPoint's Slide tab: date and time (updating, or
 fixed text), slide number, footer text, "Don't show on title slide",

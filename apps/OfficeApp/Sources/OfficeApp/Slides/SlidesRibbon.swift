@@ -24,6 +24,7 @@ extension Ribbon {
         case .view: return _slidesView(fluent)
         case .pictureFormat: return _slidePictureFormat(deck, fluent)
         case .chartDesign: return _chartDesign(deck, fluent)
+        case .animations: return _animationsTab(deck, fluent)
         default: return nil
         }
     }
@@ -276,6 +277,101 @@ extension Ribbon {
                 Chrome.big(FluentSystemIcons.desktop, "From Beginning", fluent) { [session] in session.onSlideShow?(false) },
                 Chrome.big(FluentSystemIcons.window, "From Current Slide", fluent) { [session] in session.onSlideShow?(true) },
             ]),
+        ]
+    }
+
+    /// PowerPoint's Animations tab, for entrances: preview, the gallery,
+    /// effect options, timing, the pane and order.
+    private func _animationsTab(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
+        let selected = deck.selectedAnimations
+        let first = selected.first
+        let ink = fluent.resources.textFillColorPrimary
+        let preview = Chrome.group("Preview", fluent, [
+            Chrome.big(FluentSystemIcons.readMode, "Preview", fluent) { [session] in session.onSlideShow?(true) },
+        ])
+        guard deck.canAnimate else {
+            return [preview, Chrome.group("Animation", fluent, [
+                Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0), child: SizedBox(width: 260, height: nil, child: Text(
+                    "This slide's animations come from the file and are kept as they are — this app does not edit them.",
+                    style: fluent.typography.caption))),
+            ])]
+        }
+        func effectIcon(_ e: ShapeAnimation.Effect?) -> IconData {
+            switch e {
+            case nil: return FluentSystemIcons.close
+            case .appear?: return FluentSystemIcons.bolt
+            case .fade?: return FluentSystemIcons.brightness
+            case .flyIn?: return FluentSystemIcons.up
+            case .wipe?: return FluentSystemIcons.paintBrush
+            case .zoom?: return FluentSystemIcons.zoomIn
+            }
+        }
+        let anySelected = !deck.selection.isEmpty
+        var gallery: [Widget] = [
+            Chrome.bigToggle(effectIcon(nil), "None", anySelected && selected.isEmpty, fluent) { deck.setEntrance(nil) },
+        ]
+        for e in ShapeAnimation.Effect.allCases {
+            gallery.append(Chrome.bigToggle(effectIcon(e), e.name, first?.effect == e, fluent) { deck.setEntrance(e) })
+        }
+        var options: [MenuFlyoutItemBase] = []
+        if let f = first, f.effect.hasDirection {
+            options += ShapeAnimation.Direction.allCases.map { d in
+                MenuFlyoutItem(text: Text(d.name),
+                               leading: Icon(f.direction == d ? FluentSystemIcons.check : FluentSystemIcons.up,
+                                             size: Chrome.iconSize, color: ink),
+                               onPressed: { deck.editAnimations { $0.direction = d } })
+            }
+        }
+        if deck.selection.contains(where: { $0.text != nil }), first != nil {
+            let byParagraph = deck.selectionByParagraph
+            options += [
+                MenuFlyoutItem(text: Text("As One Object"),
+                               leading: Icon(byParagraph ? FluentSystemIcons.shapes : FluentSystemIcons.check, size: Chrome.iconSize, color: ink),
+                               onPressed: { deck.setByParagraph(false) }),
+                MenuFlyoutItem(text: Text("By Paragraph"),
+                               leading: Icon(byParagraph ? FluentSystemIcons.check : FluentSystemIcons.bulletList, size: Chrome.iconSize, color: ink),
+                               onPressed: { deck.setByParagraph(true) }),
+            ]
+        }
+        func seconds(_ v: Double) -> String { ChartPainter.label(v, percent: false) + " s" }
+        let timing = Chrome.group("Timing", fluent, [Chrome.rows([
+            Chrome.menuButton(FluentSystemIcons.clock, "Start: \(first?.start.name ?? "On Click")", "When the animation starts", fluent,
+                              items: ShapeAnimation.Start.allCases.map { st in
+                                  MenuFlyoutItem(text: Text(st.name),
+                                                 leading: Icon(first?.start == st ? FluentSystemIcons.check : FluentSystemIcons.clock,
+                                                               size: Chrome.iconSize, color: ink),
+                                                 onPressed: { deck.editAnimations { $0.start = st } })
+                              }),
+            Chrome.menuButton(FluentSystemIcons.history, "Duration: \(seconds(first?.duration ?? 0.5))", "How long it takes", fluent,
+                              items: [0.25, 0.5, 0.75, 1, 1.5, 2, 3].map { v in
+                                  MenuFlyoutItem(text: Text(seconds(v)), onPressed: { deck.editAnimations { $0.duration = v } })
+                              }),
+        ]), Chrome.rows([
+            Chrome.menuButton(FluentSystemIcons.history, "Delay: \(seconds(first?.delay ?? 0))", "A pause before it starts", fluent,
+                              items: [0, 0.25, 0.5, 1, 2, 3].map { v in
+                                  MenuFlyoutItem(text: Text(seconds(v)), onPressed: { deck.editAnimations { $0.delay = v } })
+                              }),
+        ])])
+        let index = first.flatMap { f in deck.currentSlide.animations.firstIndex(of: f) }
+        let order = Chrome.group("Order", fluent, [Chrome.rows([
+            Chrome.small(FluentSystemIcons.chevronUp, "Move Earlier", fluent, enabled: (index ?? 0) > 0) {
+                if let i = index { deck.moveAnimation(i, by: -1) }
+            },
+            Chrome.small(FluentSystemIcons.chevronDown, "Move Later", fluent,
+                         enabled: index.map { $0 < deck.currentSlide.animations.count - 1 } ?? false) {
+                if let i = index { deck.moveAnimation(i, by: 1) }
+            },
+        ])])
+        return [
+            preview,
+            Chrome.group("Animation", fluent, gallery + [
+                Chrome.menuButton(FluentSystemIcons.settings, "Effect Options", "Direction and sequence", fluent, items: options),
+            ]),
+            timing,
+            Chrome.group("Advanced", fluent, [
+                Chrome.big(FluentSystemIcons.numberList, "Animation Pane", fluent) { [session] in session.onAnimationPane?() },
+            ]),
+            order,
         ]
     }
 

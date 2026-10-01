@@ -24,11 +24,15 @@ final class SlideCanvas: StatefulWidget {
     let onEdit: (SlideShape?) -> Void
     let onShortcut: (KeyData, KeyModifiers) -> Bool
     let spellChecker: RichSpellChecker?
+    /// Number each animated shape by the click that brings it in, as
+    /// PowerPoint does while its Animations tab is open.
+    let animationBadges: Bool
 
     init(key: (any Key)? = nil, deck: DeckController, cache: SlideTextCache, active: SlideShape?,
          onEdit: @escaping (SlideShape?) -> Void,
          onShortcut: @escaping (KeyData, KeyModifiers) -> Bool,
-         spellChecker: RichSpellChecker?) {
+         spellChecker: RichSpellChecker?, animationBadges: Bool = false) {
+        self.animationBadges = animationBadges
         self.deck = deck
         self.cache = cache
         self.active = active
@@ -285,6 +289,12 @@ final class SlideCanvasState: State<StatefulWidget> {
                                         ox: ox, oy: oy, px: px, accent: accent),
                 child: SizedBox(expand: ())))),
         ]
+        if _w.animationBadges, !slide.animations.isEmpty {
+            children.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: CustomPaint(
+                painter: _BadgePainter(slide: slide, selection: deck.selection, ox: ox, oy: oy, px: px, accent: accent,
+                                       revision: deck.revision, cache: _w.cache),
+                child: SizedBox(expand: ())))))
+        }
         // Handles on a single selection.
         if deck.selection.count == 1, let shape = deck.selection.first {
             let s = 9.0
@@ -559,6 +569,68 @@ final class SlideCanvasState: State<StatefulWidget> {
 }
 
 /// Selection frames, smart guides and the marquee.
+/// The click numbers beside animated shapes.
+private final class _BadgePainter: CustomPainter {
+    let slide: Slide
+    let selection: [SlideShape]
+    let ox: Double, oy: Double, px: Double
+    let accent: Color
+    let revision: Int
+    let cache: SlideTextCache
+
+    init(slide: Slide, selection: [SlideShape], ox: Double, oy: Double, px: Double, accent: Color, revision: Int,
+         cache: SlideTextCache) {
+        self.cache = cache
+        self.slide = slide
+        self.selection = selection
+        self.ox = ox; self.oy = oy; self.px = px
+        self.accent = accent
+        self.revision = revision
+        super.init()
+    }
+
+    override func paint(_ canvas: any Canvas, _ size: Size) {
+        let numbers = AnimationPlan.clickNumbers(slide.animations)
+        var stacked: [Int: Int] = [:]
+        for (i, a) in slide.animations.enumerated() {
+            guard let shape = slide.shapes.first(where: { $0.id == a.shapeId }) else { continue }
+            let k = stacked[shape.id, default: 0]
+            stacked[shape.id] = k + 1
+            let selected = selection.contains { $0 === shape }
+            let tp = TextPainter(text: TextSpan(text: "\(numbers[i])", style: Flutter.TextStyle(
+                color: selected ? Color(0xFFFFFFFF) : Color(0xFF3B3B3B), fontSize: 10, fontFamily: OfficeFonts.sans)),
+                textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: 100)
+            let w = max(16, tp.width + 8), h = 15.0
+            let x = ox + min(shape.frame.left, shape.frame.right) * px - w - 3
+            var y = oy + min(shape.frame.top, shape.frame.bottom) * px + Double(k) * (h + 2)
+            // A paragraph's badge sits beside that paragraph.
+            if let p = a.paragraph, let layout = cache.layout(shape, pxPerPt: px), p < layout.count {
+                let g = layout.geometry(p)
+                y = oy + shape.frame.top * px + cache.textTop(shape, pxPerPt: px) + g.textTop + 2
+            }
+            let fill = Paint()
+            fill.style = .fill
+            fill.isAntiAlias = true
+            fill.color = selected ? accent : Color(0xFFE4E4E4)
+            canvas.drawRRect(RRect(fromRectAndRadius: Rect.fromLTWH(x, y, w, h), Radius(circular: 2)), fill)
+            let edge = Paint()
+            edge.style = .stroke
+            edge.strokeWidth = 1
+            edge.color = selected ? accent : Color(0xFF9A9A9A)
+            canvas.drawRRect(RRect(fromRectAndRadius: Rect.fromLTWH(x + 0.5, y + 0.5, w - 1, h - 1), Radius(circular: 2)), edge)
+            tp.paint(canvas, Offset(x + (w - tp.width) / 2, y + (h - tp.height) / 2))
+            tp.dispose()
+        }
+    }
+
+    override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool {
+        guard let old = oldDelegate as? _BadgePainter else { return true }
+        return old.revision != revision || old.slide !== slide || old.px != px || old.ox != ox || old.oy != oy
+            || old.selection.map(ObjectIdentifier.init) != selection.map(ObjectIdentifier.init)
+    }
+}
+
 private final class _ChromePainter: CustomPainter {
     let selection: [SlideShape]
     let active: SlideShape?

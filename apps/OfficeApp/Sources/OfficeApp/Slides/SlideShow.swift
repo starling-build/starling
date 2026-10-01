@@ -47,6 +47,12 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     private var _cursorGeneration = 0
     /// The editor's repaint-on-decode, restored when the show ends.
     private var _sourceDecoded: (() -> Void)?
+    /// The current slide's animations: groups played so far, and the one
+    /// playing (its progress is `_build`'s value over the group's length).
+    private var _plan = AnimationPlan([])
+    private var _played = 0
+    private var _playing = false
+    private var _build: AnimationController!
 
     private var _w: SlideShowView { widget as! SlideShowView }
 
@@ -73,6 +79,16 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         _controller = AnimationController(duration: .milliseconds(500), vsync: self)
         _controller.value = 1
         _controller.addListener({ [weak self] in self?.setState {} }, owner: self)
+        _build = AnimationController(duration: .milliseconds(500), vsync: self)
+        _build.addListener({ [weak self] in self?.setState {} }, owner: self)
+        _build.addStatusListener({ [weak self] status in
+            guard let self, status == .completed, self._playing else { return }
+            self.setState {
+                self._playing = false
+                self._played += 1
+            }
+        })
+        _enterSlide(forward: true)
         _focus.onKeyData = { [weak self] key in self?._key(key) ?? false }
         _focus.requestFocus()
         _hideCursorSoon()
@@ -81,6 +97,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     override func dispose() {
         _controller.removeListeners(owner: self)
         _controller.dispose()
+        _build.removeListeners(owner: self)
+        _build.dispose()
         _focus.dispose()
         _w.images.onImageDecoded = _sourceDecoded
         hostSetMouseCursor?("basic")
@@ -89,7 +107,29 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
 
     // MARK: Moving
 
-    private func _go(to target: Int, animate: Bool) {
+    /// A new slide's animations: from the start going forward (playing a
+    /// first group that starts by itself), all played coming back.
+    private func _enterSlide(forward: Bool) {
+        _build.stop()
+        _playing = false
+        _plan = _at < _order.count ? AnimationPlan(_w.deck.slides[_order[_at]].animations) : AnimationPlan([])
+        _played = forward ? 0 : _plan.groups.count
+        if forward && _plan.autoStart { _playGroup() }
+    }
+
+    private func _playGroup() {
+        guard _played < _plan.groups.count else { return }
+        let length = _plan.length(_played)
+        guard length > 0 else { _played += 1; return }
+        _playing = true
+        _build.duration = .milliseconds(Int(length * 1000))
+        _build.value = 0
+        _build.forward()
+    }
+
+    /// `back`: stepping back a slide, which arrives with its animations
+    /// all played; any other move starts the slide from the beginning.
+    private func _go(to target: Int, animate: Bool, back: Bool = false) {
         let t = max(0, min(_order.count, target))
         guard t != _at else { return }
         _blank = nil
@@ -103,17 +143,40 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             _from = nil
             _controller.value = 1
         }
-        setState { _at = t }
+        setState {
+            _at = t
+            _enterSlide(forward: !back)
+        }
     }
 
     private func _next() {
         if _at >= _order.count { _w.onEnd(); return }
-        // A transition still running finishes at once on the next press.
+        // A transition still running finishes at once on the next press;
+        // so does a group of animations.
         if _controller.value < 1 { _controller.value = 1; return }
+        if _playing {
+            _build.stop()
+            setState { _playing = false; _played += 1 }
+            return
+        }
+        if _played < _plan.groups.count {
+            setState { _playGroup() }
+            return
+        }
         _go(to: _at + 1, animate: true)
     }
 
-    private func _previous() { _go(to: _at - 1, animate: false) }
+    private func _previous() {
+        if _at < _order.count, _played > 0 || _playing {
+            _build.stop()
+            setState {
+                if !_playing { _played -= 1 }
+                _playing = false
+            }
+            return
+        }
+        _go(to: _at - 1, animate: false, back: true)
+    }
 
     // MARK: Input
 
@@ -172,6 +235,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         let current: Slide? = _at < _order.count ? deck.slides[_order[_at]] : nil
         let previous: Slide? = _from.flatMap { $0 < _order.count ? deck.slides[_order[$0]] : nil }
         let progress = _controller.value
+        let elapsed = _playing ? _build.value * _plan.length(_played) : nil
+        let reveals = _plan.reveals(played: _played, elapsed: elapsed)
         return Listener(
             onPointerDown: { [weak self] e in
                 guard let self else { return }
@@ -183,8 +248,9 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             child: CustomPaint(
                 painter: _ShowPainter(current: current, previous: progress < 1 ? previous : nil,
                                       progress: progress, theme: deck.theme, slideSize: deck.slideSize,
-                                      cache: _cache, blank: _blank,
-                                      revision: deck.revision &+ Int(progress * 1000) &+ (_blank == nil ? 0 : 7) &+ _at * 10007),
+                                      cache: _cache, blank: _blank, reveals: reveals,
+                                      revision: deck.revision &+ Int(progress * 1000) &+ (_blank == nil ? 0 : 7) &+ _at * 10007
+                                          &+ _played * 131 &+ Int((elapsed ?? -1) * 1000) * 7919),
                 child: SizedBox(expand: ())))
     }
 }
@@ -208,10 +274,11 @@ private final class _ShowPainter: CustomPainter {
     let slideSize: Size
     let cache: SlideTextCache
     let blank: Color?
+    let reveals: ShapeReveals
     let revision: Int
 
     init(current: Slide?, previous: Slide?, progress: Double, theme: DeckTheme, slideSize: Size,
-         cache: SlideTextCache, blank: Color?, revision: Int) {
+         cache: SlideTextCache, blank: Color?, reveals: ShapeReveals, revision: Int) {
         self.current = current
         self.previous = previous
         self.progress = progress
@@ -219,6 +286,7 @@ private final class _ShowPainter: CustomPainter {
         self.slideSize = slideSize
         self.cache = cache
         self.blank = blank
+        self.reveals = reveals
         self.revision = revision
         super.init()
     }
@@ -243,7 +311,9 @@ private final class _ShowPainter: CustomPainter {
         func draw(_ slide: Slide, at offset: Offset) {
             canvas.save()
             canvas.translate(box.left + offset.dx, box.top + offset.dy)
-            SlidePainter(slide: slide, theme: theme, slideSize: slideSize, revision: 0, cache: cache)
+            // The outgoing slide as its animations left it: all played.
+            SlidePainter(slide: slide, theme: theme, slideSize: slideSize, revision: 0, cache: cache,
+                         reveals: slide === current ? reveals : ShapeReveals())
                 .paint(canvas, Size(w, h))
             canvas.restore()
         }

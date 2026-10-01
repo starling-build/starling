@@ -36,6 +36,8 @@ struct ShapeState: Equatable {
     var sourcePart: String? = nil
     var sourceChart: Chart? = nil
     var field: SlideField? = nil
+    var group: ShapeGroup? = nil
+    var keptLine: KeptLine? = nil
 }
 
 extension ShapeState {
@@ -59,6 +61,8 @@ struct SlideState: Equatable {
     var transition = SlideTransition()
     var timingXML: String? = nil
     var footerFrames: [String: Rect] = [:]
+    var animations: [ShapeAnimation] = []
+    var sourceAnimations: [ShapeAnimation]? = nil
 }
 
 struct DeckState: Equatable {
@@ -197,9 +201,17 @@ final class DeckController: ChangeNotifier {
         guard slides.indices.contains(index) else { return }
         _checkpoint()
         let source = slides[index]
-        let copy = Slide(id: _id(), layout: source.layout, shapes: source.shapes.map { _copy($0) },
+        let shapes = source.shapes.map { _copy($0) }
+        let copy = Slide(id: _id(), layout: source.layout, shapes: shapes,
                          notes: _textController(source.notes.document))
         copy.hidden = source.hidden
+        // The copy's animations, aimed at the copies of their shapes.
+        var map: [Int: Int] = [:]
+        for (a, b) in zip(source.shapes, shapes) { map[a.id] = b.id }
+        copy.animations = source.animations.compactMap { a in
+            map[a.shapeId].map { var c = a; c.shapeId = $0; return c }
+        }
+        copy.transition = source.transition
         copy.footerFrames = source.footerFrames
         copy.layoutPart = source.layoutPart
         _watch(copy)
@@ -358,6 +370,108 @@ final class DeckController: ChangeNotifier {
         selection = [shape]
         _changed()
         return shape
+    }
+
+    // MARK: Animations
+
+    /// The current slide's animations can be edited here (not kept as the
+    /// file had them).
+    var canAnimate: Bool { !currentSlide.animationsKept }
+
+    /// The selected shapes' entrance animations, in slide order.
+    var selectedAnimations: [ShapeAnimation] {
+        currentSlide.animations.filter { a in selection.contains { $0.id == a.shapeId } }
+    }
+
+    /// The gallery: each selected shape gets `effect` (nil takes its
+    /// animation away) — every paragraph of a build by paragraph — keeping
+    /// its place, start and timing; a shape without one goes to the end, on
+    /// a click.
+    func setEntrance(_ effect: ShapeAnimation.Effect?) {
+        guard canAnimate, !selection.isEmpty else { return }
+        _checkpoint()
+        let slide = currentSlide
+        for shape in selection {
+            let mine = slide.animations.indices.filter { slide.animations[$0].shapeId == shape.id }
+            guard !mine.isEmpty else {
+                if let effect { slide.animations.append(ShapeAnimation(shapeId: shape.id, effect: effect)) }
+                continue
+            }
+            guard let effect else {
+                slide.animations.removeAll { $0.shapeId == shape.id }
+                continue
+            }
+            for i in mine {
+                let was = slide.animations[i].effect
+                slide.animations[i].effect = effect
+                if was == .appear || effect == .appear { slide.animations[i].duration = effect.defaultDuration }
+            }
+        }
+        _changed()
+    }
+
+    /// Effect Options → Sequence: the selected text shapes' entrances as
+    /// one object, or a paragraph at a time (the first as the shape's
+    /// start, the rest on clicks), as PowerPoint offers it.
+    func setByParagraph(_ on: Bool) {
+        guard canAnimate else { return }
+        let slide = currentSlide
+        let shapes = selection.filter { s in s.text != nil && slide.animations.contains { $0.shapeId == s.id } }
+        guard !shapes.isEmpty else { return }
+        _checkpoint()
+        for shape in shapes {
+            guard let at = slide.animations.firstIndex(where: { $0.shapeId == shape.id }) else { continue }
+            let first = slide.animations[at]
+            slide.animations.removeAll { $0.shapeId == shape.id }
+            var entries: [ShapeAnimation] = []
+            if on {
+                let paras = shape.text?.document.paragraphs ?? []
+                for (i, p) in paras.enumerated() where !p.text.isEmpty {
+                    var a = first
+                    a.paragraph = i
+                    if !entries.isEmpty { a.start = .onClick; a.delay = 0 }
+                    entries.append(a)
+                }
+            }
+            if entries.isEmpty { var a = first; a.paragraph = nil; entries = [a] }
+            slide.animations.insert(contentsOf: entries, at: min(at, slide.animations.count))
+        }
+        _changed()
+    }
+
+    /// Whether the selection's text comes in a paragraph at a time.
+    var selectionByParagraph: Bool {
+        selectedAnimations.contains { $0.paragraph != nil }
+    }
+
+    /// Change the selected shapes' animations: start, direction, timing.
+    func editAnimations(_ edit: (inout ShapeAnimation) -> Void) {
+        guard canAnimate, !selectedAnimations.isEmpty else { return }
+        _checkpoint()
+        let slide = currentSlide
+        for i in slide.animations.indices where selection.contains(where: { $0.id == slide.animations[i].shapeId }) {
+            edit(&slide.animations[i])
+        }
+        _changed()
+    }
+
+    /// Move animation `index` of the current slide one place earlier (-1)
+    /// or later (+1).
+    func moveAnimation(_ index: Int, by step: Int) {
+        let slide = currentSlide
+        let to = index + step
+        guard canAnimate, slide.animations.indices.contains(index), slide.animations.indices.contains(to) else { return }
+        _checkpoint()
+        slide.animations.swapAt(index, to)
+        _changed()
+    }
+
+    func removeAnimation(_ index: Int) {
+        let slide = currentSlide
+        guard canAnimate, slide.animations.indices.contains(index) else { return }
+        _checkpoint()
+        slide.animations.remove(at: index)
+        _changed()
     }
 
     // MARK: Header and footer
@@ -858,7 +972,8 @@ final class DeckController: ChangeNotifier {
                        background: slide.background, inheritedBackground: slide.inheritedBackground,
                        sourcePart: slide.sourcePart,
                        transition: slide.transition, timingXML: slide.timingXML,
-                       footerFrames: slide.footerFrames)
+                       footerFrames: slide.footerFrames, animations: slide.animations,
+                       sourceAnimations: slide.sourceAnimations)
         }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates)
     }
 
@@ -905,6 +1020,8 @@ final class DeckController: ChangeNotifier {
             slide.transition = ss.transition
             slide.timingXML = ss.timingXML
             slide.footerFrames = ss.footerFrames
+            slide.animations = ss.animations
+            slide.sourceAnimations = ss.sourceAnimations
             next.append(slide)
         }
         for slide in slides {
@@ -929,7 +1046,7 @@ final class DeckController: ChangeNotifier {
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
-                   sourceChart: s.sourceChart, field: s.field)
+                   sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -962,6 +1079,8 @@ final class DeckController: ChangeNotifier {
         shape.sourceChart = st.sourceChart
         shape.field = st.field
         shape.fieldShown = nil
+        shape.group = st.group
+        shape.keptLine = st.keptLine
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
 
@@ -1019,6 +1138,8 @@ final class DeckController: ChangeNotifier {
         st.id = _id()
         st.fileId = nil
         st.sourceXML = nil
+        st.group = nil
+        st.keptLine = nil
         st.frame = st.frame.shift(Offset(offset, offset))
         return _make(st)
     }
@@ -1130,6 +1251,11 @@ final class DeckController: ChangeNotifier {
 
     private func _changed(keepSession: Bool = false) {
         _updateFields()
+        // A shape that went takes its animations with it.
+        for slide in slides where !slide.animations.isEmpty {
+            let ids = Set(slide.shapes.map(\.id))
+            slide.animations.removeAll { !ids.contains($0.shapeId) }
+        }
         if _sessionWanted && !keepSession && _session == nil {
             _session = (snapshot(), _textRevisions())
         }

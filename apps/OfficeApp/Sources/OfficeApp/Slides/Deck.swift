@@ -80,6 +80,27 @@ struct SlideField: Equatable {
     static func newId() -> String { "{" + UUID().uuidString + "}" }
 }
 
+/// The group (`p:grpSp`) a shape was read from. The deck edits group
+/// members as shapes of their own; a save puts the ones still side by side
+/// back in a group with this id, which the slide's animations may name.
+struct ShapeGroup: Equatable {
+    var fileId: Int?
+    var name: String
+    /// Tells this group from another of the same slide.
+    var key: Int
+}
+
+/// A connector as read (`p:cxnSp`): the deck draws it as a straight line
+/// between its ends, and while that line and its outline are unchanged a
+/// save writes the original back — curves, arrowheads, connections and
+/// all — at `box`, its unrotated frame on the slide.
+struct KeptLine: Equatable {
+    var line: Rect
+    var box: Rect
+    var outline: Color?
+    var width: Double
+}
+
 /// An element carried through a round trip verbatim.
 struct OpaqueObject: Equatable {
     /// The element as read (`p:graphicFrame`, `p:grpSp`, …).
@@ -226,6 +247,10 @@ final class SlideShape {
     var sourceChart: Chart? = nil
     /// The field this shape's text is, if it is one (slide number, date).
     var field: SlideField? = nil
+    /// The group the shape was read from, if any.
+    var group: ShapeGroup? = nil
+    /// A connector's geometry as read (with `sourceXML`).
+    var keptLine: KeptLine? = nil
     /// What the field last showed, to tell its own updates from typing.
     var fieldShown: String? = nil
 
@@ -383,9 +408,18 @@ final class Slide {
     /// ("dt", "ftr", "sldNum"), from the file; Header & Footer places them
     /// there (PowerPoint's defaults otherwise).
     var footerFrames: [String: Rect] = [:]
-    /// The slide's animations as read (`p:timing`), written back while every
-    /// shape they name is still on the slide (S7 models them).
+    /// The slide's animations as read (`p:timing`): written back as read
+    /// while `animations` is what was read from it (or, for timing this app
+    /// does not model, while every shape it names is still on the slide).
     var timingXML: String? = nil
+    /// Entrance animations, in order (Animation.swift).
+    var animations: [ShapeAnimation] = []
+    /// `animations` as read from `timingXML`; nil when the file's timing
+    /// holds what this app does not model, which is then kept, not edited.
+    var sourceAnimations: [ShapeAnimation]? = nil
+
+    /// The file's animations are kept as they are and cannot be edited here.
+    var animationsKept: Bool { timingXML != nil && sourceAnimations == nil }
 
     init(id: Int, layout: SlideLayoutKind, shapes: [SlideShape], notes: RichDocumentController) {
         self.id = id

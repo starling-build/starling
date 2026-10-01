@@ -383,6 +383,20 @@ private struct PptxReader {
                     }
                 }
             }
+            // Entrance animations this app models, aimed at shapes by the
+            // file ids they kept.
+            var animations: [ShapeAnimation] = []
+            var sourceAnimations: [ShapeAnimation]? = nil
+            if let timing = slide.first("p:timing"), let read = AnimationXML.read(timing) {
+                let byFileId = Dictionary(shapes.compactMap { s in s.fileId.map { ($0, s.id) } }, uniquingKeysWith: { a, _ in a })
+                let mapped = read.compactMap { r -> ShapeAnimation? in
+                    byFileId[r.spid].map { var a = r.animation; a.shapeId = $0; return a }
+                }
+                if mapped.count == read.count {
+                    animations = mapped
+                    sourceAnimations = mapped
+                }
+            }
             slides.append(SlideState(
                 id: id(), layout: Self._layoutKind(layoutType), hidden: slide["show"] == "0",
                 notes: ctx.notes(), shapes: shapes, layoutPart: layoutPart,
@@ -390,7 +404,7 @@ private struct PptxReader {
                 sourcePart: part,
                 transition: Self._transition(slide),
                 timingXML: slide.first("p:timing").map(PptxXML.serialize),
-                footerFrames: footerFrames))
+                footerFrames: footerFrames, animations: animations, sourceAnimations: sourceAnimations))
         }
         if slides.isEmpty {
             // An empty deck is still a deck: one blank slide to type on.
@@ -537,13 +551,21 @@ private struct SlideContext {
 
     // MARK: Shapes
 
-    func shapes(in tree: XNode, transform: ((Rect) -> Rect)?, into out: inout [ShapeState], id: () -> Int) {
-        // Each shape keeps its file id (animations name shapes by it); a
-        // flattened group's members keep theirs, the group's own is lost.
+    func shapes(in tree: XNode, transform: ((Rect) -> Rect)?, into out: inout [ShapeState], id: () -> Int,
+                group: ShapeGroup? = nil) {
+        // Each shape keeps its file id (animations name shapes by it). A
+        // group is flattened for editing, its members remembering it (the
+        // outermost one) so a save groups them again under its id.
         func add(_ s: ShapeState?, _ el: XNode) {
             guard var s else { return }
             s.fileId = el.descendant("p:cNvPr")?["id"].flatMap(Int.init)
+            s.group = group
             out.append(s)
+        }
+        func groupOf(_ el: XNode) -> ShapeGroup? {
+            if let group { return group }
+            let nv = el.first("p:nvGrpSpPr")?.first("p:cNvPr")
+            return ShapeGroup(fileId: nv?["id"].flatMap(Int.init), name: nv?["name"] ?? "Group", key: id())
         }
         for el in tree.children {
             switch el.name {
@@ -563,7 +585,7 @@ private struct SlideContext {
                       let cox = chOff["x"].flatMap(Double.init), let coy = chOff["y"].flatMap(Double.init),
                       let ccx = chExt["cx"].flatMap(Double.init), let ccy = chExt["cy"].flatMap(Double.init),
                       ccx > 0, ccy > 0 else {
-                    shapes(in: el, transform: transform, into: &out, id: id)
+                    shapes(in: el, transform: transform, into: &out, id: id, group: groupOf(el))
                     continue
                 }
                 let sx = frame.width / (ccx / Pptx.emu), sy = frame.height / (ccy / Pptx.emu)
@@ -573,7 +595,7 @@ private struct SlideContext {
                                                r.width * sx, r.height * sy)
                     return transform?(mapped) ?? mapped
                 }
-                shapes(in: el, transform: map, into: &out, id: id)
+                shapes(in: el, transform: map, into: &out, id: id, group: groupOf(el))
             case "mc:AlternateContent":
                 // The fallback is what an older reader would draw: keep the
                 // whole thing, show it as an object.
@@ -682,19 +704,36 @@ private struct SlideContext {
     }
 
     private func _connector(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
-        guard let x = el.first("p:spPr")?.first("a:xfrm"), var frame = _xfrmRect(x) else { return nil }
-        if let t = transform { frame = t(frame) }
-        // Flips turn the box's diagonal into the line's direction.
-        if x["flipH"] == "1" { frame = Rect.fromLTRB(frame.right, frame.top, frame.left, frame.bottom) }
-        if x["flipV"] == "1" { frame = Rect.fromLTRB(frame.left, frame.bottom, frame.right, frame.top) }
+        guard let x = el.first("p:spPr")?.first("a:xfrm"), var box = _xfrmRect(x) else { return nil }
+        if let t = transform { box = t(box) }
+        // Flips turn the box's diagonal into the line's direction, and the
+        // rotation turns both ends about the box's centre.
+        var x1 = box.left, x2 = box.right, y1 = box.top, y2 = box.bottom
+        if x["flipH"] == "1" { swap(&x1, &x2) }
+        if x["flipV"] == "1" { swap(&y1, &y2) }
+        var a = Offset(x1, y1), b = Offset(x2, y2)
+        if let rot = x["rot"].flatMap(Double.init), rot != 0 {
+            let r = rot / 60000 * .pi / 180, c = box.center
+            func turn(_ p: Offset) -> Offset {
+                let dx = p.dx - c.dx, dy = p.dy - c.dy
+                return Offset(c.dx + dx * cos(r) - dy * sin(r), c.dy + dx * sin(r) + dy * cos(r))
+            }
+            a = turn(a); b = turn(b)
+        }
+        let frame = Rect.fromLTRB(a.dx, a.dy, b.dx, b.dy)
         let ln = el.first("p:spPr")?.first("a:ln")
         let color = ln?.first("a:solidFill").flatMap(colors.color(in:))
             ?? el.first("p:style")?.first("a:lnRef").flatMap(colors.color(in:)) ?? colors.scheme("tx1")
-        return ShapeState(id: id(), name: el.first("p:nvCxnSpPr")?.first("p:cNvPr")?["name"] ?? "Line",
-                          kind: .geometry(.line), frame: frame, rotation: 0, fill: nil, outline: color,
-                          outlineWidth: ln?["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75,
-                          anchor: .middle, insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil,
-                          text: nil, font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)
+        let width = ln?["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
+        var st = ShapeState(id: id(), name: el.first("p:nvCxnSpPr")?.first("p:cNvPr")?["name"] ?? "Line",
+                            kind: .geometry(.line), frame: frame, rotation: 0, fill: nil, outline: color,
+                            outlineWidth: width,
+                            anchor: .middle, insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil,
+                            text: nil, font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)
+        st.sourceXML = PptxXML.serialize(el)
+        st.sourcePart = part
+        st.keptLine = KeptLine(line: frame, box: box, outline: color, width: width)
+        return st
     }
 
     private func _picture(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
