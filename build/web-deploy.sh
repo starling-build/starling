@@ -5,15 +5,22 @@
 #
 # Default app OfficeApp (apps/OfficeApp), published as writer.starling.build
 # from the site repo git@github.com:starling-build/writer.git — ui/deploy.sh's
-# shape, for the same host: GitHub Pages serves a branch as static files and
-# nothing else, so the page gets no Content-Encoding for a precompressed
-# module. The tree pushed here therefore carries `app.wasm.gz` in place of
-# `app.wasm`, and web/host/starling.js inflates a `.gz` module itself (4 MB
-# over the wire, not 12). Everything else is build/web-app.sh's stage as is.
+# shape, for the same host. The subdomain needs a DNS CNAME `writer` ->
+# starling-build.github.io (DNS only, not proxied, so GitHub can issue the
+# certificate) and the custom domain set in the repo's Pages settings, which
+# GitHub records as a CNAME file it commits itself. (starling.build/writer/
+# would need no DNS, but only if the root site's repo were named
+# starling-build.github.io; it is `www`, so project paths 404 there —
+# measured, 2026-09-30.)
 #
-# One-time setup on the site repo: Settings -> Pages -> source `main` / root,
-# custom domain = the host; and a DNS CNAME for the host pointing at
-# starling-build.github.io (the apex starling.build already does).
+# GitHub Pages serves a branch as static files and nothing else, so the
+# page gets no Content-Encoding for a precompressed module. The tree pushed
+# here therefore carries `app.wasm.gz` in place of `app.wasm`, and
+# web/host/starling.js inflates a `.gz` module itself (4 MB over the wire,
+# not 12). Everything else is build/web-app.sh's stage as is; every asset
+# is referenced relative to index.html, so a subpath is fine.
+#
+# One-time setup on the site repo: Settings -> Pages -> source `main` / root.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -66,7 +73,7 @@ cp -R "$STAGE"/. "$WORK/site/"
 rm -f "$WORK/site/app.wasm" "$WORK/site/app.wasm.br"
 sed -i '' "s|app: 'app.wasm'|app: 'app.wasm.gz'|" "$WORK/site/index.html"
 grep -q "app: 'app.wasm.gz'" "$WORK/site/index.html" || { echo "error: index.html has no app: 'app.wasm' to repoint" >&2; exit 1; }
-echo "$HOST" > "$WORK/site/CNAME"
+if [ -n "$HOST" ]; then echo "$HOST" > "$WORK/site/CNAME"; fi
 # Pages runs Jekyll by default, which drops files and folders it does not
 # like (anything starting with an underscore); this turns it off.
 touch "$WORK/site/.nojekyll"
@@ -77,6 +84,6 @@ if git diff --quiet && git diff --cached --quiet && [ -z "$(git status --porcela
     echo "no changes to publish"; exit 0
 fi
 git add -A
-git commit -q -m "site: $APP @ $(git -C "$REPO_ROOT" rev-parse --short HEAD) for $HOST"
+git commit -q -m "site: $APP @ $(git -C "$REPO_ROOT" rev-parse --short HEAD)${HOST:+ for $HOST}"
 git push -u origin main
-echo "published -> $SITE ($HOST)"
+echo "published -> $SITE${HOST:+ ($HOST)}"
