@@ -64,3 +64,21 @@ final class SheetsPrintTests: XCTestCase {
         XCTAssertEqual(SheetPrintLayout.usedArea(ws, book: book), CellRange("B2:H21"))
     }
 }
+
+extension SheetsPrintTests {
+    func testPrintAreaAndTitlesFromTheFile() {
+        let book = Workbook(sheets: [Worksheet(name: "Data")])
+        book.fileNames = [
+            DefinedName(name: "_xlnm.Print_Area", localSheet: 0, attrs: [:], text: "Data!$B$2:$F$90,Data!$H$1:$H$4"),
+            DefinedName(name: "_xlnm.Print_Titles", localSheet: 0, attrs: [:], text: "Data!$A:$A,Data!$1:$2"),
+        ]
+        let n = SheetPrintLayout.printNames(book, sheet: 0)
+        XCTAssertEqual(n.areas, [CellRange("B2:F90")!, CellRange("H1:H4")!])
+        XCTAssertEqual(n.titleRows, 0 ... 1)
+        XCTAssertEqual(n.titleCols, 0 ... 0)
+        // Titles take their room on every page: 684 - 30 leaves 43 rows of 15.
+        let (pages, _) = SheetPrintLayout.pages(area: n.areas[0], setup: SheetPrintSetup(), titleWidth: 64, titleHeight: 30,
+                                                width: { _ in 64 }, height: { _ in 15 })
+        XCTAssertEqual(pages.first?.rows.count, 43)
+    }
+}

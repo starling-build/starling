@@ -94,14 +94,36 @@ enum SheetPrintLayout {
         return CellRange(top: top, left: left, bottom: bottom, right: right)
     }
 
+    /// The sheet's print areas and repeated titles, from the file's
+    /// built-in names (`_xlnm.Print_Area`, `_xlnm.Print_Titles`).
+    static func printNames(_ book: Workbook, sheet: Int) -> (areas: [CellRange], titleRows: ClosedRange<Int>?, titleCols: ClosedRange<Int>?) {
+        var areas: [CellRange] = []
+        var rows: ClosedRange<Int>? = nil, cols: ClosedRange<Int>? = nil
+        for n in book.fileNames where n.localSheet == sheet {
+            for part in n.text.split(separator: ",") {
+                guard let e = try? Formula.parse("=" + part), case .ref(let r) = e else { continue }
+                let end = r.end ?? r.start
+                if n.name == "_xlnm.Print_Area" {
+                    areas.append(r.range)
+                } else if n.name == "_xlnm.Print_Titles" {
+                    if r.start.col == nil, let a = r.start.row, let b = end.row { rows = min(a, b) ... max(a, b) }
+                    if r.start.row == nil, let a = r.start.col, let b = end.col { cols = min(a, b) ... max(a, b) }
+                }
+            }
+        }
+        return (areas, rows, cols)
+    }
+
     /// Cut `area` into pages. `width`/`height` give a column's or row's
     /// size in points (0 for hidden). Returns the pages, down then over,
     /// and the scale they print at.
-    static func pages(area: CellRange, setup: SheetPrintSetup,
+    /// `titleWidth`/`titleHeight`: the repeated title columns and rows, in
+    /// points, kept free on every page.
+    static func pages(area: CellRange, setup: SheetPrintSetup, titleWidth: Double = 0, titleHeight: Double = 0,
                       width: (Int) -> Double, height: (Int) -> Double) -> (pages: [SheetPage], scale: Double) {
         let page = setup.pageSize
-        let availW = max(36, page.width - setup.left - setup.right)
-        let availH = max(36, page.height - setup.top - setup.bottom)
+        let availW0 = max(36, page.width - setup.left - setup.right)
+        let availH0 = max(36, page.height - setup.top - setup.bottom)
         let cols = (area.left ... area.right).filter { width($0) > 0 }
         let rows = (area.top ... area.bottom).filter { height($0) > 0 }
         guard !cols.isEmpty, !rows.isEmpty else { return ([], 1) }
@@ -110,10 +132,11 @@ enum SheetPrintLayout {
             // Fit only ever shrinks, never past 10%, as Excel's.
             s = 1
             let totalW = cols.reduce(0) { $0 + width($1) }, totalH = rows.reduce(0) { $0 + height($1) }
-            if let n = setup.fitWidth, n > 0 { s = min(s, availW * Double(n) / totalW) }
-            if let n = setup.fitHeight, n > 0 { s = min(s, availH * Double(n) / totalH) }
+            if let n = setup.fitWidth, n > 0 { s = min(s, availW0 * Double(n) / (totalW + titleWidth * Double(n))) }
+            if let n = setup.fitHeight, n > 0 { s = min(s, availH0 * Double(n) / (totalH + titleHeight * Double(n))) }
             s = max(0.1, s * 0.999)   // a hair under, so rounding never spills a page
         }
+        let availW = max(18, availW0 - titleWidth * s), availH = max(18, availH0 - titleHeight * s)
         func bands(_ items: [Int], _ size: (Int) -> Double, _ avail: Double) -> [[Int]] {
             var out: [[Int]] = [[]]
             var used = 0.0
@@ -138,7 +161,14 @@ extension SheetGridState {
     func writePdf(to path: String, title: String) async -> Bool {
         let c = controller
         let ws = c.sheet, book = c.book
-        guard let area = SheetPrintLayout.usedArea(ws, book: book) else { return false }
+        guard let used = SheetPrintLayout.usedArea(ws, book: book) else { return false }
+        let names = SheetPrintLayout.printNames(book, sheet: c.activeSheet)
+        // A print area prints instead of the used one (each of several on
+        // its own pages); a whole-column or whole-row area stops where the
+        // sheet does.
+        let areas = names.areas.isEmpty ? [used] : names.areas.map { a in
+            CellRange(top: a.top, left: a.left, bottom: min(a.bottom, max(a.top, used.bottom)), right: min(a.right, max(a.left, used.right)))
+        }
         await _preloadPictures(ws)
         let setup = SheetPrintSetup.read(ws)
         let savedX = scrollX, savedY = scrollY
@@ -148,8 +178,9 @@ extension SheetGridState {
             scrollX = savedX; scrollY = savedY
         }
         let ca = cols, ra = rows   // in points while printing
-        let (pages, s) = SheetPrintLayout.pages(area: area, setup: setup, width: { ca.size($0) }, height: { ra.size($0) })
-        guard !pages.isEmpty else { return false }
+        let titleRows = names.titleRows.map { Array($0).filter { ra.size($0) > 0 } } ?? []
+        let titleCols = names.titleCols.map { Array($0).filter { ca.size($0) > 0 } } ?? []
+        let titleH = titleRows.reduce(0) { $0 + ra.size($1) }, titleW = titleCols.reduce(0) { $0 + ca.size($1) }
         let size = setup.pageSize
         let colors = _Colors(ink: Color(0xFF000000), paper: Color(0xFFFFFFFF), grid: Color(0xFFBFBFBF), showGrid: setup.gridlines)
         let charts = ws.drawings.map { d -> Chart? in
@@ -157,42 +188,58 @@ extension SheetGridState {
             return nil
         }
         var out: [PdfDocument.Page] = []
-        for page in pages {
-            guard let c0 = page.cols.first, let c1 = page.cols.last, let r0 = page.rows.first, let r1 = page.rows.last else { continue }
-            let bandW = ca.start(c1) + ca.size(c1) - ca.start(c0)
-            let bandH = ra.start(r1) + ra.size(r1) - ra.start(r0)
-            // colX(c0) and rowY(r0) land on the page's origin.
-            scrollX = ca.start(c0)
-            scrollY = ra.start(r0)
-            let view = CellRange(top: r0, left: c0, bottom: r1, right: c1)
-            var covered: Set<CellAddress> = []
-            var merges: [CellRange] = []
-            for m in ws.merges where m.intersects(view) && m.rows * m.cols <= 100_000 {
-                merges.append(m)
-                for rr in m.top ... m.bottom { for cc in m.left ... m.right where !(rr == m.top && cc == m.left) {
-                    covered.insert(CellAddress(row: rr, col: cc))
-                } }
+        for area in areas {
+            let (pages, s) = SheetPrintLayout.pages(area: area, setup: setup, titleWidth: titleW, titleHeight: titleH,
+                                                    width: { ca.size($0) }, height: { ra.size($0) })
+            for page in pages {
+                guard let c0 = page.cols.first, let c1 = page.cols.last, let r0 = page.rows.first, let r1 = page.rows.last else { continue }
+                // Titles repeat on pages that do not already show them.
+                let tRows = titleRows.last.map { r0 > $0 } ?? false ? titleRows : []
+                let tCols = titleCols.last.map { c0 > $0 } ?? false ? titleCols : []
+                let tx = tCols.isEmpty ? 0 : titleW, ty = tRows.isEmpty ? 0 : titleH
+                let bandW = ca.start(c1) + ca.size(c1) - ca.start(c0) + tx
+                let bandH = ra.start(r1) + ra.size(r1) - ra.start(r0) + ty
+                let recorder = NativePictureRecorder()
+                let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
+                var ox = setup.left, oy = setup.top
+                let availW = size.width - setup.left - setup.right, availH = size.height - setup.top - setup.bottom
+                if setup.centerHorizontally { ox += max(0, (availW - bandW * s) / 2) }
+                if setup.centerVertically { oy += max(0, (availH - bandH * s) / 2) }
+                canvas.save()
+                canvas.translate(ox, oy)
+                canvas.scale(s, s)
+                /// One block of rows and columns with its top-left at (x, y).
+                func band(_ rs: [Int], _ cs: [Int], _ x: Double, _ y: Double) {
+                    guard let br0 = rs.first, let br1 = rs.last, let bc0 = cs.first, let bc1 = cs.last else { return }
+                    scrollX = ca.start(bc0) - x
+                    scrollY = ra.start(br0) - y
+                    let clip = Rect.fromLTWH(x, y, ca.start(bc1) + ca.size(bc1) - ca.start(bc0), ra.start(br1) + ra.size(br1) - ra.start(br0))
+                    let view = CellRange(top: br0, left: bc0, bottom: br1, right: bc1)
+                    var covered: Set<CellAddress> = []
+                    var merges: [CellRange] = []
+                    for m in ws.merges where m.intersects(view) && m.rows * m.cols <= 100_000 {
+                        merges.append(m)
+                        for rr in m.top ... m.bottom { for cc in m.left ... m.right where !(rr == m.top && cc == m.left) {
+                            covered.insert(CellAddress(row: rr, col: cc))
+                        } }
+                    }
+                    canvas.save()
+                    canvas.clipRect(clip)
+                    _paintRegion(canvas, rows: rs, cols: cs, clip: clip, ws: ws, book: book, merges: merges, covered: covered, colors: colors)
+                    for (i, d) in ws.drawings.enumerated() {
+                        let r = drawingRect(d.anchor)
+                        guard r.overlaps(clip) else { continue }
+                        _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
+                    }
+                    canvas.restore()
+                }
+                band(tRows, tCols, 0, 0)
+                band(tRows, page.cols, tx, 0)
+                band(page.rows, tCols, 0, ty)
+                band(page.rows, page.cols, tx, ty)
+                canvas.restore()
+                out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
             }
-            let recorder = NativePictureRecorder()
-            let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
-            var ox = setup.left, oy = setup.top
-            let availW = size.width - setup.left - setup.right, availH = size.height - setup.top - setup.bottom
-            if setup.centerHorizontally { ox += max(0, (availW - bandW * s) / 2) }
-            if setup.centerVertically { oy += max(0, (availH - bandH * s) / 2) }
-            canvas.save()
-            canvas.translate(ox, oy)
-            canvas.scale(s, s)
-            let clip = Rect.fromLTWH(0, 0, bandW, bandH)
-            canvas.clipRect(clip)
-            _paintRegion(canvas, rows: page.rows, cols: page.cols, clip: clip, ws: ws, book: book,
-                         merges: merges, covered: covered, colors: colors)
-            for (i, d) in ws.drawings.enumerated() {
-                let r = drawingRect(d.anchor)
-                guard r.overlaps(clip) else { continue }
-                _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
-            }
-            canvas.restore()
-            out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
         }
         return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName())
     }

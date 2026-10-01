@@ -216,9 +216,12 @@ Letter portrait with Normal margins unless the file's kept `pageSetup`,
 is the grid's own region painter in `printing` mode — one pixel per
 point, no headers, panes, editor or dropdowns — so it prints what the
 screen shows, charts and pictures included. Seen: the fixture as three
-Letter pages. Not yet: print areas and titles (`_xlnm.Print_Area`,
-`Print_Titles`), headers and footers, manual page breaks, Page Layout
-view.
+Letter pages. The file's print area (`_xlnm.Print_Area`, several
+areas each on their own pages) prints instead of the used area, and its
+print titles (`_xlnm.Print_Titles`, rows and/or columns) repeat on
+every page that does not already show them, their room kept free on
+each (seen on a copy of privateschools2223.xlsx). Not yet: headers and
+footers, manual page breaks, Page Layout view.
 
 X4 is done but for those.
 
