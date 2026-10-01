@@ -77,6 +77,7 @@ enum Xlsx {
             if let path = ws.origin {
                 (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors)
                 ws.tables = TablesXML.read(sheetPath: path, parts: parts)
+                (ws.notes, ws.noteParts) = NotesXML.read(sheetPath: path, parts: parts)
             }
         }
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
@@ -525,6 +526,7 @@ enum Xlsx {
                 })
             }
         }
+        for ws in book.sheets { generated.merge(NotesXML.write(ws.notes, ws.noteParts, original: originalParts)) { $1 } }
         var extraTypes: [(String, String)] = []
         var droppedDrawings = Set<String>()
         for d in drawingParts {

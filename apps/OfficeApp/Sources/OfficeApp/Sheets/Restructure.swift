@@ -136,6 +136,12 @@ extension WorkbookController {
                                       : CellRange(top: r.top, left: lo, bottom: r.bottom, right: hi)
             if table != ws.tables[t] { table.edited = true; ws.tables[t] = table }
         }
+        // Notes go with their cells; one whose cell was deleted goes too.
+        for n in ws.notes.indices {
+            guard let a = ws.notes[n].at else { continue }
+            let i = axis == .rows ? a.row : a.col
+            ws.notes[n].at = moved(i).map { axis == .rows ? CellAddress(row: $0, col: a.col) : CellAddress(row: a.row, col: $0) }
+        }
         // Kept elements that name cells: conditional formats, validations…
         let sheetName = ws.name.lowercased()
         ws.keptElements = ws.keptElements.compactMap { e in

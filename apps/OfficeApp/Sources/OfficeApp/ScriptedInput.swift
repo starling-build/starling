@@ -16,6 +16,7 @@
 //   click X Y [shift|cmd|ctrl|alt …]
 //   dclick X Y                  a double click
 //   rclick X Y                  a right (secondary) click
+//   hover X Y                   the pointer over a point, no button
 //   drag X1 Y1 X2 Y2
 //   scroll X Y DX DY            a wheel turn
 //   key NAME [mods…]            enter tab escape backspace delete left right
@@ -60,6 +61,18 @@ enum ScriptedInput {
             _pointer(Double(parts[1])!, Double(parts[2])!, .down)
             _pointer(Double(parts[1])!, Double(parts[2])!, .up)
             _modifiers(mods, down: false)
+        case "hover":
+            let dpr = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 2
+            _time += 0.02
+            var packet: [PointerData] = []
+            let t = Duration.microseconds(Int64(_time * 1_000_000))
+            if !_added {
+                packet.append(PointerData(timeStamp: t, change: .add, kind: .mouse, device: 0, physicalX: 0, physicalY: 0))
+                _added = true
+            }
+            packet.append(PointerData(timeStamp: t, change: .hover, kind: .mouse, device: 0,
+                                      physicalX: Double(parts[1])! * dpr, physicalY: Double(parts[2])! * dpr))
+            PlatformDispatcher.instance.onPointerDataPacket?(PointerDataPacket(data: packet))
         case "rclick":
             _pointer(Double(parts[1])!, Double(parts[2])!, .down, buttons: 2)
             _pointer(Double(parts[1])!, Double(parts[2])!, .up)

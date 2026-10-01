@@ -292,6 +292,15 @@ presets, seen for Medium 2, Medium 9 and Light 9), under the cells' own
 formats. Not yet: custom table styles from the file, a table deleted
 with all its rows, structured references (`Table2[Col]`) in formulas.
 
+**Notes (2026-10-01)** (`Sheets/Notes.swift`): a file's notes show as
+Excel's red corner triangle, and on hover as the pale yellow box (its
+own bold "Author:" line, text wrapped). Inserting or deleting rows and
+columns moves each note's `ref` in `commentsN.xml`, its shape's
+`x:Row`/`x:Column` in the VML drawing and a threaded comment's `ref`; a
+note whose cell is deleted is removed from all three. Untouched note
+parts are written byte for byte. Not yet: adding or editing notes,
+threaded-comment replies shown as a thread.
+
 **Fixed 2026-10-01: saves dropped the file's differential formats.**
 `styles.xml` is rebuilt from the model, and the rebuild wrote an empty
 `<dxfs count="0"/>`, so every conditional format, table style and pivot

@@ -136,6 +136,8 @@ final class SheetGridState: State<StatefulWidget> {
     private(set) var edit: CellEdit? = nil
     private var _drag: _Drag? = nil
     private var _lastClick: (cell: CellAddress, at: Double)? = nil
+    /// The noted cell under the pointer: its note shows beside it.
+    private var _hoverNote: CellAddress? = nil
     /// The last press on a header border (column or row, and which), for
     /// double-click autofit.
     private var _lastBorder: (axis: WorkbookController.Axis, index: Int, at: Double)? = nil
@@ -1057,6 +1059,62 @@ final class SheetGridState: State<StatefulWidget> {
         if dx != 0 || dy != 0 { _scroll(by: dx, dy) }
     }
 
+    private func _hover(_ e: PointerEvent) {
+        let p = _local(e)
+        var hit: CellAddress? = nil
+        if p.dx >= headerWidth, p.dy >= headerHeight, !controller.sheet.notes.isEmpty {
+            let a = cell(atLocal: p)
+            if controller.sheet.notes.contains(where: { $0.at == a }) { hit = a }
+        }
+        if hit != _hoverNote { _hoverNote = hit; _repaint.notifyListeners() }
+    }
+
+    /// The hovered cell's note: a pale yellow box to its right, author first.
+    private func _paintNote(_ canvas: any Canvas, ink: Color) {
+        guard let a = _hoverNote, let note = controller.sheet.notes.first(where: { $0.at == a }) else { return }
+        let r = rect(a)
+        let width = 200 * zoom, pad = 6 * zoom
+        let body = GridTextStyle(family: OfficeFonts.substitute("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
+        var head = body
+        head.bold = true
+        // A threaded comment's legacy copy starts with Excel's own banner; show the words.
+        var text = note.text
+        if let range = text.findRange(of: "Comment:\n") ?? text.findRange(of: "Comment:\r\n") {
+            text = String(text[range.upperBound...])
+        }
+        // Excel writes the author into the note itself ("Ada:" then a line
+        // break): that first line is the bold heading, not a second one.
+        var heading = note.author.isEmpty ? nil : note.author + ":"
+        if let h = heading, text.hasPrefix(h) {
+            text = String(text.dropFirst(h.count))
+        } else if !note.author.isEmpty {
+            heading = nil
+            if let nl = text.firstIndex(of: "\n"), text[..<nl].hasSuffix(":") {
+                heading = String(text[..<nl]); text = String(text[text.index(after: nl)...])
+            } else {
+                heading = note.author + ":"
+            }
+        }
+        let author = heading.map { texts.painter($0, head, maxWidth: width - pad * 2) }
+        let tp = texts.painter(text.trimmingWhitespace(), body, maxWidth: width - pad * 2)
+        let height = pad * 2 + (author?.height ?? 0) + tp.height
+        var box = Rect.fromLTWH(r.right + 8 * zoom, r.top, width, height)
+        if box.right > size.width { box = Rect.fromLTWH(max(headerWidth, r.left - 8 * zoom - width), r.top, width, height) }
+        if box.bottom > size.height { box = box.translate(0, size.height - box.bottom) }
+        let p = Paint()
+        p.style = .fill
+        p.color = Color(0xFFFFFFE1)
+        canvas.drawRect(box, p)
+        p.style = .stroke
+        p.strokeWidth = 1
+        p.color = Color(0xFF7F7F7F)
+        canvas.drawRect(box.deflate(0.5), p)
+        canvas.drawLine(Offset(r.right - 1, r.top + 1), Offset(box.left, box.top + 6 * zoom), p)
+        var y = box.top + pad
+        if let author { author.paint(canvas, Offset(box.left + pad, y)); y += author.height }
+        tp.paint(canvas, Offset(box.left + pad, y))
+    }
+
     private func _signal(_ e: PointerSignalEvent) {
         guard let s = e as? PointerScrollEvent else { return }
         // Shift turns the wheel sideways, as everywhere on the desktop.
@@ -1080,6 +1138,7 @@ final class SheetGridState: State<StatefulWidget> {
             onPointerDown: { [weak self] e in self?._down(e) },
             onPointerMove: { [weak self] e in self?._move(e) },
             onPointerUp: { [weak self] e in self?._up(e) },
+            onPointerHover: { [weak self] e in self?._hover(e) },
             onPointerPanZoomUpdate: { [weak self] e in self?._pan(e) },
             onPointerSignal: { [weak self] e in self?._signal(e) },
             behavior: .opaque,
@@ -1206,6 +1265,7 @@ final class SheetGridState: State<StatefulWidget> {
         }
 
         _paintDrawingSelection(canvas, accent: accent)
+        _paintNote(canvas, ink: ink)
         // The freeze lines.
         let freeze = Paint()
         freeze.style = .stroke
@@ -1405,6 +1465,24 @@ final class SheetGridState: State<StatefulWidget> {
                 _paintCell(canvas, a, cell, in: rect(a), spill: true, ws: ws, book: book, ink: colors.ink, cf: cf)
             }
         } }
+        // Notes: a red triangle in the cell's top-right corner.
+        if !ws.notes.isEmpty && !printing {
+            let tri = Paint()
+            tri.style = .fill
+            tri.color = Color(0xFFD00000)
+            let rows = Set(rs), cols = Set(cs)
+            for n in ws.notes {
+                guard let a = n.at, rows.contains(a.row), cols.contains(a.col) else { continue }
+                let r = merges.first { $0.topLeft == a }.map { rect($0) } ?? rect(a)
+                let k = 5 * zoom
+                let path = Path()
+                path.moveTo(r.right - k - 1, r.top)
+                path.lineTo(r.right - 1, r.top)
+                path.lineTo(r.right - 1, r.top + k)
+                path.close()
+                canvas.drawPath(path, tri)
+            }
+        }
         // Merged areas whose top-left is out of this pane still draw their text.
         for m in merges where !(rs.contains(m.top) && cs.contains(m.left)) {
             if let cell = ws.cells[m.topLeft], !cell.value.isEmpty, m.topLeft != editing {

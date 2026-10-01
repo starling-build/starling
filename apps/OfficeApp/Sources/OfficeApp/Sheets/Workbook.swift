@@ -137,6 +137,9 @@ final class Worksheet {
     var drawingsEdited = false
     /// Excel tables on the sheet (their parts are kept; see Tables.swift).
     var tables: [SheetTable] = []
+    /// Notes on cells, and the parts they came from (see Notes.swift).
+    var notes: [SheetNote] = []
+    var noteParts = SheetNoteParts()
     /// Rows the filter hides (kept apart from rowHeights, so each keeps its height).
     var filteredRows: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
     /// Bumped by anything that moves rows or columns on screen, so the grid
@@ -168,6 +171,8 @@ final class Worksheet {
         s.drawingRoot = drawingRoot
         s.drawingsEdited = drawingsEdited
         s.tables = tables
+        s.notes = notes
+        s.noteParts = noteParts
         s.filteredRows = filteredRows
         return s
     }
