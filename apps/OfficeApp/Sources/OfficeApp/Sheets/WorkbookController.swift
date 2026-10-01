@@ -82,15 +82,65 @@ final class WorkbookController: ChangeNotifier {
     func select(_ a: CellAddress, extend: Bool = false) {
         let a = _clamp(a)
         if extend {
-            selection = CellRange(anchor, a)
+            selection = _withMerges(CellRange(anchor, a))
             _extentEnd = a
         } else {
-            active = a
-            anchor = a
-            selection = CellRange(a)
+            // A merged area selects as one cell, its top-left active.
+            let m = sheet.merges.first { $0.contains(a) }
+            active = m?.topLeft ?? a
+            anchor = active
+            selection = m ?? CellRange(a)
             _extentEnd = a
         }
         _notify(selectionOnly: true)
+    }
+
+    /// A range grown until no merged area straddles its edge.
+    private func _withMerges(_ r: CellRange) -> CellRange {
+        var r = r
+        var grew = true
+        while grew {
+            grew = false
+            for m in sheet.merges where m.intersects(r) {
+                let u = r.union(m)
+                if u != r { r = u; grew = true }
+            }
+        }
+        return r
+    }
+
+    // MARK: Merge and freeze
+
+    /// Merge & Center: the selection becomes one cell showing its
+    /// top-left value, centred; selecting a merged area unmerges it.
+    func toggleMerge() {
+        let r = selection
+        if let m = sheet.merges.first(where: { $0 == r }) {
+            structural { sheet.merges.removeAll { $0 == m } }
+            return
+        }
+        guard !r.isSingle, r.rows * r.cols <= 1_000_000 else { return }
+        let others = sheet.cells.keys.filter { r.contains($0) && $0 != r.topLeft && !(sheet.cells[$0]?.value.isEmpty ?? true) }
+        structural {
+            // Excel keeps only the top-left value.
+            for a in others { sheet.cells[a] = nil }
+            sheet.merges.removeAll { $0.intersects(r) }
+            sheet.merges.append(r)
+            var c = sheet.cells[r.topLeft] ?? Cell(input: "")
+            var st = book.style(c.style)
+            st.hAlign = .center
+            c.style = book.styleIndex(st)
+            sheet.cells[r.topLeft] = c
+        }
+        if !others.isEmpty { onCommand?(.status("Merging keeps only the upper-left value")) }
+    }
+
+    /// Freeze the rows above and the columns left of `at` (A1 unfreezes).
+    func freeze(at a: CellAddress) {
+        structural {
+            sheet.freezeRows = a.row
+            sheet.freezeCols = a.col
+        }
     }
 
     /// Select a whole range with `active` inside it (a click on a header,

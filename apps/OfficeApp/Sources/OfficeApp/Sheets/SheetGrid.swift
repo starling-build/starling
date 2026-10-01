@@ -138,6 +138,10 @@ final class SheetGridState: State<StatefulWidget> {
         _painter = _GridPainter(state: self, repaint: _repaint)
         focus.onKeyData = { [weak self] k in self?._key(k) ?? false }
         focus.onFocusChange = { [weak self] _ in self?._chords.reset(); self?._repaint.notifyListeners() }
+        // The sheet in front now: a change of sheet resets the scroll, and the
+        // first notification must not read as one (it reset a scrolled view
+        // under the first click).
+        _lastSheet = controller.activeSheet
         controller.addListener({ [weak self] in self?._modelChanged() }, owner: self)
         focus.requestFocus()
     }
@@ -162,18 +166,48 @@ final class SheetGridState: State<StatefulWidget> {
 
     // MARK: Geometry
 
-    /// A position inside this view (local) as a cell, or nil over headers.
+    /// Frozen rows and columns: they stay put while the rest scrolls.
+    var frozenRows: Int { controller.sheet.freezeRows }
+    var frozenCols: Int { controller.sheet.freezeCols }
+    var frozenWidth: Double { cols.start(frozenCols) }
+    var frozenHeight: Double { rows.start(frozenRows) }
+
+    /// The column under a local x (right of the row headers).
+    func col(atLocal x: Double) -> Int {
+        let ca = cols
+        let fw = ca.start(frozenCols)
+        let dx = max(0, x - headerWidth)
+        let c = dx < fw ? ca.index(at: dx) : ca.index(at: fw + scrollX + (dx - fw))
+        return min(c, CellAddress.maxCols - 1)
+    }
+
+    func row(atLocal y: Double) -> Int {
+        let ra = rows
+        let fh = ra.start(frozenRows)
+        let dy = max(0, y - headerHeight)
+        let r = dy < fh ? ra.index(at: dy) : ra.index(at: fh + scrollY + (dy - fh))
+        return min(r, CellAddress.maxRows - 1)
+    }
+
+    /// A column's left edge in local coordinates (frozen ones never move).
+    func colX(_ c: Int) -> Double {
+        let ca = cols
+        return headerWidth + ca.start(c) - (c >= frozenCols ? scrollX : 0)
+    }
+
+    func rowY(_ r: Int) -> Double {
+        let ra = rows
+        return headerHeight + ra.start(r) - (r >= frozenRows ? scrollY : 0)
+    }
+
+    /// A position inside this view (local) as a cell.
     func cell(atLocal p: Offset) -> CellAddress {
-        let c = cols.index(at: max(0, p.dx - headerWidth + scrollX))
-        let r = rows.index(at: max(0, p.dy - headerHeight + scrollY))
-        return CellAddress(row: min(r, CellAddress.maxRows - 1), col: min(c, CellAddress.maxCols - 1))
+        CellAddress(row: row(atLocal: p.dy), col: col(atLocal: p.dx))
     }
 
     /// A cell's rectangle in local coordinates.
     func rect(_ a: CellAddress) -> Rect {
-        let ca = cols, ra = rows
-        return Rect.fromLTWH(headerWidth + ca.start(a.col) - scrollX, headerHeight + ra.start(a.row) - scrollY,
-                             ca.size(a.col), ra.size(a.row))
+        Rect.fromLTWH(colX(a.col), rowY(a.row), cols.size(a.col), rows.size(a.row))
     }
 
     func rect(_ r: CellRange) -> Rect {
@@ -181,23 +215,29 @@ final class SheetGridState: State<StatefulWidget> {
         return Rect.fromLTRB(a.left, a.top, b.right, b.bottom)
     }
 
-    /// Scroll so the cell is fully in view.
+    /// Scroll so the cell is fully in view (frozen cells always are).
     func reveal(_ a: CellAddress) {
         let ca = cols, ra = rows
-        let viewW = size.width - headerWidth, viewH = size.height - headerHeight
+        let fw = ca.start(frozenCols), fh = ra.start(frozenRows)
+        let viewW = size.width - headerWidth - fw, viewH = size.height - headerHeight - fh
         guard viewW > 0, viewH > 0 else { return }
-        let x0 = ca.start(a.col), x1 = x0 + ca.size(a.col)
-        let y0 = ra.start(a.row), y1 = y0 + ra.size(a.row)
-        if x0 < scrollX { scrollX = x0 } else if x1 > scrollX + viewW { scrollX = min(x0, x1 - viewW) }
-        if y0 < scrollY { scrollY = y0 } else if y1 > scrollY + viewH { scrollY = min(y0, y1 - viewH) }
+        if a.col >= frozenCols {
+            let x0 = ca.start(a.col) - fw, x1 = x0 + ca.size(a.col)
+            if x0 < scrollX { scrollX = x0 } else if x1 > scrollX + viewW { scrollX = min(x0, x1 - viewW) }
+        }
+        if a.row >= frozenRows {
+            let y0 = ra.start(a.row) - fh, y1 = y0 + ra.size(a.row)
+            if y0 < scrollY { scrollY = y0 } else if y1 > scrollY + viewH { scrollY = min(y0, y1 - viewH) }
+        }
         _repaint.notifyListeners()
     }
 
     private func _scroll(by dx: Double, _ dy: Double) {
+        let ca = cols, ra = rows
         scrollX = max(0, scrollX + dx)
         scrollY = max(0, scrollY + dy)
-        let maxX = cols.start(CellAddress.maxCols) - (size.width - headerWidth)
-        let maxY = rows.start(CellAddress.maxRows) - (size.height - headerHeight)
+        let maxX = ca.start(CellAddress.maxCols) - ca.start(frozenCols) - (size.width - headerWidth - ca.start(frozenCols))
+        let maxY = ra.start(CellAddress.maxRows) - ra.start(frozenRows) - (size.height - headerHeight - ra.start(frozenRows))
         scrollX = min(scrollX, max(0, maxX))
         scrollY = min(scrollY, max(0, maxY))
         _repaint.notifyListeners()
@@ -499,11 +539,10 @@ final class SheetGridState: State<StatefulWidget> {
         let c = controller
         // Column header: select columns, or resize at a border.
         if p.dy < headerHeight && p.dx >= headerWidth {
-            let x = p.dx - headerWidth + scrollX
-            let col = cols.index(at: x)
-            let edgeLeft = cols.start(col), edgeRight = edgeLeft + cols.size(col)
-            if abs(x - edgeRight) <= 4 || (col > 0 && abs(x - edgeLeft) <= 4) {
-                let target = abs(x - edgeRight) <= 4 ? col : col - 1
+            let col = self.col(atLocal: p.dx)
+            let edgeLeft = colX(col), edgeRight = edgeLeft + cols.size(col)
+            if abs(p.dx - edgeRight) <= 4 || (col > 0 && abs(p.dx - edgeLeft) <= 4) {
+                let target = abs(p.dx - edgeRight) <= 4 ? col : col - 1
                 commitEdit()
                 _drag = .resizeColumn(col: target, startX: p.dx, startWidth: cols.size(target))
                 return
@@ -515,10 +554,9 @@ final class SheetGridState: State<StatefulWidget> {
             return
         }
         if p.dx < headerWidth && p.dy >= headerHeight {
-            let y = p.dy - headerHeight + scrollY
-            let row = rows.index(at: y)
-            let edgeBottom = rows.start(row) + rows.size(row)
-            if abs(y - edgeBottom) <= 3 {
+            let row = self.row(atLocal: p.dy)
+            let edgeBottom = rowY(row) + rows.size(row)
+            if abs(p.dy - edgeBottom) <= 3 {
                 commitEdit()
                 _drag = .resizeRow(row: row, startY: p.dy, startHeight: rows.size(row))
                 return
@@ -583,11 +621,11 @@ final class SheetGridState: State<StatefulWidget> {
             let a = cell(atLocal: p)
             if a != c._extentEnd { c.select(a, extend: true); _autoScroll(p) }
         case .columns(let anchor):
-            let col = cols.index(at: max(0, p.dx - headerWidth + scrollX))
+            let col = self.col(atLocal: p.dx)
             c.select(range: CellRange(top: 0, left: anchor, bottom: CellAddress.maxRows - 1, right: col),
                      active: c.active)
         case .rows(let anchor):
-            let row = rows.index(at: max(0, p.dy - headerHeight + scrollY))
+            let row = self.row(atLocal: p.dy)
             c.select(range: CellRange(top: anchor, left: 0, bottom: row, right: CellAddress.maxCols - 1),
                      active: c.active)
         case .resizeColumn(let col, let startX, let startWidth):
@@ -703,112 +741,70 @@ final class SheetGridState: State<StatefulWidget> {
         let accent = fluent?.accentColor.defaultBrushFor(fluent?.brightness ?? .light) ?? Color(0xFF217346)
         let ca = cols, ra = rows
         let hw = headerWidth, hh = headerHeight
+        let fc = frozenCols, fr = frozenRows
+        let fw = ca.start(fc), fh = ra.start(fr)
+        let colors = _Colors(ink: ink, paper: paper, grid: gridColor, showGrid: ws.showGridlines)
 
         let p = Paint()
         p.style = .fill
         p.color = paper
         canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), p)
 
-        // The visible window.
-        let firstCol = ca.index(at: scrollX), firstRow = ra.index(at: scrollY)
-        var lastCol = firstCol, lastRow = firstRow
-        while lastCol < CellAddress.maxCols - 1, hw + ca.start(lastCol + 1) - scrollX < size.width { lastCol += 1 }
-        while lastRow < CellAddress.maxRows - 1, hh + ra.start(lastRow + 1) - scrollY < size.height { lastRow += 1 }
-        _lastVisibleRow = lastRow
-        let x0 = hw + ca.start(firstCol) - scrollX, y0 = hh + ra.start(firstRow) - scrollY
-        var xs: [Double] = [], ys: [Double] = []
-        var x = x0
-        for col in firstCol ... lastCol { xs.append(x); x += ca.size(col) }
-        xs.append(x)
-        var y = y0
-        for row in firstRow ... lastRow { ys.append(y); y += ra.size(row) }
-        ys.append(y)
+        // What is in view: the frozen rows/columns, then the scrolled ones.
+        var frozenC: [Int] = [], scrolledC: [Int] = []
+        for col in 0 ..< fc where colX(col) < size.width { frozenC.append(col) }
+        var col = ca.index(at: fw + scrollX)
+        while col < CellAddress.maxCols, colX(col) < size.width { if ca.size(col) > 0 { scrolledC.append(col) }; col += 1 }
+        var frozenR: [Int] = [], scrolledR: [Int] = []
+        for row in 0 ..< fr where rowY(row) < size.height { frozenR.append(row) }
+        var row = ra.index(at: fh + scrollY)
+        while row < CellAddress.maxRows, rowY(row) < size.height { if ra.size(row) > 0 { scrolledR.append(row) }; row += 1 }
+        _lastVisibleRow = scrolledR.last ?? frozenR.last ?? 0
+        let allC = frozenC + scrolledC, allR = frozenR + scrolledR
+
+        // Merged areas in view: the top-left cell draws over the whole.
+        var covered: Set<CellAddress> = []
+        var merges: [CellRange] = []
+        if let r0 = allR.first, let r1 = allR.max(), let c0 = allC.first, let c1 = allC.max() {
+            let view = CellRange(top: r0, left: c0, bottom: r1, right: c1)
+            for m in ws.merges where m.intersects(view) && m.rows * m.cols <= 100_000 {
+                merges.append(m)
+                for rr in m.top ... m.bottom { for cc in m.left ... m.right where !(rr == m.top && cc == m.left) {
+                    covered.insert(CellAddress(row: rr, col: cc))
+                } }
+            }
+        }
+
+        let regions: [([Int], [Int], Rect)] = [
+            (scrolledR, scrolledC, Rect.fromLTRB(hw + fw, hh + fh, size.width, size.height)),
+            (frozenR, scrolledC, Rect.fromLTRB(hw + fw, hh, size.width, hh + fh)),
+            (scrolledR, frozenC, Rect.fromLTRB(hw, hh + fh, hw + fw, size.height)),
+            (frozenR, frozenC, Rect.fromLTRB(hw, hh, hw + fw, hh + fh)),
+        ]
+        for (rs, cs, clip) in regions where !rs.isEmpty && !cs.isEmpty && clip.width > 0 && clip.height > 0 {
+            canvas.save()
+            canvas.clipRect(clip)
+            _paintRegion(canvas, rows: rs, cols: cs, clip: clip, ws: ws, book: book, merges: merges, covered: covered, colors: colors)
+            canvas.restore()
+        }
 
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(hw, hh, size.width, size.height))
-
-        // The styled cells in view: looked up by position, so a sheet of a
-        // hundred thousand cells costs what is on screen, not what is in it.
-        var styled: [(CellAddress, CellStyle)] = []
-        for row in firstRow ... lastRow {
-            for col in firstCol ... lastCol {
-                let a = CellAddress(row: row, col: col)
-                if let cell = ws.cells[a], cell.style != 0 { styled.append((a, book.style(cell.style))) }
-            }
-        }
-        // Fills.
-        for (a, st) in styled {
-            if let f = st.fill {
-                p.color = Color(Int64(0xFF00_0000) | Int64(f))
-                canvas.drawRect(Rect.fromLTRB(xs[a.col - firstCol], ys[a.row - firstRow], xs[a.col - firstCol + 1], ys[a.row - firstRow + 1]), p)
-            }
-        }
-
-        // Gridlines.
-        let line = Paint()
-        line.style = .stroke
-        line.strokeWidth = 1
-        line.color = gridColor
-        for gx in xs { canvas.drawLine(Offset(gx.rounded() - 0.5, hh), Offset(gx.rounded() - 0.5, size.height), line) }
-        for gy in ys { canvas.drawLine(Offset(hw, gy.rounded() - 0.5), Offset(size.width, gy.rounded() - 0.5), line) }
-
-        // Values, with text spilling into empty neighbours as Excel does.
-        let editing = edit?.cell
-        for row in firstRow ... lastRow {
-            for col in firstCol ... lastCol {
-                let a = CellAddress(row: row, col: col)
-                guard a != editing, let cell = ws.cells[a], !cell.value.isEmpty else { continue }
-                _paintCell(canvas, a, cell, ws: ws, book: book, xs: xs, ys: ys, firstCol: firstCol, firstRow: firstRow,
-                           lastCol: lastCol, ink: ink)
-            }
-        }
-        // A long text left of the window still spills into it.
-        if firstCol > 0 {
-            for row in firstRow ... lastRow {
-                var col = firstCol - 1
-                while col >= max(0, firstCol - 8) {
-                    let a = CellAddress(row: row, col: col)
-                    if let cell = ws.cells[a], !cell.value.isEmpty {
-                        if cell.value.isText {
-                            _paintCell(canvas, a, cell, ws: ws, book: book, xs: xs, ys: ys, firstCol: firstCol, firstRow: firstRow,
-                                       lastCol: lastCol, ink: ink)
-                        }
-                        break
-                    }
-                    col -= 1
-                }
-            }
-        }
-
-        // Borders.
-        let border = Paint()
-        border.style = .stroke
-        border.strokeWidth = 1
-        border.color = ink
-        for (a, st) in styled {
-            let b = st.borders
-            guard b.top || b.left || b.bottom || b.right else { continue }
-            let l = xs[a.col - firstCol].rounded() - 0.5, r = xs[a.col - firstCol + 1].rounded() - 0.5
-            let t = ys[a.row - firstRow].rounded() - 0.5, bt = ys[a.row - firstRow + 1].rounded() - 0.5
-            if b.top { canvas.drawLine(Offset(l, t), Offset(r, t), border) }
-            if b.bottom { canvas.drawLine(Offset(l, bt), Offset(r, bt), border) }
-            if b.left { canvas.drawLine(Offset(l, t), Offset(l, bt), border) }
-            if b.right { canvas.drawLine(Offset(r, t), Offset(r, bt), border) }
-        }
-
         // Selection.
         let sel = c.selection
-        if sel.right >= firstCol, sel.left <= lastCol, sel.bottom >= firstRow, sel.top <= lastRow {
+        let editing = edit?.cell
+        do {
             let r = rect(sel)
-            if !sel.isSingle {
+            // A merged area is one cell: no tint for it alone.
+            if !sel.isSingle && !ws.merges.contains(sel) {
                 p.color = accent.withAlpha(36)
                 canvas.drawRect(r, p)
-                // The active cell stays white inside the tint.
-                p.color = paper
-                canvas.drawRect(rect(c.active).deflate(1), p)
+                // The active cell keeps its own background inside the tint.
+                let act = merges.first { $0.contains(c.active) }.map { rect($0) } ?? rect(c.active)
+                p.color = book.style(ws.cells[c.active]?.style ?? 0).fill.map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? paper
+                canvas.drawRect(act.deflate(1), p)
                 if let cell = ws.cells[c.active], !cell.value.isEmpty, c.active != editing {
-                    _paintCell(canvas, c.active, cell, ws: ws, book: book, xs: xs, ys: ys, firstCol: firstCol, firstRow: firstRow,
-                               lastCol: lastCol, ink: ink)
+                    _paintCell(canvas, c.active, cell, in: act, spill: false, ws: ws, book: book, ink: ink)
                 }
             }
             let frame = Paint()
@@ -823,8 +819,7 @@ final class SheetGridState: State<StatefulWidget> {
             canvas.drawRect(Rect.fromLTWH(r.right.rounded() - 5, r.bottom.rounded() - 5, 1, 7), p)
             canvas.drawRect(Rect.fromLTWH(r.right.rounded() - 5, r.bottom.rounded() - 5, 7, 1), p)
         }
-
-        // The fill handle's target, dashed as Excel's is (drawn as a thin outline).
+        // The fill handle's target.
         if let t = fillTarget {
             let outline = Paint()
             outline.style = .stroke
@@ -833,6 +828,13 @@ final class SheetGridState: State<StatefulWidget> {
             let r = rect(t)
             canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), outline)
         }
+        // The freeze lines.
+        let freeze = Paint()
+        freeze.style = .stroke
+        freeze.strokeWidth = 1
+        freeze.color = dark ? Color(0xFF8A8A8A) : Color(0xFF9E9E9E)
+        if fc > 0 { canvas.drawLine(Offset((hw + fw).rounded() - 0.5, hh), Offset((hw + fw).rounded() - 0.5, size.height), freeze) }
+        if fr > 0 { canvas.drawLine(Offset(hw, (hh + fh).rounded() - 0.5), Offset(size.width, (hh + fh).rounded() - 0.5), freeze) }
         // The editor.
         if let e = edit {
             _paintEditor(canvas, e, ink: ink, paper: paper, accent: accent, size: size)
@@ -840,6 +842,10 @@ final class SheetGridState: State<StatefulWidget> {
         canvas.restore()
 
         // Headers.
+        let line = Paint()
+        line.style = .stroke
+        line.strokeWidth = 1
+        line.color = gridColor
         p.color = headerFill
         canvas.drawRect(Rect.fromLTWH(0, 0, size.width, hh), p)
         canvas.drawRect(Rect.fromLTWH(0, 0, hw, size.height), p)
@@ -849,36 +855,40 @@ final class SheetGridState: State<StatefulWidget> {
         let wholeRows = sel.left == 0 && sel.right == CellAddress.maxCols - 1
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(hw, 0, size.width, hh))
-        for (i, col) in (firstCol ... lastCol).enumerated() {
+        for col in allC {
+            let x0 = colX(col), x1 = x0 + ca.size(col)
+            if fc > 0 && col >= fc && x0 < hw + fw { continue }
             let on = col >= sel.left && col <= sel.right
             if on {
                 p.color = wholeCols ? accent.withAlpha(60) : (dark ? Color(0xFF3A3A3A) : Color(0xFFE0E0E0))
-                canvas.drawRect(Rect.fromLTRB(xs[i], 0, xs[i + 1], hh), p)
+                canvas.drawRect(Rect.fromLTRB(x0, 0, x1, hh), p)
                 p.color = accent
-                canvas.drawRect(Rect.fromLTRB(xs[i], hh - 2, xs[i + 1], hh), p)
+                canvas.drawRect(Rect.fromLTRB(x0, hh - 2, x1, hh), p)
             }
             let tp = texts.painter(CellAddress.columnName(col), on ? headStrong : headStyle)
-            if xs[i + 1] - xs[i] > tp.width + 2 {
-                tp.paint(canvas, Offset(((xs[i] + xs[i + 1]) / 2 - tp.width / 2).rounded(), ((hh - tp.height) / 2).rounded()))
+            if x1 - x0 > tp.width + 2 {
+                tp.paint(canvas, Offset(((x0 + x1) / 2 - tp.width / 2).rounded(), ((hh - tp.height) / 2).rounded()))
             }
-            canvas.drawLine(Offset(xs[i + 1].rounded() - 0.5, 0), Offset(xs[i + 1].rounded() - 0.5, hh), line)
+            canvas.drawLine(Offset(x1.rounded() - 0.5, 0), Offset(x1.rounded() - 0.5, hh), line)
         }
         canvas.restore()
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(0, hh, hw, size.height))
-        for (i, row) in (firstRow ... lastRow).enumerated() {
+        for row in allR {
+            let y0 = rowY(row), y1 = y0 + ra.size(row)
+            if fr > 0 && row >= fr && y0 < hh + fh { continue }
             let on = row >= sel.top && row <= sel.bottom
             if on {
                 p.color = wholeRows ? accent.withAlpha(60) : (dark ? Color(0xFF3A3A3A) : Color(0xFFE0E0E0))
-                canvas.drawRect(Rect.fromLTRB(0, ys[i], hw, ys[i + 1]), p)
+                canvas.drawRect(Rect.fromLTRB(0, y0, hw, y1), p)
                 p.color = accent
-                canvas.drawRect(Rect.fromLTRB(hw - 2, ys[i], hw, ys[i + 1]), p)
+                canvas.drawRect(Rect.fromLTRB(hw - 2, y0, hw, y1), p)
             }
             let tp = texts.painter(String(row + 1), on ? headStrong : headStyle)
-            if ys[i + 1] - ys[i] > tp.height - 2 {
-                tp.paint(canvas, Offset((hw - 6 - tp.width).rounded(), ((ys[i] + ys[i + 1]) / 2 - tp.height / 2).rounded()))
+            if y1 - y0 > tp.height - 2 {
+                tp.paint(canvas, Offset((hw - 6 - tp.width).rounded(), ((y0 + y1) / 2 - tp.height / 2).rounded()))
             }
-            canvas.drawLine(Offset(0, ys[i + 1].rounded() - 0.5), Offset(hw, ys[i + 1].rounded() - 0.5), line)
+            canvas.drawLine(Offset(0, y1.rounded() - 0.5), Offset(hw, y1.rounded() - 0.5), line)
         }
         canvas.restore()
         line.color = dark ? Color(0xFF4A4A4A) : Color(0xFFC8C8C8)
@@ -892,6 +902,102 @@ final class SheetGridState: State<StatefulWidget> {
         path.lineTo(hw - 14 * _w.zoom, hh - 4)
         path.close()
         canvas.drawPath(path, p)
+    }
+
+    private struct _Colors {
+        let ink: Color, paper: Color, grid: Color
+        let showGrid: Bool
+    }
+
+    /// One pane of the grid: the given rows and columns, already clipped.
+    private func _paintRegion(_ canvas: any Canvas, rows rs: [Int], cols cs: [Int], clip: Rect,
+                              ws: Worksheet, book: Workbook, merges: [CellRange], covered: Set<CellAddress>, colors: _Colors) {
+        let ca = cols, ra = rows
+        let p = Paint()
+        p.style = .fill
+        let editing = edit?.cell
+        // Styled cells, looked up by position: what is on screen, not what is in the sheet.
+        var styled: [(CellAddress, CellStyle)] = []
+        for row in rs { for col in cs {
+            let a = CellAddress(row: row, col: col)
+            if let cell = ws.cells[a], cell.style != 0 { styled.append((a, book.style(cell.style))) }
+        } }
+        for (a, st) in styled where !covered.contains(a) {
+            if let f = st.fill {
+                p.color = Color(Int64(0xFF00_0000) | Int64(f))
+                let m = merges.first { $0.topLeft == a }
+                canvas.drawRect(m.map { rect($0) } ?? rect(a), p)
+            }
+        }
+        // Gridlines, then merged areas painted over the lines inside them.
+        if colors.showGrid {
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1
+            line.color = colors.grid
+            for col in cs {
+                let x = (colX(col) + ca.size(col)).rounded() - 0.5
+                canvas.drawLine(Offset(x, clip.top), Offset(x, clip.bottom), line)
+            }
+            for row in rs {
+                let y = (rowY(row) + ra.size(row)).rounded() - 0.5
+                canvas.drawLine(Offset(clip.left, y), Offset(clip.right, y), line)
+            }
+        }
+        for m in merges {
+            let r = rect(m)
+            let st = book.style(ws.cells[m.topLeft]?.style ?? 0)
+            p.color = st.fill.map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.paper
+            canvas.drawRect(Rect.fromLTRB(r.left + 0.5, r.top + 0.5, r.right - 1, r.bottom - 1), p)
+        }
+        // Values.
+        for row in rs { for col in cs {
+            let a = CellAddress(row: row, col: col)
+            guard a != editing, !covered.contains(a), let cell = ws.cells[a], !cell.value.isEmpty else { continue }
+            if let m = merges.first(where: { $0.topLeft == a }) {
+                _paintCell(canvas, a, cell, in: rect(m), spill: false, ws: ws, book: book, ink: colors.ink)
+            } else {
+                _paintCell(canvas, a, cell, in: rect(a), spill: true, ws: ws, book: book, ink: colors.ink)
+            }
+        } }
+        // Merged areas whose top-left is out of this pane still draw their text.
+        for m in merges where !(rs.contains(m.top) && cs.contains(m.left)) {
+            if let cell = ws.cells[m.topLeft], !cell.value.isEmpty, m.topLeft != editing {
+                _paintCell(canvas, m.topLeft, cell, in: rect(m), spill: false, ws: ws, book: book, ink: colors.ink)
+            }
+        }
+        // A long text left of the pane still spills into it.
+        if let first = cs.first, first > 0 {
+            for row in rs {
+                var col = first - 1
+                while col >= max(0, first - 8) {
+                    let a = CellAddress(row: row, col: col)
+                    if let cell = ws.cells[a], !cell.value.isEmpty {
+                        if cell.value.isText && !covered.contains(a) {
+                            _paintCell(canvas, a, cell, in: rect(a), spill: true, ws: ws, book: book, ink: colors.ink)
+                        }
+                        break
+                    }
+                    col -= 1
+                }
+            }
+        }
+        // Borders.
+        let border = Paint()
+        border.style = .stroke
+        border.strokeWidth = 1
+        border.color = colors.ink
+        for (a, st) in styled {
+            let b = st.borders
+            guard b.top || b.left || b.bottom || b.right else { continue }
+            let r = rect(a)
+            let l = r.left.rounded() - 0.5, rr = r.right.rounded() - 0.5
+            let t = r.top.rounded() - 0.5, bt = r.bottom.rounded() - 0.5
+            if b.top { canvas.drawLine(Offset(l, t), Offset(rr, t), border) }
+            if b.bottom { canvas.drawLine(Offset(l, bt), Offset(rr, bt), border) }
+            if b.left { canvas.drawLine(Offset(l, t), Offset(l, bt), border) }
+            if b.right { canvas.drawLine(Offset(rr, t), Offset(rr, bt), border) }
+        }
     }
 
     /// Excel lays cells out with hinted, whole-pixel glyphs: a Calibri 11
@@ -910,18 +1016,11 @@ final class SheetGridState: State<StatefulWidget> {
                              underline: st.underline, strike: st.strike, color: c)
     }
 
-    private func _paintCell(_ canvas: any Canvas, _ a: CellAddress, _ cell: Cell, ws: Worksheet, book: Workbook,
-                            xs: [Double], ys: [Double], firstCol: Int, firstRow: Int, lastCol: Int, ink: Color) {
+    private func _paintCell(_ canvas: any Canvas, _ a: CellAddress, _ cell: Cell, in r: Rect, spill: Bool,
+                            ws: Worksheet, book: Workbook, ink: Color) {
         let st = book.style(cell.style)
         let ca = cols
-        let ri = a.row - firstRow
-        let left: Double, right: Double
-        if a.col >= firstCol {
-            left = xs[a.col - firstCol]; right = xs[a.col - firstCol + 1]
-        } else {
-            left = headerWidth + ca.start(a.col) - scrollX; right = left + ca.size(a.col)
-        }
-        let top = ys[ri], bottom = ys[ri + 1]
+        let left = r.left, right = r.right, top = r.top, bottom = r.bottom
         let width = right - left
         guard width > 2 else { return }
         let chars = max(1, Int(width / (7 * _w.zoom)))
@@ -936,7 +1035,9 @@ final class SheetGridState: State<StatefulWidget> {
             }
         }
         let pad = 2 * _w.zoom   // Excel's cell margin
-        var tp = texts.painter(text, style)
+        // Wrapped text: lines within the cell's width, never spilling.
+        let wraps = st.wrap && cell.value.isText
+        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2) : .infinity)
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))
@@ -946,11 +1047,11 @@ final class SheetGridState: State<StatefulWidget> {
         }
         // Text spills over empty neighbours.
         var clipLeft = left, clipRight = right
-        if cell.value.isText && tp.width > width - pad * 2 && !st.wrap {
+        if spill && cell.value.isText && tp.width > width - pad * 2 && !wraps {
             if align == .left || align == .general {
                 var col = a.col + 1
-                while col <= lastCol + 8, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
-                      clipRight - left < tp.width + pad * 2 {
+                while col < CellAddress.maxCols, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
+                      clipRight - left < tp.width + pad * 2, col <= a.col + 30 {
                     clipRight += ca.size(col); col += 1
                 }
             } else if align == .right {
@@ -1055,11 +1156,12 @@ final class _TextCache {
     private struct Key: Hashable {
         let text: String
         let style: GridTextStyle
+        let width: Int   // the wrap width in whole pixels; -1 for none
     }
     private var _cache: [Key: TextPainter] = [:]
 
     func painter(_ text: String, _ style: GridTextStyle, maxWidth: Double = .infinity) -> TextPainter {
-        let k = Key(text: text, style: style)
+        let k = Key(text: text, style: style, width: maxWidth.isFinite ? Int(maxWidth) : -1)
         if let tp = _cache[k] { return tp }
         if _cache.count > 4000 { clear() }
         let tp = TextPainter(text: TextSpan(text: text, style: style.flutter), textDirection: .ltr)

@@ -18,6 +18,7 @@ enum SheetCommand {
     case startFormula(String)      // "=SUM(" into the editor, the selection's range filled in
     case zoom(Double)
     case toggleGridlines
+    case status(String)
 }
 
 extension Ribbon {
@@ -104,6 +105,7 @@ extension Ribbon {
             Chrome.vgap(4),
             Chrome.row([
                 Chrome.textToggle("Wrap Text", st.wrap, fluent, style: fluent.typography.caption) { wb.setStyle { $0.wrap.toggle() } },
+                Chrome.textToggle("Merge & Center", wb.sheet.merges.contains(wb.selection), fluent, style: fluent.typography.caption) { wb.toggleMerge() },
                 Chrome.menu(Text("Vertical", style: fluent.typography.caption), nil, fluent, [
                     ("Top", { wb.setStyle { $0.vAlign = .top } }),
                     ("Middle", { wb.setStyle { $0.vAlign = .center } }),
@@ -147,15 +149,20 @@ extension Ribbon {
                 MenuFlyoutItem(text: Text("Delete Sheet Columns"), onPressed: { wb.deleteAtSelection(.cols) }),
                 MenuFlyoutItem(text: Text("Delete Sheet"), onPressed: wb.book.sheets.count > 1 ? { wb.deleteSheet(wb.activeSheet) } : nil),
             ]),
-            Chrome.menuButton(FluentSystemIcons.grid, "Fill", "Fill", fluent, items: [
-                MenuFlyoutItem(text: Text("Down (⌘D)"), onPressed: { wb.fillDown() }),
-                MenuFlyoutItem(text: Text("Right (⌘R)"), onPressed: { wb.fillRight() }),
-            ]),
         ])])
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },
-            Chrome.small(FluentSystemIcons.textClearFormatting, "Clear Formats", fluent) { wb.setStyle { $0 = .plain } },
-            Chrome.small(FluentSystemIcons.delete, "Clear Contents", fluent) { wb.clearContents() },
+            Chrome.menu(Text("Fill", style: fluent.typography.caption), Icon(FluentSystemIcons.grid, size: Chrome.iconSize,
+                        color: fluent.resources.textFillColorPrimary), fluent, [
+                ("Down (⌘D)", { wb.fillDown() }),
+                ("Right (⌘R)", { wb.fillRight() }),
+            ]),
+            Chrome.menu(Text("Clear", style: fluent.typography.caption), Icon(FluentSystemIcons.textClearFormatting, size: Chrome.iconSize,
+                        color: fluent.resources.textFillColorPrimary), fluent, [
+                ("Clear All", { wb.clearContents(); wb.setStyle { $0 = .plain } }),
+                ("Clear Formats", { wb.setStyle { $0 = .plain } }),
+                ("Clear Contents", { wb.clearContents() }),
+            ]),
         ])])
         return [clipboard, font, alignment, number, cells, editing]
     }
@@ -242,7 +249,18 @@ extension Ribbon {
     }
 
     private func _sheetsZoomGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
-        Chrome.group("Zoom", fluent, [
+        let frozen = wb.sheet.freezeRows > 0 || wb.sheet.freezeCols > 0
+        return Chrome.group("Window", fluent, [
+            Chrome.menuButton(FluentSystemIcons.grid, "Freeze Panes", "Keep rows and columns in view", fluent, items: [
+                MenuFlyoutItem(text: Text(frozen ? "Unfreeze Panes" : "Freeze Panes"), onPressed: {
+                    wb.freeze(at: frozen ? CellAddress(row: 0, col: 0) : wb.active)
+                }),
+                MenuFlyoutItem(text: Text("Freeze Top Row"), onPressed: { wb.freeze(at: CellAddress(row: 1, col: 0)) }),
+                MenuFlyoutItem(text: Text("Freeze First Column"), onPressed: { wb.freeze(at: CellAddress(row: 0, col: 1)) }),
+            ]),
+            Chrome.textToggle("Gridlines", wb.sheet.showGridlines, fluent, style: fluent.typography.caption) {
+                wb.structural { wb.sheet.showGridlines.toggle() }
+            },
             Chrome.big(FluentSystemIcons.zoomIn, "Zoom In", fluent) { wb.onCommand?(.zoom(1.1)) },
             Chrome.big(FluentSystemIcons.zoomOut, "Zoom Out", fluent) { wb.onCommand?(.zoom(1 / 1.1)) },
             Chrome.big(FluentSystemIcons.grid, "100%", fluent) { wb.onCommand?(.zoom(0)) },

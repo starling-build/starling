@@ -1,0 +1,11 @@
+shot ${OUT}/01-open.png
+scroll 600 500 0 900
+wait 300
+shot ${OUT}/02-scrolled-down.png
+scroll 600 500 400 0
+wait 300
+shot ${OUT}/03-scrolled-right.png
+click 200 270
+wait 200
+shot ${OUT}/04-click-merge.png
+quit

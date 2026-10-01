@@ -16,6 +16,7 @@
 //   click X Y [shift|cmd|ctrl|alt …]
 //   dclick X Y                  a double click
 //   drag X1 Y1 X2 Y2
+//   scroll X Y DX DY            a wheel turn
 //   key NAME [mods…]            enter tab escape backspace delete left right
 //                               up down home end pageup pagedown f2 f4
 //   type TEXT                   the rest of the line, one key per character
@@ -88,6 +89,15 @@ enum ScriptedInput {
             let ch = parts[2].lowercased().unicodeScalars.first!.value
             _key(Int64(ch), character: parts[2])
             _modifiers(mods, down: false)
+        case "scroll":
+            // A wheel turn at (X, Y) by (DX, DY) logical points.
+            let dpr = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 2
+            let x = Double(parts[1])! * dpr, y = Double(parts[2])! * dpr
+            let t = Duration.microseconds(Int64(_time * 1_000_000))
+            PlatformDispatcher.instance.onPointerDataPacket?(PointerDataPacket(data: [
+                PointerData(timeStamp: t, change: .hover, kind: .mouse, signalKind: .scroll, device: 0, physicalX: x, physicalY: y,
+                            scrollDeltaX: Double(parts[3])! * dpr, scrollDeltaY: Double(parts[4])! * dpr),
+            ]))
         case "shot":
             // ${OUT} is the directory the runner passes (OFFICE_SCRIPT_OUT).
             let out = ProcessInfo.processInfo.environment["OFFICE_SCRIPT_OUT"] ?? NSTemporaryDirectory()

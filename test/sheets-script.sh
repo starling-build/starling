@@ -5,6 +5,7 @@
 # framework, and the window stays behind everything.
 #
 #   test/sheets-script.sh test/scripts/sheets-editing.txt [OUTDIR]
+#   OFFICE_FILE=book.xlsx test/sheets-script.sh script.txt   # start on a file
 #
 # OFFICE_APP picks the binary. Prints OUTDIR; read the pictures.
 set -euo pipefail
@@ -13,7 +14,7 @@ APP="${OFFICE_APP:-$ROOT/apps/OfficeApp/.build/debug/OfficeApp}"
 SCRIPT="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
 OUT="${2:-$(mktemp -d)}"
 mkdir -p "$OUT"
-OFFICE_SCRIPT="$SCRIPT" OFFICE_SCRIPT_OUT="$OUT" STARLING_WINDOW_BACKGROUND=1 "$APP" --sheets >"$OUT/log.txt" 2>&1 &
+OFFICE_SCRIPT="$SCRIPT" OFFICE_SCRIPT_OUT="$OUT" STARLING_WINDOW_BACKGROUND=1 "$APP" ${OFFICE_FILE:---sheets} >"$OUT/log.txt" 2>&1 &
 PID=$!
 for _ in $(seq 1 120); do kill -0 "$PID" 2>/dev/null || break; sleep 1; done
 kill "$PID" 2>/dev/null || true
