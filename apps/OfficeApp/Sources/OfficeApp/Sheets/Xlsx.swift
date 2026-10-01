@@ -511,12 +511,29 @@ enum Xlsx {
                                             sheetRels: &rels, relsChanged: &changed))
             if changed { sheetRelParts[_relsPath(paths[i])] = Data(_relsXML(rels).utf8) }
         }
+        // Excel 365 marks a dynamic-array formula with cell metadata (cm=…)
+        // pointing at an XLDAPR entry in xl/metadata.xml: the file's own
+        // entry when it has one, else a part made for it.
+        let hasDynamic = book.sheets.contains { $0.cells.values.contains { $0.dynamic && $0.formula != nil && ($0.spillRange != nil || $0.arrayRef != nil) } }
+        let originalWorkbookRels = _relList(originalParts["xl/_rels/workbook.xml.rels"])
+        let metadataPath = originalWorkbookRels.first { $0.type.hasSuffix("/sheetMetadata") }.map { _resolve($0.target, base: "xl/") }
+        var dynamicCm: Int? = nil
+        var newMetadata = false
+        if hasDynamic {
+            if let path = metadataPath {
+                dynamicCm = originalParts[path].flatMap(_dynamicArrayCm)
+            } else {
+                dynamicCm = 1
+                newMetadata = true
+            }
+        }
         var sheetXML: [String] = []
         for (i, ws) in book.sheets.enumerated() {
             var extra: [String: String] = [:]
             if let e = drawingParts[i].element { extra["drawing"] = e }
             if let e = noteParts[i].element { extra["legacyDrawing"] = e }
-            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab, extra: extra, stringIndex: stringIndex))
+            sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab, extra: extra, dynamicCm: dynamicCm,
+                                      stringIndex: stringIndex))
         }
 
         // The workbook part and its relationships.
@@ -536,6 +553,9 @@ enum Xlsx {
                 sheetIds.append(id)
             }
         }
+        if newMetadata {
+            rels.append((_freshId(rels), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata", "metadata.xml"))
+        }
         if !rels.contains(where: { $0.type.hasSuffix("/styles") }) {
             rels.append((_freshId(rels), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles", "styles.xml"))
         }
@@ -550,6 +570,7 @@ enum Xlsx {
         generated["xl/_rels/workbook.xml.rels"] = Data(_relsXML(rels).utf8)
         for (i, p) in paths.enumerated() { generated[p] = Data(sheetXML[i].utf8) }
         generated[stylesPath] = Data(_stylesXML(book).utf8)
+        if newMetadata { generated["xl/metadata.xml"] = Data(_dynamicArrayMetadata.utf8) }
         generated[sstPath] = Data(_sstXML(sst).utf8)
         // Tables: rewritten whenever their header cells or range could have
         // changed, which is any save (names must match the cells exactly).
@@ -574,6 +595,7 @@ enum Xlsx {
             generated.merge(n.parts) { $1 }
             extraTypes += n.overrides
         }
+        if newMetadata { extraTypes.append(("/xl/metadata.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml")) }
         generated.merge(sheetRelParts) { $1 }
 
         // Content types: the original's, with the parts we added and without
@@ -751,7 +773,7 @@ enum Xlsx {
     ]
 
     private static func _sheetXML(_ ws: Worksheet, book: Workbook, selected: Bool, extra: [String: String] = [:],
-                                  stringIndex: (String) -> Int) -> String {
+                                  dynamicCm: Int? = nil, stringIndex: (String) -> Int) -> String {
         var generated = extra
         let used = ws.usedExtent
         generated["dimension"] = "<dimension ref=\"\(ws.cells.isEmpty ? "A1" : CellRange(CellAddress(row: 0, col: 0), used).a1)\"/>"
@@ -808,7 +830,7 @@ enum Xlsx {
             let cells = (byRow[r] ?? []).sorted { $0.0.col < $1.0.col }
             if cells.isEmpty { data += "/>"; continue }
             data += ">"
-            for (a, c) in cells { data += _cellXML(a, c, stringIndex: stringIndex) }
+            for (a, c) in cells { data += _cellXML(a, c, dynamicCm: dynamicCm, stringIndex: stringIndex) }
             data += "</row>"
         }
         generated["sheetData"] = data + "</sheetData>"
@@ -843,8 +865,24 @@ enum Xlsx {
         return s + "</autoFilter>"
     }
 
-    private static func _cellXML(_ a: CellAddress, _ c: Cell, stringIndex: (String) -> Int) -> String {
+    /// The metadata part Excel 365 writes for dynamic arrays: one XLDAPR
+    /// type, one cell-metadata entry (cm="1").
+    static let _dynamicArrayMetadata = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<metadata xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:xda=\"http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray\"><metadataTypes count=\"1\"><metadataType name=\"XLDAPR\" minSupportedVersion=\"120000\" copy=\"1\" pasteAll=\"1\" pasteValues=\"1\" merge=\"1\" splitFirst=\"1\" rowColShift=\"1\" clearFormats=\"1\" clearComments=\"1\" assign=\"1\" coerce=\"1\" cellMeta=\"1\"/></metadataTypes><futureMetadata name=\"XLDAPR\" count=\"1\"><bk><extLst><ext uri=\"{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}\"><xda:dynamicArrayProperties fDynamic=\"1\" fCollapsed=\"0\"/></ext></extLst></bk></futureMetadata><cellMetadata count=\"1\"><bk><rc t=\"1\" v=\"0\"/></bk></cellMetadata></metadata>"
+
+    /// The cm value a file's own metadata part uses for dynamic arrays:
+    /// the cellMetadata entry whose record names the XLDAPR type.
+    static func _dynamicArrayCm(_ data: Data) -> Int? {
+        guard let root = XNode.parse(data) else { return nil }
+        guard let t = root.child("metadataTypes")?.kids("metadataType").firstIndex(where: { $0["name"] == "XLDAPR" }) else { return nil }
+        for (i, bk) in (root.child("cellMetadata")?.kids("bk") ?? []).enumerated() {
+            if bk.kids("rc").contains(where: { $0["t"] == "\(t + 1)" }) { return i + 1 }
+        }
+        return nil
+    }
+
+    private static func _cellXML(_ a: CellAddress, _ c: Cell, dynamicCm: Int? = nil, stringIndex: (String) -> Int) -> String {
         var s = "<c r=\"\(a.a1)\"" + (c.style != 0 ? " s=\"\(c.style)\"" : "")
+        if let cm = dynamicCm, c.dynamic, c.formula != nil, c.spillRange != nil || c.arrayRef != nil { s += " cm=\"\(cm)\"" }
         if c.formula == nil, let raw = c.rawFormula {
             switch c.value {
             case .text(let t): return s + " t=\"str\">\(raw)<v>\(_esc(t))</v></c>"

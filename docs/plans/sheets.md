@@ -359,9 +359,11 @@ pre-dynamic formulas. Ordering knows spills: a pass that finds a new
 one runs again with it known; typing into a spill, or any edit while a
 formula is #SPILL!, takes a full pass; the randomized test covers
 spills too. Saved as an array formula over the spill (`t="array"
-ref=…`) with the spilled values — every Excel shows them; Excel 365's
-own dynamic-array metadata (`cm`, xl/metadata.xml) is not written, so
-there it reads as a legacy array formula. LET (local names in
+ref=…`) with the spilled values — every Excel shows them — and with
+Excel 365's dynamic-array mark: `cm` pointing at the XLDAPR entry of
+xl/metadata.xml (the file's own when it has one; else the part is made,
+with its relationship and content type), so Excel 365 opens it as a
+spilling formula, not a legacy {array}. LET (local names in
 `EvalContext.locals`) and the Excel 365 shapers VSTACK, HSTACK, TAKE,
 DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
 TEXTSPLIT work too. Still unread (kept verbatim): the intersection
