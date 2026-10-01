@@ -967,7 +967,10 @@ public final class RichLayout {
     /// Flow rectangle → canvas rectangles (one, unless it straddles pieces).
     public func canvasRects(_ r: Rect) -> [Rect] {
         guard isPaged else { return [r] }
-        let i = paragraphIndex(atY: r.top)
+        // By the rect's middle, not its top edge: a rect is never taller
+        // than its paragraph, and a sub-pixel overshoot at either edge must
+        // not hand it to a neighbour whose pieces then clip it to a sliver.
+        let i = paragraphIndex(atY: r.height > 0 ? (r.top + r.bottom) / 2 : r.top)
         var out: [Rect] = []
         let pieces = i + 1 < _pieceStart.count ? Array(_allPieces[_pieceStart[i] ..< _pieceStart[i + 1]]) : []
         for piece in pieces {
@@ -1290,11 +1293,22 @@ public final class RichLayout {
                 }
                 continue
             }
+            // Clamp each box to the paragraph's body. The builder's `.max`
+            // boxes overshoot the line grid by the fraction the line height
+            // was rounded away (a 28pt line at spacing 1.0 is 37.33px laid
+            // out as 37, so the first box starts at -0.33). A rect that
+            // starts above its paragraph belongs, by y, to the paragraph
+            // before it — canvasRects then clipped it to that paragraph's
+            // bottom and the first line of a selection drew as a hairline.
+            let bodyHeight = g.painter.height
             for box in g.painter.getBoxesForSelection(
                 TextSelection(baseOffset: lo, extentOffset: hi),
                 boxHeightStyle: .max) {
-                rects.append(Rect.fromLTRB(g.textLeft + box.left, g.textTop + box.top,
-                                           g.textLeft + box.right, g.textTop + box.bottom))
+                let top = max(0, box.top)
+                let bottom = min(bodyHeight, box.bottom)
+                guard bottom > top else { continue }
+                rects.append(Rect.fromLTRB(g.textLeft + box.left, g.textTop + top,
+                                           g.textLeft + box.right, g.textTop + bottom))
             }
             if i != b.paragraph, let last = rects.last {
                 // Extend past the line end to show the newline is included.
