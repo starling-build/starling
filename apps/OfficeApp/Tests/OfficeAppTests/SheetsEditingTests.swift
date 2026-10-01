@@ -255,3 +255,27 @@ extension SheetsEditingTests {
         XCTAssertEqual(c.input(CellAddress("B1")!), "=SUM(Data!A1:A3)")
     }
 }
+
+extension SheetsEditingTests {
+    func testKeptElementsMoveWithTheirCells() {
+        let c = WorkbookController()
+        c.sheet.keptElements = [
+            ("conditionalFormatting", "<conditionalFormatting sqref=\"B2:B10 D5\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"1\"><formula>B2&gt;C$1</formula></cfRule></conditionalFormatting>"),
+            ("conditionalFormatting", "<conditionalFormatting sqref=\"A3\"><cfRule type=\"cellIs\" dxfId=\"1\" priority=\"2\" operator=\"greaterThan\"><formula>5</formula></cfRule></conditionalFormatting>"),
+            ("dataValidations", "<dataValidations count=\"2\"><dataValidation type=\"list\" sqref=\"E3\"><formula1>$H$1:$H$4</formula1></dataValidation><dataValidation type=\"whole\" sqref=\"F7:F9\"/></dataValidations>"),
+            ("hyperlinks", "<hyperlinks><hyperlink ref=\"A3\" r:id=\"rId1\"/></hyperlinks>"),
+        ]
+        c.insert(.rows, at: 0)
+        XCTAssertEqual(c.sheet.keptElements[0].text,
+                       "<conditionalFormatting sqref=\"B3:B11 D6\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"1\"><formula>B3&gt;C$2</formula></cfRule></conditionalFormatting>")
+        XCTAssertTrue(c.sheet.keptElements[2].text.containsSubstring("sqref=\"E4\"><formula1>$H$2:$H$5</formula1>"))
+        XCTAssertTrue(c.sheet.keptElements[3].text.containsSubstring("ref=\"A4\""))
+        // Deleting row 4 (A4, E4) takes what lived only there.
+        c.delete(.rows, at: 3)
+        XCTAssertEqual(c.sheet.keptElements.map(\.name), ["conditionalFormatting", "dataValidations"])
+        XCTAssertTrue(c.sheet.keptElements[1].text.hasPrefix("<dataValidations count=\"1\"><dataValidation type=\"whole\" sqref=\"F7:F9\"/>"),
+                      c.sheet.keptElements[1].text)
+        c.undo()
+        XCTAssertEqual(c.sheet.keptElements.count, 4)
+    }
+}

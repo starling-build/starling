@@ -251,7 +251,12 @@ chart's `<c:f>` (the file's chart part is rewritten in those references
 only, `SheetChart.formulas`), and every drawing anchor, which moves and
 sizes with its cells (the file's anchor element kept, its corners
 patched). Before this, a file's charts and names kept pointing at the
-old cells after a save. A stale
+old cells after a save. The same now holds for the sheet elements kept
+as written that name cells (`Sheets/KeptRefs.swift`): conditional
+formats, data validations, hyperlinks, ignored errors and protected
+ranges move their `sqref`/`ref` and formulas with the cells, and one
+left covering nothing is dropped. Not reached: their x14 copies in
+`extLst`. A stale
 `_xlnm._FilterDatabase` name in a file is kept as written (Excel
 rebuilds it).
 

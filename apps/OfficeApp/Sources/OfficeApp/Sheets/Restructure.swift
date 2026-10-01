@@ -116,6 +116,21 @@ extension WorkbookController {
             }
             if ws.drawings[i].anchor != old { ws.drawingsEdited = true }
         }
+        // Kept elements that name cells: conditional formats, validations…
+        let sheetName = ws.name.lowercased()
+        ws.keptElements = ws.keptElements.compactMap { e in
+            guard KeptRefs.elements.contains(e.name) else { return e }
+            let text = KeptRefs.shift(e.name, e.text, range: { r in
+                guard let (lo, hi) = axis == .rows ? self._adjustSpan(r.top, r.bottom, index: index, delta: delta)
+                                                   : self._adjustSpan(r.left, r.right, index: index, delta: delta) else { return nil }
+                return axis == .rows ? CellRange(top: lo, left: r.left, bottom: hi, right: r.right)
+                                     : CellRange(top: r.top, left: lo, bottom: r.bottom, right: hi)
+            }, ref: { ref in
+                guard ref.sheet == nil || ref.sheet!.lowercased() == sheetName else { return ref }
+                return Self._adjust(ref, axis, index: index, delta: delta)
+            })
+            return text.map { (e.name, $0) }
+        }
         // Formulas everywhere that point at this sheet.
         let name = ws.name.lowercased()
         _rewriteFormulas { ref, home in
