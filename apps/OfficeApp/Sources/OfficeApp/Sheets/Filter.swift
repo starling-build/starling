@@ -33,6 +33,7 @@ extension WorkbookController {
 
     /// Data → Filter (⌘⇧L): on for the table around the selection, or off.
     func toggleAutoFilter() {
+        if refuses("autoFilter") { return }
         if sheet.autoFilter != nil {
             structural {
                 sheet.autoFilter = nil
@@ -67,6 +68,7 @@ extension WorkbookController {
     /// Set (or clear, with nil) the texts a column lets through, and hide
     /// what fails any column's test.
     func setFilter(col: Int, allowed: Set<String>?) {
+        if refuses("autoFilter") { return }
         guard var af = sheet.autoFilter else { return }
         af.columns[col] = allowed
         af.raw = nil
@@ -110,6 +112,7 @@ extension WorkbookController {
     /// Sort the filter's data by one column; the filter is then re-run, so
     /// what is hidden still matches what the dropdowns say.
     func sortFilter(col: Int, ascending: Bool) {
+        if refuses("sort") { return }
         guard let af = sheet.autoFilter, af.range.rows > 2 else { return }
         let data = CellRange(top: af.range.top + 1, left: af.range.left, bottom: _filterBottom(af), right: af.range.right)
         structural {

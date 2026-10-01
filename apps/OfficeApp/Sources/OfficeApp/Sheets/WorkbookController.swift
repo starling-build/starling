@@ -121,6 +121,7 @@ final class WorkbookController: ChangeNotifier {
     /// Merge & Center: the selection becomes one cell showing its
     /// top-left value, centred; selecting a merged area unmerges it.
     func toggleMerge() {
+        if refuses("formatCells") { return }
         let r = selection
         if let m = sheet.merges.first(where: { $0 == r }) {
             structural { sheet.merges.removeAll { $0 == m } }
@@ -281,6 +282,7 @@ final class WorkbookController: ChangeNotifier {
     /// Several cells in one step (paste, fill, Ctrl+Enter).
     func setInputs(_ items: [(CellAddress, String)], sheet si: Int? = nil) {
         let si = si ?? activeSheet
+        if refusesEdit(items.map(\.0), sheet: si) { return }
         let ws = book.sheets[si]
         let headers = ws.tables.isEmpty ? [:] : _tableHeaderNames(items.map(\.0), sheet: si)
         var before: [CellAddress: Cell?] = [:]
@@ -343,6 +345,7 @@ final class WorkbookController: ChangeNotifier {
 
     /// Apply a change to the style of every cell in the selection.
     func setStyle(_ change: (inout CellStyle) -> Void, range: CellRange? = nil) {
+        if refuses("formatCells") { return }
         let r = range ?? selection
         let ws = sheet
         var before: [CellAddress: Cell?] = [:]
@@ -405,6 +408,7 @@ final class WorkbookController: ChangeNotifier {
     /// cell) by the active cell's column. A first row of labels over data
     /// stays put, as Excel guesses it. One undo step.
     func sortSelection(ascending: Bool) {
+        if refuses("sort") { return }
         var r = selection.isSingle ? currentRegion(active) : selection
         let used = sheet.usedExtent
         r = CellRange(top: r.top, left: r.left, bottom: min(r.bottom, used.row), right: min(r.right, used.col))

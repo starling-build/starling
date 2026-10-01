@@ -17,12 +17,14 @@ extension WorkbookController {
 
     /// Insert `count` blank rows (or columns) before `index` on the active sheet.
     func insert(_ axis: Axis, at index: Int, count: Int = 1) {
+        if refuses(axis == .rows ? "insertRows" : "insertColumns") { return }
         guard count > 0 else { return }
         structural { _shift(axis, at: index, by: count) }
     }
 
     /// Delete `count` rows (or columns) starting at `index` on the active sheet.
     func delete(_ axis: Axis, at index: Int, count: Int = 1) {
+        if refuses(axis == .rows ? "deleteRows" : "deleteColumns") { return }
         guard count > 0 else { return }
         structural { _shift(axis, at: index, by: -count) }
     }
@@ -325,6 +327,7 @@ extension WorkbookController {
     /// where the selection holds one (1, 2 → 3, 4; Jan → Feb; Item 1 →
     /// Item 2; dates by day), copies otherwise, formulas shifted.
     func fillSeries(to target: CellRange) {
+        if refusesEdit(target.cells) { return }
         let src = selection
         guard target != src, target.top == src.top || target.left == src.left || target.bottom == src.bottom || target.right == src.right
         else { return }
@@ -430,6 +433,9 @@ extension WorkbookController {
     /// the distance; a cut moves the cells and points every formula that
     /// referred to them at their new place, as Excel's cut does.
     func paste(_ clip: Clip) {
+        let at = selection.topLeft
+        if refusesEdit(CellRange(top: at.row, left: at.col, bottom: min(CellAddress.maxRows - 1, at.row + clip.range.rows - 1),
+                                 right: min(CellAddress.maxCols - 1, at.col + clip.range.cols - 1)).cells) { return }
         let origin = selection.topLeft
         let dst = CellRange(top: origin.row, left: origin.col,
                             bottom: origin.row + clip.range.rows - 1, right: origin.col + clip.range.cols - 1)

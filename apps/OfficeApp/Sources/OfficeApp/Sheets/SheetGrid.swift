@@ -446,6 +446,11 @@ final class SheetGridState: State<StatefulWidget> {
     /// (Enter mode); otherwise the caret goes at the end of what is there.
     func beginEdit(replace: String? = nil) {
         let a = controller.active
+        // A locked cell on a protected sheet does not open for editing.
+        if controller.protection() != nil && controller.isLocked(a) {
+            _w.onStatus(WorkbookController.protectedMessage)
+            return
+        }
         let text = replace ?? controller.input(a)
         edit = CellEdit(cell: a, text: Array(text), caret: text.count, enterMode: replace != nil)
         reveal(a)

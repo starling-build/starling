@@ -320,3 +320,29 @@ extension SheetsEditingTests {
         XCTAssertFalse(c.go(to: "Nowhere!Z"))
     }
 }
+
+extension SheetsEditingTests {
+    func testProtectedSheets() throws {
+        let c = WorkbookController()
+        // Format 1 unlocks its cells; the sheet is protected, but lets rows be inserted.
+        c.book.styleSource = StyleSource(xfs: [StyleSource.Xf(attrs: [:], extra: ""),
+                                               StyleSource.Xf(attrs: [:], protection: "<protection locked=\"0\"/>", extra: "")])
+        c.book.styles = [CellStyle(baseXf: 0), CellStyle(baseXf: 1)]
+        c.sheet.cells[CellAddress("B2")!] = Cell(input: "", style: 1)
+        c.sheet.keptElements = [("sheetProtection", "<sheetProtection password=\"CC3D\" sheet=\"1\" objects=\"1\" scenarios=\"1\" insertRows=\"0\"/>")]
+        var said: [String] = []
+        c.onCommand = { if case .status(let m) = $0 { said.append(m) } }
+        c.setInputs([(CellAddress("A1")!, "no")])
+        XCTAssertNil(c.sheet.cells[CellAddress("A1")!])
+        XCTAssertEqual(said.last, WorkbookController.protectedMessage)
+        c.setInputs([(CellAddress("B2")!, "yes")])                   // an unlocked cell
+        XCTAssertEqual(c.sheet.value(CellAddress("B2")!), .text("yes"))
+        c.select(CellAddress("B2")!)
+        c.setStyle { $0.bold = true }                                // formatting is not allowed
+        XCTAssertFalse(c.style(at: CellAddress("B2")!).bold)
+        c.insert(.rows, at: 0)                                       // inserting rows is
+        XCTAssertEqual(c.sheet.value(CellAddress("B3")!), .text("yes"))
+        c.delete(.rows, at: 0)                                       // deleting them is not
+        XCTAssertEqual(c.sheet.value(CellAddress("B3")!), .text("yes"))
+    }
+}

@@ -403,7 +403,12 @@ honoured — serial 0 is 1 January 1904, no phantom 29 February — through
 `ExcelDate.system1904`, set for the workbook that loads; before, such a
 file's dates showed four years early. A sheet view's other attributes
 (zoom, scroll position, showZeros — honoured on screen — right to left,
-page layout view) are kept. LET (local names in
+page layout view) are kept. Sheet protection is enforced as Excel does it
+(`Sheets/Protection.swift`): on a protected sheet a locked cell (any
+cell unless its format says `locked="0"`) neither opens for editing nor
+takes typing, pasting or filling, and formatting, merging, inserting or
+deleting rows and columns, sorting and filtering are refused unless the
+protection allows each; unprotecting stays Excel's (the password is its). LET (local names in
 `EvalContext.locals`) and the Excel 365 shapers VSTACK, HSTACK, TAKE,
 DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
 TEXTSPLIT work too. Still unread (kept verbatim): the intersection
