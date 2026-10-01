@@ -104,6 +104,7 @@ final class SheetsShellState: State<StatefulWidget> {
         session.onSave = { [weak self] in self?._save() }
         session.onSaveAs = { [weak self] in self?.setState { self?._backstage = .saveAs } }
         session.onExport = { [weak self] ext in self?._export(ext) }
+        session.onPrint = { [weak self] in self?._print() }
         session.onStatus = { [weak self] m in self?._flash(m) }
         session.onUndo = { [weak self] in self?.wb.undo() }
         session.onRedo = { [weak self] in self?.wb.redo() }
@@ -208,7 +209,7 @@ final class SheetsShellState: State<StatefulWidget> {
         let ext = chosen.pathExtension.lowercased()
         let path = ["xlsx", "csv", "tsv"].contains(ext) ? chosen : chosen + ".xlsx"
         let format = path.pathExtension.lowercased()
-        _grid?.commitEdit()
+        _ = _grid?.commitEdit()
         wb.stashViewState()
         do {
             let data: Data
@@ -234,8 +235,45 @@ final class SheetsShellState: State<StatefulWidget> {
         #endif
     }
 
+    /// PDF or CSV of the active sheet (Excel's own default for both),
+    /// beside the workbook or in Documents.
     private func _export(_ ext: String) {
-        _flash("Export to \(ext.uppercased()) comes with milestone X4")
+        let base = session.path.map { $0.deletingPathExtension } ?? homeDirectory() + "/Documents/" + session.title.deletingPathExtension
+        let target = base + "." + ext
+        _ = _grid?.commitEdit()
+        if ext == "csv" {
+            // The active sheet, as Excel's CSV export (a copy: the workbook stays the document).
+            setState { _backstage = nil }
+            do {
+                try Data(Csv.write(wb.sheet, book: wb.book).utf8).write(to: URL(fileURLWithPath: target))
+                _flash("Exported \(target.lastPathComponent)")
+            } catch {
+                _flash("Could not export: \(error)")
+            }
+            return
+        }
+        setState { _backstage = nil }
+        _flash("Exporting \(target.lastPathComponent)…")
+        Task { @MainActor [weak self] in
+            guard let self, let grid = self._grid else { return }
+            let ok = await grid.writePdf(to: target, title: self.session.title)
+            self._flash(ok ? "Exported \(target.lastPathComponent)" : "Nothing to export on this sheet")
+        }
+    }
+
+    /// File → Print: the PDF of the active sheet, handed to the host's print dialog.
+    private func _print() {
+        let path = NSTemporaryDirectory() + "sheets-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
+        _ = _grid?.commitEdit()
+        setState { _backstage = nil }
+        Task { @MainActor [weak self] in
+            guard let self, let grid = self._grid else { return }
+            guard await grid.writePdf(to: path, title: self.session.title) else {
+                self._flash("Nothing to print on this sheet")
+                return
+            }
+            if let print = hostPrintPDF { print(path) } else { self._flash("No print dialog on this host") }
+        }
     }
 
     // MARK: Formula bar
@@ -359,7 +397,7 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     private func _tabClicked(_ i: Int) {
-        _grid?.commitEdit()
+        _ = _grid?.commitEdit()
         // Double click renames (by hand: onDoubleTap kills taps on DRM).
         if let last = _lastTabClick, last.index == i, Date().timeIntervalSince(last.at) < 0.4 {
             _lastTabClick = nil
@@ -502,6 +540,7 @@ final class SheetsShellState: State<StatefulWidget> {
             return true
         case "o": setState { _backstage = .open }; return true
         case "n": _newWorkbook(); return true
+        case "p": _print(); return true
         case "f": _openFind(replace: false); return true
         case "h": _openFind(replace: true); return true
         case "l" where chords.shift: wb.toggleAutoFilter(); return true

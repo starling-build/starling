@@ -279,7 +279,11 @@ final class Backstage: StatelessWidget {
             Text("Choose a format. The file lands beside the document, or in Documents.",
                  style: fluent.typography.body?.copyWith(color: fluent.resources.textFillColorSecondary)),
             Chrome.vgap(16),
-            session.kind == .presentation ? Row(children: [
+            session.kind == .workbook ? Row(children: [
+                _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { [session] in session.onExport?("pdf") },
+                Chrome.gap(16),
+                _template("CSV (.csv)", FluentSystemIcons.table, fluent) { [session] in session.onExport?("csv") },
+            ]) : session.kind == .presentation ? Row(children: [
                 _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { [session] in session.onExport?("pdf") },
                 Chrome.gap(16),
                 _template("PowerPoint (.pptx)", FluentSystemIcons.desktop, fluent) { [session] in session.onExport?("pptx") },

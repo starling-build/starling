@@ -206,7 +206,21 @@ the fixture's ten charts and on a logo picture. Not yet: shapes and
 text boxes, groups, selecting or moving drawings, and moving anchors
 and chart references on row/column insert or delete. Quick Look's
 thumbnails draw no charts, so they are no reference here.
-Left in X4: print/PDF. A stale
+**X4 print and PDF (2026-10-01)** (`Sheets/SheetPrint.swift`): File →
+Export → PDF (or CSV), File → Print and ⌘P, for the active sheet, as
+Excel defaults. The used area (values, fills, borders, drawings) is cut
+into pages that never split a row or column, numbered down then over;
+Letter portrait with Normal margins unless the file's kept `pageSetup`,
+`pageMargins`, `printOptions` and `sheetPr/pageSetUpPr` say otherwise
+(paper, landscape, scale, fit to N pages, gridlines, centring). A page
+is the grid's own region painter in `printing` mode — one pixel per
+point, no headers, panes, editor or dropdowns — so it prints what the
+screen shows, charts and pictures included. Seen: the fixture as three
+Letter pages. Not yet: print areas and titles (`_xlnm.Print_Area`,
+`Print_Titles`), headers and footers, manual page breaks, Page Layout
+view.
+
+X4 is done but for those. A stale
 `_xlnm._FilterDatabase` name in a file is kept as written (Excel
 rebuilds it).
 

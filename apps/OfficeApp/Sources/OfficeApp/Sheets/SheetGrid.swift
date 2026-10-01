@@ -131,8 +131,8 @@ final class SheetGridState: State<StatefulWidget> {
     private weak var _box: RenderBox?
     private(set) var size = Size.zero
     /// Scroll offset of the cell area, in logical pixels.
-    private(set) var scrollX = 0.0
-    private(set) var scrollY = 0.0
+    var scrollX = 0.0
+    var scrollY = 0.0
     private(set) var edit: CellEdit? = nil
     private var _drag: _Drag? = nil
     private var _lastClick: (cell: CellAddress, at: Double)? = nil
@@ -162,9 +162,13 @@ final class SheetGridState: State<StatefulWidget> {
     var controller: WorkbookController { _w.controller }
 
     /// Logical pixels per point at the current zoom (Excel's 96 dpi).
-    var scale: Double { 96.0 / 72.0 * _w.zoom }
-    var headerWidth: Double { (40 + Double(max(0, String(_lastVisibleRow + 1).count - 3)) * 8) * _w.zoom }
-    var headerHeight: Double { 20 * _w.zoom }
+    var scale: Double { 96.0 / 72.0 * zoom }
+    /// Set while a page is printed: one pixel per point (a zoom of 0.75),
+    /// and no headers, panes, editor or filter dropdowns.
+    var printing = false
+    var zoom: Double { printing ? 0.75 : _w.zoom }
+    var headerWidth: Double { printing ? 0 : (40 + Double(max(0, String(_lastVisibleRow + 1).count - 3)) * 8) * zoom }
+    var headerHeight: Double { printing ? 0 : 20 * zoom }
     private var _lastVisibleRow = 0
 
     var cols: GridAxis { _axes().cols }
@@ -218,8 +222,8 @@ final class SheetGridState: State<StatefulWidget> {
     // MARK: Geometry
 
     /// Frozen rows and columns: they stay put while the rest scrolls.
-    var frozenRows: Int { controller.sheet.freezeRows }
-    var frozenCols: Int { controller.sheet.freezeCols }
+    var frozenRows: Int { printing ? 0 : controller.sheet.freezeRows }
+    var frozenCols: Int { printing ? 0 : controller.sheet.freezeCols }
     var frozenWidth: Double { cols.start(frozenCols) }
     var frozenHeight: Double { rows.start(frozenRows) }
 
@@ -281,7 +285,7 @@ final class SheetGridState: State<StatefulWidget> {
         }
     }
 
-    private func _paintDrawing(_ canvas: any Canvas, _ d: SheetDrawing, chart: Chart?, in r: Rect, theme: DeckTheme) {
+    func _paintDrawing(_ canvas: any Canvas, _ d: SheetDrawing, chart: Chart?, in r: Rect, theme: DeckTheme) {
         guard r.width > 1, r.height > 1 else { return }
         switch d.kind {
         case .picture(let path, let data):
@@ -309,7 +313,7 @@ final class SheetGridState: State<StatefulWidget> {
     private var _decoding: Set<String> = []
 
     /// A picture, decoded once; nil (and a repaint later) while it decodes.
-    private func _image(_ key: String, _ data: Data) -> Image? {
+    func _image(_ key: String, _ data: Data) -> Image? {
         if let image = _images[key] { return image }
         guard !_decoding.contains(key) else { return nil }
         _decoding.insert(key)
@@ -333,7 +337,7 @@ final class SheetGridState: State<StatefulWidget> {
     /// A filter dropdown: a square in the header cell's bottom-right corner.
     func filterButton(_ a: CellAddress) -> Rect {
         let r = rect(a)
-        let side = max(0, min(r.height - 2, 16 * _w.zoom, r.width - 2))
+        let side = max(0, min(r.height - 2, 16 * zoom, r.width - 2))
         return Rect.fromLTWH(r.right - side - 1, r.bottom - side - 1, side, side)
     }
 
@@ -841,14 +845,14 @@ final class SheetGridState: State<StatefulWidget> {
                 if st.wrap && cell.value.isText { continue }
                 // The full text: autofit is how long numbers stop being ####.
                 let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
-                let w = (texts.painter(text, tstyle).width + 4 * _w.zoom) / scale + 1.5
+                let w = (texts.painter(text, tstyle).width + 4 * zoom) / scale + 1.5
                 best[a.col] = max(best[a.col] ?? 0, w)
             } else {
                 // Calibri 11 is 15pt in Excel; other sizes scale with it.
                 var lines = 1.0
                 if st.wrap && cell.value.isText {
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
-                    let width = cols.size(a.col) - 4 * _w.zoom
+                    let width = cols.size(a.col) - 4 * zoom
                     let tp = texts.painter(text, tstyle, maxWidth: max(1, width))
                     let one = texts.painter("X", tstyle).height
                     lines = max(1, (tp.height / max(1, one)).rounded())
@@ -1123,9 +1127,9 @@ final class SheetGridState: State<StatefulWidget> {
         p.color = headerFill
         canvas.drawRect(Rect.fromLTWH(0, 0, size.width, hh), p)
         canvas.drawRect(Rect.fromLTWH(0, 0, hw, size.height), p)
-        let headStyle = GridTextStyle(family: SelawikFontName.regular, size: 11 * _w.zoom, color: Int64(headerInk.value))
-        let headStrong = GridTextStyle(family: SelawikFontName.regular, size: 11 * _w.zoom, bold: true, color: Int64(accent.value))
-        let headFiltered = GridTextStyle(family: SelawikFontName.regular, size: 11 * _w.zoom, color: Int64(0xFF2F6FDF))
+        let headStyle = GridTextStyle(family: SelawikFontName.regular, size: 11 * zoom, color: Int64(headerInk.value))
+        let headStrong = GridTextStyle(family: SelawikFontName.regular, size: 11 * zoom, bold: true, color: Int64(accent.value))
+        let headFiltered = GridTextStyle(family: SelawikFontName.regular, size: 11 * zoom, color: Int64(0xFF2F6FDF))
         let filterActive = !(ws.autoFilter?.columns.isEmpty ?? true)
         let wholeCols = sel.top == 0 && sel.bottom == CellAddress.maxRows - 1
         let wholeRows = sel.left == 0 && sel.right == CellAddress.maxCols - 1
@@ -1175,25 +1179,25 @@ final class SheetGridState: State<StatefulWidget> {
         // The corner: a triangle that selects everything.
         p.color = dark ? Color(0xFF5A5A5A) : Color(0xFFBDBDBD)
         let path = Path()
-        path.moveTo(hw - 4, hh - 14 * _w.zoom)
+        path.moveTo(hw - 4, hh - 14 * zoom)
         path.lineTo(hw - 4, hh - 4)
-        path.lineTo(hw - 14 * _w.zoom, hh - 4)
+        path.lineTo(hw - 14 * zoom, hh - 4)
         path.close()
         canvas.drawPath(path, p)
     }
 
-    private struct _Colors {
+    struct _Colors {
         let ink: Color, paper: Color, grid: Color
         let showGrid: Bool
     }
 
     /// One pane of the grid: the given rows and columns, already clipped.
-    private func _paintRegion(_ canvas: any Canvas, rows rs: [Int], cols cs: [Int], clip: Rect,
+    func _paintRegion(_ canvas: any Canvas, rows rs: [Int], cols cs: [Int], clip: Rect,
                               ws: Worksheet, book: Workbook, merges: [CellRange], covered: Set<CellAddress>, colors: _Colors) {
         let ca = cols, ra = rows
         let p = Paint()
         p.style = .fill
-        let editing = edit?.cell
+        let editing = printing ? nil : edit?.cell
         // Styled cells, looked up by position: what is on screen, not what is in the sheet.
         var styled: [(CellAddress, CellStyle)] = []
         for row in rs { for col in cs {
@@ -1277,7 +1281,7 @@ final class SheetGridState: State<StatefulWidget> {
             if b.right { canvas.drawLine(Offset(rr, t), Offset(rr, bt), border) }
         }
         // Filter dropdowns: ▾, or a funnel on a column that filters.
-        if let af = ws.autoFilter, rs.contains(af.range.top) {
+        if !printing, let af = ws.autoFilter, rs.contains(af.range.top) {
             for col in cs where col >= af.range.left && col <= af.range.right {
                 let b = filterButton(CellAddress(row: af.range.top, col: col))
                 guard b.width >= 6 else { continue }
@@ -1331,7 +1335,7 @@ final class SheetGridState: State<StatefulWidget> {
         let left = r.left, right = r.right, top = r.top, bottom = r.bottom
         let width = right - left
         guard width > 2 else { return }
-        let chars = max(1, Int(width / (7 * _w.zoom)))
+        let chars = max(1, Int(width / (7 * zoom)))
         var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars)
         let style = _textStyle(st, color: color, ink: ink)
         var align = st.hAlign
@@ -1342,7 +1346,7 @@ final class SheetGridState: State<StatefulWidget> {
             default: align = .left
             }
         }
-        let pad = 2 * _w.zoom   // Excel's cell margin
+        let pad = 2 * zoom   // Excel's cell margin
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
         var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2) : .infinity)
@@ -1395,7 +1399,7 @@ final class SheetGridState: State<StatefulWidget> {
         if e.text.first == "=" { style.family = OfficeFonts.substitute("Calibri") }
         let text = String(e.text)
         let tp = texts.painter(text.isEmpty ? " " : text, style)
-        let pad = 2 * _w.zoom
+        let pad = 2 * zoom
         // The editor grows to the right to show what is typed, as Excel's does.
         let w = max(r.width, min(size.width - r.left - 2, tp.width + pad * 2 + 4))
         let box = Rect.fromLTWH(r.left, r.top, w, r.height)
