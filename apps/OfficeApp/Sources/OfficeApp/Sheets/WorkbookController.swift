@@ -275,6 +275,7 @@ final class WorkbookController: ChangeNotifier {
         for (a, text) in items {
             if before[a] == nil { before[a] = .some(ws.cells[a]) }
             var cell = ws.cells[a] ?? Cell(input: "")
+            cell.rawFormula = nil      // what is typed replaces what the file had
             if text.isEmpty {
                 if cell.style == 0 { ws.cells[a] = nil; continue }
                 cell.input = ""; cell.formula = nil; cell.value = .empty

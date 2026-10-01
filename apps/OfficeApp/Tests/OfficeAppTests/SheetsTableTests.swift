@@ -6,7 +6,7 @@ import XCTest
 
 final class SheetsTableTests: XCTestCase {
     /// The fixture with a table over 'Single double'!D3:J10 (its data).
-    private func withTable() throws -> Data {
+    func withTable() throws -> Data {
         let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
         var entries = try Zip.read(try Data(contentsOf: url))
         let names = ["Run", "gcc 4.4.0 (32)", "VC++ 10 (32)", "Intel 11.1 (32)", "gcc 4.4.0 (64)", "VC++ 10 (64)", "Intel 11.1 (64)"]
@@ -83,5 +83,52 @@ extension SheetsTableTests {
         XCTAssertNil(TableStyles.look(t, CellAddress("E4")!, theme: theme))            // outside
         t.style = nil
         XCTAssertNil(TableStyles.look(t, CellAddress("C2")!, theme: theme))
+    }
+}
+
+extension SheetsTableTests {
+    func testStructuredReferencesSurvive() throws {
+        // The fixture's D3:J10 table, with formulas Sheets cannot read.
+        var entries = try Zip.read(try withTable())
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
+        var s = String(decoding: entries[i].data, as: UTF8.self)
+        let rowEnd = try XCTUnwrap(s.findRange(of: "</sheetData>"))
+        s.replaceSubrange(rowEnd, with: "<row r=\"20\"><c r=\"E20\"><f>SUM(Table1[gcc 4.4.0 (32)])</f><v>11.226</v></c><c r=\"F20\"><f>Table1[[#This Row],[VC++ 10 (32)]]*2</f><v>7</v></c></row></sheetData>")
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(s.utf8))
+        let book = try Xlsx.read(try Zip.write(entries))
+        let c = WorkbookController()
+        c.load(book)
+        XCTAssertEqual(c.sheet.value(CellAddress("E20")!), .number(11.226))
+        let out = try Zip.read(try Xlsx.write(c.book))
+        let sheet = String(decoding: try XCTUnwrap(out.first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(sheet.containsSubstring("<f>SUM(Table1[gcc 4.4.0 (32)])</f>"), sheet)
+        XCTAssertTrue(sheet.containsSubstring("<f>Table1[[#This Row],[VC++ 10 (32)]]*2</f>"), sheet)
+    }
+}
+
+extension SheetsTableTests {
+    func testUnreadableSharedAndArrayFormulasSurvive() throws {
+        var entries = try Zip.read(try withTable())
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
+        var s = String(decoding: entries[i].data, as: UTF8.self)
+        let rowEnd = try XCTUnwrap(s.findRange(of: "</sheetData>"))
+        s.replaceSubrange(rowEnd, with: "<row r=\"30\"><c r=\"E30\"><f t=\"shared\" ref=\"E30:E31\" si=\"7\">[@[gcc 4.4.0 (32)]]*2</f><v>1</v></c><c r=\"G30\"><f t=\"array\" ref=\"G30:G31\">Table1[Intel 11.1 (32)]*1</f><v>3</v></c></row><row r=\"31\"><c r=\"E31\"><f t=\"shared\" si=\"7\"/><v>2</v></c></row></sheetData>")
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(s.utf8))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Zip.write(entries)))
+        XCTAssertEqual(c.sheet.value(CellAddress("E31")!), .number(2))
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("<c r=\"E30\"><f ref=\"E30:E31\" si=\"7\" t=\"shared\">[@[gcc 4.4.0 (32)]]*2</f><v>1</v></c>"), out)
+        XCTAssertTrue(out.containsSubstring("<c r=\"E31\"><f si=\"7\" t=\"shared\"/><v>2</v></c>"), out)
+        XCTAssertTrue(out.containsSubstring("<f ref=\"G30:G31\" t=\"array\">Table1[Intel 11.1 (32)]*1</f><v>3</v>"), out)
+        // Typed over, a cell is the user's again; copied, it carries its value.
+        c.setInputs([(CellAddress("E30")!, "5")])
+        c.select(CellAddress("E31")!)
+        let clip = c.clip(cut: false, text: "")
+        c.select(CellAddress("H40")!)
+        c.paste(clip)
+        XCTAssertNil(c.sheet.cells[CellAddress("E30")!]?.rawFormula)
+        XCTAssertNil(c.sheet.cells[CellAddress("H40")!]?.rawFormula)
+        XCTAssertEqual(c.sheet.value(CellAddress("H40")!), .number(2))
     }
 }

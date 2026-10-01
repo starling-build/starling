@@ -301,6 +301,15 @@ note whose cell is deleted is removed from all three. Untouched note
 parts are written byte for byte. Not yet: adding or editing notes,
 threaded-comment replies shown as a thread.
 
+**Fixed 2026-10-01: formulas this engine cannot read were dropped on
+save** unless their result was text — the cell kept only its value, so a
+table's `=SUM(Table1[Amount])` or `[@Price]*[@Qty]` became a constant.
+Every unreadable formula (and each shared formula hanging off one, and
+array formulas) now keeps the file's `<f>` element (`Cell.rawFormula`),
+written back verbatim with its cached value until the cell is typed
+over; a copy elsewhere carries the value, as the formula cannot be
+re-addressed; a cut-move keeps it, as Excel's does.
+
 **Fixed 2026-10-01: saves dropped the file's differential formats.**
 `styles.xml` is rebuilt from the model, and the rebuild wrote an empty
 `<dxfs count="0"/>`, so every conditional format, table style and pivot

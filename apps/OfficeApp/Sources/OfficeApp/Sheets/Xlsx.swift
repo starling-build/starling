@@ -187,6 +187,12 @@ enum Xlsx {
                 var cell = Cell(input: "")
                 cell.style = styleIndex < book.styles.count ? styleIndex : 0
                 if let f = c.child("f") {
+                    // As the file wrote it, for when it cannot be read.
+                    let rawF: String = {
+                        var s = "<f"
+                        for (k, v) in f.attrs.sorted(by: { $0.key < $1.key }) { s += " \(k)=\"\(_esc(v))\"" }
+                        return f.text.isEmpty ? s + "/>" : s + ">" + _esc(f.text) + "</f>"
+                    }()
                     var expr: FormulaExpr? = nil
                     if f["t"] == "shared", let si = f["si"] {
                         if !f.text.isEmpty, let e = try? Formula.parse(f.text) {
@@ -204,13 +210,13 @@ enum Xlsx {
                         cell.input = Formula.text(expr)
                         cell.cached = value
                         cell.value = value
-                    } else if !f.text.isEmpty {
-                        // A formula we cannot parse: its result stays, as text input.
-                        cell.input = "=" + f.text
+                    } else {
+                        // A formula we cannot parse (or a shared one built on
+                        // one): its result stays, and its <f> goes back as it was.
+                        cell.input = f.text.isEmpty ? NumberFormat.display(value, "General", width: 255).text : "=" + f.text
                         cell.value = value
                         cell.cached = value
-                    } else {
-                        cell.value = value
+                        cell.rawFormula = rawF
                     }
                 } else {
                     cell.value = value
@@ -794,6 +800,15 @@ enum Xlsx {
 
     private static func _cellXML(_ a: CellAddress, _ c: Cell, stringIndex: (String) -> Int) -> String {
         var s = "<c r=\"\(a.a1)\"" + (c.style != 0 ? " s=\"\(c.style)\"" : "")
+        if c.formula == nil, let raw = c.rawFormula {
+            switch c.value {
+            case .text(let t): return s + " t=\"str\">\(raw)<v>\(_esc(t))</v></c>"
+            case .bool(let b): return s + " t=\"b\">\(raw)<v>\(b ? 1 : 0)</v></c>"
+            case .error(let e): return s + " t=\"e\">\(raw)<v>\(_esc(e.rawValue))</v></c>"
+            case .number(let n): return s + ">\(raw)<v>\(_num(n))</v></c>"
+            case .empty: return s + ">\(raw)</c>"
+            }
+        }
         if let f = c.formula {
             let text = Formula.print(_mapCalls(f) { prefixed.contains($0.uppercased()) ? "_xlfn." + $0 : $0 })
             switch c.value {

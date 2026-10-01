@@ -294,6 +294,14 @@ extension WorkbookController {
     /// A cell as it reads copied to `to`: formula shifted, all else as is.
     func _copied(_ c: Cell?, from: CellAddress, to: CellAddress) -> Cell? {
         guard var c else { return nil }
+        if c.formula == nil, c.rawFormula != nil, from != to {
+            // A formula this engine cannot read cannot be re-addressed:
+            // the copy carries its value.
+            c.rawFormula = nil
+            c.input = NumberFormat.display(c.value, "General", width: 255).text
+            if case .text(let t) = c.value { c.input = t }
+            c.cached = nil
+        }
         if let f = c.formula {
             let g = Formula.shifted(f, rows: to.row - from.row, cols: to.col - from.col)
             c.formula = g
@@ -546,6 +554,7 @@ extension WorkbookController {
                     count += 1
                     var cell = c
                     cell.input = new
+                    cell.rawFormula = nil
                     if new.hasPrefix("="), let f = try? Formula.parse(new) {
                         cell.formula = f; cell.value = .empty
                     } else if let parsed = InputParser.parse(new) {

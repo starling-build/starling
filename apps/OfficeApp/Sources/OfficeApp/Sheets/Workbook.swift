@@ -69,6 +69,11 @@ struct Cell: Sendable {
     var cached: CellValue? = nil
     /// An array formula's range, as the file had it (t="array" ref=…).
     var arrayRef: String? = nil
+    /// A formula this engine cannot read (structured references, syntax it
+    /// lacks), or a shared one depending on such: the file's `<f>` element,
+    /// written back exactly until the cell is edited. Its value is the
+    /// file's cached result.
+    var rawFormula: String? = nil
 
     var isFormula: Bool { formula != nil || input.hasPrefix("=") }
 }
