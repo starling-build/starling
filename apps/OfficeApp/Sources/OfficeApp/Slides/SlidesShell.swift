@@ -345,6 +345,25 @@ final class SlidesShellState: State<StatefulWidget> {
         setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
     }
 
+    /// Type into the current slide's notes (a click there, or F6). `focus`:
+    /// give them the keyboard too (a click focuses the editor itself).
+    private func _editNotes(focus: Bool = true) {
+        guard !_notesActive else { return }
+        deck.endTextSession()
+        _active = nil
+        _paneFocused = false
+        _notesActive = true
+        deck.selectShapes([])
+        deck.beginTextSession()
+        _point(at: deck.currentSlide.notes, theme: _notesTheme)
+        if focus {
+            // By keyboard: ready to add to what is there.
+            deck.currentSlide.notes.moveToDocumentEnd(extend: false)
+            _notesFocus.requestFocus()
+        }
+        setState {}
+    }
+
     private func _endEditing() {
         guard _active != nil || _notesActive else { return }
         FocusManager.instance.focusedNode?.unfocus()
@@ -693,6 +712,25 @@ final class SlidesShellState: State<StatefulWidget> {
         if _deckChords.primary || named == .escape {
             if _shortcut(key, _deckChords.modifiers) { return true }
         }
+        // Function keys first: they mean the same with shapes selected.
+        // F5 plays from the beginning, ⇧F5 from here, ⌥F5 in presenter
+        // view (PowerPoint's keys).
+        if named == .function(5) {
+            _startShow(at: _deckChords.shift || _deckChords.alt ? deck.current : 0, presenter: _deckChords.alt)
+            return true
+        }
+        // F6 moves between the areas as PowerPoint's does — thumbnails, the
+        // slide, the notes — and ⇧F6 back; Esc leaves the notes like any text.
+        if named == .function(6) {
+            if _deckChords.shift {
+                setState { _paneFocused = true }
+            } else if _paneFocused {
+                setState { _paneFocused = false }
+            } else {
+                _editNotes()
+            }
+            return true
+        }
         // With shapes selected, keys act on them.
         if !deck.selection.isEmpty && !_paneFocused {
             let step = _deckChords.shift ? 12.0 : 2.0
@@ -709,12 +747,6 @@ final class SlidesShellState: State<StatefulWidget> {
                 _editAtEnd(shape)
             default: return false
             }
-            return true
-        }
-        // F5 plays from the beginning, ⇧F5 from here, ⌥F5 in presenter
-        // view (PowerPoint's keys).
-        if named == .function(5) {
-            _startShow(at: _deckChords.shift || _deckChords.alt ? deck.current : 0, presenter: _deckChords.alt)
             return true
         }
         switch named {
@@ -1091,17 +1123,7 @@ final class SlidesShellState: State<StatefulWidget> {
             empty && !_notesActive ? "Click to add notes" : "",
             style: fluent.typography.body?.copyWith(color: fluent.resources.textFillColorSecondary)))))
         stack.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
-            onPointerDown: { [weak self] _ in
-                guard let self, !self._notesActive else { return }
-                self.deck.endTextSession()
-                self._active = nil
-                self._paneFocused = false
-                self._notesActive = true
-                self.deck.selectShapes([])
-                self.deck.beginTextSession()
-                self._point(at: slide.notes, theme: self._notesTheme)
-                self.setState {}
-            },
+            onPointerDown: { [weak self] _ in self?._editNotes(focus: false) },
             behavior: .translucent,
             child: RichEditable(
                 key: ValueKey(slide.id),

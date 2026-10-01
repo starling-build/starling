@@ -884,13 +884,15 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _pageArea(_ fluent: FluentThemeData) -> Widget {
-        let dark = fluent.brightness == .dark
         let backdrop = OfficeAppearance.canvas(fluent)
-        let page = dark ? Color(0xFF253047) : Color(0xFFFFFFFF)
+        // Paper stays paper in dark mode, as Google Docs keeps it: only the
+        // chrome around it darkens. A dark page made styles with colours of
+        // their own (the Title's navy) vanish into it.
+        let page = Color(0xFFFFFFFF)
         let theme = session.theme
-        theme.textColor = dark ? Color(0xFFF0F0F0) : Color(0xFF1B1B1B)
+        theme.textColor = Color(0xFF1B1B1B)
         theme.caretColor = theme.textColor
-        theme.selectionColor = fluent.accentColor.defaultBrushFor(fluent.brightness).withOpacity(0.25)
+        theme.selectionColor = fluent.accentColor.defaultBrushFor(.light).withOpacity(0.25)
         let paged = session.viewMode == .printLayout
         let readMargin = session.viewMode == .readMode ? 120.0 : 24.0
         return RichEditable(

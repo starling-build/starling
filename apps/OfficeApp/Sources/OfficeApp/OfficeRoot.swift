@@ -43,8 +43,36 @@ private final class _OfficeRootState: State<StatefulWidget> {
             guard let self, self._dark != dark else { return }
             self.setState { self._dark = dark }
         }
+        #elseif os(macOS)
+        // The system's appearance, and its changes. OFFICE_DARK=1 or 0
+        // overrides it (for checking a look without flipping the system).
+        if let forced = ProcessInfo.processInfo.environment["OFFICE_DARK"], !forced.isEmpty {
+            _dark = forced == "1"
+        } else {
+            _dark = Self._systemDark()
+            _appearanceObserver = DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
+            ) { [weak self] _ in
+                guard let self, self.mounted else { return }
+                let dark = Self._systemDark()
+                if dark != self._dark { self.setState { self._dark = dark } }
+            }
+        }
         #endif
     }
+
+    #if os(macOS)
+    private var _appearanceObserver: NSObjectProtocol?
+
+    private static func _systemDark() -> Bool {
+        UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+    }
+
+    override func dispose() {
+        if let o = _appearanceObserver { DistributedNotificationCenter.default().removeObserver(o) }
+        super.dispose()
+    }
+    #endif
 
     override func build(_ context: any BuildContext) -> Widget {
         let onSwitch: (DocumentKind, String?) -> Void = { [weak self] kind, path in

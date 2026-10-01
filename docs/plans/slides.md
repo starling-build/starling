@@ -124,6 +124,22 @@ theme, colour, two gradients, a picture, Apply to All — written as solid,
 natural size within the slide; the Picture Format tab resets it or crops
 it to an aspect (inside its box). Tables are part 2.
 
+**S8 done 2026-10-01** — dark mode, resize, keyboard. On macOS the app
+now follows the system appearance (it was always light) and changes with
+it; `OFFICE_DARK=1`/`0` overrides it. Slides' chrome darkens and slides
+stay as designed; Writer's page now stays white in dark mode, its chrome
+dark — a dark page had made colour-styled text (the Title's navy) vanish.
+Shrinking the window to 760×560 refits the slide and keeps the panes; the
+ribbon clips its last groups there, as Writer's does. Keyboard: F6 goes
+slide → notes and from the thumbnails to the slide, ⇧F6 to the thumbnails;
+F5/F6 now work with a shape selected (the selected-shape keys used to
+swallow them, so F5 did nothing while a shape was selected). Tab, Return,
+Esc, arrows and Delete already covered shapes and slides. Spelling in
+boxes and notes was already on (both editors take the checker).
+Left for later: KeyTips (Alt-letters into the ribbon) — the ribbon is
+mouse-only; the Heading previews in the style gallery are low-contrast
+in dark mode (Writer's ribbon).
+
 **S8, recovery copy and AutoSave, 2026-10-01.** As Writer: two seconds
 after the last change a deck writes `name.pptx~` beside itself (an
 untitled one under the recovery directory), or with AutoSave on the file
