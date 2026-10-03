@@ -27,6 +27,18 @@ struct SheetPrintSetup: Equatable {
     var gridlines = false
     var centerHorizontally = false
     var centerVertically = false
+    /// `pageMargins@header`/`@footer`: the header's top and the footer's
+    /// bottom, from the paper's edge. Excel's Normal: 0.3 in.
+    var headerMargin = 21.6, footerMargin = 21.6
+    var headerFooter = HeaderFooter()
+    /// `pageSetup@pageOrder="overThenDown"`.
+    var overThenDown = false
+    /// `pageSetup@firstPageNumber`, when `useFirstPageNumber` is set.
+    var firstPageNumber = 1
+    /// Manual page breaks: the rows (columns) a new page starts on,
+    /// zero-based as cells are one-based (`<brk id=…>`).
+    var rowBreaks: Set<Int> = []
+    var colBreaks: Set<Int> = []
 
     var pageSize: Size { landscape ? Size(paper.height, paper.width) : paper }
 
@@ -40,6 +52,7 @@ struct SheetPrintSetup: Equatable {
             func inch(_ k: String, _ d: Double) -> Double { (Double(m[k] ?? "") ?? d / 72) * 72 }
             s.left = inch("left", s.left); s.right = inch("right", s.right)
             s.top = inch("top", s.top); s.bottom = inch("bottom", s.bottom)
+            s.headerMargin = inch("header", s.headerMargin); s.footerMargin = inch("footer", s.footerMargin)
         }
         let fit = node("sheetPr")?.child("pageSetUpPr")?["fitToPage"] == "1"
         if let p = node("pageSetup") {
@@ -48,6 +61,9 @@ struct SheetPrintSetup: Equatable {
             if let n = Int(p["paperSize"] ?? ""), let size = papers[n] { s.paper = size }
             s.landscape = p["orientation"] == "landscape"
             if let v = Double(p["scale"] ?? ""), v >= 10, v <= 400 { s.scale = v }
+            s.overThenDown = p["pageOrder"] == "overThenDown"
+            if p["useFirstPageNumber"] == "1" || p["useFirstPageNumber"] == "true",
+               let n = Int(p["firstPageNumber"] ?? "") { s.firstPageNumber = n }
             if fit {
                 s.fitWidth = Int(p["fitToWidth"] ?? "") ?? 1
                 s.fitHeight = Int(p["fitToHeight"] ?? "") ?? 1
@@ -60,6 +76,11 @@ struct SheetPrintSetup: Equatable {
             s.centerHorizontally = o["horizontalCentered"] == "1"
             s.centerVertically = o["verticalCentered"] == "1"
         }
+        if let h = node("headerFooter") { s.headerFooter = HeaderFooter.read(h) }
+        func breaks(_ name: String) -> Set<Int> {
+            Set((node(name)?.kids("brk") ?? []).compactMap { Int($0["id"] ?? "") })
+        }
+        s.rowBreaks = breaks("rowBreaks"); s.colBreaks = breaks("colBreaks")
         return s
     }
 }
@@ -115,8 +136,9 @@ enum SheetPrintLayout {
     }
 
     /// Cut `area` into pages. `width`/`height` give a column's or row's
-    /// size in points (0 for hidden). Returns the pages, down then over,
-    /// and the scale they print at.
+    /// size in points (0 for hidden). Returns the pages, down then over
+    /// (over then down when the setup says so), and the scale they print
+    /// at. A manual break starts a page whatever room is left.
     /// `titleWidth`/`titleHeight`: the repeated title columns and rows, in
     /// points, kept free on every page.
     static func pages(area: CellRange, setup: SheetPrintSetup, titleWidth: Double = 0, titleHeight: Double = 0,
@@ -137,20 +159,24 @@ enum SheetPrintLayout {
             s = max(0.1, s * 0.999)   // a hair under, so rounding never spills a page
         }
         let availW = max(18, availW0 - titleWidth * s), availH = max(18, availH0 - titleHeight * s)
-        func bands(_ items: [Int], _ size: (Int) -> Double, _ avail: Double) -> [[Int]] {
+        func bands(_ items: [Int], _ size: (Int) -> Double, _ avail: Double, _ breaks: Set<Int>) -> [[Int]] {
             var out: [[Int]] = [[]]
             var used = 0.0
             for i in items {
                 let w = size(i) * s
-                if !out[out.count - 1].isEmpty && used + w > avail + 0.01 { out.append([]); used = 0 }
+                if !out[out.count - 1].isEmpty && (used + w > avail + 0.01 || breaks.contains(i)) { out.append([]); used = 0 }
                 out[out.count - 1].append(i)
                 used += w
             }
             return out
         }
-        let colBands = bands(cols, width, availW), rowBands = bands(rows, height, availH)
+        let colBands = bands(cols, width, availW, setup.colBreaks), rowBands = bands(rows, height, availH, setup.rowBreaks)
         var pages: [SheetPage] = []
-        for cb in colBands { for rb in rowBands { pages.append(SheetPage(cols: cb, rows: rb)) } }
+        if setup.overThenDown {
+            for rb in rowBands { for cb in colBands { pages.append(SheetPage(cols: cb, rows: rb)) } }
+        } else {
+            for cb in colBands { for rb in rowBands { pages.append(SheetPage(cols: cb, rows: rb)) } }
+        }
         return (pages, s)
     }
 }
@@ -158,7 +184,7 @@ enum SheetPrintLayout {
 extension SheetGridState {
     /// The active sheet as PDF pages; false when there is nothing to print
     /// or the file could not be written.
-    func writePdf(to path: String, title: String) async -> Bool {
+    func writePdf(to path: String, title: String, filePath: String? = nil) async -> Bool {
         let c = controller
         let ws = c.sheet, book = c.book
         guard let used = SheetPrintLayout.usedArea(ws, book: book) else { return false }
@@ -188,9 +214,19 @@ extension SheetGridState {
             return nil
         }
         var out: [PdfDocument.Page] = []
-        for area in areas {
-            let (pages, s) = SheetPrintLayout.pages(area: area, setup: setup, titleWidth: titleW, titleHeight: titleH,
-                                                    width: { ca.size($0) }, height: { ra.size($0) })
+        // Every area's pages first: page numbers and the count run across
+        // all of them.
+        let jobs = areas.map { area in
+            SheetPrintLayout.pages(area: area, setup: setup, titleWidth: titleW, titleHeight: titleH,
+                                   width: { ca.size($0) }, height: { ra.size($0) })
+        }
+        let pageCount = jobs.reduce(0) { $0 + $1.pages.count }
+        var fields = HeaderFooterText.Fields(pages: pageCount, file: title, sheet: ws.name,
+                                             path: filePath.map { ($0 as NSString).deletingLastPathComponent } ?? "")
+        let hfStyle = book.style(0)
+        let hfFont = GridTextStyle(family: OfficeFonts.substitute(hfStyle.fontName ?? OfficeFonts.defaultFamily),
+                                   size: hfStyle.fontSize ?? 11, color: Int64(0xFF000000))
+        for (pages, s) in jobs {
             for page in pages {
                 guard let c0 = page.cols.first, let c1 = page.cols.last, let r0 = page.rows.first, let r1 = page.rows.last else { continue }
                 // Titles repeat on pages that do not already show them.
@@ -238,10 +274,49 @@ extension SheetGridState {
                 band(page.rows, tCols, 0, ty)
                 band(page.rows, page.cols, tx, ty)
                 canvas.restore()
+                fields.page = setup.firstPageNumber + out.count
+                _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size)
                 out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
             }
         }
         return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName())
+    }
+
+    /// The page's header along the top margin and footer along the bottom:
+    /// left, centre and right sections between the side margins. `position`
+    /// is the page's place in the job, from 1, which picks the first/even
+    /// variant; `fields.page` is the number printed.
+    private func _paintHeaderFooter(_ canvas: any Canvas, setup: SheetPrintSetup, fields: HeaderFooterText.Fields,
+                                    position: Int, base: GridTextStyle, size: Size) {
+        let hf = setup.headerFooter
+        guard !hf.isEmpty else { return }
+        func span(_ runs: [HeaderFooterText.Run]) -> TextSpan {
+            TextSpan(children: runs.map { r in
+                var st = base
+                st.bold = r.style.bold; st.italic = r.style.italic
+                st.underline = r.style.underline; st.strike = r.style.strike
+                if let n = r.style.size { st.size = n }
+                if let f = r.style.family { st.family = OfficeFonts.substitute(f) }
+                if let c = r.style.color { st.color = c }
+                return TextSpan(text: r.text, style: st.flutter)
+            }, style: base.flutter)
+        }
+        let innerW = size.width - setup.left - setup.right
+        func paint(_ text: String, top: Double?, bottom: Double?) {
+            guard !text.isEmpty else { return }
+            let sections = HeaderFooterText.parse(text)
+            for (i, items) in [sections.left, sections.center, sections.right].enumerated() where !items.isEmpty {
+                let tp = TextPainter(text: span(HeaderFooterText.runs(items, fields: fields)),
+                                     textAlign: i == 0 ? .left : i == 1 ? .center : .right, textDirection: .ltr)
+                tp.layout(minWidth: 0, maxWidth: .infinity)
+                let x = i == 0 ? setup.left : i == 1 ? setup.left + (innerW - tp.width) / 2 : size.width - setup.right - tp.width
+                let y = top ?? (bottom! - tp.height)
+                tp.paint(canvas, Offset(x, y))
+                tp.dispose()
+            }
+        }
+        paint(hf.header(page: position), top: setup.headerMargin, bottom: nil)
+        paint(hf.footer(page: position), top: nil, bottom: size.height - setup.footerMargin)
     }
 
     /// Decode every picture first: a page records what is decoded now.

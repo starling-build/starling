@@ -225,8 +225,19 @@ Letter pages. The file's print area (`_xlnm.Print_Area`, several
 areas each on their own pages) prints instead of the used area, and its
 print titles (`_xlnm.Print_Titles`, rows and/or columns) repeat on
 every page that does not already show them, their room kept free on
-each (seen on a copy of privateschools2223.xlsx). Not yet: headers and
-footers, manual page breaks, Page Layout view.
+each (seen on a copy of privateschools2223.xlsx). Headers and footers
+(`Sheets/HeaderFooter.swift`, 2026-10-03): the file's `<headerFooter>`
+strings cut into left/centre/right by `&L`/`&C`/`&R`, with `&P` `&N`
+`&D` `&T` `&F` `&A` `&Z`, the bold/italic/underline/strike toggles,
+`&"Font,Style"`, `&nn` sizes and `&Kxxxxxx` colours; odd/even/first
+variants; drawn at the header and footer margins in the workbook's
+default font. Manual breaks (`rowBreaks`/`colBreaks`) start a page
+whatever room is left, `pageOrder="overThenDown"` and
+`firstPageNumber` are honoured, and page numbers run across several
+print areas. Sections overlap when they are too long, as Excel's do.
+Checked by exporting a fixture copy (an OFFICE_SCRIPT `pdf PATH` command
+writes what File → Export → PDF would) and rasterising it with PDFKit.
+Not yet: Page Layout view, `&G` header pictures.
 
 X4 is done but for those.
 

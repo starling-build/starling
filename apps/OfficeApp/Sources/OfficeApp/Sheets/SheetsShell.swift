@@ -80,6 +80,13 @@ final class SheetsShellState: State<StatefulWidget> {
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         if let path = _w.initialPath { _open(path) }
         _syncBars()
+        #if os(macOS)
+        ScriptedInput.exportPdf = { [weak self] path in
+            guard let self, let grid = self._grid else { return false }
+            _ = grid.commitEdit()
+            return await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path)
+        }
+        #endif
     }
 
     override func dispose() {
@@ -258,7 +265,7 @@ final class SheetsShellState: State<StatefulWidget> {
         _flash("Exporting \(target.lastPathComponent)…")
         Task { @MainActor [weak self] in
             guard let self, let grid = self._grid else { return }
-            let ok = await grid.writePdf(to: target, title: self.session.title)
+            let ok = await grid.writePdf(to: target, title: self.session.title, filePath: self.session.path)
             self._flash(ok ? "Exported \(target.lastPathComponent)" : "Nothing to export on this sheet")
         }
     }
@@ -270,7 +277,7 @@ final class SheetsShellState: State<StatefulWidget> {
         setState { _backstage = nil }
         Task { @MainActor [weak self] in
             guard let self, let grid = self._grid else { return }
-            guard await grid.writePdf(to: path, title: self.session.title) else {
+            guard await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path) else {
                 self._flash("Nothing to print on this sheet")
                 return
             }

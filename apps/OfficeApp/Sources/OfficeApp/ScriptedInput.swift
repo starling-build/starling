@@ -25,6 +25,7 @@
 //   chord MODS LETTER           e.g. "chord cmd d", "chord cmd,shift z"
 //   shot PATH                   screencapture -l of this window; ${OUT} expands
 //                               to $OFFICE_SCRIPT_OUT
+//   pdf PATH                    what File → Export → PDF would write (Sheets)
 //   quit
 //
 // Lines starting with # are comments.
@@ -120,6 +121,19 @@ enum ScriptedInput {
             let out = ProcessInfo.processInfo.environment["OFFICE_SCRIPT_OUT"] ?? NSTemporaryDirectory()
             _shot(parts[1].replacingAll("${OUT}", with: out))
             delay = 0.4
+        case "pdf":
+            let out = ProcessInfo.processInfo.environment["OFFICE_SCRIPT_OUT"] ?? NSTemporaryDirectory()
+            let path = parts[1].replacingAll("${OUT}", with: out)
+            guard let export = exportPdf else {
+                FileHandle.standardError.write(Data("[script] pdf: nothing to export here\n".utf8))
+                break
+            }
+            Task { @MainActor in
+                let ok = await export(path)
+                FileHandle.standardError.write(Data("[script] pdf \(path): \(ok ? "written" : "nothing to print")\n".utf8))
+                _run(rest)
+            }
+            return
         case "quit":
             exit(0)
         default:
@@ -127,6 +141,9 @@ enum ScriptedInput {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { _run(rest) }
     }
+
+    /// Set by a shell that can export the open document as PDF.
+    static var exportPdf: ((String) async -> Bool)?
 
     // MARK: Pointer
 
