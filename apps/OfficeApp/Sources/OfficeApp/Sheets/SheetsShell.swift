@@ -127,9 +127,9 @@ final class SheetsShellState: State<StatefulWidget> {
     /// The name box shows the active cell (or the selection's size while
     /// dragging); the formula bar shows what was typed into it.
     private func _syncBars() {
-        let sel = wb.selection
-        let name = sel.isSingle || sel == CellRange(wb.active) ? wb.active.a1
-            : (sel.rows == CellAddress.maxRows || sel.cols == CellAddress.maxCols ? sel.a1 : wb.active.a1)
+        // The name box names the active cell whatever is selected, as
+        // Excel's does (a whole row selected still reads "A6").
+        let name = wb.active.a1
         if _nameBox.text != name { _nameBox.text = name }
         if !_formulaEditing && _grid?.edit == nil { _setFormulaText(wb.input(wb.active)) }
     }
