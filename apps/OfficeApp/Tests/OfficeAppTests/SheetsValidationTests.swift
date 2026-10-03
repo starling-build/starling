@@ -13,6 +13,8 @@ final class SheetsValidationTests: XCTestCase {
             + "<dataValidation type=\"list\" showErrorMessage=\"1\" showDropDown=\"1\" sqref=\"B1\"><formula1>\"Yes,No\"</formula1></dataValidation>"
             + "<dataValidation type=\"whole\" operator=\"between\" showErrorMessage=\"1\" error=\"1 to 10, please\" sqref=\"C1:C5\"><formula1>1</formula1><formula2>10</formula2></dataValidation>"
             + "<dataValidation type=\"custom\" showErrorMessage=\"1\" sqref=\"D1:D5\"><formula1>D1&gt;C1</formula1></dataValidation>"
+            + "<dataValidation type=\"whole\" errorStyle=\"warning\" showInputMessage=\"1\" showErrorMessage=\"1\" errorTitle=\"Check\" error=\"Odd value\" promptTitle=\"Score\" prompt=\"1 to 5\" sqref=\"E1\"><formula1>1</formula1><formula2>5</formula2></dataValidation>"
+            + "<dataValidation type=\"whole\" errorStyle=\"information\" showErrorMessage=\"1\" sqref=\"E2\"><formula1>1</formula1><formula2>5</formula2></dataValidation>"
             + "</dataValidations>")]
         return c
     }
@@ -27,6 +29,21 @@ final class SheetsValidationTests: XCTestCase {
         XCTAssertNil(c.validationRefusal(.empty, at: CellAddress("A2")!))         // allowBlank
         XCTAssertNotNil(c.validationRefusal(.empty, at: CellAddress("B1")!))
         XCTAssertNil(c.validationRefusal(.text("x"), at: CellAddress("E9")!))     // no rule there
+    }
+
+    func testAlertStylesAndPrompt() {
+        let c = sheet()
+        // Stop refuses; Warning and Information let the value in with the message.
+        XCTAssertEqual(c.validationVerdict(.number(50), at: CellAddress("C1")!)?.refused, true)
+        XCTAssertEqual(c.validationVerdict(.number(50), at: CellAddress("C1")!)?.message, "1 to 10, please")
+        let w = c.validationVerdict(.number(9), at: CellAddress("E1")!)
+        XCTAssertEqual(w?.refused, false)
+        XCTAssertEqual(w?.message, "Check: Odd value")
+        XCTAssertEqual(c.validationVerdict(.number(9), at: CellAddress("E2")!)?.refused, false)
+        XCTAssertNil(c.validationVerdict(.number(3), at: CellAddress("E1")!))
+        XCTAssertEqual(c.validationPrompt(at: CellAddress("E1")!)?.title, "Score")
+        XCTAssertEqual(c.validationPrompt(at: CellAddress("E1")!)?.text, "1 to 5")
+        XCTAssertNil(c.validationPrompt(at: CellAddress("E2")!))
     }
 
     func testNumbersAndCustom() {

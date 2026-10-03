@@ -350,8 +350,11 @@ breaks a list, whole, decimal, date, time, textLength or custom rule
 whose error alert is on is refused — the cell keeps its content and the
 status bar shows the rule's message (Excel's Stop alert answered Cancel;
 there is no Retry). Formulas typed in are not checked, nor pastes (as
-Excel). Not yet: input prompts, the Warning/Information styles, editing
-rules.
+Excel). Since 2026-10-03: a rule's input message (`showInputMessage`,
+`promptTitle`/`prompt`) sits in a pale box under the active cell, and
+the alert styles differ — Stop refuses, Warning and Information let the
+value in and put the title and message in the status bar (Excel's Yes
+and OK). Not yet: editing rules.
 
 **Links and array constants (2026-10-01)**: ⌘-click follows a cell's
 link (`Sheets/Hyperlinks.swift`) — the kept `<hyperlinks>` (URLs through

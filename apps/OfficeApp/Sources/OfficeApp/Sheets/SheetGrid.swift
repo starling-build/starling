@@ -514,17 +514,23 @@ final class SheetGridState: State<StatefulWidget> {
             if open > 0 { text += String(repeating: ")", count: open) }
         }
         // Data validation: an entry its rule refuses is not made (Excel's
-        // Stop alert, answered Cancel); formulas are not checked.
+        // Stop alert, answered Cancel); a Warning or Information alert lets
+        // it in and says so; formulas are not checked.
+        var verdict: String? = nil
         if text != controller.input(e.cell), !text.hasPrefix("=") {
             let value = text.isEmpty ? CellValue.empty : (InputParser.parse(text)?.value ?? .text(text))
-            if let why = controller.validationRefusal(value, at: e.cell) {
-                _w.onStatus(why)
-                _w.onEditText(nil)
-                _repaint.notifyListeners()
-                return true
+            if let v = controller.validationVerdict(value, at: e.cell) {
+                if v.refused {
+                    _w.onStatus(v.message)
+                    _w.onEditText(nil)
+                    _repaint.notifyListeners()
+                    return true
+                }
+                verdict = v.message
             }
         }
         if text != controller.input(e.cell) { controller.setInput(text, at: e.cell) }
+        if let verdict { _w.onStatus(verdict) }
         if let v = controller.sheet.cells[e.cell]?.value, case .text(let s) = v, s.hasPrefix("="), text.hasPrefix("=") {
             _w.onStatus("There's a problem with this formula")
         }
@@ -1235,6 +1241,36 @@ final class SheetGridState: State<StatefulWidget> {
         tp.paint(canvas, Offset(box.left + pad, y))
     }
 
+    /// The active cell's validation input message: a pale yellow box
+    /// under it, title in bold, as Excel shows it until the selection moves.
+    private func _paintPrompt(_ canvas: any Canvas) {
+        let c = controller
+        guard !printing, edit == nil, c.selectedDrawing == nil, let prompt = c.validationPrompt(at: c.active) else { return }
+        let r = rect(c.active)
+        guard r.bottom > headerHeight, r.right > headerWidth else { return }
+        let width = 200 * zoom, pad = 6 * zoom
+        let body = GridTextStyle(family: OfficeFonts.substitute("Segoe UI"), size: 12 * zoom, color: Int64(0xFF00_0000))
+        var head = body
+        head.bold = true
+        let title = prompt.title.isEmpty ? nil : texts.painter(prompt.title, head, maxWidth: width - pad * 2)
+        let tp = prompt.text.isEmpty ? nil : texts.painter(prompt.text, body, maxWidth: width - pad * 2)
+        let height = pad * 2 + (title?.height ?? 0) + (tp?.height ?? 0) + (title != nil && tp != nil ? 2 * zoom : 0)
+        var box = Rect.fromLTWH(r.left + 12 * zoom, r.bottom + 4 * zoom, width, height)
+        if box.right > size.width { box = box.translate(size.width - box.right, 0) }
+        if box.bottom > size.height { box = Rect.fromLTWH(box.left, r.top - 4 * zoom - height, width, height) }
+        let p = Paint()
+        p.style = .fill
+        p.color = Color(0xFFFFFFE1)
+        canvas.drawRect(box, p)
+        p.style = .stroke
+        p.strokeWidth = 1
+        p.color = Color(0xFF7F7F7F)
+        canvas.drawRect(box.deflate(0.5), p)
+        var y = box.top + pad
+        if let title { title.paint(canvas, Offset(box.left + pad, y)); y += title.height + 2 * zoom }
+        tp?.paint(canvas, Offset(box.left + pad, y))
+    }
+
     private func _signal(_ e: PointerSignalEvent) {
         guard let s = e as? PointerScrollEvent else { return }
         // Shift turns the wheel sideways, as everywhere on the desktop.
@@ -1414,6 +1450,7 @@ final class SheetGridState: State<StatefulWidget> {
             canvas.drawPath(tri, p)
         }
         _paintNote(canvas, ink: ink)
+        _paintPrompt(canvas)
         // The freeze lines.
         let freeze = Paint()
         freeze.style = .stroke

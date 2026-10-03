@@ -3,9 +3,12 @@
 
 // Data validation, read from the sheet's kept `<dataValidations>` (the
 // XML is written back as the file had it): a list rule gives the active
-// cell Excel's dropdown arrow and its choices, and an entry that breaks a
-// rule whose error alert is on is refused — the cell keeps what it had and
-// the status bar says why (Excel asks Retry/Cancel; this is its Cancel).
+// cell Excel's dropdown arrow and its choices, a rule with an input
+// message shows it under the active cell, and an entry that breaks a rule
+// whose error alert is on is answered by the alert's style — Stop refuses
+// it (the cell keeps what it had and the status bar says why; Excel asks
+// Retry/Cancel and this is its Cancel), Warning and Information let it in
+// and say so (Excel's Yes and OK).
 
 import Foundation
 
@@ -22,6 +25,13 @@ struct ValidationRule {
     var arrow: Bool
     var errorTitle: String?
     var error: String?
+    /// errorStyle: stop (the default), warning, information.
+    var errorStyle = "stop"
+    /// showInputMessage with its title and text: shown under the active cell.
+    var promptTitle: String? = nil
+    var prompt: String? = nil
+
+    var hasPrompt: Bool { !(promptTitle ?? "").isEmpty || !(prompt ?? "").isEmpty }
 
     var origin: CellAddress { ranges.first?.topLeft ?? CellAddress(row: 0, col: 0) }
     func covers(_ a: CellAddress) -> Bool { ranges.contains { $0.contains(a) } }
@@ -36,11 +46,14 @@ enum Validations {
                 let ranges = (v["sqref"] ?? "").split(separator: " ").compactMap { CellRange(String($0)) }
                 guard !ranges.isEmpty else { continue }
                 func f(_ n: String) -> FormulaExpr? { v.child(n).flatMap { try? Formula.parse("=" + $0.text) } }
-                out.append(ValidationRule(
+                var rule = ValidationRule(
                     ranges: ranges, type: v["type"] ?? "none", op: v["operator"] ?? "between",
                     formula1: f("formula1"), formula2: f("formula2"),
                     allowBlank: v["allowBlank"] == "1", refuses: v["showErrorMessage"] == "1",
-                    arrow: v["showDropDown"] != "1", errorTitle: v["errorTitle"], error: v["error"]))
+                    arrow: v["showDropDown"] != "1", errorTitle: v["errorTitle"], error: v["error"])
+                rule.errorStyle = v["errorStyle"] ?? "stop"
+                if v["showInputMessage"] == "1" { rule.promptTitle = v["promptTitle"]; rule.prompt = v["prompt"] }
+                out.append(rule)
             }
         }
         return out
@@ -50,6 +63,21 @@ enum Validations {
 extension WorkbookController {
     func validation(at a: CellAddress) -> ValidationRule? {
         validationRules.first { $0.covers(a) && $0.type != "none" }
+    }
+
+    /// The input message to show while `a` is the active cell.
+    func validationPrompt(at a: CellAddress) -> (title: String, text: String)? {
+        guard let rule = validationRules.first(where: { $0.covers(a) && $0.hasPrompt }) else { return nil }
+        return (rule.promptTitle ?? "", rule.prompt ?? "")
+    }
+
+    /// What a rule says about putting `value` into `a`: nil when it may go
+    /// in quietly, else the alert's message and whether it is refused
+    /// (Stop) or let in with a word (Warning, Information).
+    func validationVerdict(_ value: CellValue, at a: CellAddress) -> (message: String, refused: Bool)? {
+        guard let rule = validation(at: a), let message = validationRefusal(value, at: a) else { return nil }
+        let title = (rule.errorTitle ?? "").isEmpty ? "" : rule.errorTitle! + ": "
+        return (title + message, rule.errorStyle != "warning" && rule.errorStyle != "information")
     }
 
     private func _value(_ e: FormulaExpr?, _ rule: ValidationRule, _ a: CellAddress) -> EvalValue? {
