@@ -178,13 +178,18 @@ async function fetchWithProgress(url, onProgress) {
   const gzipped = String(url).endsWith('.gz');
   if ((!onProgress && !gzipped) || !response.body) return response;
   const total = Number(response.headers.get('Content-Length')) || 0;
+  // A response the browser decoded itself (Content-Encoding: GitHub Pages
+  // gzips skwasm.wasm on the fly) streams inflated bytes against a
+  // compressed Content-Length, so the count would pass the total — it
+  // read "8.6 of 6.5 MB" on slides.starling.build. Held at the total.
+  const decoded = total > 0 && !!response.headers.get('Content-Encoding');
   let loaded = 0;
   let body = response.body;
   if (onProgress) {
     body = body.pipeThrough(new TransformStream({
       transform(chunk, controller) {
         loaded += chunk.byteLength;
-        onProgress(loaded, total);
+        onProgress(decoded ? Math.min(loaded, total) : loaded, total);
         controller.enqueue(chunk);
       },
     }));
