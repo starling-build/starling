@@ -64,7 +64,11 @@ struct PptxTemplates {
     /// layout, its own level-1 look and prompt text.
     private func _placeholder(_ id: Int, _ spec: PlaceholderSpec, onLayout: Bool) -> String {
         var ph = ""
-        if let t = spec.phType { ph += " type=\"\(t)\"" }
+        // A master's placeholders are title, body, date, footer and number:
+        // no "obj" (an untyped one) — PowerPoint repairs a master that has
+        // one. A layout's content placeholder stays untyped.
+        let type = spec.phType ?? (onLayout ? nil : (spec.role == .title || spec.role == .ctrTitle ? "title" : "body"))
+        if let t = type { ph += " type=\"\(t)\"" }
         if let i = spec.phIdx { ph += " idx=\"\(i)\"" }
         let anchor = spec.anchor.rawValue
         var lst = "<a:lstStyle/>"

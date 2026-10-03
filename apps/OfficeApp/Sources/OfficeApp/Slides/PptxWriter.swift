@@ -44,6 +44,7 @@ enum PptxWriter {
         return masters.contains { m in
             p.parts[m.target] != nil
                 && p.rels(m.target).contains { $0.kind == "slideLayout" && p.parts[$0.target] != nil }
+                && p.rels(m.target).contains { $0.kind == "theme" && p.parts[$0.target] != nil }
         }
     }
 
@@ -119,13 +120,18 @@ enum PptxWriter {
 
         // Everything reachable from the package root except slides and notes
         // slides: copied as it was.
-        let presRelsAll = p.rels(pres)
+        // What a .pptx may not carry, a macro project, is left behind
+        // (PowerPoint's own Save As .pptx drops it too).
+        // A damaged file may name parts it no longer has: those relationships
+        // are left behind rather than written pointing at nothing.
+        let presRelsAll = p.rels(pres).filter { $0.kind != "vbaProject" && ($0.external || p.parts[$0.target] != nil) }
         var keep: [String] = []
         for r in p.rels("") where !r.external && r.target != pres { keep.append(r.target) }
         for r in presRelsAll where !r.external && r.kind != "slide" { keep.append(r.target) }
         var copied = Set<String>()
         for part in keep { _copy(part, from: p, into: &b, done: &copied) }
-        if let rootRels = p.parts["_rels/.rels"] { b.parts["_rels/.rels"] = rootRels }
+        let rootRels = p.rels("").filter { $0.external || p.parts[$0.target] != nil }
+        b.rels("", rootRels.map { Rel(id: $0.id, type: $0.type, target: $0.target, external: $0.external) })
 
         // Layouts by type, for slides that never had one from this file.
         var layoutsByType: [String: String] = [:]
@@ -187,7 +193,9 @@ enum PptxWriter {
         let cx = Int((state.slideSize.width * Pptx.emu).rounded()), cy = Int((state.slideSize.height * Pptx.emu).rounded())
         presOut = _replaceElement("p:sldSz", in: presOut, with: "<p:sldSz cx=\"\(cx)\" cy=\"\(cy)\"/>",
                                   after: "</p:sldIdLst>", orAfter: nil)
-        b.add(pres, presOut, type: p.contentType(pres) ?? CT.presentation)
+        // Always a presentation: a macro-enabled deck, a template or a show
+        // read in becomes a plain .pptx, which is what this writes.
+        b.add(pres, presOut, type: CT.presentation)
     }
 
     /// Copy a part, its relationships, and everything they reach.
@@ -238,6 +246,17 @@ enum PptxWriter {
             bg = "<p:bg><p:bgPr>" + w.fill(fill, media: &media, builder: &b) + "<a:effectLst/></p:bgPr></p:bg>"
         }
         rels += w.rels
+        // An OLE object (`p:oleObj spid="_x0000_s…"`) draws through a shape
+        // in the slide's VML drawing part, which the slide reaches by a
+        // relationship nothing in its XML names — so remapping r:ids keeps
+        // the embedding and loses the drawing, and PowerPoint then asks to
+        // repair the file. Carry the part while a kept object still has one.
+        if body.contains("<p:oleObj"), let src = slide.sourcePart, let p = source,
+           let vml = p.rels(src).first(where: { $0.kind == "vmlDrawing" && !$0.external && p.parts[$0.target] != nil }) {
+            var done = Set<String>()
+            PptxWriterCopy.copy(vml.target, from: p, into: &b, done: &done)
+            rels.append(Rel(id: "rIdVml", type: vml.type, target: Pptx.relative(vml.target, from: part)))
+        }
         let hidden = slide.hidden ? " show=\"0\"" : ""
         // Kept XML may lean on prefixes the source slide declared at its
         // root (a14, p14, mc…): the same declarations go on ours.

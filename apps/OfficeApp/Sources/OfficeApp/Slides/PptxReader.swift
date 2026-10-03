@@ -762,6 +762,15 @@ private struct SlideContext {
     }
 
     private func _picture(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
+        // Audio and video are a `p:pic` too — the poster frame, with the
+        // media hung on `p:nvPr` (`a:audioFile`/`a:videoFile`, `p14:media`)
+        // and a `p:timing` tree that plays it. Modelled as a picture, the
+        // media relationships would be dropped under a timing tree that
+        // still calls them, and PowerPoint repairs the slide. Kept whole.
+        if let nv = el.first("p:nvPicPr")?.first("p:nvPr"),
+           nv.children.contains(where: { ["a:audioFile", "a:videoFile", "a:quickTimeFile", "a:wavAudioFile"].contains($0.name) }) {
+            return _opaque(el, label: "Media", transform, id: id)
+        }
         guard let rid = el.first("p:blipFill")?.first("a:blip")?["r:embed"],
               let target = package.rels(part).first(where: { $0.id == rid }), !target.external,
               package.parts[target.target] != nil,

@@ -185,6 +185,48 @@ test drivers set it, after a driven Writer opened the user's own untitled
 document's copy (the "nihao shijie" screenshot of 2026-09-30 was that,
 not the user's window).
 
+**PowerPoint round, 2026-10-03.** Microsoft PowerPoint (16.113, on the
+Mac) is now the oracle, driven by `test/pptx-powerpoint.sh DIR`, which
+opens every deck in a folder and reports whether PowerPoint asks to
+repair it. Our own decks (`--deck-sample`, `--deck-showcase`: every
+layout, all six chart kinds with labels and axis titles, header and
+footer fields, a hidden slide, a fade) open clean and PowerPoint's own
+PDF export draws them as designed. The 92 saved corpus decks: 81 opened
+clean, 11 asked for repair — 8 of them real decks, all fixed; the other 3
+are fuzzer-damaged files that PowerPoint repairs *before* we touch them
+(controls). Neither `pptx-check.py` nor Quick Look had caught either
+bug, which is why the oracle exists:
+
+- **A legacy OLE object lost its drawing.** `p:oleObj spid="_x0000_s…"`
+  draws through a shape in the slide's VML drawing part, reached by a
+  `vmlDrawing` relationship nothing in the slide XML names — so the
+  r:id remap kept the embedding and dropped the drawing, and the slide
+  needed repair. The writer now carries that part (and its images)
+  whenever a kept object still contains an `oleObj`. Six decks.
+- **Audio and video were read as pictures.** A media shape is a `p:pic`
+  (the poster frame) with `a:audioFile`/`a:videoFile` and `p14:media`
+  on its `p:nvPr`, played by the slide's timing tree. Modelled as a
+  picture, the media relationships went while the kept `p:timing` still
+  called them. The reader now keeps such a `p:pic` whole. Two decks.
+  `pptx-check.py` learned that PowerPoint itself writes
+  `<a:hlinkClick r:id="" action="ppaction://media"/>` there.
+
+Also in this round (uncommitted since 2026-10-01): a master's
+placeholders are always typed (title/body — PowerPoint repairs a master
+with an untyped one), a usable master needs its theme part too, a macro
+project and relationships to missing parts are left behind, and the
+saved file is always a plain presentation content type.
+
+Driving notes: PowerPoint's scripted PNG export returns without error
+and writes nothing; `save … as save as PDF` works, rasterise with
+PDFKit. The sandbox grants read access for a Launch Services open
+(`open -a`) but not always for an AppleScript `open` of an untouched
+file (a "Grant File Access" dialog, which also precedes any save into a
+new folder — grant it once per folder, under `$HOME`). PDF export skips
+hidden slides. Seen but left: on `45541_Header` our copy's title-slide
+subtitle lost its centring and the round cyan bullets became plain
+dots (both a layout/master inheritance question, not a repair).
+
 **S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
 search field open Writer's find bar over the deck: every text body in
 reading order — each slide's shapes as they stack, table cells included,

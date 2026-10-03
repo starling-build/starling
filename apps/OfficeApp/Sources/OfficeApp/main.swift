@@ -213,6 +213,42 @@ if let i = CommandLine.arguments.firstIndex(of: "--deck-roundtrip"), i + 2 < Com
     }
 }
 
+// `--deck-showcase <out.pptx>`: the sample plus everything else this app
+// writes — one chart of each kind (labels, axis titles, stacking), header and
+// footer with fields on every slide, a fade transition — for opening in
+// PowerPoint itself.
+if let i = CommandLine.arguments.firstIndex(of: "--deck-showcase"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    let deck = SlidesSample.make()
+    for type in ChartType.allCases {
+        let slide = deck.addSlide(.titleOnly)
+        if let title = slide.shapes.first(where: { $0.role == .title })?.text { title.insertText("\(type.name) chart") }
+        let shape = deck.addChart(type)
+        shape.frame = Rect.fromLTWH(shape.frame.left, shape.frame.top + 40, shape.frame.width, shape.frame.height)
+        var c = shape.chart!
+        c.dataLabels = type == .column || type == .pie
+        if type == .bar { c.stacked = true }
+        if type == .line { c.valueAxisTitle = "Sales"; c.categoryAxisTitle = "Quarter" }
+        deck.setChart(shape, c)
+    }
+    var hf = DeckController.HeaderFooter()
+    hf.date = true
+    hf.slideNumber = true
+    hf.footer = "Starling Slides showcase"
+    hf.skipTitleSlides = true
+    deck.applyHeaderFooter(hf, toAll: true)
+    deck.select(1)
+    deck.setTransition(.fade)
+    do {
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        print("wrote \(deck.slides.count) slides to \(CommandLine.arguments[i + 1])")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("showcase failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--deck-sample <out.pptx>`: a new deck built through the controller — every
 // layout, typed text, drawn shapes, notes — written with our own templates.
 // What the new-deck path of the writer is checked with.

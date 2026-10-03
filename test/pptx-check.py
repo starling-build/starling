@@ -88,7 +88,9 @@ def check(path):
         rid_ok = {r.get("Id") for r in rels_of.get(n, [])}
         for el in t.iter():
             for k, v in el.attrib.items():
-                if k.startswith(R) and v not in rid_ok:
+                # PowerPoint itself writes `<a:hlinkClick r:id="" action="ppaction://media"/>`
+                # on a media poster frame: an empty id names nothing.
+                if k.startswith(R) and v and v not in rid_ok:
                     problems.append(f"{n}: {k[len(R):]}={v} has no relationship")
     for n in names:
         if n.startswith("ppt/slideLayouts/") and n.endswith(".xml"):
