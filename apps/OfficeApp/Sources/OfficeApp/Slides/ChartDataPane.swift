@@ -67,7 +67,7 @@ final class ChartDataPaneState: State<StatefulWidget> {
         } else if c < 0 {
             chart.categories[r] = text
         } else {
-            let v = Double(text.trimmingCharacters(in: .whitespaces))
+            let v = Double(text.trimmingWhitespace())
             while chart.series[c].values.count <= r { chart.series[c].values.append(nil) }
             chart.series[c].values[r] = v
         }

@@ -88,7 +88,9 @@ final class OfficeShellState: State<StatefulWidget> {
         if let pages = env["OFFICE_DEMO_PAGES"].flatMap(Int.init), pages > 0 {
             controller.load(DemoDocument.make(pages: pages))
         } else if let path = (widget as! OfficeShell).initialPath {
-            _open(path)
+            // Bytes from the browser's picker that crossed a kind switch
+            // (a .docx picked in Slides) arrive by name, not on disk.
+            if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
         } else if (widget as! OfficeShell).startBlank {
             var blank = RichDocument()
             blank.styles = OfficeStyles.sheet
@@ -411,6 +413,12 @@ final class OfficeShellState: State<StatefulWidget> {
     /// what a save is called; there is no path, and no recovery copy to
     /// look for either.
     private func _open(_ name: String, data: Data) {
+        // A deck: Slides opens it, from the same bytes.
+        if name.pathExtension.lowercased() == "pptx", let onSwitch = (widget as! OfficeShell).onSwitch {
+            PickedFile.hand(name, data)
+            onSwitch(.presentation, name)
+            return
+        }
         do {
             try _open(name, opened: OfficeFormats.read(data, named: name))
         } catch {
@@ -939,7 +947,7 @@ final class OfficeShellState: State<StatefulWidget> {
 enum OfficeRecovery {
     static func untitled(_ ext: String) -> String {
         let dir = ProcessInfo.processInfo.environment["OFFICE_RECOVERY_DIR"].flatMap { $0.isEmpty ? nil : $0 }
-            ?? NSHomeDirectory() + "/.config/starling/office-recovery"
+            ?? homeDirectory() + "/.config/starling/office-recovery"
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         return dir + "/untitled.\(ext)~"
     }
@@ -964,6 +972,10 @@ enum OfficeRecent {
     }
 
     static func remember(_ path: String, in list: [String]) -> [String] {
+        #if os(WASI)
+        // A tab cannot reopen a file by name: nothing to remember.
+        return list
+        #endif
         var recent = list
         recent.removeAll { $0 == path }
         recent.insert(path, at: 0)

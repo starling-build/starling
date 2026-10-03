@@ -255,6 +255,13 @@ missing. Bisecting a repair by repacking slide hybrids with `zip -r`
 does not work: the repacked *unmodified* tree repairs too, so every
 hybrid reads as guilty — diff the XML instead.
 
+**In the browser, 2026-10-03.** Slides builds and runs in the web
+build of Office (`build/web-app.sh OfficeApp --package apps/OfficeApp
+--serve`): new deck, open and save `.pptx` through the picker and
+downloads, charts, the show. What it took is in docs/plans/wasm.md
+("Slides runs in the browser too"); the one Slides-wide change is that
+dates come from `SlidesDates` (no DateFormatter), natively as well.
+
 **S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
 search field open Writer's find bar over the deck: every text body in
 reading order — each slide's shapes as they stack, table cells included,

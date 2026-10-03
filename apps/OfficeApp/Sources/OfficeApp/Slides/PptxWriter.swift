@@ -251,7 +251,7 @@ enum PptxWriter {
         // relationship nothing in its XML names — so remapping r:ids keeps
         // the embedding and loses the drawing, and PowerPoint then asks to
         // repair the file. Carry the part while a kept object still has one.
-        if body.contains("<p:oleObj"), let src = slide.sourcePart, let p = source,
+        if body.containsSubstring("<p:oleObj"), let src = slide.sourcePart, let p = source,
            let vml = p.rels(src).first(where: { $0.kind == "vmlDrawing" && !$0.external && p.parts[$0.target] != nil }) {
             var done = Set<String>()
             PptxWriterCopy.copy(vml.target, from: p, into: &b, done: &done)
@@ -285,7 +285,7 @@ enum PptxWriter {
                 timing = t
                 for (prefix, uri) in [("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main"),
                                       ("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006")]
-                where t.contains("\(prefix):") && !ns.contains("xmlns:\(prefix)=") {
+                where t.containsSubstring("\(prefix):") && !ns.containsSubstring("xmlns:\(prefix)=") {
                     ns += " xmlns:\(prefix)=\"\(uri)\""
                 }
             }
@@ -313,7 +313,7 @@ enum PptxWriter {
         if let raw = t.raw {
             for (prefix, uri) in [("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006"),
                                   ("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main")]
-            where raw.contains("\(prefix):") && !ns.contains("xmlns:\(prefix)=") {
+            where raw.containsSubstring("\(prefix):") && !ns.containsSubstring("xmlns:\(prefix)=") {
                 ns += " xmlns:\(prefix)=\"\(uri)\""
             }
             return raw
@@ -332,25 +332,25 @@ enum PptxWriter {
     }
 
     private static func _insertAfter(_ marker: String, in s: String, _ insert: String) -> String {
-        guard let r = s.range(of: marker) else { return s }
-        return s.replacingCharacters(in: r, with: marker + insert)
+        guard let r = s.findRange(of: marker) else { return s }
+        return s.replacingSubrange(r, with: marker + insert)
     }
 
     /// Replace `<name …>…</name>` (or `<name …/>`) in `s`; when absent,
     /// insert the replacement after `after` (or `orAfter`).
     private static func _replaceElement(_ name: String, in s: String, with replacement: String,
                                         after: String, orAfter: String?) -> String {
-        if let start = s.range(of: "<\(name)") {
-            if let selfClose = s.range(of: "/>", range: start.upperBound ..< s.endIndex),
-               s.range(of: ">", range: start.upperBound ..< s.endIndex)?.lowerBound == s.index(before: selfClose.upperBound) {
-                return s.replacingCharacters(in: start.lowerBound ..< selfClose.upperBound, with: replacement)
+        if let start = s.findRange(of: "<\(name)") {
+            if let selfClose = s.findRange(of: "/>", in: start.upperBound ..< s.endIndex),
+               s.findRange(of: ">", in: start.upperBound ..< s.endIndex)?.lowerBound == s.index(before: selfClose.upperBound) {
+                return s.replacingSubrange(start.lowerBound ..< selfClose.upperBound, with: replacement)
             }
-            if let end = s.range(of: "</\(name)>", range: start.upperBound ..< s.endIndex) {
-                return s.replacingCharacters(in: start.lowerBound ..< end.upperBound, with: replacement)
+            if let end = s.findRange(of: "</\(name)>", in: start.upperBound ..< s.endIndex) {
+                return s.replacingSubrange(start.lowerBound ..< end.upperBound, with: replacement)
             }
         }
-        if s.range(of: after) != nil { return _insertAfter(after, in: s, replacement) }
-        if let orAfter, s.range(of: orAfter) != nil { return _insertAfter(orAfter, in: s, replacement) }
+        if s.findRange(of: after) != nil { return _insertAfter(after, in: s, replacement) }
+        if let orAfter, s.findRange(of: orAfter) != nil { return _insertAfter(orAfter, in: s, replacement) }
         return s
     }
 }
@@ -687,7 +687,7 @@ private struct SlideXML {
                 // A picture fill names its image by the source slide's
                 // relationship: re-pointed, the image copied over.
                 func own(_ xml: String) -> String {
-                    guard xml.contains("r:"), let p = source, let part = s.sourcePart else { return xml }
+                    guard xml.containsSubstring("r:"), let p = source, let part = s.sourcePart else { return xml }
                     return kept(xml, sourcePart: part, package: p, builder: &builder, patch: nil)
                 }
                 if k.fillKept(s) { fillXML = k.fill.map(own) ?? "" }
@@ -866,7 +866,7 @@ enum PptxWriterCopy {
 // MARK: - Text
 
 enum PptxText {
-    static func hex(_ c: Color) -> String { String(format: "%06X", c.value & 0xFFFFFF) }
+    static func hex(_ c: Color) -> String { String(printf: "%06X", UInt32(truncatingIfNeeded: c.value & 0xFFFFFF)) }
 
     static func imageExtension(_ image: ImageAttachment) -> String {
         let d = [UInt8](image.data.prefix(8))

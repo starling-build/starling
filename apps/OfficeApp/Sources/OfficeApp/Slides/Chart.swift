@@ -125,7 +125,7 @@ struct Chart: Equatable {
 
     /// x of category `i` for a scatter chart: its number, or its position.
     func x(_ i: Int) -> Double {
-        i < categories.count ? Double(categories[i].trimmingCharacters(in: .whitespaces)) ?? Double(i + 1) : Double(i + 1)
+        i < categories.count ? Double(categories[i].trimmingWhitespace()) ?? Double(i + 1) : Double(i + 1)
     }
 }
 
@@ -158,7 +158,7 @@ enum ChartXML {
             if categories.count < names.count {
                 categories = names.enumerated().map { $0.element ?? (categories.indices.contains($0.offset) ? categories[$0.offset] : "") }
             }
-            let values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingCharacters(in: .whitespaces)) } }
+            let values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
             let pr = ser.first("c:spPr")
             let fill = type == .line ? pr?.first("a:ln")?.first("a:solidFill")
@@ -494,7 +494,7 @@ enum ChartPainter {
     private static func _mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
         func ch(_ v: Int, _ s: Int) -> Int { (v >> s) & 0xFF }
         func m(_ s: Int) -> Int { Int((Double(ch(a.value, s)) * t + Double(ch(b.value, s)) * (1 - t)).rounded()) }
-        return Color(0xFF00_0000 | (m(16) << 16) | (m(8) << 8) | m(0))
+        return Color(0xFF00_0000 | Int64((m(16) << 16) | (m(8) << 8) | m(0)))
     }
 
     /// Round axis bounds and a step, Excel's way: about five to ten
@@ -515,7 +515,7 @@ enum ChartPainter {
     static func label(_ v: Double, percent: Bool) -> String {
         if percent { return "\(Int((v * 100).rounded()))%" }
         if abs(v - v.rounded()) < 1e-9 { return String(Int(v.rounded())) }
-        var s = String(format: "%.2f", v)
+        var s = String(printf: "%.2f", v)
         while s.hasSuffix("0") { s.removeLast() }
         if s.hasSuffix(".") { s.removeLast() }
         return s

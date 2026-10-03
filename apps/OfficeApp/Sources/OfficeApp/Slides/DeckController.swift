@@ -720,7 +720,7 @@ final class DeckController: ChangeNotifier {
     static func tint(_ c: Color, _ amount: Double) -> Color {
         let v = c.value
         func mix(_ x: Int) -> Int { Int(Double(x) * amount + 255 * (1 - amount)) }
-        return Color(0xFF00_0000 | (mix((v >> 16) & 0xFF) << 16) | (mix((v >> 8) & 0xFF) << 8) | mix(v & 0xFF))
+        return Color(0xFF00_0000 | Int64((mix((v >> 16) & 0xFF) << 16) | (mix((v >> 8) & 0xFF) << 8) | mix(v & 0xFF)))
     }
 
     func deleteSelection() {
@@ -1201,7 +1201,7 @@ final class DeckController: ChangeNotifier {
         let v = c.value
         let r = Int(Double((v >> 16) & 0xFF) * amount), g = Int(Double((v >> 8) & 0xFF) * amount)
         let b = Int(Double(v & 0xFF) * amount)
-        return Color(0xFF00_0000 | (r << 16) | (g << 8) | b)
+        return Color(0xFF00_0000 | Int64((r << 16) | (g << 8) | b))
     }
 
     // MARK: Change tracking

@@ -59,22 +59,21 @@ struct SlideField: Equatable {
     /// The text the field shows on slide `number` (1-based) today.
     func value(slide number: Int, date: Date = Date()) -> String {
         if isSlideNumber { return "\(number)" }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US")
+        let pattern: String
         switch type {
-        case "datetime2": f.dateFormat = "EEEE, MMMM d, yyyy"
-        case "datetime3": f.dateFormat = "d MMMM yyyy"
-        case "datetime4": f.dateFormat = "MMMM d, yyyy"
-        case "datetime5": f.dateFormat = "d-MMM-yy"
-        case "datetime6": f.dateFormat = "MMMM yy"
-        case "datetime7": f.dateFormat = "MMM-yy"
-        case "datetime10": f.dateFormat = "H:mm"
-        case "datetime11": f.dateFormat = "H:mm:ss"
-        case "datetime12": f.dateFormat = "h:mm a"
-        case "datetime13": f.dateFormat = "h:mm:ss a"
-        default: f.dateFormat = "M/d/yyyy"
+        case "datetime2": pattern = "EEEE, MMMM d, yyyy"
+        case "datetime3": pattern = "d MMMM yyyy"
+        case "datetime4": pattern = "MMMM d, yyyy"
+        case "datetime5": pattern = "d-MMM-yy"
+        case "datetime6": pattern = "MMMM yy"
+        case "datetime7": pattern = "MMM-yy"
+        case "datetime10": pattern = "H:mm"
+        case "datetime11": pattern = "H:mm:ss"
+        case "datetime12": pattern = "h:mm a"
+        case "datetime13": pattern = "h:mm:ss a"
+        default: pattern = "M/d/yyyy"
         }
-        return f.string(from: date)
+        return SlidesDates.format(date, pattern)
     }
 
     static func newId() -> String { "{" + UUID().uuidString + "}" }

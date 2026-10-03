@@ -128,7 +128,7 @@ private struct PptxTheme {
 
     static func hex(_ s: String) -> Color? {
         guard s.count == 6, let v = Int(s, radix: 16) else { return nil }
-        return Color(0xFF00_0000 | v)
+        return Color(0xFF00_0000 | Int64(v))
     }
 }
 
@@ -903,10 +903,10 @@ private struct SlideContext {
 
     private func _frameLabel(_ el: XNode) -> String {
         let uri = el.descendant("a:graphicData")?["uri"] ?? ""
-        if uri.hasSuffix("/chart") || uri.contains("chartex") { return "Chart" }
+        if uri.hasSuffix("/chart") || uri.containsSubstring("chartex") { return "Chart" }
         if uri.hasSuffix("/diagram") { return "SmartArt" }
         if uri.hasSuffix("/table") { return "Table" }
-        if uri.contains("ole") { return "Embedded object" }
+        if uri.containsSubstring("ole") { return "Embedded object" }
         return "Object"
     }
 

@@ -52,6 +52,14 @@ extension StringProtocol {
 }
 
 extension String {
+    /// `replacingCharacters(in:with:)` without Foundation: the string with
+    /// `range` replaced by `replacement`.
+    public func replacingSubrange(_ range: Range<Index>, with replacement: String) -> String {
+        String(self[..<range.lowerBound]) + replacement + self[range.upperBound...]
+    }
+}
+
+extension String {
     /// `range(of:options:range:)` for the two options the framework uses:
     /// case-insensitive and backwards. Case folding is `lowercased()` on
     /// both sides, character by character.

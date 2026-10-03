@@ -38,9 +38,7 @@ final class HeaderFooterDialogState: State<StatefulWidget> {
         _hf = _w.initial
         _fixed = _hf.fixedDate != nil
         _footerOn = _hf.footer != nil
-        let f = DateFormatter()
-        f.dateFormat = "M/d/yyyy"
-        _date.text = _hf.fixedDate ?? f.string(from: Date())
+        _date.text = _hf.fixedDate ?? SlidesDates.format(Date(), "M/d/yyyy")
         _footer.text = _hf.footer ?? ""
     }
 

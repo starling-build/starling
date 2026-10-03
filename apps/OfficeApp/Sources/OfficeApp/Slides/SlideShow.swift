@@ -271,12 +271,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         let remaining = _at < _order.count ? max(0, _plan.groups.count - _played) : 0
         let notes = _at < _order.count ? deck.slides[_order[_at]].notes.document.plainText() : ""
         let t = Int(_elapsed)
-        let timer = String(format: "%d:%02d:%02d", t / 3600, (t / 60) % 60, t % 60)
-        let clock: String = {
-            let f = DateFormatter()
-            f.dateFormat = "h:mm a"
-            return f.string(from: Date())
-        }()
+        let timer = String(printf: "%d:%02d:%02d", Int32(t / 3600), Int32((t / 60) % 60), Int32(t % 60))
+        let clock = SlidesDates.format(Date(), "h:mm a")
         func button(_ text: String, _ action: @escaping () -> Void) -> Widget {
             Button(onPressed: action, child: Text(text))
         }

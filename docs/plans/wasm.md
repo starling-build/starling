@@ -215,6 +215,39 @@ and the `--convert` command line fenced off — a tab has no files (and
 forever on WASI, so it must not be reached). Release: 12.2 MB, 0.6 MB
 over CounterApp.
 
+**Slides runs in the browser too (2026-10-03).** Same page, same build
+(`build/web-app.sh OfficeApp --package apps/OfficeApp --serve`): File →
+Blank presentation switches the tab to Slides; the picker (Ctrl+O)
+accepts `.pptx` beside Writer's formats and a deck picked in either
+shell opens in the right one; Ctrl+S downloads the `.pptx` (byte-equal
+to the native save up to attribute order); the slide show runs in the
+tab; pictures come in through the picker. Verified by `web-drive.mjs`:
+the 16-slide showcase deck with its six chart kinds, a new deck typed
+into, the show, the download through `pptx-check.py`. What it took,
+beyond the two usual classes (five `Color(0xFF00_0000 | int)`
+expressions widened to `Int64`; `CharacterSet`/`range(of:)`/
+`replacingCharacters`/`contains(String)`/`NSHomeDirectory` respelled
+through `StringHelpers`, which gained `replacingSubrange`):
+
+- **Bytes cross the kind switch by name.** OfficeRoot rebuilds the
+  other shell with a *path*; a tab has none. `PickedFile.hand(name,
+  data)` before the switch, `PickedFile.take(name)` in the new shell's
+  `initState` — Writer's and Slides' alike.
+- **No DateFormatter anywhere in Slides.** The date field's thirteen
+  PowerPoint formats, the header/footer dialog's default, the
+  presenter's clock and the package's W3C timestamps come from
+  `SlidesDates` (Calendar components, a 40-line pattern formatter):
+  PowerPoint's field formats are en-US whatever the deck's language,
+  so nothing is lost.
+- **The recovery path is never created on the web**: Slides'
+  `_recoveryPath` returns a fixed name under `#if os(WASI)` like
+  Writer's, because `OfficeRecovery.untitled` makes its directory.
+  And `OfficeRecent.remember` is a no-op there — Backstage had listed
+  the picked deck as "recent", which a tab cannot reopen.
+- Not in the browser: PDF export (Writer's limit too), AutoSave, Save
+  As by name (save *is* the download), the second-display presenter
+  view (none natively either).
+
 Done since the list was first written: keyboard (`starling_key`), Swift
 concurrency on the page's event loop (`FlutterWeb/WebExecutor.swift`),
 image decoding by the browser (`starling_host_decode_image` →

@@ -45,7 +45,7 @@ extension DeckController {
                     let text = para.text
                     var from = text.startIndex
                     while from < text.endIndex,
-                          let r = text.range(of: query, options: .caseInsensitive, range: from ..< text.endIndex) {
+                          let r = text.findRange(of: query, caseSensitive: false, in: from ..< text.endIndex) {
                         out.append(DeckMatch(slide: i, stop: stop, shapeId: body.shape?.id, selection: RichSelection(
                             anchor: RichPosition(paragraph: p, offset: r.lowerBound.utf16Offset(in: text)),
                             focus: RichPosition(paragraph: p, offset: r.upperBound.utf16Offset(in: text)))))

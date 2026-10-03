@@ -9,6 +9,9 @@ import Flutter
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation
+#if os(WASI)
+import FlutterWeb
+#endif
 
 final class SlidesShell: StatefulWidget {
     let initialPath: String?
@@ -114,7 +117,9 @@ final class SlidesShellState: State<StatefulWidget> {
         _point(at: nil)
         _deckFocus.onKeyData = { [weak self] key in self?._deckKey(key) ?? false }
         if let path = _w.initialPath {
-            _open(path)
+            // Bytes from the browser's picker that crossed the kind switch
+            // (a .pptx picked in Writer) arrive by name, not on disk.
+            if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
         } else if !_w.startBlank, let data = FileManager.default.contents(atPath: _recoveryPath(for: nil)),
                   let (state, theme, package) = try? Pptx.read(data) {
             // Last time ended with an unsaved untitled deck.
@@ -144,9 +149,29 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             if kind == .presentation { self._newDeck() } else { self._w.onSwitch(.document, nil) }
         }
-        session.onOpen = { [weak self] in self?.setState { self?._backstage = .open } }
+        session.onOpen = { [weak self] in
+            guard let self else { return }
+            #if os(WASI)
+            // The browser's picker, not Backstage's directory list: a tab
+            // has no directories, only files the user hands over.
+            WebFiles.open(extensions: ["pptx"] + OfficeFormats.readable) { [weak self] picked in
+                guard let self, let picked else { return }
+                self._open(picked.name, data: picked.data)
+            }
+            #else
+            self.setState { self._backstage = .open }
+            #endif
+        }
         session.onSave = { [weak self] in self?._save() }
-        session.onSaveAs = { [weak self] in self?.setState { self?._backstage = .saveAs } }
+        session.onSaveAs = { [weak self] in
+            guard let self else { return }
+            #if os(WASI)
+            // The browser names and places a download; "save as" is save.
+            self._save()
+            #else
+            self.setState { self._backstage = .saveAs }
+            #endif
+        }
         session.onExport = { [weak self] ext in self?._export(ext) }
         session.onStatus = { [weak self] m in self?._flash(m) }
         session.onPaste = { [weak self] plain in
@@ -167,7 +192,7 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
             self._pictureForBackground = false
-            self.setState { self._backstage = .insertPicture }
+            self._pickPicture()
         }
         session.onHeaderFooter = { [weak self] in
             guard let self else { return }
@@ -194,7 +219,7 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onBackgroundPicture = { [weak self] in
             guard let self else { return }
             self._pictureForBackground = true
-            self.setState { self._backstage = .insertPicture }
+            self._pickPicture()
         }
         session.onInsertShape = { [weak self] preset in
             guard let self else { return }
@@ -459,7 +484,15 @@ final class SlidesShellState: State<StatefulWidget> {
     /// Beside a saved deck as `name.pptx~`; for an untitled one, under the
     /// recovery directory (OfficeRecovery).
     private func _recoveryPath(for path: String?) -> String {
-        path.map { $0 + "~" } ?? OfficeRecovery.untitled("pptx")
+        #if os(WASI)
+        // Never written (no autosave in a tab); never created either —
+        // OfficeRecovery.untitled makes its directory, and
+        // FileManager.createDirectory(withIntermediateDirectories:) recurses
+        // forever on WASI.
+        return path.map { $0 + "~" } ?? "/office-recovery/untitled.pptx~"
+        #else
+        return path.map { $0 + "~" } ?? OfficeRecovery.untitled("pptx")
+        #endif
     }
 
     /// Two seconds after the last change: AutoSave writes the file itself
@@ -537,24 +570,45 @@ final class SlidesShellState: State<StatefulWidget> {
                 if recovered == nil { try? FileManager.default.removeItem(atPath: r) }
             }
             guard let data = FileManager.default.contents(atPath: path) else { throw Pptx.ReadError.noPresentation }
-            let (state, theme, package) = try recovered ?? Pptx.read(data)
-            _endEditing()
-            deck.load(state, theme: theme, package: package)
-            session.path = path
-            _recovered = recovered != nil
-            _savedEdits = recovered == nil ? deck.edits : deck.edits - 1
-            _lastAutosaveEdits = deck.edits
-            _recent = OfficeRecent.remember(path, in: _recent)
-            setState {
-                session.dirty = recovered != nil
-                _backstage = nil
-            }
-            _flash(recovered != nil ? "Restored unsaved changes to \(path.lastPathComponent) — Save to keep them"
-                                    : "Opened \(path.lastPathComponent) — \(deck.slides.count) slides")
+            try _load(recovered ?? Pptx.read(data), as: path, recovered: recovered != nil)
         } catch {
             _flash("Could not open \(path.lastPathComponent): \(error)")
             setState { _backstage = nil }
         }
+    }
+
+    /// A file as bytes, from the browser's picker: no recovery copy to
+    /// weigh against it, and a .docx goes to Writer with the same bytes.
+    private func _open(_ name: String, data: Data) {
+        if OfficeFormats.readable.contains(name.pathExtension.lowercased()) {
+            PickedFile.hand(name, data)
+            _w.onSwitch(.document, name)
+            return
+        }
+        do {
+            _autosaveGeneration += 1
+            try _load(Pptx.read(data), as: name, recovered: false)
+        } catch {
+            _flash("Could not open \(name): \(error)")
+            setState { _backstage = nil }
+        }
+    }
+
+    private func _load(_ read: (DeckState, DeckTheme, PptxPackage), as path: String, recovered: Bool) throws {
+        let (state, theme, package) = read
+        _endEditing()
+        deck.load(state, theme: theme, package: package)
+        session.path = path
+        _recovered = recovered
+        _savedEdits = recovered ? deck.edits - 1 : deck.edits
+        _lastAutosaveEdits = deck.edits
+        _recent = OfficeRecent.remember(path, in: _recent)
+        setState {
+            session.dirty = recovered
+            _backstage = nil
+        }
+        _flash(recovered ? "Restored unsaved changes to \(path.lastPathComponent) — Save to keep them"
+                         : "Opened \(path.lastPathComponent) — \(deck.slides.count) slides")
     }
 
     // MARK: Slide show
@@ -578,7 +632,13 @@ final class SlidesShellState: State<StatefulWidget> {
 
     private func _save() {
         guard let path = session.path, path.pathExtension.lowercased() == "pptx" else {
+            #if os(WASI)
+            // A download, named after the deck; the browser decides where
+            // it goes, and asks the user if it is set to.
+            _saveTo(session.title.deletingPathExtension + ".pptx")
+            #else
             setState { _backstage = .saveAs }
+            #endif
             return
         }
         _saveTo(path)
@@ -589,7 +649,11 @@ final class SlidesShellState: State<StatefulWidget> {
         _endEditing()
         do {
             let data = try Pptx.write(deck)
+            #if os(WASI)
+            WebFiles.download(data, as: path.lastPathComponent)
+            #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            #endif
             // Saved: the copy beside the old name (or the untitled one) goes.
             _dropRecovery()
             session.path = path
@@ -613,7 +677,12 @@ final class SlidesShellState: State<StatefulWidget> {
         _endEditing()
         if ext == "pptx" {
             do {
-                try Pptx.write(deck).write(to: URL(fileURLWithPath: target), options: .atomic)
+                let data = try Pptx.write(deck)
+                #if os(WASI)
+                WebFiles.download(data, as: target.lastPathComponent)
+                #else
+                try data.write(to: URL(fileURLWithPath: target), options: .atomic)
+                #endif
                 _flash("Exported \(target.lastPathComponent)")
             } catch {
                 _flash("Could not export: \(error)")
@@ -622,6 +691,10 @@ final class SlidesShellState: State<StatefulWidget> {
             return
         }
         setState { _backstage = nil }
+        #if os(WASI)
+        _flash("PDF export is not available in the browser yet")
+        return
+        #endif
         _flash("Exporting \(target.lastPathComponent)…")
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -630,12 +703,30 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    /// Where a picture comes from: Backstage's file list, or in a tab the
+    /// browser's picker.
+    private func _pickPicture() {
+        #if os(WASI)
+        WebFiles.open(extensions: ["png", "jpg", "jpeg", "gif", "bmp", "webp"]) { [weak self] picked in
+            guard let self, let picked else { return }
+            self._insertPicture(picked.name, data: picked.data)
+        }
+        #else
+        setState { _backstage = .insertPicture }
+        #endif
+    }
+
     private func _insertPicture(_ path: String) {
-        setState { _backstage = nil }
         guard let data = FileManager.default.contents(atPath: path) else {
+            setState { _backstage = nil }
             _flash("Could not read \(path.lastPathComponent)")
             return
         }
+        _insertPicture(path, data: data)
+    }
+
+    private func _insertPicture(_ path: String, data: Data) {
+        setState { _backstage = nil }
         let forBackground = _pictureForBackground
         Task { @MainActor [weak self] in
             guard let self else { return }

@@ -9,8 +9,8 @@ import Foundation
 /// file, writes it, reads the result and compares the two dumps.
 enum SlidesDump {
     static func text(_ state: DeckState, theme: DeckTheme) -> String {
-        func n(_ v: Double) -> String { String(format: "%.1f", v) }
-        func hex(_ c: Color?) -> String { c.map { String(format: "#%06X", $0.value & 0xFFFFFF) } ?? "-" }
+        func n(_ v: Double) -> String { String(printf: "%.1f", v) }
+        func hex(_ c: Color?) -> String { c.map { String(printf: "#%06X", UInt32(truncatingIfNeeded: $0.value & 0xFFFFFF)) } ?? "-" }
         var out = "size \(n(state.slideSize.width))x\(n(state.slideSize.height)) fonts \(theme.headingFont)/\(theme.bodyFont)\n"
         for (i, slide) in state.slides.enumerated() {
             let bg: String = {
