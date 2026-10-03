@@ -199,20 +199,31 @@ extension Ribbon {
         return sections.joined(separator: ";")
     }
 
-    /// AutoSum: =SUM over the numbers above the active cell (or left of it).
+    /// AutoSum: =SUM over the numbers above the active cell (or left of
+    /// it). The total takes the summed cells' number format, as Excel's does,
+    /// when they agree on one and the cell has none of its own.
     static func _autoSum(_ wb: WorkbookController) {
         let a = wb.active
         func isNum(_ x: CellAddress) -> Bool { wb.sheet.value(x).number != nil }
+        func start(_ r: CellRange) {
+            let addresses = (r.top ... r.bottom).flatMap { row in (r.left ... r.right).map { CellAddress(row: row, col: $0) } }
+            let formats = Set(addresses.map { wb.book.style(wb.sheet.cells[$0]?.style ?? 0).numberFormat })
+            if formats.count == 1, let f = formats.first, f != "General",
+               wb.book.style(wb.sheet.cells[a]?.style ?? 0).numberFormat == "General" {
+                wb.setStyle({ $0.numberFormat = f }, range: CellRange(a))
+            }
+            wb.onCommand?(.startFormula("=SUM(" + r.a1 + ")"))
+        }
         var top = a.row
         while top > 0, isNum(CellAddress(row: top - 1, col: a.col)) { top -= 1 }
         if top < a.row {
-            wb.onCommand?(.startFormula("=SUM(" + CellRange(top: top, left: a.col, bottom: a.row - 1, right: a.col).a1 + ")"))
+            start(CellRange(top: top, left: a.col, bottom: a.row - 1, right: a.col))
             return
         }
         var left = a.col
         while left > 0, isNum(CellAddress(row: a.row, col: left - 1)) { left -= 1 }
         if left < a.col {
-            wb.onCommand?(.startFormula("=SUM(" + CellRange(top: a.row, left: left, bottom: a.row, right: a.col - 1).a1 + ")"))
+            start(CellRange(top: a.row, left: left, bottom: a.row, right: a.col - 1))
             return
         }
         wb.onCommand?(.startFormula("=SUM("))

@@ -1,0 +1,51 @@
+# The v1 scenario on a blank book: type a table, format a column as currency,
+# sort it (the header stays), total it with AutoSum, chart it, undo the chart.
+# View coords at 100%: cell(c,r) centre = (72+64c, 270+20r); ribbon tabs y=85.
+click 72 270
+type Item
+key tab
+type Amount
+key enter
+type Pears
+key tab
+type 1234.5
+key enter
+type Apples
+key tab
+type 99
+key enter
+type Figs
+key tab
+type 2500
+key enter
+type Dates
+key tab
+type 18.25
+key enter
+drag 136 290 136 350
+click 643 152
+drag 72 270 136 350
+click 284 85
+wait 300
+click 63 117
+wait 400
+shot ${OUT}/04-sorted.png
+click 136 370
+click 96 85
+wait 300
+click 935 117
+wait 300
+key enter
+wait 300
+shot ${OUT}/05-total.png
+drag 72 270 136 350
+click 155 85
+wait 300
+click 57 117
+wait 600
+shot ${OUT}/06-chart.png
+click 600 700
+chord cmd z
+wait 300
+shot ${OUT}/07-undo-chart.png
+quit

@@ -416,12 +416,21 @@ final class WorkbookController: ChangeNotifier {
         r = CellRange(top: r.top, left: r.left, bottom: min(r.bottom, used.row), right: min(r.right, used.col))
         guard r.rows > 1 else { return }
         let key = min(max(active.col, r.left), r.right)
-        // A header: the first row is all text and the key column below it is not.
+        // A header, as Excel guesses one: the first row is all text and
+        // differs from what is under it — numbers below in some column, or
+        // the first row bold over a plain second one.
         let firstIsText = (r.left ... r.right).allSatisfy { col in
             let v = sheet.value(CellAddress(row: r.top, col: col)); return v.isText || v.isEmpty
         }
-        let belowHasNumbers = (r.top + 1 ... r.bottom).contains { sheet.value(CellAddress(row: $0, col: key)).number != nil }
-        let top = firstIsText && belowHasNumbers ? r.top + 1 : r.top
+        let belowHasNumbers = (r.top + 1 ... r.bottom).contains { row in
+            (r.left ... r.right).contains { sheet.value(CellAddress(row: row, col: $0)).number != nil }
+        }
+        let boldOverPlain = (r.left ... r.right).contains { col in
+            !sheet.value(CellAddress(row: r.top, col: col)).isEmpty
+                && book.style(sheet.cells[CellAddress(row: r.top, col: col)]?.style ?? 0).bold
+                && !book.style(sheet.cells[CellAddress(row: r.top + 1, col: col)]?.style ?? 0).bold
+        }
+        let top = firstIsText && (belowHasNumbers || boldOverPlain) ? r.top + 1 : r.top
         guard r.bottom > top else { return }
         let before = sortRows(CellRange(top: top, left: r.left, bottom: r.bottom, right: r.right), key: key, ascending: ascending)
         if !before.isEmpty { _record(sheet: activeSheet, before: before) }

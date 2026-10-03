@@ -371,4 +371,31 @@ extension SheetsEditingTests {
         c.addSheet()
         XCTAssertEqual(c.book.sheets.count, 4)
     }
+
+    func testSortKeepsAHeaderItRecognises() {
+        // A text key column with numbers in another column: the labels stay.
+        let c = WorkbookController()
+        c.setInputs([(CellAddress("A1")!, "Item"), (CellAddress("B1")!, "Amount"),
+                     (CellAddress("A2")!, "Pears"), (CellAddress("B2")!, "3"),
+                     (CellAddress("A3")!, "Apples"), (CellAddress("B3")!, "1")])
+        c.select(CellAddress("A1")!)
+        c.sortSelection(ascending: true)
+        XCTAssertEqual(c.sheet.value(CellAddress("A1")!), .text("Item"))
+        XCTAssertEqual(c.sheet.value(CellAddress("A2")!), .text("Apples"))
+        XCTAssertEqual(c.sheet.value(CellAddress("B2")!), .number(1))
+        // All text, nothing bold: no header, every row sorts.
+        let d = WorkbookController()
+        d.setInputs([(CellAddress("A1")!, "Pears"), (CellAddress("A2")!, "Apples"), (CellAddress("A3")!, "Figs")])
+        d.select(CellAddress("A1")!)
+        d.sortSelection(ascending: true)
+        XCTAssertEqual(d.sheet.value(CellAddress("A1")!), .text("Apples"))
+        // All text, but a bold first row over a plain one: a header.
+        let e = WorkbookController()
+        e.setInputs([(CellAddress("A1")!, "Name"), (CellAddress("A2")!, "Pears"), (CellAddress("A3")!, "Apples")])
+        e.setStyle({ $0.bold = true }, range: CellRange("A1")!)
+        e.select(CellAddress("A1")!)
+        e.sortSelection(ascending: true)
+        XCTAssertEqual(e.sheet.value(CellAddress("A1")!), .text("Name"))
+        XCTAssertEqual(e.sheet.value(CellAddress("A2")!), .text("Apples"))
+    }
 }
