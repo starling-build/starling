@@ -159,7 +159,13 @@ categories from the first column), undo it. On a copy of a real claims
 workbook: change a number, select a row, Home → Insert → Insert Sheet
 Rows, type into the new row, ⌘S; openpyxl reads the result without a
 warning, the picture and its anchor survive, the data sits one row
-down. Both checked in dark and light mode (`OFFICE_DARK=0`).
+down. Both checked in dark and light mode (`OFFICE_DARK=0`). A second
+pass over typed values (5%, (1,234.5), 3/4, 9:30 pm, '0042, 1e3), fill
+series, merge and wrap, Shift/⌘-arrows, Delete, F2, the View tab, a
+cross-sheet formula on a new sheet and the PDF of a 29-column table
+found two more: wrapped lines ignored the cell's alignment (a Merge &
+Center heading read left-aligned), and renaming a tab appended to the
+old name. Both fixed the same day.
 
 **X1 nearly done (2026-09-30)**, on branch `sheets`, rebased on `office`
 ce3c4af1. Engine (9ed475e1): addresses, model, parser/printer, on-demand
