@@ -11,9 +11,9 @@
 // they resolve — edit the data and the chart follows, as in Excel. The
 // part's cached values stand in for a reference that does not resolve.
 //
-// Not yet: shapes and text boxes (`xdr:sp`), groups, and moving drawings
-// or their references when rows and columns are inserted or deleted (the
-// file's anchors would then disagree with the screen).
+// Shapes, text boxes and groups are SheetShapes.swift. Anchors follow
+// inserted and deleted rows and columns (Restructure.swift), and a moved
+// or resized drawing has its anchor rewritten on save.
 
 import Flutter
 import FlutterSwiftBridge
@@ -130,6 +130,9 @@ enum SheetDrawingsXML {
             } else if let sp = el.child("sp") ?? el.child("cxnSp") {
                 d.name = (sp.child("nvSpPr") ?? sp.child("nvCxnSpPr"))?.child("cNvPr")?["name"] ?? "Shape"
                 d.kind = .shape(SheetShape.read(sp, colors: colors))
+            } else if let grp = el.child("grpSp") {
+                d.name = grp.child("nvGrpSpPr")?.child("cNvPr")?["name"] ?? "Group"
+                d.kind = .shape(SheetShape.readGroup(grp, colors: colors))
             } else if raw == nil {
                 continue
             }

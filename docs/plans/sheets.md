@@ -208,9 +208,14 @@ rounded, ellipse, triangles, diamond, block arrows, lines and
 connectors), fill and outline set on them or through their style's
 theme references, text paragraph by paragraph with runs, alignment and
 vertical anchor — and select, move and delete like charts, their XML
-kept. Not yet: groups, other preset geometries (drawn as rectangles),
-rotation, gradients beyond their first stop. Quick Look's
-thumbnails draw no charts, so they are no reference here.
+kept. Since 2026-10-03: rotation (`xfrm@rot`, text turning with the
+shape), linear gradients with all their stops, arrowheads (`headEnd` at
+a line's start, `tailEnd` at its end), groups (`xdr:grpSp`, nested, each
+member placed by the group's chOff/chExt child space; pictures inside a
+group are still not drawn), and every preset Slides' `geometryPath`
+knows (hexagon, chevron, braces, stars, callouts…); the rest are
+rectangles. Seen on a fixture copy (SheetsShapeTests holds the XML).
+Quick Look's thumbnails draw no charts, so they are no reference here.
 **X4 print and PDF (2026-10-01)** (`Sheets/SheetPrint.swift`): File →
 Export → PDF (or CSV), File → Print and ⌘P, for the active sheet, as
 Excel defaults. The used area (values, fills, borders, drawings) is cut
