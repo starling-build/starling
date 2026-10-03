@@ -718,6 +718,12 @@ private struct SlideContext {
             default: st.prompt = "Click to add text"
             }
         }
+        // The shape as read: written back verbatim while nothing about it
+        // has changed (see ReadShape).
+        st.sourceXML = PptxXML.serialize(sp)
+        st.sourceText = st.text
+        st.sourcePart = part
+        st.readShape = ReadShape(st)
         return st
     }
 
@@ -953,7 +959,15 @@ private struct SlideContext {
             _masterStyle(ph)?.first(tag),
             defaults?.first(tag),
         ]
-        if ph == nil { layers.insert(master?.first("p:txStyles")?.first("p:otherStyle")?.first(tag), at: 4) }
+        // A text box or drawn shape on a slide takes the presentation's
+        // default text style, not the master's `otherStyle` — PowerPoint
+        // centres a box whose deck says algn="ctr" there while the master
+        // says "l" (45541_Header's title slide). otherStyle only fills in
+        // what the default leaves unsaid.
+        if ph == nil {
+            layers = [shapeList?.first(tag), defaults?.first(tag),
+                      master?.first("p:txStyles")?.first("p:otherStyle")?.first(tag)]
+        }
         var s = LevelStyle()
         for layer in layers { s = s.filled(from: LevelStyle.paragraph(layer, colors)) }
         return s

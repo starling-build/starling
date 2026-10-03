@@ -223,9 +223,37 @@ PDFKit. The sandbox grants read access for a Launch Services open
 (`open -a`) but not always for an AppleScript `open` of an untouched
 file (a "Grant File Access" dialog, which also precedes any save into a
 new folder — grant it once per folder, under `$HOME`). PDF export skips
-hidden slides. Seen but left: on `45541_Header` our copy's title-slide
-subtitle lost its centring and the round cyan bullets became plain
-dots (both a layout/master inheritance question, not a repair).
+hidden slides.
+
+**Text shapes kept verbatim, 2026-10-03.** PowerPoint's own render of
+`45541_Header` showed two losses a repair prompt never would: the title
+slide's text boxes lost their centring, and the cyan Wingdings bullets
+became plain Arial dots. Both were the rewrite path spelling out what
+it had resolved — and resolving the first one wrong: a text box on a
+slide takes the presentation's `defaultTextStyle` (`algn="ctr"` in that
+deck) over the master's `otherStyle` (`algn="l"`), which the reader had
+the other way round. Fixed in the reader, and then the house pattern
+applied to text shapes as it already was to tables, charts and
+connectors: every shape read from a file carries its XML plus a
+`ReadShape` snapshot (kind, frame, rotation, fill, outline, anchor,
+insets, autofit, field), and the writer emits the original while the
+snapshot and the text are unchanged — so the master's bullet glyph,
+colour and size, run shadows, tab stops and `spAutoFit` all survive
+untouched. Any edit (typing, a move, a recolour) drops the shape onto
+the explicit path as before. Round-trips are byte-identical per shape
+up to attribute order; the corpus gate (86 ok) and the 92 package
+tests are unchanged; PowerPoint draws the deck exactly as the original.
+`test/pptx-corpus.py` also falls back to its cache when GitHub's
+listing is unreachable (a connection reset had aborted a run).
+The one deck the verbatim path regressed was `Divino_Revelado`, a
+truncated file we salvage: its shapes play a click sound whose `.wav`
+was cut off, and the kept-XML remap turned `<a:snd r:embed="…">` into
+`<a:snd name="hammer.wav"/>` — no reference, schema error, repair
+prompt. An element that is nothing but its reference (`a:snd`,
+`a:audioFile`, `a:videoFile`, …) is now dropped when its part is
+missing. Bisecting a repair by repacking slide hybrids with `zip -r`
+does not work: the repacked *unmodified* tree repairs too, so every
+hybrid reads as guilty — diff the XML instead.
 
 **S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
 search field open Writer's find bar over the deck: every text body in

@@ -41,6 +41,8 @@ struct ShapeState: Equatable {
     var autofit = false
     var fontScale = 1.0
     var keptLook: KeptLook? = nil
+    /// Set for a text shape read from a file: see `ReadShape`.
+    var readShape: ReadShape? = nil
 }
 
 extension ShapeState {

@@ -635,6 +635,13 @@ private struct SlideXML {
                 + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: f.right < f.left, flipV: f.bottom < f.top))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
         default:
+            // Unchanged since it was read, text and all: the shape as it
+            // was, so what this app models loosely (the master's bullets,
+            // run effects, tab stops) comes back untouched.
+            if let xml = s.sourceXML, let read = s.readShape, read.unchanged(s),
+               let p = source, let part = s.sourcePart {
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+            }
             let id = _id(s.fileId)
             var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"/>"
             var ph = ""
@@ -810,7 +817,14 @@ private struct SlideXML {
         }
         let sourceRels = p.rels(sourcePart)
         var done = Set<String>()
-        func remap(_ n: XNode) {
+        // Elements that are nothing but their reference: without the part
+        // they point at, the element goes too — `<a:snd name="hammer.wav"/>`
+        // with no r:embed is a schema error PowerPoint repairs
+        // (Divino_Revelado, a truncated file whose click sounds were cut off).
+        let referenceOnly: Set<String> = ["a:snd", "a:wavAudioFile", "a:audioFile", "a:videoFile", "a:quickTimeFile"]
+        /// Remaps `n`'s references; true when `n` should be dropped.
+        func remap(_ n: XNode) -> Bool {
+            var dead = false
             for (k, v) in n.attrs where k.hasPrefix("r:") {
                 guard let r = sourceRels.first(where: { $0.id == v }) else { continue }
                 if r.external {
@@ -819,6 +833,7 @@ private struct SlideXML {
                     // A part the file names but does not have (a damaged
                     // file): no relationship to nowhere.
                     n.attrs[k] = nil
+                    if referenceOnly.contains(n.name) { dead = true }
                 } else {
                     var copied = done
                     PptxWriterCopy.copy(r.target, from: p, into: &b, done: &copied)
@@ -826,9 +841,10 @@ private struct SlideXML {
                     n.attrs[k] = _rel(r.type, Pptx.relative(r.target, from: part), preferred: v)
                 }
             }
-            for c in n.children { remap(c) }
+            n.children.removeAll { remap($0) }
+            return dead
         }
-        remap(node)
+        _ = remap(node)
         return PptxXML.serialize(node)
     }
 }

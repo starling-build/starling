@@ -119,6 +119,36 @@ struct KeptLook: Equatable {
     func lineKept(_ s: ShapeState) -> Bool { s.outline == readOutline && s.outlineWidth == readWidth }
 }
 
+/// A text shape as it was read, besides its text: while all of this and
+/// the text are unchanged, a save writes the shape's own XML back, so
+/// what this app models loosely — the master's bullet glyph, colour and
+/// size, shadows on runs, tab stops, the style a plain text box inherits
+/// from the presentation — survives a round trip untouched.
+struct ReadShape: Equatable {
+    var name: String
+    var kind: ShapeKind
+    var frame: Rect
+    var rotation: Double
+    var fill: Color?
+    var fillScheme: String?
+    var outline: Color?
+    var outlineWidth: Double
+    var anchor: TextAnchor
+    var insets: EdgeInsets
+    var autofit: Bool
+    var fontScale: Double
+    var field: SlideField?
+
+    init(_ s: ShapeState) {
+        name = s.name; kind = s.kind; frame = s.frame; rotation = s.rotation
+        fill = s.fill; fillScheme = s.fillScheme; outline = s.outline; outlineWidth = s.outlineWidth
+        anchor = s.anchor; insets = s.insets; autofit = s.autofit; fontScale = s.fontScale; field = s.field
+    }
+
+    /// Still the shape that was read, text included.
+    func unchanged(_ s: ShapeState) -> Bool { self == ReadShape(s) && s.text == s.sourceText }
+}
+
 /// An element carried through a round trip verbatim.
 struct OpaqueObject: Equatable {
     /// The element as read (`p:graphicFrame`, `p:grpSp`, …).

@@ -26,8 +26,16 @@ LIST = "https://api.github.com/repos/apache/poi/contents/test-data/slideshow"
 
 def fetch(dest):
     os.makedirs(dest, exist_ok=True)
-    with urllib.request.urlopen(LIST, timeout=60) as r:
-        entries = [e for e in json.load(r) if e["name"].lower().endswith(".pptx")]
+    try:
+        with urllib.request.urlopen(LIST, timeout=60) as r:
+            entries = [e for e in json.load(r) if e["name"].lower().endswith(".pptx")]
+    except (urllib.error.URLError, OSError) as e:
+        # Offline, or GitHub reset the connection: the cache is the corpus.
+        cached = [f for f in os.listdir(dest) if f.lower().endswith(".pptx")]
+        if not cached:
+            raise
+        print(f"corpus: listing unavailable ({e}); using the {len(cached)} cached decks")
+        return len(cached)
     for e in entries:
         path = os.path.join(dest, e["name"])
         if os.path.exists(path) and os.path.getsize(path) == e["size"]:
