@@ -150,6 +150,17 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**The v1 scenario, driven end to end (2026-10-03).** On a blank book
+(`test/scripts/sheets-v1.txt`): type a two-column table, format the
+amounts as currency, Sort A to Z by the text column (the header stays —
+it used to sort into the data), AutoSum the column (the total now takes
+the currency format), insert a column chart (titled by the header,
+categories from the first column), undo it. On a copy of a real claims
+workbook: change a number, select a row, Home → Insert → Insert Sheet
+Rows, type into the new row, ⌘S; openpyxl reads the result without a
+warning, the picture and its anchor survive, the data sits one row
+down. Both checked in dark and light mode (`OFFICE_DARK=0`).
+
 **X1 nearly done (2026-09-30)**, on branch `sheets`, rebased on `office`
 ce3c4af1. Engine (9ed475e1): addresses, model, parser/printer, on-demand
 recalculation with cycles, ~110 functions, number formats, input
