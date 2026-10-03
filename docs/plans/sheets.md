@@ -445,8 +445,11 @@ TEXTSPLIT work too. The intersection operator (a space between two
 references, `SUM(A1:B5 B2:C9)`, #NULL! when they share nothing) reads,
 evaluates and prints since 2026-10-03; the tokenizer emits it only
 between an operand and the start of another, so `SUM(A1, B1)` and
-`A1 + B1` are untouched. Still unread: LAMBDA is a known name but not
-callable.
+`A1 + B1` are untouched. A defined name holding a LAMBDA (as Excel 365
+writes it, `_xlfn.LAMBDA(_xlpm.x,…)`) is callable by that name, recursion
+included, capped at Excel's 1024 deep (#NUM! past it); a bare LAMBDA in
+a cell is #CALC!. A cell calling one follows both its arguments and the
+cells the body reads. Not yet: calling a LAMBDA inline, `LAMBDA(x,x)(3)`.
 
 **Row outlines (2026-10-01).** `Sheets/Outline.swift`: Data → Outline's
 Group/Ungroup (⌘⇧K/⌘⇧J, Excel for Mac's) change selected rows'

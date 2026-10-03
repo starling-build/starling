@@ -320,6 +320,9 @@ enum SheetFunctions {
             guard a.count == 1 else { return .error(.value) }
             return .scalar(c.engine.scalar(c.engine.evaluate(a[0], c), c))
         }
+        // LAMBDA on its own has no value to show: Excel's #CALC!. Called
+        // through a defined name it runs (CalcEngine._callLambda).
+        t["LAMBDA"] = { _, _ in .error(.calc) }
         // LET(name, value, …, calculation): values named for the calculation.
         t["LET"] = { a, c in
             guard a.count >= 3, a.count % 2 == 1 else { return .error(.value) }

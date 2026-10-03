@@ -31,6 +31,26 @@ final class SheetsEngineTests: XCTestCase {
         c.engine.evaluate(f, sheet: 0, at: CellAddress(row: 99, col: 25))
     }
 
+    func testLambdaThroughDefinedNames() {
+        let c = book(["A1": "4", "B1": "10"])
+        c.book.names["DOUBLE"] = "_xlfn.LAMBDA(_xlpm.x,_xlpm.x*2)"
+        c.book.names["FACT"] = "LAMBDA(n,IF(n<=1,1,n*FACT(n-1)))"
+        c.book.names["PLUSB"] = "LAMBDA(x,x+$B$1)"
+        c.book.names["FOREVER"] = "LAMBDA(n,FOREVER(n+1))"
+        XCTAssertEqual(num(c, "=DOUBLE(A1)"), 8)
+        XCTAssertEqual(num(c, "=FACT(5)"), 120)
+        XCTAssertEqual(num(c, "=PLUSB(1)"), 11)
+        XCTAssertEqual(eval(c, "=DOUBLE(1,2)"), .error(.value))
+        XCTAssertEqual(eval(c, "=LAMBDA(x,x)"), .error(.calc))
+        XCTAssertEqual(eval(c, "=FOREVER(1)"), .error(.num))
+        // A cell calling one follows both its arguments and what the body reads.
+        c.setInputs([(CellAddress("C1")!, "=DOUBLE(A1)"), (CellAddress("C2")!, "=PLUSB(A1)")])
+        XCTAssertEqual(v(c, "C1"), .number(8))
+        c.setInputs([(CellAddress("A1")!, "5"), (CellAddress("B1")!, "100")])
+        XCTAssertEqual(v(c, "C1"), .number(10))
+        XCTAssertEqual(v(c, "C2"), .number(105))
+    }
+
     func testIntersectionOperator() throws {
         let c = book(["A1": "1", "B1": "2", "C1": "3", "A2": "4", "B2": "5", "C2": "6", "A3": "7", "B3": "8", "C3": "9"])
         XCTAssertEqual(num(c, "=SUM(A1:B2 B1:C3)"), 7)          // B1 + B2

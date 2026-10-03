@@ -185,7 +185,11 @@ enum Formula {
         case .name(let n): out.append(n)
         case .negate(let x), .plus(let x), .percent(let x), .paren(let x): names(x, into: &out)
         case .binary(_, let a, let b): names(a, into: &out); names(b, into: &out)
-        case .call(_, let args): for a in args { names(a, into: &out) }
+        case .call(let f, let args):
+            // A call may be a defined name holding a LAMBDA; a built-in's
+            // name simply matches no defined name.
+            out.append(f)
+            for a in args { names(a, into: &out) }
         default: break
         }
     }

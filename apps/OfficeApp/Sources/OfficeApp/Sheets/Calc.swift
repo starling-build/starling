@@ -35,8 +35,11 @@ struct EvalContext {
     let cell: CellAddress
     /// A dynamic-array formula: operators work element by element.
     var dynamic = false
-    /// LET's names in scope, upper-cased.
+    /// LET's names and a LAMBDA's parameters in scope, upper-cased.
     var locals: [String: EvalValue] = [:]
+    /// How many LAMBDA calls deep this is; a runaway recursion stops at
+    /// Excel's own limit rather than the stack's.
+    var lambdaDepth = 0
 }
 
 final class CalcEngine {
@@ -429,6 +432,7 @@ final class CalcEngine {
             return .range(sheet: si, range)
         case .call(let name, let args):
             guard let f = SheetFunctions.table[name] ?? SheetFunctions.table[_stripPrefix(name)] else {
+                if let lambda = _lambda(named: name) { return _callLambda(lambda, args, ctx) }
                 return .error(.name)
             }
             return f(args, ctx)
@@ -436,6 +440,30 @@ final class CalcEngine {
     }
 
     /// _xlfn.XLOOKUP → XLOOKUP (newer functions carry a prefix in files).
+    /// A defined name whose formula is LAMBDA(params…, body), as Excel 365
+    /// writes one (`_xlfn.LAMBDA(_xlpm.x, _xlpm.x*2)`): its parameters and body.
+    private func _lambda(named name: String) -> (params: [String], body: FormulaExpr)? {
+        guard let text = book.names[name.uppercased()], let e = try? Formula.parse(text),
+              case .call(let f, let parts) = e, _stripPrefix(f.uppercased()) == "LAMBDA", let body = parts.last else { return nil }
+        var params: [String] = []
+        for p in parts.dropLast() {
+            guard case .name(let n) = p else { return nil }
+            params.append(n.uppercased())
+        }
+        return (params, body)
+    }
+
+    /// Call it: the arguments, evaluated where the call is, become the
+    /// parameters in the body's scope. Excel's recursion limit is 1024.
+    private func _callLambda(_ lambda: (params: [String], body: FormulaExpr), _ args: [FormulaExpr], _ ctx: EvalContext) -> EvalValue {
+        guard args.count == lambda.params.count else { return .error(.value) }
+        guard ctx.lambdaDepth < 1024 else { return .error(.num) }
+        var scope = ctx
+        scope.lambdaDepth += 1
+        for (p, a) in zip(lambda.params, args) { scope.locals[p] = evaluate(a, ctx) }
+        return evaluate(lambda.body, scope)
+    }
+
     private func _stripPrefix(_ n: String) -> String {
         for p in ["_XLFN._XLWS.", "_XLFN.", "_XLWS."] where n.hasPrefix(p) { return String(n.dropFirst(p.count)) }
         return n
