@@ -1902,7 +1902,8 @@ final class SheetGridState: State<StatefulWidget> {
         let pad = 2 * zoom   // Excel's cell margin
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
-        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2) : .infinity)
+        let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
+        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2) : .infinity, align: wraps ? lineAlign : .left)
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))
@@ -2022,14 +2023,17 @@ final class _TextCache {
         let text: String
         let style: GridTextStyle
         let width: Int   // the wrap width in whole pixels; -1 for none
+        let align: TextAlign
     }
     private var _cache: [Key: TextPainter] = [:]
 
-    func painter(_ text: String, _ style: GridTextStyle, maxWidth: Double = .infinity) -> TextPainter {
-        let k = Key(text: text, style: style, width: maxWidth.isFinite ? Int(maxWidth) : -1)
+    /// `align` matters only to wrapped text: it is how its lines sit
+    /// against each other inside the paragraph.
+    func painter(_ text: String, _ style: GridTextStyle, maxWidth: Double = .infinity, align: TextAlign = .left) -> TextPainter {
+        let k = Key(text: text, style: style, width: maxWidth.isFinite ? Int(maxWidth) : -1, align: align)
         if let tp = _cache[k] { return tp }
         if _cache.count > 4000 { clear() }
-        let tp = TextPainter(text: TextSpan(text: text, style: style.flutter), textDirection: .ltr)
+        let tp = TextPainter(text: TextSpan(text: text, style: style.flutter), textAlign: align, textDirection: .ltr)
         tp.layout(minWidth: 0, maxWidth: maxWidth)
         _cache[k] = tp
         return tp

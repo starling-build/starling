@@ -426,7 +426,9 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     private func _startRename(_ i: Int) {
-        _renameText.text = wb.book.sheets[i].name
+        // The whole name selected, as Excel's rename starts: typing replaces it.
+        let name = wb.book.sheets[i].name
+        _renameText.value = TextEditingValue(text: name, selection: TextSelection(baseOffset: 0, extentOffset: name.count))
         setState { _renaming = i }
     }
 
