@@ -130,12 +130,14 @@ extension WorkbookController {
         }
         // Tables: their range moves like a merge's; a column inserted inside
         // gets a new entry, a deleted one loses its own. A table whose header
-        // row is deleted goes the way Excel's does — it is kept, one row down.
+        // row is deleted goes the way Excel's does — it is kept, one row down;
+        // one whose every row (or column) is deleted goes altogether.
+        var gone: [Int] = []
         for t in ws.tables.indices {
             var table = ws.tables[t]
             let r = table.ref
             let lo0 = axis == .rows ? r.top : r.left, hi0 = axis == .rows ? r.bottom : r.right
-            guard let (lo, hi) = _adjustSpan(lo0, hi0, index: index, delta: delta) else { continue }
+            guard let (lo, hi) = _adjustSpan(lo0, hi0, index: index, delta: delta) else { gone.append(t); continue }
             if axis == .cols {
                 if delta > 0, index > r.left, index <= r.right {
                     table.columnIds.insert(contentsOf: Array(repeating: nil, count: delta), at: index - r.left)
@@ -148,6 +150,7 @@ extension WorkbookController {
                                       : CellRange(top: r.top, left: lo, bottom: r.bottom, right: hi)
             if table != ws.tables[t] { table.edited = true; ws.tables[t] = table }
         }
+        for t in gone.reversed() { ws.removedTables.append(ws.tables.remove(at: t)) }
         // Notes go with their cells; one whose cell was deleted goes too.
         for n in ws.notes.indices {
             guard let a = ws.notes[n].at else { continue }

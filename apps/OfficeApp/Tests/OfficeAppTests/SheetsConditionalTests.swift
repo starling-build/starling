@@ -64,6 +64,26 @@ final class SheetsConditionalTests: XCTestCase {
         XCTAssertNil(look(c, "B3")?.dxf.italic)
     }
 
+    func testTimePeriods() {
+        // A Wednesday: 2026-10-07.
+        let today = ExcelDate.serial(2026, 10, 7)
+        func hit(_ p: String, _ y: Int, _ m: Int, _ d: Int) -> Bool { CFEvaluator.inPeriod(ExcelDate.serial(y, m, d), p, today: today) }
+        XCTAssertTrue(hit("today", 2026, 10, 7)); XCTAssertFalse(hit("today", 2026, 10, 6))
+        XCTAssertTrue(hit("yesterday", 2026, 10, 6)); XCTAssertTrue(hit("tomorrow", 2026, 10, 8))
+        XCTAssertTrue(hit("last7Days", 2026, 10, 1)); XCTAssertFalse(hit("last7Days", 2026, 9, 30))
+        XCTAssertTrue(hit("thisWeek", 2026, 10, 4)); XCTAssertTrue(hit("thisWeek", 2026, 10, 10))   // Sunday to Saturday
+        XCTAssertFalse(hit("thisWeek", 2026, 10, 11))
+        XCTAssertTrue(hit("lastWeek", 2026, 10, 3)); XCTAssertTrue(hit("nextWeek", 2026, 10, 11))
+        XCTAssertTrue(hit("thisMonth", 2026, 10, 31)); XCTAssertTrue(hit("lastMonth", 2026, 9, 1))
+        XCTAssertTrue(hit("nextMonth", 2026, 11, 30)); XCTAssertFalse(hit("nextMonth", 2026, 12, 1))
+        // Through a rule: A1 holds today's serial, A2 yesterday's.
+        let c = sheet(["<conditionalFormatting sqref=\"A1:A2\"><cfRule type=\"timePeriod\" dxfId=\"0\" priority=\"1\" timePeriod=\"today\"><formula>FLOOR(A1,1)=TODAY()</formula></cfRule></conditionalFormatting>"])
+        let now = floor(ExcelDate.now())
+        c.setInputs([(CellAddress("A1")!, String(Int(now))), (CellAddress("A2")!, String(Int(now) - 1))])
+        XCTAssertEqual(look(c, "A1")?.dxf.fill, 0xFFC7CE)
+        XCTAssertNil(look(c, "A2"))
+    }
+
     func testTextBlanksAndDuplicates() {
         let c = sheet([
             "<conditionalFormatting sqref=\"A1:A8\"><cfRule type=\"containsText\" dxfId=\"0\" priority=\"1\" operator=\"containsText\" text=\"X\"/>"

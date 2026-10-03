@@ -31,6 +31,18 @@ final class SheetsEngineTests: XCTestCase {
         c.engine.evaluate(f, sheet: 0, at: CellAddress(row: 99, col: 25))
     }
 
+    func testIntersectionOperator() throws {
+        let c = book(["A1": "1", "B1": "2", "C1": "3", "A2": "4", "B2": "5", "C2": "6", "A3": "7", "B3": "8", "C3": "9"])
+        XCTAssertEqual(num(c, "=SUM(A1:B2 B1:C3)"), 7)          // B1 + B2
+        XCTAssertEqual(num(c, "=SUM(A1:C3 B:B)"), 15)
+        XCTAssertEqual(num(c, "=A1:C1 B1:B3"), 2)                 // one cell
+        XCTAssertEqual(eval(c, "=SUM(A1:A2 C1:C2)"), .error(.null))
+        XCTAssertEqual(num(c, "=SUM(A1, B1)"), 3)                 // a space after a comma is nothing
+        XCTAssertEqual(num(c, "=A1 + B1"), 3)
+        let e = try Formula.parse("=SUM(A1:B2 B1:C3)")
+        XCTAssertEqual(Formula.text(e), "=SUM(A1:B2 B1:C3)")
+    }
+
     private func num(_ c: WorkbookController, _ f: String, file: StaticString = #filePath, line: UInt = #line) -> Double {
         guard case .number(let n) = eval(c, f) else {
             XCTFail("\(f) = \(eval(c, f)), not a number", file: file, line: line); return .nan
@@ -365,8 +377,8 @@ extension SheetsEngineTests {
             XCTAssertEqual(Formula.print(try Formula.parse("=" + f)), f)
         }
         XCTAssertThrowsError(try Formula.parse("={1,2;3}"))
-        // Still unreadable here, and so kept as written: the intersection operator.
-        XCTAssertThrowsError(try Formula.parse("=SUM(A1:C3 B2:D4)"))
+        // The intersection operator reads (and prints) as a space.
+        XCTAssertEqual(Formula.print(try Formula.parse("=SUM(A1:C3 B2:D4)")), "SUM(A1:C3 B2:D4)")
         // @ is Excel's implicit intersection: SINGLE in files, @ on screen.
         XCTAssertEqual(Formula.print(try Formula.parse("=@A1:A3*2")), "@A1:A3*2")
     }

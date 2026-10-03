@@ -94,6 +94,12 @@ struct CellRange: Hashable, Sendable {
         !(o.right < left || o.left > right || o.bottom < top || o.top > bottom)
     }
 
+    /// The cells both ranges cover; nil when they share none.
+    func intersection(_ o: CellRange) -> CellRange? {
+        guard intersects(o) else { return nil }
+        return CellRange(top: max(top, o.top), left: max(left, o.left), bottom: min(bottom, o.bottom), right: min(right, o.right))
+    }
+
     /// "A1:C3", or "B2" for a single cell; whole columns and rows as
     /// "A:C" and "3:5".
     var a1: String {

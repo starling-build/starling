@@ -38,6 +38,9 @@ struct CFRule {
         case duplicates(unique: Bool)
         case colorScale([CFValue], [UInt32])
         case dataBar(CFValue, CFValue, UInt32)
+        /// A date in a period relative to today: today, yesterday, tomorrow,
+        /// last7Days, thisWeek, lastWeek, nextWeek, thisMonth, lastMonth, nextMonth.
+        case timePeriod(String)
         /// An icon set: its name (3Arrows…), the thresholds of icons 2…n
         /// (each with ≥ unless gte="0"), reversed, and whether the value shows.
         case iconSet(String, [(CFValue, Bool)], reverse: Bool, showValue: Bool)
@@ -90,6 +93,7 @@ enum ConditionalFormats {
                     kind = .top(rank: Int(r["rank"] ?? "10") ?? 10, percent: r["percent"] == "1", bottom: r["bottom"] == "1")
                 case "aboveAverage":
                     kind = .average(above: r["aboveAverage"] != "0", equal: r["equalAverage"] == "1")
+                case "timePeriod": kind = .timePeriod(r["timePeriod"] ?? "today")
                 case "duplicateValues": kind = .duplicates(unique: false)
                 case "uniqueValues": kind = .duplicates(unique: true)
                 case "colorScale":
@@ -195,6 +199,25 @@ final class CFEvaluator {
         return engine.scalar(engine.evaluate(shifted, ctx), ctx)
     }
 
+    /// Whether the date serial `d` falls in `period` relative to `today`.
+    /// Weeks run Sunday to Saturday, as Excel's do here.
+    static func inPeriod(_ d: Double, _ period: String, today: Double) -> Bool {
+        let weekStart = today - Double(ExcelDate.weekday(today) - 1)
+        func month(_ s: Double) -> Int { let (y, m, _) = ExcelDate.ymd(s); return y * 12 + m - 1 }
+        switch period {
+        case "yesterday": return d == today - 1
+        case "tomorrow": return d == today + 1
+        case "last7Days": return d >= today - 6 && d <= today
+        case "thisWeek": return d >= weekStart && d < weekStart + 7
+        case "lastWeek": return d >= weekStart - 7 && d < weekStart
+        case "nextWeek": return d >= weekStart + 7 && d < weekStart + 14
+        case "thisMonth": return month(d) == month(today)
+        case "lastMonth": return month(d) == month(today) - 1
+        case "nextMonth": return month(d) == month(today) + 1
+        default: return d == today
+        }
+    }
+
     private func _true(_ v: CellValue) -> Bool {
         switch v {
         case .bool(let b): return b
@@ -254,6 +277,9 @@ final class CFEvaluator {
                 guard !nums.isEmpty else { break }
                 let avg = nums.reduce(0, +) / Double(nums.count)
                 hit = above ? (n > avg || equal && n == avg) : (n < avg || equal && n == avg)
+            case .timePeriod(let period):
+                guard let n = v.number else { break }
+                hit = CFEvaluator.inPeriod(floor(n), period, today: floor(ExcelDate.now()))
             case .duplicates(let unique):
                 guard !v.isEmpty else { break }
                 let count = _countsOf(i)[_key(v)] ?? 0

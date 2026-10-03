@@ -67,6 +67,28 @@ final class SheetsTableTests: XCTestCase {
         // Only D3's empty header becomes Column1 (Excel's own repair would do the same).
         XCTAssertEqual(was.replacingAll("name=\"Run\"", with: "name=\"Column1\""), now)
     }
+
+    func testTableDeletedWithAllItsRowsLeavesNoTrace() throws {
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try withTable()))
+        c.delete(.rows, at: 2, count: 8)          // rows 3…10: the whole table
+        XCTAssertTrue(c.sheet.tables.isEmpty)
+        XCTAssertEqual(c.sheet.removedTables.count, 1)
+        let saved = try Zip.read(try Xlsx.write(c.book))
+        XCTAssertNil(saved.first { $0.name == "xl/tables/table1.xml" })
+        let sheet = String(decoding: try XCTUnwrap(saved.first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
+        XCTAssertFalse(sheet.containsSubstring("tablePart"))
+        let rels = String(decoding: try XCTUnwrap(saved.first { $0.name == "xl/worksheets/_rels/sheet1.xml.rels" }).data, as: UTF8.self)
+        XCTAssertFalse(rels.containsSubstring("tables/table1.xml"))
+        let types = String(decoding: try XCTUnwrap(saved.first { $0.name == "[Content_Types].xml" }).data, as: UTF8.self)
+        XCTAssertFalse(types.containsSubstring("table1.xml"))
+        // Reopening sees no table, and deleting only part of one keeps it.
+        XCTAssertTrue(try Xlsx.read(try Xlsx.write(c.book)).sheets[0].tables.isEmpty)
+        let d = WorkbookController()
+        d.load(try Xlsx.read(try withTable()))
+        d.delete(.rows, at: 2, count: 3)
+        XCTAssertEqual(d.sheet.tables.first?.ref, CellRange("D3:J7"))
+    }
 }
 
 extension SheetsTableTests {
@@ -110,19 +132,20 @@ extension SheetsTableTests {
 
 extension SheetsTableTests {
     func testUnreadableSharedAndArrayFormulasSurvive() throws {
+        // A ragged array constant is one formula Sheets cannot read.
         var entries = try Zip.read(try withTable())
         let i = try XCTUnwrap(entries.firstIndex { $0.name == "xl/worksheets/sheet1.xml" })
         var s = String(decoding: entries[i].data, as: UTF8.self)
         let rowEnd = try XCTUnwrap(s.findRange(of: "</sheetData>"))
-        s.replaceSubrange(rowEnd, with: "<row r=\"30\"><c r=\"E30\"><f t=\"shared\" ref=\"E30:E31\" si=\"7\">SUM(E4:E9 F4:F9)*2</f><v>1</v></c><c r=\"G30\"><f t=\"array\" ref=\"G30:G31\">SUM(G4:G9 H4:H9)</f><v>3</v></c></row><row r=\"31\"><c r=\"E31\"><f t=\"shared\" si=\"7\"/><v>2</v></c></row></sheetData>")
+        s.replaceSubrange(rowEnd, with: "<row r=\"30\"><c r=\"E30\"><f t=\"shared\" ref=\"E30:E31\" si=\"7\">SUM({1,2;3})*2</f><v>1</v></c><c r=\"G30\"><f t=\"array\" ref=\"G30:G31\">SUM({1,2;3})</f><v>3</v></c></row><row r=\"31\"><c r=\"E31\"><f t=\"shared\" si=\"7\"/><v>2</v></c></row></sheetData>")
         entries[i] = ZipEntry(name: entries[i].name, data: Data(s.utf8))
         let c = WorkbookController()
         c.load(try Xlsx.read(try Zip.write(entries)))
         XCTAssertEqual(c.sheet.value(CellAddress("E31")!), .number(2))
         let out = String(decoding: try XCTUnwrap(try Zip.read(try Xlsx.write(c.book)).first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
-        XCTAssertTrue(out.containsSubstring("<c r=\"E30\"><f ref=\"E30:E31\" si=\"7\" t=\"shared\">SUM(E4:E9 F4:F9)*2</f><v>1</v></c>"), out)
+        XCTAssertTrue(out.containsSubstring("<c r=\"E30\"><f ref=\"E30:E31\" si=\"7\" t=\"shared\">SUM({1,2;3})*2</f><v>1</v></c>"), out)
         XCTAssertTrue(out.containsSubstring("<c r=\"E31\"><f si=\"7\" t=\"shared\"/><v>2</v></c>"), out)
-        XCTAssertTrue(out.containsSubstring("<f ref=\"G30:G31\" t=\"array\">SUM(G4:G9 H4:H9)</f><v>3</v>"), out)
+        XCTAssertTrue(out.containsSubstring("<f ref=\"G30:G31\" t=\"array\">SUM({1,2;3})</f><v>3</v>"), out)
         // Typed over, a cell is the user's again; copied, it carries its value.
         c.setInputs([(CellAddress("E30")!, "5")])
         c.select(CellAddress("E31")!)

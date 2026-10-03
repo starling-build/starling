@@ -56,6 +56,8 @@ struct FormulaRef: Hashable, Sendable {
 enum BinaryOp: String, Sendable {
     case add = "+", sub = "-", mul = "*", div = "/", pow = "^", concat = "&"
     case eq = "=", ne = "<>", lt = "<", gt = ">", le = "<=", ge = ">="
+    /// The intersection operator, a space between two references.
+    case intersect = " "
 
     var precedence: Int {
         switch self {
@@ -64,6 +66,7 @@ enum BinaryOp: String, Sendable {
         case .add, .sub: return 3
         case .mul, .div: return 4
         case .pow: return 5
+        case .intersect: return 6
         }
     }
 }
@@ -287,7 +290,25 @@ enum Formula {
         }
         while i < s.endIndex {
             let c = s[i]
-            if c == " " || c == "\n" || c == "\t" { i = s.index(after: i); continue }
+            if c == " " || c == "\n" || c == "\t" {
+                // A space between two references is the intersection
+                // operator (A1:B5 B2:C9); any other space is nothing.
+                var j = i
+                while j < s.endIndex, s[j] == " " || s[j] == "\n" || s[j] == "\t" { j = s.index(after: j) }
+                if c == " ", let last = out.last, let n = j < s.endIndex ? s[j] : nil {
+                    let operandBefore: Bool
+                    switch last {
+                    case .ref, .rparen, .structured, .spill: operandBefore = true
+                    case .name: operandBefore = n != "("
+                    default: operandBefore = false
+                    }
+                    if operandBefore, n.isLetter || n == "$" || n == "'" || n == "(" || n == "_" || n == "[" {
+                        out.append(.op(" "))
+                    }
+                }
+                i = j
+                continue
+            }
             // Strings.
             if c == "\"" {
                 var t = ""

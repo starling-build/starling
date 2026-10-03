@@ -532,6 +532,8 @@ enum Xlsx {
         var drawingParts: [DrawingParts] = []
         var noteParts: [NoteParts] = []
         var sheetRelParts: [String: Data] = [:]
+        var droppedTables = Set<String>()
+        var tablePartsOverride: [Int: String] = [:]
         let calc: CalcEngine? = book.sheets.contains(where: \.drawingsEdited) ? CalcEngine(book) : nil
         calc?.storedValuesOnly = true
         for (i, ws) in book.sheets.enumerated() {
@@ -543,6 +545,25 @@ enum Xlsx {
             }, original: originalParts, taken: &taken, sheetRels: &rels, relsChanged: &changed))
             noteParts.append(NotesXML.write(ws, sheetPath: paths[i], original: originalParts, taken: &taken,
                                             sheetRels: &rels, relsChanged: &changed))
+            // A table deleted with all its rows: its part, relationship and
+            // <tablePart> go, or Excel repairs the file.
+            if !ws.removedTables.isEmpty {
+                let base = String(paths[i].prefix(upTo: paths[i].lastIndex(of: "/").map { paths[i].index(after: $0) } ?? paths[i].startIndex))
+                var text = ws.keptElements.first { $0.name == "tableParts" }?.text ?? ""
+                for t in ws.removedTables {
+                    droppedTables.insert(t.path)
+                    for r in rels where r.type.hasSuffix("/table") && _resolve(r.target, base: base) == t.path {
+                        rels.removeAll { $0.id == r.id }
+                        changed = true
+                        text = text.replacingAll("<tablePart r:id=\"\(r.id)\"/>", with: "")
+                    }
+                }
+                let left = text.components(separatedBy: "<tablePart ").count - 1
+                if left == 0 { text = "" } else if let c = text.findRange(of: " count=\""), let q = text.findRange(of: "\"", in: c.upperBound ..< text.endIndex) {
+                    text.replaceSubrange(c.upperBound ..< q.lowerBound, with: "\(left)")
+                }
+                tablePartsOverride[i] = text
+            }
             if changed { sheetRelParts[_relsPath(paths[i])] = Data(_relsXML(rels).utf8) }
         }
         // Excel 365 marks a dynamic-array formula with cell metadata (cm=…)
@@ -565,6 +586,7 @@ enum Xlsx {
         for (i, ws) in book.sheets.enumerated() {
             var extra: [String: String] = [:]
             if let e = drawingParts[i].element { extra["drawing"] = e }
+            if let e = tablePartsOverride[i] { extra["tableParts"] = e }
             if let e = noteParts[i].element { extra["legacyDrawing"] = e }
             sheetXML.append(_sheetXML(ws, book: book, selected: i == book.activeTab, extra: extra, dynamicCm: dynamicCm,
                                       stringIndex: stringIndex))
@@ -638,6 +660,7 @@ enum Xlsx {
         for p in removed { dropped.insert(_relsPath(p)) }
         dropped.formUnion(originalParts.keys.filter { $0.hasSuffix("calcChain.xml") })
         dropped.formUnion(droppedDrawings)
+        dropped.formUnion(droppedTables)
         generated["[Content_Types].xml"] = Data(_contentTypes(originalParts["[Content_Types].xml"],
                                                               sheets: paths, styles: stylesPath, sst: sstPath, dropped: dropped,
                                                               extra: extraTypes).utf8)

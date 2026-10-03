@@ -296,8 +296,10 @@ percentile), solid data bars and icon sets (arrows, traffic lights,
 signs, symbols, flags, red-to-black, ratings, quarters; reversed and
 icon-only too) — in priority order with stopIfTrue,
 fills under the cell's text and dxf fonts over it. Figures over a
-range are cached per `WorkbookController.dataRevision`. Not drawn: x14
-rules in extLst (custom icon sets), date-occurring; not editable yet. Seen on a
+range are cached per `WorkbookController.dataRevision`. Date-occurring
+rules (`timePeriod`: today, yesterday, tomorrow, last 7 days, this/last/
+next week with Sunday weeks, this/last/next month) since 2026-10-03. Not
+drawn: x14 rules in extLst (custom icon sets); not editable yet. Seen on a
 fixture copy with a scale, bars and a cellIs rule.
 
 **Excel tables kept valid (2026-10-01)** (`Sheets/Tables.swift`): a
@@ -312,8 +314,10 @@ for byte. Built-in table styles are drawn by family (`TableStyles`:
 Light 1–21, Medium 1–28, Dark 1–11 over the dark colour and six
 accents — header, stripes, totals, lines; an approximation of Excel's
 presets, seen for Medium 2, Medium 9 and Light 9), under the cells' own
-formats. Not yet: custom table styles from the file, a table deleted
-with all its rows.
+formats. A table deleted with all its rows or columns goes altogether
+(2026-10-03): its part, its relationship, its `<tablePart>` and its
+content type, so Excel has nothing to repair. Not yet: custom table
+styles from the file.
 
 **Structured references (2026-10-01)**: `Table1[Col]`, `Table1`,
 `[@Col]`, `Table1[[#This Row],[Col]]`, `[[#Headers],[A]:[B]]`, `#All`,
@@ -437,8 +441,12 @@ the later sheets' local names (print areas, filter ranges) along — they
 used to attach to the wrong sheet. LET (local names in
 `EvalContext.locals`) and the Excel 365 shapers VSTACK, HSTACK, TAKE,
 DROP, CHOOSEROWS, CHOOSECOLS, TOCOL, TOROW, WRAPROWS, WRAPCOLS and
-TEXTSPLIT work too. Still unread (kept verbatim): the intersection
-operator (a space); LAMBDA is a known name but not callable.
+TEXTSPLIT work too. The intersection operator (a space between two
+references, `SUM(A1:B5 B2:C9)`, #NULL! when they share nothing) reads,
+evaluates and prints since 2026-10-03; the tokenizer emits it only
+between an operand and the start of another, so `SUM(A1, B1)` and
+`A1 + B1` are untouched. Still unread: LAMBDA is a known name but not
+callable.
 
 **Row outlines (2026-10-01).** `Sheets/Outline.swift`: Data → Outline's
 Group/Ungroup (⌘⇧K/⌘⇧J, Excel for Mac's) change selected rows'

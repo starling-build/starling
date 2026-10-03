@@ -202,6 +202,9 @@ final class Worksheet {
     var spilled: [CellAddress: CellValue] = [:]
     /// Excel tables on the sheet (their parts are kept; see Tables.swift).
     var tables: [SheetTable] = []
+    /// Tables deleted with all their rows or columns: their parts, their
+    /// relationship and their `<tablePart>` go on save.
+    var removedTables: [SheetTable] = []
     /// Notes on cells, and the parts they came from (see Notes.swift).
     var notes: [SheetNote] = []
     /// The sheet's hyperlink relationships: id → URL.
@@ -257,6 +260,7 @@ final class Worksheet {
         s.formatPrAttrs = formatPrAttrs
         s.viewAttrs = viewAttrs
         s.tables = tables
+        s.removedTables = removedTables
         s.notes = notes
         s.linkTargets = linkTargets
         s.noteParts = noteParts

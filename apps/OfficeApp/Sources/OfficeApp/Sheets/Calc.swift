@@ -410,6 +410,12 @@ final class CalcEngine {
             }
         case .binary(let op, let a, let b):
             let ea = evaluate(a, ctx), eb = evaluate(b, ctx)
+            if op == .intersect {
+                // The cells two ranges share; #NULL! when they share none.
+                guard case .range(let sa, let ra) = ea, case .range(let sb, let rb) = eb, sa == sb,
+                      let r = ra.intersection(rb) else { return .error(.null) }
+                return .range(sheet: sa, r)
+            }
             if ctx.dynamic, _isMulti(ea) || _isMulti(eb) { return _elementwise(ea, eb, ctx) { self.binary(op, $0, $1) } }
             return binary(op, scalar(ea, ctx), scalar(eb, ctx))
         case .spill(let r):
