@@ -248,6 +248,22 @@ through `StringHelpers`, which gained `replacingSubrange`):
   As by name (save *is* the download), the second-display presenter
   view (none natively either).
 
+**Published, 2026-10-03: slides.starling.build.** `build/web-deploy.sh`
+(Writer's publish, now on this branch) grew `--args` and `--title`: the
+page's `args` go to the app through the WASI shim's `args_get`, which
+Swift's `CommandLine.arguments` reads directly, so the same build
+started with `--slides` is the Slides site — one app, two hosts.
+Site repo `starling-build/slides`, Pages on `main`/root with the custom
+domain set through `gh api`; rehearsed first by serving the published
+tree with a plain HTTP server (gzip module, `--slides`) and
+screenshotting it. The DNS record (Cloudflare: CNAME `slides` →
+`starling-build.github.io`, DNS only) is the one step outside this
+machine; until it exists the github.io URL only redirects there.
+The live Writer site meanwhile runs a newer loader — hashed
+`releases/<sha>/` paths, on-demand document fonts, phased startup —
+that is uncommitted work in another worktree and stash, not on any
+branch; it was deliberately not taken.
+
 Done since the list was first written: keyboard (`starling_key`), Swift
 concurrency on the page's event loop (`FlutterWeb/WebExecutor.swift`),
 image decoding by the browser (`starling_host_decode_image` →

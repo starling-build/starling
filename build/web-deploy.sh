@@ -2,6 +2,7 @@
 # Publish an app's browser build to a GitHub Pages site.
 #
 #   build/web-deploy.sh [app] [--no-build] [--host NAME] [--repo URL]
+#                       [--args "--flag …"] [--title NAME]
 #
 # Default app OfficeApp (apps/OfficeApp), published as writer.starling.build
 # from the site repo git@github.com:starling-build/writer.git — ui/deploy.sh's
@@ -20,7 +21,15 @@
 # not 12). Everything else is build/web-app.sh's stage as is; every asset
 # is referenced relative to index.html, so a subpath is fine.
 #
-# One-time setup on the site repo: Settings -> Pages -> source `main` / root.
+# `--args` is the app's command line on the page (index.html's `args`),
+# `--title` the tab's name. Slides is the same app started differently:
+#
+#   build/web-deploy.sh OfficeApp --host slides.starling.build \
+#       --repo git@github.com:starling-build/slides.git --args --slides --title Slides
+#
+# One-time setup on the site repo: Settings -> Pages -> source `main` / root
+# (gh: `gh api -X POST repos/OWNER/REPO/pages -f source[branch]=main -f source[path]=/`),
+# then the custom domain (`gh api -X PUT repos/OWNER/REPO/pages -f cname=HOST`).
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -28,11 +37,15 @@ APP="OfficeApp"
 BUILD=1
 HOST="writer.starling.build"
 SITE=""
+ARGS=""
+TITLE=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-build) BUILD=0 ;;
         --host) HOST="$2"; shift ;;
         --repo) SITE="$2"; shift ;;
+        --args) ARGS="$2"; shift ;;
+        --title) TITLE="$2"; shift ;;
         -*) echo "unknown option: $1" >&2; exit 2 ;;
         *) APP="$1" ;;
     esac
@@ -73,6 +86,15 @@ cp -R "$STAGE"/. "$WORK/site/"
 rm -f "$WORK/site/app.wasm" "$WORK/site/app.wasm.br"
 sed -i '' "s|app: 'app.wasm'|app: 'app.wasm.gz'|" "$WORK/site/index.html"
 grep -q "app: 'app.wasm.gz'" "$WORK/site/index.html" || { echo "error: index.html has no app: 'app.wasm' to repoint" >&2; exit 1; }
+if [ -n "$ARGS" ]; then
+    # "--slides --x" -> ['--slides', '--x']
+    LIST="$(printf '%s\n' $ARGS | sed "s/.*/'&'/" | paste -sd, - | sed 's/,/, /g')"
+    sed -i '' "s|args: \[\],|args: [$LIST],|" "$WORK/site/index.html"
+    grep -q "args: \[$LIST\]" "$WORK/site/index.html" || { echo "error: index.html has no args: [] to fill" >&2; exit 1; }
+fi
+if [ -n "$TITLE" ]; then
+    sed -i '' "s|<title>Starling</title>|<title>$TITLE</title>|; s|document.title = 'Starling — running'|document.title = '$TITLE'|; s|document.title = 'Starling — failed'|document.title = '$TITLE — failed'|" "$WORK/site/index.html"
+fi
 if [ -n "$HOST" ]; then echo "$HOST" > "$WORK/site/CNAME"; fi
 # Pages runs Jekyll by default, which drops files and folders it does not
 # like (anything starting with an underscore); this turns it off.
@@ -84,6 +106,6 @@ if git diff --quiet && git diff --cached --quiet && [ -z "$(git status --porcela
     echo "no changes to publish"; exit 0
 fi
 git add -A
-git commit -q -m "site: $APP @ $(git -C "$REPO_ROOT" rev-parse --short HEAD)${HOST:+ for $HOST}"
+git commit -q -m "site: $APP${ARGS:+ $ARGS} @ $(git -C "$REPO_ROOT" rev-parse --short HEAD)${HOST:+ for $HOST}"
 git push -u origin main
 echo "published -> $SITE${HOST:+ ($HOST)}"

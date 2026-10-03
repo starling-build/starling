@@ -21,8 +21,9 @@ const WASI_ENOSYS = 52;
 // filesystem: somewhere for print() to go, a clock, and random bytes for
 // hashing seeds. Everything else answers ENOSYS rather than being absent,
 // because a missing import fails instantiation outright.
-function makeWasi(getMemory) {
+function makeWasi(getMemory, args = []) {
   const decoder = new TextDecoder();
+  const argv = ['starling', ...args].map((a) => new TextEncoder().encode(a));
   const lines = { 1: '', 2: '' };
   const view = () => new DataView(getMemory().buffer);
   const known = {
@@ -66,12 +67,26 @@ function makeWasi(getMemory) {
       crypto.getRandomValues(new Uint8Array(getMemory().buffer, ptr, len));
       return WASI_ESUCCESS;
     },
+    // The app's command line: `config.args` after an argv[0], the way
+    // Swift's CommandLine.arguments reads them (it asks WASI directly, so
+    // the argc/argv handed to main do not matter). Office starts in
+    // Slides for `--slides`, as it does natively.
     args_sizes_get(argc, size) {
-      view().setUint32(argc, 0, true);
-      view().setUint32(size, 0, true);
+      view().setUint32(argc, argv.length, true);
+      view().setUint32(size, argv.reduce((n, a) => n + a.length + 1, 0), true);
       return WASI_ESUCCESS;
     },
-    args_get: () => WASI_ESUCCESS,
+    args_get(argvPtr, bufPtr) {
+      const bytes = new Uint8Array(getMemory().buffer);
+      let p = bufPtr;
+      argv.forEach((a, i) => {
+        view().setUint32(argvPtr + 4 * i, p, true);
+        bytes.set(a, p);
+        bytes[p + a.length] = 0;
+        p += a.length + 1;
+      });
+      return WASI_ESUCCESS;
+    },
     environ_sizes_get(count, size) {
       view().setUint32(count, 0, true);
       view().setUint32(size, 0, true);
@@ -184,7 +199,7 @@ async function fetchWithProgress(url, onProgress) {
   return new Response(body, { headers, status: response.status });
 }
 
-export async function startStarling({ canvas, app, skwasmBase, fonts = [], onProgress }) {
+export async function startStarling({ canvas, app, skwasmBase, fonts = [], args = [], onProgress }) {
   // --- skwasm, single-threaded. Threads need a cross-origin-isolated page
   // (COOP/COEP headers); without them skwasm renders on the main thread,
   // which is also what Flutter does on an ordinary page.
@@ -355,7 +370,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], onPro
 
   const { instance } = await WebAssembly.instantiateStreaming(
     fetchWithProgress(app, report('app')), {
-    wasi_snapshot_preview1: makeWasi(() => swift.memory),
+    wasi_snapshot_preview1: makeWasi(() => swift.memory, args),
     skwasm: sk,
     starling: host,
   });

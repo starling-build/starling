@@ -32,6 +32,8 @@
   startStarling({
     canvas: document.getElementById('starling'),
     app: 'app.wasm',
+    // The app's command line (Office: ['--slides'] starts in Slides).
+    args: [],
     skwasmBase: 'skwasm/',
     // Written by build/web-app.sh; the first face is also the fallback
     // for any family nobody loaded.
