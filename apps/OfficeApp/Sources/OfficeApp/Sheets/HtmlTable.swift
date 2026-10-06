@@ -324,7 +324,7 @@ enum HtmlTable {
         }
         if let fam = d["font-family"] {
             let first = fam.split(separator: ",").first.map { $0.trimmingWhitespace() } ?? ""
-            let name = first.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            let name = first.trimming(charactersIn: "\"'")
             let generic: Set<String> = ["serif", "sans-serif", "monospace", "system-ui", "-apple-system", "arial"]
             if !name.isEmpty && !generic.contains(name.lowercased()) && name != OfficeFonts.defaultFamily { st.fontName = name }
         }

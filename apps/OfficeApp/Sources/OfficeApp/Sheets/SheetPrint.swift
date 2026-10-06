@@ -222,7 +222,7 @@ extension SheetGridState {
         }
         let pageCount = jobs.reduce(0) { $0 + $1.pages.count }
         var fields = HeaderFooterText.Fields(pages: pageCount, file: title, sheet: ws.name,
-                                             path: filePath.map { ($0 as NSString).deletingLastPathComponent } ?? "")
+                                             path: filePath.map { $0.deletingLastPathComponent } ?? "")
         let hfStyle = book.style(0)
         let hfFont = GridTextStyle(family: OfficeFonts.substitute(hfStyle.fontName ?? OfficeFonts.defaultFamily),
                                    size: hfStyle.fontSize ?? 11, color: Int64(0xFF000000))

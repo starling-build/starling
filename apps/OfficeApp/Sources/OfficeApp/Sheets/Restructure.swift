@@ -378,7 +378,7 @@ extension WorkbookController {
         // for a single date, none (a copy) for a single plain number.
         let numbers = seed.compactMap { $0?.value.number }
         if numbers.count == seed.count {
-            let isDate = book.style(c0.style).numberFormat.lowercased().contains("d")
+            let isDate = book.style(c0.style).numberFormat.lowercased().containsSubstring("d")
             let step: Double
             if numbers.count >= 2 { step = numbers[numbers.count - 1] - numbers[numbers.count - 2] }
             else if isDate { step = 1 }

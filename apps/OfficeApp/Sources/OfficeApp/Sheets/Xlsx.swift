@@ -1025,7 +1025,7 @@ enum Xlsx {
     private static func _sstXML(_ sst: [String]) -> String {
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"\(sst.count)\" uniqueCount=\"\(sst.count)\">"
         for t in sst {
-            let space = t.first == " " || t.last == " " || t.contains("\n") ? " xml:space=\"preserve\"" : ""
+            let space = t.first == " " || t.last == " " || t.containsSubstring("\n") ? " xml:space=\"preserve\"" : ""
             s += "<si><t\(space)>\(_esc(t))</t></si>"
         }
         return s + "</sst>"

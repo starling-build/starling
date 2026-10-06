@@ -73,7 +73,7 @@ struct SlideField: Equatable {
         case "datetime13": pattern = "h:mm:ss a"
         default: pattern = "M/d/yyyy"
         }
-        return SlidesDates.format(date, pattern)
+        return OfficeDates.format(date, pattern)
     }
 
     static func newId() -> String { "{" + UUID().uuidString + "}" }

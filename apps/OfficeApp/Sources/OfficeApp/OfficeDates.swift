@@ -1,7 +1,7 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Dates as Slides shows them — the date field's thirteen PowerPoint
+// Dates as Office shows them — the date field's thirteen PowerPoint
 // formats, the header/footer dialog, the presenter's clock, the package's
 // timestamps — from the calendar's numbers. DateFormatter is the legacy
 // Foundation layer over ICU, which does not link on the web, and these
@@ -10,7 +10,7 @@
 
 import Foundation
 
-enum SlidesDates {
+enum OfficeDates {
     private static let months = ["January", "February", "March", "April", "May", "June", "July",
                                  "August", "September", "October", "November", "December"]
     private static let weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]

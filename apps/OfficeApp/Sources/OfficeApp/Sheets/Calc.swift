@@ -112,10 +112,14 @@ final class CalcEngine {
     private func _pass() {
         let t0 = Date()
         let order = _evaluationOrder()
+        #if !os(WASI)
         if Self._trace { FileHandle.standardError.write(Data("[calc] order \(order.count) in \(Date().timeIntervalSince(t0))s\n".utf8)) }
+        #endif
         let t1 = Date()
         for key in order { _ = value(key.sheet, key.cell) }
+        #if !os(WASI)
         if Self._trace { FileHandle.standardError.write(Data("[calc] values in \(Date().timeIntervalSince(t1))s\n".utf8)) }
+        #endif
     }
 
     /// A node of the walk: a formula cell, or a range whose formula cells
@@ -788,13 +792,13 @@ enum InputParser {
         }
         var value = negative ? -v : v
         if percent { value /= 100 }
-        let decimals = s.split(separator: ".").count > 1 && !s.lowercased().contains("e")
+        let decimals = s.split(separator: ".").count > 1 && !s.lowercased().containsSubstring("e")
             ? s.split(separator: ".")[1].count : 0
         var format: String? = nil
         if percent { format = decimals > 0 ? "0." + String(repeating: "0", count: decimals) + "%" : "0%" }
         else if currency { format = decimals > 0 ? "$#,##0.00" : "$#,##0" }
         else if hadComma { format = decimals > 0 ? "#,##0.00" : "#,##0" }
-        else if s.lowercased().contains("e") { format = "0.00E+00" }
+        else if s.lowercased().containsSubstring("e") { format = "0.00E+00" }
         return (value, format)
     }
 

@@ -359,7 +359,7 @@ extension SheetDrawingsXML {
     static func _patchMarkers(_ raw: String, _ from: SheetMarker, _ to: SheetMarker) -> String? {
         let tag = raw.dropFirst().prefix { !" >\n\t\r/".contains($0) }
         guard tag.hasSuffix("twoCellAnchor") else { return nil }
-        let prefix = tag.contains(":") ? String(tag.split(separator: ":")[0]) + ":" : ""
+        let prefix = tag.containsSubstring(":") ? String(tag.split(separator: ":")[0]) + ":" : ""
         func marker(_ name: String, _ m: SheetMarker) -> String {
             "<\(prefix)\(name)><\(prefix)col>\(m.col)</\(prefix)col><\(prefix)colOff>\(Int((m.colOff * emuPerPt).rounded()))</\(prefix)colOff>"
                 + "<\(prefix)row>\(m.row)</\(prefix)row><\(prefix)rowOff>\(Int((m.rowOff * emuPerPt).rounded()))</\(prefix)rowOff></\(prefix)\(name)>"

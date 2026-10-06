@@ -878,7 +878,7 @@ enum SheetFunctions {
             else if text.uppercased() == "FALSE" { value = .bool(false); glob = nil }
             else {
                 value = text.isEmpty ? .empty : .text(text)
-                glob = (o == .eq || o == .ne) && (text.contains("*") || text.contains("?") || text.contains("~"))
+                glob = (o == .eq || o == .ne) && (text.containsSubstring("*") || text.containsSubstring("?") || text.containsSubstring("~"))
                     ? Array(text.lowercased()) : nil
             }
         }

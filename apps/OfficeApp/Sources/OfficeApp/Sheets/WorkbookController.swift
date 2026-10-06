@@ -267,9 +267,9 @@ final class WorkbookController: ChangeNotifier {
         if case .number(let n) = c.value {
             let fmt = book.style(c.style).numberFormat
             // A date shows as a date in the bar, a percent as a percent.
-            if fmt.contains("%") { return NumberFormat.full(n * 100) + "%" }
-            if NumberFormat.format(n, fmt).text != NumberFormat.general(n), fmt.lowercased().contains("y") || fmt.lowercased().contains("d") {
-                return NumberFormat.format(n, fmt.contains("h") ? "m/d/yyyy h:mm" : "m/d/yyyy").text
+            if fmt.containsSubstring("%") { return NumberFormat.full(n * 100) + "%" }
+            if NumberFormat.format(n, fmt).text != NumberFormat.general(n), fmt.lowercased().containsSubstring("y") || fmt.lowercased().containsSubstring("d") {
+                return NumberFormat.format(n, fmt.containsSubstring("h") ? "m/d/yyyy h:mm" : "m/d/yyyy").text
             }
             return NumberFormat.full(n)
         }

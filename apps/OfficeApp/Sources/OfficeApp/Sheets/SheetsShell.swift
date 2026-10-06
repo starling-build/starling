@@ -272,6 +272,9 @@ final class SheetsShellState: State<StatefulWidget> {
 
     /// File → Print: the PDF of the active sheet, handed to the host's print dialog.
     private func _print() {
+        #if os(WASI)
+        _flash("Printing is not available in the browser yet")
+        #else
         let path = NSTemporaryDirectory() + "sheets-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
         _ = _grid?.commitEdit()
         setState { _backstage = nil }
@@ -283,6 +286,7 @@ final class SheetsShellState: State<StatefulWidget> {
             }
             if let print = hostPrintPDF { print(path) } else { self._flash("No print dialog on this host") }
         }
+        #endif
     }
 
     // MARK: Formula bar

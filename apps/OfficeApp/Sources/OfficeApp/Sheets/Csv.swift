@@ -85,7 +85,7 @@ enum Csv {
                 guard let cell = sheet.cells[a] else { fields.append(""); continue }
                 var s = NumberFormat.display(cell.value, book.style(cell.style).numberFormat, width: 255).text
                 if case .number(let n) = cell.value, book.style(cell.style).numberFormat == "General" { s = NumberFormat.full(n) }
-                if s.contains(separator) || s.contains("\"") || s.contains("\n") || s.contains("\r") {
+                if s.contains(separator) || s.containsSubstring("\"") || s.containsSubstring("\n") || s.containsSubstring("\r") {
                     s = "\"" + s.replacingAll("\"", with: "\"\"") + "\""
                 }
                 fields.append(s)

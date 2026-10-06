@@ -253,6 +253,20 @@ through `StringHelpers`, which gained `replacingSubrange`):
   kind inside the app still does not ask — natively Writer's own New
   does not either, and the recovery copy covers it there.
 
+**Sheets links too (2026-10-06).** Sheets landed on `office` (a fast-forward
+from `sheets`) with the usual legacy reaches, and the web build of Office
+stopped linking — which would have failed the next Slides republish. Ported
+the same way: `contains(String)` → `containsSubstring` on String receivers
+(a `[Character]` keeps the stdlib one), `trimmingCharacters` →
+`trimmingWhitespace()`/`trimming(charactersIn:)`, the NSString
+`deletingLastPathComponent` → Paths.swift's, the header/footer `DateFormatter`s
+→ `OfficeDates` (SlidesDates, renamed and moved up for both), the calc trace
+and print fenced. Started with `--sheets` the tab shows Sheets and takes a
+value into a cell; its open/save still go through file paths, so a Sheets
+site would need the WebFiles plumbing Slides got before it is useful. In a
+release wasm link the linker names the WRONG .o for a symbol (WMO): grep
+the whole directory for the API, not the file it blames.
+
 **Published, 2026-10-03: slides.starling.build.** `build/web-deploy.sh`
 (Writer's publish, now on this branch) grew `--args` and `--title`: the
 page's `args` go to the app through the WASI shim's `args_get`, which

@@ -149,12 +149,12 @@ enum HeaderFooterText {
                 let spec = String(chars[i ..< min(j, chars.count)])
                 i = min(j + 1, chars.count)
                 flush()
-                let parts = spec.split(separator: ",", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                let parts = spec.split(separator: ",", maxSplits: 1).map { $0.trimmingWhitespace() }
                 if let name = parts.first, !name.isEmpty, name != "-" { style.family = name }
                 if parts.count > 1 {
                     let st = parts[1].lowercased()
-                    style.bold = st.contains("bold")
-                    style.italic = st.contains("italic")
+                    style.bold = st.containsSubstring("bold")
+                    style.italic = st.containsSubstring("italic")
                 }
             default:
                 if code.isNumber {
@@ -171,19 +171,11 @@ enum HeaderFooterText {
         return out
     }
 
-    private static let _dateFormat: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .short
-        f.timeStyle = .none
-        return f
-    }()
-
-    private static let _timeFormat: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .none
-        f.timeStyle = .short
-        return f
-    }()
+    // Excel's &D and &T: the short date and time, en-US as the sheet's
+    // other formats are — through OfficeDates, since DateFormatter is the
+    // legacy Foundation layer and does not link on the web.
+    private static func _date(_ d: Date) -> String { OfficeDates.format(d, "M/d/yy") }
+    private static func _time(_ d: Date) -> String { OfficeDates.format(d, "h:mm a") }
 
     /// The items of one section as text, adjacent same-styled pieces merged.
     static func runs(_ items: [Item], fields: Fields) -> [Run] {
@@ -194,8 +186,8 @@ enum HeaderFooterText {
             case .text(let s): text = s
             case .page: text = String(fields.page)
             case .pages: text = String(fields.pages)
-            case .date: text = _dateFormat.string(from: fields.date)
-            case .time: text = _timeFormat.string(from: fields.date)
+            case .date: text = _date(fields.date)
+            case .time: text = _time(fields.date)
             case .file: text = fields.file
             case .sheet: text = fields.sheet
             case .path: text = fields.path

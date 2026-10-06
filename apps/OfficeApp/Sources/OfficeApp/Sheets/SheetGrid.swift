@@ -1805,9 +1805,9 @@ final class SheetGridState: State<StatefulWidget> {
                     canvas.drawLine(a + inward * 2, z + inward * 2, border)
                     return
                 }
-                if kind.contains("ash") || kind.contains("otted") {
+                if kind.containsSubstring("ash") || kind.containsSubstring("otted") {
                     // Dashes and dots, drawn as short runs along the side.
-                    let dash = kind.contains("otted") ? 1.0 : 3.0, gap = kind.contains("otted") ? 2.0 : 2.0
+                    let dash = kind.containsSubstring("otted") ? 1.0 : 3.0, gap = kind.containsSubstring("otted") ? 2.0 : 2.0
                     let length = (z - a).distance
                     guard length > 0 else { return }
                     let step = (z - a) / length

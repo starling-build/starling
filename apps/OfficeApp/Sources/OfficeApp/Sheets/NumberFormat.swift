@@ -19,7 +19,7 @@ enum NumberFormat {
         case .text(let s):
             let sections = _sections(code)
             if sections.count >= 4 { return (_applyText(sections[3], s), nil) }
-            if sections.count == 1, sections[0].contains("@") { return (_applyText(sections[0], s), nil) }
+            if sections.count == 1, sections[0].containsSubstring("@") { return (_applyText(sections[0], s), nil) }
             return (s, nil)
         case .number(let n): return format(n, code, width: width)
         }
@@ -54,7 +54,7 @@ enum NumberFormat {
         var decimals = max(0, width - intDigits - 1 - (n < 0 ? 1 : 0))
         decimals = min(decimals, max(0, 15 - intDigits))
         var s = fixed(n, decimals: decimals)
-        if s.contains(".") {
+        if s.containsSubstring(".") {
             while s.hasSuffix("0") { s.removeLast() }
             if s.hasSuffix(".") { s.removeLast() }
         }
@@ -68,7 +68,7 @@ enum NumberFormat {
         if a >= 1e15 || a < 1e-15 { return _scientific(n, digits: 14) }
         let mag = Int(floor(log10(a)))
         var s = fixed(n, decimals: max(0, min(15, 14 - mag)))
-        if s.contains(".") {
+        if s.containsSubstring(".") {
             while s.hasSuffix("0") { s.removeLast() }
             if s.hasSuffix(".") { s.removeLast() }
         }
@@ -125,7 +125,7 @@ enum NumberFormat {
         // Rounding may carry to 10.0.
         if Double(fixed(mant, decimals: digits)) ?? 0 >= 10 { mant /= 10; exp += 1 }
         var m = fixed(mant, decimals: digits)
-        if m.contains(".") {
+        if m.containsSubstring(".") {
             while m.hasSuffix("0") { m.removeLast() }
             if m.hasSuffix(".") { m.removeLast() }
         }
@@ -313,7 +313,7 @@ enum NumberFormat {
         let hh = secs / 3600, mi = (secs % 3600) / 60, ss = secs % 60
         let weekday = ExcelDate.weekday(serial) - 1
         let lower = code.lowercased()
-        let ampm = lower.contains("am/pm") || lower.contains("a/p")
+        let ampm = lower.containsSubstring("am/pm") || lower.containsSubstring("a/p")
         var out = ""
         let chars = Array(code)
         var k = 0
