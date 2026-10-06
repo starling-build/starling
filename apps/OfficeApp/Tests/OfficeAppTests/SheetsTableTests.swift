@@ -64,8 +64,14 @@ final class SheetsTableTests: XCTestCase {
         let saved = try Zip.read(try Xlsx.write(try Xlsx.read(data)))
         let was = String(decoding: try XCTUnwrap(try Zip.read(data).first { $0.name == "xl/tables/table1.xml" }).data, as: UTF8.self)
         let now = String(decoding: try XCTUnwrap(saved.first { $0.name == "xl/tables/table1.xml" }).data, as: UTF8.self)
-        // Only D3's empty header becomes Column1 (Excel's own repair would do the same).
+        // Only D3's empty header becomes Column1 (Excel's own repair would do the same),
+        // and the cell is given that name too: Excel repairs a table whose header
+        // cell disagrees with its column name, an empty cell included.
         XCTAssertEqual(was.replacingAll("name=\"Run\"", with: "name=\"Column1\""), now)
+        let sheet = String(decoding: try XCTUnwrap(saved.first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(sheet.containsSubstring("<c r=\"D3\" t=\"s\">") || sheet.containsSubstring("<c r=\"D3\" t=\"inlineStr\">"), sheet)
+        let back = try Xlsx.read(try Xlsx.write(try Xlsx.read(data)))
+        XCTAssertEqual(back.sheets[0].value(CellAddress("D3")!), .text("Column1"))
     }
 
     func testTableDeletedWithAllItsRowsLeavesNoTrace() throws {

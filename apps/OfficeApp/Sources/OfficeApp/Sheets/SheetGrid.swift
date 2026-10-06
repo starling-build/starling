@@ -860,9 +860,11 @@ final class SheetGridState: State<StatefulWidget> {
                 return
             }
             commitEdit()
-            c.select(range: CellRange(top: 0, left: col, bottom: CellAddress.maxRows - 1, right: col),
-                     active: CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
-            _drag = .columns(anchor: col)
+            // Shift extends from the selection's anchor column, as Excel's does.
+            let anchorCol = _chords.shift ? c.anchor.col : col
+            c.select(range: CellRange(top: 0, left: min(anchorCol, col), bottom: CellAddress.maxRows - 1, right: max(anchorCol, col)),
+                     active: _chords.shift ? c.active : CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
+            _drag = .columns(anchor: anchorCol)
             return
         }
         if p.dx < headerWidth && p.dy >= headerHeight {
@@ -875,9 +877,10 @@ final class SheetGridState: State<StatefulWidget> {
                 return
             }
             commitEdit()
-            c.select(range: CellRange(top: row, left: 0, bottom: row, right: CellAddress.maxCols - 1),
-                     active: CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
-            _drag = .rows(anchor: row)
+            let anchorRow = _chords.shift ? c.anchor.row : row
+            c.select(range: CellRange(top: min(anchorRow, row), left: 0, bottom: max(anchorRow, row), right: CellAddress.maxCols - 1),
+                     active: _chords.shift ? c.active : CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
+            _drag = .rows(anchor: anchorRow)
             return
         }
         if p.dx < headerWidth && p.dy < headerHeight {
@@ -1084,11 +1087,11 @@ final class SheetGridState: State<StatefulWidget> {
             if a != c._extentEnd { c.select(a, extend: true); _autoScroll(p) }
         case .columns(let anchor):
             let col = self.col(atLocal: p.dx)
-            c.select(range: CellRange(top: 0, left: anchor, bottom: CellAddress.maxRows - 1, right: col),
+            c.select(range: CellRange(top: 0, left: min(anchor, col), bottom: CellAddress.maxRows - 1, right: max(anchor, col)),
                      active: c.active)
         case .rows(let anchor):
             let row = self.row(atLocal: p.dy)
-            c.select(range: CellRange(top: anchor, left: 0, bottom: row, right: CellAddress.maxCols - 1),
+            c.select(range: CellRange(top: min(anchor, row), left: 0, bottom: max(anchor, row), right: CellAddress.maxCols - 1),
                      active: c.active)
         case .drawing(let index, let handle, let f, _, let start):
             let dx = (p.dx - start.dx) / scale, dy = (p.dy - start.dy) / scale

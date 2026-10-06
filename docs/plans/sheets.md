@@ -165,7 +165,15 @@ series, merge and wrap, Shift/⌘-arrows, Delete, F2, the View tab, a
 cross-sheet formula on a new sheet and the PDF of a 29-column table
 found two more: wrapped lines ignored the cell's alignment (a Merge &
 Center heading read left-aligned), and renaming a tab appended to the
-old name. Both fixed the same day.
+old name. Both fixed the same day. With Excel itself as the oracle
+(`test/xlsx-excel.sh`, 2026-10-06): the three real files' round trips,
+the edited claims copy, a chart inserted and saved, a table whose rows
+were all deleted and one whose rows were partly deleted all open clean.
+One repair found and fixed: a table header cell left empty got a
+generated column name in the part but not in the cell, which Excel
+repairs — the cell now takes the name on save, as Excel refills it.
+Shift-clicking a row or column header extends the selection, as Excel's
+does; a header drag selects in either direction.
 
 **X1 nearly done (2026-09-30)**, on branch `sheets`, rebased on `office`
 ce3c4af1. Engine (9ed475e1): addresses, model, parser/printer, on-demand

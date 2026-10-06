@@ -498,6 +498,25 @@ enum Xlsx {
     // MARK: Writing
 
     static func write(_ book: Workbook) throws -> Data {
+        // A table's header cells must hold its column names, or Excel repairs
+        // the file: an emptied one gets the name the part will carry
+        // (Excel itself refills such a cell with "Column1" at once).
+        for ws in book.sheets {
+            for t in ws.tables where t.headerRow {
+                var used = Set<String>()
+                for (i, col) in (t.ref.left ... t.ref.right).enumerated() {
+                    let a = CellAddress(row: t.ref.top, col: col)
+                    let text = NumberFormat.display(ws.value(a), "General", width: 255).text.trimmingWhitespace()
+                    if !text.isEmpty { used.insert(text.lowercased()); continue }
+                    var name = "Column\(i + 1)", n = 2
+                    while used.contains(name.lowercased()) { name = "Column\(i + 1)\(n)"; n += 1 }
+                    used.insert(name.lowercased())
+                    var cell = ws.cells[a] ?? Cell(input: "")
+                    cell.input = name; cell.value = .text(name); cell.formula = nil
+                    ws.cells[a] = cell
+                }
+            }
+        }
         var out: [ZipEntry] = []
         let original = book.package ?? []
         var originalParts: [String: Data] = [:]
