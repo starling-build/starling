@@ -247,6 +247,11 @@ through `StringHelpers`, which gained `replacingSubrange`):
 - Not in the browser: PDF export (Writer's limit too), AutoSave, Save
   As by name (save *is* the download), the second-display presenter
   view (none natively either).
+- Leaving the tab with unsaved work asks first (`beforeunload`): the
+  page keys it on the unsaved marker both shells already put in the
+  title ("Name • — Slides"), since a tab has no recovery copy. Switching
+  kind inside the app still does not ask — natively Writer's own New
+  does not either, and the recovery copy covers it there.
 
 **Published, 2026-10-03: slides.starling.build.** `build/web-deploy.sh`
 (Writer's publish, now on this branch) grew `--args` and `--title`: the

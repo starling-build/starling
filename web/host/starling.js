@@ -204,6 +204,13 @@ async function fetchWithProgress(url, onProgress) {
   return new Response(body, { headers, status: response.status });
 }
 
+let unsaved = false;
+window.addEventListener('beforeunload', (event) => {
+  if (!unsaved) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
+
 export async function startStarling({ canvas, app, skwasmBase, fonts = [], args = [], onProgress }) {
   // --- skwasm, single-threaded. Threads need a cross-origin-isolated page
   // (COOP/COEP headers); without them skwasm renders on the main thread,
@@ -304,6 +311,10 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     },
     set_title(pointer, length) {
       document.title = utf8.decode(appBytes().subarray(pointer, pointer + length));
+      // Office marks unsaved work in its title ("Name • — Writer", "… — Slides")
+      // — the one signal a tab has, since there is no recovery copy here:
+      // leaving the page with it set asks first.
+      unsaved = document.title.includes(' \u2022');
     },
     // The browser decodes what skwasm cannot (the light build has no
     // codecs). The bytes are copied out before returning — the app may
