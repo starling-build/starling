@@ -3,64 +3,69 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f8f2e4">
-  <title>Starling — a desktop you can walk into</title>
-  <meta name="description" content="A familiar 2D desktop. A living 3D city. Switch perspectives, walk to the waterfront, and bring your real apps with you. Meet Starling.">
-  <meta property="og:title" content="Starling — a desktop you can walk into">
-  <meta property="og:description" content="Your everyday desktop, in a whole new dimension. Watch the 2D and 3D desktop in action.">
+  <meta name="theme-color" content="#165b46">
+  <title>Starling — great software, open to everyone</title>
+  <meta name="description" content="An open software factory building world-class applications. Meet Starling Terminal, Office, Desktop, and the SDK. Free to use. Open to build on.">
+  <meta property="og:title" content="Starling — great software, open to everyone">
+  <meta property="og:description" content="A fast terminal. An office for your ideas. A desktop with a different perspective. One open software factory.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="https://starling.build/img/desktop-3d.webp">
+  <meta property="og:image" content="https://starling.build/img/starling-factory.png">
   <meta property="og:url" content="https://starling.build/">
+  <link rel="canonical" href="https://starling.build/">
   <link rel="icon" href="img/starling.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
-  <link rel="preload" href="img/desktop-3d.webp" as="image" fetchpriority="high">
   <script src="main.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header wrap">
-    <a class="brand" href="#" aria-label="Starling home"><img src="img/starling.svg" width="35" height="35" alt="">starling<span class="brand-dot">.</span></a>
-    <nav aria-label="Main navigation">
-      <a href="#perspectives">The desktop</a>
-      <a href="#film">Watch the film <span aria-hidden="true">↗</span></a>
-    </nav>
-    <a class="source-link" href="https://github.com/starling-build/starling">Explore the project <span aria-hidden="true">↗</span></a>
+  <a class="skip-link" href="#main">Skip to presentation</a>
+  <header class="site-header">
+    <a class="brand" href="#intro" aria-label="Starling home"><img src="img/starling.svg" width="34" height="34" alt="">starling<span class="brand-dot">.</span><span class="brand-caption">Software factory</span></a>
+    <nav aria-label="Main navigation"><a class="github-link" href="https://github.com/starling-build/starling">GitHub ↗</a><a class="header-action" href="#terminal">Explore apps ↘</a></nav>
   </header>
-
-  <main id="main">
-    <section class="hero wrap" aria-labelledby="hero-title">
-      <div class="eyebrow"><span class="status-dot" aria-hidden="true"></span> A NEW PERSPECTIVE ON THE DESKTOP</div>
-      <div class="hero-intro">
-        <h1 id="hero-title">A desktop you<br>can <em>walk into.</em></h1>
-        <div class="hero-aside">
-          <p>A familiar workspace. A living city.<br>Your everyday apps, in a whole new dimension.</p>
-          <a class="text-link" href="#film">See it in action <span class="circle-arrow" aria-hidden="true">↘</span></a>
-        </div>
-      </div>
-
-      <div class="desktop-preview" id="perspectives">
-        <div class="preview-toolbar">
-          <div class="preview-heading"><span class="tiny-mark" aria-hidden="true">✳</span> ONE DESKTOP. TWO PERSPECTIVES.</div>
-          <div class="mode-switch" role="group" aria-label="Preview desktop mode">
-            <button type="button" data-mode="2d" aria-pressed="false" disabled><span aria-hidden="true">▱</span> 2D Desktop</button>
-            <button type="button" data-mode="3d" aria-pressed="true" disabled><span aria-hidden="true">◇</span> 3D Desktop</button>
-          </div>
-        </div>
-        <div class="preview-stage">
-          <img id="desktop-image" src="img/desktop-3d.webp" width="1920" height="1080" alt="Starling's empty 3D desktop: a walkable city overlooking the waterfront and a red suspension bridge." fetchpriority="high">
-          <div class="scene-label"><span class="status-dot" aria-hidden="true"></span><span id="scene-name">THE CITY IS YOUR WORKSPACE</span></div>
-          <a class="preview-play" href="#film" aria-label="Watch the full desktop demo"><span aria-hidden="true">▶</span> Watch the full film <span class="play-duration">02:50</span></a>
-        </div>
-        <div class="preview-caption"><p id="mode-caption" aria-live="polite">Step into the city. Change your point of view.</p><span>Actual desktop capture <span aria-hidden="true">↗</span></span></div>
-      </div>
-
-      <div class="perspective-copy">
-        <p class="section-index">01 / A CHANGE OF SCENE</p>
-        <h2>Same desktop.<br><span>A different dimension.</span></h2>
-        <p>Start with the desktop you know. Open the control panel, choose 3D Desktop, and the city becomes a place to explore. Walk down the street. Stop by the sea. Make yourself at home.</p>
+  <main id="main" aria-label="Starling presentation">
+    <section class="slide intro-slide" id="intro" aria-labelledby="intro-title" data-label="The software factory" data-action="Explore the apps" data-href="#terminal">
+      <div class="slide-copy"><p class="eyebrow">STARLING / AN OPEN SOFTWARE FACTORY</p><h1 id="intro-title">Great software.<br>For everyone.</h1><p class="lede">We’re building world-class software.<br>Thoughtful applications. A shared foundation.<br>Free to use. Open to build on.</p><p class="slide-note">A terminal. An office. A desktop.<br>And the ambition to keep building.</p></div>
+      <div class="product-stack" aria-label="Explore Starling products">
+        <a class="product-tile terminal-tile" href="#terminal"><span class="app-mark terminal-mark" aria-hidden="true">&gt;_</span><span><strong>Terminal</strong><span>A fast place to work.</span></span><span class="tile-arrow" aria-hidden="true">↗</span></a>
+        <a class="product-tile office-tile" href="#office"><span class="app-mark office-mark" aria-hidden="true">O</span><span><strong>Office</strong><span>Room for your ideas.</span></span><span class="tile-arrow" aria-hidden="true">↗</span></a>
+        <a class="product-tile desktop-tile" href="#desktop"><span class="app-mark desktop-mark" aria-hidden="true">◇</span><span><strong>Desktop</strong><span>A different perspective.</span></span><span class="tile-arrow" aria-hidden="true">↗</span></a>
       </div>
     </section>
-
+    <section class="slide terminal-slide" id="terminal" aria-labelledby="terminal-title" data-label="Starling Terminal" data-action="Get Terminal" data-href="https://github.com/starling-build/starling/releases/tag/terminal-v0.2.0">
+      <div class="slide-copy"><p class="eyebrow">01 / STARLING TERMINAL</p><h2 id="terminal-title">Less waiting.<br>More doing.</h2><p class="lede">A fast terminal for the work you love.<br>Local shells. Remote workspaces.<br>Sessions that outlive the connection.</p><a class="inline-link" href="https://github.com/starling-build/starling/releases/tag/terminal-v0.2.0">Get Starling Terminal <span aria-hidden="true">↗</span></a><p class="slide-note">macOS · Windows · Linux</p></div>
+      <div class="terminal-illustration" aria-label="Illustration of a command-line session">
+        <div class="window-heading"><span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Starling Terminal</span><span aria-hidden="true">⌘</span></div>
+        <div class="terminal-code"><p class="terminal-path">~/projects/next-idea</p><p><span class="prompt">❯</span> git status</p><p class="terminal-output">On branch main<br>nothing to commit,<br>working tree clean</p><p><span class="prompt">❯</span> <span class="terminal-cursor" aria-hidden="true"></span></p></div>
+        <div class="terminal-tags"><span>Built for speed</span><span>Made for focus</span><span>Open source</span></div>
+      </div>
+    </section>
+    <section class="slide office-slide" id="office" aria-labelledby="office-title" data-label="Starling Office" data-action="Open Office" data-href="https://openoffice.starling.build/">
+      <div class="slide-copy"><p class="eyebrow">02 / STARLING OFFICE</p><h2 id="office-title">Big ideas.<br>Start here.</h2><p class="lede">Write something great. Make your point.<br>Let the numbers tell the story.<br>An open office suite, right in your browser.</p><a class="inline-link" href="https://openoffice.starling.build/">Meet Starling Office <span aria-hidden="true">↗</span></a><p class="slide-note">Documents · Presentations · Spreadsheets</p></div>
+      <div class="office-apps" aria-label="Open an Office application">
+        <a href="https://writer.starling.build/" class="office-app writer-app"><div class="office-app-top"><span class="app-mark writer-mark" aria-hidden="true">W</span><span class="tile-arrow" aria-hidden="true">↗</span></div><h3>Writer</h3><p>Turn a thought<br>into a document.</p><div class="document-art" aria-hidden="true"><b></b><i></i><i></i><i></i></div><span class="office-app-link">Open Writer ↗</span></a>
+        <a href="https://slides.starling.build/" class="office-app slides-app"><div class="office-app-top"><span class="app-mark slides-mark" aria-hidden="true">S</span><span class="tile-arrow" aria-hidden="true">↗</span></div><h3>Slides</h3><p>Give your idea<br>an audience.</p><div class="chart-art" aria-hidden="true"><i></i><i></i><i></i></div><span class="office-app-link">Open Slides ↗</span></a>
+        <a href="https://sheets.starling.build/" class="office-app sheets-app"><div class="office-app-top"><span class="app-mark sheets-mark" aria-hidden="true">#</span><span class="tile-arrow" aria-hidden="true">↗</span></div><h3>Sheets</h3><p>Make sense<br>of the numbers.</p><div class="sheet-art" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="office-app-link">Open Sheets ↗</span></a>
+      </div>
+    </section>
+    <section class="slide desktop-slide" id="desktop" aria-labelledby="desktop-title" data-label="Starling Desktop" data-action="Get the desktop" data-href="#install">
+      <div class="slide-copy"><p class="eyebrow">03 / STARLING DESKTOP</p><h2 id="desktop-title">Your workspace.<br>A new view.</h2><p class="lede">A familiar 2D desktop. A living 3D city.<br>Bring your real apps with you.<br>Choose your perspective.</p><div class="desktop-links"><a class="inline-link" href="#film" data-open-dialog="desktop-film">Watch the film <span aria-hidden="true">↗</span></a><a class="inline-link" href="#install" data-open-dialog="desktop-install">Get the desktop <span aria-hidden="true">↗</span></a></div><p class="slide-note">Ubuntu · Windows through WSL2</p></div>
+      <div class="desktop-preview"><div class="preview-toolbar"><span>ONE DESKTOP. TWO PERSPECTIVES.</span><div class="mode-switch" role="group" aria-label="Preview desktop mode"><button type="button" data-mode="2d" aria-pressed="false" disabled>2D</button><button type="button" data-mode="3d" aria-pressed="true" disabled>3D</button></div></div><a class="preview-image-link" href="#film" data-open-dialog="desktop-film" aria-label="Watch the Starling desktop film"><img id="desktop-image" src="img/desktop-3d.webp" width="1920" height="1080" alt="The Starling 3D desktop, a walkable waterfront city." loading="lazy"><span class="preview-play" aria-hidden="true">▶ Watch the film</span></a><p id="mode-caption" aria-live="polite">Step into the city. Change your point of view.</p><span id="scene-name" class="sr-only">THE CITY IS YOUR WORKSPACE</span></div>
+    </section>
+    <section class="slide sdk-slide" id="sdk" aria-labelledby="sdk-title" data-label="The shared foundation" data-action="Explore the SDK" data-href="https://github.com/starling-build/starling/tree/office/sdk">
+      <div class="slide-copy"><p class="eyebrow">04 / THE SHARED FOUNDATION</p><h2 id="sdk-title">Build once.<br>Build on it.</h2><p class="lede">Great applications need great foundations.<br>Our Swift SDK brings the pieces together.<br>What we build, you can build on.</p><a class="inline-link" href="https://github.com/starling-build/starling/tree/office/sdk">Explore the Starling SDK <span aria-hidden="true">↗</span></a><p class="slide-note">One open foundation. Many possibilities.</p></div>
+      <div class="factory-diagram" aria-label="Terminal, Office, and Desktop are built on the open Starling SDK"><div class="factory-products"><span><b aria-hidden="true">&gt;_</b>Terminal</span><span><b aria-hidden="true">O</b>Office</span><span><b aria-hidden="true">◇</b>Desktop</span></div><div class="factory-connectors" aria-hidden="true"><i></i><i></i><i></i></div><a class="sdk-foundation" href="https://github.com/starling-build/starling/tree/office/sdk"><span>STARLING SDK</span><strong>The building blocks<br>are open, too.</strong><span>Swift · UI · Rendering · Platform hosts <span aria-hidden="true">↗</span></span></a></div>
+    </section>
+    <section class="slide mission-slide" id="open" aria-labelledby="open-title" data-label="Open and free" data-action="View on GitHub" data-href="https://github.com/starling-build/starling">
+      <div class="slide-copy"><p class="eyebrow">05 / OPEN CODE. SHARED AMBITION.</p><h2 id="open-title">World-class<br>is the goal.<br>Open is the way.</h2><p class="lede">Software should be worth using.<br>And everyone should be free to use it.<br>Read the code. Help shape what comes next.</p><a class="repository-link" href="https://github.com/starling-build/starling">github.com/starling-build/starling <span aria-hidden="true">↗</span></a><p class="slide-note">Free to use · Open source · Apache 2.0</p></div>
+      <div class="mission-art" aria-label="Use it. Study it. Build on it."><span class="mission-word">Use it.</span><span class="mission-word">Study it.</span><span class="mission-word">Build on it.</span><div class="mission-line" aria-hidden="true"></div><p>A software factory.<br>A shared future.</p></div>
+    </section>
+  </main>
+  <footer class="presentation-controls">
+    <a class="footer-brand" href="#intro"><img src="img/starling.svg" width="29" height="29" alt=""><span>Built in the open.<br><strong>Built for everyone.</strong></span></a>
+    <nav class="slide-navigation" aria-label="Presentation navigation"><button id="previous" type="button" aria-label="Previous slide" disabled>←</button><div class="dots"><a href="#intro" data-slide="0" aria-label="Slide 1: Software factory" aria-current="step"></a><a href="#terminal" data-slide="1" aria-label="Slide 2: Terminal"></a><a href="#office" data-slide="2" aria-label="Slide 3: Office"></a><a href="#desktop" data-slide="3" aria-label="Slide 4: Desktop"></a><a href="#sdk" data-slide="4" aria-label="Slide 5: SDK"></a><a href="#open" data-slide="5" aria-label="Slide 6: Open source"></a></div><span id="position" aria-live="polite" aria-atomic="true">01 / 06</span><button id="next" type="button" aria-label="Next slide">→</button></nav>
+    <a class="slide-action" id="slide-action" href="#terminal">Explore the apps <span aria-hidden="true">↗</span></a>
+  </footer>
+  <dialog id="desktop-film" aria-label="Starling desktop film"><button class="dialog-close" type="button" aria-label="Close film">×</button>
     <section class="film-section" id="film" aria-labelledby="film-title">
       <div class="wrap">
         <div class="film-heading">
@@ -85,17 +90,9 @@
       </div>
     </section>
 
-    <section class="workspace-section wrap" aria-labelledby="workspace-title">
-      <div class="workspace-intro"><p class="section-index">03 / REAL APPS. ROOM TO EXPLORE.</p><h2 id="workspace-title">A new world.<br><span>Your usual windows.</span></h2><p>Browse in Chrome. Play a film. Find a file. Open a terminal. Your apps belong here—and moving between them is as familiar as Alt + Tab.</p><a class="text-link" href="#film" data-film-time="142.3">Watch the workspace come together <span aria-hidden="true">↗</span></a></div>
-      <figure class="workspace-image"><img src="img/workspace.webp" width="1920" height="1080" loading="lazy" alt="Chrome, Video Player, Files, and Terminal arranged in Starling's 3D window switcher, with the city behind them."><figcaption><span>YOUR APPS, AT A GLANCE</span><span>Alt + Tab <span aria-hidden="true">↗</span></span></figcaption></figure>
-      <div class="details">
-        <article><span class="detail-number">01</span><h3>Familiar when you need it.</h3><p>A straightforward 2D workspace. Switch into 3D from the control panel whenever you want a change of scene.</p></article>
-        <article><span class="detail-number">02</span><h3>A city that keeps moving.</h3><p>Follow the streets to the waterfront. Watch the ferry cross the bay. The scene moves around your workspace.</p></article>
-        <article><span class="detail-number">03</span><h3>Keep your apps in view.</h3><p>Live previews sit along the rail. Bring a window forward or use Alt + Tab to find your next task.</p></article>
-      </div>
-    </section>
-
-    <section class="closing wrap" aria-labelledby="closing-title"><div><p class="section-index">MEET YOUR NEXT POINT OF VIEW</p><h2 id="closing-title">Step into <em>Starling.</em></h2></div><a class="button-primary" href="#install">Install Starling <span aria-hidden="true">↓</span></a></section>
+    <p class="media-credits">Demo: original instrumental music and AI-generated English narration. Sample film: <a href="https://www.bigbuckbunny.org/">Big Buck Bunny</a>, © 2008 Blender Foundation, <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>, resized for playback.</p>
+  </dialog>
+  <dialog id="desktop-install" aria-label="Install Starling Desktop"><button class="dialog-close" type="button" aria-label="Close installation instructions">×</button>
     <section class="install-section wrap" id="install" aria-labelledby="install-title">
       <div class="install-intro">
         <p class="section-index">04 / MAKE YOURSELF AT HOME</p>
@@ -120,11 +117,7 @@
         <p class="install-note">Early preview. Tested with AMD, Intel, and NVIDIA graphics, plus VirtIO-GPU / virgl in a VM and Windows through WSL2. See the installation guide for requirements and troubleshooting.</p>
       </div>
     </section>
-  </main>
-
-  <footer class="site-footer wrap">
-    <div class="footer-top"><a class="brand" href="#"><img src="img/starling.svg" width="29" height="29" alt="">starling<span class="brand-dot">.</span></a><p>A little more room for possibility.</p><a href="https://github.com/starling-build/starling">GitHub <span aria-hidden="true">↗</span></a></div>
-    <p class="credits">Demo: original instrumental music and AI-generated English narration. Sample film: <a href="https://www.bigbuckbunny.org/">Big Buck Bunny</a>, © 2008 Blender Foundation, <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>, resized for playback.</p>
-  </footer>
+  </dialog>
+  <noscript><p class="no-script">Browse the presentation below. <a href="video/starling-desktop.mp4">Watch the desktop film</a> or <a href="https://github.com/starling-build/starling/blob/release-0.5.0/docs/INSTALL.md">read the installation guide</a>.</p></noscript>
 </body>
 </html>
