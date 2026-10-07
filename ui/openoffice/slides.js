@@ -15,7 +15,7 @@ const actions = [
   ['Meet the apps', '#2'],
   ['Open Writer', 'https://writer.starling.build/'],
   ['Open Slides', 'https://slides.starling.build/'],
-  ['About Sheets', '#sheets-details'],
+  ['Open Sheets', 'https://sheets.starling.build/'],
   ['Explore the apps', '#2'],
   ['Explore the code', 'https://github.com/starling-build/starling'],
 ];
@@ -58,14 +58,6 @@ window.addEventListener('hashchange', () => go((Number(location.hash.slice(1)) |
 const story = document.getElementById('story');
 document.getElementById('read-text').addEventListener('click', () => story.showModal());
 document.getElementById('close-story').addEventListener('click', () => story.close());
-document.getElementById('slide-action').addEventListener('click', event => {
-  const href = actions[index][1];
-  if (href === '#sheets-details') {
-    event.preventDefault();
-    story.showModal();
-    document.querySelector(href).scrollIntoView({ block: 'start' });
-  }
-});
 window.addEventListener('keydown', event => {
   if (story.open || event.altKey || event.ctrlKey || event.metaKey || (app && event.target === canvas)) return;
   if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(event.key)) { event.preventDefault(); go(index + 1); }

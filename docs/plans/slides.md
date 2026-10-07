@@ -15,8 +15,8 @@ OfficeApp at `/office-landing`, reads `slides/landing-wide.pptx` and
 `slides/landing-tall.pptx`, and uses the existing `SlideShowView` and painter.
 The HTML supplies links, accessible text, and navigation; the slide content
 is editable PPTX text and shapes, including document, presentation, and
-workbook illustrations for the three app panels. Writer and Slides link to
-their public web apps; Sheets links to its feature details.
+workbook illustrations for the three app panels. Writer, Slides, and Sheets
+link to their public web apps.
 
 `OfficeLandingDeck.swift` generates the initial decks. Native OfficeApp's
 `--landing-deck OUTPUT [--portrait]` writes them.
