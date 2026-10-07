@@ -132,31 +132,75 @@ enum DocxFormat {
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
                 tableBases[id] = ps
             }
+            // A style's look is its chain's: its own props over its
+            // `basedOn` parent's, over that one's, down to the defaults.
+            // Reading each style alone lost everything a parent gave it
+            // (52288's "Chapter Number", based on a "Chapter Name" that holds
+            // the bold and the size, came back as plain Normal text).
+            var paragraphStyles: [String: XNode] = [:]
+            for style in styles.all("w:style") where style["w:type"] == "paragraph" {
+                if let id = style["w:styleId"] { paragraphStyles[id] = style }
+            }
+            var resolved: [String: (paragraph: RichParagraphStyle, char: CharStyle)] = [:]
+            func resolve(_ id: String, _ seen: Set<String> = []) -> (paragraph: RichParagraphStyle, char: CharStyle) {
+                if let r = resolved[id] { return r }
+                guard let style = paragraphStyles[id], !seen.contains(id) else { return (paragraph: base, char: CharStyle()) }
+                var r = style.first("w:basedOn")?["w:val"].map { resolve($0, seen.union([id])) } ?? (paragraph: base, char: CharStyle())
+                if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &r.paragraph) }
+                if let rPr = style.first("w:rPr") { r.char = _charStyle(rPr, base: r.char) }
+                resolved[id] = r
+                return r
+            }
+            // The styles the document's paragraphs name: those of ours they
+            // map to take the file's look; the rest (custom styles) join
+            // the sheet under their own ids, so they lay out and save as
+            // they were.
+            var used = Set<String>()
+            func collect(_ n: XNode) {
+                if n.name == "w:pStyle", let v = n["w:val"] { used.insert(v) }
+                for c in n.children { collect(c) }
+            }
+            collect(root)
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 guard let id = style["w:styleId"] else { continue }
-                let name = (style.first("w:name")?["w:val"] ?? id).lowercased()
-                guard let ours = _styleId(name) ?? _styleId(id.lowercased()) else { continue }
-                // Two of the file's styles can map to one of ours (Quote and
-                // Intense Quote): the first defines the look, both use it.
-                let first = !styleByDocx.values.contains(ours)
-                styleByDocx[id] = ours
-                guard first, var entry = sheet[ours], ours != RichNamedStyle.normalId else { continue }
-                // The file's definition replaces ours: what its rPr leaves
-                // out is off (the style is based on Normal), and a missing
-                // pPr means Normal's paragraph props.
-                var cs = style.first("w:rPr").map { _charStyle($0, base: CharStyle()) } ?? CharStyle()
-                if cs.fontFamily == nil { cs.fontFamily = entry.char.fontFamily }
-                entry.char = cs
-                var ps = base
-                ps.heading = entry.paragraph.heading
-                if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
-                entry.paragraph = ps
-                if let next = style.first("w:next")?["w:val"] { entry.next = styleByDocx[next] ?? _styleId(next.lowercased()) }
-                sheet[ours] = entry
+                let rawName = style.first("w:name")?["w:val"] ?? id
+                let name = rawName.lowercased()
+                let chain = resolve(id)
+                if let ours = _styleId(name) ?? _styleId(id.lowercased()) {
+                    // Two of the file's styles can map to one of ours (Quote
+                    // and Intense Quote): the first defines the look, both use it.
+                    let first = !styleByDocx.values.contains(ours)
+                    styleByDocx[id] = ours
+                    guard first, var entry = sheet[ours], ours != RichNamedStyle.normalId else { continue }
+                    var cs = chain.char
+                    if cs.fontFamily == nil { cs.fontFamily = entry.char.fontFamily }
+                    entry.char = cs
+                    var ps = chain.paragraph
+                    ps.heading = entry.paragraph.heading
+                    entry.paragraph = ps
+                    if let next = style.first("w:next")?["w:val"] { entry.next = styleByDocx[next] ?? _styleId(next.lowercased()) }
+                    sheet[ours] = entry
+                } else if used.contains(id), sheet[id] == nil {
+                    styleByDocx[id] = id
+                    sheet[id] = RichNamedStyle(id: id, name: rawName, paragraph: chain.paragraph, char: chain.char)
+                }
             }
         }
         if var normal = sheet[RichNamedStyle.normalId] {
             normal.paragraph = base
+            // Normal's look — the document defaults' run properties under
+            // Normal's own: the font and size every plain paragraph is set
+            // in. Without it a 12-point document came back at Calibri 11
+            // (the writer's defaults), and every line wrapped elsewhere.
+            if let styles = part("word/styles.xml").flatMap(XNode.parse) {
+                var cs = CharStyle()
+                if let rPr = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
+                for style in styles.all("w:style") where style["w:type"] == "paragraph"
+                    && (style["w:default"] == "1" || style["w:styleId"] == "Normal") {
+                    if let rPr = style.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
+                }
+                normal.char = cs
+            }
             sheet[RichNamedStyle.normalId] = normal
         }
 
@@ -302,6 +346,12 @@ enum DocxFormat {
                     style.borders = false
                 }
                 if unwrapped(node, "w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
+                // Where the table sits in the column (w:jc on the table).
+                switch node.first("w:tblPr")?.first("w:jc")?["w:val"] {
+                case "center": style.alignment = .center
+                case "right", "end": style.alignment = .right
+                default: break
+                }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.
@@ -324,7 +374,13 @@ enum DocxFormat {
                         } else {
                             openSpan[column] = nil
                         }
-                        currentCell = CellRef(table: id, row: r, column: column, span: span)
+                        // The cell's own shading: a fill colour, not "auto".
+                        var fill: Color? = nil
+                        if let shd = tcPr?.first("w:shd"), let hex = shd["w:fill"], hex.count == 6,
+                           let v = UInt32(hex, radix: 16) {
+                            fill = Color(0xFF00_0000 | Int64(v))
+                        }
+                        currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill)
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                         if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
@@ -541,7 +597,10 @@ enum DocxFormat {
                 case "w:t": addText(child.text, cs)
                 case "w:tab": addText("\t", cs)
                 case "w:br":
-                    if child["w:type"] == "page" { flush(pageBreakAfter: true) } else { flush(pageBreakAfter: false) }
+                    // A page break ends the paragraph; a line break stays
+                    // inside it, as Shift+Return's does — splitting it added a
+                    // paragraph (and its spacing) on every soft break.
+                    if child["w:type"] == "page" { flush(pageBreakAfter: true) } else { addText("\n", cs) }
                 case "w:noBreakHyphen": addText("\u{2011}", cs)
                 case "w:softHyphen": addText("\u{00AD}", cs)
                 case "w:sym":
@@ -801,7 +860,13 @@ enum DocxFormat {
                 xml += style.borders ? "<w:\(side) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"
                                      : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
-            xml += "</w:tblBorders><w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
+            xml += "</w:tblBorders>"
+            switch style.alignment {
+            case .center: xml += "<w:jc w:val=\"center\"/>"
+            case .right: xml += "<w:jc w:val=\"right\"/>"
+            default: break
+            }
+            xml += "<w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
             for w in twips { xml += "<w:gridCol w:w=\"\(w)\"/>" }
             xml += "</w:tblGrid>"
             let refs = members.compactMap(\.cell)
@@ -827,6 +892,7 @@ enum DocxFormat {
                     xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
+                    if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
                     xml += "</w:tcPr>"
                     if cell.isEmpty { xml += "<w:p/>" }
                     for k in cell { xml += paragraphXML(k) }
@@ -991,7 +1057,12 @@ enum DocxFormat {
     /// other entry with its look, plus List Paragraph and Hyperlink.
     private static func _stylesPart(_ sheet: RichStyleSheet) -> String {
         var out = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
-        out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\" w:cs=\"Calibri\" w:eastAsia=\"Calibri\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>"
+        // The document defaults are Normal's look (the file's, when it was
+        // read from one): Calibri 11 only for a document that never said.
+        let normal = sheet[RichNamedStyle.normalId]?.char ?? CharStyle()
+        let defaultFont = _esc(OfficeFonts.exportName(normal.fontFamily ?? "Calibri"))
+        let defaultSize = Int(((normal.fontSize ?? 11) * 2).rounded())
+        out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"\(defaultFont)\" w:hAnsi=\"\(defaultFont)\" w:cs=\"\(defaultFont)\" w:eastAsia=\"\(defaultFont)\"/><w:sz w:val=\"\(defaultSize)\"/><w:szCs w:val=\"\(defaultSize)\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>"
         out += "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/></w:style>"
         for entry in sheet.styles where entry.id != RichNamedStyle.normalId {
             let name = entry.paragraph.heading.map { "heading \($0)" } ?? entry.name
@@ -1003,6 +1074,8 @@ enum DocxFormat {
             var ind = ""
             if entry.paragraph.indentLeft > 0 { ind += " w:left=\"\(Int(entry.paragraph.indentLeft * 20))\"" }
             if entry.paragraph.indentRight > 0 { ind += " w:right=\"\(Int(entry.paragraph.indentRight * 20))\"" }
+            if entry.paragraph.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(entry.paragraph.firstLineIndent * 20))\"" }
+            if entry.paragraph.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-entry.paragraph.firstLineIndent * 20))\"" }
             if !ind.isEmpty { out += "<w:ind\(ind)/>" }
             switch entry.paragraph.alignment {
             case .left: break

@@ -554,6 +554,18 @@ public final class RichLayout {
         mark("paginate")
     }
 
+    /// Where a table's first column starts: the text column's left edge,
+    /// or further in for a table narrower than the column that the document
+    /// centres or right-aligns (Word's table alignment).
+    private func _tableLeft(_ table: String, _ document: RichDocument) -> Double {
+        let sum = (_columnWidths[table] ?? []).reduce(0, +)
+        switch document.tableStyles[table]?.alignment ?? .left {
+        case .center: return max(0, ((width - sum) / 2).rounded(.down))
+        case .right: return max(0, (width - sum).rounded(.down))
+        default: return 0
+        }
+    }
+
     /// Column widths per table (px); a table whose widths changed has every
     /// cell re-laid out.
     private func _updateTables(_ document: RichDocument) {
@@ -603,7 +615,7 @@ public final class RichLayout {
         let i = paragraphIndex(atY: point.dy)
         guard let c = _cells[i], point.dy >= c.rowTop, point.dy <= c.rowTop + c.rowHeight,
               let widths = _columnWidths[c.table] else { return nil }
-        var x = 0.0
+        var x = c.colLeft - widths.prefix(c.column).reduce(0, +)
         for (k, w) in widths.enumerated() {
             x += w
             if abs(point.dx - x) <= reach { return (c.table, k) }
@@ -1042,7 +1054,7 @@ public final class RichLayout {
             let widths = _columnWidths[c.table] ?? []
             let colWidth = c.column < widths.count
                 ? widths[c.column ..< min(widths.count, c.column + c.span)].reduce(0, +) : width
-            let colLeft = widths.prefix(c.column).reduce(0, +)
+            let colLeft = _tableLeft(c.table, document) + widths.prefix(c.column).reduce(0, +)
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
                                  colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan)
             left = colLeft + cellPadding + _px(style.indentLeft)
@@ -1376,8 +1388,18 @@ public final class RichLayout {
                 fill.style = .fill
                 fill.color = color
                 let width = (_columnWidths[c.table] ?? []).reduce(0, +)
-                canvas.drawRect(Rect.fromLTWH(0, c.rowTop.rounded(), width.rounded(), c.ownRowHeight.rounded()), fill)
+                let left = c.colLeft - (_columnWidths[c.table] ?? []).prefix(c.column).reduce(0, +)
+                canvas.drawRect(Rect.fromLTWH(left.rounded(), c.rowTop.rounded(), width.rounded(), c.ownRowHeight.rounded()), fill)
             }
+        }
+        // The cell's own shading, over the row's; every paragraph of the
+        // cell paints it (the same rectangle, so no seam).
+        if let c = _cells[i], let color = document.paragraphs[i].cell?.fill {
+            let fill = Paint()
+            fill.style = .fill
+            fill.color = color
+            let height = c.rowSpan > 1 ? c.rowHeight : c.ownRowHeight
+            canvas.drawRect(Rect.fromLTWH(c.colLeft.rounded(), c.rowTop.rounded(), c.colWidth.rounded(), height.rounded()), fill)
         }
     }
 
@@ -1397,9 +1419,10 @@ public final class RichLayout {
             let widths = _columnWidths[c.table] ?? []
             let rowTop = c.rowTop.rounded()
             let rowBottom = (c.rowTop + c.ownRowHeight).rounded()
-            let right = widths.reduce(0, +).rounded()
+            let tableLeft = (c.colLeft - widths.prefix(c.column).reduce(0, +)).rounded()
+            let right = (tableLeft + widths.reduce(0, +)).rounded()
             if c.row == 0 {
-                canvas.drawLine(Offset(0, rowTop + 0.5), Offset(right, rowTop + 0.5), stroke)
+                canvas.drawLine(Offset(tableLeft, rowTop + 0.5), Offset(right, rowTop + 0.5), stroke)
             }
             // Each cell of the row draws its left edge and, unless it spans
             // further down, its bottom; a cell from above that spans into

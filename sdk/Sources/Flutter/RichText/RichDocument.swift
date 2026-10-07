@@ -324,13 +324,17 @@ public struct CellRef: Hashable, Sendable {
     /// Rows this cell covers (Word's vMerge): 1, or more for a cell merged
     /// downward; the rows below then have no cell in these columns.
     public var rowSpan: Int
+    /// This cell's own shading (Word's `w:shd` on the cell), over the
+    /// table style's row fills.
+    public var fill: Color? = nil
 
-    public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1) {
+    public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1, fill: Color? = nil) {
         self.table = table
         self.row = row
         self.column = column
         self.span = max(1, span)
         self.rowSpan = max(1, rowSpan)
+        self.fill = fill
     }
 
     /// Whether this cell covers grid position (row, column).
@@ -364,15 +368,20 @@ public struct TableStyle: Hashable, Sendable {
     public var bandAltFill: Color? = nil
     /// Border colour (nil: the text colour at 60%).
     public var borderColor: Color? = nil
+    /// Where a table narrower than the text column sits: Word's table
+    /// alignment (`w:jc` on the table). Justify reads as left.
+    public var alignment: ParagraphAlignment = .left
 
     public init(borders: Bool = true, headerRow: Bool = false, headerFill: Color? = nil,
-                bandFill: Color? = nil, bandAltFill: Color? = nil, borderColor: Color? = nil) {
+                bandFill: Color? = nil, bandAltFill: Color? = nil, borderColor: Color? = nil,
+                alignment: ParagraphAlignment = .left) {
         self.borders = borders
         self.headerRow = headerRow
         self.headerFill = headerFill
         self.bandFill = bandFill
         self.bandAltFill = bandAltFill
         self.borderColor = borderColor
+        self.alignment = alignment
     }
 }
 
