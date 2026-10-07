@@ -23,11 +23,27 @@ const canvas = document.getElementById('starling');
 const stage = document.getElementById('stage');
 const poster = document.getElementById('poster');
 const status = document.getElementById('load-status');
+const repositoryLink = document.getElementById('repository-link');
 const prev = document.getElementById('previous'), next = document.getElementById('next');
 const dots = [...document.querySelectorAll('[data-slide]')];
 let app, index = Math.max(0, Math.min(lastSlide, (Number(location.hash.slice(1)) || 1) - 1));
 let portrait;
 const isPortrait = () => canvas.clientWidth < canvas.clientHeight;
+// Match the deck's repository text, including the slide's letterboxing.
+function positionRepositoryLink() {
+  repositoryLink.hidden = index !== lastSlide;
+  const tall = isPortrait(), deckWidth = tall ? 450 : 1280;
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  const scale = Math.min(width / deckWidth, height / 720);
+  const left = (width - deckWidth * scale) / 2;
+  const top = (height - 720 * scale) / 2;
+  Object.assign(repositoryLink.style, {
+    left: `${left + ((tall ? 32 : 72) - 4) * scale}px`,
+    top: `${top + ((tall ? 494 : 510) - 4) * scale}px`,
+    width: `${(tall ? 300 : 460) * scale}px`,
+    height: `${(tall ? 32 : 44) * scale}px`,
+  });
+}
 function update() {
   poster.querySelector('source').srcset = slideAsset(`tall-${index + 1}.png`);
   // Use the canvas's aspect ratio, which excludes the HTML controls.
@@ -44,6 +60,7 @@ function update() {
   action.innerHTML = `${actions[index][0]} <span aria-hidden="true">↗</span>`;
   stage.style.background = ['#2449df', '#f7f9ff', '#fff3ed', '#edf9f2', '#edf2ff', '#101d37'][index];
   document.getElementById('download-deck').href = slideAsset(`landing-${isPortrait() ? 'tall' : 'wide'}.pptx`);
+  positionRepositoryLink();
   history.replaceState(null, '', `#${index + 1}`);
 }
 function go(to) {
@@ -79,6 +96,7 @@ new ResizeObserver(() => {
     app?.swift.office_landing_portrait(portrait ? 1 : 0);
     update();
   }
+  positionRepositoryLink();
 }).observe(canvas);
 update();
 document.getElementById('retry').addEventListener('click', () => location.reload());

@@ -4,7 +4,7 @@ body { margin:0; height:100vh; height:100dvh; display:grid; grid-template-rows:7
 a { color:inherit; text-decoration:none; } a:hover { text-decoration:underline; text-underline-offset:4px; }
 button { color:inherit; font:inherit; cursor:pointer; } button:disabled { cursor:default; opacity:.3; }
 button:focus-visible,a:focus-visible,canvas:focus-visible { outline:3px solid #ffb640; outline-offset:4px; }
-button[hidden] { display:none; }
+[hidden] { display:none !important; }
 .header { display:flex; align-items:center; justify-content:space-between; padding:0 36px; gap:20px; background:#fff; }
 .brand { display:flex; align-items:center; gap:9px; font-size:18px; font-weight:750; letter-spacing:-.6px; }.brand span { font-weight:450; color:#687690; }
 .header-links { display:flex; align-items:center; gap:26px; font-size:13px; }
@@ -13,6 +13,7 @@ main { min-height:0; overflow:hidden; background:#2449df; }
 .stage { width:100%; height:100%; position:relative; overflow:hidden; }
 canvas,#poster { display:block; position:absolute; inset:0; width:100%; height:100%; }
 canvas { touch-action:none; opacity:0; transition:opacity .25s; }
+.slide-link { position:absolute; z-index:1; cursor:pointer; border-radius:3px; }.slide-link:hover { background:#ffffff12; }
 .stage.live canvas { opacity:1; }.stage.live #poster { visibility:hidden; }
 #poster img { width:100%; height:100%; object-fit:contain; display:block; }
 .load-status { position:absolute; bottom:14px; right:18px; padding:7px 11px; color:#fff; background:#142756b8; border-radius:6px; font-size:11px; pointer-events:none; }
