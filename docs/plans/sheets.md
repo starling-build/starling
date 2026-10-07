@@ -150,6 +150,15 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**Published (2026-10-07):** `build/web-deploy.sh OfficeApp --host
+sheets.starling.build --repo git@github-starling:starling-build/sheets.git
+--args --sheets --title Sheets` pushed the release stage to the new
+`starling-build/sheets` site repo, Pages enabled on `main` with the custom
+domain set; the page answers for the host (`curl -H "Host:
+sheets.starling.build" http://starling-build.github.io/`) and waits only
+on the Cloudflare CNAME `sheets` -> starling-build.github.io, then the
+certificate and `https_enforced`, as Slides did.
+
 **X5, the browser (2026-10-07).** Sheets opens, edits and saves in the
 same page as Writer and Slides (`build/web-app.sh OfficeApp --package
 apps/OfficeApp`, started with `--sheets`): ⌘O and File → Open are the
