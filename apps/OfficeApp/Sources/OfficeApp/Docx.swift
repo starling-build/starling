@@ -244,7 +244,31 @@ enum DocxFormat {
             paragraphs.append(p)
         }
 
-        func walkBlock(_ node: XNode, indent: Double) {
+        // A row or cell may sit inside a content control (`w:sdt` >
+        // `w:sdtContent` > `w:tr`/`w:tc`, as Word writes repeating-section
+        // and cell controls): the wrapper is transparent here.
+        func unwrapped(_ parent: XNode, _ name: String) -> [XNode] {
+            var out: [XNode] = []
+            for c in parent.children {
+                if c.name == name { out.append(c) }
+                else if c.name == "w:sdt", let inner = c.first("w:sdtContent") { out += unwrapped(inner, name) }
+            }
+            return out
+        }
+        // Tables nest through cells; a fuzzer's 5000-deep nest overflowed the
+        // stack, so past this depth a cell's paragraphs are gathered without
+        // recursing further.
+        let maxNesting = 32
+        func deepParagraphs(_ node: XNode) -> [XNode] {
+            var out: [XNode] = []
+            var stack = [node]
+            while let n = stack.popLast() {
+                if n.name == "w:p" { out.append(n); continue }
+                stack.append(contentsOf: n.children.reversed())
+            }
+            return out
+        }
+        func walkBlock(_ node: XNode, indent: Double, depth: Int = 0) {
             switch node.name {
             case "w:p":
                 for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, sheet, kindByNum, rels, media, indent) {
@@ -252,9 +276,13 @@ enum DocxFormat {
                 }
             case "w:tbl" where currentCell != nil:
                 // A nested table flattens into its cell, indented.
-                for tr in node.all("w:tr") {
-                    for tc in tr.all("w:tc") {
-                        for child in tc.children { walkBlock(child, indent: indent + 18) }
+                if depth >= maxNesting {
+                    for p in deepParagraphs(node) { walkBlock(p, indent: indent + 18, depth: depth + 1) }
+                    break
+                }
+                for tr in unwrapped(node, "w:tr") {
+                    for tc in unwrapped(tr, "w:tc") {
+                        for child in tc.children { walkBlock(child, indent: indent + 18, depth: depth + 1) }
                     }
                 }
             case "w:tbl":
@@ -273,14 +301,14 @@ enum DocxFormat {
                    borders.children.allSatisfy({ ["nil", "none"].contains($0["w:val"] ?? "") }) {
                     style.borders = false
                 }
-                if node.all("w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
+                if unwrapped(node, "w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.
                 var openSpan: [Int: Range<Int>] = [:]   // column → the spanning cell's paragraphs
-                for (r, tr) in node.all("w:tr").enumerated() {
+                for (r, tr) in unwrapped(node, "w:tr").enumerated() {
                     var column = 0
-                    for tc in tr.all("w:tc") {
+                    for tc in unwrapped(tr, "w:tc") {
                         let tcPr = tc.first("w:tcPr")
                         let span = max(1, Int(tcPr?.first("w:gridSpan")?["w:val"] ?? "1") ?? 1)
                         var restart = false
@@ -298,7 +326,7 @@ enum DocxFormat {
                         }
                         currentCell = CellRef(table: id, row: r, column: column, span: span)
                         let before = paragraphs.count
-                        for child in tc.children { walkBlock(child, indent: indent) }
+                        for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                         if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
                         if restart { openSpan[column] = before ..< paragraphs.count }
                         column += span
@@ -857,6 +885,14 @@ enum DocxFormat {
             extraParts.append(ZipEntry(name: "word/footer1.xml", data: Data(_headerFooterPart("w:ftr", doc.footer, center: true).utf8)))
             extraOverrides += "<Override PartName=\"/word/footer1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>"
         }
+        // Settings: the compatibility mode is Word's own (15 = Word 2013 and
+        // later). Without a settings part Word opens the file in
+        // "Compatibility Mode" and lays it out by the 2007 rules — wider
+        // default spacing, older line breaking — which the corpus showed
+        // on every saved copy (2026-10-07).
+        relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
+        extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(_settingsPart.utf8)))
+        extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
         relsXML += "</Relationships>"
         var contentTypes = _contentTypes.replacingAll("</Types>", with: extraOverrides + "</Types>")
         for ext in usedExtensions.sorted() {
@@ -935,6 +971,11 @@ enum DocxFormat {
     private static func _hex(_ c: Color) -> String {
         String(printf: "%06X", c.value & 0xFFFFFF)
     }
+
+    private static let _settingsPart = """
+    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:defaultTabStop w:val="720"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>
+    """
 
     private static let _contentTypes = """
     <?xml version="1.0" encoding="UTF-8" standalone="yes"?>

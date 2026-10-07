@@ -113,6 +113,38 @@ in Word. Google Docs and LibreOffice files are still to be checked
 the screen was locked before it could export). The Text Editor catalog
 change waits for Phase 3.
 
+**Word round, 2026-10-07.** Microsoft Word (16.113, on the Mac, in its
+unlicensed read-only mode) is now the .docx acceptance oracle, as
+PowerPoint is for Slides: `test/docx-corpus.py` round-trips Apache
+POI's 130 Word test documents through `--convert` (read, save, read the
+copy again, `test/ooxml-check.py` on the copy — a format-agnostic
+package checker new with this round), and `test/docx-word.sh DIR` opens
+every copy in Word and reports whether it asks to recover the file.
+Before the round: 119 round-tripped, 4 copies read back wrong, 7
+originals did not open. After it: 122 round-trip and the 8 refusals are
+six fuzzer-truncated zips and two encrypted files; and Word opened every
+real copy clean, 121 of 121. What it found:
+
+- **Table cells inside content controls were dropped.** Word wraps a
+  row or cell in `w:sdt` for repeating sections and cell controls; the
+  row and cell loops saw only direct children. They now see through the
+  wrapper (Bug54771a: 6 of 10 paragraphs had come back).
+- **5000 nested tables crashed the reader** (deep-table-cell: a stack
+  overflow through the cell recursion). Past 32 levels a cell's
+  paragraphs are gathered without recursing.
+- **An encrypted .docx was read as text** and written back as a copy
+  Word could not open at all: a password-protected package sits in an
+  OLE container, which starts `D0 CF 11 E0`. Such a file is refused with
+  a reason now, as a binary `.doc` is.
+- **Every saved file opened in "Compatibility Mode"** — we wrote no
+  settings part, so Word laid our files out by its 2007 rules. The
+  writer now emits `word/settings.xml` with compatibility mode 15.
+
+Word's read-only mode refuses scripted `save as`, so unlike PowerPoint it
+cannot export PDFs for a render comparison; acceptance is what this
+oracle gives. Left: Bug54849 re-reads with one extra empty paragraph in
+a merged cell (a count nit, not a repair).
+
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
 in the document is fine), so the gallery menu caps its previews at 13.

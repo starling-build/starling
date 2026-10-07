@@ -35,6 +35,12 @@ enum OfficeFormats {
     /// and only when the bytes do not say what they are. This is what the
     /// web opens with, from a file the browser's picker handed over.
     static func read(_ data: Data, named path: String) throws -> OpenedDocument {
+        // An OLE container (D0 CF 11 E0): a password-protected .docx, whose
+        // package sits encrypted inside one, or a binary .doc. Neither is
+        // text, and reading it as text wrote a copy Word could not open.
+        if data.count > 8, data.starts(with: [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) {
+            throw FormatError.unsupported("an encrypted or binary Word file")
+        }
         // A zip starts with "PK": a .docx whatever it is called.
         if data.count > 4, data[0] == 0x50, data[1] == 0x4B {
             let d = try DocxFormat.read(data)
