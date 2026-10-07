@@ -204,3 +204,23 @@ extension SheetsTableTests {
         XCTAssertEqual(c.input(CellAddress("L1")!), "=SUM(Table1[VC++ 10 (32)])")
     }
 }
+
+extension SheetsTableTests {
+    /// LIBRE_OFFICE-128382-0.xlsx in POI's corpus: a totals row, and header
+    /// cells with spaces at their ends. Excel wants the autoFilter to stop
+    /// above the totals row and the column names to be the header text
+    /// exactly; it repaired both when we wrote them otherwise.
+    func testTotalsRowFilterAndUntrimmedNames() {
+        var t = SheetTable(path: "xl/tables/table1.xml", ref: CellRange("A2:E13")!, columnIds: [1, 2, 3, 4, 5], headerRow: true)
+        t.totalsRow = true
+        let original = Data("""
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?><table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" displayName="T" ref="A2:E13" totalsRowCount="1"><autoFilter ref="A2:E12"></autoFilter><tableColumns count="5"><tableColumn id="1" name="Item" totalsRowLabel="Total"/><tableColumn id="2" name="Sum for Q1 "/><tableColumn id="3" name=" Sum for Q2 "/><tableColumn id="4" name="Sum for Q3"/><tableColumn id="5" name="Sum for Q4"/></tableColumns></table>
+        """.utf8)
+        let headers = ["Item", "Sum for Q1 ", " Sum for Q2 ", "Sum for Q3", "Sum for Q4"]
+        let out = String(decoding: TablesXML.write(t, original: original, header: { headers[$0] }), as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("<table xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" id=\"1\" displayName=\"T\" ref=\"A2:E13\""), out)
+        XCTAssertTrue(out.containsSubstring("<autoFilter ref=\"A2:E12\">"), out)
+        XCTAssertTrue(out.containsSubstring("name=\"Sum for Q1 \""), out)
+        XCTAssertTrue(out.containsSubstring("name=\" Sum for Q2 \""), out)
+    }
+}

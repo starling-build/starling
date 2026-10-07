@@ -150,6 +150,39 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**Excel as the formula oracle (2026-10-07).** Every formula cell in an
+.xlsx carries the value Excel last computed for it, so a real workbook is
+a test of the engine: `OfficeApp --xlsx-check file.xlsx…` reads each
+file, recalculates every formula, and compares with the cached value
+(numbers to 1e-9 relative; a function we lack, an unreadable formula or a
+legacy array formula counts as *kept*, and a formula reading NOW/RAND/
+OFFSET or a cell that does counts as *volatile*; `XLSX_CHECK_MAX` caps the
+diffs printed). Run over Apache POI's `test-data/spreadsheet` corpus (352
+.xlsx, downloaded with `gh api repos/apache/poi/contents/…`): 641
+differences in 20 files at the start, 40 at the end, in 4 files. The
+fixes, all with cases in `SheetsOracleTests`: number formats — conditional
+sections, fraction formats (`# ?/?`, `#/8`, Excel's alignment and
+zero-value rules), engineering exponents (`##0.0E+0`), `?` placeholders as
+spaces, the trailing point in `#.#`, text sections with escapes and
+booleans, `ss.000`, elapsed units and plain tokens after them, `m` after
+`s`, `a/p` keeping its case, General at ten significant digits in TEXT,
+negative elapsed times in TEXT; the engine — DATE's day overflow in serial
+days (the phantom 29 Feb 1900), errors passing through DAY/MONTH/YEAR/
+ATAN2/CHOOSE/REPLACE/NPER/PMT/FACT, FLOOR(x,0), MEDIAN/AVEDEV/DEVSQ of
+nothing, MODE's #N/A, direct-argument coercion in LARGE/MINA/AVERAGEA,
+CONCATENATE's implicit intersection (CONCAT takes all), COUNTIF matching
+errors, COUNTIFS with an array criterion, SUMPRODUCT evaluating its
+arguments as arrays, SUBTOTAL skipping a SUBTOTAL cell given alone, T of a
+range, ADDRESS's sheet quoting, a deleted name's #REF!, links into other
+workbooks keeping the file's value, Excel's *binary* search in
+VLOOKUP/HLOOKUP/MATCH/LOOKUP and XLOOKUP's search modes (unsorted data
+lands where Excel's lands), and iterative calculation (`calcPr iterate`,
+read and written). What remains differs for reasons the files cannot
+settle: an iterative workbook's values depend on the history of
+recalculations (ours agree to 1e-8), `FLOOR(beta,1,2)` where Excel reports
+the unknown name before the extra argument, and two cells on POI's
+"EverythingTests" sheet whose #VALUE! has no visible cause.
+
 **Published (2026-10-07):** `build/web-deploy.sh OfficeApp --host
 sheets.starling.build --repo git@github-starling:starling-build/sheets.git
 --args --sheets --title Sheets` pushed the release stage to the new

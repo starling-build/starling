@@ -227,3 +227,49 @@ final class SheetsOracleTests: XCTestCase {
         XCTAssertEqual(back.iterateCount, 50)
     }
 }
+
+final class XlsxPrefixedNamespaceTests: XCTestCase {
+    /// A file whose SpreadsheetML carries an `x:` prefix (the Crafton Hills
+    /// report in POI's corpus): read, written back, every part is in the
+    /// default namespace and nothing is left half-prefixed.
+    func testPrefixedMainNamespaceRoundTrips() throws {
+        let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        let rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        let wb = """
+        <?xml version="1.0" encoding="utf-8" standalone="yes"?><x:workbook xmlns:r="\(rels)" xmlns:x="\(main)"><x:workbookPr codeName="ThisWorkbook" /><x:sheets><x:sheet name="Report" sheetId="1" r:id="rId1" /></x:sheets></x:workbook>
+        """
+        let sheet = """
+        <?xml version="1.0" encoding="utf-8" standalone="yes"?><x:worksheet xmlns:r="\(rels)" xmlns:x="\(main)"><x:sheetPr><x:outlinePr summaryBelow="1" /></x:sheetPr><x:dimension ref="A1:B2" /><x:sheetData><x:row r="1"><x:c r="A1" t="s"><x:v>0</x:v></x:c><x:c r="B1"><x:v>2</x:v></x:c></x:row><x:row r="2"><x:c r="B2"><x:f>B1*2</x:f><x:v>4</x:v></x:c></x:row></x:sheetData></x:worksheet>
+        """
+        let styles = """
+        <?xml version="1.0" encoding="utf-8" standalone="yes"?><x:styleSheet xmlns:x="\(main)"><x:fonts count="1"><x:font><x:sz val="11" /><x:name val="Calibri" /></x:font></x:fonts><x:fills count="2"><x:fill><x:patternFill patternType="none" /></x:fill><x:fill><x:patternFill patternType="gray125" /></x:fill></x:fills><x:borders count="1"><x:border><x:left /><x:right /><x:top /><x:bottom /><x:diagonal /></x:border></x:borders><x:cellStyleXfs count="1"><x:xf numFmtId="0" fontId="0" fillId="0" borderId="0" /></x:cellStyleXfs><x:cellXfs count="1"><x:xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" /></x:cellXfs></x:styleSheet>
+        """
+        let sst = """
+        <?xml version="1.0" encoding="utf-8"?><x:sst count="1" uniqueCount="1" xmlns:x="\(main)"><x:si><x:t>Unit</x:t></x:si></x:sst>
+        """
+        let types = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>
+        """
+        let rootRels = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="\(rels)/officeDocument" Target="xl/workbook.xml"/></Relationships>
+        """
+        let wbRels = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="\(rels)/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="\(rels)/styles" Target="styles.xml"/><Relationship Id="rId3" Type="\(rels)/sharedStrings" Target="sharedStrings.xml"/></Relationships>
+        """
+        let entries = [("[Content_Types].xml", types), ("_rels/.rels", rootRels), ("xl/workbook.xml", wb), ("xl/_rels/workbook.xml.rels", wbRels),
+                       ("xl/worksheets/sheet1.xml", sheet), ("xl/styles.xml", styles), ("xl/sharedStrings.xml", sst)]
+            .map { ZipEntry(name: $0.0, data: Data($0.1.utf8)) }
+        let book = try Xlsx.read(Zip.write(entries))
+        XCTAssertEqual(book.sheets[0].cells[CellAddress("A1")!]?.value, .text("Unit"))
+        XCTAssertEqual(book.sheets[0].cells[CellAddress("B2")!]?.input, "=B1*2")
+        let out = try Zip.read(Xlsx.write(book))
+        for e in out where e.name.hasSuffix(".xml") {
+            let text = String(decoding: e.data, as: UTF8.self)
+            XCTAssertFalse(text.containsSubstring("<x:"), "\(e.name) still carries the x: prefix")
+            XCTAssertFalse(text.containsSubstring("xmlns:x=\"\(main)\""), "\(e.name) still declares the x: prefix")
+            if e.name.hasPrefix("xl/") { XCTAssertTrue(text.containsSubstring("xmlns=\"\(main)\""), "\(e.name) has no default namespace") }
+        }
+        let again = try Xlsx.read(Xlsx.write(book))
+        XCTAssertEqual(again.sheets[0].cells[CellAddress("B1")!]?.value, .number(2))
+    }
+}

@@ -66,12 +66,15 @@ enum TablesXML {
     /// column list rebuilt with names from the header cells.
     static func write(_ t: SheetTable, original: Data, header: (Int) -> String) -> Data {
         var xml = String(decoding: original, as: UTF8.self)
-        // ref on the root and on its autoFilter (the first two `ref="…"`).
+        // ref on the root and on its autoFilter (the first two `ref="…"`);
+        // the filter stops above the totals row, as Excel writes it.
+        var filterRef = t.ref
+        if t.totalsRow, filterRef.bottom > filterRef.top { filterRef.bottom -= 1 }
         var at = xml.startIndex
-        for _ in 0 ..< 2 {
+        for which in 0 ..< 2 {
             guard let a = xml.findRange(of: " ref=\"", in: at ..< xml.endIndex),
                   let b = xml.findRange(of: "\"", in: a.upperBound ..< xml.endIndex) else { break }
-            xml.replaceSubrange(a.upperBound ..< b.lowerBound, with: t.ref.a1)
+            xml.replaceSubrange(a.upperBound ..< b.lowerBound, with: which == 0 ? t.ref.a1 : filterRef.a1)
             at = xml.findRange(of: "\"", in: a.upperBound ..< xml.endIndex)?.upperBound ?? xml.endIndex
         }
         guard let a = xml.findRange(of: "<tableColumns"), let b = xml.findRange(of: "</tableColumns>") else { return Data(xml.utf8) }
@@ -84,10 +87,12 @@ enum TablesXML {
         var used = Set<String>()
         var cols = ""
         for (i, id) in t.columnIds.enumerated() {
-            // Excel's rules: never empty, unique ignoring case.
+            // Excel's rules: never empty, unique ignoring case, and exactly
+            // the header cell's text — spaces at either end included, or
+            // Excel repairs the table.
             // Control characters as Excel writes them in a name (_x000a_ for a
             // line break): a raw one in an attribute reads back as a space.
-            var name = (t.headerRow ? header(t.ref.left + i).trimmingWhitespace() : "")
+            var name = (t.headerRow ? header(t.ref.left + i) : "")
                 .replacingAll("\r\n", with: "_x000d__x000a_").replacingAll("\n", with: "_x000a_")
                 .replacingAll("\r", with: "_x000d_").replacingAll("\t", with: "_x0009_")
             if name.isEmpty { name = "Column\(i + 1)" }

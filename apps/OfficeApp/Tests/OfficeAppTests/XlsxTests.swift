@@ -174,7 +174,10 @@ final class XlsxTests: XCTestCase {
         let sheet = String(decoding: try XCTUnwrap(try Zip.read(out).first { $0.name == "xl/worksheets/sheet1.xml" }).data, as: UTF8.self)
         XCTAssertTrue(sheet.contains("t=\"array\" ref=\"C3\""))
         XCTAssertTrue(sheet.hasPrefix("<?xml"))
-        XCTAssertTrue(sheet.contains("<x:worksheet") && sheet.hasSuffix("</x:worksheet>"))
+        // The fixture's x: prefix is normalised away on read (Xlsx._unprefixMain),
+        // so the part we write is in the default namespace throughout.
+        XCTAssertTrue(sheet.contains("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"") && sheet.hasSuffix("</worksheet>"))
+        XCTAssertFalse(sheet.contains("<x:"))
     }
 
     func testRawSplitKeepsText() {

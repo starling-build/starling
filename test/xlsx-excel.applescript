@@ -51,7 +51,7 @@ on run argv
     tell application "System Events"
       tell process "Microsoft Excel"
         repeat with w in windows
-          repeat with bn in {"Cancel", "OK", "No", "Don't Save", "Close"}
+          repeat with bn in {"Cancel", "OK", "No", "Don't Save", "Close", "Don't Update", "Continue"}
             try
               click button bn of w
             end try

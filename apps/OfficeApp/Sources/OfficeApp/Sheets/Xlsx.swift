@@ -24,7 +24,7 @@ enum Xlsx {
     // MARK: Reading
 
     static func read(_ data: Data) throws -> Workbook {
-        let entries = try Zip.read(data)
+        let entries = try Zip.read(data).map { ZipEntry(name: $0.name, data: _unprefixMain($0.data)) }
         var parts: [String: Data] = [:]
         for e in entries { parts[e.name] = e.data }
         func xml(_ name: String) -> XNode? { parts[name].flatMap { XNode.parse($0) } }
@@ -981,6 +981,43 @@ enum Xlsx {
 
     /// The metadata part Excel 365 writes for dynamic arrays: one XLDAPR
     /// type, one cell-metadata entry (cm="1").
+    /// A part written with a prefix for SpreadsheetML's main namespace
+    /// (`<x:worksheet xmlns:x="…/main"><x:row>` — some generators do),
+    /// rewritten to the default namespace, so the pieces kept verbatim
+    /// from it and the elements written fresh agree. Left as is, our
+    /// `<row>` inside the kept `<x:worksheet>` is in no namespace at all,
+    /// and Excel repairs the file.
+    static func _unprefixMain(_ data: Data) -> Data {
+        let main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        guard data.count > 5, data.starts(with: [0xEF, 0xBB, 0xBF]) || data.first == UInt8(ascii: "<"),
+              var text = String(data: data, encoding: .utf8) else { return data }
+        if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
+        // The root element's name and its prefix.
+        var i = text.startIndex
+        while let lt = text[i...].firstIndex(of: "<") {
+            let next = text.index(after: lt)
+            guard next < text.endIndex else { return data }
+            if text[next] == "?" || text[next] == "!" { i = next; continue }
+            let nameEnd = text[next...].firstIndex { $0 == " " || $0 == ">" || $0 == "/" } ?? text.endIndex
+            let name = text[next ..< nameEnd]
+            guard let colon = name.firstIndex(of: ":") else { return data }
+            let prefix = String(name[..<colon])
+            let close = text[lt...].firstIndex(of: ">") ?? text.endIndex
+            let rootTag = text[lt ..< close]
+            guard rootTag.containsSubstring("xmlns:\(prefix)=\"\(main)\"") else { return data }
+            var out = text
+                .replacingAll("<\(prefix):", with: "<")
+                .replacingAll("</\(prefix):", with: "</")
+                .replacingAll(" xmlns:\(prefix)=\"\(main)\"", with: "")
+            // The default namespace, declared on the root.
+            if let r = out.findRange(of: "<" + String(name[name.index(after: colon)...])) {
+                out.insert(contentsOf: " xmlns=\"\(main)\"", at: r.upperBound)
+            }
+            return Data(out.utf8)
+        }
+        return data
+    }
+
     static let _dynamicArrayMetadata = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<metadata xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:xda=\"http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray\"><metadataTypes count=\"1\"><metadataType name=\"XLDAPR\" minSupportedVersion=\"120000\" copy=\"1\" pasteAll=\"1\" pasteValues=\"1\" merge=\"1\" splitFirst=\"1\" rowColShift=\"1\" clearFormats=\"1\" clearComments=\"1\" assign=\"1\" coerce=\"1\" cellMeta=\"1\"/></metadataTypes><futureMetadata name=\"XLDAPR\" count=\"1\"><bk><extLst><ext uri=\"{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}\"><xda:dynamicArrayProperties fDynamic=\"1\" fCollapsed=\"0\"/></ext></extLst></bk></futureMetadata><cellMetadata count=\"1\"><bk><rc t=\"1\" v=\"0\"/></bk></cellMetadata></metadata>"
 
     /// The cm value a file's own metadata part uses for dynamic arrays:
