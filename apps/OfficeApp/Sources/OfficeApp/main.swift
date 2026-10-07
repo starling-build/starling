@@ -146,6 +146,28 @@ if let i = CommandLine.arguments.firstIndex(of: "--layout"), i + 1 < CommandLine
     }
 }
 
+// `--sheet-layout <file.xlsx|csv>`: the active sheet as the grid lays it out
+// (SheetLayoutDump) — the native half of test/sheets-layout.sh, which diffs
+// it against `starling.debug('sheet')` in the browser.
+if let i = CommandLine.arguments.firstIndex(of: "--sheet-layout"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let src = CommandLine.arguments[i + 1]
+        let data = try Data(contentsOf: URL(fileURLWithPath: src))
+        let c = WorkbookController()
+        if src.pathExtension.lowercased() == "xlsx" {
+            c.load(try Xlsx.read(data))
+        } else {
+            c.load(Csv.read(String(decoding: data, as: UTF8.self), name: src.lastPathComponent.deletingPathExtension))
+        }
+        print(SheetLayoutDump.text(c), terminator: "")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("sheet layout failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--deck <file.pptx>`: what the Slides reader made of a deck, one line per
 // shape — kind, frame in points, fill, and the start of its text. The
 // round-trip gate compares these before and after a save.

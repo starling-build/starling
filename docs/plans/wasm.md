@@ -275,7 +275,11 @@ tile; `WebFiles.download` behind save, Save As and CSV export;
 the Open/Save/Save As pages to those hooks under WASI in all three
 shells (the directory panel they showed could list nothing in a tab).
 `test/sheets-web.sh` drives it with web-drive.mjs and reads the download
-back natively. The Sheets shell's ⌘O used to open Backstage directly
+back natively. `test/sheets-layout.sh` is Sheets' parity gate:
+`--sheet-layout` natively against `starling.debug('sheet')` in the page
+(widths, heights, shown text, measured widths, wrapped line counts), and
+the saved copy against the original; SheetsShell sets `hostDebugQuery`
+for "sheet" the way OfficeShell does for "layout". The Sheets shell's ⌘O used to open Backstage directly
 rather than through `session.onOpen`, which is why the first run's
 `setfile` found no `#starling-file`.
 

@@ -306,6 +306,12 @@ fi
 step "office: layout, native vs browser vs saved copy"
 as_user "$REPO/test/office-layout.sh" || fails=$((fails + 1))
 
+# Sheets likewise: test/sheets-layout.sh diffs `OfficeApp --sheet-layout`
+# against `starling.debug('sheet')` (column widths, row heights, shown
+# text, measured widths, wrapped line counts) and the saved copy's layout.
+step "sheets: layout, native vs browser vs saved copy"
+as_user "$REPO/test/sheets-layout.sh" || fails=$((fails + 1))
+
 step "xdg-open routing"
 python3 "$REPO/test/xdg_open_routing.py" || fails=$((fails + 1))
 

@@ -163,8 +163,13 @@ in Slides. Backstage's Open/Save/Save As rail items and tile hand over
 to the picker and the download in a tab, in all three shells. Checked
 by `test/sheets-web.sh`: the karma fixture opened through the picker,
 E4 typed over, the download reads back natively with the edit, and it
-opens clean in Excel. Not yet on the web: the `starling.debug('sheet')`
-layout dump and a parity gate like Writer's; iOS and Linux untested.
+opens clean in Excel. The layout parity gate is `test/sheets-layout.sh`
+(in `test/run.sh`): `OfficeApp --sheet-layout book.xlsx` natively and
+`starling.debug('sheet')` in the page print the active sheet as laid out
+— used column widths and row heights in points, each cell's address,
+alignment, shown text, measured text width in pixels, wrapped line
+count, #### — and the gate diffs the two, then the saved copy's layout
+against the original's. iOS and Linux untested.
 
 **The v1 scenario, driven end to end (2026-10-03).** On a blank book
 (`test/scripts/sheets-v1.txt`): type a two-column table, format the

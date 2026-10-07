@@ -133,3 +133,24 @@ extension SheetsPrintTests {
         XCTAssertEqual(pages[2].rows, Array(10 ... 19))
     }
 }
+
+extension SheetsPrintTests {
+    func testSheetLayoutDumpIsDiscrete() {
+        let c = WorkbookController()
+        c.setInputs([(CellAddress("A1")!, "A heading that is far too long for one default column"),
+                     (CellAddress("B1")!, "123456789012345"),
+                     (CellAddress("C1")!, "wrap me onto several lines please"),
+                     (CellAddress("A2")!, "short")])
+        c.setStyle({ $0.wrap = true }, range: CellRange("C1")!)
+        let dump = SheetLayoutDump.text(c)
+        let lines = dump.split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines.first, "sheet Sheet1 rows=2 cols=3")
+        XCTAssertTrue(lines.contains("col A 48"), dump)
+        XCTAssertTrue(lines.contains("row 1 15"), dump)
+        XCTAssertTrue(lines.contains { $0.hasPrefix("A1\tleft\tA heading") && $0.hasSuffix("\tover") }, dump)
+        XCTAssertTrue(lines.contains("B1\tright\t####"), dump)          // a number too wide for its cell
+        XCTAssertTrue(lines.contains { $0.hasPrefix("C1\tleft\twrap me") && $0.contains("\tlines=") && !$0.hasSuffix("lines=1") }, dump)
+        XCTAssertTrue(lines.contains("A2\tleft\tshort"), dump)
+        XCTAssertFalse(dump.contains("w="))
+    }
+}

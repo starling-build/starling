@@ -81,6 +81,14 @@ final class SheetsShellState: State<StatefulWidget> {
         wb.addListener({ [weak self] in self?._changed() }, owner: self)
         wb.onCommand = { [weak self] cmd in self?._command(cmd) }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
+        // `starling.debug('sheet')` from the browser's console or a script:
+        // the active sheet as laid out, to diff against
+        // `OfficeApp --sheet-layout` natively (test/sheets-layout.sh).
+        hostDebugQuery = { [weak self] kind in
+            guard let self, kind == "sheet" else { return nil }
+            _ = self._grid?.commitEdit()
+            return SheetLayoutDump.text(self.wb)
+        }
         if let path = _w.initialPath {
             // Bytes from the browser's picker that crossed the kind switch
             // (an .xlsx picked in Writer or Slides) arrive by name, not on disk.
