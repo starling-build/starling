@@ -55,11 +55,8 @@ prev.addEventListener('click', () => go(index - 1));
 next.addEventListener('click', () => go(index + 1));
 dots.forEach(dot => dot.addEventListener('click', () => go(Number(dot.dataset.slide))));
 window.addEventListener('hashchange', () => go((Number(location.hash.slice(1)) || 1) - 1));
-const story = document.getElementById('story');
-document.getElementById('read-text').addEventListener('click', () => story.showModal());
-document.getElementById('close-story').addEventListener('click', () => story.close());
 window.addEventListener('keydown', event => {
-  if (story.open || event.altKey || event.ctrlKey || event.metaKey || (app && event.target === canvas)) return;
+  if (event.altKey || event.ctrlKey || event.metaKey || (app && event.target === canvas)) return;
   if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(event.key)) { event.preventDefault(); go(index + 1); }
   if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) { event.preventDefault(); go(index - 1); }
   if (event.key === 'Home') { event.preventDefault(); go(0); }

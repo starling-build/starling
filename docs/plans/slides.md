@@ -13,7 +13,7 @@ of the shared code.
 Writer, Slides, Sheets, planned platforms, and the open source project. The browser starts
 OfficeApp at `/office-landing`, reads `slides/landing-wide.pptx` and
 `slides/landing-tall.pptx`, and uses the existing `SlideShowView` and painter.
-The HTML supplies links, accessible text, and navigation; the slide content
+The HTML supplies links, accessible slide descriptions, and navigation; the slide content
 is editable PPTX text and shapes, including document, presentation, and
 workbook illustrations for the three app panels. Writer, Slides, and Sheets
 link to their public web apps.
@@ -33,7 +33,7 @@ the site when deploying.
 The previews are visible immediately and remain navigable if live startup
 fails. After startup, arrows, taps and swipes control the live presentation;
 changing the viewport swaps decks while preserving the slide index. An
-editable deck download and a text version remain available in the page.
+editable deck download remains available in the page.
 The regular OfficeApp route still opens Writer.
 
 The Swift 6.4 web build also needs the concurrency executor factory: legacy

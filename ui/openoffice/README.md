@@ -2,7 +2,7 @@
 
 `openoffice.starling.build` is a six-slide presentation rendered by Starling
 Slides. The content lives in editable PPTX files; the HTML provides navigation,
-Writer/source links, deck downloads, and a text version. The slides introduce
+app/source links and deck downloads. The slides introduce
 the open source suite, feature Writer, Slides, and Sheets individually, describe
 the platform roadmap, and invite contributions. Each app has a dedicated
 feature panel; Writer, Slides, and Sheets link to their public apps.
@@ -36,8 +36,8 @@ made from slide shapes rather than app screenshots.
 The page chooses a wide or portrait deck from the canvas dimensions and keeps
 the current slide during rotation. Buttons, arrow keys, taps, and horizontal
 swipes navigate the live app. PNG previews of those same slides are available
-immediately and remain navigable if the runtime cannot start. “Read the story”
-provides accessible text; Writer links open https://writer.starling.build/,
+immediately and remain navigable if the runtime cannot start. Each slide has
+an accessible description. Writer links open https://writer.starling.build/,
 Slides links open https://slides.starling.build/, and Sheets links open
 https://sheets.starling.build/.
 
