@@ -24,7 +24,14 @@ enum Xlsx {
     // MARK: Reading
 
     static func read(_ data: Data) throws -> Workbook {
-        let entries = try Zip.read(data).map { ZipEntry(name: $0.name, data: _unprefixMain($0.data)) }
+        let entries = try Zip.read(data).map { e -> ZipEntry in
+            var d = _unprefixMain(e.data)
+            // Style tables are read by position; a font or xf wrapped in
+            // mc:AlternateContent (Hancom's HCell) would otherwise vanish and
+            // shift every index after it.
+            if e.name.hasSuffix("styles.xml") { d = _resolveAlternateContent(d) }
+            return ZipEntry(name: e.name, data: d)
+        }
         var parts: [String: Data] = [:]
         for e in entries { parts[e.name] = e.data }
         func xml(_ name: String) -> XNode? { parts[name].flatMap { XNode.parse($0) } }
@@ -795,7 +802,7 @@ enum Xlsx {
             }
             if !wroteSheets { body = sheets + (wroteNames ? "" : names) + body }
             if !wroteCalc { body += calc }
-            return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + split.rootStart + body + "</" + split.rootName + ">"
+            return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + _withRels(split.rootStart) + body + "</" + split.rootName + ">"
         }
         let names = _definedNamesXML(book)
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + "</workbook>"
@@ -962,7 +969,7 @@ enum Xlsx {
         }
         // Anything not in the schema list (a vendor element) goes last but before extLst.
         for (name, text) in ws.keptElements where !sheetOrder.contains(name) { body += text }
-        let root = ws.rootTag ?? "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
+        let root = _withRels(ws.rootTag ?? "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">")
         let rootName = root.dropFirst().prefix { $0 != " " && $0 != ">" && $0 != "\n" && $0 != "\t" && $0 != "\r" }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + root + body + "</\(rootName)>"
     }
@@ -1016,6 +1023,35 @@ enum Xlsx {
             return Data(out.utf8)
         }
         return data
+    }
+
+    /// A kept root tag with the relationships namespace declared, which the
+    /// r:id attributes written here need; some generators declare it on the
+    /// element instead (`<sheet … xmlns:r="…"/>`), which the kept root lacks.
+    static func _withRels(_ root: String) -> String {
+        guard !root.containsSubstring("xmlns:r="), let close = root.lastIndex(of: ">") else { return root }
+        var r = root
+        let at = r[r.index(before: close)] == "/" ? r.index(before: close) : close
+        r.insert(contentsOf: " xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"", at: at)
+        return r
+    }
+
+    /// Markup compatibility resolved the way a reader without the extension
+    /// does: each mc:AlternateContent becomes its mc:Fallback's content (or
+    /// nothing).
+    static func _resolveAlternateContent(_ data: Data) -> Data {
+        guard var text = String(data: data, encoding: .utf8), text.containsSubstring("<mc:AlternateContent") else { return data }
+        while let open = text.findRange(of: "<mc:AlternateContent") {
+            guard let end = text.findRange(of: "</mc:AlternateContent>", in: open.upperBound ..< text.endIndex) else { break }
+            let block = String(text[open.lowerBound ..< end.upperBound])
+            var replacement = ""
+            if let fb = block.findRange(of: "<mc:Fallback"), let fbTag = block[fb.lowerBound...].firstIndex(of: ">"),
+               let fbEnd = block.findRange(of: "</mc:Fallback>", in: fbTag ..< block.endIndex) {
+                replacement = block[fb.lowerBound ..< fbTag].hasSuffix("/") ? "" : String(block[block.index(after: fbTag) ..< fbEnd.lowerBound])
+            }
+            text.replaceSubrange(open.lowerBound ..< end.upperBound, with: replacement)
+        }
+        return Data(text.utf8)
     }
 
     static let _dynamicArrayMetadata = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<metadata xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:xda=\"http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray\"><metadataTypes count=\"1\"><metadataType name=\"XLDAPR\" minSupportedVersion=\"120000\" copy=\"1\" pasteAll=\"1\" pasteValues=\"1\" merge=\"1\" splitFirst=\"1\" rowColShift=\"1\" clearFormats=\"1\" clearComments=\"1\" assign=\"1\" coerce=\"1\" cellMeta=\"1\"/></metadataTypes><futureMetadata name=\"XLDAPR\" count=\"1\"><bk><extLst><ext uri=\"{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}\"><xda:dynamicArrayProperties fDynamic=\"1\" fCollapsed=\"0\"/></ext></extLst></bk></futureMetadata><cellMetadata count=\"1\"><bk><rc t=\"1\" v=\"0\"/></bk></cellMetadata></metadata>"

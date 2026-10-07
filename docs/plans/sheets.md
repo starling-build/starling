@@ -183,6 +183,22 @@ recalculations (ours agree to 1e-8), `FLOOR(beta,1,2)` where Excel reports
 the unknown name before the extra argument, and two cells on POI's
 "EverythingTests" sheet whose #VALUE! has no visible cause.
 
+**Excel as the writer's oracle, over the same corpus (2026-10-07).**
+Every readable named file in POI's corpus round-tripped (`--xlsx-roundtrip`)
+and opened in Microsoft Excel (`test/xlsx-excel.sh`), each repair checked
+against the original first — most of the "repairs" were the files' own
+(deliberately broken fixtures, a pre-release 2006 format, an encrypted
+package). Ours, all fixed and under test: a part written with a prefix for
+the main namespace (`<x:worksheet xmlns:x="…">`, HCell and some .NET
+generators) is normalised to the default namespace on read, since the
+fragments kept verbatim and the elements written fresh must agree; a kept
+root without `xmlns:r` gets it, for the `r:id`s we write; fonts and xfs
+wrapped in `mc:AlternateContent` in styles.xml take their fallback, so the
+style tables keep their positions; a table's autoFilter stops above its
+totals row; a table column's name is the header cell's text with its
+spaces. The Excel driver now dismisses the external-links alert, which
+used to stay up and colour every later verdict.
+
 **Published (2026-10-07):** `build/web-deploy.sh OfficeApp --host
 sheets.starling.build --repo git@github-starling:starling-build/sheets.git
 --args --sheets --title Sheets` pushed the release stage to the new

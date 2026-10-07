@@ -273,3 +273,21 @@ final class XlsxPrefixedNamespaceTests: XCTestCase {
         XCTAssertEqual(again.sheets[0].cells[CellAddress("B1")!]?.value, .number(2))
     }
 }
+
+extension XlsxPrefixedNamespaceTests {
+    /// 59021.xlsx: xmlns:r declared on the <sheet> element rather than the
+    /// root, which the kept root then lacks for the r:id we write.
+    func testRelsNamespaceAddedToKeptRoot() {
+        XCTAssertEqual(Xlsx._withRels("<workbook xmlns=\"m\">"), "<workbook xmlns=\"m\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">")
+        XCTAssertEqual(Xlsx._withRels("<workbook xmlns=\"m\" xmlns:r=\"x\">"), "<workbook xmlns=\"m\" xmlns:r=\"x\">")
+    }
+
+    /// style-alternate-content.xlsx: fonts and xfs wrapped in
+    /// mc:AlternateContent (HCell) count in the style tables; a reader
+    /// without the extension takes the fallback.
+    func testAlternateContentInStylesTakesTheFallback() {
+        let xml = "<styleSheet><fonts count=\"3\"><font><sz val=\"11\"/></font><mc:AlternateContent xmlns:mc=\"m\"><mc:Choice Requires=\"hs\"><font hs:x=\"1\"><sz val=\"9\"/></font></mc:Choice><mc:Fallback><font><sz val=\"9\"/></font></mc:Fallback></mc:AlternateContent><mc:AlternateContent xmlns:mc=\"m\"><mc:Choice Requires=\"hs\"><font><sz val=\"6\"/></font></mc:Choice><mc:Fallback/></mc:AlternateContent><font><sz val=\"12\"/></font></fonts></styleSheet>"
+        let out = String(decoding: Xlsx._resolveAlternateContent(Data(xml.utf8)), as: UTF8.self)
+        XCTAssertEqual(out, "<styleSheet><fonts count=\"3\"><font><sz val=\"11\"/></font><font><sz val=\"9\"/></font><font><sz val=\"12\"/></font></fonts></styleSheet>")
+    }
+}
