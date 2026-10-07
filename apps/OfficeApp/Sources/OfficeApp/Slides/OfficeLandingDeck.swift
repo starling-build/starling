@@ -175,6 +175,8 @@ enum OfficeLandingDeck {
              portrait ? 112 : 140, portrait ? 400 : 1040, portrait ? 67 : 98, white, bold: true)
         text("Read the code. Follow the progress.\nHelp shape what comes next.", margin, portrait ? 408 : 410,
              w - margin * 2, portrait ? 23 : 31, Color(0xFFCCD6EE))
+        text("github.com/starling-build/starling", margin, portrait ? 494 : 510,
+             w - margin * 2, portrait ? 18 : 28, white, bold: true)
         text("Built on the Starling SDK.\nApache 2.0 licensed.", margin, portrait ? 538 : 570,
              w - margin * 2, portrait ? 20 : 24, Color(0xFFA8B9FF))
         text("WRITER  ·  SLIDES  ·  SHEETS", margin, 661, w - margin * 2, portrait ? 13 : 16,

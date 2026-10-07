@@ -4,7 +4,7 @@ const descriptions = [
   'Make your point. Slides brings themes, charts, animations, and speaker notes to your presentations. Open and save PPTX. This page runs on Starling Slides.',
   'Let the numbers tell the story. Sheets combines formulas, tables, sorting, and filters. Open and save XLSX and CSV.',
   'Your office. Everywhere. Documents, presentations, and spreadsheets, with a roadmap across macOS, Windows, Linux, iOS, Android, and the web.',
-  'Open code. Shared ambition. Writer, Slides, and Sheets. Built on Starling, licensed under Apache 2.0.',
+  'Open code. Shared ambition. Writer, Slides, and Sheets. Built on Starling, licensed under Apache 2.0. View the repository at github.com/starling-build/starling.',
 ];
 const lastSlide = descriptions.length - 1;
 // The published controller URL carries the content revision for the whole deck.
@@ -17,7 +17,7 @@ const actions = [
   ['Open Slides', 'https://slides.starling.build/'],
   ['Open Sheets', 'https://sheets.starling.build/'],
   ['Explore the apps', '#2'],
-  ['Explore the code', 'https://github.com/starling-build/starling'],
+  ['View on GitHub', 'https://github.com/starling-build/starling'],
 ];
 const canvas = document.getElementById('starling');
 const stage = document.getElementById('stage');
