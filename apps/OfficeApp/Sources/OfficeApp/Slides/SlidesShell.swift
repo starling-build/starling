@@ -154,7 +154,7 @@ final class SlidesShellState: State<StatefulWidget> {
             #if os(WASI)
             // The browser's picker, not Backstage's directory list: a tab
             // has no directories, only files the user hands over.
-            WebFiles.open(extensions: ["pptx"] + OfficeFormats.readable) { [weak self] picked in
+            WebFiles.open(extensions: OfficeFormats.pickable) { [weak self] picked in
                 guard let self, let picked else { return }
                 self._open(picked.name, data: picked.data)
             }
@@ -584,9 +584,10 @@ final class SlidesShellState: State<StatefulWidget> {
     /// A file as bytes, from the browser's picker: no recovery copy to
     /// weigh against it, and a .docx goes to Writer with the same bytes.
     private func _open(_ name: String, data: Data) {
-        if OfficeFormats.readable.contains(name.pathExtension.lowercased()) {
+        let kind = DocumentKind.kind(forPath: name)
+        if kind != .presentation {
             PickedFile.hand(name, data)
-            _w.onSwitch(.document, name)
+            _w.onSwitch(kind, name)
             return
         }
         do {

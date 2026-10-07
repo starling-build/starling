@@ -96,7 +96,7 @@ final class Backstage: StatelessWidget {
         ]
         for p in BackstagePage.allCases where p != .insertPicture {
             let selected = p == page
-            items.append(GestureDetector(onTap: { [onPage] in onPage(p) }, child: DecoratedBox(
+            items.append(GestureDetector(onTap: { [self] in self._go(p) }, child: DecoratedBox(
                 decoration: BoxDecoration(color: selected ? Color(0x33FFFFFF) : Color(0x00000000)),
                 child: Padding(padding: EdgeInsets(left: 20, top: 9, right: 20, bottom: 9), child: Row(children: [
                     Icon(p.icon, size: 16, color: ink),
@@ -158,7 +158,7 @@ final class Backstage: StatelessWidget {
                 Chrome.gap(16),
                 _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.onNewKind?(.workbook) },
                 Chrome.gap(16),
-                _template("Open", FluentSystemIcons.folderOpen, fluent) { [onPage] in onPage(.open) },
+                _template("Open", FluentSystemIcons.folderOpen, fluent) { [self] in self._go(.open) },
             ]),
             Chrome.vgap(28),
             Column(crossAxisAlignment: .start, children: recentRows),
@@ -211,6 +211,21 @@ final class Backstage: StatelessWidget {
                 Chrome.vgap(16),
                 Text(name, style: fluent.typography.body),
             ]))))
+    }
+
+    /// Where a rail item or tile goes. In a tab the Open and Save pages
+    /// would list directories the page cannot see: they hand over to the
+    /// browser's picker and download instead, and Backstage closes.
+    private func _go(_ p: BackstagePage) {
+        #if os(WASI)
+        switch p {
+        case .open: onClose(); session.onOpen?(); return
+        case .save: onClose(); session.onSave?(); return
+        case .saveAs: onClose(); session.onSaveAs?(); return
+        default: break
+        }
+        #endif
+        onPage(p)
     }
 
     private func _panel(_ mode: FilePanelMode, _ fluent: FluentThemeData) -> Widget {

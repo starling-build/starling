@@ -10,6 +10,9 @@ import Flutter
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation
+#if os(WASI)
+import FlutterWeb
+#endif
 
 final class SheetsShell: StatefulWidget {
     let initialPath: String?
@@ -78,7 +81,11 @@ final class SheetsShellState: State<StatefulWidget> {
         wb.addListener({ [weak self] in self?._changed() }, owner: self)
         wb.onCommand = { [weak self] cmd in self?._command(cmd) }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
-        if let path = _w.initialPath { _open(path) }
+        if let path = _w.initialPath {
+            // Bytes from the browser's picker that crossed the kind switch
+            // (an .xlsx picked in Writer or Slides) arrive by name, not on disk.
+            if let data = PickedFile.take(path) { _open(path, data: data) } else { _open(path) }
+        }
         _syncBars()
         #if os(macOS)
         ScriptedInput.exportPdf = { [weak self] path in
@@ -107,9 +114,29 @@ final class SheetsShellState: State<StatefulWidget> {
             guard let self else { return }
             if kind == .workbook { self._newWorkbook() } else { self._w.onSwitch(kind, nil) }
         }
-        session.onOpen = { [weak self] in self?.setState { self?._backstage = .open } }
+        session.onOpen = { [weak self] in
+            guard let self else { return }
+            #if os(WASI)
+            // The browser's picker, not Backstage's directory list: a tab
+            // has no directories, only files the user hands over.
+            WebFiles.open(extensions: OfficeFormats.pickable) { [weak self] picked in
+                guard let self, let picked else { return }
+                self._open(picked.name, data: picked.data)
+            }
+            #else
+            self.setState { self._backstage = .open }
+            #endif
+        }
         session.onSave = { [weak self] in self?._save() }
-        session.onSaveAs = { [weak self] in self?.setState { self?._backstage = .saveAs } }
+        session.onSaveAs = { [weak self] in
+            guard let self else { return }
+            #if os(WASI)
+            // The browser names and places a download; "save as" is save.
+            self._save()
+            #else
+            self.setState { self._backstage = .saveAs }
+            #endif
+        }
         session.onExport = { [weak self] ext in self?._export(ext) }
         session.onPrint = { [weak self] in self?._print() }
         session.onStatus = { [weak self] m in self?._flash(m) }
@@ -180,14 +207,33 @@ final class SheetsShellState: State<StatefulWidget> {
             return
         }
         #if os(WASI)
-        _flash("Opening files in the browser comes with milestone X5")
+        // A tab has no files by path; the picker (⌘O) hands bytes over.
+        _flash("Open a workbook with ⌘O")
         #else
-        let ext = path.pathExtension.lowercased()
         guard let data = FileManager.default.contents(atPath: path) else {
             _flash("Could not open \(path.lastPathComponent)")
             return
         }
-        if ext == "xlsx" {
+        _load(data, from: path)
+        #endif
+    }
+
+    /// A file as bytes, from the browser's picker: a .docx or .pptx goes to
+    /// its own shell with the same bytes.
+    private func _open(_ name: String, data: Data) {
+        let kind = DocumentKind.kind(forPath: name)
+        if kind != .workbook {
+            PickedFile.hand(name, data)
+            _w.onSwitch(kind, name)
+            return
+        }
+        _load(data, from: name)
+    }
+
+    /// `path` is a file on disk natively, the picked file's name in a tab:
+    /// what the window is called and what a save is named after.
+    private func _load(_ data: Data, from path: String) {
+        if path.pathExtension.lowercased() == "xlsx" {
             do { wb.load(try Xlsx.read(data)) } catch {
                 _flash("Could not open \(path.lastPathComponent): it isn't a workbook Sheets can read")
                 return
@@ -200,21 +246,23 @@ final class SheetsShellState: State<StatefulWidget> {
         _recent = OfficeRecent.remember(path, in: _recent)
         setState { _backstage = nil }
         _flash("Opened \(path.lastPathComponent)")
-        #endif
     }
 
     private func _save() {
         guard let path = session.path, ["xlsx", "csv", "tsv"].contains(path.pathExtension.lowercased()) else {
+            #if os(WASI)
+            // A download, named after the workbook; the browser decides
+            // where it goes, and asks the user if it is set to.
+            _saveTo(session.title.deletingPathExtension + ".xlsx")
+            #else
             setState { _backstage = .saveAs }
+            #endif
             return
         }
         _saveTo(path)
     }
 
     private func _saveTo(_ chosen: String) {
-        #if os(WASI)
-        _flash("Saving from the browser comes with milestone X5")
-        #else
         let ext = chosen.pathExtension.lowercased()
         let path = ["xlsx", "csv", "tsv"].contains(ext) ? chosen : chosen + ".xlsx"
         let format = path.pathExtension.lowercased()
@@ -227,7 +275,11 @@ final class SheetsShellState: State<StatefulWidget> {
             } else {
                 data = Data(Csv.write(wb.sheet, book: wb.book, separator: format == "tsv" ? "\t" : ",").utf8)
             }
+            #if os(WASI)
+            WebFiles.download(data, as: path.lastPathComponent)
+            #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            #endif
             session.path = path
             wb.markSaved()
             _recent = OfficeRecent.remember(path, in: _recent)
@@ -241,15 +293,26 @@ final class SheetsShellState: State<StatefulWidget> {
         } catch {
             _flash("Could not save \(path.lastPathComponent): \(error)")
         }
-        #endif
     }
 
     /// PDF or CSV of the active sheet (Excel's own default for both),
     /// beside the workbook or in Documents.
     private func _export(_ ext: String) {
+        _ = _grid?.commitEdit()
+        #if os(WASI)
+        // CSV is a download, like a save; PDF needs the page renderer the
+        // browser build does not carry yet (Writer's limit too).
+        setState { _backstage = nil }
+        if ext == "csv" {
+            WebFiles.download(Data(Csv.write(wb.sheet, book: wb.book).utf8), as: session.title.deletingPathExtension + ".csv")
+            _flash("Exported \(session.title.deletingPathExtension).csv")
+        } else {
+            _flash("PDF export is not available in the browser yet")
+        }
+        return
+        #else
         let base = session.path.map { $0.deletingPathExtension } ?? homeDirectory() + "/Documents/" + session.title.deletingPathExtension
         let target = base + "." + ext
-        _ = _grid?.commitEdit()
         if ext == "csv" {
             // The active sheet, as Excel's CSV export (a copy: the workbook stays the document).
             setState { _backstage = nil }
@@ -268,6 +331,7 @@ final class SheetsShellState: State<StatefulWidget> {
             let ok = await grid.writePdf(to: target, title: self.session.title, filePath: self.session.path)
             self._flash(ok ? "Exported \(target.lastPathComponent)" : "Nothing to export on this sheet")
         }
+        #endif
     }
 
     /// File → Print: the PDF of the active sheet, handed to the host's print dialog.
@@ -560,7 +624,7 @@ final class SheetsShellState: State<StatefulWidget> {
         case "s":
             if chords.shift { setState { _backstage = .saveAs } } else { _save() }
             return true
-        case "o": setState { _backstage = .open }; return true
+        case "o": session.onOpen?(); return true   // the picker in a tab, Backstage natively
         case "n": _newWorkbook(); return true
         case "p": _print(); return true
         case "f": _openFind(replace: false); return true

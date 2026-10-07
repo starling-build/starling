@@ -267,6 +267,18 @@ site would need the WebFiles plumbing Slides got before it is useful. In a
 release wasm link the linker names the WRONG .o for a symbol (WMO): grep
 the whole directory for the API, not the file it blames.
 
+**Sheets opens and saves in the browser (2026-10-07).** The same plumbing
+Slides got: `WebFiles.open` behind ⌘O, File → Open and Backstage's Open
+tile; `WebFiles.download` behind save, Save As and CSV export;
+`PickedFile` across the kind switch in all three directions, with one
+`OfficeFormats.pickable` list for every picker. Backstage's `_go` sends
+the Open/Save/Save As pages to those hooks under WASI in all three
+shells (the directory panel they showed could list nothing in a tab).
+`test/sheets-web.sh` drives it with web-drive.mjs and reads the download
+back natively. The Sheets shell's ⌘O used to open Backstage directly
+rather than through `session.onOpen`, which is why the first run's
+`setfile` found no `#starling-file`.
+
 **Published, 2026-10-03: slides.starling.build.** `build/web-deploy.sh`
 (Writer's publish, now on this branch) grew `--args` and `--title`: the
 page's `args` go to the app through the WASI shim's `args_get`, which

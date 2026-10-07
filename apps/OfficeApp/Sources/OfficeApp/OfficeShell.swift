@@ -203,7 +203,7 @@ final class OfficeShellState: State<StatefulWidget> {
             #if os(WASI)
             // The browser's picker, not Backstage's directory list: a tab
             // has no directories, only files the user hands over.
-            WebFiles.open(extensions: OfficeFormats.readable) { [weak self] picked in
+            WebFiles.open(extensions: OfficeFormats.pickable) { [weak self] picked in
                 guard let self, let picked else { return }
                 self._open(picked.name, data: picked.data)
             }
@@ -414,10 +414,11 @@ final class OfficeShellState: State<StatefulWidget> {
     /// what a save is called; there is no path, and no recovery copy to
     /// look for either.
     private func _open(_ name: String, data: Data) {
-        // A deck: Slides opens it, from the same bytes.
-        if name.pathExtension.lowercased() == "pptx", let onSwitch = (widget as! OfficeShell).onSwitch {
+        // A deck or a workbook: its own shell opens it, from the same bytes.
+        let kind = DocumentKind.kind(forPath: name)
+        if kind != .document, let onSwitch = (widget as! OfficeShell).onSwitch {
             PickedFile.hand(name, data)
-            onSwitch(.presentation, name)
+            onSwitch(kind, name)
             return
         }
         do {

@@ -150,6 +150,22 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**X5, the browser (2026-10-07).** Sheets opens, edits and saves in the
+same page as Writer and Slides (`build/web-app.sh OfficeApp --package
+apps/OfficeApp`, started with `--sheets`): ⌘O and File → Open are the
+browser's picker, a save is a download named after the workbook, Save
+As is save, CSV export is a download, PDF export and printing say they
+are not in the browser yet (Writer's limit too). Every shell's picker
+now accepts every kind (`OfficeFormats.pickable`), and a pick of another
+kind switches shells with the same bytes through `PickedFile` — an
+.xlsx picked in Writer opens in Sheets, a .pptx picked in Sheets opens
+in Slides. Backstage's Open/Save/Save As rail items and tile hand over
+to the picker and the download in a tab, in all three shells. Checked
+by `test/sheets-web.sh`: the karma fixture opened through the picker,
+E4 typed over, the download reads back natively with the edit, and it
+opens clean in Excel. Not yet on the web: the `starling.debug('sheet')`
+layout dump and a parity gate like Writer's; iOS and Linux untested.
+
 **The v1 scenario, driven end to end (2026-10-03).** On a blank book
 (`test/scripts/sheets-v1.txt`): type a two-column table, format the
 amounts as currency, Sort A to Z by the text column (the header stays —

@@ -20,6 +20,9 @@ struct OpenedDocument {
 enum OfficeFormats {
     static let readable = ["docx", "rtf", "md", "markdown", "txt", "text"]
     static let writable = ["docx", "rtf", "md", "txt"]
+    /// What any shell's picker accepts: every kind's files, since a pick
+    /// of another kind switches shells with the same bytes.
+    static let pickable = readable + ["pptx", "xlsx", "csv", "tsv"]
 
     enum FormatError: Error { case unreadable, unsupported(String) }
 
