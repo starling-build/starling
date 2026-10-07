@@ -307,18 +307,20 @@ func starlingTimerFired(_ id: Int32) {
 func starlingFontLoaded(_ data: sk_ptr, _ family: UnsafePointer<UInt8>?, _ familyLength: Int32)
     -> Int32
 {
-    let typeface = typeface_create(data)
-    skData_dispose(data)
-    guard typeface != 0 else { return 0 }
-    var name: sk_ptr = 0
-    if let family, familyLength > 0 {
-        name = makeSkString(
-            String(decoding: UnsafeBufferPointer(start: family, count: Int(familyLength)),
-                   as: UTF8.self))
+    let name = family.flatMap { pointer in
+        familyLength > 0
+            ? String(decoding: UnsafeBufferPointer(start: pointer, count: Int(familyLength)), as: UTF8.self)
+            : nil
     }
-    fontCollection_registerTypeface(WebFonts.collection, typeface, name)
-    if name != 0 { skString_free(name) }
-    return 1
+    return WebFonts.register(data: data, family: name) ? 1 : 0
+}
+
+/// Called between frames after a complete deferred family has arrived.
+@_expose(wasm, "starling_fonts_changed")
+@_cdecl("starling_fonts_changed")
+func starlingFontsChanged() {
+    SystemFontsNotifier.shared.notifyListeners()
+    WebHost.shared.scheduleFrame()
 }
 
 /// The page decoded an image (or could not: `skImage` 0).
@@ -390,4 +392,22 @@ func starlingAlloc(_ byteCount: Int32) -> UnsafeMutableRawPointer? {
 @_cdecl("starling_free")
 func starlingFree(_ pointer: UnsafeMutableRawPointer?) {
     pointer?.deallocate()
+}
+
+/// Page-selected entry route, set before main, without emulating command-line args.
+@_expose(wasm, "starling_initial_route")
+@_cdecl("starling_initial_route")
+func starlingInitialRoute(_ bytes: UnsafePointer<UInt8>?, _ count: Int32) {
+    guard let bytes, count > 0 else { return }
+    WebPlatform.defaultRouteName = String(decoding: UnsafeBufferPointer(start: bytes, count: Int(count)), as: UTF8.self)
+}
+
+/// Copy a named startup document; the page retains/frees its transfer buffers.
+@_expose(wasm, "starling_startup_file")
+@_cdecl("starling_startup_file")
+func starlingStartupFile(_ name: UnsafePointer<UInt8>?, _ nameCount: Int32,
+                        _ bytes: UnsafeRawPointer?, _ count: Int32) {
+    guard let name, nameCount > 0, let bytes, count > 0 else { return }
+    let key = String(decoding: UnsafeBufferPointer(start: name, count: Int(nameCount)), as: UTF8.self)
+    WebFiles.startupFiles[key] = Data(bytes: bytes, count: Int(count))
 }

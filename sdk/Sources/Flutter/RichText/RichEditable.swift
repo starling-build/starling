@@ -225,6 +225,13 @@ public final class RichEditableState: State<StatefulWidget> {
         _layout.spellChecker = _w.spellChecker
         _painter = _RichEditablePainter(state: self, repaint: _repaint)
         _controller.addListener(_onControllerChanged)
+        SystemFontsNotifier.shared.addListener({ [weak self] in
+            guard let self else { return }
+            self._layout.invalidateAll()
+            self._syncLayout()
+            self._ensureCaretVisible()
+            self._repaint.notifyListeners()
+        }, owner: self)
         if RichTextInputConnection.enabled { _textInput = RichTextInputConnection(controller: _controller) }
         if _w.autofocus { _focus.requestFocus() }
         _restartBlink()
@@ -251,6 +258,7 @@ public final class RichEditableState: State<StatefulWidget> {
 
     public override func dispose() {
         _blinkGeneration += 1
+        SystemFontsNotifier.shared.removeListeners(owner: self)
         _controller.removeListener(_onControllerChanged)
         _textInput?.detach()
         _ownedFocus?.dispose()

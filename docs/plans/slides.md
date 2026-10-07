@@ -7,6 +7,52 @@ kinds, charts in v1, 16:9 by default (PowerPoint's own default since
 macOS first, like Writer; nothing here may break the wasm or iOS builds
 of the shared code.
 
+## Office landing presentation (2026-10-01)
+
+`ui/openoffice` now presents six real Slides pages: the office suite,
+Writer, Slides, Sheets, planned platforms, and the open source project. The browser starts
+OfficeApp at `/office-landing`, reads `slides/landing-wide.pptx` and
+`slides/landing-tall.pptx`, and uses the existing `SlideShowView` and painter.
+The HTML supplies links, accessible text, and navigation; the slide content
+is editable PPTX text and shapes, including document, presentation, and
+workbook illustrations for the three app panels. Writer and Slides link to
+their public web apps; Sheets links to its feature details.
+
+`OfficeLandingDeck.swift` generates the initial decks. Native OfficeApp's
+`--landing-deck OUTPUT [--portrait]` writes them.
+After building native OfficeApp and `build/web-app.sh OfficeApp --package
+apps/OfficeApp`, run `build/office-landing.sh` (`OFFICE_BIN` can select the
+native executable). It generates both decks and prepares a versioned web
+runtime with a matching font manifest. Serve `ui/openoffice`, then run
+`node build/tools/office-landing-posters.mjs http://127.0.0.1:8006/` to
+capture all twelve previews from the real rendered canvas. The generated
+PPTX and preview PNGs are source assets; runtime files are ignored build
+outputs. Publish `runtime.json` and its referenced runtime directory with
+the site when deploying.
+
+The previews are visible immediately and remain navigable if live startup
+fails. After startup, arrows, taps and swipes control the live presentation;
+changing the viewport swaps decks while preserving the slide index. An
+editable deck download and a text version remain available in the page.
+The regular OfficeApp route still opens Writer.
+
+The Swift 6.4 web build also needs the concurrency executor factory: legacy
+global/main enqueue hooks leave image-decoding MainActor tasks queued.
+`WebExecutor` now installs that factory for current compilers, retaining
+the hooks for older ones. Slideshow painters track decoded-image and font
+revisions so asynchronously loaded assets trigger a repaint. The factory
+integration follows the current [JavaScriptKit executor integration](https://github.com/swiftwasm/JavaScriptKit/blob/main/Sources/JavaScriptEventLoop/JavaScriptEventLoop%2BExecutorFactory.swift).
+
+Validation after rebasing onto `office` (`c7b9af81`): all 94 Office unit tests pass, the release WASM build succeeds,
+and browser checks cover startup at a slide hash, buttons, keyboard, Tab
+focus exit, phone swipes, viewport rotation preserving the current slide,
+the text dialog, the last-slide boundary, and preview navigation when the
+runtime request fails. The upstream date fields use browser timezone offsets
+and an English Gregorian formatter on WASM, avoiding the native-only
+Foundation date formatter; parity tests cover its formats, leap day, midnight,
+and noon. The icon subset includes the 141 icons exposed by the updated SDK. Both screenshot orientations were captured from
+Slides and visually checked; the default Writer route also loads.
+
 ## What "done" means for v1
 
 Someone can open a `.pptx` a colleague sent, fix a few slides, add one,

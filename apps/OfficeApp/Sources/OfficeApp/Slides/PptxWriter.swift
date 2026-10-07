@@ -18,7 +18,11 @@
 
 import Flutter
 import FlutterSwiftBridge
+#if os(WASI)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 enum PptxWriter {
     static func write(_ state: DeckState, theme: DeckTheme, package: PptxPackage?,

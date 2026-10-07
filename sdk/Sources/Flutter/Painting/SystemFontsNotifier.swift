@@ -29,6 +29,9 @@ import FlutterSwiftBridge
 /// **Original Name:** `_SystemFontsNotifier`
 /// **Lines:** 188-206
 public final class SystemFontsNotifier: Listenable {
+    /// The host's font collection changed. Shared by text renderers and editors.
+    nonisolated(unsafe) public static let shared = SystemFontsNotifier()
+
     /// Creates a new `SystemFontsNotifier`.
     public init() {}
 

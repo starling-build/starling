@@ -47,6 +47,9 @@ HOST(set_timeout) void starling_host_set_timeout(int32_t id, double milliseconds
 // Milliseconds since the page loaded, monotonic (performance.now()).
 HOST(now) double starling_host_now(void);
 
+// UTC minus browser-local time, in seconds, at a Unix timestamp (includes DST).
+HOST(timezone_offset) double starling_host_timezone_offset(double unix_seconds);
+
 // Decodes an encoded image (PNG, JPEG, GIF, WebP — whatever the browser
 // reads) from `length` bytes at `bytes` in OUR memory, copied before the
 // call returns. The page makes an SkImage of it in skwasm
@@ -57,6 +60,10 @@ HOST(now) double starling_host_now(void);
 HOST(decode_image)
 void starling_host_decode_image(uint32_t requestId, const void* bytes, uint32_t length,
                                 sk_ptr surface);
+
+// Request a font family (UTF-8 in OUR memory). The page fetches deferred
+// faces once, then calls starling_fonts_changed after registration.
+HOST(request_font) void starling_host_request_font(const void* utf8, uint32_t length);
 
 // The tab's title (UTF-8, in OUR memory).
 HOST(set_title) void starling_host_set_title(const void* utf8, uint32_t length);

@@ -366,7 +366,7 @@ final class Ribbon: StatelessWidget {
         return Flutter.TextStyle(color: color, fontSize: max(9, size),
                                  fontWeight: entry.char.bold ? .bold : .normal,
                                  fontStyle: entry.char.italic ? .italic : .normal,
-                                 fontFamily: entry.char.fontFamily ?? session.theme.fontFamily)
+                                 fontFamily: (entry.char.fontFamily ?? session.theme.fontFamily).map(OfficeFonts.substitute))
     }
 
     private static func _fmt(_ n: Double) -> String {

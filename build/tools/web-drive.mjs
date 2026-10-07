@@ -18,6 +18,7 @@
 //                        prints natively)
 //   wait MS              sleep
 //   shot FILE            screenshot to FILE (PNG)
+//   canvas FILE          save the rendered app canvas to FILE (PNG)
 //
 // Prints the page's console. Environment: URL (default
 // http://127.0.0.1:8137/), W and H (the window, default 1400×900 — Chrome
@@ -136,6 +137,9 @@ try {
       await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: args.shift(), eventsEnabled: true });
     } else if (op === 'wait') {
       await sleep(+args.shift());
+    } else if (op === 'canvas') {
+      const data = await evaluate('document.querySelector("canvas").toDataURL("image/png")');
+      writeFileSync(args.shift(), Buffer.from(data.split(',')[1], 'base64'));
     } else if (op === 'shot') {
       const { data } = await send('Page.captureScreenshot', { format: 'png' });
       writeFileSync(args.shift(), Buffer.from(data, 'base64'));

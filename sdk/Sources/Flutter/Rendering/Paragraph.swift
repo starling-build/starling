@@ -961,11 +961,26 @@ open class RenderParagraph: RenderBox {
     /// **Dart Source:** `paragraph.dart:830`
     public var debugHasOverflowShader: Bool { _overflowShader != nil }
 
+    public override func attach(_ owner: PipelineOwner) {
+        super.attach(owner)
+        // A detached paragraph may have missed a font arrival.
+        systemFontsDidChange()
+        SystemFontsNotifier.shared.addListener({ [weak self] in
+            self?.systemFontsDidChange()
+        }, owner: self)
+    }
+
+    public override func detach() {
+        SystemFontsNotifier.shared.removeListeners(owner: self)
+        super.detach()
+    }
+
     // MARK: - System Fonts
 
     /// **Dart Source:** `paragraph.dart:833-836`
     open func systemFontsDidChange() {
         _textPainter.markNeedsLayout()
+        markNeedsLayout()
     }
 
     // MARK: - Layout

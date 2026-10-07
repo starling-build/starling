@@ -305,6 +305,18 @@ if let i = CommandLine.arguments.firstIndex(of: "--xlsx-roundtrip"), i + 2 < Com
     }
 }
 
+// Build the website's editable Slides source (wide or portrait).
+if let i = CommandLine.arguments.firstIndex(of: "--landing-deck"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    let args = CommandLine.arguments
+    do {
+        let deck = OfficeLandingDeck.make(portrait: args.contains("--portrait"))
+        try Pptx.write(deck).write(to: URL(fileURLWithPath: args[i + 1]))
+        print("Wrote \(deck.slides.count) landing slides")
+        exit(0)
+    } catch { print("Landing deck export failed: \(error)"); exit(1) }
+}
+
 // `--convert <in> <out>`: the formats without the window, for scripts and
 // for checking our output against other readers (`textutil`, LibreOffice).
 if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
@@ -351,5 +363,13 @@ ScriptedInput.startIfRequested()
 runStarlingApp(title: initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),
                height: windowMetric("STARLING_WINDOW_H", 900)) {
+    #if os(WASI)
+    if WebPlatform.defaultRouteName.hasPrefix("/office-landing") {
+        FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeLandingView(), title: "Starling Office")
+    } else {
+        OfficeRoot(initialPath: initialPath, kind: initialKind)
+    }
+    #else
     OfficeRoot(initialPath: initialPath, kind: initialKind)
+    #endif
 }

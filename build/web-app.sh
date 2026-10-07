@@ -12,7 +12,8 @@
 # Fonts: skwasm sees no system fonts, so every face the app draws with is
 # staged into fonts/ and listed in fonts/manifest.json with its family
 # name(s). The first entry is also the fallback for any family nobody
-# loaded. Defaults cover the framework; an app package's Resources/fonts
+# loaded. Office document families can be deferred until first use.
+# Defaults cover the framework; an app package's Resources/fonts
 # is added under the families inside the files (Office's Liberation faces).
 #
 # This is stage.sh's counterpart for the web, and for ios-app.sh's reason: the
@@ -122,7 +123,7 @@ WASM="$SCRATCH/$CONFIG/$TARGET.wasm"
 [ -f "$WASM" ] || { echo "error: $WASM was not built" >&2; exit 1; }
 
 mkdir -p "$STAGE/skwasm" "$STAGE/fonts"
-install -m 644 "$REPO/web/host/index.html" "$REPO/web/host/starling.js" "$REPO/web/host/keymap.js" "$STAGE/"
+install -m 644 "$REPO/web/host/index.html" "$REPO/web/host/starling.js" "$REPO/web/host/keymap.js" "$REPO/web/host/font-loader.js" "$STAGE/"
 # binaryen's optimizer takes a third off Swift's output (15 MB of code to
 # 9 MB in the first measurement), in ten seconds. Optional: without it the
 # page is the same page, larger. `brew install binaryen` / `apt install
@@ -140,6 +141,9 @@ else
     [ "$CONFIG" = release ] && echo "wasm-opt not installed: app.wasm is unoptimized (brew install binaryen)"
 fi
 rm -f "$STAGE"/fonts/*.ttf
+# The upstream Fluent font contains thousands of unused size variants. Keep
+# all SDK-exposed icons in a verified subset; normal builds need no FontTools.
+python3 "$REPO/build/tools/subset-web-icons.py" --check
 # url=family[|family…] entries; an empty family takes the name inside the
 # file. The FIRST family is the page's default: what text with no family
 # gets, where a desktop would use the system UI font. Selawik is the
@@ -154,10 +158,24 @@ FONTS=(
     "$REPO/sdk/Sources/FluentSystemIcons/Resources/Selawik-Semibold.ttf=Selawik Semibold|Selawik"
     "$REPO/sdk/Sources/Flutter/Terminal/Fonts/DejaVuSans.ttf=DejaVu Sans!"
     "$REPO/sdk/Sources/CupertinoIcons/Resources/CupertinoIcons.ttf=CupertinoIcons"
-    "$REPO/sdk/Sources/FluentSystemIcons/Resources/FluentSystemIcons-Regular.ttf=FluentSystemIcons"
+    "$REPO/web/fonts/FluentSystemIcons-Regular.ttf=FluentSystemIcons"
 )
 if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
-    for f in "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts"/*.ttf; do FONTS+=("$f="); done
+    for f in "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts"/*.ttf; do
+        family=""
+        if [ "$TARGET" = OfficeApp ]; then
+            # Keep the default document face eager. The paragraph builder asks
+            # for the other families only when document/UI text uses them.
+            case "$(basename "$f")" in
+                Carlito-*) family="Carlito" ;;
+                Caladea-*) family="Caladea?" ;;
+                LiberationSans-*) family="Liberation Sans?" ;;
+                LiberationSerif-*) family="Liberation Serif?" ;;
+                LiberationMono-*) family="Liberation Mono?" ;;
+            esac
+        fi
+        FONTS+=("$f=$family")
+    done
 fi
 {
     echo "["
@@ -165,6 +183,7 @@ fi
     for entry in "${FONTS[@]}"; do
         src="${entry%%=*}"; family="${entry#*=}"
         fallback=""
+        case "$family" in *\?) family="${family%?}"; fallback=', "lazy": true' ;; esac
         case "$family" in *!) family="${family%!}"; fallback=', "fallback": true' ;; esac
         install -m 644 "$src" "$STAGE/fonts/"
         [ "$first" = 1 ] || echo ","

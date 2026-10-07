@@ -21,15 +21,20 @@ final class SlideShowView: StatefulWidget {
     /// Presenter view: the slide beside the next one, the notes, a timer.
     let presenter: Bool
     let onEnd: () -> Void
+    let landing: Bool
+    let onSlideChanged: ((Int) -> Void)?
 
     init(deck: DeckController, images: SlideTextCache, start: Int, presenter: Bool = false,
-         onEnd: @escaping () -> Void) {
+         onEnd: @escaping () -> Void, key: (any Key)? = nil, landing: Bool = false,
+         onSlideChanged: ((Int) -> Void)? = nil) {
         self.deck = deck
         self.images = images
         self.start = start
         self.presenter = presenter
         self.onEnd = onEnd
-        super.init()
+        self.landing = landing
+        self.onSlideChanged = onSlideChanged
+        super.init(key: key)
     }
 
     override func createState() -> State<StatefulWidget> { SlideShowState() }
@@ -43,6 +48,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     private var _controller: AnimationController!
     private var _blank: Color? = nil
     private var _digits = ""
+    private var _pointerStart: Offset?
+    private var _assetRevision = 0
     private let _focus = FocusNode(debugLabel: "slide show")
     private let _chords = KeyChordTracker()
     /// Text laid out at show size: a cache of its own, so the thumbnails'
@@ -78,12 +85,17 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             _at = _order.firstIndex(of: _w.start) ?? 0
         }
         _cache = SlideTextCache(images: _w.images)
+        SystemFontsNotifier.shared.addListener({ [weak self] in
+            guard let self else { return }
+            self._cache = SlideTextCache(images: self._w.images)
+            if self.mounted { self.setState { self._assetRevision &+= 1 } }
+        }, owner: self)
         // Pictures decode in the editor's cache: repaint the show when one
         // lands there too.
         _sourceDecoded = _w.images.onImageDecoded
         _w.images.onImageDecoded = { [weak self, previous = _sourceDecoded] in
             previous?()
-            if let self, self.mounted { self.setState {} }
+            if let self, self.mounted { self.setState { self._assetRevision &+= 1 } }
         }
         _controller = AnimationController(duration: .milliseconds(500), vsync: self)
         _controller.value = 1
@@ -104,6 +116,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     }
 
     override func dispose() {
+        SystemFontsNotifier.shared.removeListeners(owner: self)
         _controller.removeListeners(owner: self)
         _controller.dispose()
         _build.removeListeners(owner: self)
@@ -115,6 +128,8 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     }
 
     // MARK: Moving
+
+    func showSlide(_ index: Int) { _go(to: index, animate: false) }
 
     /// A new slide's animations: from the start going forward (playing a
     /// first group that starts by itself), all played coming back.
@@ -139,7 +154,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
     /// `back`: stepping back a slide, which arrives with its animations
     /// all played; any other move starts the slide from the beginning.
     private func _go(to target: Int, animate: Bool, back: Bool = false) {
-        let t = max(0, min(_order.count, target))
+        let t = _w.landing ? max(0, min(_order.count - 1, target)) : max(0, min(_order.count, target))
         guard t != _at else { return }
         _blank = nil
         let transition = t < _order.count ? _w.deck.slides[_order[t]].transition : SlideTransition()
@@ -156,6 +171,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             _at = t
             _enterSlide(forward: !back)
         }
+        _w.onSlideChanged?(t)
     }
 
     private func _next() {
@@ -228,6 +244,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
 
     /// The pointer hides after two seconds still, as in PowerPoint's show.
     private func _hideCursorSoon() {
+        if _w.landing { return }
         _cursorGeneration += 1
         let gen = _cursorGeneration
         hostSetMouseCursor?("basic")
@@ -349,17 +366,29 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
             onPointerDown: { [weak self] e in
                 guard let self else { return }
                 self._focus.requestFocus()
-                if e.buttons & kSecondaryMouseButton != 0 { self._previous() } else { self._next() }
+                if self._w.landing { self._pointerStart = e.position }
+                else if e.buttons & kSecondaryMouseButton != 0 { self._previous() } else { self._next() }
+            },
+            onPointerUp: { [weak self] e in
+                guard let self, self._w.landing, let start = self._pointerStart else { return }
+                self._pointerStart = nil
+                let dx = e.position.dx - start.dx, dy = e.position.dy - start.dy
+                if abs(dx) > 40 && abs(dx) > abs(dy) {
+                    if dx > 0 { self._previous() } else { self._next() }
+                } else if abs(dx) < 12 && abs(dy) < 12 { self._next() }
             },
             onPointerHover: { [weak self] _ in
                 guard let self, !self._w.presenter else { return }
                 self._hideCursorSoon()
             },
+            onPointerCancel: { [weak self] _ in self?._pointerStart = nil },
             behavior: .opaque,
             child: CustomPaint(
                 painter: _ShowPainter(current: current, previous: progress < 1 ? previous : nil,
                                       progress: progress, theme: deck.theme, slideSize: deck.slideSize,
                                       cache: _cache, blank: _blank, reveals: reveals,
+                                      letterbox: _w.landing ? (current?.background?.color ?? deck.theme.background) : nil,
+                                      assetRevision: _assetRevision,
                                       revision: deck.revision &+ Int(progress * 1000) &+ (_blank == nil ? 0 : 7) &+ _at * 10007
                                           &+ _played * 131 &+ Int((elapsed ?? -1) * 1000) * 7919),
                 child: SizedBox(expand: ())))
@@ -387,10 +416,12 @@ private final class _ShowPainter: CustomPainter {
     let cache: SlideTextCache
     let blank: Color?
     let reveals: ShapeReveals
+    let letterbox: Color?
+    let assetRevision: Int
     let revision: Int
 
     init(current: Slide?, previous: Slide?, progress: Double, theme: DeckTheme, slideSize: Size,
-         cache: SlideTextCache, blank: Color?, reveals: ShapeReveals, revision: Int) {
+         cache: SlideTextCache, blank: Color?, reveals: ShapeReveals, letterbox: Color? = nil, assetRevision: Int = 0, revision: Int) {
         self.current = current
         self.previous = previous
         self.progress = progress
@@ -399,6 +430,8 @@ private final class _ShowPainter: CustomPainter {
         self.cache = cache
         self.blank = blank
         self.reveals = reveals
+        self.letterbox = letterbox
+        self.assetRevision = assetRevision
         self.revision = revision
         super.init()
     }
@@ -406,7 +439,7 @@ private final class _ShowPainter: CustomPainter {
     override func paint(_ canvas: any Canvas, _ size: Size) {
         let black = Paint()
         black.style = .fill
-        black.color = blank ?? Color(0xFF000000)
+        black.color = blank ?? letterbox ?? Color(0xFF000000)
         canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), black)
         if blank != nil { return }
         let scale = min(size.width / slideSize.width, size.height / slideSize.height)
@@ -481,6 +514,6 @@ private final class _ShowPainter: CustomPainter {
 
     override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool {
         guard let old = oldDelegate as? _ShowPainter else { return true }
-        return old.revision != revision || old.current !== current || old.previous !== previous
+        return old.assetRevision != assetRevision || old.revision != revision || old.current !== current || old.previous !== previous
     }
 }

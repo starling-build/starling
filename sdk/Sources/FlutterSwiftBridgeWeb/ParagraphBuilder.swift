@@ -22,12 +22,20 @@ extension WebFonts {
     /// its UI face under this name too.
     public static let defaultFamily = "Roboto"
 
+    private nonisolated(unsafe) static var requestedFamilies: Set<String> = []
+
     /// The family list a style is given: its own, then the fallbacks. A
     /// style with no family of its own must still lead with the default,
     /// because skparagraph consults the collection's default only for an
     /// EMPTY list — with fallbacks alone appended, the first fallback would
     /// become the face of every unstyled run.
     static func familiesWithFallbacks(_ families: [String]) -> [String] {
+        for family in families where requestedFamilies.insert(family).inserted {
+            let bytes = Array(family.utf8)
+            bytes.withUnsafeBytes { buffer in
+                starling_host_request_font(buffer.baseAddress, UInt32(buffer.count))
+            }
+        }
         var all = families.isEmpty && !fallbackFamilies.isEmpty ? [defaultFamily] : families
         for family in fallbackFamilies where !all.contains(family) { all.append(family) }
         return all

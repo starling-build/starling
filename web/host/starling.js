@@ -11,6 +11,7 @@
 // between the two memories, hold the externref a finished render arrives
 // as, ask the browser where text may break, and drive frames and input.
 
+import { createFontLoader } from './font-loader.js';
 import { PHYSICAL, LOGICAL, LOGICAL_BY_LOCATION } from './keymap.js';
 
 const WASI_ESUCCESS = 0;
@@ -162,9 +163,8 @@ const HARD_LINE_BREAK = 100;
 
 // Wraps a fetch so that `onProgress(loaded, total)` sees the bytes go by,
 // without giving up streaming compilation: the body is re-wrapped, the
-// headers (application/wasm among them) kept. `total` is what the server
-// said, which for a precompressed response is the compressed size — the
-// bar still ends at 100%.
+// headers (application/wasm among them) kept. `total` is unknown when HTTP
+// compression makes the response length differ from the decoded stream.
 //
 // A URL ending in `.gz` is a gzip file the page inflates itself, with
 // DecompressionStream, into a Response typed application/wasm so streaming
@@ -177,19 +177,17 @@ async function fetchWithProgress(url, onProgress) {
   if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
   const gzipped = String(url).endsWith('.gz');
   if ((!onProgress && !gzipped) || !response.body) return response;
-  const total = Number(response.headers.get('Content-Length')) || 0;
-  // A response the browser decoded itself (Content-Encoding: GitHub Pages
-  // gzips skwasm.wasm on the fly) streams inflated bytes against a
-  // compressed Content-Length, so the count would pass the total — it
-  // read "8.6 of 6.5 MB" on slides.starling.build. Held at the total.
-  const decoded = total > 0 && !!response.headers.get('Content-Encoding');
+  // fetch exposes decoded bytes for HTTP compression, but Content-Length is
+  // the compressed length. Do not report a fictitious percentage above 100%.
+  const total = response.headers.get('Content-Encoding')
+    ? 0 : Number(response.headers.get('Content-Length')) || 0;
   let loaded = 0;
   let body = response.body;
   if (onProgress) {
     body = body.pipeThrough(new TransformStream({
       transform(chunk, controller) {
         loaded += chunk.byteLength;
-        onProgress(decoded ? Math.min(loaded, total) : loaded, total);
+        onProgress(loaded, total);
         controller.enqueue(chunk);
       },
     }));
@@ -211,21 +209,44 @@ window.addEventListener('beforeunload', (event) => {
   event.returnValue = '';
 });
 
-export async function startStarling({ canvas, app, skwasmBase, fonts = [], args = [], onProgress }) {
+export async function startStarling({ canvas, app, skwasmBase, fonts = [], args = [], onProgress, onPhase, onFontStatus, initialRoute, initialFiles = [], captureTab = true }) {
+  const startupFiles = Promise.all(initialFiles.map(async file => {
+    const response = await fetch(file.url);
+    if (!response.ok) throw new Error(`starling: ${file.url}: ${response.status}`);
+    return { name: file.name, bytes: new Uint8Array(await response.arrayBuffer()) };
+  }));
+  startupFiles.catch(() => {});
+  onPhase?.('Loading editor and fonts…');
   // --- skwasm, single-threaded. Threads need a cross-origin-isolated page
   // (COOP/COEP headers); without them skwasm renders on the main thread,
   // which is also what Flutter does on an ordinary page.
   const skwasmUrl = new URL(`${skwasmBase}skwasm.js`, location.href).href;
-  // Both modules download at once; progress is the sum.
+  // Both modules compile in parallel; fonts also begin fetching immediately.
+  // Progress counts the module streams; phases cover font preparation.
   const progress = { app: [0, 0], skwasm: [0, 0] };
   const report = (which) => (loaded, total) => {
     progress[which] = [loaded, total];
     if (onProgress) {
-      onProgress(progress.app[0] + progress.skwasm[0], progress.app[1] + progress.skwasm[1]);
+      const known = progress.app[1] > 0 && progress.skwasm[1] > 0;
+      onProgress(progress.app[0] + progress.skwasm[0], known ? progress.app[1] + progress.skwasm[1] : 0);
     }
   };
   const skwasmModule = WebAssembly.compileStreaming(
     fetchWithProgress(new URL(`${skwasmBase}skwasm.wasm`, location.href), report('skwasm')));
+  // Compile independently: only instantiation needs the renderer's imports.
+  const appModule = WebAssembly.compileStreaming(fetchWithProgress(app, report('app')));
+  appModule.catch(() => {}); // observed below even if the renderer fails first
+  const fontManifest = typeof fonts === 'string'
+    ? fetch(fonts).then(response => {
+        if (!response.ok) throw new Error(`starling: ${fonts}: ${response.status}`);
+        return response.json();
+      }) : Promise.resolve(fonts);
+  const fontFiles = fontManifest.then(entries => Promise.all(entries.filter(entry => !entry.lazy).map(async entry => {
+    const response = await fetch(entry.url);
+    if (!response.ok) throw new Error(`starling: ${entry.url}: ${response.status}`);
+    return { ...entry, bytes: new Uint8Array(await response.arrayBuffer()) };
+  })));
+  fontFiles.catch(() => {});
   const factory = (await import(skwasmUrl)).default;
   const skwasm = await factory({
     skwasmSingleThreaded: true,
@@ -383,9 +404,15 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     }, milliseconds));
   };
   host.now = () => performance.now();
+  host.timezone_offset = seconds => new Date(seconds * 1000).getTimezoneOffset() * 60;
 
-  const { instance } = await WebAssembly.instantiateStreaming(
-    fetchWithProgress(app, report('app')), {
+  let fontLoader;
+  host.request_font = (pointer, length) => {
+    const family = utf8.decode(appBytes().subarray(pointer, pointer + length));
+    fontLoader.request(family);
+  };
+
+  const instance = await WebAssembly.instantiate(await appModule, {
     wasi_snapshot_preview1: makeWasi(() => swift.memory, args),
     skwasm: sk,
     starling: host,
@@ -394,7 +421,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   swift._initialize();
 
   // --- fonts, before the app builds its first frame. skwasm cannot see
-  // system fonts: every face is fetched and handed over as bytes, written
+  // system fonts: eager faces are fetched and handed over as bytes, written
   // straight into an SkData in skwasm's memory. A font may be registered
   // under several family names — the first entry is also given skwasm's
   // fallback name, so text in a family nobody loaded still draws.
@@ -407,28 +434,20 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     if (namePointer) appBytes().set(name, namePointer);
     const ok = swift.starling_font_loaded(data, namePointer, name.length);
     if (namePointer) swift.starling_free(namePointer);
-    if (!ok) console.error(`starling: font for '${family}' did not parse`);
+    if (!ok) throw new Error(`starling: font for '${family}' did not parse`);
   };
   // `fonts` is a list of {url, families}, or the URL of a JSON file holding
   // one (build/web-app.sh writes fonts/manifest.json). An empty families
   // list registers the face under the family name inside the file.
-  if (typeof fonts === 'string') {
-    const response = await fetch(fonts);
-    if (!response.ok) throw new Error(`starling: ${fonts}: ${response.status}`);
-    fonts = await response.json();
-  }
-  // The first entry's family is the default: every face in that family
-  // (its weights and styles) is also registered under skwasm's fallback
-  // name, which is what text with no family, or an unknown one, gets.
+  onPhase?.('Preparing fonts…');
+  fonts = await fontFiles;
+  // Register in manifest order so fallback choice is independent of network timing.
   const defaultFamily = fonts[0]?.families[0];
-  await Promise.all(fonts.map(async ({ url, families }) => {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
-    const bytes = new Uint8Array(await response.arrayBuffer());
+  for (const { families, bytes } of fonts) {
     if (families.length === 0) registerFont(bytes, null);
     for (const family of families) registerFont(bytes, family);
     if (defaultFamily && families.includes(defaultFamily)) registerFont(bytes, SKWASM_FALLBACK_FAMILY);
-  }));
+  }
   // Glyph fallback: the families marked `fallback` are tried, in manifest
   // order, for characters the requested family lacks (⌘ in a UI face).
   for (const { families, fallback } of fonts) {
@@ -438,6 +457,27 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     appBytes().set(name, pointer);
     swift.starling_font_fallback(pointer, name.length);
     swift.starling_free(pointer);
+  }
+
+  const manifest = await fontManifest;
+  if (manifest.some(entry => entry.lazy) && !swift.starling_fonts_changed) {
+    throw new Error('starling: deferred fonts require a rebuilt app.wasm');
+  }
+  fontLoader = createFontLoader(manifest, {
+    register: registerFont,
+    changed: () => swift.starling_fonts_changed(),
+    status: onFontStatus,
+  });
+
+  const transfer = (bytes, callback) => {
+    const pointer = swift.starling_alloc(bytes.length);
+    try { appBytes().set(bytes, pointer); return callback(pointer, bytes.length); }
+    finally { swift.starling_free(pointer); }
+  };
+  if (initialRoute) transfer(encoder.encode(initialRoute), (pointer, length) => swift.starling_initial_route(pointer, length));
+  for (const file of await startupFiles) {
+    transfer(encoder.encode(file.name), (name, nameLength) =>
+      transfer(file.bytes, (pointer, length) => swift.starling_startup_file(name, nameLength, pointer, length)));
   }
 
   // --- size, before the app mounts, so its first layout is the real one.
@@ -452,6 +492,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   new ResizeObserver(resize).observe(canvas);
 
   // --- the app's main. It mounts the widget tree and returns.
+  onPhase?.('Drawing document…');
   swift.__main_argc_argv(0, 0);
 
   // --- input. Event numbers are WebHost.PointerEvent's.
@@ -487,6 +528,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   const KEY_DOWN = 0, KEY_UP = 1, KEY_REPEAT = 2;
   const pressed = new Set();
   const key = (dom) => {
+    if (!captureTab && dom.key === "Tab") return;
     const physical = BigInt(PHYSICAL.get(dom.code) ?? 0) || hashName(dom.code || dom.key);
     const isCharacter = dom.key.length === 1 || [...dom.key].length === 1;
     let logical = LOGICAL.get(dom.key);
@@ -562,5 +604,5 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     return text;
   };
 
-  return { skwasm, swift, debug };
+  return { skwasm, swift, debug, loadFonts: families => Promise.all(families.map(fontLoader.load)), retryFonts: fontLoader.retry };
 }

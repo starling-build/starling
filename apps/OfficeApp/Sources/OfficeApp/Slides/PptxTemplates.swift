@@ -10,7 +10,11 @@
 
 import Flutter
 import FlutterSwiftBridge
+#if os(WASI)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 struct PptxTemplates {
     let theme: DeckTheme

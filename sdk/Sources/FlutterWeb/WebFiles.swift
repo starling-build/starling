@@ -9,6 +9,9 @@ import CSkwasm
 import Foundation
 
 public enum WebFiles {
+    /// Documents supplied by the page before the app mounts (presentation embeds).
+    public nonisolated(unsafe) static var startupFiles: [String: Data] = [:]
+
     /// An open file's name and bytes.
     public struct Picked {
         public let name: String

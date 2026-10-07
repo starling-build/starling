@@ -16,12 +16,20 @@
   }
   #loading .bar { width: 240px; height: 3px; background: #263238; border-radius: 2px; margin-top: 12px; overflow: hidden; }
   #loading .bar div { height: 100%; width: 0; background: #4fc3f7; transition: width 0.1s; }
+  #loading .bar div.indeterminate { width: 35%; animation: loading-slide 1.2s ease-in-out infinite alternate; }
+  @keyframes loading-slide { from { transform: translateX(0); } to { transform: translateX(185%); } }
+  @media (prefers-reduced-motion: reduce) { #loading .bar div.indeterminate { animation: none; } }
   #loading.done { opacity: 0; }
+  #font-status { position: fixed; bottom: 38px; right: 16px; padding: 10px 14px;
+    background: #163b66; color: white; border-radius: 6px; font: 13px system-ui, sans-serif; }
+  #font-status[hidden] { display: none; }
+  #font-status button { margin-left: 10px; cursor: pointer; }
 </style>
 </head>
 <body>
 <canvas id="starling"></canvas>
-<div id="loading"><div><div id="loading-text">Loading…</div><div class="bar"><div id="loading-fill"></div></div></div></div>
+<div id="loading"><div><div id="loading-text">Loading…</div><div class="bar"><div id="loading-fill" class="indeterminate"></div></div></div></div>
+<div id="font-status" role="status" hidden><span></span><button type="button" hidden>Retry</button></div>
 <script type="module">
   // A trap inside a frame or an event handler surfaces here, not in the
   // promise below; without the stack it is only 'unreachable'.
@@ -29,6 +37,9 @@
     console.error(String(event.error?.stack || event.message));
   });
   import { startStarling } from './starling.js';
+  const fontStatus = document.getElementById('font-status');
+  const retryFonts = fontStatus.querySelector('button');
+  retryFonts.addEventListener('click', () => window.starling?.retryFonts().catch(console.error));
   startStarling({
     canvas: document.getElementById('starling'),
     app: 'app.wasm',
@@ -38,11 +49,20 @@
     // Written by build/web-app.sh; the first face is also the fallback
     // for any family nobody loaded.
     fonts: 'fonts/manifest.json',
+    onFontStatus({ pending, failed }) {
+      fontStatus.hidden = !pending.length && !failed.length;
+      fontStatus.querySelector('span').textContent = failed.length
+        ? 'Some fonts could not load. Text is using a fallback.' : 'Loading document fonts…';
+      retryFonts.hidden = !failed.length;
+    },
+    onPhase(message) {
+      document.getElementById('loading-text').textContent = message;
+      document.getElementById('loading-fill').classList.add('indeterminate');
+    },
     onProgress(loaded, total) {
-      const mb = (n) => (n / 1e6).toFixed(1);
-      document.getElementById('loading-text').textContent =
-        total ? `Loading… ${mb(loaded)} of ${mb(total)} MB` : `Loading… ${mb(loaded)} MB`;
-      if (total) document.getElementById('loading-fill').style.width = `${100 * loaded / total}%`;
+      const fill = document.getElementById('loading-fill');
+      fill.classList.toggle('indeterminate', !total);
+      if (total) fill.style.width = `${Math.min(100, 100 * loaded / total)}%`;
     },
   }).then((starling) => {
     window.starling = starling;

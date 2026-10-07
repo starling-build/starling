@@ -11,6 +11,10 @@
 // enqueued job becomes a timer on the page, and runs on the one thread there
 // is, which is also the main actor's.
 
+#if compiler(>=6.4) || (swift(>=6.3) && arch(wasm32))
+@_spi(ExperimentalCustomExecutors) @_spi(ExperimentalScheduling) import _Concurrency
+#endif
+
 import CSkwasm
 import FlutterSwiftBridgeCxx
 
@@ -30,6 +34,9 @@ final class WebExecutor: SerialExecutor, @unchecked Sendable {
 
     /// Installs the hooks. Once, before the first `Task`.
     static func install() {
+        #if compiler(>=6.4) || (swift(>=6.3) && arch(wasm32))
+        _Concurrency._createExecutors(factory: WebExecutor.self)
+        #else
         swift_task_enqueueGlobal_hook = unsafeBitCast(
             enqueueGlobal as EnqueueGlobalHook, to: UnsafeMutableRawPointer?.self)
         swift_task_enqueueGlobalWithDelay_hook = unsafeBitCast(
@@ -40,6 +47,7 @@ final class WebExecutor: SerialExecutor, @unchecked Sendable {
             to: UnsafeMutableRawPointer?.self)
         swift_task_enqueueMainExecutor_hook = unsafeBitCast(
             enqueueMain as EnqueueMainHook, to: UnsafeMutableRawPointer?.self)
+        #endif
     }
 }
 
@@ -103,3 +111,32 @@ private var swift_task_enqueueGlobalWithDelay_hook: UnsafeMutableRawPointer?
 private var swift_task_enqueueGlobalWithDeadline_hook: UnsafeMutableRawPointer?
 @_silgen_name("swift_task_enqueueMainExecutor_hook")
 private var swift_task_enqueueMainExecutor_hook: UnsafeMutableRawPointer?
+
+#if compiler(>=6.4) || (swift(>=6.3) && arch(wasm32))
+// New runtimes obtain the main/global executors from a factory instead of
+// the legacy hooks. Without it, MainActor tasks remain on an undrained queue.
+extension WebExecutor: MainExecutor, TaskExecutor, SchedulingExecutor, ExecutorFactory {
+    static var mainExecutor: any MainExecutor { shared }
+    static var defaultExecutor: any TaskExecutor { shared }
+
+    // The browser owns the event loop; this host uses a synchronous entry point.
+    func run() throws {}
+    func stop() {}
+    func checkIsolated() {} // Every call runs on the page's one thread.
+
+    func enqueue(_ job: consuming ExecutorJob) { enqueue(UnownedJob(job)) }
+
+    func enqueue<C: Clock>(_ job: consuming ExecutorJob, after delay: C.Duration,
+                           tolerance: C.Duration?, clock: C) {
+        guard let duration = delay as? Duration else {
+            fatalError("WebExecutor requires a Duration-based clock")
+        }
+        let (seconds, attoseconds) = duration.components
+        let milliseconds = Double(seconds) * 1000 + Double(attoseconds) / 1e15
+        let unowned = UnownedJob(job)
+        WebTimers.schedule(afterMilliseconds: milliseconds) {
+            unowned.runSynchronously(on: self.asUnownedSerialExecutor())
+        }
+    }
+}
+#endif

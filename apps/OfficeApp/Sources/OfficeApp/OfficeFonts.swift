@@ -109,9 +109,9 @@ enum OfficeFonts {
         if _registered { return true }
         _registered = true
         #if os(WASI)
-        // The page fetched every face in Resources/fonts and registered it
-        // under the family name inside the file, which is the family name
-        // above (build/web-app.sh writes fonts/manifest.json).
+        // The page preloads UI/default faces. Other document families are
+        // requested by the paragraph builder when used and trigger relayout
+        // once registered (build/web-app.sh writes fonts/manifest.json).
         return true
         #endif
         // The ribbon's glyphs and its face: the Fluent System Icons font and
