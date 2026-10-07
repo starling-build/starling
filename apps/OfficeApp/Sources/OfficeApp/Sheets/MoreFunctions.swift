@@ -46,6 +46,10 @@ extension SheetFunctions {
     }
 
     /// Pairs of numbers from two equal-shaped ranges (both cells numeric).
+    static func _firstError(_ e: FormulaExpr, _ c: EvalContext) -> ExcelError? {
+        c.engine.gridFull(c.engine.evaluate(e, c), c).flatMap { $0 }.lazy.compactMap(\.error).first
+    }
+
     static func _pairs(_ a: FormulaExpr, _ b: FormulaExpr, _ c: EvalContext) -> [(Double, Double)]? {
         let x = c.engine.gridFull(c.engine.evaluate(a, c), c).flatMap { $0 }
         let y = c.engine.gridFull(c.engine.evaluate(b, c), c).flatMap { $0 }
@@ -59,7 +63,11 @@ extension SheetFunctions {
         func nth(_ largest: Bool) -> Fn {
             { a, c in
                 guard a.count == 2, case .success(let k) = _n(a[1], c) else { return .error(.value) }
-                let s = _numbers(a[0], c).sorted(by: largest ? (>) : (<))
+                var xs = _numbers(a[0], c)
+                if case .ref = a[0] {} else if case .scalar(let v) = c.engine.evaluate(a[0], c) {
+                    switch CalcEngine.toNumber(v) { case .success(let x): xs = [x]; case .failure(let e): return .error(e) }
+                }
+                let s = xs.sorted(by: largest ? (>) : (<))
                 let i = Int(k.rounded(.up)) - 1
                 guard i >= 0, i < s.count else { return .error(.num) }
                 return .number(s[i])
@@ -98,7 +106,12 @@ extension SheetFunctions {
         t["QUARTILE"] = pct(false, quart: true)
         t["QUARTILE.INC"] = pct(false, quart: true)
         t["QUARTILE.EXC"] = pct(true, quart: true)
-        t["MODE"] = { a, c in _aggregate(a, c) { xs in
+        t["MODE"] = { a, c in
+            for e in a {
+                if case .ref = e { continue }
+                if case .scalar(.text) = c.engine.evaluate(e, c) { return .error(.value) }
+            }
+            return _aggregate(a, c, empty: .na) { xs in
             var counts: [Double: Int] = [:]
             var order: [Double] = []
             for x in xs { if counts[x] == nil { order.append(x) }; counts[x, default: 0] += 1 }
@@ -117,13 +130,14 @@ extension SheetFunctions {
             guard !xs.isEmpty, xs.allSatisfy({ $0 > 0 }) else { return nil }
             return Double(xs.count) / xs.map { 1 / $0 }.reduce(0, +)
         } }
-        t["AVEDEV"] = { a, c in _aggregate(a, c) { xs in
+        t["AVEDEV"] = { a, c in _aggregate(a, c, empty: .num) { xs in
             guard !xs.isEmpty else { return nil }
             let m = xs.reduce(0, +) / Double(xs.count)
             return xs.map { abs($0 - m) }.reduce(0, +) / Double(xs.count)
         } }
-        t["DEVSQ"] = { a, c in _aggregate(a, c) { xs in
-            let m = xs.isEmpty ? 0 : xs.reduce(0, +) / Double(xs.count)
+        t["DEVSQ"] = { a, c in _aggregate(a, c, empty: .num) { xs in
+            guard !xs.isEmpty else { return nil }
+            let m = xs.reduce(0, +) / Double(xs.count)
             return xs.map { ($0 - m) * ($0 - m) }.reduce(0, +)
         } }
         // AVERAGEA and kin count text as 0 and TRUE as 1 in ranges.
@@ -131,7 +145,16 @@ extension SheetFunctions {
             { a, c in
                 var xs: [Double] = []
                 for e in a {
-                    for v in c.engine.gridFull(c.engine.evaluate(e, c), c).flatMap({ $0 }) where !v.isEmpty {
+                    let ev = c.engine.evaluate(e, c)
+                    if case .scalar(let v) = ev, !v.isEmpty {
+                        var direct = true
+                        if case .ref = e { direct = false }
+                        if direct {
+                            switch CalcEngine.toNumber(v) { case .success(let x): xs.append(x); case .failure(let err): return .error(err) }
+                            continue
+                        }
+                    }
+                    for v in c.engine.gridFull(ev, c).flatMap({ $0 }) where !v.isEmpty {
                         switch v {
                         case .number(let n): xs.append(n)
                         case .bool(let b): xs.append(b ? 1 : 0)
@@ -254,7 +277,9 @@ extension SheetFunctions {
             return x < 0 ? -r : r
         } }
         t["FACT"] = { a, c in
-            guard a.count == 1, case .success(let x) = _n(a[0], c), x >= 0, x < 171 else { return .error(.num) }
+            guard a.count == 1 else { return .error(.value) }
+            guard case .success(let x) = _n(a[0], c) else { return .error(_n(a[0], c).failure ?? .value) }
+            guard x >= 0, x < 171 else { return .error(.num) }
             return .number((0 ..< Int(x)).reduce(1.0) { $0 * Double($1 + 1) })
         }
         func gcd(_ x: Int, _ y: Int) -> Int { y == 0 ? x : gcd(y, x % y) }
@@ -320,20 +345,31 @@ extension SheetFunctions {
         t["COSH"] = { a, c in _num1(a, c, Foundation.cosh) }
         t["TANH"] = { a, c in _num1(a, c, Foundation.tanh) }
         t["ATAN2"] = { a, c in
-            guard a.count == 2, case .success(let x) = _n(a[0], c), case .success(let y) = _n(a[1], c) else { return .error(.value) }
+            guard a.count == 2 else { return .error(.value) }
+            guard case .success(let xy) = _nums(a, c) else { return .error(_nums(a, c).failure ?? .value) }
+            let (x, y) = (xy[0], xy[1])
             guard x != 0 || y != 0 else { return .error(.div0) }
             return .number(Foundation.atan2(y, x))
         }
         t["SUMX2MY2"] = { a, c in
-            guard a.count == 2, let ps = _pairs(a[0], a[1], c) else { return .error(.na) }
+            guard a.count == 2 else { return .error(.value) }
+            if let e = _firstError(a[0], c) ?? _firstError(a[1], c) { return .error(e) }
+            guard let ps = _pairs(a[0], a[1], c) else { return .error(.na) }
+            guard !ps.isEmpty else { return .error(.div0) }
             return .number(ps.reduce(0) { $0 + $1.0 * $1.0 - $1.1 * $1.1 })
         }
         t["SUMX2PY2"] = { a, c in
-            guard a.count == 2, let ps = _pairs(a[0], a[1], c) else { return .error(.na) }
+            guard a.count == 2 else { return .error(.value) }
+            if let e = _firstError(a[0], c) ?? _firstError(a[1], c) { return .error(e) }
+            guard let ps = _pairs(a[0], a[1], c) else { return .error(.na) }
+            guard !ps.isEmpty else { return .error(.div0) }
             return .number(ps.reduce(0) { $0 + $1.0 * $1.0 + $1.1 * $1.1 })
         }
         t["SUMXMY2"] = { a, c in
-            guard a.count == 2, let ps = _pairs(a[0], a[1], c) else { return .error(.na) }
+            guard a.count == 2 else { return .error(.value) }
+            if let e = _firstError(a[0], c) ?? _firstError(a[1], c) { return .error(e) }
+            guard let ps = _pairs(a[0], a[1], c) else { return .error(.na) }
+            guard !ps.isEmpty else { return .error(.div0) }
             return .number(ps.reduce(0) { $0 + ($1.0 - $1.1) * ($1.0 - $1.1) })
         }
     }
@@ -394,11 +430,7 @@ extension SheetFunctions {
             // The vector form, or an array searched along its longer side.
             let wide = (g.first?.count ?? 0) > g.count
             let keys = wide ? (g.first ?? []) : g.map { $0.first ?? .empty }
-            var hit: Int? = nil
-            for (i, v) in keys.enumerated() where !v.isEmpty && (v.number != nil) == (key.number != nil) {
-                if CalcEngine.compare(v, key) <= 0 { hit = i } else { break }
-            }
-            guard let i = hit else { return .error(.na) }
+            guard let i = _binary(key, keys, descending: false) else { return .error(.na) }
             if a.count >= 3 {
                 let r = c.engine.gridFull(c.engine.evaluate(a[2], c), c).flatMap { $0 }
                 return i < r.count ? .scalar(r[i]) : .error(.na)
@@ -417,7 +449,10 @@ extension SheetFunctions {
             } else {
                 s = (absNum == 1 || absNum == 2 ? "R\(Int(r))" : "R[\(Int(r))]") + (absNum == 1 || absNum == 3 ? "C\(Int(col))" : "C[\(Int(col))]")
             }
-            if a.count >= 5, case .success(let sheet) = _t(a[4], c), !sheet.isEmpty { s = Formula.quoteSheet(sheet) + "!" + s }
+            if a.count >= 5, case .success(let sheet) = _t(a[4], c), !sheet.isEmpty {
+                let plain = sheet.allSatisfy { $0.isLetter || $0.isNumber || "_.[]".contains($0) }
+                s = (plain ? sheet : Formula.quoteSheet(sheet)) + "!" + s
+            }
             return .scalar(.text(s))
         }
         t["OFFSET"] = { a, c in
@@ -468,7 +503,9 @@ extension SheetFunctions {
         }
         t["T"] = { a, c in
             guard a.count == 1 else { return .error(.value) }
-            let v = c.engine.scalar(c.engine.evaluate(a[0], c), c)
+            let ev = c.engine.evaluate(a[0], c)
+            var v = c.engine.scalar(ev, c)
+            if case .range(let si, let r) = ev, !r.isSingle { v = c.engine.value(si, r.topLeft) }
             if case .error(let e) = v { return .error(e) }
             if case .text = v { return .scalar(v) }
             return .scalar(.text(""))
@@ -509,7 +546,14 @@ extension SheetFunctions {
                             out.append(v)
                         }
                     }
-                case .scalar(let v): out.append(v)
+                case .scalar(let v):
+                    if case .ref(let fr) = e, fr.isCell {
+                        let si = fr.sheet.flatMap { c.engine.book.sheet(named: $0) } ?? c.sheet
+                        if let f = c.engine.book.sheets[si].cells[fr.range.topLeft]?.formula, case .call(let n, _) = f,
+                           ["SUBTOTAL", "AGGREGATE"].contains(n.uppercased()) { continue }
+                    }
+                    if case .error(let err) = v { if skipErrors { continue }; return .failure(err) }
+                    out.append(v)
                 case .array(let rows): out += rows.flatMap { $0 }
                 }
             }
@@ -578,7 +622,9 @@ extension SheetFunctions {
 extension SheetFunctions {
     fileprivate static func _addTextAndDates(_ t: inout [String: Fn]) {
         t["REPLACE"] = { a, c in
-            guard a.count == 4, case .success(let s) = _t(a[0], c), case .success(let start) = _n(a[1], c),
+            guard a.count == 4 else { return .error(.value) }
+            if let e = _t(a[0], c).failure ?? _n(a[1], c).failure ?? _n(a[2], c).failure ?? _t(a[3], c).failure { return .error(e) }
+            guard case .success(let s) = _t(a[0], c), case .success(let start) = _n(a[1], c),
                   case .success(let n) = _n(a[2], c), case .success(let new) = _t(a[3], c), start >= 1, n >= 0 else { return .error(.value) }
             var chars = Array(s)
             let i = min(chars.count, Int(start) - 1), j = min(chars.count, i + Int(n))
@@ -776,17 +822,19 @@ extension SheetFunctions {
     }
 
     fileprivate static func _addFinance(_ t: inout [String: Fn]) {
-        func args(_ a: [FormulaExpr], _ c: EvalContext, _ need: Int) -> [Double]? {
+        func args(_ a: [FormulaExpr], _ c: EvalContext, _ need: Int) -> Result<[Double], ExcelError> {
             var out: [Double] = []
             for i in 0 ..< a.count {
                 if a[i] == .missing { out.append(0); continue }
-                guard case .success(let v) = _n(a[i], c) else { return nil }
-                out.append(v)
+                switch _n(a[i], c) {
+                case .success(let v): out.append(v)
+                case .failure(let e): return .failure(e)
+                }
             }
-            return out.count >= need ? out : nil
+            return out.count >= need ? .success(out) : .failure(.value)
         }
         t["NPER"] = { a, c in
-            guard let v = args(a, c, 3) else { return .error(.value) }
+            guard case .success(let v) = args(a, c, 3) else { return .error(args(a, c, 3).failure ?? .value) }
             let rate = v[0], pmt = v[1], pv = v[2], fv = v.count > 3 ? v[3] : 0, type = v.count > 4 ? v[4] : 0
             if rate == 0 { return pmt == 0 ? .error(.num) : .number(-(pv + fv) / pmt) }
             let x = pmt * (1 + rate * type) / rate
@@ -795,20 +843,20 @@ extension SheetFunctions {
             return .number(log(num) / log(1 + rate))
         }
         t["IPMT"] = { a, c in
-            guard let v = args(a, c, 4) else { return .error(.value) }
+            guard case .success(let v) = args(a, c, 4) else { return .error(args(a, c, 4).failure ?? .value) }
             let rate = v[0], per = v[1], n = v[2], pv = v[3], fv = v.count > 4 ? v[4] : 0, type = v.count > 5 ? v[5] : 0
             guard per >= 1, per <= n else { return .error(.num) }
             return .number(_ipmt(rate, per, n, pv, fv, type))
         }
         t["PPMT"] = { a, c in
-            guard let v = args(a, c, 4) else { return .error(.value) }
+            guard case .success(let v) = args(a, c, 4) else { return .error(args(a, c, 4).failure ?? .value) }
             let rate = v[0], per = v[1], n = v[2], pv = v[3], fv = v.count > 4 ? v[4] : 0, type = v.count > 5 ? v[5] : 0
             guard per >= 1, per <= n else { return .error(.num) }
             return .number(_pmt(rate, n, pv, fv, type) - _ipmt(rate, per, n, pv, fv, type))
         }
         func cumulative(_ principal: Bool) -> Fn {
             { a, c in
-                guard let v = args(a, c, 6) else { return .error(.value) }
+                guard case .success(let v) = args(a, c, 6) else { return .error(args(a, c, 6).failure ?? .value) }
                 let rate = v[0], n = v[1], pv = v[2], s = Int(v[3]), e = Int(v[4]), type = v[5]
                 guard rate > 0, n > 0, pv > 0, s >= 1, e >= s, Double(e) <= n else { return .error(.num) }
                 var total = 0.0
@@ -822,15 +870,15 @@ extension SheetFunctions {
         t["CUMIPMT"] = cumulative(false)
         t["CUMPRINC"] = cumulative(true)
         t["SLN"] = { a, c in
-            guard let v = args(a, c, 3), v[2] != 0 else { return .error(.div0) }
+            guard case .success(let v) = args(a, c, 3), v[2] != 0 else { return .error(.div0) }
             return .number((v[0] - v[1]) / v[2])
         }
         t["SYD"] = { a, c in
-            guard let v = args(a, c, 4), v[2] > 0, v[3] >= 1, v[3] <= v[2] else { return .error(.num) }
+            guard case .success(let v) = args(a, c, 4), v[2] > 0, v[3] >= 1, v[3] <= v[2] else { return .error(.num) }
             return .number((v[0] - v[1]) * (v[2] - v[3] + 1) * 2 / (v[2] * (v[2] + 1)))
         }
         t["DDB"] = { a, c in
-            guard let v = args(a, c, 4) else { return .error(.value) }
+            guard case .success(let v) = args(a, c, 4) else { return .error(args(a, c, 4).failure ?? .value) }
             let cost = v[0], salvage = v[1], life = v[2], period = v[3], factor = v.count > 4 && v[4] != 0 ? v[4] : 2
             guard life > 0, period >= 1, period <= life else { return .error(.num) }
             var value = cost, dep = 0.0
@@ -841,7 +889,7 @@ extension SheetFunctions {
             return .number(dep)
         }
         t["DB"] = { a, c in
-            guard let v = args(a, c, 4) else { return .error(.value) }
+            guard case .success(let v) = args(a, c, 4) else { return .error(args(a, c, 4).failure ?? .value) }
             let cost = v[0], salvage = v[1], life = v[2], period = Int(v[3]), month = v.count > 4 && v[4] != 0 ? v[4] : 12
             guard cost > 0, life > 0, period >= 1 else { return .error(.num) }
             let rate = ((1 - pow(salvage / cost, 1 / life)) * 1000).rounded() / 1000

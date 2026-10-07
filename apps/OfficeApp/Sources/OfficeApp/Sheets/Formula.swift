@@ -163,6 +163,14 @@ enum Formula {
         return n
     }
 
+    /// Whether it reaches into another workbook: a sheet written as
+    /// [Book1.xlsx]Sheet1 or [1]Sheet1 (the file's externalLink parts).
+    static func referencesExternal(_ e: FormulaExpr) -> Bool {
+        var refs: [FormulaRef] = []
+        references(e, into: &refs)
+        return refs.contains { ($0.sheet ?? "").hasPrefix("[") }
+    }
+
     /// Reads something its references do not show: the clock, chance,
     /// a reference built at run time, a table — recomputed every time.
     static func isVolatile(_ e: FormulaExpr) -> Bool {

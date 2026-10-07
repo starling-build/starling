@@ -287,6 +287,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--deck-sample"), i + 1 < Comman
     }
 }
 
+// `--xlsx-check file.xlsx…`: recalculate every formula and compare with
+// the values Excel cached in the file (SheetsCheck.swift).
+if let i = CommandLine.arguments.firstIndex(of: "--xlsx-check"), i + 1 < CommandLine.arguments.count {
+    exit(SheetsCheck.run(Array(CommandLine.arguments[(i + 1)...])))
+}
+
 // `--xlsx-roundtrip <in> <out>`: read a workbook and write it back, for
 // checking our .xlsx against Excel's importers (qlmanage) and its parts.
 if let i = CommandLine.arguments.firstIndex(of: "--xlsx-roundtrip"), i + 2 < CommandLine.arguments.count {

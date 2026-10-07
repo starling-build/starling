@@ -35,6 +35,11 @@ enum Xlsx {
         book.package = entries
         if let p = wbNode.child("workbookProtection") { book.structureLocked = p["lockStructure"] == "1" || p["lockStructure"] == "true" }
         if let pr = wbNode.child("workbookPr") { book.date1904 = pr["date1904"] == "1" || pr["date1904"] == "true" }
+        if let cp = wbNode.child("calcPr") {
+            book.iterate = cp["iterate"] == "1" || cp["iterate"] == "true"
+            if let n = cp["iterateCount"].flatMap(Int.init) { book.iterateCount = n }
+            if let d = cp["iterateDelta"].flatMap(Double.init) { book.iterateDelta = d }
+        }
 
         // Theme colours, for fills and fonts that name a slot.
         let theme = _themeColors(xml("xl/theme/theme1.xml"))
@@ -232,7 +237,7 @@ enum Xlsx {
                     if let expr {
                         cell.formula = expr
                         cell.input = Formula.text(expr)
-                        cell.cached = value
+                        cell.cached = c.child("v") == nil ? nil : value
                         cell.value = value
                         // An array formula computes here: a dynamic one, whose
                         // range's other cells are its last spill (recomputed).
@@ -764,7 +769,8 @@ enum Xlsx {
             sheets += "<sheet name=\"\(_esc(ws.name))\" sheetId=\"\(i + 1)\"" + (ws.veryHidden ? " state=\"veryHidden\"" : ws.hidden ? " state=\"hidden\"" : "") + " r:id=\"\(ids[i])\"/>"
         }
         sheets += "</sheets>"
-        let calc = "<calcPr calcId=\"191029\" fullCalcOnLoad=\"1\"/>"
+        let calc = "<calcPr calcId=\"191029\" fullCalcOnLoad=\"1\""
+            + (book.iterate ? " iterate=\"1\" iterateCount=\"\(book.iterateCount)\" iterateDelta=\"\(_num(book.iterateDelta))\"" : "") + "/>"
         // The original's other elements (workbookPr, bookViews, definedNames,
         // pivot caches, extLst…) stay, in their places.
         if let original {

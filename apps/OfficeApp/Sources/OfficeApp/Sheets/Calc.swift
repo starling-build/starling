@@ -104,8 +104,33 @@ final class CalcEngine {
                 circular.removeAll()
             }
             spillsChanged = false
+            _reentered.removeAll()
             _pass()
             if !spillsChanged || round == 3 { break }
+        }
+        if book.iterate, !_reentered.isEmpty { _iterate() }
+    }
+
+    /// Cells that read themselves through a loop in this pass, when the
+    /// workbook iterates instead of flagging the loop.
+    private var _reentered: Set<SheetCell> = []
+
+    /// Repeat the pass until no looped cell moves by more than the
+    /// workbook's delta, or its count of iterations is spent.
+    private func _iterate() {
+        let loop = _reentered
+        for _ in 1 ..< max(1, book.iterateCount) {
+            let before = loop.map { book.sheets[$0.sheet].cells[$0.cell]?.value ?? .empty }
+            _done.removeAll(keepingCapacity: true)
+            _rangeCache.removeAll(keepingCapacity: true)
+            _pass()
+            var moved = 0.0
+            for (k, old) in zip(loop, before) {
+                let new = book.sheets[k.sheet].cells[k.cell]?.value ?? .empty
+                if case .number(let x) = old, case .number(let y) = new { moved = max(moved, abs(x - y)) }
+                else if old != new { moved = .infinity }
+            }
+            if moved <= book.iterateDelta { break }
         }
     }
 
@@ -187,7 +212,7 @@ final class CalcEngine {
     /// the formulas that read them, directly or not, and the volatile ones —
     /// or everything, when formulas themselves changed.
     func recalculate(changed: [CellAddress], sheet: Int, formulasChanged: Bool) {
-        guard !formulasChanged, let g = _graph, circular.isEmpty else { recalculate(); return }
+        guard !formulasChanged, let g = _graph, circular.isEmpty, _reentered.isEmpty else { recalculate(); return }
         // Typing into a spill's cells, or anything while a formula is blocked
         // (#SPILL!), changes what spills where: a full pass sorts it out.
         let ws0 = book.sheets[sheet]
@@ -337,6 +362,12 @@ final class CalcEngine {
         let key = SheetCell(sheet: sheet, cell: addr)
         if _done.contains(key) { return cell.value }
         if _visitingSet.contains(key), let at = _visiting.firstIndex(of: key) {
+            if book.iterate {
+                // Iterative calculation (File → Options → Formulas): the
+                // cell's last value feeds the loop, and the pass repeats.
+                _reentered.insert(key)
+                return cell.value
+            }
             // Every cell on the loop shows 0, as Excel's do.
             for k in _visiting[at...] { circular.insert(k) }
             return .number(0)
@@ -353,7 +384,7 @@ final class CalcEngine {
         } else {
             v = scalar(result, ctx)
         }
-        if circular.contains(key) { v = .number(0) }
+        if circular.contains(key), !book.iterate { v = .number(0) }
         _visiting.removeLast()
         _visitingSet.remove(key)
         _done.insert(key)
@@ -361,6 +392,9 @@ final class CalcEngine {
         if v == .error(.name), let cached = cell.cached, Formula.usesUnknownFunction(f) { v = cached }
         // So does a legacy array formula's cell that is not dynamic here.
         if cell.arrayRef != nil, !cell.dynamic, let cached = cell.cached { v = cached }
+        // And a reference into another workbook ([Book.xlsx]Sheet1!A1):
+        // the link's last value, as Excel shows until it refreshes.
+        if v == .error(.ref), let cached = cell.cached, Formula.referencesExternal(f) { v = cached }
         // An empty result of a formula shows as 0, as Excel's does.
         if v.isEmpty { v = .number(0) }
         ws.cells[addr]?.value = v
@@ -391,6 +425,7 @@ final class CalcEngine {
         case .array(let rows): return .array(rows.map { $0.map { scalar(evaluate($0, ctx), ctx) } })
         case .name(let n):
             if let local = ctx.locals[n.uppercased()] { return local }
+            if let target = book.names[n.uppercased()], target.containsSubstring("#REF!") { return .error(.ref) }
             guard let target = book.names[n.uppercased()],
                   let parsed = try? Formula.parse(target) else {
                 // A table's own name is its data rows (Table1 = Table1[]).

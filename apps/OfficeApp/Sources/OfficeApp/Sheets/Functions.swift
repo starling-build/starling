@@ -22,7 +22,7 @@ enum SheetFunctions {
         t["AVERAGE"] = { a, c in _aggregate(a, c) { $0.isEmpty ? nil : $0.reduce(0, +) / Double($0.count) } }
         t["MIN"] = { a, c in _aggregate(a, c) { $0.min() ?? 0 } }
         t["MAX"] = { a, c in _aggregate(a, c) { $0.max() ?? 0 } }
-        t["MEDIAN"] = { a, c in _aggregate(a, c) { xs in
+        t["MEDIAN"] = { a, c in _aggregate(a, c, empty: .num) { xs in
             guard !xs.isEmpty else { return nil }
             let s = xs.sorted(); let m = s.count / 2
             return s.count % 2 == 1 ? s[m] : (s[m - 1] + s[m]) / 2
@@ -81,11 +81,21 @@ enum SheetFunctions {
             }
         }
         t["CEILING"] = { a, c in _num2(a, c, defaultSecond: 1) { x, s in s == 0 ? 0 : ceil(x / s) * s } }
-        t["FLOOR"] = { a, c in _num2(a, c, defaultSecond: 1) { x, s in s == 0 ? .nan : floor(x / s) * s } }
+        t["FLOOR"] = { a, c in
+            guard a.count == 1 || a.count == 2 else { return .error(.value) }
+            switch (_n(a[0], c), a.count == 2 ? _n(a[1], c) : .success(1)) {
+            case (.success(let x), .success(let s)):
+                if s == 0 { return x == 0 ? .number(0) : .error(.div0) }
+                return .number(floor(x / s) * s)
+            case (.failure(let e), _), (_, .failure(let e)): return .error(e)
+            }
+        }
         t["RAND"] = { _, _ in .number(Double.random(in: 0 ..< 1)) }
         t["RANDBETWEEN"] = { a, c in _num2(a, c) { lo, hi in lo > hi ? .nan : Double(Int.random(in: Int(ceil(lo)) ... Int(floor(hi)))) } }
         t["SUMPRODUCT"] = { a, c in
-            let grids = a.map { c.engine.grid(c.engine.evaluate($0, c), c) }
+            var ac = c
+            ac.dynamic = true
+            let grids = a.map { c.engine.grid(c.engine.evaluate($0, ac), ac) }
             guard let first = grids.first else { return .error(.value) }
             let rows = first.count, cols = first.first?.count ?? 0
             guard grids.allSatisfy({ $0.count == rows && ($0.first?.count ?? 0) == cols }) else { return .error(.value) }
@@ -160,7 +170,8 @@ enum SheetFunctions {
         t["FALSE"] = { _, _ in .scalar(.bool(false)) }
         t["NA"] = { _, _ in .error(.na) }
         t["CHOOSE"] = { a, c in
-            guard a.count >= 2, case .success(let i) = _n(a[0], c) else { return .error(.value) }
+            guard a.count >= 2 else { return .error(.value) }
+            guard case .success(let i) = _n(a[0], c) else { return .error(_n(a[0], c).failure ?? .value) }
             let k = Int(i)
             guard k >= 1, k < a.count else { return .error(.value) }
             return c.engine.evaluate(a[k], c)
@@ -477,12 +488,25 @@ enum SheetFunctions {
             let list = vertical ? lg.map { $0.first ?? .empty } : (lg.first ?? [])
             var mode = 0.0
             if a.count >= 5 { if case .success(let m) = _n(a[4], c) { mode = m } }
+            var search = 1.0
+            if a.count >= 6 { if case .success(let m) = _n(a[5], c) { search = m } }
             let found: Int?
-            switch Int(mode) {
-            case -1: found = _approx(key, list, smaller: true)
-            case 1: found = _approx(key, list, smaller: false)
-            case 2: found = list.firstIndex { _wildcard(key, $0) }
-            default: found = list.firstIndex { CalcEngine.compare(key, $0) == 0 && !$0.isEmpty }
+            if search == 2 || search == -2 {
+                // Binary search, as Excel does it over a list it trusts sorted.
+                let hit = _binary(key, list, descending: search == -2)
+                let exactHit = hit.flatMap { CalcEngine.compare(list[$0], key) == 0 ? $0 : nil }
+                switch Int(mode) {
+                case -1: found = search == 2 ? hit : (exactHit ?? hit.map { min($0 + 1, list.count - 1) })
+                case 1: found = exactHit ?? (search == 2 ? hit.map { $0 + 1 }.flatMap { $0 < list.count ? $0 : nil } : hit)
+                default: found = exactHit
+                }
+            } else {
+                switch Int(mode) {
+                case -1: found = _approx(key, list, smaller: true)
+                case 1: found = _approx(key, list, smaller: false)
+                case 2: found = list.firstIndex { _wildcard(key, $0) }
+                default: found = list.firstIndex { CalcEngine.compare(key, $0) == 0 && !$0.isEmpty }
+                }
             }
             guard let i = found else {
                 if a.count >= 4, a[3] != .missing { return c.engine.evaluate(a[3], c) }
@@ -512,8 +536,8 @@ enum SheetFunctions {
             return .number(Double(c.engine.grid(c.engine.evaluate(f, c), c).first?.count ?? 0))
         }
         // Text.
-        t["CONCATENATE"] = { a, c in _concat(a, c, separator: "", skipEmpty: false) }
-        t["CONCAT"] = t["CONCATENATE"]
+        t["CONCATENATE"] = { a, c in _concat(a, c, separator: "", skipEmpty: false, oneCell: !c.dynamic) }
+        t["CONCAT"] = { a, c in _concat(a, c, separator: "", skipEmpty: false) }
         t["TEXTJOIN"] = { a, c in
             guard a.count >= 3, case .success(let sep) = _t(a[0], c),
                   case .success(let skip) = CalcEngine.toBool(c.engine.scalar(c.engine.evaluate(a[1], c), c)) else { return .error(.value) }
@@ -565,8 +589,9 @@ enum SheetFunctions {
             let v = c.engine.scalar(c.engine.evaluate(a[0], c), c)
             if let e = v.error { return .error(e) }
             if case .text(let s) = v, let n = InputParser.number(s) {
-                return .scalar(.text(NumberFormat.format(n.value, fmt, width: 255).text))
+                return .scalar(.text(NumberFormat.format(n.value, fmt, width: n.value < 0 ? 12 : 11, inText: true).text))
             }
+            if case .number(let n) = v { return .scalar(.text(NumberFormat.format(n, fmt, width: n < 0 ? 12 : 11, inText: true).text)) }
             return .scalar(.text(NumberFormat.display(v, fmt, width: 255).text))
         }
         t["VALUE"] = { a, c in
@@ -590,8 +615,9 @@ enum SheetFunctions {
         t["TODAY"] = { _, c in .number(floor(c.engine.now)) }
         t["NOW"] = { _, c in .number(c.engine.now) }
         t["DATE"] = { a, c in
-            guard a.count == 3, case .success(let y) = _n(a[0], c), case .success(let m) = _n(a[1], c),
-                  case .success(let d) = _n(a[2], c) else { return .error(.value) }
+            guard a.count == 3 else { return .error(.value) }
+            guard case .success(let parts) = _nums(a, c) else { return .error(_nums(a, c).failure ?? .value) }
+            let (y, m, d) = (parts[0], parts[1], parts[2])
             let yy = Int(y) < 1900 ? Int(y) + 1900 : Int(y)
             let s = ExcelDate.serial(yy, Int(m), Int(d))
             return s < 0 ? .error(.num) : .number(s)
@@ -658,10 +684,9 @@ enum SheetFunctions {
         }
         // Finance.
         t["PMT"] = { a, c in
-            guard a.count >= 3, case .success(let rate) = _n(a[0], c), case .success(let n) = _n(a[1], c),
-                  case .success(let pv) = _n(a[2], c) else { return .error(.value) }
-            let fv = a.count >= 4 ? ((try? _n(a[3], c).get()) ?? 0) : 0
-            let type = a.count >= 5 ? ((try? _n(a[4], c).get()) ?? 0) : 0
+            guard a.count >= 3, a.count <= 5 else { return .error(.value) }
+            guard case .success(let xs) = _nums(a, c, defaults: [nil, nil, nil, 0, 0]) else { return .error(_nums(a, c, defaults: [nil, nil, nil, 0, 0]).failure ?? .value) }
+            let (rate, n, pv, fv, type) = (xs[0], xs[1], xs[2], xs[3], xs[4])
             guard n != 0 else { return .error(.num) }
             if rate == 0 { return .number(-(pv + fv) / n) }
             let f = pow(1 + rate, n)
@@ -707,6 +732,25 @@ enum SheetFunctions {
         c.engine.number(c.engine.evaluate(e, c), c)
     }
 
+    /// Every argument as a number, in order, or the first error met. A
+    /// missing optional argument takes its default; a given one that is
+    /// not a number is #VALUE!, as Excel's is (PMT(…,"TRUE")).
+    static func _nums(_ a: [FormulaExpr], _ c: EvalContext, defaults: [Double?] = []) -> Result<[Double], ExcelError> {
+        var out: [Double] = []
+        let n = max(a.count, defaults.count)
+        for i in 0 ..< n {
+            if i >= a.count || a[i] == .missing {
+                guard i < defaults.count, let d = defaults[i] else { return .failure(.value) }
+                out.append(d); continue
+            }
+            switch _n(a[i], c) {
+            case .success(let x): out.append(x)
+            case .failure(let e): return .failure(e)
+            }
+        }
+        return .success(out)
+    }
+
     static func _t(_ e: FormulaExpr, _ c: EvalContext) -> Result<String, ExcelError> {
         CalcEngine.toText(c.engine.scalar(c.engine.evaluate(e, c), c))
     }
@@ -727,7 +771,7 @@ enum SheetFunctions {
         }
     }
 
-    static func _aggregate(_ args: [FormulaExpr], _ c: EvalContext, _ f: ([Double]) -> Double?) -> EvalValue {
+    static func _aggregate(_ args: [FormulaExpr], _ c: EvalContext, empty: ExcelError = .div0, _ f: ([Double]) -> Double?) -> EvalValue {
         var xs: [Double] = []
         for arg in args {
             var err: ExcelError? = nil
@@ -740,7 +784,7 @@ enum SheetFunctions {
             })
             if let err { return .error(err) }
         }
-        guard let r = f(xs) else { return .error(.div0) }
+        guard let r = f(xs) else { return .error(empty) }
         return .number(r)
     }
 
@@ -812,7 +856,7 @@ enum SheetFunctions {
         return .scalar(.text(f(s, n)))
     }
 
-    static func _concat(_ args: [FormulaExpr], _ c: EvalContext, separator: String, skipEmpty: Bool) -> EvalValue {
+    static func _concat(_ args: [FormulaExpr], _ c: EvalContext, separator: String, skipEmpty: Bool, oneCell: Bool = false) -> EvalValue {
         var parts: [String] = []
         for arg in args {
             var err: ExcelError? = nil
@@ -822,7 +866,8 @@ enum SheetFunctions {
                 case .failure(let e): err = e
                 }
             }
-            _each(arg, c, direct: add, inRange: add)
+            if oneCell { add(c.engine.scalar(c.engine.evaluate(arg, c), c)) }
+            else { _each(arg, c, direct: add, inRange: add) }
             if let err { return .error(err) }
         }
         return .scalar(.text(parts.joined(separator: separator)))
@@ -850,7 +895,8 @@ enum SheetFunctions {
     }
 
     static func _date1(_ a: [FormulaExpr], _ c: EvalContext, _ f: (Int, Int, Int) -> Double) -> EvalValue {
-        guard a.count == 1, case .success(let s) = _n(a[0], c) else { return .error(.value) }
+        guard a.count == 1 else { return .error(.value) }
+        guard case .success(let s) = _n(a[0], c) else { return .error(_n(a[0], c).failure ?? .value) }
         guard s >= 0 else { return .error(.num) }
         let (y, m, d) = ExcelDate.ymd(s)
         return .number(f(y, m, d))
@@ -896,6 +942,7 @@ enum SheetFunctions {
             }
             // A number criterion only matches numbers, text only text.
             switch (value, cell) {
+            case (.error(let x), .error(let y)): return op == .ne ? x != y : (op == .eq ? x == y : false)
             case (.number, .number), (.text, .text), (.bool, .bool): break
             default: return op == .ne
             }
@@ -952,6 +999,24 @@ enum SheetFunctions {
             areas.append((s, rg))
         }
         guard let first = areas.first else { return .error(.value) }
+        // A criterion that is an array ({"a","b"}, or a range in an array
+        // formula) gives one result per element.
+        for (k, crit) in criteria.enumerated() {
+            let ev = c.engine.evaluate(crit, c)
+            let g: [[CellValue]]
+            switch ev {
+            case .array(let rows) where rows.count > 1 || (rows.first?.count ?? 0) > 1: g = rows
+            case .range(_, let r) where c.dynamic && !r.isSingle: g = c.engine.gridFull(ev, c)
+            default: continue
+            }
+            let out: [[CellValue]] = g.map { row in row.map { v in
+                var crits = criteria
+                crits[k] = v.asLiteral
+                let r = _conditional(ranges: ranges, criteria: crits, target: target, c, f)
+                return c.engine.scalar(r, c)
+            } }
+            return .array(out)
+        }
         let crits = criteria.map { Criterion(c.engine.scalar(c.engine.evaluate($0, c), c)) }
         var targetArea: (Int, CellRange)? = nil
         if let target {
@@ -1004,9 +1069,45 @@ enum SheetFunctions {
     static func _match(_ key: CellValue, _ list: [CellValue], mode: Int) -> Int? {
         switch mode {
         case 0: return list.firstIndex { _wildcard(key, $0) && !$0.isEmpty }
-        case -1: return _approx(key, list, smaller: false, sortedDescending: true)
-        default: return _approx(key, list, smaller: true)
+        case -1: return _binary(key, list, descending: true)
+        default: return _binary(key, list, descending: false)
         }
+    }
+
+    /// Excel's binary search over a vector it assumes sorted: the last
+    /// entry ≤ key (ascending) or ≥ key (descending), skipping blanks.
+    /// Unsorted data lands where Excel's lands. nil when the first probe
+    /// already passes the key, or the entry found is not the key's kind.
+    static func _binary(_ key: CellValue, _ list: [CellValue], descending: Bool) -> Int? {
+        func kind(_ v: CellValue) -> Int { CalcEngine.compare(v, .number(0)) == 0 && v.isEmpty ? -1 : rankOf(v) }
+        func rankOf(_ v: CellValue) -> Int { switch v { case .number: return 0; case .text: return 1; case .bool: return 2; default: return 3 } }
+        var lo = 0, hi = list.count - 1
+        var found: Int? = nil
+        while lo <= hi {
+            var mid = (lo + hi) / 2
+            // Blanks are stepped over, toward the top first.
+            if list[mid].isEmpty {
+                var j = mid + 1
+                while j <= hi, list[j].isEmpty { j += 1 }
+                if j <= hi { mid = j } else {
+                    var i = mid - 1
+                    while i >= lo, list[i].isEmpty { i -= 1 }
+                    if i < lo { break }
+                    mid = i
+                }
+            }
+            let cmp = CalcEngine.compare(list[mid], key)
+            let before = descending ? cmp > 0 : cmp < 0
+            if cmp == 0 {
+                // The last of equal keys.
+                var j = mid
+                while j + 1 < list.count, CalcEngine.compare(list[j + 1], key) == 0 { j += 1 }
+                return j
+            }
+            if before { found = mid; lo = mid + 1 } else { hi = mid - 1 }
+        }
+        guard let i = found, rankOf(list[i]) == rankOf(key) else { return nil }
+        return i
     }
 
     /// The largest value ≤ key (smaller) or smallest ≥ key, in a list
@@ -1047,7 +1148,7 @@ enum SheetFunctions {
             }
         }
         let keys = g.map { $0.first ?? .empty }
-        let found = exact ? keys.firstIndex { _wildcard(key, $0) && !$0.isEmpty } : _approx(key, keys, smaller: true)
+        let found = exact ? keys.firstIndex { _wildcard(key, $0) && !$0.isEmpty } : _binary(key, keys, descending: false)
         guard let i = found else { return .error(.na) }
         guard k <= g[i].count else { return .error(.ref) }
         return .scalar(g[i][k - 1])
@@ -1056,6 +1157,22 @@ enum SheetFunctions {
 
 extension CellValue {
     var isText: Bool { if case .text = self { return true }; return false }
+
+    /// The value as a formula literal, for re-running a function with
+    /// one element of an array argument in place.
+    var asLiteral: FormulaExpr {
+        switch self {
+        case .number(let n): return .number(n, NumberFormat.full(n))
+        case .text(let s): return .text(s)
+        case .bool(let b): return .bool(b)
+        case .error(let e): return .error(e)
+        case .empty: return .missing
+        }
+    }
+}
+
+extension Result {
+    var failure: Failure? { if case .failure(let e) = self { return e }; return nil }
 }
 
 extension EvalValue {

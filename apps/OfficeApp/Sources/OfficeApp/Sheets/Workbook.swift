@@ -288,6 +288,11 @@ final class Workbook {
     var activeTab = 0
     /// Dates count from 1904 (workbookPr date1904): kept as read.
     var date1904 = false
+    /// calcPr iterate: circular references compute iteratively, up to
+    /// iterateCount times or until no cell moves by more than iterateDelta.
+    var iterate = false
+    var iterateCount = 100
+    var iterateDelta = 0.001
     /// workbookProtection lockStructure: sheets cannot be added, deleted,
     /// renamed, hidden or shown.
     var structureLocked = false
