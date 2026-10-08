@@ -432,6 +432,27 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(saved.contains("<wp:inline"), saved)
     }
 
+    func testPageBreakEndingAParagraphLeavesNoEmptyLine() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "one"), RichParagraph(text: "BREAK"), RichParagraph(text: "two")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:t xml:space=\"preserve\">BREAK</w:t>", with: "<w:br w:type=\"page\"/>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["one", "", "two"])
+        XCTAssertTrue(back.paragraphs[2].style.pageBreakBefore)
+        XCTAssertFalse(back.paragraphs[1].style.pageBreakBefore)
+        // A break mid-paragraph still splits it in two.
+        doc.paragraphs[1] = RichParagraph(text: "aBREAKb")
+        entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        xml = String(decoding: entries[di].data, as: UTF8.self).replacingAll("BREAK", with: "</w:t></w:r><w:r><w:br w:type=\"page\"/></w:r><w:r><w:t xml:space=\"preserve\">")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let split = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(split.paragraphs.map(\.text), ["one", "a", "b", "two"])
+        XCTAssertTrue(split.paragraphs[2].style.pageBreakBefore)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

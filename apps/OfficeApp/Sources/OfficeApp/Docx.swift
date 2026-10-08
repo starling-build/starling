@@ -1205,7 +1205,15 @@ enum DocxFormat {
             }
         }
         walkInline(p, link: nil)
-        flush(pageBreakAfter: sectionBreakAfter)
+        if text.isEmpty, inlineImages.isEmpty, let last = built.last, last.pageBreakAfter {
+            // The paragraph ended with its page break: Word shows nothing
+            // for its mark on the new page (SampleDoc's page two began
+            // a line down), so no empty paragraph for it — the break
+            // still lands on the next paragraph.
+            if sectionBreakAfter { built[built.count - 1].pageBreakAfter = true }
+        } else {
+            flush(pageBreakAfter: sectionBreakAfter)
+        }
         return built
     }
 
