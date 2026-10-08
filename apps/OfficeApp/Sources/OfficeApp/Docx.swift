@@ -1494,7 +1494,11 @@ enum DocxFormat {
                     }
                     return "<w:r>\(frag)</w:r>"
                 }
-                let n = media.count + 1
+                // A name no kept part uses: a kept header's media/image1.png
+                // was being dropped for the body's own image1.png
+                // (issue_51265_3's header showed the wrong picture).
+                var n = media.count + 1
+                while doc.keptParts.keys.contains(where: { $0.hasPrefix("word/media/image\(n).") }) { n += 1 }
                 let ext = image.fileExtension
                 usedExtensions.insert(ext)
                 let name = "image\(n).\(ext)"

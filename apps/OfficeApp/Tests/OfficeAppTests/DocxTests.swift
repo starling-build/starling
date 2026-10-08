@@ -366,7 +366,17 @@ final class DocxTests: XCTestCase {
         xml = xml.replacingAll("<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>", with: "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/><w:headerReference w:type=\"first\" r:id=\"rIdFirst\"/>")
         xml = xml.replacingAll("</w:sectPr>", with: "<w:titlePg/></w:sectPr>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        // The banner's own picture, under the name the body's first picture would take.
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        entries.append(ZipEntry(name: "word/media/image1.png", data: png))
+        entries.append(ZipEntry(name: "word/_rels/header1.xml.rels", data: Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image1.png\"/></Relationships>".utf8)))
         let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.keptParts["word/media/image1.png"], png)
+        var withPicture = back
+        withPicture.paragraphs.append(RichParagraph(image: ImageAttachment(data: Data([1, 2, 3]), width: 10, height: 10)))
+        let saved2 = try Zip.read(try DocxFormat.write(withPicture, pageSetup: .letter))
+        XCTAssertEqual(saved2.first { $0.name == "word/media/image1.png" }?.data, png, "the kept header's picture keeps its name")
+        XCTAssertEqual(saved2.first { $0.name == "word/media/image2.png" }?.data, Data([1, 2, 3]), "the body's picture takes the next")
         XCTAssertEqual(back.header, "Banner")
         XCTAssertTrue(back.titlePage)
         XCTAssertEqual(back.keptHeaderFooters.map { "\($0.type):\($0.part):\($0.text)" }, ["default:word/header1.xml:Banner", "first:word/header2.xml:First page only"])
