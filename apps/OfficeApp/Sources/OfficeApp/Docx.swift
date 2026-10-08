@@ -126,6 +126,10 @@ enum DocxFormat {
         var sheet = RichStyleSheet.word
         var base = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
         var tableBases: [String: RichParagraphStyle] = [:]
+        // Cell margins by table style, each side from the style's chain
+        // down to the default table style, then Word's own (0, 5.4pt).
+        var tableMargins: [String: _Margins] = [:]
+        var defaultMargins = _Margins()
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             _resolveThemeFonts(styles, theme)
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
@@ -135,11 +139,23 @@ enum DocxFormat {
                 && (style["w:default"] == "1" || style["w:styleId"] == "Normal") {
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &base) }
             }
+            var tableNodes: [String: XNode] = [:]
             for style in styles.all("w:style") where style["w:type"] == "table" {
                 guard let id = style["w:styleId"] else { continue }
                 var ps = base
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
                 tableBases[id] = ps
+                tableNodes[id] = style
+                if style["w:default"] == "1" { defaultMargins = _cellMargins(style.first("w:tblPr")) }
+            }
+            for id in tableNodes.keys {
+                var m = _Margins(), seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = tableNodes[c] {
+                    seen.insert(c)
+                    m = m.under(_cellMargins(node.first("w:tblPr")))
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
+                tableMargins[id] = m
             }
             // A style's look is its chain's: its own props over its
             // `basedOn` parent's, over that one's, down to the defaults.
@@ -380,6 +396,12 @@ enum DocxFormat {
                 case "right", "end": style.alignment = .right
                 default: break
                 }
+                let styled = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableMargins[$0] } ?? _Margins()
+                let margins = _cellMargins(node.first("w:tblPr")).under(styled).under(defaultMargins).under(_Margins.word)
+                style.cellMarginTop = margins.top
+                style.cellMarginLeft = margins.left
+                style.cellMarginBottom = margins.bottom
+                style.cellMarginRight = margins.right
                 if let ind = node.first("w:tblPr")?.first("w:tblInd"), (ind["w:type"] ?? "dxa") == "dxa",
                    let w = Double(ind["w:w"] ?? "") {
                     style.indent = w / 20
@@ -609,6 +631,27 @@ enum DocxFormat {
         }
     }
 
+    struct _Margins {
+        var top: Double? = nil, left: Double? = nil, bottom: Double? = nil, right: Double? = nil
+        static let word = _Margins(top: 0, left: 5.4, bottom: 0, right: 5.4)
+        /// Self where set, `other` where not.
+        func under(_ other: _Margins) -> _Margins {
+            _Margins(top: top ?? other.top, left: left ?? other.left, bottom: bottom ?? other.bottom, right: right ?? other.right)
+        }
+    }
+
+    /// `w:tblCellMar` of a table or table style, in points, dxa sides only.
+    private static func _cellMargins(_ tblPr: XNode?) -> _Margins {
+        guard let m = tblPr?.first("w:tblCellMar") else { return _Margins() }
+        func side(_ names: [String]) -> Double? {
+            for n in names {
+                if let e = m.first(n), (e["w:type"] ?? "dxa") == "dxa", let w = Double(e["w:w"] ?? "") { return w / 20 }
+            }
+            return nil
+        }
+        return _Margins(top: side(["w:top"]), left: side(["w:left", "w:start"]), bottom: side(["w:bottom"]), right: side(["w:right", "w:end"]))
+    }
+
     /// `target` relative to the directory `base` ("word/charts" + "../media/x.png").
     static func _resolvePath(_ base: String, _ target: String) -> String {
         if target.hasPrefix("/") { return String(target.dropFirst()) }
@@ -764,6 +807,9 @@ enum DocxFormat {
                 if let i = n.name.firstIndex(of: ":") { prefixes.insert(String(n.name[..<i])) }
                 for (k, v) in n.attrs {
                     if let i = k.firstIndex(of: ":"), !k.hasPrefix("xmlns:") { prefixes.insert(String(k[..<i])) }
+                    // mc:Choice Requires="cx" needs cx in scope right there,
+                    // not on the element that uses it further down.
+                    if k == "Requires" || k == "mc:Ignorable" { for t in v.split(separator: " ") { prefixes.insert(String(t)) } }
                     guard ["r:embed", "r:id", "r:link", "r:pict", "r:href"].contains(k), let rel = notes.rels[v],
                           !found.contains(where: { $0.id == v }) else { continue }
                     found.append(rel)
@@ -1134,6 +1180,13 @@ enum DocxFormat {
                                      : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
             xml += "</w:tblBorders>"
+            let margins: [(String, Double?)] = [("top", style.cellMarginTop), ("left", style.cellMarginLeft),
+                                                ("bottom", style.cellMarginBottom), ("right", style.cellMarginRight)]
+            if margins.contains(where: { $0.1 != nil }) {
+                xml += "<w:tblCellMar>"
+                for (side, v) in margins { if let v { xml += "<w:\(side) w:w=\"\(Int((v * 20).rounded()))\" w:type=\"dxa\"/>" } }
+                xml += "</w:tblCellMar>"
+            }
             xml += "<w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
             for w in twips { xml += "<w:gridCol w:w=\"\(w)\"/>" }
             xml += "</w:tblGrid>"

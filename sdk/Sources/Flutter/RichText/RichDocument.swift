@@ -411,10 +411,22 @@ public struct TableStyle: Hashable, Sendable {
     /// Minimum row heights in points by row index (Word's `w:trHeight`);
     /// a row without one is as tall as its content.
     public var rowHeights: [Int: Double] = [:]
+    /// Cell margins in points (Word's `w:tblCellMar`: 0 above and below,
+    /// 5.4 at the sides by default); nil takes the layout's own padding.
+    public var cellMarginTop: Double? = nil
+    public var cellMarginLeft: Double? = nil
+    public var cellMarginBottom: Double? = nil
+    public var cellMarginRight: Double? = nil
 
     public init(borders: Bool = true, headerRow: Bool = false, headerFill: Color? = nil,
                 bandFill: Color? = nil, bandAltFill: Color? = nil, borderColor: Color? = nil,
-                alignment: ParagraphAlignment = .left, indent: Double = 0, rowHeights: [Int: Double] = [:]) {
+                alignment: ParagraphAlignment = .left, indent: Double = 0, rowHeights: [Int: Double] = [:],
+                cellMarginTop: Double? = nil, cellMarginLeft: Double? = nil,
+                cellMarginBottom: Double? = nil, cellMarginRight: Double? = nil) {
+        self.cellMarginTop = cellMarginTop
+        self.cellMarginLeft = cellMarginLeft
+        self.cellMarginBottom = cellMarginBottom
+        self.cellMarginRight = cellMarginRight
         self.borders = borders
         self.headerRow = headerRow
         self.headerFill = headerFill

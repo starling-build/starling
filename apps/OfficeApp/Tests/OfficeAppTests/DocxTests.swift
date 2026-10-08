@@ -99,6 +99,9 @@ final class DocxTests: XCTestCase {
         let style = back.tableStyles[back.paragraphs[1].cell!.table]
         XCTAssertEqual(style?.indent, 36)
         XCTAssertEqual(style?.rowHeights, [1: 48])
+        // Cell margins: the table style said nothing, so Word's own.
+        XCTAssertEqual(style?.cellMarginTop, 0)
+        XCTAssertEqual(style?.cellMarginLeft, 5.4)
         XCTAssertEqual(back.keptParts.keys.sorted(), ["word/theme/theme1.xml"])
         let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
         func text(_ name: String) -> String { String(decoding: saved.first { $0.name == name }?.data ?? Data(), as: UTF8.self) }
@@ -106,6 +109,7 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(text("word/_rels/document.xml.rels").contains("Target=\"theme/theme1.xml\""))
         XCTAssertTrue(text("[Content_Types].xml").contains("theme+xml"))
         XCTAssertTrue(text("word/document.xml").contains("w:ascii=\"Cambria\""))
+        XCTAssertTrue(text("word/document.xml").contains("<w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar>"), text("word/document.xml"))
     }
 
     /// A chart (or any drawing that is not a picture) is kept as the file
@@ -382,11 +386,15 @@ final class DocxTests: XCTestCase {
         doc.tableStyles["T"] = TableStyle(borders: false, headerRow: true)
         let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter))
         let id = try XCTUnwrap(back.document.paragraphs[0].cell?.table)
-        XCTAssertEqual(back.document.tableStyles[id], TableStyle(borders: false, headerRow: true))
-        // The default writes bordered, no header, and reads back as no entry.
+        // Every table reads back with its cell margins stated — Word's own
+        // (0 above and below, 5.4pt at the sides) when the file said nothing.
+        let word = TableStyle(borders: false, headerRow: true, cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4)
+        XCTAssertEqual(back.document.tableStyles[id], word)
+        // The default writes bordered, no header.
         doc.tableStyles = [:]
         let plain = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter))
-        XCTAssertTrue(plain.document.tableStyles.isEmpty)
+        let plainId = try XCTUnwrap(plain.document.paragraphs[0].cell?.table)
+        XCTAssertEqual(plain.document.tableStyles[plainId], TableStyle(cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4))
     }
 
     func testDocxBulletGlyphsRoundTrip() throws {

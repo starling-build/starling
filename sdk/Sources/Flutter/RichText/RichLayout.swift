@@ -557,6 +557,14 @@ public final class RichLayout {
     /// Where a table's first column starts: the text column's left edge,
     /// or further in for a table narrower than the column that the document
     /// centres or right-aligns (Word's table alignment).
+    /// A table's cell insets (px): its own margins where it has them, the
+    /// layout's padding where not.
+    private func _cellInsets(_ table: String, _ document: RichDocument) -> (top: Double, left: Double, bottom: Double, right: Double) {
+        let s = document.tableStyles[table]
+        return (s?.cellMarginTop.map(_px) ?? cellPadding, s?.cellMarginLeft.map(_px) ?? cellPadding,
+                s?.cellMarginBottom.map(_px) ?? cellPadding, s?.cellMarginRight.map(_px) ?? cellPadding)
+    }
+
     private func _tableLeft(_ table: String, _ document: RichDocument) -> Double {
         let sum = (_columnWidths[table] ?? []).reduce(0, +)
         switch document.tableStyles[table]?.alignment ?? .left {
@@ -654,6 +662,7 @@ public final class RichLayout {
             // rows takes its height from the rows it covers, and stretches
             // the last of them when its own content is taller.
             let table = c.table
+            let ins = _cellInsets(table, document)
             var rows: [(first: Int, end: Int, top: Double, height: Double)] = []
             var k0 = i
             while k0 < n, let d = _cells[k0], d.table == table {
@@ -664,13 +673,13 @@ public final class RichLayout {
                 for k in k0 ..< j {
                     let cell = _cells[k]!
                     let offset = stack[cell.column] ?? 0
-                    _tops[k] = y + cellPadding + offset
+                    _tops[k] = y + ins.top + offset
                     _rowTops[k] = y
                     stack[cell.column] = offset + _heights[k]
                     // A spanning cell's content counts against the rows it spans, below.
                     if cell.rowSpan == 1 { rowHeight = max(rowHeight, offset + _heights[k]) }
                 }
-                rowHeight += cellPadding * 2
+                rowHeight += ins.top + ins.bottom
                 // A row the file gave a height: at least that tall.
                 if let least = document.tableStyles[table]?.rowHeights[d.row] { rowHeight = max(rowHeight, _px(least)) }
                 for k in k0 ..< j {
@@ -690,7 +699,7 @@ public final class RichLayout {
                     let cell = _cells[k]!
                     guard cell.rowSpan > 1 else { continue }
                     stackByColumn[cell.column, default: 0] += _heights[k]
-                    let need = stackByColumn[cell.column]! + cellPadding * 2
+                    let need = stackByColumn[cell.column]! + ins.top + ins.bottom
                     let last = min(rows.count - 1, r + cell.rowSpan - 1)
                     let have = rows[r ... last].map(\.height).reduce(0, +)
                     if need > have + 0.01 {
@@ -706,7 +715,7 @@ public final class RichLayout {
                 for k in row.first ..< row.end {
                     let cell = _cells[k]!
                     let offset = stack[cell.column] ?? 0
-                    _tops[k] = row.top + cellPadding + offset
+                    _tops[k] = row.top + ins.top + offset
                     _rowTops[k] = row.top
                     stack[cell.column] = offset + _heights[k]
                     _cells[k]!.rowTop = row.top
@@ -1059,8 +1068,9 @@ public final class RichLayout {
             let colLeft = _tableLeft(c.table, document) + widths.prefix(c.column).reduce(0, +)
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
                                  colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan)
-            left = colLeft + cellPadding + _px(style.indentLeft)
-            textWidth = max(1, colWidth - cellPadding * 2 - _px(style.indentLeft) - right)
+            let ins = _cellInsets(c.table, document)
+            left = colLeft + ins.left + _px(style.indentLeft)
+            textWidth = max(1, colWidth - ins.left - ins.right - _px(style.indentLeft) - right)
         } else {
             _cells[i] = nil
         }
