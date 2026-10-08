@@ -589,7 +589,24 @@ enum DocxFormat {
                 guard ["default", "first", "even"].contains(type), let rid = ref["r:id"], let target = relInfo[rid]?.target,
                       let data = media(target), _wellFormed(data), let node = XNode.parse(data) else { continue }
                 let xml = String(decoding: data, as: UTF8.self)
-                let rich = ["<w:drawing", "<w:pict", "<w:tbl>", "<w:tbl ", "<mc:AlternateContent", "<w:object"].contains { xml.containsSubstring($0) }
+                // Rich: pictures, tables, text boxes, frames — or more than
+                // one line of text (WordWithAttachments' three-line header
+                // in a frame came back as one line).
+                var rich = ["<w:drawing", "<w:pict", "<w:tbl>", "<w:tbl ", "<mc:AlternateContent", "<w:object", "<w:framePr"].contains { xml.containsSubstring($0) }
+                if !rich {
+                    var lines = 0
+                    func count(_ n: XNode) {
+                        for c in n.children {
+                            if c.name == "w:p" {
+                                let wrap = XNode(name: "x", attrs: [:])
+                                wrap.children = [c]
+                                if !_fieldText(wrap).isEmpty { lines += 1 }
+                            } else { count(c) }
+                        }
+                    }
+                    count(node)
+                    rich = lines > 1
+                }
                 guard rich || type != "default" else { continue }
                 let path = _resolvePath("word", target)
                 notes.keep(path)
