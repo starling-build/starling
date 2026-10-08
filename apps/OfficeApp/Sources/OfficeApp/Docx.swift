@@ -579,6 +579,10 @@ enum DocxFormat {
             // first-page and even-page ones, which the editor has no
             // field for, are kept always.
             document.titlePage = sect.first("w:titlePg") != nil
+            if let settings = part("word/settings.xml").flatMap(XNode.parse), let compat = settings.first("w:compat"),
+               compat.children.allSatisfy({ $0.name.hasPrefix("w:") }) {
+                document.keptCompat = PptxXML.serialize(compat)
+            }
             document.evenAndOddHeaders = part("word/settings.xml").map { String(decoding: $0, as: UTF8.self).containsSubstring("<w:evenAndOddHeaders") } ?? false
             for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
                 let type = ref["w:type"] ?? "default"
@@ -1013,8 +1017,13 @@ enum DocxFormat {
             // properties) starts the next on a new page unless continuous;
             // the section's own headers and page size are not kept, the
             // break is — Headers.docx had come back as one page of three.
-            if let sect = pPr.first("w:sectPr"), (sect.first("w:type")?["w:val"] ?? "nextPage") != "continuous" {
-                sectionBreakAfter = true
+            if let sect = pPr.first("w:sectPr") {
+                if (sect.first("w:type")?["w:val"] ?? "nextPage") != "continuous" { sectionBreakAfter = true }
+                // The section's own page size, margins and columns, kept
+                // for the file (bug65649: 15 sections, some landscape);
+                // its header/footer references name parts not kept.
+                sect.children.removeAll { $0.name == "w:headerReference" || $0.name == "w:footerReference" }
+                style.sectionXML = PptxXML.serialize(sect)
             }
         }
 
@@ -1463,6 +1472,7 @@ enum DocxFormat {
             }
             if p.text.isEmpty, p.image == nil, let first = p.runs.first { markRPr += _rPrXML(first.style) }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
+            if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += sect }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
@@ -1727,8 +1737,14 @@ enum DocxFormat {
             }
         }
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
-        let settings = doc.evenAndOddHeaders && keptHF.contains(where: { $0.element.type == "even" })
+        var settings = doc.evenAndOddHeaders && keptHF.contains(where: { $0.element.type == "even" })
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
+        if let compat = doc.keptCompat, let start = settings.range(of: "<w:compat>"), let end = settings.range(of: "</w:compat>") {
+            // The file's own compatibility mode and switches: Word 2007 and
+            // 2010 files (a third of the corpus) break lines and space
+            // tables by their mode's rules, and a copy that said 15 did not.
+            settings.replaceSubrange(start.lowerBound ..< end.upperBound, with: compat)
+        }
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
         extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
         relsXML += "</Relationships>"

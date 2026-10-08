@@ -202,6 +202,11 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var pageBreakBefore = false
     /// Lines around the paragraph (Word's paragraph borders); nil for none.
     public var borders: ParagraphBorders? = nil
+    /// The section this paragraph ends, as Word wrote it (a `w:sectPr`
+    /// without its header/footer references): page size, margins,
+    /// columns, numbering. The layout shows one page size for the whole
+    /// document; the saved file keeps every section's.
+    public var sectionXML: String? = nil
     /// Right-to-left paragraph direction (Word's w:bidi): the lines run
     /// from the right and "left" alignment means the start edge.
     public var rightToLeft = false
@@ -1140,6 +1145,10 @@ public struct RichDocument: Hashable, Sendable {
     /// first-page and even-page ones. `text` is what the part read as, so
     /// the writer knows whether the editor's `header`/`footer` changed.
     public var keptHeaderFooters: [KeptHeaderFooter] = []
+    /// The file's compatibility settings (Word's `w:compat` block, with
+    /// its compatibility mode), written back so Word lays the saved copy
+    /// out by the same rules it laid the original out by.
+    public var keptCompat: String? = nil
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
     /// Word's w:evenAndOddHeaders: even pages use the "even" ones.

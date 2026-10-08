@@ -470,6 +470,36 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(both.contains("<w:rPr><w:del w:id=\"1\" w:author=\"x\"/><w:b/><w:bCs/><w:sz w:val=\"56\"/>"), both)
     }
 
+    func testSectionsAndCompatModeKeptVerbatim() throws {
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "portrait"), RichParagraph(text: "landscape")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let sect = "<w:sectPr><w:headerReference w:type=\"default\" r:id=\"rIdNone\"/><w:type w:val=\"nextPage\"/><w:pgSz w:w=\"16839\" w:h=\"11907\" w:orient=\"landscape\"/><w:pgMar w:top=\"567\" w:right=\"567\" w:bottom=\"567\" w:left=\"1134\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/><w:cols w:space=\"720\"/></w:sectPr>"
+        // Into the first paragraph's properties: the last </w:pPr> before its text.
+        let textAt = xml.range(of: ">portrait<")!.lowerBound
+        let close = xml.range(of: "</w:pPr>", options: .backwards, range: xml.startIndex ..< textAt)!
+        xml.insert(contentsOf: sect, at: close.lowerBound)
+        XCTAssertTrue(xml.contains("w:orient=\"landscape\""), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let si = entries.firstIndex { $0.name == "word/settings.xml" }!
+        let settings = String(decoding: entries[si].data, as: UTF8.self).replacingAll("w:val=\"15\"/></w:compat>", with: "w:val=\"14\"/><w:useFELayout/></w:compat>")
+        XCTAssertTrue(settings.contains("useFELayout"), settings)
+        entries[si] = ZipEntry(name: "word/settings.xml", data: Data(settings.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(back.paragraphs[1].style.pageBreakBefore)
+        let kept = try XCTUnwrap(back.paragraphs[0].style.sectionXML)
+        XCTAssertTrue(kept.contains("w:orient=\"landscape\"") && !kept.contains("headerReference"), kept)
+        XCTAssertEqual(back.keptCompat, "<w:compat><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"14\"/><w:useFELayout/></w:compat>")
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        let savedXML = String(decoding: saved.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(savedXML.contains("<w:sectPr><w:type w:val=\"nextPage\"/><w:pgSz w:h=\"11907\" w:orient=\"landscape\" w:w=\"16839\"/>"), savedXML)
+        XCTAssertFalse(savedXML.contains("rIdNone"), savedXML)
+        XCTAssertEqual(savedXML.components(separatedBy: "<w:sectPr>").count - 1, 2, "the section and the body's own")
+        let savedSettings = String(decoding: saved.first { $0.name == "word/settings.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(savedSettings.contains("w:val=\"14\"/><w:useFELayout/></w:compat>"), savedSettings)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
