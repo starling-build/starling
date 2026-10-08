@@ -71,4 +71,4 @@ dialog h2 { font-size:clamp(32px,4vw,48px); margin:15px 0 24px; }dialog h3 { fon
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition:none !important; } }
 
 .desktop-features { list-style:none; padding:0; margin:24px 0 0; font-size:clamp(12px,1.1vw,15px); line-height:1.5; color:var(--copy); }.desktop-features li+li { margin-top:8px; }.desktop-features strong { color:#3e2e21; }.desktop-slide h2 { font-size:clamp(38px,4.7vw,67px); }.desktop-slide .slide-note { margin-top:22px; }
-@media(max-width:760px) { .desktop-slide h2 { font-size:clamp(38px,10vw,60px); }.desktop-features { font-size:12px; margin-top:20px; } }
+@media(max-width:760px) { .desktop-slide h2 { font-size:clamp(38px,10vw,60px); }.desktop-features { font-size:12px; margin-top:20px; }.desktop-slide { grid-auto-rows:max-content; } }
