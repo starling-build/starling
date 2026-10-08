@@ -122,6 +122,17 @@ public struct BorderLine: Hashable, Sendable {
     }
 }
 
+/// A tab stop: `position` points from the paragraph's left edge.
+public struct TabStop: Hashable, Sendable {
+    public enum Alignment: Int, Hashable, Sendable { case left, center, right, decimal }
+    public var position: Double
+    public var alignment: Alignment
+    public init(position: Double, alignment: Alignment = .left) {
+        self.position = position
+        self.alignment = alignment
+    }
+}
+
 /// A paragraph's borders, each edge its own line or none.
 public struct ParagraphBorders: Hashable, Sendable {
     public var top: BorderLine? = nil
@@ -175,6 +186,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var pageBreakBefore = false
     /// Lines around the paragraph (Word's paragraph borders); nil for none.
     public var borders: ParagraphBorders? = nil
+    /// Custom tab stops (Word's w:tabs), kept through a save; the layout
+    /// still uses the default tab width.
+    public var tabStops: [TabStop] = []
     /// A tracked change to the paragraph mark itself: deleted, the
     /// paragraph joins the next once accepted (and Word prints nothing
     /// for a paragraph whose text and mark are both deleted).

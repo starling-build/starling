@@ -284,6 +284,9 @@ enum DocxFormat {
                     && (style["w:default"] == "1" || style["w:styleId"] == "Normal") {
                     if let rPr = style.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
                 }
+                // A file that states no size anywhere is 10pt in Word (the
+                // 2003-era default), not the 11pt of a fresh document.
+                if cs.fontSize == nil { cs.fontSize = 10 }
                 normal.char = cs
             }
             sheet[RichNamedStyle.normalId] = normal
@@ -452,8 +455,8 @@ enum DocxFormat {
                 var cellBorders: _Borders? = nil
                 if cellSaid.count * 2 >= cells.count, !cells.isEmpty {
                     let on = cellSaid.filter(\.on)
-                    if on.count * 2 >= cells.count { cellBorders = on.first { $0.color != nil } ?? on[0] }
-                    else if (cellSaid.count - on.count) * 2 >= cells.count { cellBorders = _Borders(on: false, color: nil) }
+                    if on.count * 2 > cells.count { cellBorders = on.first { $0.color != nil } ?? on[0] }
+                    else if (cellSaid.count - on.count) * 2 > cells.count { cellBorders = _Borders(on: false, color: nil) }
                 }
                 let borders = cellBorders ?? _borders(node.first("w:tblPr"), "w:tblBorders") ?? styledBorders ?? defaultBorders
                 style.borders = borders?.on ?? false
@@ -656,6 +659,22 @@ enum DocxFormat {
             if let v = Double(ind["w:right"] ?? ind["w:end"] ?? "") { style.indentRight = v / 20 }
             if let v = Double(ind["w:firstLine"] ?? "") { style.firstLineIndent = v / 20 }
             if let v = Double(ind["w:hanging"] ?? "") { style.firstLineIndent = -v / 20 }
+        }
+        if let tabs = pPr.first("w:tabs") {
+            var stops: [TabStop] = []
+            for t in tabs.all("w:tab") {
+                guard let pos = Double(t["w:pos"] ?? ""), pos >= 0 else { continue }
+                let a: TabStop.Alignment
+                switch t["w:val"] ?? "left" {
+                case "center": a = .center
+                case "right": a = .right
+                case "decimal": a = .decimal
+                case "left", "start", "num": a = .left
+                default: continue   // clear, bar
+                }
+                stops.append(TabStop(position: pos / 20, alignment: a))
+            }
+            if !stops.isEmpty { style.tabStops = stops }
         }
         if let bdr = pPr.first("w:pBdr") {
             // Each edge: sz in eighths of a point, space in points, colour
@@ -1056,6 +1075,7 @@ enum DocxFormat {
             text += s
             runs.append(Run(length: s.utf16.count, style: cs))
         }
+        var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
         func walkRun(_ r: XNode, link: String?, revision: RevisionMark? = nil) {
             var cs = cellChar
             cs.link = link
@@ -1064,6 +1084,18 @@ enum DocxFormat {
             for child in r.children {
                 switch child.name {
                 case "w:t": addText(child.text, cs)
+                case "w:fldChar":
+                    // A form checkbox has no result text: it is the box
+                    // itself, shown as a glyph (form_footnotes' 29 boxes).
+                    if child["w:fldCharType"] == "begin", let box = child.first("w:ffData")?.first("w:checkBox") {
+                        let on = box.first("w:checked").map { !_isOff($0) } ?? (box.first("w:default")?["w:val"] == "1")
+                        pendingCheckbox = on
+                    }
+                case "w:instrText":
+                    if let on = pendingCheckbox, child.text.uppercased().containsSubstring("FORMCHECKBOX") {
+                        addText(on ? "\u{2612}" : "\u{2610}", cs)
+                        pendingCheckbox = nil
+                    }
                 case "w:delText": addText(child.text, cs)
                 case "w:tab": addText("\t", cs)
                 case "w:br":
@@ -1295,6 +1327,14 @@ enum DocxFormat {
                 pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
             }
             if let b = p.style.borders { pPr += _bordersXML(b) }
+            if !p.style.tabStops.isEmpty {
+                pPr += "<w:tabs>"
+                for t in p.style.tabStops {
+                    let val = ["left", "center", "right", "decimal"][t.alignment.rawValue]
+                    pPr += "<w:tab w:val=\"\(val)\" w:pos=\"\(Int((t.position * 20).rounded()))\"/>"
+                }
+                pPr += "</w:tabs>"
+            }
             // Spacing spelled out on every paragraph, so that Word and we
             // lay the file out alike whatever its defaults say.
             pPr += _spacingXML(p.style)

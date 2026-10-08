@@ -313,6 +313,28 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try DocxFormat.read(try Zip.write(fe)).document.footer, "Page {PAGE}")
     }
 
+    func testFormCheckboxesTabStopsAndTenPointDefault() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "x no diploma")])
+        doc.paragraphs[0].style.tabStops = [TabStop(position: 22.5), TabStop(position: 300, alignment: .right)]
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:tabs><w:tab w:val=\"left\" w:pos=\"450\"/><w:tab w:val=\"right\" w:pos=\"6000\"/></w:tabs>"), xml)
+        // The "x" becomes a checked form checkbox field with no result.
+        xml = xml.replacingAll("<w:t xml:space=\"preserve\">x no diploma</w:t></w:r>",
+                               with: "</w:r><w:r><w:fldChar w:fldCharType=\"begin\"><w:ffData><w:name w:val=\"Check21\"/><w:checkBox><w:sizeAuto/><w:default w:val=\"1\"/></w:checkBox></w:ffData></w:fldChar></w:r><w:r><w:instrText xml:space=\"preserve\"> FORMCHECKBOX </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r><w:r><w:t xml:space=\"preserve\"> no diploma</w:t></w:r>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        // And a styles part that states no size anywhere: Word's 10pt.
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("<w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/>", with: "")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].text, "\u{2612} no diploma")
+        XCTAssertEqual(back.paragraphs[0].style.tabStops, doc.paragraphs[0].style.tabStops)
+        XCTAssertEqual(back.styles[RichNamedStyle.normalId]?.char.fontSize, 10)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
