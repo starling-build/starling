@@ -105,6 +105,14 @@ enum DocxFormat {
         func part(_ name: String) -> Data? { entries.first { $0.name == name }?.data }
         guard let docData = part("word/document.xml") else { throw DocxError.noDocumentPart }
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
+        let kept = _keptParts(entries, part)
+        // Theme fonts: "minorHAnsi" in a run or style means the theme's
+        // minor Latin face — Calibri only in Word's default theme. Resolved
+        // in the trees before anything reads a font, so a Cambria or Aptos
+        // document lays out (and saves) in Cambria or Aptos; the theme part
+        // itself rides along in keptParts.
+        let theme = _themeFonts(entries)
+        _resolveThemeFonts(root, theme)
 
         // Styles: which paragraph styles are ours (headings, Title, Quote…),
         // and what they look like in this package — Word's Heading 1 is
@@ -119,6 +127,7 @@ enum DocxFormat {
         var base = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
         var tableBases: [String: RichParagraphStyle] = [:]
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
+            _resolveThemeFonts(styles, theme)
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
                 _paragraphProps(defaults, into: &base)
             }
@@ -161,6 +170,9 @@ enum DocxFormat {
                 for c in n.children { collect(c) }
             }
             collect(root)
+            for (name, data) in kept where name.hasSuffix(".xml") {
+                if let n = XNode.parse(data) { collect(n) }
+            }
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 guard let id = style["w:styleId"] else { continue }
                 let rawName = style.first("w:name")?["w:val"] ?? id
@@ -193,6 +205,7 @@ enum DocxFormat {
             // in. Without it a 12-point document came back at Calibri 11
             // (the writer's defaults), and every line wrapped elsewhere.
             if let styles = part("word/styles.xml").flatMap(XNode.parse) {
+                _resolveThemeFonts(styles, theme)
                 var cs = CharStyle()
                 if let rPr = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
                 for style in styles.all("w:style") where style["w:type"] == "paragraph"
@@ -272,6 +285,7 @@ enum DocxFormat {
             return part(name)
         }
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
+        let notes = _Notes(footnotes: kept["word/footnotes.xml"] != nil, endnotes: kept["word/endnotes.xml"] != nil)
         var paragraphs: [RichParagraph] = []
         var pageSetup: PageSetup? = nil
         var pendingPageBreak = false
@@ -315,7 +329,7 @@ enum DocxFormat {
         func walkBlock(_ node: XNode, indent: Double, depth: Int = 0) {
             switch node.name {
             case "w:p":
-                for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, sheet, kindByNum, rels, media, indent) {
+                for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, sheet, kindByNum, rels, media, indent, notes) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
                 }
             case "w:tbl" where currentCell != nil:
@@ -351,6 +365,15 @@ enum DocxFormat {
                 case "center": style.alignment = .center
                 case "right", "end": style.alignment = .right
                 default: break
+                }
+                if let ind = node.first("w:tblPr")?.first("w:tblInd"), (ind["w:type"] ?? "dxa") == "dxa",
+                   let w = Double(ind["w:w"] ?? "") {
+                    style.indent = w / 20
+                }
+                for (r, tr) in unwrapped(node, "w:tr").enumerated() {
+                    if let h = tr.first("w:trPr")?.first("w:trHeight"), let v = Double(h["w:val"] ?? ""), v > 0 {
+                        style.rowHeights[r] = v / 20
+                    }
                 }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
@@ -407,6 +430,7 @@ enum DocxFormat {
         document.tableStyles = tableStyles
         document.styles = sheet
         document.listFormats = listFormats
+        document.keptParts = kept
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
         if let sect = body.first("w:sectPr") {
@@ -528,11 +552,99 @@ enum DocxFormat {
     }
 
     /// One w:p can become several paragraphs (a page break inside it).
+    /// Which note parts the file has, and the running numbers Word would
+    /// show for their marks.
+    final class _Notes {
+        let footnotes: Bool, endnotes: Bool
+        private var seenFootnotes = 0, seenEndnotes = 0
+        init(footnotes: Bool, endnotes: Bool) { self.footnotes = footnotes; self.endnotes = endnotes }
+        func next(footnote: Bool) -> Int {
+            if footnote { seenFootnotes += 1; return seenFootnotes }
+            seenEndnotes += 1; return seenEndnotes
+        }
+    }
+
+    /// Parts the editor does not model but the file had — Word's footnotes
+    /// and endnotes, each with its rels and whatever those reach (a
+    /// picture in a note) — kept verbatim so a save keeps the notes the
+    /// body still references.
+    private static func _keptParts(_ entries: [ZipEntry], _ part: (String) -> Data?) -> [String: Data] {
+        var kept: [String: Data] = [:]
+        // Only a part that parses is kept: a damaged one would make the
+        // saved file as unopenable as the original.
+        for e in entries where e.name.hasPrefix("word/theme/") && e.name.hasSuffix(".xml") && _wellFormed(e.data) {
+            kept[e.name] = e.data
+        }
+        for name in ["footnotes", "endnotes"] {
+            guard let data = part("word/\(name).xml"), _wellFormed(data) else { continue }
+            kept["word/\(name).xml"] = data
+            guard let rels = part("word/_rels/\(name).xml.rels") else { continue }
+            kept["word/_rels/\(name).xml.rels"] = rels
+            guard let node = XNode.parse(rels) else { continue }
+            for r in node.all("Relationship") where r["TargetMode"] != "External" {
+                guard let target = r["Target"] else { continue }
+                let path = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
+                if let d = part(path), !_ownParts.contains(path) { kept[path] = d }
+            }
+        }
+        return kept
+    }
+
+    /// The theme's major and minor Latin faces, for the theme font
+    /// references runs and styles make.
+    private static func _themeFonts(_ entries: [ZipEntry]) -> (major: String?, minor: String?) {
+        guard let e = entries.first(where: { $0.name.hasPrefix("word/theme/") && $0.name.hasSuffix(".xml") }),
+              let root = XNode.parse(e.data), let scheme = root.descendant("a:fontScheme") else { return (nil, nil) }
+        func face(_ name: String) -> String? {
+            let f = scheme.first(name)?.first("a:latin")?["typeface"] ?? ""
+            return f.isEmpty ? nil : f
+        }
+        return (face("a:majorFont"), face("a:minorFont"))
+    }
+
+    /// Rewrites every `w:rFonts` under `node` whose ascii/hAnsi face is a
+    /// theme reference into the face itself.
+    private static func _resolveThemeFonts(_ root: XNode, _ theme: (major: String?, minor: String?)) {
+        guard theme.major != nil || theme.minor != nil else { return }
+        var stack = [root]   // iterative: a fuzzer's tree is deeper than the call stack
+        while let node = stack.popLast() {
+            if node.name == "w:rFonts" {
+                for (ref, attr) in [("w:asciiTheme", "w:ascii"), ("w:hAnsiTheme", "w:hAnsi")] {
+                    guard let t = node.attrs[ref] else { continue }
+                    if let face = t.hasPrefix("major") ? theme.major : theme.minor { node.attrs[attr] = face }
+                }
+            }
+            stack.append(contentsOf: node.children)
+        }
+    }
+
+    /// Parses, and holds no character XML 1.0 forbids (Foundation's parser
+    /// lets a stray control byte through; Word and expat do not).
+    private static func _wellFormed(_ data: Data) -> Bool {
+        if data.contains(where: { $0 < 0x20 && $0 != 0x09 && $0 != 0x0A && $0 != 0x0D }) { return false }
+        guard let root = XNode.parse(data) else { return false }
+        // Names with an empty prefix or local part (`<a: val=…>`) get past
+        // the small parser; a namespace-aware one rejects them.
+        func bad(_ n: String) -> Bool { n.isEmpty || n.hasPrefix(":") || n.hasSuffix(":") }
+        var stack = [root]
+        while let node = stack.popLast() {
+            if bad(node.name) || node.attrs.keys.contains(where: bad) { return false }
+            stack.append(contentsOf: node.children)
+        }
+        return true
+    }
+
+    /// The parts the writer makes itself; a kept part never overrides one.
+    private static let _ownParts: Set<String> = [
+        "word/document.xml", "word/styles.xml", "word/numbering.xml", "word/settings.xml",
+        "word/_rels/document.xml.rels", "word/header1.xml", "word/footer1.xml",
+    ]
+
     private static func _paragraphs(_ p: XNode, _ base: RichParagraphStyle,
                                     _ styleIds: [String: String], _ sheet: RichStyleSheet,
                                     _ nums: [String: [Int: ListKind]],
                                     _ rels: [String: String], _ media: (String) -> Data?,
-                                    _ indent: Double) -> [_Built] {
+                                    _ indent: Double, _ notes: _Notes) -> [_Built] {
         var style = base
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
@@ -609,6 +721,22 @@ enum DocxFormat {
                     }
                 case "w:drawing", "w:pict":
                     addImage(child)
+                case "w:footnoteReference", "w:endnoteReference":
+                    // The mark: its number as superscript text, tagged with
+                    // the note it stands for so the writer puts the
+                    // reference back. Word numbers marks in order of
+                    // appearance; a custom mark (customMarkFollows) is the
+                    // run's own text and needs no number.
+                    let footnote = child.name == "w:footnoteReference"
+                    guard footnote ? notes.footnotes : notes.endnotes, let id = Int(child["w:id"] ?? "") else { break }
+                    var mark = cs
+                    mark.script = .superscript
+                    mark.note = NoteReference(kind: footnote ? .footnote : .endnote, id: id)
+                    if child["w:customMarkFollows"] == "1" || child["w:customMarkFollows"] == "true" {
+                        addText("\u{200B}", mark)
+                    } else {
+                        addText(String(notes.next(footnote: footnote)), mark)
+                    }
                 default: break
                 }
             }
@@ -800,6 +928,17 @@ enum DocxFormat {
                 let piece = String(utf16[a ..< b]) ?? ""
                 pos += run.length
                 let s = run.style
+                if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
+                    // The mark's number is Word's to show; the run carries
+                    // only the reference (and its custom mark text, if any).
+                    let tag = note.kind == .footnote ? "w:footnoteReference" : "w:endnoteReference"
+                    let st = note.kind == .footnote ? "FootnoteReference" : "EndnoteReference"
+                    let custom = piece.filter { $0 != "\u{200B}" && !$0.isNumber }
+                    body += "<w:r><w:rPr><w:rStyle w:val=\"\(st)\"/><w:vertAlign w:val=\"superscript\"/></w:rPr>"
+                    body += custom.isEmpty ? "<\(tag) w:id=\"\(note.id)\"/>" : "<\(tag) w:customMarkFollows=\"1\" w:id=\"\(note.id)\"/>\(_text(custom))"
+                    body += "</w:r>"
+                    continue
+                }
                 var rPr = ""
                 if let family = s.fontFamily {
                     let name = OfficeFonts.exportName(family)
@@ -855,23 +994,28 @@ enum DocxFormat {
             }
             let twips = widths.map { Int(($0 * 20).rounded()) }
             let style = doc.tableStyles[id] ?? TableStyle()
-            var xml = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders>"
-            for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
-                xml += style.borders ? "<w:\(side) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"
-                                     : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
-            }
-            xml += "</w:tblBorders>"
+            var xml = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/>"
             switch style.alignment {
             case .center: xml += "<w:jc w:val=\"center\"/>"
             case .right: xml += "<w:jc w:val=\"right\"/>"
             default: break
             }
+            if style.indent != 0 { xml += "<w:tblInd w:w=\"\(Int((style.indent * 20).rounded()))\" w:type=\"dxa\"/>" }
+            xml += "<w:tblBorders>"
+            for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
+                xml += style.borders ? "<w:\(side) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"
+                                     : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
+            }
+            xml += "</w:tblBorders>"
             xml += "<w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
             for w in twips { xml += "<w:gridCol w:w=\"\(w)\"/>" }
             xml += "</w:tblGrid>"
             let refs = members.compactMap(\.cell)
             for r in 0 ..< rows {
-                xml += r == 0 && style.headerRow ? "<w:tr><w:trPr><w:tblHeader/></w:trPr>" : "<w:tr>"
+                var trPr = ""
+                if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"/>" }
+                if r == 0 && style.headerRow { trPr += "<w:tblHeader/>" }
+                xml += trPr.isEmpty ? "<w:tr>" : "<w:tr><w:trPr>\(trPr)</w:trPr>"
                 var c = 0
                 while c < cols {
                     // A cell from a row above spanning into this row: a
@@ -956,13 +1100,31 @@ enum DocxFormat {
         // "Compatibility Mode" and lays it out by the 2007 rules — wider
         // default spacing, older line breaking — which the corpus showed
         // on every saved copy (2026-10-07).
+        let written = Set(media.map(\.name))
+        for (name, data) in doc.keptParts.sorted(by: { $0.key < $1.key }) where !written.contains(name) {
+            extraParts.append(ZipEntry(name: name, data: data))
+            switch name {
+            case "word/footnotes.xml":
+                relsXML += "<Relationship Id=\"rIdFootnotes\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes\" Target=\"footnotes.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/footnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml\"/>"
+            case "word/endnotes.xml":
+                relsXML += "<Relationship Id=\"rIdEndnotes\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes\" Target=\"endnotes.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/endnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml\"/>"
+            case _ where name.hasPrefix("word/theme/"):
+                relsXML += "<Relationship Id=\"rIdTheme\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"\(_esc(String(name.dropFirst(5))))\"/>"
+                extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>"
+            default:
+                let ext = (name.split(separator: "/").last ?? "").split(separator: ".").dropFirst().last.map { String($0).lowercased() } ?? ""
+                if ext != "rels", ext != "xml", !ext.isEmpty { usedExtensions.insert(ext) }
+            }
+        }
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
         extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(_settingsPart.utf8)))
         extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
         relsXML += "</Relationships>"
         var contentTypes = _contentTypes.replacingAll("</Types>", with: extraOverrides + "</Types>")
         for ext in usedExtensions.sorted() {
-            let mime = ext == "jpeg" ? "image/jpeg" : ext == "gif" ? "image/gif" : "image/png"
+            let mime = _imageMime(ext)
             contentTypes = contentTypes.replacingAll("<Override PartName=\"/word/document.xml\"",
                                                              with: "<Default Extension=\"\(ext)\" ContentType=\"\(mime)\"/><Override PartName=\"/word/document.xml\"")
         }
@@ -971,11 +1133,24 @@ enum DocxFormat {
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
-            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles).utf8)),
+            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty).utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats).utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
         return try Zip.write(entries)
+    }
+
+    private static func _imageMime(_ ext: String) -> String {
+        switch ext {
+        case "jpeg", "jpg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "bmp": return "image/bmp"
+        case "tiff", "tif": return "image/tiff"
+        case "emf": return "image/x-emf"
+        case "wmf": return "image/x-wmf"
+        case "svg": return "image/svg+xml"
+        default: return "image/png"
+        }
     }
 
     /// A header or footer part: one paragraph, fields as fldSimple.
@@ -1055,7 +1230,7 @@ enum DocxFormat {
 
     /// styles.xml from the document's sheet: Normal as the default, every
     /// other entry with its look, plus List Paragraph and Hyperlink.
-    private static func _stylesPart(_ sheet: RichStyleSheet) -> String {
+    private static func _stylesPart(_ sheet: RichStyleSheet, notes: Bool = false) -> String {
         var out = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
         // The document defaults are Normal's look (the file's, when it was
         // read from one): Calibri 11 only for a document that never said.
@@ -1096,7 +1271,18 @@ enum DocxFormat {
             out += "</w:rPr></w:style>"
         }
         out += "<w:style w:type=\"paragraph\" w:styleId=\"ListParagraph\"><w:name w:val=\"List Paragraph\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:ind w:left=\"720\"/><w:contextualSpacing/></w:pPr></w:style>"
-        out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style></w:styles>"
+        out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>"
+        if notes {
+            // The marks and the notes' own paragraphs, Word's defaults;
+            // a file that defined its own note text style keeps it above.
+            for kind in ["Footnote", "Endnote"] {
+                out += "<w:style w:type=\"character\" w:styleId=\"\(kind)Reference\"><w:name w:val=\"\(kind.lowercased()) reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style>"
+                if sheet["\(kind)Text"] == nil {
+                    out += "<w:style w:type=\"paragraph\" w:styleId=\"\(kind)Text\"><w:name w:val=\"\(kind.lowercased()) text\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:rPr><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:style>"
+                }
+            }
+        }
+        out += "</w:styles>"
         return out
     }
     /// numbering.xml: abstract 0 is bullets (numId 1), abstract 1 plain

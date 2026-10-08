@@ -50,6 +50,16 @@ on run argv
               end try
             end repeat
             delay 2
+          else if txt contains "printable area" or txt contains "paper size" or txt contains "margins are pretty small" then
+            -- "The margins/page borders of section N are set outside the
+            -- printable area" / "paper size … different from the printer
+            -- page size": Yes/Continue prints it anyway.
+            repeat with bn in {"Yes", "Continue", "OK"}
+              try
+                click button bn of w
+              end try
+            end repeat
+            delay 1
           else if wn is "" and txt is not "" then
             -- Some other alert: say what it said, try to get past it.
             set bns to ""
@@ -87,8 +97,8 @@ on run argv
           try
             set txt to (value of every static text of w) as string
           end try
-          if txt contains "paper size" then
-            repeat with bn in {"Continue", "OK", "Yes"}
+          if txt contains "paper size" or txt contains "printable area" or txt contains "margins are pretty small" then
+            repeat with bn in {"Continue", "Yes", "OK"}
               try
                 click button bn of w
               end try

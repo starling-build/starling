@@ -28,6 +28,86 @@ final class DocxTests: XCTestCase {
         return RichDocument(paragraphs: paragraphs)
     }
 
+    /// A file with a footnotes part: the mark reads as its number in
+    /// superscript, and a save carries the part, its rels, the reference
+    /// and the note styles back out — Word then shows the note again.
+    func testFootnotesKeptThroughSave() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "Body with a note here.")])
+        doc.paragraphs[0].applyStyle(0 ..< 4) { $0.bold = true }
+        let plain = try DocxFormat.write(doc, pageSetup: .letter)
+        var entries = try Zip.read(plain)
+        let footnotes = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r><w:r><w:t xml:space="preserve"> The note's text.</w:t></w:r></w:p></w:footnote></w:footnotes>
+        """
+        entries.append(ZipEntry(name: "word/footnotes.xml", data: Data(footnotes.utf8)))
+        let i = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[i].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:t xml:space=\"preserve\"> with a note here.</w:t></w:r>",
+                               with: "<w:t xml:space=\"preserve\"> with a note</w:t></w:r><w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"1\"/></w:r><w:r><w:t xml:space=\"preserve\"> here.</w:t></w:r>")
+        XCTAssertTrue(xml.contains("w:footnoteReference"), "the fixture's run text must match: \(xml)")
+        entries[i] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let planted = try Zip.write(entries)
+
+        let back = try DocxFormat.read(planted).document
+        XCTAssertEqual(back.paragraphs[0].text, "Body with a note1 here.")
+        XCTAssertEqual(back.keptParts.keys.sorted(), ["word/footnotes.xml"])
+        let mark = back.paragraphs[0].runs.first { $0.style.note != nil }
+        XCTAssertEqual(mark?.style.note, NoteReference(kind: .footnote, id: 1))
+        XCTAssertEqual(mark?.style.script, .superscript)
+        XCTAssertEqual(mark?.length, 1)
+
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        func text(_ name: String) -> String { String(decoding: saved.first { $0.name == name }?.data ?? Data(), as: UTF8.self) }
+        XCTAssertEqual(text("word/footnotes.xml"), footnotes)
+        let body = text("word/document.xml")
+        XCTAssertTrue(body.contains("<w:footnoteReference w:id=\"1\"/>"), body)
+        XCTAssertFalse(body.contains("<w:t>1</w:t>"), "the number is Word's to show")
+        XCTAssertTrue(text("word/_rels/document.xml.rels").contains("Target=\"footnotes.xml\""))
+        XCTAssertTrue(text("[Content_Types].xml").contains("/word/footnotes.xml"))
+        XCTAssertTrue(text("word/styles.xml").contains("w:styleId=\"FootnoteText\""))
+        // Read again: still one mark, the same note.
+        let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document
+        XCTAssertEqual(again.paragraphs[0].text, "Body with a note1 here.")
+        XCTAssertEqual(again.paragraphs[0].runs.filter { $0.style.note != nil }.count, 1)
+    }
+
+    /// Theme font references resolve through the file's theme (and the
+    /// theme rides along); a table's indent and row heights survive.
+    func testThemeFontsIndentAndRowHeights() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "Body")])
+        var a = RichParagraph(text: "cell"); a.cell = CellRef(table: "t", row: 0, column: 0)
+        var b = RichParagraph(text: "cell"); b.cell = CellRef(table: "t", row: 1, column: 0)
+        doc.paragraphs += [a, b, RichParagraph()]
+        doc.tableColumns["t"] = [200]
+        doc.tableStyles["t"] = TableStyle(indent: 36, rowHeights: [1: 48])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let theme = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="T"><a:themeElements><a:fontScheme name="F"><a:majorFont><a:latin typeface="Georgia"/></a:majorFont><a:minorFont><a:latin typeface="Cambria"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>
+        """
+        entries.append(ZipEntry(name: "word/theme/theme1.xml", data: Data(theme.utf8)))
+        let i = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[i].data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:tblInd w:w=\"720\" w:type=\"dxa\"/>"), xml)
+        XCTAssertTrue(xml.contains("<w:tr><w:trPr><w:trHeight w:val=\"960\"/></w:trPr>"), xml)
+        xml = xml.replacingAll("<w:t xml:space=\"preserve\">Body</w:t>",
+                               with: "<w:rPr><w:rFonts w:asciiTheme=\"minorHAnsi\" w:hAnsiTheme=\"minorHAnsi\"/></w:rPr><w:t xml:space=\"preserve\">Body</w:t>")
+        entries[i] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].runs.first?.style.fontFamily, "Cambria")
+        let style = back.tableStyles[back.paragraphs[1].cell!.table]
+        XCTAssertEqual(style?.indent, 36)
+        XCTAssertEqual(style?.rowHeights, [1: 48])
+        XCTAssertEqual(back.keptParts.keys.sorted(), ["word/theme/theme1.xml"])
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        func text(_ name: String) -> String { String(decoding: saved.first { $0.name == name }?.data ?? Data(), as: UTF8.self) }
+        XCTAssertEqual(text("word/theme/theme1.xml"), theme)
+        XCTAssertTrue(text("word/_rels/document.xml.rels").contains("Target=\"theme/theme1.xml\""))
+        XCTAssertTrue(text("[Content_Types].xml").contains("theme+xml"))
+        XCTAssertTrue(text("word/document.xml").contains("w:ascii=\"Cambria\""))
+    }
+
     func testZipRoundTrip() throws {
         let entries = [ZipEntry(name: "a/b.txt", data: Data("hello hello hello hello".utf8)),
                        ZipEntry(name: "c.bin", data: Data((0 ..< 5000).map { UInt8($0 % 251) }))]

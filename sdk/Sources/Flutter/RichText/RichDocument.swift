@@ -28,6 +28,17 @@ public enum ScriptPosition: Int, Hashable, Sendable {
 /// Character-level formatting. Every field is optional in the sense that
 /// `nil`/`false` means "the document default" — the layout resolves those
 /// against its `RichTextTheme`.
+/// A footnote or endnote reference mark: the run it sits on shows the
+/// note's number, and a save writes the reference back into the document's
+/// kept notes part (`RichDocument.keptParts`), where the note's text lives.
+public struct NoteReference: Hashable, Sendable {
+    public enum Kind: Int, Hashable, Sendable { case footnote, endnote }
+    public var kind: Kind
+    /// The note's id in the file's footnotes/endnotes part.
+    public var id: Int
+    public init(kind: Kind, id: Int) { self.kind = kind; self.id = id }
+}
+
 public struct CharStyle: Hashable, Sendable {
     public var bold = false
     public var italic = false
@@ -40,11 +51,13 @@ public struct CharStyle: Hashable, Sendable {
     public var highlight: Color? = nil
     public var link: String? = nil
     public var script: ScriptPosition = .normal
+    /// Set on the run that is a footnote/endnote reference mark.
+    public var note: NoteReference? = nil
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,
                 fontSize: Double? = nil, color: Color? = nil, highlight: Color? = nil,
-                link: String? = nil, script: ScriptPosition = .normal) {
+                link: String? = nil, script: ScriptPosition = .normal, note: NoteReference? = nil) {
         self.bold = bold
         self.italic = italic
         self.underline = underline
@@ -55,6 +68,7 @@ public struct CharStyle: Hashable, Sendable {
         self.highlight = highlight
         self.link = link
         self.script = script
+        self.note = note
     }
 
     public static let plain = CharStyle()
@@ -371,10 +385,16 @@ public struct TableStyle: Hashable, Sendable {
     /// Where a table narrower than the text column sits: Word's table
     /// alignment (`w:jc` on the table). Justify reads as left.
     public var alignment: ParagraphAlignment = .left
+    /// A left-aligned table's offset from the text column's left edge, in
+    /// points (Word's `w:tblInd`); negative hangs it into the margin.
+    public var indent: Double = 0
+    /// Minimum row heights in points by row index (Word's `w:trHeight`);
+    /// a row without one is as tall as its content.
+    public var rowHeights: [Int: Double] = [:]
 
     public init(borders: Bool = true, headerRow: Bool = false, headerFill: Color? = nil,
                 bandFill: Color? = nil, bandAltFill: Color? = nil, borderColor: Color? = nil,
-                alignment: ParagraphAlignment = .left) {
+                alignment: ParagraphAlignment = .left, indent: Double = 0, rowHeights: [Int: Double] = [:]) {
         self.borders = borders
         self.headerRow = headerRow
         self.headerFill = headerFill
@@ -382,6 +402,8 @@ public struct TableStyle: Hashable, Sendable {
         self.bandAltFill = bandAltFill
         self.borderColor = borderColor
         self.alignment = alignment
+        self.indent = indent
+        self.rowHeights = rowHeights
     }
 }
 
@@ -978,6 +1000,11 @@ public struct RichDocument: Hashable, Sendable {
     /// Per list id, the label format of each level (Word's lvlText and
     /// numFmt); a level without one is "%n." in decimal.
     public var listFormats: [String: [Int: ListLevelFormat]] = [:]
+    /// Parts of the file the editor does not model but a save must keep —
+    /// Word's footnotes and endnotes, with their rels and what those
+    /// reach — by package path. The body refers into them (`NoteReference`);
+    /// the format writer copies them back verbatim.
+    public var keptParts: [String: Data] = [:]
 
     public static let pageField = "{PAGE}"
     public static let pageCountField = "{NUMPAGES}"

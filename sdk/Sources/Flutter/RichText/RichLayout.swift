@@ -562,7 +562,7 @@ public final class RichLayout {
         switch document.tableStyles[table]?.alignment ?? .left {
         case .center: return max(0, ((width - sum) / 2).rounded(.down))
         case .right: return max(0, (width - sum).rounded(.down))
-        default: return 0
+        default: return _px(document.tableStyles[table]?.indent ?? 0).rounded()
         }
     }
 
@@ -671,6 +671,8 @@ public final class RichLayout {
                     if cell.rowSpan == 1 { rowHeight = max(rowHeight, offset + _heights[k]) }
                 }
                 rowHeight += cellPadding * 2
+                // A row the file gave a height: at least that tall.
+                if let least = document.tableStyles[table]?.rowHeights[d.row] { rowHeight = max(rowHeight, _px(least)) }
                 for k in k0 ..< j {
                     _cells[k]!.rowTop = y
                     _cells[k]!.rowHeight = rowHeight

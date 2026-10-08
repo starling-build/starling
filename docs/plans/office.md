@@ -140,10 +140,70 @@ real copy clean, 121 of 121. What it found:
   settings part, so Word laid our files out by its 2007 rules. The
   writer now emits `word/settings.xml` with compatibility mode 15.
 
-Word's read-only mode refuses scripted `save as`, so unlike PowerPoint it
-cannot export PDFs for a render comparison; acceptance is what this
-oracle gives. Left: Bug54849 re-reads with one extra empty paragraph in
-a merged cell (a count nit, not a repair).
+Word's read-only mode refuses scripted `save as`, but it still prints,
+and the print dialog's PDF menu saves one — so the render comparison
+exists after all (next paragraph). Left: Bug54849 re-reads with one
+extra empty paragraph in a merged cell (a count nit, not a repair).
+
+**Pixel round, 2026-10-07.** `test/docx-word-render.sh IN OUT WORK`
+prints every original and its saved copy to PDF through Word itself
+(`test/docx-word-pdf.applescript`: ⌘P, the PDF menu button, "Save as
+PDF…", the save panel by keystrokes, because the panel is remote-hosted
+and shows no controls), then `test/pdf-diff.swift` renders both with
+CoreGraphics and scores each page by the share of pixels that differ,
+writing a side-by-side PNG (original | ours | difference) for any page
+over 0.5%. Word-vs-Word, so every difference is ours to explain, and
+the ranking is what to fix next. Round 1 (105 scored): 20 documents at
+0%, 39 under 1%, 21 between 1 and 5%, 25 over 5%, nine of them whole
+pages lost (charts, shapes, attached objects, pictures in headers).
+What the pictures said, and what changed:
+
+- **The default font and size** (sample.docx, 10.35% → 0.00%): the
+  writer's document defaults were Calibri 11 whatever the file said;
+  they are now Normal's own font and size, read from the file's
+  defaults and Normal.
+- **Theme fonts** (heading123, table-alignment, and 78 corpus documents
+  that say `minorHAnsi` somewhere): the theme part was dropped, so Word
+  fell back to Calibri where the file meant Cambria or Aptos — and the
+  taller Aptos lines were the row-height drift the table document kept
+  showing. The reader now resolves theme references through the file's
+  theme before any font is read, and the theme part rides along in the
+  saved file.
+- **Custom style chains** (52288): a style's look is its `basedOn`
+  chain's; each style had been read alone. Styles the body uses that
+  map to none of ours now join the sheet under their own ids.
+- **Soft line breaks** (Bug54849's "extra paragraph"): `w:br` had split
+  the paragraph; it is a line break inside it now.
+- **Footnotes and endnotes** (37 documents have the part; form_footnotes
+  at 21%): the reference marks were dropped with the parts. The parts,
+  their rels and what those reach are kept verbatim
+  (`RichDocument.keptParts`), the mark reads as its number in
+  superscript tagged with the note it stands for (`NoteReference`), and
+  the writer puts the reference, the parts and the note styles back.
+  Only a part that is well-formed is kept — a fuzzer's damaged theme
+  made the copy as unopenable as the original.
+- **Table alignment, cell shading, table indent and row heights**
+  (table-alignment, table-indent, the form): `w:jc` on the table,
+  `w:shd` on cells, `w:tblInd` and `w:trHeight` now reach the model,
+  the layout and the writer.
+
+Harness lessons: Word raises alerts that block the print — "paper size
+… different from the printer", "margins … outside the printable area",
+"page borders … outside the printable area", "Your margins are pretty
+small", a mail-merge data source that is gone — each handled by the
+script now; an unhandled one leaves a modal dialog and every document
+after it scores "no document window". Another session driving Excel on
+the same Mac steals the save panel's keystrokes. And a recursive walk
+over a fuzzer's XML tree overflows the stack where the iterative one
+does not (deep-table-cell, again).
+
+Still ranked, in order of pixels: tracked changes (delins, 13%: `w:del`
+text is dropped and `w:ins` accepted — the rendering Word shows is the
+markup), charts and shapes (chartex, drawing, 61745, shapes-with-text:
+anything in `w:drawing` that is not a picture is lost, as are anchored
+pictures and pictures in headers), first-page/even headers and text
+boxes (60316), checkbox form fields and cell merges in forms
+(form_footnotes), `w:caps` and paragraph borders (3 documents each).
 
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
