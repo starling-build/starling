@@ -103,6 +103,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// Exact line height in points ("exactly 20 pt"), which then wins over
     /// `lineSpacing`; nil for a multiple.
     public var lineHeightPoints: Double? = nil
+    /// With `lineHeightPoints`: a minimum ("at least 20 pt") rather than
+    /// an exact height — a taller font still gets its own line.
+    public var lineHeightIsMinimum = false
     public var list: ListKind? = nil
     public var listLevel: Int = 0
     /// Which list this paragraph belongs to, for numbering: Word's numId.

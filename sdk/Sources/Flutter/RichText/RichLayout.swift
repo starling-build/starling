@@ -93,7 +93,7 @@ public final class RichTextTheme {
             fontStyle: italic ? .italic : .normal,
             // An exact line height is the same multiple of every run's own
             // size: points over size.
-            height: paragraph.lineHeightPoints.map { size > 0 ? $0 / size : 1 } ?? paragraph.lineSpacing,
+            height: paragraph.lineHeightPoints.map { size > 0 ? (paragraph.lineHeightIsMinimum ? max($0 / size, paragraph.lineSpacing) : $0 / size) : 1 } ?? paragraph.lineSpacing,
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
             fontFamily: family
@@ -590,7 +590,11 @@ public final class RichLayout {
             guard let c = p.cell, widths[c.table] == nil else { continue }
             let cols = columns[c.table] ?? 1
             if let pts = _columnPreview[c.table] ?? document.tableColumns[c.table], pts.count == cols {
-                widths[c.table] = pts.map { _px($0) }
+                // Wider than the column: scaled to fit, as Word autofits a
+                // table whose grid outgrows the page.
+                let sum = pts.reduce(0, +)
+                let scale = sum > 0 && _px(sum) > width ? width / _px(sum) : 1
+                widths[c.table] = pts.map { (_px($0) * scale).rounded(.down) }
             } else {
                 widths[c.table] = Array(repeating: (width / Double(cols)).rounded(.down), count: cols)
             }

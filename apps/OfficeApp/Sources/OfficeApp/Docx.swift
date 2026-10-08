@@ -130,6 +130,10 @@ enum DocxFormat {
         // down to the default table style, then Word's own (0, 5.4pt).
         var tableMargins: [String: _Margins] = [:]
         var defaultMargins = _Margins()
+        // Whether a table style draws borders (Table Grid does, Normal Table
+        // does not): a table that says nothing itself takes its style's word.
+        var tableBorders: [String: Bool] = [:]
+        var defaultBorders: Bool? = nil
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             _resolveThemeFonts(styles, theme)
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
@@ -146,7 +150,18 @@ enum DocxFormat {
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
                 tableBases[id] = ps
                 tableNodes[id] = style
-                if style["w:default"] == "1" { defaultMargins = _cellMargins(style.first("w:tblPr")) }
+                if style["w:default"] == "1" {
+                    defaultMargins = _cellMargins(style.first("w:tblPr"))
+                    defaultBorders = _tableBorders(style.first("w:tblPr"))
+                }
+            }
+            for id in tableNodes.keys {
+                var seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = tableNodes[c] {
+                    seen.insert(c)
+                    if let b = _tableBorders(node.first("w:tblPr")) { tableBorders[id] = b; break }
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
             }
             for id in tableNodes.keys {
                 var m = _Margins(), seen = Set<String>(), cur: String? = id
@@ -384,11 +399,10 @@ enum DocxFormat {
                     if !widths.isEmpty { tableColumns[id] = widths }
                 }
                 var style = TableStyle()
-                // Borders are off only when the table says so for every edge.
-                if let borders = node.first("w:tblPr")?.first("w:tblBorders"), !borders.children.isEmpty,
-                   borders.children.allSatisfy({ ["nil", "none"].contains($0["w:val"] ?? "") }) {
-                    style.borders = false
-                }
+                // The table's own borders, else its style's, else none —
+                // 64 of the corpus's 109 tables say nothing and have none.
+                let styledBorders = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableBorders[$0] }
+                style.borders = _tableBorders(node.first("w:tblPr")) ?? styledBorders ?? defaultBorders ?? false
                 if unwrapped(node, "w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
                 // Where the table sits in the column (w:jc on the table).
                 switch node.first("w:tblPr")?.first("w:jc")?["w:val"] {
@@ -559,8 +573,25 @@ enum DocxFormat {
         if let sp = pPr.first("w:spacing") {
             if let v = Double(sp["w:before"] ?? "") { style.spaceBefore = v / 20 }
             if let v = Double(sp["w:after"] ?? "") { style.spaceAfter = v / 20 }
-            if let v = Double(sp["w:line"] ?? ""), (sp["w:lineRule"] ?? "auto") == "auto", v > 0 {
-                style.lineSpacing = v / 240
+            if let v = Double(sp["w:line"] ?? ""), v > 0 {
+                switch sp["w:lineRule"] ?? "auto" {
+                case "exact":
+                    style.lineHeightPoints = v / 20
+                    style.lineHeightIsMinimum = false
+                case "atLeast":
+                    // "At least 1pt" (Bug51170's atLeast 23 twips) is single
+                    // spacing in effect; a real minimum is kept as one.
+                    if v / 20 >= 12 {
+                        style.lineHeightPoints = v / 20
+                        style.lineHeightIsMinimum = true
+                    } else {
+                        style.lineHeightPoints = nil
+                        style.lineSpacing = 1.0
+                    }
+                default:
+                    style.lineSpacing = v / 240
+                    style.lineHeightPoints = nil
+                }
             }
         }
     }
@@ -642,6 +673,13 @@ enum DocxFormat {
         func under(_ other: _Margins) -> _Margins {
             _Margins(top: top ?? other.top, left: left ?? other.left, bottom: bottom ?? other.bottom, right: right ?? other.right)
         }
+    }
+
+    /// `w:tblBorders` of a table or table style: nil when it says nothing,
+    /// false when every edge it lists is nil/none, true otherwise.
+    private static func _tableBorders(_ tblPr: XNode?) -> Bool? {
+        guard let b = tblPr?.first("w:tblBorders"), !b.children.isEmpty else { return nil }
+        return b.children.contains { !["nil", "none"].contains($0["w:val"] ?? "nil") }
     }
 
     /// `w:tblCellMar` of a table or table style, in points, dxa sides only.
@@ -932,7 +970,11 @@ enum DocxFormat {
         var spacing = ""
         if s.spaceBefore > 0 { spacing += " w:before=\"\(Int((s.spaceBefore * 20).rounded()))\"" }
         spacing += " w:after=\"\(Int((s.spaceAfter * 20).rounded()))\""
-        spacing += " w:line=\"\(Int((s.lineSpacing * 240).rounded()))\" w:lineRule=\"auto\""
+        if let pts = s.lineHeightPoints {
+            spacing += " w:line=\"\(Int((pts * 20).rounded()))\" w:lineRule=\"\(s.lineHeightIsMinimum ? "atLeast" : "exact")\""
+        } else {
+            spacing += " w:line=\"\(Int((s.lineSpacing * 240).rounded()))\" w:lineRule=\"auto\""
+        }
         return "<w:spacing\(spacing)/>"
     }
 
@@ -1058,8 +1100,8 @@ enum DocxFormat {
             // lay the file out alike whatever its defaults say.
             pPr += _spacingXML(p.style)
             var ind = ""
-            if p.style.indentLeft > 0 && p.style.list == nil { ind += " w:left=\"\(Int(p.style.indentLeft * 20))\"" }
-            if p.style.indentRight > 0 { ind += " w:right=\"\(Int(p.style.indentRight * 20))\"" }
+            if p.style.indentLeft != 0 && p.style.list == nil { ind += " w:left=\"\(Int(p.style.indentLeft * 20))\"" }
+            if p.style.indentRight != 0 { ind += " w:right=\"\(Int(p.style.indentRight * 20))\"" }
             if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
             if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
             if !ind.isEmpty { pPr += "<w:ind\(ind)/>" }
@@ -1105,17 +1147,6 @@ enum DocxFormat {
                 let piece = String(utf16[a ..< b]) ?? ""
                 pos += run.length
                 let s = run.style
-                if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
-                    // The mark's number is Word's to show; the run carries
-                    // only the reference (and its custom mark text, if any).
-                    let tag = note.kind == .footnote ? "w:footnoteReference" : "w:endnoteReference"
-                    let st = note.kind == .footnote ? "FootnoteReference" : "EndnoteReference"
-                    let custom = piece.filter { $0 != "\u{200B}" && !$0.isNumber }
-                    body += "<w:r><w:rPr><w:rStyle w:val=\"\(st)\"/><w:vertAlign w:val=\"superscript\"/></w:rPr>"
-                    body += custom.isEmpty ? "<\(tag) w:id=\"\(note.id)\"/>" : "<\(tag) w:customMarkFollows=\"1\" w:id=\"\(note.id)\"/>\(_text(custom))"
-                    body += "</w:r>"
-                    continue
-                }
                 var rPr = ""
                 if let family = s.fontFamily {
                     let name = OfficeFonts.exportName(family)
@@ -1136,6 +1167,19 @@ enum DocxFormat {
                 }
                 if s.script == .superscript { rPr += "<w:vertAlign w:val=\"superscript\"/>" }
                 if s.script == .subscript { rPr += "<w:vertAlign w:val=\"subscript\"/>" }
+                if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
+                    // The mark's number is Word's to show; the run carries
+                    // only the reference (and its custom mark text, if any),
+                    // with its own look — size and font decide where the
+                    // line wraps.
+                    let tag = note.kind == .footnote ? "w:footnoteReference" : "w:endnoteReference"
+                    let st = note.kind == .footnote ? "FootnoteReference" : "EndnoteReference"
+                    let custom = piece.filter { $0 != "\u{200B}" && !$0.isNumber }
+                    body += "<w:r><w:rPr><w:rStyle w:val=\"\(st)\"/>\(rPr)</w:rPr>"
+                    body += custom.isEmpty ? "<\(tag) w:id=\"\(note.id)\"/>" : "<\(tag) w:customMarkFollows=\"1\" w:id=\"\(note.id)\"/>\(_text(custom))"
+                    body += "</w:r>"
+                    continue
+                }
                 var runXML = "<w:r>"
                 if s.link != nil { rPr = "<w:rStyle w:val=\"Hyperlink\"/>" + rPr }
                 if !rPr.isEmpty { runXML += "<w:rPr>\(rPr)</w:rPr>" }
@@ -1437,8 +1481,8 @@ enum DocxFormat {
             if entry.paragraph.heading != nil { out += "<w:keepNext/>" }
             out += _spacingXML(entry.paragraph)
             var ind = ""
-            if entry.paragraph.indentLeft > 0 { ind += " w:left=\"\(Int(entry.paragraph.indentLeft * 20))\"" }
-            if entry.paragraph.indentRight > 0 { ind += " w:right=\"\(Int(entry.paragraph.indentRight * 20))\"" }
+            if entry.paragraph.indentLeft != 0 { ind += " w:left=\"\(Int(entry.paragraph.indentLeft * 20))\"" }
+            if entry.paragraph.indentRight != 0 { ind += " w:right=\"\(Int(entry.paragraph.indentRight * 20))\"" }
             if entry.paragraph.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(entry.paragraph.firstLineIndent * 20))\"" }
             if entry.paragraph.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-entry.paragraph.firstLineIndent * 20))\"" }
             if !ind.isEmpty { out += "<w:ind\(ind)/>" }
