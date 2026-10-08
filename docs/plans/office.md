@@ -182,10 +182,26 @@ What the pictures said, and what changed:
   the writer puts the reference, the parts and the note styles back.
   Only a part that is well-formed is kept — a fuzzer's damaged theme
   made the copy as unopenable as the original.
-- **Table alignment, cell shading, table indent and row heights**
-  (table-alignment, table-indent, the form): `w:jc` on the table,
-  `w:shd` on cells, `w:tblInd` and `w:trHeight` now reach the model,
-  the layout and the writer.
+- **Table alignment, cell shading, table indent, row heights and cell
+  margins** (table-alignment 11.9% → 0.24%, table-indent, the form):
+  `w:jc` on the table, `w:shd` on cells, `w:tblInd`, `w:trHeight` and
+  `w:tblCellMar` now reach the model, the layout and the writer. The
+  margins were systematic: the layout padded cells 3pt all round and the
+  writer said nothing, so Word applied its own 0/5.4pt to every table.
+- **Charts, shapes and embedded objects** (61745 11.8% → 0.00%, bug57031
+  100% → 10%, WordWithAttachments 100% → 10%): a drawing that is not a
+  picture, a VML picture, an OLE object or a markup-compatibility wrapper
+  is an `ImageAttachment` with no decodable bytes — an empty box of its
+  extent in the editor — carrying the file's markup verbatim
+  (`sourceXML`, every prefix it uses declared on it, including the ones
+  an `mc:Choice Requires` names) and the relationships it names
+  (`sourceRels`); the read keeps each part and, through its rels,
+  everything it reaches, with the content types the file declared
+  (`keptPartTypes`); the writer puts it all back under fresh ids.
+- **Header and footer distances**: the writer put both 708 twips from the
+  page edge whatever the file said; eight copies with small margins made
+  Word warn "Your margins are pretty small" at print time (and the alert
+  hid behind the save panel, where the script never looked).
 
 Harness lessons: Word raises alerts that block the print — "paper size
 … different from the printer", "margins … outside the printable area",
@@ -197,13 +213,19 @@ the same Mac steals the save panel's keystrokes. And a recursive walk
 over a fuzzer's XML tree overflows the stack where the iterative one
 does not (deep-table-cell, again).
 
-Still ranked, in order of pixels: tracked changes (delins, 13%: `w:del`
-text is dropped and `w:ins` accepted — the rendering Word shows is the
-markup), charts and shapes (chartex, drawing, 61745, shapes-with-text:
-anything in `w:drawing` that is not a picture is lost, as are anchored
-pictures and pictures in headers), first-page/even headers and text
-boxes (60316), checkbox form fields and cell merges in forms
-(form_footnotes), `w:caps` and paragraph borders (3 documents each).
+After the round (110 scored; the 11 errors are originals Word itself
+refuses — six fuzzer zips and five damaged files — so every copy we write
+prints): 25 documents at 0%, 45 under 1%, 20 between 1 and 5%, 20 over
+5%. Round 1 was 20 / 39 / 21 / 25 of 105. Still ranked, in order of
+pixels: pictures inline with text (VariousPictures: each picture is a
+paragraph of its own here, so the page overflows), tracked changes
+(delins, 13%: `w:del` text is dropped and `w:ins` accepted — what Word
+prints is the markup), multiple sections and first-page/even headers
+(Headers, bib-chernigovka, bug65649: page counts differ), text boxes
+and anchored shapes positioned on the page (60316, shapes-with-text,
+chartex: kept verbatim, but the layout stacks them inline), checkbox
+form fields and cell merges in forms (form_footnotes), `w:caps` and
+paragraph borders (3 documents each).
 
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
