@@ -52,6 +52,18 @@ public struct RevisionMark: Hashable, Sendable {
     }
 }
 
+/// The boolean switches of a `CharStyle`, as a set.
+public struct CharSwitches: OptionSet, Hashable, Sendable {
+    public let rawValue: UInt8
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public static let bold = CharSwitches(rawValue: 1)
+    public static let italic = CharSwitches(rawValue: 2)
+    public static let underline = CharSwitches(rawValue: 4)
+    public static let strikethrough = CharSwitches(rawValue: 8)
+    public static let caps = CharSwitches(rawValue: 16)
+    public static let smallCaps = CharSwitches(rawValue: 32)
+}
+
 public struct CharStyle: Hashable, Sendable {
     public var bold = false
     public var italic = false
@@ -71,6 +83,9 @@ public struct CharStyle: Hashable, Sendable {
     public var inlineImage: String? = nil
     /// Set on a run that is a tracked insertion or deletion.
     public var revision: RevisionMark? = nil
+    /// Switches this run turns OFF under a style that turns them on
+    /// (Word's `w:b w:val="0"`): a false `bold` alone means "inherit".
+    public var off: CharSwitches = []
     /// Word's All caps: the run's letters shown as capitals (the text
     /// itself keeps its case).
     public var caps = false

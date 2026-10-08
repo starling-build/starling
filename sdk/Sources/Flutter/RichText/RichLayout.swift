@@ -68,8 +68,8 @@ public final class RichTextTheme {
     public func textStyle(for style: CharStyle, in paragraph: RichParagraphStyle,
                           named: RichNamedStyle? = nil, scale: Double) -> TextStyle {
         var size = style.fontSize ?? named?.char.fontSize ?? fontSize
-        var bold = style.bold || (named?.char.bold ?? false)
-        let italic = style.italic || (named?.char.italic ?? false)
+        var bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
         var color = style.color ?? named?.char.color ?? textColor
         let family = (style.fontFamily ?? named?.char.fontFamily ?? fontFamily)
             .map { fontFamilyResolver?($0) ?? $0 }
@@ -82,8 +82,8 @@ public final class RichTextTheme {
         }
         if style.link != nil && style.color == nil { color = linkColor }
         var decorations: [TextDecoration] = []
-        if style.underline || style.link != nil { decorations.append(.underline) }
-        if style.strikethrough { decorations.append(.lineThrough) }
+        if style.underline || style.link != nil || ((named?.char.underline ?? false) && !style.off.contains(.underline)) { decorations.append(.underline) }
+        if style.strikethrough || ((named?.char.strikethrough ?? false) && !style.off.contains(.strikethrough)) { decorations.append(.lineThrough) }
         if let revision = style.revision {
             // Tracked changes as Word marks them: insertions underlined,
             // deletions struck through, both in the reviewer's colour.
@@ -1166,8 +1166,8 @@ public final class RichLayout {
         /// the same number of UTF-16 units as the text, so that offsets
         /// into the painted text are offsets into the paragraph.
         func capped(_ text: Substring, _ run: CharStyle, _ style: TextStyle) -> [TextSpan] {
-            let caps = run.caps || (named?.char.caps ?? false)
-            let small = !caps && (run.smallCaps || (named?.char.smallCaps ?? false))
+            let caps = run.caps || ((named?.char.caps ?? false) && !run.off.contains(.caps))
+            let small = !caps && (run.smallCaps || ((named?.char.smallCaps ?? false) && !run.off.contains(.smallCaps)))
             if !caps && !small { return [TextSpan(text: String(text), style: style)] }
             var spans: [TextSpan] = []
             var piece = ""

@@ -515,11 +515,21 @@ final class DocxTests: XCTestCase {
         doc.styles = OfficeStyles.sheet
         var h3 = try XCTUnwrap(doc.styles["Heading3"]); h3.char.bold = true; h3.char.italic = true; doc.styles["Heading3"] = h3
         doc.styles.apply("Heading3", to: &doc.paragraphs[0].style)
-        XCTAssertFalse(doc.paragraphs[0].runs[0].style.bold)
+        // A plain run inherits the style's bold: nothing written (52288's
+        // chapter names must stay bold).
+        let plain = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertFalse(plain.contains("w:val=\"0\""), plain)
+        // A run that turns them off says so, and reads back the same.
+        doc.paragraphs[0].runs[0].style.off = [.bold, .italic]
         let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(xml.contains("<w:rPr><w:b w:val=\"0\"/><w:i w:val=\"0\"/></w:rPr>"), xml)
         let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
-        XCTAssertFalse(back.paragraphs[0].runs[0].style.bold)
+        XCTAssertEqual(back.paragraphs[0].runs[0].style.off, [.bold, .italic])
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 1)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(back)
+        XCTAssertEqual((layout.geometry(0).painter.text as? TextSpan)?.style?.fontWeight, .normal, "the editor shows it un-bold too")
     }
 
     func testCapsAndParagraphBordersRoundTrip() throws {
