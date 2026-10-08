@@ -794,6 +794,7 @@ enum DocxFormat {
                                     _ rels: [String: String], _ media: (String) -> Data?,
                                     _ indent: Double, _ notes: _Shared) -> [_Built] {
         var style = base
+        var sectionBreakAfter = false
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
             if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] { sheet.apply(ours, to: &style) }
@@ -812,6 +813,13 @@ enum DocxFormat {
             }
             if pPr.first("w:pageBreakBefore") != nil, !_isOff(pPr.first("w:pageBreakBefore")!) {
                 style.pageBreakBefore = true
+            }
+            // A section ending here (its sectPr sits in this paragraph's
+            // properties) starts the next on a new page unless continuous;
+            // the section's own headers and page size are not kept, the
+            // break is — Headers.docx had come back as one page of three.
+            if let sect = pPr.first("w:sectPr"), (sect.first("w:type")?["w:val"] ?? "nextPage") != "continuous" {
+                sectionBreakAfter = true
             }
         }
 
@@ -975,7 +983,7 @@ enum DocxFormat {
             }
         }
         walkInline(p, link: nil)
-        flush(pageBreakAfter: false)
+        flush(pageBreakAfter: sectionBreakAfter)
         return built
     }
 
