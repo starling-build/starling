@@ -167,8 +167,9 @@ on run argv
     end tell
   end tell
   -- the file, then the window
+  -- A long document full of pictures prints for more than 30 s.
   set written to false
-  repeat with i from 1 to 30
+  repeat with i from 1 to 120
     delay 1
     try
       do shell script "test -s " & quoted form of pdfPath
@@ -179,6 +180,11 @@ on run argv
   delay 1
   tell application "System Events"
     tell process "Microsoft Word"
+      -- A dialog still up (the print one, after a failure) swallows ⌘W.
+      if not written then
+        keystroke (ASCII character 27)
+        delay 1
+      end if
       repeat 4 times
         set fn to ""
         try
