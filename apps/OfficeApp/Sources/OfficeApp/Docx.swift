@@ -1232,19 +1232,23 @@ enum DocxFormat {
         return built
     }
 
-    /// A run's properties (CT_RPr children, in schema order).
-    private static func _rPrXML(_ s: CharStyle) -> String {
+    /// A run's properties (CT_RPr children, in schema order). `under` is
+    /// the paragraph style's look: a switch the style turns on and the
+    /// run turns off is written as off (drawing.docx's "b w:val=0" runs
+    /// under a bold heading 3 came back bold).
+    private static func _rPrXML(_ s: CharStyle, under: CharStyle? = nil) -> String {
         var rPr = ""
+        func off(_ tag: String, _ styleHas: Bool) -> String { styleHas ? "<w:\(tag) w:val=\"0\"/>" : "" }
     if let family = s.fontFamily {
         let name = OfficeFonts.exportName(family)
         rPr += "<w:rFonts w:ascii=\"\(_esc(name))\" w:hAnsi=\"\(_esc(name))\" w:cs=\"\(_esc(name))\"/>"
     }
-    if s.bold { rPr += "<w:b/><w:bCs/>" }
-    if s.italic { rPr += "<w:i/><w:iCs/>" }
-    if s.caps { rPr += "<w:caps/>" }
-    if s.smallCaps { rPr += "<w:smallCaps/>" }
-    if s.underline { rPr += "<w:u w:val=\"single\"/>" }
-    if s.strikethrough { rPr += "<w:strike/>" }
+    if s.bold { rPr += "<w:b/><w:bCs/>" } else { rPr += off("b", under?.bold ?? false) }
+    if s.italic { rPr += "<w:i/><w:iCs/>" } else { rPr += off("i", under?.italic ?? false) }
+    if s.caps { rPr += "<w:caps/>" } else { rPr += off("caps", under?.caps ?? false) }
+    if s.smallCaps { rPr += "<w:smallCaps/>" } else { rPr += off("smallCaps", under?.smallCaps ?? false) }
+    if s.underline { rPr += "<w:u w:val=\"single\"/>" } else if under?.underline ?? false { rPr += "<w:u w:val=\"none\"/>" }
+    if s.strikethrough { rPr += "<w:strike/>" } else { rPr += off("strike", under?.strikethrough ?? false) }
     if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
     if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
     if let hl = s.highlight {
@@ -1516,7 +1520,7 @@ enum DocxFormat {
                     body += drawingXML(image)
                     continue
                 }
-                var rPr = _rPrXML(s)
+                var rPr = _rPrXML(s, under: sheetEntry?.char)
                 if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
                     // The mark's number is Word's to show; the run carries
                     // only the reference (and its custom mark text, if any),

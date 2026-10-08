@@ -500,6 +500,18 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(savedSettings.contains("w:val=\"14\"/><w:useFELayout/></w:compat>"), savedSettings)
     }
 
+    func testRunTurningOffItsStyleBoldIsWrittenOff() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "plain heading")])
+        doc.styles = OfficeStyles.sheet
+        var h3 = try XCTUnwrap(doc.styles["Heading3"]); h3.char.bold = true; h3.char.italic = true; doc.styles["Heading3"] = h3
+        doc.styles.apply("Heading3", to: &doc.paragraphs[0].style)
+        XCTAssertFalse(doc.paragraphs[0].runs[0].style.bold)
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:rPr><w:b w:val=\"0\"/><w:i w:val=\"0\"/></w:rPr>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertFalse(back.paragraphs[0].runs[0].style.bold)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
