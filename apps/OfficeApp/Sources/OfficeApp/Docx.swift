@@ -1371,13 +1371,18 @@ enum DocxFormat {
             // Spacing spelled out on every paragraph, so that Word and we
             // lay the file out alike whatever its defaults say.
             pPr += _spacingXML(p.style)
-            var ind = ""
-            if p.style.indentLeft != 0 && p.style.list == nil { ind += " w:left=\"\(Int(p.style.indentLeft * 20))\"" }
-            if p.style.indentRight != 0 { ind += " w:right=\"\(Int(p.style.indentRight * 20))\"" }
-            if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
-            if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
-            if !ind.isEmpty { pPr += "<w:ind\(ind)/>" }
+            // Indents the style sets and the paragraph unsets are written
+            // as zero: IllustrativeCases' Body Text Indent hangs 0.75in
+            // into the margin and every paragraph of it says left 0.
             let sheetEntry = p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] }
+            let sp = sheetEntry?.paragraph
+            var ind = ""
+            if (p.style.indentLeft != 0 || (sp?.indentLeft ?? 0) != 0) && p.style.list == nil { ind += " w:left=\"\(Int(p.style.indentLeft * 20))\"" }
+            if p.style.indentRight != 0 || (sp?.indentRight ?? 0) != 0 { ind += " w:right=\"\(Int(p.style.indentRight * 20))\"" }
+            if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
+            else if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
+            else if (sp?.firstLineIndent ?? 0) != 0 { ind += " w:firstLine=\"0\" w:hanging=\"0\"" }
+            if !ind.isEmpty { pPr += "<w:ind\(ind)/>" }
             switch p.style.alignment {
             case .left:
                 // Left under a style that centres has to say so.

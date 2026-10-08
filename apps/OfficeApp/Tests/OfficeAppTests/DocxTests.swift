@@ -299,6 +299,15 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(numbering.contains("<w:lvlText w:val=\"&gt;\"/>"), numbering)
         XCTAssertTrue(xml.contains("<w:pStyle w:val=\"Centred\"/>"), xml)
         XCTAssertTrue(xml.contains("<w:jc w:val=\"left\"/>"), xml)
+        // An indent the style sets and the paragraph unsets is written as 0.
+        var hung = doc
+        hung.styles["Hung"] = RichNamedStyle(id: "Hung", name: "Hung", paragraph: RichParagraphStyle(indentLeft: -54, firstLineIndent: -18), char: CharStyle())
+        hung.paragraphs[2].style.named = "Hung"
+        hung.paragraphs[2].style.indentLeft = 0
+        hung.paragraphs[2].style.firstLineIndent = 0
+        let hungXML = String(decoding: try Zip.read(try DocxFormat.write(hung, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(hungXML.contains("<w:ind w:left=\"0\" w:firstLine=\"0\" w:hanging=\"0\"/>"), hungXML)
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(hung, pageSetup: .letter)).document.paragraphs[2].style.indentLeft, 0)
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(back.paragraphs[2].style.alignment, .left)
         XCTAssertEqual(back.paragraphs[0].style.listId, "10")
