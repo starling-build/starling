@@ -134,6 +134,12 @@ enum DocxFormat {
         // does not): a table that says nothing itself takes its style's word.
         var tableBorders: [String: _Borders] = [:]
         var defaultBorders: _Borders? = nil
+        // A table style's conditional parts: the first row's fill and run
+        // look, the body rows' bands.
+        var tableConds: [String: _Cond] = [:]
+        // Numbering a paragraph style carries itself (a numbered heading
+        // style): the paragraphs of that style number without a numPr.
+        var styleNums: [String: (numId: String, ilvl: Int)] = [:]
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             _resolveThemeFonts(styles, theme)
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
@@ -164,6 +170,28 @@ enum DocxFormat {
                 }
             }
             for id in tableNodes.keys {
+                var cond = _Cond(), seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = tableNodes[c] {
+                    seen.insert(c)
+                    for part in node.all("w:tblStylePr") {
+                        let fill = part.first("w:tcPr")?.first("w:shd")?["w:fill"].flatMap { hex -> Color? in
+                            guard hex.count == 6, let v = UInt32(hex, radix: 16) else { return nil }
+                            return Color(0xFF00_0000 | Int64(v))
+                        }
+                        switch part["w:type"] {
+                        case "firstRow":
+                            if cond.headerFill == nil { cond.headerFill = fill }
+                            if cond.headerChar == nil, let rPr = part.first("w:rPr") { cond.headerChar = _charStyle(rPr, base: CharStyle()) }
+                        case "band1Horz": if cond.band1 == nil { cond.band1 = fill }
+                        case "band2Horz": if cond.band2 == nil { cond.band2 = fill }
+                        default: break
+                        }
+                    }
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
+                tableConds[id] = cond
+            }
+            for id in tableNodes.keys {
                 var m = _Margins(), seen = Set<String>(), cur: String? = id
                 while let c = cur, !seen.contains(c), let node = tableNodes[c] {
                     seen.insert(c)
@@ -180,6 +208,19 @@ enum DocxFormat {
             var paragraphStyles: [String: XNode] = [:]
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 if let id = style["w:styleId"] { paragraphStyles[id] = style }
+            }
+            for id in paragraphStyles.keys {
+                var seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = paragraphStyles[c] {
+                    seen.insert(c)
+                    if let numPr = node.first("w:pPr")?.first("w:numPr") {
+                        if let numId = numPr.first("w:numId")?["w:val"], numId != "0" {
+                            styleNums[id] = (numId, Int(numPr.first("w:ilvl")?["w:val"] ?? "0") ?? 0)
+                        }
+                        break
+                    }
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
             }
             var resolved: [String: (paragraph: RichParagraphStyle, char: CharStyle)] = [:]
             func resolve(_ id: String, _ seen: Set<String> = []) -> (paragraph: RichParagraphStyle, char: CharStyle) {
@@ -338,6 +379,7 @@ enum DocxFormat {
         var tableStyles: [String: TableStyle] = [:]
         var tableCount = 0
         var currentCell: CellRef? = nil
+        var cellChar = CharStyle()   // the table style's look for the first row's runs
         var cellBase = base   // the table style's spacing while inside one
 
         func emit(_ p: RichParagraph) {
@@ -374,7 +416,7 @@ enum DocxFormat {
         func walkBlock(_ node: XNode, indent: Double, depth: Int = 0) {
             switch node.name {
             case "w:p":
-                for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, sheet, kindByNum, rels, media, indent, notes) {
+                for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
                 }
             case "w:tbl" where currentCell != nil:
@@ -417,6 +459,13 @@ enum DocxFormat {
                 style.borders = borders?.on ?? false
                 style.borderColor = borders?.color
                 if unwrapped(node, "w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
+                // The style's conditional parts, as w:tblLook switches them
+                // on (attributes in 2010 files, bits of w:val in 2007's).
+                let cond = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableConds[$0] } ?? _Cond()
+                let look = node.first("w:tblPr")?.first("w:tblLook")
+                let lookVal = look.flatMap { Int($0["w:val"] ?? "", radix: 16) } ?? 0x04A0
+                let firstRowOn = look?["w:firstRow"].map { $0 != "0" } ?? (lookVal & 0x0020 != 0)
+                let bandsOn = !(look?["w:noHBand"].map { $0 != "0" } ?? (lookVal & 0x0200 != 0))
                 // Where the table sits in the column (w:jc on the table).
                 switch node.first("w:tblPr")?.first("w:jc")?["w:val"] {
                 case "center": style.alignment = .center
@@ -471,7 +520,12 @@ enum DocxFormat {
                            let v = UInt32(hex, radix: 16) {
                             fill = Color(0xFF00_0000 | Int64(v))
                         }
+                        if fill == nil {
+                            if r == 0 && firstRowOn { fill = cond.headerFill }
+                            else if bandsOn { fill = (r - (firstRowOn ? 1 : 0)) % 2 == 0 ? cond.band1 : cond.band2 }
+                        }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill)
+                        cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle()) : CharStyle()
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                         if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
@@ -480,6 +534,7 @@ enum DocxFormat {
                     }
                 }
                 currentCell = nil
+                cellChar = CharStyle()
             case "w:sdt":
                 if let content = node.first("w:sdtContent") {
                     for child in content.children { walkBlock(child, indent: indent) }
@@ -727,6 +782,14 @@ enum DocxFormat {
         var color: Color?
     }
 
+    /// A table style's conditional formatting, the parts the editor shows.
+    struct _Cond {
+        var headerFill: Color? = nil
+        var headerChar: CharStyle? = nil
+        var band1: Color? = nil
+        var band2: Color? = nil
+    }
+
     /// `w:tblBorders` of a table or table style (or `w:tcBorders` of a
     /// cell): nil when it says nothing, off when every edge it lists is
     /// nil/none, else on, with the first drawn edge's colour (nil for
@@ -851,10 +914,11 @@ enum DocxFormat {
     ]
 
     private static func _paragraphs(_ p: XNode, _ base: RichParagraphStyle,
-                                    _ styleIds: [String: String], _ sheet: RichStyleSheet,
+                                    _ styleIds: [String: String], _ styleNums: [String: (numId: String, ilvl: Int)],
+                                    _ sheet: RichStyleSheet,
                                     _ nums: [String: [Int: ListKind]],
                                     _ rels: [String: String], _ media: (String) -> Data?,
-                                    _ indent: Double, _ notes: _Shared) -> [_Built] {
+                                    _ indent: Double, _ notes: _Shared, _ cellChar: CharStyle = CharStyle()) -> [_Built] {
         var style = base
         var sectionBreakAfter = false
         if let pPr = p.first("w:pPr") {
@@ -866,9 +930,15 @@ enum DocxFormat {
                 style.markRevision = RevisionMark(kind: rev.name == "w:ins" ? .inserted : .deleted,
                                                   author: rev["w:author"] ?? "", date: rev["w:date"] ?? "")
             }
+            // The paragraph's own numbering, else its style's (a numbered
+            // heading style: 65099's "1.1.1 Acronyms").
+            var num: (numId: String, ilvl: Int)? = nil
             if let numPr = pPr.first("w:numPr") {
-                let ilvl = Int(numPr.first("w:ilvl")?["w:val"] ?? "0") ?? 0
-                let numId = numPr.first("w:numId")?["w:val"] ?? ""
+                num = (numPr.first("w:numId")?["w:val"] ?? "", Int(numPr.first("w:ilvl")?["w:val"] ?? "0") ?? 0)
+            } else if let id = pPr.first("w:pStyle")?["w:val"], let n = styleNums[id] {
+                num = n
+            }
+            if let (numId, ilvl) = num {
                 if numId != "0" {
                     style.list = nums[numId]?[ilvl] ?? nums[numId]?[0] ?? .bullet
                     style.listLevel = min(8, ilvl)
@@ -983,7 +1053,7 @@ enum DocxFormat {
             runs.append(Run(length: s.utf16.count, style: cs))
         }
         func walkRun(_ r: XNode, link: String?, revision: RevisionMark? = nil) {
-            var cs = CharStyle()
+            var cs = cellChar
             cs.link = link
             cs.revision = revision
             if let rPr = r.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
@@ -1100,6 +1170,10 @@ enum DocxFormat {
             case "w:color":
                 if let hex = child["w:val"], hex.lowercased() != "auto", let v = Int(hex, radix: 16) {
                     cs.color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+                } else if child["w:val"]?.lowercased() == "auto" {
+                    // "auto" is the text colour: a style based on a blue
+                    // heading that says auto is black (65099's Edf Titre 3).
+                    cs.color = nil
                 }
             case "w:highlight":
                 cs.highlight = _highlight(child["w:val"] ?? "none")

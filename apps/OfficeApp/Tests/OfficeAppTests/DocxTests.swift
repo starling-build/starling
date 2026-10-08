@@ -238,6 +238,46 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try DocxFormat.read(try Zip.write(entries)).document.footer, "Left\t\tPage {PAGE}")
     }
 
+    func testStyleNumberingColourAutoAndConditionalTableParts() throws {
+        // 65099: a heading style based on a blue Heading 3 that says
+        // colour auto and carries its own numPr, and a table style whose
+        // first row is white on black with grey bands.
+        var a = RichParagraph(text: "Acronym"), b = RichParagraph(text: "Definition"), c = RichParagraph(text: "LAB"), d = RichParagraph(text: "Logical")
+        a.cell = CellRef(table: "T", row: 0, column: 0); b.cell = CellRef(table: "T", row: 0, column: 1)
+        c.cell = CellRef(table: "T", row: 1, column: 0); d.cell = CellRef(table: "T", row: 1, column: 1)
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "Acronyms"), a, b, c, d, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [100, 100]
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"EdfTitre3\"><w:name w:val=\"Edf Titre 3\"/><w:basedOn w:val=\"Heading3\"/><w:pPr><w:numPr><w:ilvl w:val=\"2\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr><w:rPr><w:b/><w:color w:val=\"auto\"/></w:rPr></w:style><w:style w:type=\"table\" w:styleId=\"Grid4\"><w:name w:val=\"Grid 4\"/><w:tblPr><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"666666\"/></w:tblBorders></w:tblPr><w:tblStylePr w:type=\"firstRow\"><w:rPr><w:b/><w:color w:val=\"FFFFFF\"/></w:rPr><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"000000\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"CCCCCC\"/></w:tcPr></w:tblStylePr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:p><w:pPr><w:spacing", with: "<w:p><w:pPr><w:pStyle w:val=\"EdfTitre3\"/><w:spacing")   // the first paragraph only
+        xml = xml.replacingAll("<w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/>", with: "<w:tblPr><w:tblStyle w:val=\"Grid4\"/><w:tblW w:w=\"0\" w:type=\"auto\"/>")
+        xml = xml.replacingAll("<w:tblBorders>", with: "<w:tblBordersX>").replacingAll("</w:tblBorders>", with: "</w:tblBordersX>")
+        xml = xml.replacingAll("<w:tblLook w:val=\"04A0\"/>", with: "<w:tblLook w:val=\"04A0\" w:firstRow=\"1\" w:noHBand=\"0\"/>")
+        let ni = entries.firstIndex { $0.name == "word/numbering.xml" }
+        let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1\"/></w:lvl><w:lvl w:ilvl=\"1\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.%2\"/></w:lvl><w:lvl w:ilvl=\"2\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.%2.%3\"/></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+        if let ni { entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8)) }
+        XCTAssertNotNil(ni, "the writer always ships a numbering part")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let h = back.paragraphs[0]
+        XCTAssertEqual(h.style.list, .numbered)
+        XCTAssertEqual(h.style.listLevel, 2)
+        XCTAssertEqual(h.style.listId, "1")
+        XCTAssertNil(back.styles["EdfTitre3"]?.char.color, "auto clears the inherited blue")
+        XCTAssertTrue(back.styles["EdfTitre3"]?.char.bold ?? false)
+        let cells = back.paragraphs.filter { $0.cell != nil }
+        XCTAssertEqual(cells.map { $0.cell?.fill }, [Color(0xFF000000), Color(0xFF000000), Color(0xFFCCCCCC), Color(0xFFCCCCCC)])
+        XCTAssertEqual(cells[0].runs[0].style.color, Color(0xFFFFFFFF))
+        XCTAssertTrue(cells[0].runs[0].style.bold)
+        XCTAssertNil(cells[2].runs[0].style.color)
+        XCTAssertEqual(back.tableStyles.values.first?.borderColor, Color(0xFF666666))
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
