@@ -213,19 +213,50 @@ the same Mac steals the save panel's keystrokes. And a recursive walk
 over a fuzzer's XML tree overflows the stack where the iterative one
 does not (deep-table-cell, again).
 
-After the round (110 scored; the 11 errors are originals Word itself
+After that pass (110 scored; the 11 errors are originals Word itself
 refuses — six fuzzer zips and five damaged files — so every copy we write
 prints): 25 documents at 0%, 45 under 1%, 20 between 1 and 5%, 20 over
-5%. Round 1 was 20 / 39 / 21 / 25 of 105. Still ranked, in order of
-pixels: pictures inline with text (VariousPictures: each picture is a
-paragraph of its own here, so the page overflows), tracked changes
-(delins, 13%: `w:del` text is dropped and `w:ins` accepted — what Word
-prints is the markup), multiple sections and first-page/even headers
-(Headers, bib-chernigovka, bug65649: page counts differ), text boxes
-and anchored shapes positioned on the page (60316, shapes-with-text,
-chartex: kept verbatim, but the layout stacks them inline), checkbox
-form fields and cell merges in forms (form_footnotes), `w:caps` and
-paragraph borders (3 documents each).
+5%. Round 1 was 20 / 39 / 21 / 25 of 105.
+
+**Second pixel round, 2026-10-08.** The ranking again, and what each
+picture turned out to mean:
+
+- **Table borders** were drawn on every table; 64 of the corpus's 109
+  say nothing about borders and have none, because Normal Table has
+  none. Borders resolve from the table, its style's chain, the default
+  table style, then none.
+- **Over-wide grids** (33 tables; 60329's first column alone is wider
+  than its landscape page): Word autofits them to the column, the layout
+  now scales them the same way.
+- **Line rules**: `exact` and `atLeast` were ignored (Bug51170's "at
+  least 1pt" paragraphs took Normal's 1.15 lines). Exact and real
+  minimums are `lineHeightPoints` with a new `lineHeightIsMinimum`; a
+  tiny minimum is single spacing.
+- **Negative indents** (a style hanging into the margin) were written as
+  none; a footnote mark lost its own run properties and wrapped
+  elsewhere — the boringcrypto layout round trip caught that one.
+- **Pictures inline with text** (VariousPictures 100%, issue_51265_3
+  40%): every picture had been a paragraph of its own, so a line of three
+  became a column of three and the page overflowed. A picture or kept
+  object is now a one-character run (U+FFFC) whose style names an entry
+  in the paragraph's `inlineImages`; the layout hands the painter a
+  placeholder of its size on the baseline (`RichImageSpan`, a concrete
+  `PlaceholderSpan` — the port keeps Flutter's assertion that the base
+  is abstract — and the new file needed the scratch's plan reset before
+  any dependent saw it) and paints the picture into the placeholder's
+  box; a paragraph that is one picture alone stays the editor's picture
+  paragraph.
+- **Tracked changes** (delins 13%): deletions were dropped and
+  insertions accepted; what Word prints is the markup. Runs inside
+  `w:ins`/`w:del` carry a `RevisionMark`, shown underlined or struck in
+  the reviewer's colour, written back as the change they were.
+  Formatting-change balloons are not kept.
+- **Section breaks** in the body were dropped with their `sectPr`
+  (Headers: one page of three); a next-page break is a page break now.
+
+Harness: the Print dialog's PDF menu sometimes needs a second click,
+and a miss left the dialog open and the rest of the pass "no document
+window" — the script retries three times, then dismisses the dialog.
 
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3

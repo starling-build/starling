@@ -116,9 +116,26 @@ on run argv
         keystroke (ASCII character 27)
         return "error: no print dialog for " & docName
       end if
-      click menu button 1 of group 2 of splitter group 1 of window "Print"
-      delay 1
-      click menu item "Save as PDF…" of menu 1 of menu button 1 of group 2 of splitter group 1 of window "Print"
+      -- The PDF menu sometimes needs a second click to open; after three
+      -- misses the dialog is dismissed so the next document is not stuck
+      -- behind it.
+      set chosen to false
+      repeat with i from 1 to 3
+        try
+          click menu button 1 of group 2 of splitter group 1 of window "Print"
+          delay 1
+          click menu item "Save as PDF…" of menu 1 of menu button 1 of group 2 of splitter group 1 of window "Print"
+          set chosen to true
+          exit repeat
+        on error
+          delay 1
+        end try
+      end repeat
+      if not chosen then
+        keystroke (ASCII character 27)
+        delay 1
+        return "error: PDF menu did not open for " & docName
+      end if
       delay 2
       keystroke pdfName
       delay 0.5
