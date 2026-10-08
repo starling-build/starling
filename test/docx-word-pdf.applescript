@@ -137,15 +137,30 @@ on run argv
         return "error: PDF menu did not open for " & docName
       end if
       delay 2
+      -- The save panel is a sheet of the Print window. Keystrokes go to
+      -- whichever app is frontmost — another session driving PowerPoint
+      -- on this Mac steals them — so Word is brought to the front before
+      -- each group, and Save is clicked through the sheet rather than
+      -- typed.
+      set frontmost to true
+      delay 0.3
       keystroke pdfName
       delay 0.5
+      set frontmost to true
       keystroke "g" using {command down, shift down}
       delay 1.5
+      set frontmost to true
       keystroke pdfDir
       delay 0.5
       keystroke return
       delay 2
-      keystroke return
+      set frontmost to true
+      set saved to false
+      try
+        click button "Save" of splitter group 1 of sheet 1 of window "Print"
+        set saved to true
+      end try
+      if not saved then keystroke return
       -- Word renders only now, and may still object ("Your margins are
       -- pretty small…", the paper-size and printable-area alerts): Yes.
       repeat with i from 1 to 6
