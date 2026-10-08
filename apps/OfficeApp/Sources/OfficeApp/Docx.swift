@@ -573,6 +573,28 @@ enum DocxFormat {
                     document.footer = _fieldText(node)
                 }
             }
+            // A header or footer with a picture, a table or a text box
+            // (a logo, 60329's banner) is more than its text: the part is
+            // kept whole and written back unless the text was edited; the
+            // first-page and even-page ones, which the editor has no
+            // field for, are kept always.
+            document.titlePage = sect.first("w:titlePg") != nil
+            document.evenAndOddHeaders = part("word/settings.xml").map { String(decoding: $0, as: UTF8.self).containsSubstring("<w:evenAndOddHeaders") } ?? false
+            for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
+                let type = ref["w:type"] ?? "default"
+                guard ["default", "first", "even"].contains(type), let rid = ref["r:id"], let target = relInfo[rid]?.target,
+                      let data = media(target), _wellFormed(data), let node = XNode.parse(data) else { continue }
+                let xml = String(decoding: data, as: UTF8.self)
+                let rich = ["<w:drawing", "<w:pict", "<w:tbl>", "<w:tbl ", "<mc:AlternateContent", "<w:object"].contains { xml.containsSubstring($0) }
+                guard rich || type != "default" else { continue }
+                let path = _resolvePath("word", target)
+                notes.keep(path)
+                guard notes.kept[path] != nil else { continue }
+                document.keptHeaderFooters.append(KeptHeaderFooter(kind: ref.name == "w:headerReference" ? .header : .footer,
+                                                                   type: type, part: path, text: _fieldText(node)))
+            }
+            document.keptParts = notes.kept
+            document.keptPartTypes = notes.keptTypes
         }
         return DocxDocument(document: document, pageSetup: pageSetup)
     }
@@ -620,12 +642,23 @@ enum DocxFormat {
                 }
             }
         }
-        for p in root.all("w:p") {
-            var line = ""
-            walk(p, into: &line)
-            let trimmed = line.trimmingWhitespace(newlines: false)
-            if !trimmed.isEmpty { out.append(trimmed) }
+        // Every paragraph, including those inside a table or a text box
+        // (60329's banner is a one-cell table).
+        func paragraphs(_ node: XNode) {
+            for child in node.children {
+                if child.name == "w:p" {
+                    var line = ""
+                    walk(child, into: &line)
+                    let trimmed = line.trimmingWhitespace(newlines: false)
+                    if !trimmed.isEmpty { out.append(trimmed) }
+                } else if child.name == "mc:AlternateContent" {
+                    if let pick = child.first("mc:Choice") ?? child.first("mc:Fallback") { paragraphs(pick) }
+                } else {
+                    paragraphs(child)
+                }
+            }
         }
+        paragraphs(root)
         return out.joined(separator: " ")
     }
 
@@ -933,7 +966,7 @@ enum DocxFormat {
     /// The parts the writer makes itself; a kept part never overrides one.
     static let _ownParts: Set<String> = [
         "word/document.xml", "word/styles.xml", "word/numbering.xml", "word/settings.xml",
-        "word/_rels/document.xml.rels", "word/header1.xml", "word/footer1.xml",
+        "word/_rels/document.xml.rels",
     ]
 
     private static func _paragraphs(_ p: XNode, _ base: RichParagraphStyle,
@@ -1558,11 +1591,31 @@ enum DocxFormat {
         if doc.paragraphs.last?.cell != nil { body += "<w:p/>" }
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
         body += "<w:sectPr>"
-        if !doc.header.isEmpty { body += "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>" }
-        if !doc.footer.isEmpty { body += "<w:footerReference w:type=\"default\" r:id=\"rIdFooter\"/>" }
+        // Kept header/footer parts: the default ones only while their text
+        // is what the editor still shows; the generated ones take a name
+        // no kept part uses.
+        let keptHF = doc.keptHeaderFooters.enumerated().filter { doc.keptParts[$0.element.part] != nil }.filter { (_, k) in
+            k.type != "default" || (k.kind == .header ? doc.header : doc.footer) == k.text
+        }
+        let keptDefaultHeader = keptHF.contains { $0.element.kind == .header && $0.element.type == "default" }
+        let keptDefaultFooter = keptHF.contains { $0.element.kind == .footer && $0.element.type == "default" }
+        func freeName(_ stem: String) -> String {
+            var n = 1
+            while doc.keptParts["word/\(stem)\(n).xml"] != nil { n += 1 }
+            return "\(stem)\(n).xml"
+        }
+        let headerName = freeName("header"), footerName = freeName("footer")
+        let writeHeader = !doc.header.isEmpty && !keptDefaultHeader
+        let writeFooter = !doc.footer.isEmpty && !keptDefaultFooter
+        if writeHeader { body += "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>" }
+        if writeFooter { body += "<w:footerReference w:type=\"default\" r:id=\"rIdFooter\"/>" }
+        for (i, k) in keptHF {
+            body += "<w:\(k.kind == .header ? "headerReference" : "footerReference") w:type=\"\(k.type)\" r:id=\"rIdKeptHF\(i)\"/>"
+        }
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"0\"/>"
         if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
+        if doc.titlePage && keptHF.contains(where: { $0.element.type == "first" }) { body += "<w:titlePg/>" }
         body += "</w:sectPr>"
 
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:wp14=\"http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15 wp14\""
@@ -1580,15 +1633,19 @@ enum DocxFormat {
         relsXML += keptRels
         var extraParts: [ZipEntry] = []
         var extraOverrides = ""
-        if !doc.header.isEmpty {
-            relsXML += "<Relationship Id=\"rIdHeader\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\"/>"
-            extraParts.append(ZipEntry(name: "word/header1.xml", data: Data(_headerFooterPart("w:hdr", doc.header, center: false, width: pageSetup.contentWidth).utf8)))
-            extraOverrides += "<Override PartName=\"/word/header1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/>"
+        if writeHeader {
+            relsXML += "<Relationship Id=\"rIdHeader\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"\(headerName)\"/>"
+            extraParts.append(ZipEntry(name: "word/\(headerName)", data: Data(_headerFooterPart("w:hdr", doc.header, center: false, width: pageSetup.contentWidth).utf8)))
+            extraOverrides += "<Override PartName=\"/word/\(headerName)\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/>"
         }
-        if !doc.footer.isEmpty {
-            relsXML += "<Relationship Id=\"rIdFooter\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer\" Target=\"footer1.xml\"/>"
-            extraParts.append(ZipEntry(name: "word/footer1.xml", data: Data(_headerFooterPart("w:ftr", doc.footer, center: true, width: pageSetup.contentWidth).utf8)))
-            extraOverrides += "<Override PartName=\"/word/footer1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>"
+        if writeFooter {
+            relsXML += "<Relationship Id=\"rIdFooter\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer\" Target=\"\(footerName)\"/>"
+            extraParts.append(ZipEntry(name: "word/\(footerName)", data: Data(_headerFooterPart("w:ftr", doc.footer, center: true, width: pageSetup.contentWidth).utf8)))
+            extraOverrides += "<Override PartName=\"/word/\(footerName)\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>"
+        }
+        for (i, k) in keptHF {
+            let rel = k.kind == .header ? "header" : "footer"
+            relsXML += "<Relationship Id=\"rIdKeptHF\(i)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/\(rel)\" Target=\"\(_esc(String(k.part.dropFirst(5))))\"/>"
         }
         // Settings: the compatibility mode is Word's own (15 = Word 2013 and
         // later). Without a settings part Word opens the file in
@@ -1619,7 +1676,9 @@ enum DocxFormat {
             }
         }
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
-        extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(_settingsPart.utf8)))
+        let settings = doc.evenAndOddHeaders && keptHF.contains(where: { $0.element.type == "even" })
+            ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
+        extraParts.append(ZipEntry(name: "word/settings.xml", data: Data(settings.utf8)))
         extraOverrides += "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
         relsXML += "</Relationships>"
         var contentTypes = _contentTypes.replacingAll("</Types>", with: extraOverrides + "</Types>")

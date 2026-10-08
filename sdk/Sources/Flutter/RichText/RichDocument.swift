@@ -122,6 +122,22 @@ public struct BorderLine: Hashable, Sendable {
     }
 }
 
+/// A header or footer part kept as the file had it (see
+/// `RichDocument.keptHeaderFooters`).
+public struct KeptHeaderFooter: Hashable, Sendable {
+    public enum Kind: Int, Hashable, Sendable { case header, footer }
+    public var kind: Kind
+    /// Word's type: "default", "first" or "even".
+    public var type: String
+    /// The package path of the part, a key of `keptParts`.
+    public var part: String
+    /// Its text as read, with the page fields as placeholders.
+    public var text: String
+    public init(kind: Kind, type: String, part: String, text: String) {
+        self.kind = kind; self.type = type; self.part = part; self.text = text
+    }
+}
+
 /// A tab stop: `position` points from the paragraph's left edge.
 public struct TabStop: Hashable, Sendable {
     public enum Alignment: Int, Hashable, Sendable { case left, center, right, decimal }
@@ -1116,6 +1132,15 @@ public struct RichDocument: Hashable, Sendable {
     /// reach — by package path. The body refers into them (`NoteReference`);
     /// the format writer copies them back verbatim.
     public var keptParts: [String: Data] = [:]
+    /// Header and footer parts kept verbatim (in `keptParts`): those with
+    /// pictures, tables or text boxes the editor cannot show, and the
+    /// first-page and even-page ones. `text` is what the part read as, so
+    /// the writer knows whether the editor's `header`/`footer` changed.
+    public var keptHeaderFooters: [KeptHeaderFooter] = []
+    /// Word's w:titlePg: the first page uses the "first" header/footer.
+    public var titlePage = false
+    /// Word's w:evenAndOddHeaders: even pages use the "even" ones.
+    public var evenAndOddHeaders = false
     /// Content types of `keptParts`, by package path, as the file declared
     /// them (a kept part the editor knows nothing about still needs one).
     public var keptPartTypes: [String: String] = [:]

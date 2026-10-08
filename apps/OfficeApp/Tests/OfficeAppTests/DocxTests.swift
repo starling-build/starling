@@ -335,6 +335,54 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.styles[RichNamedStyle.normalId]?.char.fontSize, 10)
     }
 
+    func testRichAndFirstPageHeadersKeptVerbatim() throws {
+        // A default header holding a table (60329's banner) and a
+        // first-page header: both parts come back as they were, the
+        // first page switched on; editing the header text replaces the
+        // default part with a generated one under a free name.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "body")])
+        doc.header = "Banner"
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let hi = entries.firstIndex { $0.name == "word/header1.xml" }!
+        let banner = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"9000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"9000\" w:type=\"dxa\"/><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"1F1F7A\"/></w:tcPr><w:p><w:r><w:t>Banner</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:hdr>"
+        entries[hi] = ZipEntry(name: "word/header1.xml", data: Data(banner.utf8))
+        let first = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:p><w:r><w:t>First page only</w:t></w:r></w:p></w:hdr>"
+        entries.append(ZipEntry(name: "word/header2.xml", data: Data(first.utf8)))
+        let ri = entries.firstIndex { $0.name == "word/_rels/document.xml.rels" }!
+        entries[ri] = ZipEntry(name: entries[ri].name, data: Data(String(decoding: entries[ri].data, as: UTF8.self).replacingAll("</Relationships>", with: "<Relationship Id=\"rIdFirst\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header2.xml\"/></Relationships>").utf8))
+        let ci = entries.firstIndex { $0.name == "[Content_Types].xml" }!
+        entries[ci] = ZipEntry(name: entries[ci].name, data: Data(String(decoding: entries[ci].data, as: UTF8.self).replacingAll("</Types>", with: "<Override PartName=\"/word/header2.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/></Types>").utf8))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>", with: "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/><w:headerReference w:type=\"first\" r:id=\"rIdFirst\"/>")
+        xml = xml.replacingAll("</w:sectPr>", with: "<w:titlePg/></w:sectPr>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.header, "Banner")
+        XCTAssertTrue(back.titlePage)
+        XCTAssertEqual(back.keptHeaderFooters.map { "\($0.type):\($0.part):\($0.text)" }, ["default:word/header1.xml:Banner", "first:word/header2.xml:First page only"])
+        XCTAssertEqual(back.keptParts["word/header1.xml"], Data(banner.utf8))
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        XCTAssertEqual(saved.first { $0.name == "word/header1.xml" }?.data, Data(banner.utf8))
+        XCTAssertEqual(saved.first { $0.name == "word/header2.xml" }?.data, Data(first.utf8))
+        let savedXML = String(decoding: saved.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(savedXML.contains("<w:headerReference w:type=\"default\" r:id=\"rIdKeptHF0\"/><w:headerReference w:type=\"first\" r:id=\"rIdKeptHF1\"/>"), savedXML)
+        XCTAssertTrue(savedXML.contains("<w:titlePg/></w:sectPr>"), savedXML)
+        let savedRels = String(decoding: saved.first { $0.name == "word/_rels/document.xml.rels" }!.data, as: UTF8.self)
+        XCTAssertTrue(savedRels.contains("Id=\"rIdKeptHF0\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\""), savedRels)
+        XCTAssertFalse(savedRels.contains("rIdHeader"), savedRels)
+        let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document
+        XCTAssertEqual(again.keptHeaderFooters.map(\.part), ["word/header1.xml", "word/header2.xml"])
+        // Edited: the banner part goes, a generated header3.xml carries the text.
+        var edited = back
+        edited.header = "New text"
+        let edit = try Zip.read(try DocxFormat.write(edited, pageSetup: .letter))
+        let editXML = String(decoding: edit.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(editXML.contains("<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/><w:headerReference w:type=\"first\" r:id=\"rIdKeptHF1\"/>"), editXML)
+        XCTAssertNotNil(edit.first { $0.name == "word/header3.xml" })
+        XCTAssertEqual(try DocxFormat.read(try Zip.write(edit)).document.header, "New text")
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
