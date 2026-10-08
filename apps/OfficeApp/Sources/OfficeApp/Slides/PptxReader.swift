@@ -344,6 +344,13 @@ private struct PptxReader {
             let theme = PptxTheme(themePart.flatMap(package.xml))
             var colors = ColorContext(theme: theme)
             if let map = master?.first("p:clrMap") { for (k, v) in map.attrs { colors.map[k] = v } }
+            // A slide (or its layout) may override the map — swapping bg1
+            // for dk1 turns a light theme's slide dark.
+            for owner in [layout, slide] {
+                if let o = owner?.first("p:clrMapOvr")?.first("a:overrideClrMapping") {
+                    for (k, v) in o.attrs { colors.map[k] = v }
+                }
+            }
             if n == 0 { deckTheme = Self._deckTheme(theme, colors) }
             let ctx = SlideContext(package: package, part: part, slide: slide, layout: layout, master: master,
                                    colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images)
@@ -399,6 +406,9 @@ private struct PptxReader {
             }
             slides.append(SlideState(
                 id: id(), layout: Self._layoutKind(layoutType), hidden: slide["show"] == "0",
+                hideMasterShapes: slide["showMasterSp"] == "0",
+                clrMapOvrXML: slide.first("p:clrMapOvr").map(PptxXML.serialize),
+                controlsXML: slide.first("p:cSld")?.first("p:controls").map(PptxXML.serialize),
                 notes: ctx.notes(), shapes: shapes, layoutPart: layoutPart,
                 backgroundXML: bg.map(PptxXML.serialize), background: bgFill, inheritedBackground: inherited,
                 sourcePart: part,
@@ -565,7 +575,11 @@ private struct SlideContext {
         func groupOf(_ el: XNode) -> ShapeGroup? {
             if let group { return group }
             let nv = el.first("p:nvGrpSpPr")?.first("p:cNvPr")
-            return ShapeGroup(fileId: nv?["id"].flatMap(Int.init), name: nv?["name"] ?? "Group", key: id())
+            let fill = el.first("p:grpSpPr")?.children.first {
+                ["a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill", "a:grpFill"].contains($0.name)
+            }
+            return ShapeGroup(fileId: nv?["id"].flatMap(Int.init), name: nv?["name"] ?? "Group", key: id(),
+                              hidden: nv?["hidden"] == "1", fillXML: fill.map(PptxXML.serialize))
         }
         for el in tree.children {
             switch el.name {
@@ -592,7 +606,10 @@ private struct SlideContext {
                       let cox = chOff["x"].flatMap(Double.init), let coy = chOff["y"].flatMap(Double.init),
                       let ccx = chExt["cx"].flatMap(Double.init), let ccy = chExt["cy"].flatMap(Double.init),
                       ccx > 0, ccy > 0 else {
-                    shapes(in: el, transform: transform, into: &out, id: id, group: groupOf(el))
+                    // No child space to map through (a zero `chExt`, which
+                    // PowerPoint still draws somehow — tdf136830): kept
+                    // whole, so it gets exactly that back.
+                    add(_opaque(el, label: "Group", transform, id: id), el)
                     continue
                 }
                 let sx = frame.width / (ccx / Pptx.emu), sy = frame.height / (ccy / Pptx.emu)
@@ -777,10 +794,19 @@ private struct SlideContext {
            nv.children.contains(where: { ["a:audioFile", "a:videoFile", "a:quickTimeFile", "a:wavAudioFile"].contains($0.name) }) {
             return _opaque(el, label: "Media", transform, id: id)
         }
+        // A picture in a placeholder (`p:ph`) may leave its frame to the
+        // layout's (`<p:spPr/>`): the inherited placeholder says where.
+        var own = el.first("p:spPr")?.first("a:xfrm").flatMap(_xfrmRect)
+        if own == nil, let ph = _ph(el) {
+            let inherited = _inherited(ph)
+            for node in [inherited.layout, inherited.master] {
+                if let x = node?.first("p:spPr")?.first("a:xfrm"), let r = _xfrmRect(x) { own = r; break }
+            }
+        }
         guard let rid = el.first("p:blipFill")?.first("a:blip")?["r:embed"],
               let target = package.rels(part).first(where: { $0.id == rid }), !target.external,
               package.parts[target.target] != nil,
-              var frame = el.first("p:spPr")?.first("a:xfrm").flatMap(_xfrmRect) else {
+              var frame = own else {
             return _opaque(el, label: "Picture", transform, id: id)
         }
         if let t = transform { frame = t(frame) }
@@ -793,11 +819,16 @@ private struct SlideContext {
             let c = EdgeInsets(left: f("l"), top: f("t"), right: f("r"), bottom: f("b"))
             if c != .zero { crop = c }
         }
-        return ShapeState(id: id(), name: el.first("p:nvPicPr")?.first("p:cNvPr")?["name"] ?? "Picture",
-                          kind: .picture(image), frame: frame, rotation: rotation, fill: nil, outline: nil,
-                          outlineWidth: 0, anchor: .top, insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
-                          prompt: nil, text: nil, font: nil, size: 18, color: Color(0xFF000000), listIndent: 18,
-                          crop: crop)
+        var s = ShapeState(id: id(), name: el.first("p:nvPicPr")?.first("p:cNvPr")?["name"] ?? "Picture",
+                           kind: .picture(image), frame: frame, rotation: rotation, fill: nil, outline: nil,
+                           outlineWidth: 0, anchor: .top, insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                           prompt: nil, text: nil, font: nil, size: 18, color: Color(0xFF000000), listIndent: 18,
+                           crop: crop)
+        // The element too: written back while the picture is unchanged.
+        s.sourceXML = PptxXML.serialize(el)
+        s.sourcePart = part
+        s.keptPicture = KeptPicture(imageId: image.id, crop: crop, rotation: rotation)
+        return s
     }
 
     /// `a:tbl` as an editable table: grid widths, merged cells (gridSpan,

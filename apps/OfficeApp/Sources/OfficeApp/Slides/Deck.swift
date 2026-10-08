@@ -87,6 +87,12 @@ struct ShapeGroup: Equatable {
     var name: String
     /// Tells this group from another of the same slide.
     var key: Int
+    /// `cNvPr hidden="1"`: not shown, written back as such.
+    var hidden = false
+    /// The group's own fill (`p:grpSpPr`'s solid, gradient, picture or
+    /// pattern fill) as read: members saying `a:grpFill` take it, so a
+    /// save writes it back on the group it rebuilds.
+    var fillXML: String? = nil
 }
 
 /// A connector as read (`p:cxnSp`): the deck draws it as a straight line
@@ -98,6 +104,16 @@ struct KeptLine: Equatable {
     var box: Rect
     var outline: Color?
     var width: Double
+}
+
+/// A picture as read (with `sourceXML`): written back verbatim while its
+/// image, crop and turn are unchanged, so what this app does not model —
+/// the blip's recolouring and transparency, a crop to a shape, a flip, a
+/// fill or outline behind the picture — survives a save.
+struct KeptPicture: Equatable {
+    var imageId: String
+    var crop: EdgeInsets?
+    var rotation: Double
 }
 
 /// A shape's look as its file spelled it: the fill, line and effects in its
@@ -298,6 +314,8 @@ final class SlideShape {
     var group: ShapeGroup? = nil
     /// A connector's geometry as read (with `sourceXML`).
     var keptLine: KeptLine? = nil
+    /// A picture as read (with `sourceXML`).
+    var keptPicture: KeptPicture? = nil
     /// Shrink the text to fit the shape (PowerPoint's `normAutofit`), and
     /// the scale it is drawn at now (its sizes stay as typed).
     var autofit = false
@@ -443,6 +461,17 @@ final class Slide {
     var shapes: [SlideShape]
     let notes: RichDocumentController
     var hidden = false
+    /// `showMasterSp="0"`: the layout's and master's own shapes stay off
+    /// this slide. Not drawn by this app (it draws no master shapes), but
+    /// written back, or PowerPoint shows them over the slide's background.
+    var hideMasterShapes = false
+    /// The slide's colour-map override (`p:clrMapOvr`) as read — a slide
+    /// can swap the master's light and dark roles — written back as is.
+    var clrMapOvrXML: String? = nil
+    /// The slide's ActiveX controls (`p:controls`) as read: not drawn here,
+    /// written back with their parts and VML drawing, so PowerPoint still
+    /// has them (and draws each one's fallback picture).
+    var controlsXML: String? = nil
     /// The layout part this slide used in the file it came from, so a save
     /// keeps it on the same layout (nil: one of ours, by `layout`).
     var layoutPart: String? = nil

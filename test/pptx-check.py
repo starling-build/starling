@@ -78,7 +78,11 @@ def check(path):
     for n, t in trees.items():
         if not n.startswith("ppt/slides/slide") or not n.endswith(".xml"):
             continue
-        ids = [c.get("id") for c in t.iter(P + "cNvPr")]
+        # mc:AlternateContent carries the same shape in Choice and Fallback,
+        # so an id repeated only across those alternatives is not a duplicate.
+        MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
+        skip = {id(c) for f in t.iter(MC + "Fallback") for c in f.iter(P + "cNvPr")}
+        ids = [c.get("id") for c in t.iter(P + "cNvPr") if id(c) not in skip]
         dup = {i for i in ids if ids.count(i) > 1}
         if dup:
             problems.append(f"{n}: duplicate shape ids {sorted(dup)}")

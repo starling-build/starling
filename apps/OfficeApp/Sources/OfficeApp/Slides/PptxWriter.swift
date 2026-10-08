@@ -194,6 +194,16 @@ enum PptxWriter {
         b.rels(pres, presRels)
         presOut = _replaceElement("p:sldIdLst", in: presOut, with: "<p:sldIdLst>\(ids)</p:sldIdLst>",
                                   after: "</p:notesMasterIdLst>", orAfter: "</p:sldMasterIdLst>")
+        // Custom shows (`p:custShowLst`) list slides by the same relationship
+        // ids this just renumbered: each `<p:sld r:id>` follows its slide,
+        // or goes when the slide did; an emptied show goes with it.
+        if presOut.containsSubstring("<p:custShowLst") {
+            var newId: [String: String] = [:]
+            for r in presRelsAll where r.kind == "slide" {
+                if let i = state.slides.firstIndex(where: { $0.sourcePart == r.target }) { newId[r.id] = "rIdS\(i + 1)" }
+            }
+            presOut = _remapCustomShows(presOut, newId)
+        }
         let cx = Int((state.slideSize.width * Pptx.emu).rounded()), cy = Int((state.slideSize.height * Pptx.emu).rounded())
         presOut = _replaceElement("p:sldSz", in: presOut, with: "<p:sldSz cx=\"\(cx)\" cy=\"\(cy)\"/>",
                                   after: "</p:sldIdLst>", orAfter: nil)
@@ -204,15 +214,7 @@ enum PptxWriter {
 
     /// Copy a part, its relationships, and everything they reach.
     private static func _copy(_ part: String, from p: PptxPackage, into b: inout PackageBuilder, done: inout Set<String>) {
-        guard !done.contains(part), let data = p.parts[part] else { return }
-        done.insert(part)
-        b.parts[part] = data
-        if let type = p.overrides[part] { b.overrides[part] = type }
-        let relsPart = Pptx.relsPath(part)
-        if let rels = p.parts[relsPart] {
-            b.parts[relsPart] = rels
-            for r in p.rels(part) where !r.external { _copy(r.target, from: p, into: &b, done: &done) }
-        }
+        PptxWriterCopy.copy(part, from: p, into: &b, done: &done)
     }
 
     // MARK: Slides
@@ -249,19 +251,24 @@ enum PptxWriter {
         } else if let fill = slide.background {
             bg = "<p:bg><p:bgPr>" + w.fill(fill, media: &media, builder: &b) + "<a:effectLst/></p:bgPr></p:bg>"
         }
-        rels += w.rels
         // An OLE object (`p:oleObj spid="_x0000_s…"`) draws through a shape
         // in the slide's VML drawing part, which the slide reaches by a
         // relationship nothing in its XML names — so remapping r:ids keeps
         // the embedding and loses the drawing, and PowerPoint then asks to
         // repair the file. Carry the part while a kept object still has one.
-        if body.containsSubstring("<p:oleObj"), let src = slide.sourcePart, let p = source,
+        // ActiveX controls (`p:controls`): kept, their parts and pictures
+        // carried; the VML drawing below places them, as it does OLE objects.
+        var controls = ""
+        if let c = slide.controlsXML, let src = slide.sourcePart, let p = source {
+            controls = w.kept(c, sourcePart: src, package: p, builder: &b, patch: nil)
+        }
+        if body.containsSubstring("<p:oleObj") || !controls.isEmpty, let src = slide.sourcePart, let p = source,
            let vml = p.rels(src).first(where: { $0.kind == "vmlDrawing" && !$0.external && p.parts[$0.target] != nil }) {
             var done = Set<String>()
             PptxWriterCopy.copy(vml.target, from: p, into: &b, done: &done)
             rels.append(Rel(id: "rIdVml", type: vml.type, target: Pptx.relative(vml.target, from: part)))
         }
-        let hidden = slide.hidden ? " show=\"0\"" : ""
+        let hidden = (slide.hidden ? " show=\"0\"" : "") + (slide.hideMasterShapes ? " showMasterSp=\"0\"" : "")
         // Kept XML may lean on prefixes the source slide declared at its
         // root (a14, p14, mc…): the same declarations go on ours.
         var ns = PptxTemplates.namespaces
@@ -271,7 +278,12 @@ enum PptxWriter {
                 ns += " \(k)=\"\(PptxXML.escape(v, attribute: true))\""
             }
         }
-        let transition = _transition(slide.transition, namespaces: &ns)
+        var transition = _transition(slide.transition, namespaces: &ns)
+        // Kept as read, a transition's sound (`p:snd r:embed`) still names
+        // the source slide's relationship: remap it, carrying the .wav.
+        if slide.transition.raw != nil, transition.containsSubstring("r:embed"), let src = slide.sourcePart, let p = source {
+            transition = w.kept(transition, sourcePart: src, package: p, builder: &b, patch: nil)
+        }
         // Animations: as read while unchanged (or, for timing this app does
         // not model, while every shape it names is still here); our own
         // timing tree once they are edited.
@@ -286,7 +298,12 @@ enum PptxWriter {
         } else if let t = slide.timingXML {
             let named = t.components(separatedBy: "spid=\"").dropFirst().compactMap { Int($0.prefix { $0.isNumber }) }
             if Set(named).isSubset(of: w.usedIds) {
-                timing = t
+                // Likewise an animation's sound (`p:sndTgt r:embed`).
+                if t.containsSubstring("r:embed"), let src = slide.sourcePart, let p = source {
+                    timing = w.kept(t, sourcePart: src, package: p, builder: &b, patch: nil)
+                } else {
+                    timing = t
+                }
                 for (prefix, uri) in [("p14", "http://schemas.microsoft.com/office/powerpoint/2010/main"),
                                       ("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006")]
                 where t.containsSubstring("\(prefix):") && !ns.containsSubstring("xmlns:\(prefix)=") {
@@ -294,9 +311,14 @@ enum PptxWriter {
                 }
             }
         }
+        rels += w.rels
+        // The colour map as read when the slide was; a slide of ours maps
+        // through the master.
+        let clrMapOvr = slide.clrMapOvrXML.map { $0.containsSubstring("overrideClrMapping") ? $0 : "" }
+            .flatMap { $0.isEmpty ? nil : $0 } ?? "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"
         let xml = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <p:sld \(ns)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>\(transition)\(timing)</p:sld>
+        <p:sld \(ns)\(hidden)><p:cSld>\(bg)<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>\(body)</p:spTree>\(controls)</p:cSld>\(clrMapOvr)\(transition)\(timing)</p:sld>
         """
 
         // Notes, when there are any and a notes master to hang them on.
@@ -333,6 +355,35 @@ enum PptxWriter {
         case .none: effect = ""
         }
         return "<p:transition spd=\"\(spd)\">\(effect)</p:transition>"
+    }
+
+    /// `p:custShowLst` with every `<p:sld r:id="…"/>` renamed through
+    /// `newId`, listed slides without a new id dropped, shows left with no
+    /// slides dropped, and the list itself dropped once it is empty.
+    static func _remapCustomShows(_ s: String, _ newId: [String: String]) -> String {
+        guard let start = s.findRange(of: "<p:custShowLst"),
+              let end = s.findRange(of: "</p:custShowLst>", in: start.upperBound ..< s.endIndex) else { return s }
+        let list = String(s[start.lowerBound ..< end.upperBound])
+        /// Every `<open …>…<close>` span of `list`, rewritten by `f` (nil drops it).
+        func rewrite(_ list: String, open: String, close: String, _ f: (String) -> String?) -> String {
+            var out = "", cursor = list.startIndex
+            while let r = list.findRange(of: open, in: cursor ..< list.endIndex) {
+                out += list[cursor ..< r.lowerBound]
+                guard let c = list.findRange(of: close, in: r.upperBound ..< list.endIndex) else { cursor = r.lowerBound; break }
+                if let kept = f(String(list[r.lowerBound ..< c.upperBound])) { out += kept }
+                cursor = c.upperBound
+            }
+            return out + list[cursor...]
+        }
+        var pruned = rewrite(list, open: "<p:sld ", close: "/>") { tag in
+            guard let q = tag.findRange(of: "r:id=\""),
+                  let qe = tag.findRange(of: "\"", in: q.upperBound ..< tag.endIndex),
+                  let new = newId[String(tag[q.upperBound ..< qe.lowerBound])] else { return nil }
+            return "<p:sld r:id=\"\(new)\"/>"
+        }
+        pruned = rewrite(pruned, open: "<p:custShow ", close: "</p:custShow>") { $0.containsSubstring("<p:sld ") ? $0 : nil }
+        if !pruned.containsSubstring("<p:custShow ") { pruned = "" }
+        return s.replacingSubrange(start.lowerBound ..< end.upperBound, with: pruned)
     }
 
     private static func _insertAfter(_ marker: String, in s: String, _ insert: String) -> String {
@@ -429,6 +480,11 @@ struct PackageBuilder {
         "png": "image/png", "jpeg": "image/jpeg", "jpg": "image/jpeg", "gif": "image/gif",
         "bmp": "image/bmp", "tif": "image/tiff", "tiff": "image/tiff", "svg": "image/svg+xml",
         "emf": "image/x-emf", "wmf": "image/x-wmf",
+        // Media a kept sound or movie may carry; a file that declared no
+        // type for its own .avi (bnc591147) gets a sound copy regardless.
+        "wav": "audio/x-wav", "mp3": "audio/mpeg", "m4a": "audio/mp4", "wma": "audio/x-ms-wma",
+        "mp4": "video/mp4", "m4v": "video/mp4", "mov": "video/quicktime", "avi": "video/avi",
+        "wmv": "video/x-ms-wmv", "mpg": "video/mpeg", "mpeg": "video/mpeg",
     ]
 
     mutating func add(_ part: String, _ xml: String, type: String) {
@@ -593,8 +649,14 @@ private struct SlideXML {
         let l = fs.map { min($0.left, $0.right) }.min() ?? 0, t = fs.map { min($0.top, $0.bottom) }.min() ?? 0
         let r = fs.map { max($0.left, $0.right) }.max() ?? 0, b = fs.map { max($0.top, $0.bottom) }.max() ?? 0
         let off = "x=\"\(Self._emu(l))\" y=\"\(Self._emu(t))\"", ext = "cx=\"\(Self._emu(r - l))\" cy=\"\(Self._emu(b - t))\""
-        return "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"\(id)\" name=\"\(PptxXML.escape(g.name, attribute: true))\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"
-            + "<p:grpSpPr><a:xfrm><a:off \(off)/><a:ext \(ext)/><a:chOff \(off)/><a:chExt \(ext)/></a:xfrm></p:grpSpPr>\(inner)</p:grpSp>"
+        // The group's own fill, which members saying `a:grpFill` take.
+        var fill = g.fillXML ?? ""
+        if fill.containsSubstring("r:embed"), let p = source, let part = members.first?.sourcePart {
+            fill = kept(fill, sourcePart: part, package: p, builder: &builder, patch: nil)
+        }
+        let hidden = g.hidden ? " hidden=\"1\"" : ""
+        return "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"\(id)\" name=\"\(PptxXML.escape(g.name, attribute: true))\"\(hidden)/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"
+            + "<p:grpSpPr><a:xfrm><a:off \(off)/><a:ext \(ext)/><a:chOff \(off)/><a:chExt \(ext)/></a:xfrm>\(fill)</p:grpSpPr>\(inner)</p:grpSp>"
     }
 
     mutating func shape(_ s: ShapeState, media: inout MediaParts, builder: inout PackageBuilder) -> String {
@@ -606,6 +668,13 @@ private struct SlideXML {
             guard let p = source else { return "" }
             return kept(o.xml, sourcePart: o.sourcePart, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
         case .picture(let image):
+            // Unchanged since it was read (same image, crop and turn): the
+            // picture as it was, at its frame — its recolouring, transparency,
+            // shape crop, flip, fill and outline are not modelled here.
+            if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, k.crop == s.crop,
+               k.rotation == s.rotation, let p = source, let part = s.sourcePart {
+                return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
+            }
             let id = _id(s.fileId)
             let rid = _media(image, media: &media, builder: &builder)
             return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"/><p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>"
@@ -825,7 +894,10 @@ private struct SlideXML {
         // they point at, the element goes too — `<a:snd name="hammer.wav"/>`
         // with no r:embed is a schema error PowerPoint repairs
         // (Divino_Revelado, a truncated file whose click sounds were cut off).
-        let referenceOnly: Set<String> = ["a:snd", "a:wavAudioFile", "a:audioFile", "a:videoFile", "a:quickTimeFile"]
+        let referenceOnly: Set<String> = ["a:snd", "a:wavAudioFile", "a:audioFile", "a:videoFile", "a:quickTimeFile",
+                                          "p:snd", "p:sndTgt"]
+        // Wrappers that are nothing without their reference child.
+        let needsChild: Set<String> = ["p:stSnd", "p:endSnd", "p:sndAc"]
         /// Remaps `n`'s references; true when `n` should be dropped.
         func remap(_ n: XNode) -> Bool {
             var dead = false
@@ -846,6 +918,7 @@ private struct SlideXML {
                 }
             }
             n.children.removeAll { remap($0) }
+            if needsChild.contains(n.name) && n.children.isEmpty { dead = true }
             return dead
         }
         _ = remap(node)
@@ -858,7 +931,14 @@ enum PptxWriterCopy {
         guard !done.contains(part), let data = p.parts[part] else { return }
         done.insert(part)
         b.parts[part] = data
-        if let type = p.overrides[part] { b.overrides[part] = type }
+        if let type = p.overrides[part] {
+            b.overrides[part] = type
+        } else if let ext = part.split(separator: ".").last.map({ String($0).lowercased() }),
+                  b.defaults[ext] == nil, let type = p.defaults[ext] {
+            // A part typed by extension (a video.avi, a .wav): the file's own
+            // Default carries over, or the package has a part with no type.
+            b.defaults[ext] = type
+        }
         let relsPart = Pptx.relsPath(part)
         if let rels = p.parts[relsPart] {
             b.parts[relsPart] = rels
