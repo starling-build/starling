@@ -392,6 +392,26 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try DocxFormat.read(try Zip.write(edit)).document.header, "New text")
     }
 
+    func testRightToLeftParagraphs() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "إسبانيا"), RichParagraph(text: "ltr")])
+        doc.paragraphs[0].style.rightToLeft = true
+        doc.styles["Arabic"] = RichNamedStyle(id: "Arabic", name: "Arabic", paragraph: { var p = RichParagraphStyle(); p.rightToLeft = true; return p }(), char: CharStyle())
+        doc.paragraphs[1].style.named = "Arabic"   // left-to-right under a right-to-left style
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:bidi/>"), xml)
+        XCTAssertTrue(xml.contains("<w:bidi w:val=\"0\"/>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertTrue(back.paragraphs[0].style.rightToLeft)
+        XCTAssertFalse(back.paragraphs[1].style.rightToLeft)
+        XCTAssertTrue(back.styles["Arabic"]?.paragraph.rightToLeft ?? false)
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 2)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(back)
+        XCTAssertEqual(layout.geometry(0).painter.textDirection, .rtl)
+        XCTAssertEqual(layout.geometry(1).painter.textDirection, .ltr)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

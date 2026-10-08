@@ -1094,10 +1094,20 @@ public final class RichLayout {
             _cells[i] = nil
         }
         let (span, inline) = _span(for: p, document, textWidth: textWidth)
+        // A right-to-left paragraph runs from the right, and its "left"
+        // (Word's start) is the right edge.
+        var align = Self._textAlign(style.alignment)
+        if style.rightToLeft {
+            switch style.alignment {
+            case .left: align = .right
+            case .right: align = .left
+            default: break
+            }
+        }
         let painter = TextPainter(
             text: span,
-            textAlign: Self._textAlign(style.alignment),
-            textDirection: .ltr
+            textAlign: align,
+            textDirection: style.rightToLeft ? .rtl : .ltr
         )
         if !inline.isEmpty {
             painter.setPlaceholderDimensions(inline.map { $0.dimensions })

@@ -693,6 +693,7 @@ enum DocxFormat {
             if let v = Double(ind["w:firstLine"] ?? "") { style.firstLineIndent = v / 20 }
             if let v = Double(ind["w:hanging"] ?? "") { style.firstLineIndent = -v / 20 }
         }
+        if let bidi = pPr.first("w:bidi") { style.rightToLeft = !_isOff(bidi) }
         if let tabs = pPr.first("w:tabs") {
             var stops: [TabStop] = []
             for t in tabs.all("w:tab") {
@@ -1360,6 +1361,8 @@ enum DocxFormat {
                 pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
             }
             if let b = p.style.borders { pPr += _bordersXML(b) }
+            if p.style.rightToLeft { pPr += "<w:bidi/>" }
+            else if p.style.named.flatMap({ doc.styles[$0] })?.paragraph.rightToLeft ?? false { pPr += "<w:bidi w:val=\"0\"/>" }
             if !p.style.tabStops.isEmpty {
                 pPr += "<w:tabs>"
                 for t in p.style.tabStops {
@@ -1818,6 +1821,7 @@ enum DocxFormat {
             if let next = entry.next { out += "<w:next w:val=\"\(_esc(next))\"/>" }
             out += "<w:qFormat/><w:pPr>"
             if entry.paragraph.heading != nil { out += "<w:keepNext/>" }
+            if entry.paragraph.rightToLeft { out += "<w:bidi/>" }
             out += _spacingXML(entry.paragraph)
             var ind = ""
             if entry.paragraph.indentLeft != 0 { ind += " w:left=\"\(Int(entry.paragraph.indentLeft * 20))\"" }

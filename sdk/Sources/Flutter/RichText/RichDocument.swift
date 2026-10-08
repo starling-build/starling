@@ -202,6 +202,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var pageBreakBefore = false
     /// Lines around the paragraph (Word's paragraph borders); nil for none.
     public var borders: ParagraphBorders? = nil
+    /// Right-to-left paragraph direction (Word's w:bidi): the lines run
+    /// from the right and "left" alignment means the start edge.
+    public var rightToLeft = false
     /// Custom tab stops (Word's w:tabs), kept through a save; the layout
     /// still uses the default tab width.
     public var tabStops: [TabStop] = []
