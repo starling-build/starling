@@ -197,6 +197,31 @@ final class DocxTests: XCTestCase {
     /// Tracked changes stay tracked: an insertion and a deletion read as
     /// marked runs and are written back as the changes they were, so Word
     /// shows the same markup for the copy.
+    func testCellLevelBordersAndMarginsBecomeTheTables() throws {
+        // An HTML-converted table: nothing on the table, every cell says
+        // its own grey borders and 72-twip margins.
+        var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")
+        a.cell = CellRef(table: "T", row: 0, column: 0)
+        b.cell = CellRef(table: "T", row: 0, column: 1)
+        var doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [100, 100]
+        doc.tableStyles["T"] = TableStyle(borders: false)
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let i = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[i].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:tcPr>", with: "<w:tcPr><w:tcBorders><w:top w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/><w:bottom w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/></w:tcBorders><w:tcMar><w:top w:w=\"72\" w:type=\"dxa\"/><w:left w:w=\"72\" w:type=\"dxa\"/><w:bottom w:w=\"72\" w:type=\"dxa\"/><w:right w:w=\"72\" w:type=\"dxa\"/></w:tcMar>")
+        XCTAssertTrue(xml.contains("w:tcMar"), xml)
+        entries[i] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let ts = try XCTUnwrap(back.tableStyles.values.first)
+        XCTAssertTrue(ts.borders)
+        XCTAssertEqual(ts.borderColor, Color(0xFFE1E1E1))
+        XCTAssertEqual([ts.cellMarginTop, ts.cellMarginLeft, ts.cellMarginBottom, ts.cellMarginRight], [3.6, 3.6, 3.6, 3.6])
+        let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(saved.contains("<w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"E1E1E1\"/>"), saved)
+        XCTAssertTrue(saved.contains("<w:tblCellMar><w:top w:w=\"72\" w:type=\"dxa\"/>"), saved)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

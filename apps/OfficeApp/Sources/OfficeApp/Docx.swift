@@ -132,8 +132,8 @@ enum DocxFormat {
         var defaultMargins = _Margins()
         // Whether a table style draws borders (Table Grid does, Normal Table
         // does not): a table that says nothing itself takes its style's word.
-        var tableBorders: [String: Bool] = [:]
-        var defaultBorders: Bool? = nil
+        var tableBorders: [String: _Borders] = [:]
+        var defaultBorders: _Borders? = nil
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             _resolveThemeFonts(styles, theme)
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
@@ -152,14 +152,14 @@ enum DocxFormat {
                 tableNodes[id] = style
                 if style["w:default"] == "1" {
                     defaultMargins = _cellMargins(style.first("w:tblPr"))
-                    defaultBorders = _tableBorders(style.first("w:tblPr"))
+                    defaultBorders = _borders(style.first("w:tblPr"), "w:tblBorders")
                 }
             }
             for id in tableNodes.keys {
                 var seen = Set<String>(), cur: String? = id
                 while let c = cur, !seen.contains(c), let node = tableNodes[c] {
                     seen.insert(c)
-                    if let b = _tableBorders(node.first("w:tblPr")) { tableBorders[id] = b; break }
+                    if let b = _borders(node.first("w:tblPr"), "w:tblBorders") { tableBorders[id] = b; break }
                     cur = node.first("w:basedOn")?["w:val"]
                 }
             }
@@ -401,8 +401,21 @@ enum DocxFormat {
                 var style = TableStyle()
                 // The table's own borders, else its style's, else none —
                 // 64 of the corpus's 109 tables say nothing and have none.
+                // Tables converted from HTML say it per cell instead
+                // (bug65649's 5,734-cell table, bug59058, table-indent):
+                // what most cells say wins, with their colour.
                 let styledBorders = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableBorders[$0] }
-                style.borders = _tableBorders(node.first("w:tblPr")) ?? styledBorders ?? defaultBorders ?? false
+                let cells = unwrapped(node, "w:tr").flatMap { unwrapped($0, "w:tc") }
+                let cellSaid = cells.compactMap { _borders($0.first("w:tcPr"), "w:tcBorders") }
+                var cellBorders: _Borders? = nil
+                if cellSaid.count * 2 >= cells.count, !cells.isEmpty {
+                    let on = cellSaid.filter(\.on)
+                    if on.count * 2 >= cells.count { cellBorders = on.first { $0.color != nil } ?? on[0] }
+                    else if (cellSaid.count - on.count) * 2 >= cells.count { cellBorders = _Borders(on: false, color: nil) }
+                }
+                let borders = cellBorders ?? _borders(node.first("w:tblPr"), "w:tblBorders") ?? styledBorders ?? defaultBorders
+                style.borders = borders?.on ?? false
+                style.borderColor = borders?.color
                 if unwrapped(node, "w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
                 // Where the table sits in the column (w:jc on the table).
                 switch node.first("w:tblPr")?.first("w:jc")?["w:val"] {
@@ -411,7 +424,12 @@ enum DocxFormat {
                 default: break
                 }
                 let styled = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableMargins[$0] } ?? _Margins()
-                let margins = _cellMargins(node.first("w:tblPr")).under(styled).under(defaultMargins).under(_Margins.word)
+                // Margins the cells carry themselves (w:tcMar, again the
+                // HTML converters' habit) when most of them do.
+                let cellMars = cells.filter { $0.first("w:tcPr")?.first("w:tcMar") != nil }
+                let cellMar = cellMars.count * 2 >= cells.count && !cellMars.isEmpty
+                    ? _cellMargins(cellMars[0].first("w:tcPr"), "w:tcMar") : _Margins()
+                let margins = cellMar.under(_cellMargins(node.first("w:tblPr"))).under(styled).under(defaultMargins).under(_Margins.word)
                 style.cellMarginTop = margins.top
                 style.cellMarginLeft = margins.left
                 style.cellMarginBottom = margins.bottom
@@ -694,16 +712,31 @@ enum DocxFormat {
         }
     }
 
-    /// `w:tblBorders` of a table or table style: nil when it says nothing,
-    /// false when every edge it lists is nil/none, true otherwise.
-    private static func _tableBorders(_ tblPr: XNode?) -> Bool? {
-        guard let b = tblPr?.first("w:tblBorders"), !b.children.isEmpty else { return nil }
-        return b.children.contains { !["nil", "none"].contains($0["w:val"] ?? "nil") }
+    struct _Borders {
+        var on: Bool
+        var color: Color?
     }
 
-    /// `w:tblCellMar` of a table or table style, in points, dxa sides only.
-    private static func _cellMargins(_ tblPr: XNode?) -> _Margins {
-        guard let m = tblPr?.first("w:tblCellMar") else { return _Margins() }
+    /// `w:tblBorders` of a table or table style (or `w:tcBorders` of a
+    /// cell): nil when it says nothing, off when every edge it lists is
+    /// nil/none, else on, with the first drawn edge's colour (nil for
+    /// auto).
+    private static func _borders(_ pr: XNode?, _ tag: String) -> _Borders? {
+        guard let b = pr?.first(tag), !b.children.isEmpty else { return nil }
+        let drawn = b.children.filter { !["nil", "none"].contains($0["w:val"] ?? "nil") }
+        guard let first = drawn.first else { return _Borders(on: false, color: nil) }
+        var color: Color? = nil
+        if let hex = drawn.first(where: { ($0["w:color"] ?? "auto").lowercased() != "auto" })?["w:color"] ?? first["w:color"],
+           hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
+            color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+        }
+        return _Borders(on: true, color: color)
+    }
+
+    /// `w:tblCellMar` of a table or table style (or a cell's `w:tcMar`),
+    /// in points, dxa sides only.
+    private static func _cellMargins(_ pr: XNode?, _ tag: String = "w:tblCellMar") -> _Margins {
+        guard let m = pr?.first(tag) else { return _Margins() }
         func side(_ names: [String]) -> Double? {
             for n in names {
                 if let e = m.first(n), (e["w:type"] ?? "dxa") == "dxa", let w = Double(e["w:w"] ?? "") { return w / 20 }
@@ -1299,8 +1332,9 @@ enum DocxFormat {
             }
             if style.indent != 0 { xml += "<w:tblInd w:w=\"\(Int((style.indent * 20).rounded()))\" w:type=\"dxa\"/>" }
             xml += "<w:tblBorders>"
+            let borderColor = style.borderColor.map { _hex($0) } ?? "auto"
             for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
-                xml += style.borders ? "<w:\(side) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"
+                xml += style.borders ? "<w:\(side) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
                                      : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
             xml += "</w:tblBorders>"
