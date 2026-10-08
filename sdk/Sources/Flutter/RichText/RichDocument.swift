@@ -271,6 +271,19 @@ public struct RichStyleSheet: Hashable, Sendable {
 /// GIF, WebP — whatever the engine decodes) and the size it is shown at, in
 /// points. `id` identifies the bytes for decode caches without hashing them
 /// on every paint.
+/// A relationship an opaque object's markup names — its chart part, its
+/// embedded workbook, a hyperlink — carried so a save can put it back
+/// under a fresh id.
+public struct KeptRel: Hashable, Sendable {
+    public var id: String
+    public var type: String
+    public var target: String
+    public var external: Bool
+    public init(id: String, type: String, target: String, external: Bool) {
+        self.id = id; self.type = type; self.target = target; self.external = external
+    }
+}
+
 public struct ImageAttachment: Hashable, Sendable {
     public let id: String
     public var data: Data
@@ -282,6 +295,13 @@ public struct ImageAttachment: Hashable, Sendable {
     /// "Original Size" restores. nil for a picture from a file format.
     public var naturalWidth: Double? = nil
     public var naturalHeight: Double? = nil
+    /// For an object the editor cannot show (a chart, a shape, an embedded
+    /// file): the file's own markup for it, kept verbatim and written back
+    /// as it was, with `sourceRels` for the parts and links it names. Such
+    /// an attachment has no decodable `data` and lays out as an empty box
+    /// of its size.
+    public var sourceXML: String? = nil
+    public var sourceRels: [KeptRel] = []
 
     public init(data: Data, width: Double, height: Double, name: String = "image.png",
                 naturalWidth: Double? = nil, naturalHeight: Double? = nil) {
@@ -1005,6 +1025,9 @@ public struct RichDocument: Hashable, Sendable {
     /// reach — by package path. The body refers into them (`NoteReference`);
     /// the format writer copies them back verbatim.
     public var keptParts: [String: Data] = [:]
+    /// Content types of `keptParts`, by package path, as the file declared
+    /// them (a kept part the editor knows nothing about still needs one).
+    public var keptPartTypes: [String: String] = [:]
 
     public static let pageField = "{PAGE}"
     public static let pageCountField = "{NUMPAGES}"

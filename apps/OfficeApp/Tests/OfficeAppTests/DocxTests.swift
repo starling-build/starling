@@ -108,6 +108,55 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(text("word/document.xml").contains("w:ascii=\"Cambria\""))
     }
 
+    /// A chart (or any drawing that is not a picture) is kept as the file
+    /// wrote it: its markup, its part and what that reaches, their content
+    /// types, the relationship under a fresh id — and it lays out as an
+    /// empty box of its size.
+    func testChartKeptVerbatim() throws {
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "Before"), RichParagraph(text: "After")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        func replace(_ name: String, _ f: (String) -> String) {
+            let i = entries.firstIndex { $0.name == name }!
+            entries[i] = ZipEntry(name: name, data: Data(f(String(decoding: entries[i].data, as: UTF8.self)).utf8))
+        }
+        let drawing = "<w:drawing><wp:inline><wp:extent cx=\"2540000\" cy=\"1270000\"/><wp:docPr id=\"7\" name=\"Chart 1\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" r:id=\"rId77\"/></a:graphicData></a:graphic></wp:inline></w:drawing>"
+        replace("word/document.xml") { $0.replacingAll("<w:t xml:space=\"preserve\">Before</w:t></w:r>",
+                                                       with: "<w:t xml:space=\"preserve\">Before</w:t></w:r><w:r>\(drawing)</w:r>") }
+        replace("word/_rels/document.xml.rels") { $0.replacingAll("</Relationships>",
+            with: "<Relationship Id=\"rId77\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart\" Target=\"charts/chart1.xml\"/></Relationships>") }
+        replace("[Content_Types].xml") { $0.replacingAll("</Types>",
+            with: "<Override PartName=\"/word/charts/chart1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawingml.chart+xml\"/><Default Extension=\"xlsx\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\"/></Types>") }
+        let chart = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><c:externalData r:id=\"rId1\"/></c:chartSpace>"
+        entries.append(ZipEntry(name: "word/charts/chart1.xml", data: Data(chart.utf8)))
+        entries.append(ZipEntry(name: "word/charts/_rels/chart1.xml.rels", data: Data("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/package\" Target=\"../embeddings/book1.xlsx\"/></Relationships>".utf8)))
+        entries.append(ZipEntry(name: "word/embeddings/book1.xlsx", data: Data([1, 2, 3, 4])))
+
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["Before", "", "After"])
+        let object = back.paragraphs[1].image
+        XCTAssertEqual(object?.width ?? 0, 200, accuracy: 0.01)
+        XCTAssertEqual(object?.height ?? 0, 100, accuracy: 0.01)
+        XCTAssertEqual(object?.sourceRels.map(\.target), ["charts/chart1.xml"])
+        XCTAssertTrue(object?.sourceXML?.contains("<c:chart") == true, object?.sourceXML ?? "nil")
+        XCTAssertEqual(back.keptParts.keys.sorted(), ["word/charts/_rels/chart1.xml.rels", "word/charts/chart1.xml", "word/embeddings/book1.xlsx"])
+        XCTAssertEqual(back.keptPartTypes["word/charts/chart1.xml"], "application/vnd.openxmlformats-officedocument.drawingml.chart+xml")
+        XCTAssertEqual(back.keptPartTypes["word/embeddings/book1.xlsx"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        func text(_ name: String) -> String { String(decoding: saved.first { $0.name == name }?.data ?? Data(), as: UTF8.self) }
+        let body = text("word/document.xml")
+        XCTAssertTrue(body.contains("<c:chart r:id=\"rIdKept1\" xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"/>"), body)
+        XCTAssertFalse(body.contains("rId77"))
+        XCTAssertTrue(text("word/_rels/document.xml.rels").contains("Id=\"rIdKept1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart\" Target=\"charts/chart1.xml\""))
+        XCTAssertEqual(text("word/charts/chart1.xml"), chart)
+        XCTAssertEqual(saved.first { $0.name == "word/embeddings/book1.xlsx" }?.data, Data([1, 2, 3, 4]))
+        XCTAssertTrue(text("[Content_Types].xml").contains("PartName=\"/word/charts/chart1.xml\""))
+        XCTAssertTrue(text("[Content_Types].xml").contains("PartName=\"/word/embeddings/book1.xlsx\""))
+        // And the same again from the copy.
+        let again = try DocxFormat.read(try Zip.write(saved)).document
+        XCTAssertEqual(again.paragraphs[1].image?.sourceRels.map(\.id), ["rIdKept1"])
+    }
+
     func testZipRoundTrip() throws {
         let entries = [ZipEntry(name: "a/b.txt", data: Data("hello hello hello hello".utf8)),
                        ZipEntry(name: "c.bin", data: Data((0 ..< 5000).map { UInt8($0 % 251) }))]

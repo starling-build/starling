@@ -274,18 +274,32 @@ enum DocxFormat {
 
         // Relationships: hyperlink targets and media parts.
         var rels: [String: String] = [:]
+        var relInfo: [String: KeptRel] = [:]
         if let relData = part("word/_rels/document.xml.rels"), let relRoot = XNode.parse(relData) {
             for r in relRoot.all("Relationship") {
-                if let id = r["Id"], let target = r["Target"] { rels[id] = target }
+                if let id = r["Id"], let target = r["Target"] {
+                    rels[id] = target
+                    relInfo[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
+                }
             }
         }
+        // Content types, for the parts kept verbatim.
+        var typeByExt: [String: String] = [:], typeByPart: [String: String] = [:]
+        if let ct = part("[Content_Types].xml").flatMap(XNode.parse) {
+            for d in ct.all("Default") { if let e = d["Extension"], let t = d["ContentType"] { typeByExt[e.lowercased()] = t } }
+            for o in ct.all("Override") { if let n = o["PartName"], let t = o["ContentType"] { typeByPart[n.hasPrefix("/") ? String(n.dropFirst()) : n] = t } }
+        }
+        let contentType: (String) -> String? = { path in
+            typeByPart[path] ?? typeByExt[(path.split(separator: ".").last.map(String.init) ?? "").lowercased()]
+        }
+        let rootNS = root.attrs.filter { $0.key.hasPrefix("xmlns:") }
 
         let media: (String) -> Data? = { target in
             let name = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
             return part(name)
         }
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
-        let notes = _Notes(footnotes: kept["word/footnotes.xml"] != nil, endnotes: kept["word/endnotes.xml"] != nil)
+        let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
         var paragraphs: [RichParagraph] = []
         var pageSetup: PageSetup? = nil
         var pendingPageBreak = false
@@ -430,7 +444,8 @@ enum DocxFormat {
         document.tableStyles = tableStyles
         document.styles = sheet
         document.listFormats = listFormats
-        document.keptParts = kept
+        document.keptParts = notes.kept
+        document.keptPartTypes = notes.keptTypes
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
         if let sect = body.first("w:sectPr") {
@@ -552,16 +567,64 @@ enum DocxFormat {
     }
 
     /// One w:p can become several paragraphs (a page break inside it).
-    /// Which note parts the file has, and the running numbers Word would
-    /// show for their marks.
-    final class _Notes {
+    /// What one read shares across its paragraphs: which note parts the
+    /// file has and the running numbers Word would show for their marks,
+    /// the document's relationships, the namespaces its root declares, and
+    /// the parts kept verbatim for objects the editor cannot show.
+    final class _Shared {
         let footnotes: Bool, endnotes: Bool
         private var seenFootnotes = 0, seenEndnotes = 0
-        init(footnotes: Bool, endnotes: Bool) { self.footnotes = footnotes; self.endnotes = endnotes }
+        let rels: [String: KeptRel]
+        let rootNS: [String: String]
+        let part: (String) -> Data?
+        let contentType: (String) -> String?
+        var kept: [String: Data]
+        var keptTypes: [String: String] = [:]
+        init(kept: [String: Data], rels: [String: KeptRel], rootNS: [String: String],
+             part: @escaping (String) -> Data?, contentType: @escaping (String) -> String?) {
+            self.kept = kept
+            self.footnotes = kept["word/footnotes.xml"] != nil
+            self.endnotes = kept["word/endnotes.xml"] != nil
+            self.rels = rels; self.rootNS = rootNS; self.part = part; self.contentType = contentType
+            for name in kept.keys { if let t = contentType(name) { keptTypes[name] = t } }
+        }
         func next(footnote: Bool) -> Int {
             if footnote { seenFootnotes += 1; return seenFootnotes }
             seenEndnotes += 1; return seenEndnotes
         }
+        /// Keeps the part at `path` and, through its rels, every part it reaches.
+        func keep(_ path: String) {
+            guard kept[path] == nil, !DocxFormat._ownParts.contains(path), let data = part(path) else { return }
+            kept[path] = data
+            if let t = contentType(path) { keptTypes[path] = t }
+            var comps = path.split(separator: "/").map(String.init)
+            guard let file = comps.popLast() else { return }
+            let dir = comps.joined(separator: "/")
+            let relsPath = (dir.isEmpty ? "" : dir + "/") + "_rels/" + file + ".rels"
+            guard let relsData = part(relsPath), let node = XNode.parse(relsData) else { return }
+            kept[relsPath] = relsData
+            for r in node.all("Relationship") where r["TargetMode"] != "External" {
+                if let target = r["Target"] { keep(DocxFormat._resolvePath(dir, target)) }
+            }
+        }
+    }
+
+    /// `target` relative to the directory `base` ("word/charts" + "../media/x.png").
+    static func _resolvePath(_ base: String, _ target: String) -> String {
+        if target.hasPrefix("/") { return String(target.dropFirst()) }
+        var comps = base.split(separator: "/").map(String.init)
+        for c in target.split(separator: "/") {
+            if c == ".." { _ = comps.popLast() } else if c != "." { comps.append(String(c)) }
+        }
+        return comps.joined(separator: "/")
+    }
+
+    /// "123.4pt" / "2in" / "5cm" as points.
+    private static func _length(_ raw: String) -> Double? {
+        let s = raw.trimmingWhitespace()
+        let units: [(String, Double)] = [("pt", 1), ("in", 72), ("cm", 72 / 2.54), ("mm", 72 / 25.4), ("px", 0.75)]
+        for (u, k) in units where s.hasSuffix(u) { return Double(s.dropLast(u.count)).map { $0 * k } }
+        return Double(s)
     }
 
     /// Parts the editor does not model but the file had — Word's footnotes
@@ -635,7 +698,7 @@ enum DocxFormat {
     }
 
     /// The parts the writer makes itself; a kept part never overrides one.
-    private static let _ownParts: Set<String> = [
+    static let _ownParts: Set<String> = [
         "word/document.xml", "word/styles.xml", "word/numbering.xml", "word/settings.xml",
         "word/_rels/document.xml.rels", "word/header1.xml", "word/footer1.xml",
     ]
@@ -644,7 +707,7 @@ enum DocxFormat {
                                     _ styleIds: [String: String], _ sheet: RichStyleSheet,
                                     _ nums: [String: [Int: ListKind]],
                                     _ rels: [String: String], _ media: (String) -> Data?,
-                                    _ indent: Double, _ notes: _Notes) -> [_Built] {
+                                    _ indent: Double, _ notes: _Shared) -> [_Built] {
         var style = base
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
@@ -678,9 +741,55 @@ enum DocxFormat {
             runs = []
             style.pageBreakBefore = false
         }
+        /// A drawing that is not a picture (a chart, a shape, a diagram), an
+        /// embedded object, a VML picture: kept as the file wrote it, with
+        /// the parts it names, and shown as an empty box of its size.
+        func addObject(_ node: XNode) {
+            var w = 300.0, h = 200.0
+            if let extent = node.descendant("wp:extent"),
+               let cx = Double(extent["cx"] ?? ""), let cy = Double(extent["cy"] ?? ""), cx > 0, cy > 0 {
+                w = cx / 12700
+                h = cy / 12700
+            } else if let shape = node.name == "v:shape" ? node : node.descendant("v:shape"), let st = shape["style"] {
+                for pair in st.split(separator: ";") {
+                    let kv = pair.split(separator: ":", maxSplits: 1)
+                    guard kv.count == 2, let v = _length(String(kv[1])), v > 0 else { continue }
+                    if kv[0].trimmingWhitespace() == "width" { w = v } else if kv[0].trimmingWhitespace() == "height" { h = v }
+                }
+            }
+            var found: [KeptRel] = []
+            var prefixes = Set<String>()
+            var stack = [node]
+            while let n = stack.popLast() {
+                if let i = n.name.firstIndex(of: ":") { prefixes.insert(String(n.name[..<i])) }
+                for (k, v) in n.attrs {
+                    if let i = k.firstIndex(of: ":"), !k.hasPrefix("xmlns:") { prefixes.insert(String(k[..<i])) }
+                    guard ["r:embed", "r:id", "r:link", "r:pict", "r:href"].contains(k), let rel = notes.rels[v],
+                          !found.contains(where: { $0.id == v }) else { continue }
+                    found.append(rel)
+                    if !rel.external { notes.keep(_resolvePath("word", rel.target)) }
+                }
+                stack.append(contentsOf: n.children)
+            }
+            // A part the file names but does not hold (a fuzzer's doing):
+            // the object is dropped, as it was before it was kept at all.
+            if found.contains(where: { !$0.external && notes.part(_resolvePath("word", $0.target)) == nil }) { return }
+            // Self-contained markup: every prefix it uses that the document's
+            // root declared is declared on it.
+            for prefix in prefixes where prefix != "xml" && node.attrs["xmlns:" + prefix] == nil {
+                if let uri = notes.rootNS["xmlns:" + prefix] { node.attrs["xmlns:" + prefix] = uri }
+            }
+            if !text.isEmpty { flush(pageBreakAfter: false) } else { text = ""; runs = [] }
+            var att = ImageAttachment(data: Data(), width: w, height: h, name: node.name)
+            att.sourceXML = PptxXML.serialize(node)
+            att.sourceRels = found
+            var pic = RichParagraph(image: att)
+            pic.style.alignment = style.alignment
+            built.append(_Built(paragraph: pic, pageBreakAfter: false))
+        }
         func addImage(_ drawing: XNode) {
             guard let blip = drawing.descendant("a:blip"), let rid = blip["r:embed"],
-                  let target = rels[rid], let data = media(target) else { return }
+                  let target = rels[rid], let data = media(target) else { addObject(drawing); return }
             var w = 300.0, h = 200.0
             if let extent = drawing.descendant("wp:extent"),
                let cx = Double(extent["cx"] ?? ""), let cy = Double(extent["cy"] ?? ""), cx > 0, cy > 0 {
@@ -721,6 +830,8 @@ enum DocxFormat {
                     }
                 case "w:drawing", "w:pict":
                     addImage(child)
+                case "w:object", "mc:AlternateContent":
+                    addObject(child)
                 case "w:footnoteReference", "w:endnoteReference":
                     // The mark: its number as superscript text, tagged with
                     // the note it stands for so the writer puts the
@@ -842,6 +953,7 @@ enum DocxFormat {
         var rels: [(id: String, target: String)] = []
         var media: [ZipEntry] = []
         var mediaRels: [(id: String, target: String)] = []
+        var keptRels = "", keptRelCount = 0
         var usedExtensions: Set<String> = []
         func relId(for link: String) -> String {
             if let r = rels.first(where: { $0.target == link }) { return r.id }
@@ -909,6 +1021,21 @@ enum DocxFormat {
             }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
             if let image = p.image {
+                if let xml = image.sourceXML {
+                    // An object the editor cannot show: the file's own
+                    // markup, its relationships under fresh ids.
+                    var frag = xml
+                    for rel in image.sourceRels {
+                        keptRelCount += 1
+                        let nid = "rIdKept\(keptRelCount)"
+                        for attr in ["r:embed", "r:id", "r:link", "r:pict", "r:href"] {
+                            frag = frag.replacingAll("\(attr)=\"\(rel.id)\"", with: "\(attr)=\"\(nid)\"")
+                        }
+                        keptRels += "<Relationship Id=\"\(nid)\" Type=\"\(_esc(rel.type))\" Target=\"\(_esc(rel.target))\"\(rel.external ? " TargetMode=\"External\"" : "")/>"
+                    }
+                    body += "<w:r>\(frag)</w:r></w:p>"
+                    return body
+                }
                 let n = media.count + 1
                 let ext = image.fileExtension
                 usedExtensions.insert(ext)
@@ -1071,7 +1198,7 @@ enum DocxFormat {
         if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
         body += "</w:sectPr>"
 
-        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\""
+        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:wp14=\"http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15 wp14\""
         let document = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document \(ns)><w:body>\(body)</w:body></w:document>"
 
         var relsXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
@@ -1083,6 +1210,7 @@ enum DocxFormat {
         for r in mediaRels {
             relsXML += "<Relationship Id=\"\(r.id)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"\(r.target)\"/>"
         }
+        relsXML += keptRels
         var extraParts: [ZipEntry] = []
         var extraOverrides = ""
         if !doc.header.isEmpty {
@@ -1115,7 +1243,12 @@ enum DocxFormat {
                 extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>"
             default:
                 let ext = (name.split(separator: "/").last ?? "").split(separator: ".").dropFirst().last.map { String($0).lowercased() } ?? ""
-                if ext != "rels", ext != "xml", !ext.isEmpty { usedExtensions.insert(ext) }
+                if ext == "rels" { break }
+                if let t = doc.keptPartTypes[name] {
+                    extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"\(_esc(t))\"/>"
+                } else if ext != "xml", !ext.isEmpty {
+                    usedExtensions.insert(ext)
+                }
             }
         }
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
