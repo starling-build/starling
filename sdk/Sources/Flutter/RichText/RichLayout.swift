@@ -1121,8 +1121,10 @@ public final class RichLayout {
         // A border's line and its gap lie between the spacing and the text.
         let bTop = style.borders?.top.map { _px($0.space + $0.width) } ?? 0
         let bBottom = style.borders?.bottom.map { _px($0.space + $0.width) } ?? 0
-        let before = (_px(style.spaceBefore) + bTop).rounded()
-        let after = _px(style.spaceAfter) + bBottom
+        // Word's auto spacing: 14pt, none between items of a list.
+        let autoGap = style.list == nil ? 14.0 : 0.0
+        let before = (_px(style.spaceBeforeAuto ? autoGap : style.spaceBefore) + bTop).rounded()
+        let after = _px(style.spaceAfterAuto ? autoGap : style.spaceAfter) + bBottom
         _painters[i] = painter
         _textLeft[i] = left
         _textWidth[i] = textWidth

@@ -543,6 +543,20 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual((layout.geometry(0).painter.text as? TextSpan)?.style?.fontWeight, .normal, "the editor shows it un-bold too")
     }
 
+    func testAutoSpacingRoundTrip() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "html paragraph")])
+        doc.paragraphs[0].style.spaceBefore = 5; doc.paragraphs[0].style.spaceBeforeAuto = true; doc.paragraphs[0].style.spaceAfterAuto = true
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:spacing w:before=\"100\" w:beforeAutospacing=\"1\" w:after=\"160\" w:afterAutospacing=\"1\""), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertTrue(back.paragraphs[0].style.spaceBeforeAuto && back.paragraphs[0].style.spaceAfterAuto)
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 1)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(back)
+        XCTAssertEqual(layout.geometry(0).textTop - layout.geometry(0).top, (14 * 96.0 / 72.0).rounded())
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

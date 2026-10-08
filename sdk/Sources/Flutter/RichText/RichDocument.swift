@@ -191,6 +191,11 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// lines); readers fill in what the file's own defaults say.
     public var spaceBefore: Double = 0
     public var spaceAfter: Double = 8
+    /// Word's "auto" spacing (w:beforeAutospacing/w:afterAutospacing,
+    /// HTML's paragraph gap): 14pt, none between items of one list; the
+    /// stated `spaceBefore`/`spaceAfter` is then ignored.
+    public var spaceBeforeAuto = false
+    public var spaceAfterAuto = false
     /// Multiple of the font's natural line height (1.0 = single).
     public var lineSpacing: Double = 1.08
     /// Exact line height in points ("exactly 20 pt"), which then wins over

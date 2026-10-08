@@ -764,6 +764,9 @@ enum DocxFormat {
         if let sp = pPr.first("w:spacing") {
             if let v = Double(sp["w:before"] ?? "") { style.spaceBefore = v / 20 }
             if let v = Double(sp["w:after"] ?? "") { style.spaceAfter = v / 20 }
+            func on(_ v: String?) -> Bool? { v.map { ["1", "true", "on"].contains($0) } }
+            if let a = on(sp["w:beforeAutospacing"]) { style.spaceBeforeAuto = a }
+            if let a = on(sp["w:afterAutospacing"]) { style.spaceAfterAuto = a }
             if let v = Double(sp["w:line"] ?? ""), v > 0 {
                 switch sp["w:lineRule"] ?? "auto" {
                 case "exact":
@@ -1310,7 +1313,9 @@ enum DocxFormat {
     static func _spacingXML(_ s: RichParagraphStyle) -> String {
         var spacing = ""
         if s.spaceBefore > 0 { spacing += " w:before=\"\(Int((s.spaceBefore * 20).rounded()))\"" }
+        if s.spaceBeforeAuto { spacing += " w:beforeAutospacing=\"1\"" }
         spacing += " w:after=\"\(Int((s.spaceAfter * 20).rounded()))\""
+        if s.spaceAfterAuto { spacing += " w:afterAutospacing=\"1\"" }
         if let pts = s.lineHeightPoints {
             spacing += " w:line=\"\(Int((pts * 20).rounded()))\" w:lineRule=\"\(s.lineHeightIsMinimum ? "atLeast" : "exact")\""
         } else {
