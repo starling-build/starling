@@ -590,8 +590,11 @@ enum DocxFormat {
             // first-page and even-page ones, which the editor has no
             // field for, are kept always.
             document.titlePage = sect.first("w:titlePg") != nil
+            // Only a block that says something: an empty w:compat (a Word
+            // 2003 conversion) laid our copy out by legacy rules and
+            // form_footnotes lost a page; ours (mode 15) serves those.
             if let settings = part("word/settings.xml").flatMap(XNode.parse), let compat = settings.first("w:compat"),
-               compat.children.allSatisfy({ $0.name.hasPrefix("w:") }) {
+               !compat.children.isEmpty, compat.children.allSatisfy({ $0.name.hasPrefix("w:") }) {
                 document.keptCompat = PptxXML.serialize(compat)
             }
             document.evenAndOddHeaders = part("word/settings.xml").map { String(decoding: $0, as: UTF8.self).containsSubstring("<w:evenAndOddHeaders") } ?? false
