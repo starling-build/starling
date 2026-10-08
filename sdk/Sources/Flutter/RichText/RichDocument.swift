@@ -39,6 +39,19 @@ public struct NoteReference: Hashable, Sendable {
     public init(kind: Kind, id: Int) { self.kind = kind; self.id = id }
 }
 
+/// A tracked change on a run: text someone inserted or deleted, shown
+/// as Word shows it (underlined or struck through, in the reviewer's
+/// colour) and saved back as the change it was.
+public struct RevisionMark: Hashable, Sendable {
+    public enum Kind: Int, Hashable, Sendable { case inserted, deleted }
+    public var kind: Kind
+    public var author: String
+    public var date: String
+    public init(kind: Kind, author: String = "", date: String = "") {
+        self.kind = kind; self.author = author; self.date = date
+    }
+}
+
 public struct CharStyle: Hashable, Sendable {
     public var bold = false
     public var italic = false
@@ -56,6 +69,8 @@ public struct CharStyle: Hashable, Sendable {
     /// Set on a one-character run (U+FFFC) that is a picture inline with
     /// the text: the id of an entry in the paragraph's `inlineImages`.
     public var inlineImage: String? = nil
+    /// Set on a run that is a tracked insertion or deletion.
+    public var revision: RevisionMark? = nil
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,

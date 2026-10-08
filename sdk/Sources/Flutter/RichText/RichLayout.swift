@@ -84,6 +84,12 @@ public final class RichTextTheme {
         var decorations: [TextDecoration] = []
         if style.underline || style.link != nil { decorations.append(.underline) }
         if style.strikethrough { decorations.append(.lineThrough) }
+        if let revision = style.revision {
+            // Tracked changes as Word marks them: insertions underlined,
+            // deletions struck through, both in the reviewer's colour.
+            decorations.append(revision.kind == .deleted ? .lineThrough : .underline)
+            if style.color == nil { color = Color(0xFFC00000) }
+        }
         let px = size * pixelsPerPoint * scale
         return TextStyle(
             color: color,

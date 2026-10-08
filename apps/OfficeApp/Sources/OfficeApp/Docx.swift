@@ -908,13 +908,15 @@ enum DocxFormat {
             text += s
             runs.append(Run(length: s.utf16.count, style: cs))
         }
-        func walkRun(_ r: XNode, link: String?) {
+        func walkRun(_ r: XNode, link: String?, revision: RevisionMark? = nil) {
             var cs = CharStyle()
             cs.link = link
+            cs.revision = revision
             if let rPr = r.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
             for child in r.children {
                 switch child.name {
                 case "w:t": addText(child.text, cs)
+                case "w:delText": addText(child.text, cs)
                 case "w:tab": addText("\t", cs)
                 case "w:br":
                     // A page break ends the paragraph; a line break stays
@@ -951,16 +953,22 @@ enum DocxFormat {
                 }
             }
         }
-        func walkInline(_ node: XNode, link: String?) {
+        func walkInline(_ node: XNode, link: String?, revision: RevisionMark? = nil) {
             for child in node.children {
                 switch child.name {
-                case "w:r": walkRun(child, link: link)
+                case "w:r": walkRun(child, link: link, revision: revision)
                 case "w:hyperlink":
                     let target = child["r:id"].flatMap { rels[$0] } ?? child["w:anchor"].map { "#\($0)" }
-                    walkInline(child, link: target)
-                case "w:ins", "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
-                    walkInline(child, link: link)
-                case "w:del", "w:pPr", "w:proofErr", "w:bookmarkStart", "w:bookmarkEnd":
+                    walkInline(child, link: target, revision: revision)
+                case "w:ins", "w:del":
+                    // Tracked changes stay tracked: the text with its mark,
+                    // written back as the insertion or deletion it was.
+                    let mark = RevisionMark(kind: child.name == "w:ins" ? .inserted : .deleted,
+                                            author: child["w:author"] ?? "", date: child["w:date"] ?? "")
+                    walkInline(child, link: link, revision: mark)
+                case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
+                    walkInline(child, link: link, revision: revision)
+                case "w:pPr", "w:proofErr", "w:bookmarkStart", "w:bookmarkEnd":
                     break
                 default: break
                 }
@@ -1055,6 +1063,7 @@ enum DocxFormat {
         var media: [ZipEntry] = []
         var mediaRels: [(id: String, target: String)] = []
         var keptRels = "", keptRelCount = 0
+        var revisionCount = 0
         var usedExtensions: Set<String> = []
         func relId(for link: String) -> String {
             if let r = rels.first(where: { $0.target == link }) { return r.id }
@@ -1199,8 +1208,17 @@ enum DocxFormat {
                 var runXML = "<w:r>"
                 if s.link != nil { rPr = "<w:rStyle w:val=\"Hyperlink\"/>" + rPr }
                 if !rPr.isEmpty { runXML += "<w:rPr>\(rPr)</w:rPr>" }
-                runXML += _text(piece)
+                if s.revision?.kind == .deleted {
+                    runXML += _text(piece).replacingAll("<w:t ", with: "<w:delText ").replacingAll("<w:t>", with: "<w:delText>").replacingAll("</w:t>", with: "</w:delText>")
+                } else {
+                    runXML += _text(piece)
+                }
                 runXML += "</w:r>"
+                if let rev = s.revision {
+                    revisionCount += 1
+                    let tag = rev.kind == .inserted ? "w:ins" : "w:del"
+                    runXML = "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")>\(runXML)</\(tag)>"
+                }
                 if let link = s.link {
                     if link.hasPrefix("#") {
                         body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\">\(runXML)</w:hyperlink>"

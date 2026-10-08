@@ -194,6 +194,31 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[0].inlineImages.values.first?.width ?? 0, 120, accuracy: 0.01)
     }
 
+    /// Tracked changes stay tracked: an insertion and a deletion read as
+    /// marked runs and are written back as the changes they were, so Word
+    /// shows the same markup for the copy.
+    func testTrackedChangesRoundTrip() throws {
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "Keep this")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let i = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[i].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:t xml:space=\"preserve\">Keep this</w:t></w:r>",
+                               with: "<w:t xml:space=\"preserve\">Keep this</w:t></w:r><w:ins w:id=\"7\" w:author=\"Ann\" w:date=\"2020-01-02T03:04:05Z\"><w:r><w:t xml:space=\"preserve\"> new</w:t></w:r></w:ins><w:del w:id=\"8\" w:author=\"Bob\" w:date=\"2020-01-02T03:04:06Z\"><w:r><w:rPr><w:b/></w:rPr><w:delText xml:space=\"preserve\"> old</w:delText></w:r></w:del>")
+        entries[i] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let p = back.paragraphs[0]
+        XCTAssertEqual(p.text, "Keep this new old")
+        let marks = p.runs.map { $0.style.revision }
+        XCTAssertEqual(marks, [nil, RevisionMark(kind: .inserted, author: "Ann", date: "2020-01-02T03:04:05Z"),
+                               RevisionMark(kind: .deleted, author: "Bob", date: "2020-01-02T03:04:06Z")])
+        XCTAssertTrue(p.runs[2].style.bold)
+        let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(saved.contains("<w:ins w:id=\"1\" w:author=\"Ann\" w:date=\"2020-01-02T03:04:05Z\"><w:r><w:t xml:space=\"preserve\"> new</w:t></w:r></w:ins>"), saved)
+        XCTAssertTrue(saved.contains("<w:del w:id=\"2\" w:author=\"Bob\" w:date=\"2020-01-02T03:04:06Z\"><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:delText xml:space=\"preserve\"> old</w:delText></w:r></w:del>"), saved)
+        let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document
+        XCTAssertEqual(again.paragraphs[0].runs.map { $0.style.revision }, marks)
+    }
+
     func testZipRoundTrip() throws {
         let entries = [ZipEntry(name: "a/b.txt", data: Data("hello hello hello hello".utf8)),
                        ZipEntry(name: "c.bin", data: Data((0 ..< 5000).map { UInt8($0 % 251) }))]
