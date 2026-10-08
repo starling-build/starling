@@ -1,124 +1,71 @@
 # Starling
 
-**[starling.build](https://starling.build)**
+**[starling.build](https://starling.build)** ·
+[GitHub releases](https://github.com/starling-build/starling/releases)
 
-A new Linux desktop environment, whose shell, compositor, framework, and apps
-are written in Swift (the framework is a full port of Flutter's Dart framework
-to Swift — no Dart VM). It brings its own Wayland compositor and its own X11
-server, so it runs native Wayland clients and X11 apps alike. Runs on the
-Flutter engine's C core via the sibling repo **starling-engine**, and on the
-Flutter→Swift framework from the sibling repo **flutter-swift**.
+Starling is an **open software factory** building world-class applications and
+the shared foundation behind them. A fast terminal, an office suite, a desktop,
+and a Swift SDK are part of the same project. The Linux desktop is where
+Starling began; it is one of the products we build today.
 
-```
-sdk   -> symlink to a flutter-swift checkout — the Flutter→Swift framework port
-         (SwiftPM package "FlutterSwift"). Its own repo; ./bootstrap.sh links it.
-engine -> symlink to a starling-engine checkout
-shell/   the desktop shell: compositor (C Wayland server), window manager,
-         dock, spaces, portals — SwiftPM package "DesktopShellApp"
-apps/    first-party apps (Settings, Files, Terminal, …), one SwiftPM package each
-host/    the windowed host (FlutterRunner + GLFWBridge): run a Swift Flutter app
-         in an ordinary window rather than through the shell. Demos only.
-build/   packaging: the Ubuntu .deb, session files, app-run/app-install tools,
-         vendored flutter_assets
-docs/    porting guides and design notes, including plans/
-macos-compat/  research: unmodified Mach-O macOS binaries on Linux
-```
+Our ambition is great software that everyone can use, study, change, and build
+on. **Free to use. Open source.** Starling's own code is Apache-2.0; the framework
+port and engine retain their upstream licenses (see [Licensing](#licensing)).
 
-**Get started:** [Install Starling](docs/INSTALL.md) ·
-[User Guide](docs/USER_GUIDE.md) · [Build from source](docs/BUILDING.md)
+## Applications
 
-## Status
+| Project | What it does | Explore |
+|---|---|---|
+| **Starling Terminal** | A fast terminal with tabs, split panes, local shells, SSH connections, and remote workspaces. Persistent sessions can outlive the connection through `starling-termd`. | [Terminal releases](https://github.com/starling-build/starling/releases/tag/terminal-v0.2.0) · [Source](apps/TerminalApp) · [Session daemon](termd/README.md) |
+| **Starling Office** | Writer, Slides, and Sheets: documents, presentations, and spreadsheets. The browser apps share the Swift implementation with native builds. | [Office presentation](https://openoffice.starling.build/) · [Writer](https://writer.starling.build/) · [Slides](https://slides.starling.build/) · [Sheets](https://sheets.starling.build/) · [Build guide](apps/OfficeApp/README.md) |
+| **Starling Desktop** | A native desktop with its own Wayland compositor and X11 server, built-in tools, floating and tiling windows, and dedicated agent workspaces. Familiar 2D and a living 3D city are two views of the same desktop. | [Desktop presentation](https://starling.build/desktop/) · [Install](docs/INSTALL.md) · [User Guide](docs/USER_GUIDE.md) |
+| **Starling SDK** | Flutter's framework ported to Swift: widgets, rendering, painting, gestures, animation, and platform hosts, without a Dart VM. The building blocks behind our applications are open, too. | [SDK guide](sdk/README.md) · [Source](sdk/) |
 
-**Early development — version 0.4.0.** The desktop boots as a real session, runs
-its own compositor and apps, and installs from a `.deb` on a stock Ubuntu
-26.04. It is also the work of one person and a few months, so expect rough
-edges, missing pieces, and bugs. Nothing here is load-bearing for anyone yet,
-and interfaces change without notice.
+The applications have different platform support and levels of maturity.
+Terminal has macOS, Windows, and Linux builds; Office can be tried directly in
+the browser; Desktop targets Ubuntu and Windows through WSL2. Follow each
+product's guide for its supported setup. These are actively developed projects,
+and features and interfaces continue to evolve.
 
-What follows is deliberately specific about what is and is not done, because
-"a desktop environment" invites assumptions that would be wrong.
+## A shared foundation
 
-### What works
+Starling applications are written in Swift against the SDK in this repository.
+Native hosts use the Flutter engine's C core through
+[starling-engine](https://github.com/starling-build/starling-engine). Browser
+builds use Swift WebAssembly and the skwasm renderer. Applications can run in
+their own host windows or in the Starling desktop; they are not limited to a
+Linux desktop session.
 
-| Area | State |
+The desktop brings the same approach to the whole workspace: its dock, menus,
+and windows are widgets in one tree. That architecture supports everyday app
+use, dedicated agent workspaces, and new views such as the 3D city.
+
+## Repository map
+
+| Path | Contents |
 |---|---|
-| **Session** | Boots through the normal login path — `gdm3` → `gdm-wayland-session` → `/usr/libexec/starling-session` → `DesktopShellApp --drm`. Unprivileged: DRM master and input come from logind via `libseat`, not from running as root. |
-| **Display** | DRM/KMS modeset, GBM/EGL, hardware cursor, flip-driven frame pacing, multi-output layout. Tested on AMD (Radeon 780M) and on virtio-gpu/virgl in a VM. |
-| **Compositor** | ~5,700 lines of C implementing `xdg-shell`, `linux-dmabuf` (zero-copy import), `viewporter`, `fractional-scale-v1`, `pointer-constraints`, `relative-pointer`, `text-input-v3`, `presentation-time`, `primary-selection`, `idle-inhibit`, `cursor-shape-v1`, `xdg-decoration`, `xdg-activation`, `xdg-output`, `wlr-data-control`. |
-| **Window management** | Floating and tiling (master-and-stack) behind one switch, spaces with a Mission Control overview, drag-move and drag-resize, a dock with running indicators and drag-to-reorder, and a Launchpad. |
-| **Apps** | Settings, Files, Terminal (a real PTY), Text Editor, Calculator, App Store, Task Manager, Video Player, Image Viewer — nine first-party apps, all written against the Swift framework port. |
-| **Screen recording** | The desktop records itself — whole screen or a single window's own content — to MP4 in `~/Videos`. Hardware H.264 where the machine has an encoder: the composited frame goes to it as a dma-buf, so no frame is copied through the CPU (~0.05 of a core here); a software encoder otherwise. A red dot and a running clock sit in the menu bar for the duration. |
-| **Portals** | `xdg-desktop-portal` implementing `Settings`, `FileChooser` (OpenFile/SaveFile/SaveFiles, via a helper window), `ScreenCast` (the interface behind `getDisplayMedia` and OBS), `Session` and `Request`. |
-| **Third-party clients** | Launch and render as native Wayland clients: Chrome, VS Code, Slack, Discord, Teams, Telegram, IntelliJ IDEA, GIMP, Blender, GNOME Web, GNOME Text Editor — covering Chromium/Electron, Qt6, GTK3, GTK4, the JetBrains Runtime's Wayland toolkit, and Blender's own GHOST, which drives the viewport (EEVEE included) through our `linux-dmabuf`. Both buffer paths are live: GPU clients via `linux-dmabuf`, software clients via `wl_shm`. Zoom runs with a caveat (below). X11 clients run against the in-tree X server (DRI3/Present). |
-| **Packaging** | A 50.8 MB `.deb` that installs on a *minimal* 26.04 image, pulling 26 dependency packages; `Depends` is computed from the shipped binaries by `dpkg-shlibdeps`. |
-| **Framework port** | 137 test files under `sdk/Tests`. |
+| [`apps/`](apps/) | First-party applications, including Terminal and Office, plus desktop tools such as Files and Settings. |
+| [`sdk/`](sdk/) | The Swift framework port, UI libraries, platform bindings, and examples; included in this repository. |
+| [`shell/`](shell/) | Desktop shell, compositor, window management, dock, spaces, portals, and desktop views. |
+| [`termd/`](termd/) | The terminal-session daemon for sessions that survive client disconnects. |
+| [`host/`](host/) | Windowed application-host plumbing. |
+| [`build/`](build/) | Build, packaging, browser, and platform tooling. |
+| [`ui/`](ui/) | The Starling landing page and the Office and Desktop slide presentations. |
+| [`docs/`](docs/) | Setup and user guides, engineering notes, and project plans. |
+| [`macos-compat/`](macos-compat/) | Research into running unmodified Mach-O macOS binaries on Linux. |
+| `engine` | A local symlink to a sibling `starling-engine` checkout, created by `bootstrap.sh`. |
 
-### Known limitations
+## Development
 
-- **xdg_output state is sent once and never updated.** A client that asks for
-  an xdg_output gets the logical position and size as they are at that moment;
-  a later mode change, scale change or output hotplug does not re-send them, so
-  a long-running client can be left with stale geometry. The resources are not
-  tracked per output, which is what fixing it needs.
-- **The portal is incomplete.** `Settings` and `FileChooser` work — GTK4 reads
-  `org.freedesktop.appearance` through them, and both carry the `version`
-  property clients probe first — but `Inhibit`, `Camera` and
-  `Print` are absent entirely. The session bus masks the stock
-  `xdg-desktop-portal` rather than letting it fill those gaps: it has no
-  backend for `Starling`, so it would serve only its backend-less interfaces
-  while taking `org.freedesktop.portal.Desktop` away from the shell's own
-  portal, breaking the two that do work.
-- **No screen lock or screensaver.**
-- **Scaling is effectively pinned to 2.0.** Fractional values produced blurry
-  text and are not usable yet.
-- **No display-mode selection.** The session takes the connector's preferred
-  mode; overriding it means editing the session launcher.
-- **The third-party app runtime is opt-in and unshipped.** `app-run` expects a
-  debootstrap'd runtime under `/var/lib/starling-apps`; third-party apps are
-  otherwise expected to use their native packaging.
-- **The App Store catalog is small, and its tiles are deliberately generic.**
-  Ten entries, all of which install and launch: Chrome and VS Code were driven
-  through the store's own buttons, the other eight through `app-install` and
-  `app-run` — the paths those buttons invoke. Tiles use category glyphs rather
-  than vendor artwork on purpose: those logos are their owners' trademarks and
-  Starling ships none of them. Chrome and VS Code do show their real icons in
-  the launcher and dock, read from the host at runtime; the rest fall back to a
-  generic glyph, since only those two ids are wired to that lookup.
-- **One catalogued app runs with a caveat.** Zoom starts but reports
-  `no pactl and pacmd found` and has no audio. That is deliberate rather than a
-  missing dependency: Zoom segfaults during audio init whenever `pactl` is on
-  PATH on a PipeWire box with no native PulseAudio daemon, which is the stock
-  Ubuntu 26.04 arrangement. Absent `pactl` it skips audio and runs; present, it
-  crashes, and a working `PULSE_SERVER` does not save it. **Do not install
-  `pulseaudio-utils` to "fix" this** — it trades a silent Zoom for one that will
-  not start. Other libpulse apps (Chrome, Slack, Teams) do get sound; Zoom is a
-  single-app exception until `pactl` can be masked for it alone.
-- **No CI.** Testing is the framework's unit tests plus manual verification in
-  a VM.
+Start with the [SDK guide](sdk/README.md) for the shared framework or the
+[Office build guide](apps/OfficeApp/README.md) for native and browser builds.
+Desktop setup is documented in [docs/BUILDING.md](docs/BUILDING.md); its common
+commands follow. Product-specific instructions take precedence over these
+Linux desktop commands.
 
-### Roadmap
+## Desktop development
 
-Direction, not commitment:
-
-- **Run the Linux apps people actually use.** The major toolkits composite
-  today — Chromium/Electron, Qt6, GTK3 and GTK4 — and X11 clients run against
-  the in-tree X server. The bar is that an app installed from your
-  distribution simply works, so the remaining work is breadth and the rough
-  edges each app exposes, not a missing toolkit.
-- **Android apps**, through Waydroid. The launcher and app registry already
-  carry entries for it.
-- **Windows apps**, through Wine or Proton, once the Linux story is solid.
-- **More hardware.** Verified on AMD and on virtio-gpu so far; Intel and NVIDIA
-  next, then laptop concerns — lid, backlight, output hotplug — and HiDPI.
-- **More platforms.** Distributions beyond Ubuntu 26.04, and ARM alongside
-  x86-64.
-- **The desktop's own basics**, so it holds up as a daily driver: notifications,
-  screen lock, display settings, and enough of the framework port to build
-  them comfortably.
-- **Stay current with upstream Flutter.** The engine fork is arranged so
-  rebasing onto a new release is ordinary `git rebase`.
-
-## Setup
+### Setup
 
 Building both halves on a machine that has neither — toolchains, `gclient`,
 apt packages, timings, and the Ubuntu 26.04 workarounds — is
@@ -134,7 +81,7 @@ Every engine reference (bridge headers, `libflutter_engine.so`,
 `libflutter_linux_drm.so`, `icudtl.dat`) goes through that symlink; point it at
 any engine checkout with `./bootstrap.sh <path>`.
 
-## Build
+### Build
 
 ```bash
 cd shell && swift build -c release          # the shell (+ sdk as dependency)
@@ -144,7 +91,7 @@ cd apps/TerminalApp && swift build -c release   # each app is its own package
 Engine C++ changes rebuild in the engine repo (`ninja -C engine/src/out/...`);
 the shell needs **no relink** — it binds only the engine's stable C API.
 
-## Run
+### Run
 
 ```bash
 build/run-desktop.sh
@@ -164,7 +111,7 @@ Do not run straight out of `.build`: child apps are spawned with
 so they only work when the libraries sit next to them — which is what staging
 does.
 
-## Package
+### Package
 
 ```bash
 build/stage.sh [outdir]               # the assembled tree (defaults to .stage/)
@@ -244,7 +191,7 @@ possible:
 | Path | License |
 |---|---|
 | `shell/`, `apps/`, `build/`, `docs/`, `host/` | Apache-2.0 — © the Starling authors |
-| sibling `flutter-swift` (linked as `sdk`) | BSD-3-Clause — © the Flutter Authors |
+| `sdk/` — the Flutter framework port | BSD-3-Clause — © the Flutter Authors |
 | `shell/Sources/WaylandServer/*-protocol.{c,h}` | MIT — generated from wayland-protocols XML; the upstream copyright sits in each file |
 | sibling `starling-engine` | BSD-3-Clause — a Flutter engine fork |
 
