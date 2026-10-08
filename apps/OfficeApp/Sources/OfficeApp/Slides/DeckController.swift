@@ -38,6 +38,7 @@ struct ShapeState: Equatable {
     var field: SlideField? = nil
     var group: ShapeGroup? = nil
     var keptLine: KeptLine? = nil
+    var keptPicture: KeptPicture? = nil
     var autofit = false
     var fontScale = 1.0
     var keptLook: KeptLook? = nil
@@ -56,6 +57,9 @@ struct SlideState: Equatable {
     var id: Int
     var layout: SlideLayoutKind
     var hidden: Bool
+    var hideMasterShapes = false
+    var clrMapOvrXML: String? = nil
+    var controlsXML: String? = nil
     var notes: RichDocument
     var shapes: [ShapeState]
     var layoutPart: String? = nil
@@ -210,6 +214,9 @@ final class DeckController: ChangeNotifier {
         let copy = Slide(id: _id(), layout: source.layout, shapes: shapes,
                          notes: _textController(source.notes.document))
         copy.hidden = source.hidden
+        copy.hideMasterShapes = source.hideMasterShapes
+        copy.clrMapOvrXML = source.clrMapOvrXML
+        copy.controlsXML = source.controlsXML
         // The copy's animations, aimed at the copies of their shapes.
         var map: [Int: Int] = [:]
         for (a, b) in zip(source.shapes, shapes) { map[a.id] = b.id }
@@ -988,6 +995,8 @@ final class DeckController: ChangeNotifier {
     func snapshot() -> DeckState {
         DeckState(slides: slides.map { slide in
             SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden,
+                       hideMasterShapes: slide.hideMasterShapes, clrMapOvrXML: slide.clrMapOvrXML,
+                       controlsXML: slide.controlsXML,
                        notes: slide.notes.document, shapes: slide.shapes.map(_state),
                        layoutPart: slide.layoutPart, backgroundXML: slide.backgroundXML,
                        background: slide.background, inheritedBackground: slide.inheritedBackground,
@@ -1033,6 +1042,9 @@ final class DeckController: ChangeNotifier {
                 slide.notes.addListener({ [weak self] in self?._textChanged() }, owner: self)
             }
             slide.hidden = ss.hidden
+            slide.hideMasterShapes = ss.hideMasterShapes
+            slide.clrMapOvrXML = ss.clrMapOvrXML
+            slide.controlsXML = ss.controlsXML
             slide.layoutPart = ss.layoutPart
             slide.backgroundXML = ss.backgroundXML
             slide.background = ss.background
@@ -1068,7 +1080,7 @@ final class DeckController: ChangeNotifier {
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
-                   autofit: s.autofit, fontScale: s.fontScale, keptLook: s.keptLook)
+                   keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale, keptLook: s.keptLook)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -1103,6 +1115,7 @@ final class DeckController: ChangeNotifier {
         shape.fieldShown = nil
         shape.group = st.group
         shape.keptLine = st.keptLine
+        shape.keptPicture = st.keptPicture
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
         shape.keptLook = st.keptLook
@@ -1176,6 +1189,7 @@ final class DeckController: ChangeNotifier {
         st.sourceXML = nil
         st.group = nil
         st.keptLine = nil
+        st.keptPicture = nil
         st.frame = st.frame.shift(Offset(offset, offset))
         return _make(st)
     }

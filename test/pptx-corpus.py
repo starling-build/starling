@@ -4,8 +4,9 @@
     test/pptx-corpus.py [--render] [--dir DIR] [FILE.pptx ...]
 
 Downloads Apache POI's .pptx test files (real decks from bug reports, and
-fuzzer cases) into DIR (default ~/.cache/starling/pptx-corpus/in) once —
-never into the repo — then for each: read (`OfficeApp --deck`), save and
+fuzzer cases), LibreOffice's sd/qa pptx regression decks (as lo-*) and its
+oox/qa decks (as oox-*) into DIR (default ~/.cache/starling/pptx-corpus/in)
+once — never into the repo — then for each: read (`OfficeApp --deck`), save and
 re-read (`--deck-roundtrip`), and `test/pptx-check.py` on the saved copy.
 With --render (macOS, needs Pillow) it also has Quick Look draw slide 1
 and the middle slide of the original and of the saved copy and reports
@@ -19,30 +20,39 @@ renders over 2.
 import argparse, json, os, re, subprocess, sys, time, urllib.request, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APP = os.path.join(ROOT, "apps/OfficeApp/.build/debug/OfficeApp")
+APP = os.environ.get("OFFICE_APP") or os.path.join(ROOT, "apps/OfficeApp/.build/debug/OfficeApp")
 CHECK = os.path.join(ROOT, "test/pptx-check.py")
-LIST = "https://api.github.com/repos/apache/poi/contents/test-data/slideshow"
+# (prefix, GitHub directory listing). The prefix keeps the sources apart in
+# one directory and tells the reports which corpus a deck came from.
+SOURCES = [
+    ("", "https://api.github.com/repos/apache/poi/contents/test-data/slideshow"),
+    ("lo-", "https://api.github.com/repos/LibreOffice/core/contents/sd/qa/unit/data/pptx"),
+    ("oox-", "https://api.github.com/repos/LibreOffice/core/contents/oox/qa/unit/data"),
+]
 
 
 def fetch(dest):
     os.makedirs(dest, exist_ok=True)
-    try:
-        with urllib.request.urlopen(LIST, timeout=60) as r:
-            entries = [e for e in json.load(r) if e["name"].lower().endswith(".pptx")]
-    except (urllib.error.URLError, OSError) as e:
-        # Offline, or GitHub reset the connection: the cache is the corpus.
-        cached = [f for f in os.listdir(dest) if f.lower().endswith(".pptx")]
-        if not cached:
-            raise
-        print(f"corpus: listing unavailable ({e}); using the {len(cached)} cached decks")
-        return len(cached)
-    for e in entries:
-        path = os.path.join(dest, e["name"])
-        if os.path.exists(path) and os.path.getsize(path) == e["size"]:
-            continue
-        with urllib.request.urlopen(e["download_url"], timeout=120) as r, open(path, "wb") as f:
-            f.write(r.read())
-    return len(entries)
+    total = 0
+    for prefix, url in SOURCES:
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r:
+                entries = [e for e in json.load(r) if e["name"].lower().endswith(".pptx")]
+        except (urllib.error.URLError, OSError) as e:
+            # Offline, or GitHub reset the connection: the cache is the corpus.
+            cached = [f for f in os.listdir(dest) if f.lower().endswith(".pptx")]
+            if not cached:
+                raise
+            print(f"corpus: listing unavailable ({e}); using the {len(cached)} cached decks")
+            return len(cached)
+        for e in entries:
+            path = os.path.join(dest, prefix + e["name"])
+            if os.path.exists(path) and os.path.getsize(path) == e["size"]:
+                continue
+            with urllib.request.urlopen(e["download_url"], timeout=120) as r, open(path, "wb") as f:
+                f.write(r.read())
+        total += len(entries)
+    return total
 
 
 def run(args, timeout=60):
@@ -116,7 +126,9 @@ def main():
     vis = os.path.join(os.path.dirname(a.dir), "vis")
     os.makedirs(out, exist_ok=True)
     os.makedirs(vis, exist_ok=True)
-    names = a.files or sorted(f for f in os.listdir(a.dir) if f.lower().endswith(".pptx"))
+    # PowerPoint leaves `~$name.pptx` lock files beside decks it has open
+    # (test/pptx-powerpoint-render.sh opens the originals): not decks.
+    names = a.files or sorted(f for f in os.listdir(a.dir) if f.lower().endswith(".pptx") and not f.startswith("~$"))
     counts, scores = {}, []
     for name in names:
         src, dst = os.path.join(a.dir, name), os.path.join(out, name)
@@ -140,7 +152,10 @@ def main():
             except Exception:
                 continue
             for n in sorted({1, max(1, (count + 1) // 2)}):
-                s = render_diff(src, dst, n, vis)
+                try:
+                    s = render_diff(src, dst, n, vis)
+                except (zipfile.BadZipFile, KeyError, OSError):
+                    s = None  # a salvaged original Python's zipfile cannot open
                 if s is not None:
                     scores.append((s, name, n))
     print(counts)

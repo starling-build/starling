@@ -308,6 +308,76 @@ downloads, charts, the show. What it took is in docs/plans/wasm.md
 ("Slides runs in the browser too"); the one Slides-wide change is that
 dates come from `SlidesDates` (no DateFormatter), natively as well.
 
+**LibreOffice corpus, and PowerPoint as the renderer, 2026-10-08.** The
+corpus grew from POI's 95 decks to **561**: LibreOffice's `sd/qa/unit/data/pptx`
+(403 real regression decks, as `lo-*`) and `oox/qa/unit/data` (63, as
+`oox-*`), fetched by the same `test/pptx-corpus.py`. And the pixel gate is
+now PowerPoint's own drawing, as the user asked: `test/pptx-powerpoint-render.sh
+IN OUT WORK` has PowerPoint export the original and our saved copy to PDF
+(`test/pptx-powerpoint-pdf.applescript`, repairing when asked and saying so)
+and `test/pdf-diff.swift` scores every page — a PowerPoint-vs-PowerPoint
+difference is ours to explain, where Quick Look's was often Quick Look's
+(and `qlmanage` hangs on some LibreOffice decks besides). WORK must be the
+one folder PowerPoint's sandbox was granted (`~/starling-ppt-check`): a
+subfolder made later is a new folder and blocks the export behind a "Grant
+File Access" dialog that looks like a 120 s hang.
+
+Headless, before fixes: 538 of 561 round-tripped and checked clean. In
+PowerPoint, 44 of 550 rendered decks differed from their originals, 3 copies
+needed repair (two fuzzer controls and a file missing its own layouts).
+After: **552 clean headless** (the rest are the originals' damage — Divino
+truncated, tdf169781's missing layouts, fuzzers), **545 of 550 identical in
+PowerPoint**, and the 5 left are two fuzzer files, Divino, tdf169781 and one
+1% group. Found and fixed, in order of pixels:
+
+- **Pictures were regenerated from the model**, so everything the model
+  does not hold vanished: a blip's recolouring (`a:clrChange` making an
+  EMF's white transparent — a black page turned white, tdf113163),
+  transparency, greyscale and black-and-white effects, a flip
+  (mirrored-graphic), a crop to a shape (crop-to-shape, a rounded rect, a
+  triangle), a fill or outline behind the picture (tdf163803), and the
+  `useLocalDpi` and `bwMode` details. A picture read from a file now keeps
+  its element (`KeptPicture`: image, crop, turn) and is written back
+  verbatim at its frame while those are unchanged, like text shapes,
+  tables and charts already were.
+- **`showMasterSp="0"` was dropped**, so a slide that hid its master's
+  shapes got them back over its own background (themes slide 7, aascu
+  slide 7, tdf146223's pink page gone dark). Read, kept on the slide,
+  written.
+- **The slide's `p:clrMapOvr` was replaced** by `masterClrMapping`, so a
+  slide swapping bg1 for dk1 lost its black page (chart_pt_color_bg1).
+  Kept as read and written back; the reader also applies the override (and
+  the layout's) to its colour map, so the app draws it right too.
+- **A placeholder picture with `<p:spPr/>`** (its frame the layout's) was
+  dropped on read: the inherited placeholder's frame is used now (layouts
+  slide 9, customshape-bitmapfill-srcrect).
+- **A group's own fill** (`p:grpSpPr` solidFill, which members say
+  `a:grpFill` for) and its `hidden="1"` were lost when the group was
+  rebuilt (tdf104201's green boxes with white text, tdf131082,
+  hidden_group_shape). Carried on `ShapeGroup`, written back.
+- **A group with a zero `chExt`** was flattened unmapped, leaving members at
+  child-space coordinates (tdf136830): kept whole now, like a turned group.
+- **Custom shows** listed slides by relationship ids the save renumbered
+  (four tdf decks needed repair): remapped, emptied shows dropped.
+- **Transition and animation sounds** (`p:snd`, `p:sndTgt`) kept their
+  `r:embed` but not the relationship or the .wav: kept XML now goes through
+  the same remap as shapes.
+- **Carried media had no content type** when the source typed it by
+  extension (video.avi, bnc591147): the Default comes along, and common
+  audio/video extensions have one of our own.
+- `pptx-check.py` no longer counts an id repeated only across
+  `mc:AlternateContent` Choice and Fallback as a duplicate (six false
+  failures).
+
+- **ActiveX controls (`p:controls`) were dropped** — 13 decks. Kept as
+  read and written back with their parts (`activeX/*.xml` + `.bin`),
+  their fallback pictures and the slide's VML drawing, which places them;
+  PowerPoint draws the fallback picture as before. This app draws nothing
+  for them.
+
+Left in the app itself (the file is right): `a:grpFill` members are drawn
+unfilled, and controls are not drawn.
+
 **S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
 search field open Writer's find bar over the deck: every text body in
 reading order — each slide's shapes as they stack, table cells included,
