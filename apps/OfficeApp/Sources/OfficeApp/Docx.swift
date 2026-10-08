@@ -575,6 +575,10 @@ enum DocxFormat {
             setup.marginBottom = Double(mar["w:bottom"] ?? "1440").map { abs($0) / 20 } ?? 72
             setup.marginLeft = Double(mar["w:left"] ?? mar["w:start"] ?? "1440").map { $0 / 20 } ?? 72
             setup.marginRight = Double(mar["w:right"] ?? mar["w:end"] ?? "1440").map { $0 / 20 } ?? 72
+            // The header/footer distances: writing 0.49in into a file whose
+            // top margin is 0.1in made Word warn that the margins were small.
+            if let v = Double(mar["w:header"] ?? "") { setup.headerDistance = max(0, v) / 20 }
+            if let v = Double(mar["w:footer"] ?? "") { setup.footerDistance = max(0, v) / 20 }
         }
         if let cols = sect.first("w:cols") {
             if let n = Int(cols["w:num"] ?? ""), n > 1 { setup.columns = n }
@@ -1247,7 +1251,7 @@ enum DocxFormat {
         if !doc.header.isEmpty { body += "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>" }
         if !doc.footer.isEmpty { body += "<w:footerReference w:type=\"default\" r:id=\"rIdFooter\"/>" }
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape ? " w:orient=\"landscape\"" : "")/>"
-        body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"708\" w:footer=\"708\" w:gutter=\"0\"/>"
+        body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"0\"/>"
         if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
         body += "</w:sectPr>"
 

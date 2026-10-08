@@ -99,6 +99,11 @@ final class DocxTests: XCTestCase {
         let style = back.tableStyles[back.paragraphs[1].cell!.table]
         XCTAssertEqual(style?.indent, 36)
         XCTAssertEqual(style?.rowHeights, [1: 48])
+        // Header/footer distances survive (the fixture's default, 708 twips).
+        let setup = try XCTUnwrap(DocxFormat.read(try Zip.write(entries)).pageSetup)
+        XCTAssertEqual(setup.headerDistance, 35.4, accuracy: 0.01)
+        var narrow = PageSetup.letter; narrow.headerDistance = 0; narrow.footerDistance = 10
+        XCTAssertTrue(String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: narrow)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self).contains("w:header=\"0\" w:footer=\"200\""))
         // Cell margins: the table style said nothing, so Word's own.
         XCTAssertEqual(style?.cellMarginTop, 0)
         XCTAssertEqual(style?.cellMarginLeft, 5.4)

@@ -115,6 +115,10 @@ public struct PageSetup: Equatable, Sendable {
     public var marginRight: Double
     /// Space between pages on the canvas, in points.
     public var gap: Double
+    /// Where the header's top and the footer's bottom sit from the page
+    /// edges, in points (Word's pgMar header/footer; 0.49in by default).
+    public var headerDistance: Double = 35.4
+    public var footerDistance: Double = 35.4
 
     public init(width: Double, height: Double, marginTop: Double = 72,
                 marginBottom: Double = 72, marginLeft: Double = 72,

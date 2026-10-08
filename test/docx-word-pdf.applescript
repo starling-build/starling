@@ -129,6 +129,24 @@ on run argv
       keystroke return
       delay 2
       keystroke return
+      -- Word renders only now, and may still object ("Your margins are
+      -- pretty small…", the paper-size and printable-area alerts): Yes.
+      repeat with i from 1 to 6
+        delay 1
+        repeat with w in windows
+          set txt to ""
+          try
+            set txt to (value of every static text of w) as string
+          end try
+          if txt contains "paper size" or txt contains "printable area" or txt contains "margins are pretty small" then
+            repeat with bn in {"Yes", "Continue", "OK"}
+              try
+                click button bn of w
+              end try
+            end repeat
+          end if
+        end repeat
+      end repeat
     end tell
   end tell
   -- the file, then the window
