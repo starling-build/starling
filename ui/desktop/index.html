@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#165b46">
+  <title>Starling Desktop — a native desktop with many possibilities</title>
+  <meta name="description" content="Meet Starling Desktop: native rendering, Linux apps, built-in tools, dedicated agent workspaces, and 2D and 3D views. An editable presentation rendered by Starling Slides.">
+  <link rel="canonical" href="https://starling.build/desktop/">
+  <meta property="og:title" content="Starling Desktop — one desktop, many possibilities">
+  <meta property="og:description" content="Native tools and agent workspaces, built in the open.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://starling.build/desktop/slides/wide-1.png">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#presentation">Skip to presentation</a>
+  <header class="header">
+    <a class="brand" href="https://starling.build"><img src="favicon.svg" width="30" height="30" alt="">Starling <span>Desktop</span></a>
+    <div class="header-links"><a href="https://github.com/starling-build/starling">GitHub ↗</a><a class="open-apps" href="#2">Explore Desktop ↘</a></div>
+  </header>
+  <main id="presentation" aria-label="Starling Desktop presentation">
+    <div class="stage" id="stage">
+      <picture id="poster"><source media="(max-aspect-ratio: 1/1)" srcset="slides/tall-1.png"><img src="slides/wide-1.png" alt="One desktop. Many possibilities. A fast native desktop." fetchpriority="high" width="1280" height="720"></picture>
+      <canvas id="starling" tabindex="0" role="img" aria-label="Starling Slides presentation" aria-describedby="slide-description"></canvas>
+      <a id="repository-link" class="slide-link" href="https://github.com/starling-build/starling" aria-label="View starling-build/starling on GitHub" hidden><span class="sr-only">github.com/starling-build/starling</span></a>
+      <div class="load-status" id="load-status" role="status">Starting live slides…</div>
+      <button id="retry" type="button" hidden>Retry live slides</button>
+    </div>
+    <p class="sr-only" id="slide-description">A native desktop, everyday tools, agent workspaces, and more ways to work.</p>
+  </main>
+  <footer class="controls">
+    <div class="credit"><span class="slides-icon" aria-hidden="true">S</span><span>Presented with <strong>Starling Slides</strong><a id="download-deck" href="slides/landing-wide.pptx" download>Download the editable deck ↗</a></span></div>
+    <nav class="slide-navigation" aria-label="Presentation slides"><button id="previous" type="button" aria-label="Previous slide" disabled>←</button><div class="dots"><button type="button" data-slide="0" aria-label="Slide 1: Introduction" aria-current="step"></button><button type="button" data-slide="1" aria-label="Slide 2: Native foundation"></button><button type="button" data-slide="2" aria-label="Slide 3: Everyday apps"></button><button type="button" data-slide="3" aria-label="Slide 4: Agent workspaces"></button><button type="button" data-slide="4" aria-label="Slide 5: Perspectives"></button><button type="button" data-slide="5" aria-label="Slide 6: Get Desktop"></button></div><span id="position" aria-live="polite" aria-atomic="true">01 / 06</span><button id="next" type="button" aria-label="Next slide">→</button></nav>
+    <a class="slide-action" id="slide-action" href="#2">Explore Desktop <span aria-hidden="true">↗</span></a>
+  </footer>
+  <noscript><div class="no-script">Browse the <a href="slides/landing-wide.pptx">presentation deck</a>, or <a href="https://starling.build/#install">get Desktop</a>. JavaScript enables live slides.</div></noscript>
+  <script type="module" src="slides.js"></script>
+</body>
+</html>

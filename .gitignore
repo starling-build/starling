@@ -39,3 +39,6 @@ Package.resolved
 # zlib sources for the web build, fetched by build/tools/fetch-zlib.sh.
 apps/OfficeApp/Vendor/
 .build-macos*/
+
+# Desktop presentation browser runtime
+ui/desktop/runtime/
