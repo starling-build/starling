@@ -38,8 +38,9 @@ def fetch(dest):
         try:
             with urllib.request.urlopen(url, timeout=60) as r:
                 entries = [e for e in json.load(r) if e["name"].lower().endswith(".pptx")]
-        except (urllib.error.URLError, OSError) as e:
-            # Offline, or GitHub reset the connection: the cache is the corpus.
+        except (urllib.error.URLError, OSError, ValueError, TypeError, KeyError) as e:
+            # Offline, GitHub reset the connection, or it answered with a
+            # rate-limit notice instead of the listing: the cache is the corpus.
             cached = [f for f in os.listdir(dest) if f.lower().endswith(".pptx")]
             if not cached:
                 raise

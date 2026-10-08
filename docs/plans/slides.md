@@ -378,6 +378,71 @@ PowerPoint**, and the 5 left are two fuzzer files, Divino, tdf169781 and one
 Left in the app itself (the file is right): `a:grpFill` members are drawn
 unfilled, and controls are not drawn.
 
+**The painter against PowerPoint, 2026-10-08.** The writer gate measures
+what PowerPoint draws from our FILE; this round measured what this app
+DRAWS. `OfficeApp --deck-pdf in.pptx out.pdf` is the headless File → Export
+→ PDF (pictures decoded first), and `test/pptx-app-render.sh IN PPT WORK`
+scores it page by page against PowerPoint's own PDF of the same original
+(the `NAME-orig.pdf` the render gate already made). The scores are larger
+than the writer's — fonts, wrapping and anti-aliasing differ on every
+page — so the use is the ranking: the worst decks show what the app does
+not draw at all. Over the 553 decks PowerPoint renders:
+
+| | mean | median | ≤2% | >20% |
+|---|---|---|---|---|
+| before | 9.7% | 2.6% | 256 | 92 |
+| after | 6.1% | 1.4% | 305 | 45 |
+
+Found and fixed, by pixels (the file is never touched — every one of
+these is read-side or paint-side, and the writer regression round shows
+the saved copies byte-identical):
+
+- **The layout's and master's own shapes were never drawn** — logos, bars,
+  decorative pictures, a title slide's whole picture. `Slide.decorations`
+  holds them (not placeholders; honouring `showMasterSp` on the slide and
+  the layout), drawn beneath the slide's shapes, never written.
+- **Freeforms (`a:custGeom`) were labelled boxes.** `Freeform.swift` reads
+  the path list — moveTo, lnTo, quad and cubic Béziers, arcTo, close — and
+  evaluates DrawingML's guide formulas (`*/`, `+-`, `?:`, `at2`, `cos`,
+  `pin`… with the built-in `w`, `h`, `ss`, `cd4`… names), so the shape is
+  drawn along its path in its fill and line, holes cut (even-odd). A guide
+  this cannot evaluate still gives a box.
+- **SmartArt was a box.** A deck saved by PowerPoint carries the diagram's
+  own drawing (`diagrams/drawingN.xml`, reached from the data part's
+  `dsp:dataModelExt`); its `dsp:` shapes read as `p:` ones, with their
+  `txXfrm` text frames, and are drawn where the frame sits. LibreOffice
+  saves no such part, so those decks stay boxes (the ~8 `lo-smartart-*`
+  decks still over 20%).
+- **Placeholders inherit more than text**: their fill and line from the
+  layout's and master's placeholder (tdf95932's green body), and their
+  geometry — a preset, or a custom path (custgeom-placeholder's notched
+  ellipse).
+- **Pictures lost their mirroring, their crop to a shape, their
+  transparency (`alphaModFix`) and duotone recolouring** (a theme's
+  background picture is usually a duotone of `bg2`; tdf123684 went from
+  black-on-white to its dark teal); a negative crop now pads.
+- **Backgrounds**: a theme `bgRef` picture resolves in the theme part (it
+  was looked up in the master's); the headless export decodes inherited
+  background pictures too (half the "white pages" were only that).
+- **Gradients blend in linear light**, as PowerPoint does — red to green
+  through orange, not brown; the stops are spelled out with in-betweens
+  for the sRGB shader. Shapes draw their own gradient and picture fills
+  (`fillStyle`) instead of a middle colour, including a gradient inherited
+  from the theme's fill style through `p:style`; a first stop at alpha 0
+  no longer blanks the shader (the paint's alpha scales it).
+- **Groups**: members saying `a:grpFill` take the group's colour;
+  `useBgFill` shapes are windows onto the slide background, clipped to
+  their outline; a group with a zero child extent is kept whole.
+- **Tables**: an empty table still draws its rows' fills and borders; a
+  table with no style id draws as a plain grid; `mathMinus` has a path.
+
+Left on the painter side, from the same ranking: SmartArt without a
+drawing part (would need a layout engine), vertical table text, a
+picture's `fillRect` offsets on backgrounds, charts with picture
+backgrounds, video poster frames, EMF/WMF pictures (the engine has no
+decoder; PowerPoint draws them), and the 1–3% that is text wrapping and
+font metrics everywhere.
+
 **S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
 search field open Writer's find bar over the deck: every text body in
 reading order — each slide's shapes as they stack, table cells included,

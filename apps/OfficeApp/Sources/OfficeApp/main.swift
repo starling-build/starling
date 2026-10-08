@@ -184,6 +184,38 @@ if let i = CommandLine.arguments.firstIndex(of: "--deck"), i + 1 < CommandLine.a
     }
 }
 
+// `--deck-pdf <in.pptx> <out.pdf>`: what File → Export → PDF would write,
+// without a window — this app's own drawing of every slide, for comparing
+// against PowerPoint's (test/pptx-app-render.sh).
+if let i = CommandLine.arguments.firstIndex(of: "--deck-pdf"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let src = CommandLine.arguments[i + 1], dst = CommandLine.arguments[i + 2]
+        let data = try Data(contentsOf: URL(fileURLWithPath: src))
+        let (state, theme, package) = try Pptx.read(data)
+        let deck = DeckController()
+        deck.load(state, theme: theme, package: package)
+        let cache = SlideTextCache()
+        var done: Bool? = nil
+        Task { @MainActor in
+            done = await SlidesPdf.write(deck, cache: cache, to: dst, title: src.lastPathComponent)
+        }
+        let deadline = Date().addingTimeInterval(120)
+        while done == nil && Date() < deadline {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
+        }
+        guard done == true else {
+            FileHandle.standardError.write("deck pdf failed: \(done == nil ? "timed out" : "could not write")\n".data(using: .utf8)!)
+            exit(1)
+        }
+        print("\(src) -> \(dst): \(deck.slides.filter { !$0.hidden }.count) pages")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("deck pdf failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--deck-roundtrip <in.pptx> <out.pptx>`: read, write, read again; the two
 // dumps must match. Exit 3 when they differ (the diff goes to stderr).
 if let i = CommandLine.arguments.firstIndex(of: "--deck-roundtrip"), i + 2 < CommandLine.arguments.count {

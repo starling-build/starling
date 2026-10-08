@@ -30,6 +30,15 @@ struct ShapeState: Equatable {
     var fillScheme: String? = nil
     /// A picture's crop, as fractions cut from each edge.
     var crop: EdgeInsets? = nil
+    var flipH = false
+    var flipV = false
+    var pictureGeometry: ShapePreset? = nil
+    var pictureAlpha = 1.0
+    var pictureDuotone: [Color]? = nil
+    var fillsWithBackground = false
+    var inheritedPreset: ShapePreset? = nil
+    var customPath: FreeformGeometry? = nil
+    var fillStyle: SlideFill? = nil
     var fileId: Int? = nil
     var sourceXML: String? = nil
     var sourceText: RichDocument? = nil
@@ -60,6 +69,7 @@ struct SlideState: Equatable {
     var hideMasterShapes = false
     var clrMapOvrXML: String? = nil
     var controlsXML: String? = nil
+    var decorations: [ShapeState] = []
     var notes: RichDocument
     var shapes: [ShapeState]
     var layoutPart: String? = nil
@@ -217,6 +227,7 @@ final class DeckController: ChangeNotifier {
         copy.hideMasterShapes = source.hideMasterShapes
         copy.clrMapOvrXML = source.clrMapOvrXML
         copy.controlsXML = source.controlsXML
+        copy.decorations = source.decorations.map { _make(_state($0)) }
         // The copy's animations, aimed at the copies of their shapes.
         var map: [Int: Int] = [:]
         for (a, b) in zip(source.shapes, shapes) { map[a.id] = b.id }
@@ -996,7 +1007,7 @@ final class DeckController: ChangeNotifier {
         DeckState(slides: slides.map { slide in
             SlideState(id: slide.id, layout: slide.layout, hidden: slide.hidden,
                        hideMasterShapes: slide.hideMasterShapes, clrMapOvrXML: slide.clrMapOvrXML,
-                       controlsXML: slide.controlsXML,
+                       controlsXML: slide.controlsXML, decorations: slide.decorations.map(_state),
                        notes: slide.notes.document, shapes: slide.shapes.map(_state),
                        layoutPart: slide.layoutPart, backgroundXML: slide.backgroundXML,
                        background: slide.background, inheritedBackground: slide.inheritedBackground,
@@ -1045,6 +1056,7 @@ final class DeckController: ChangeNotifier {
             slide.hideMasterShapes = ss.hideMasterShapes
             slide.clrMapOvrXML = ss.clrMapOvrXML
             slide.controlsXML = ss.controlsXML
+            if slide.decorations.map(_state) != ss.decorations { slide.decorations = ss.decorations.map(_make) }
             slide.layoutPart = ss.layoutPart
             slide.backgroundXML = ss.backgroundXML
             slide.background = ss.background
@@ -1077,7 +1089,11 @@ final class DeckController: ChangeNotifier {
                    insets: s.insets, prompt: s.prompt, text: s.text?.document,
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
-                   phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop, fileId: s.fileId,
+                   phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop,
+                   flipH: s.flipH, flipV: s.flipV, pictureGeometry: s.pictureGeometry,
+                   pictureAlpha: s.pictureAlpha, pictureDuotone: s.pictureDuotone,
+                   fillsWithBackground: s.fillsWithBackground, inheritedPreset: s.inheritedPreset,
+                   customPath: s.customPath, fillStyle: s.fillStyle, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
                    keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale, keptLook: s.keptLook)
@@ -1105,6 +1121,20 @@ final class DeckController: ChangeNotifier {
             shape.textTheme = fresh
         }
         shape.crop = st.crop
+        shape.flipH = st.flipH
+        shape.flipV = st.flipV
+        shape.pictureGeometry = st.pictureGeometry
+        shape.pictureAlpha = st.pictureAlpha
+        shape.pictureDuotone = st.pictureDuotone
+        shape.fillsWithBackground = st.fillsWithBackground
+        shape.inheritedPreset = st.inheritedPreset
+        shape.customPath = st.customPath
+        shape.fillStyle = st.fillStyle
+        if case .opaque(let o) = st.kind, !o.rendering.isEmpty {
+            if shape.rendered.map(_state) != o.rendering { shape.rendered = o.rendering.map(_make) }
+        } else if !shape.rendered.isEmpty {
+            shape.rendered = []
+        }
         shape.fileId = st.fileId
         shape.fillScheme = st.fillScheme
         shape.sourceXML = st.sourceXML

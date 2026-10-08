@@ -93,6 +93,8 @@ struct ShapeGroup: Equatable {
     /// pattern fill) as read: members saying `a:grpFill` take it, so a
     /// save writes it back on the group it rebuilds.
     var fillXML: String? = nil
+    /// That fill, resolved, for the members this app draws.
+    var fillColor: Color? = nil
 }
 
 /// A connector as read (`p:cxnSp`): the deck draws it as a straight line
@@ -172,6 +174,12 @@ struct OpaqueObject: Equatable {
     var label: String
     /// The slide part it came from: where its `r:id`s resolve.
     var sourcePart: String
+    /// A freeform's outline, when its geometry could be read: drawn with
+    /// the shape's fill and line instead of a labelled box.
+    var freeform: FreeformGeometry? = nil
+    /// What the object looks like, as shapes (a SmartArt's drawing part):
+    /// drawn in its place, never written — the element above is the file's.
+    var rendering: [ShapeState] = []
 }
 
 /// A DrawingML preset shape, by its `prst` name. Open-ended: a file can
@@ -249,6 +257,10 @@ struct SlideTransition: Equatable {
 struct SlideFill: Equatable {
     var color: Color? = nil
     var image: ImageAttachment? = nil
+    /// The picture's transparency (`a:alphaModFix`) and duotone recolouring
+    /// (`a:duotone`: the two colours luminance maps between).
+    var imageAlpha = 1.0
+    var duotone: [Color]? = nil
     /// Gradient stops (position 0...1, colour) and the direction, degrees
     /// clockwise from left-to-right.
     var stops: [GradientStop] = []
@@ -297,6 +309,27 @@ final class SlideShape {
     var phIdx: String? = nil
     /// A picture's crop: the fraction of the image cut from each edge.
     var crop: EdgeInsets? = nil
+    /// A picture's mirroring and its crop to a shape (`prstGeom` other than
+    /// rect), as read: drawn, and written back through the kept element.
+    var flipH = false
+    var flipV = false
+    var pictureGeometry: ShapePreset? = nil
+    /// A picture's transparency and duotone recolouring, as read.
+    var pictureAlpha = 1.0
+    var pictureDuotone: [Color]? = nil
+    /// `useBgFill="1"`: the shape is filled with the slide's background
+    /// (a window onto it, over whatever lies between).
+    var fillsWithBackground = false
+    /// A kept object's look as shapes (`OpaqueObject.rendering`), built
+    /// with this shape; drawn where the object sits.
+    var rendered: [SlideShape] = []
+    /// A placeholder's geometry inherited from its layout or master: a
+    /// preset, or a custom path evaluated for this shape's size.
+    var inheritedPreset: ShapePreset? = nil
+    var customPath: FreeformGeometry? = nil
+    /// A gradient or picture fill as read: drawn within the outline where
+    /// `fill` (a flat colour) would be. Written back through the kept look.
+    var fillStyle: SlideFill? = nil
     /// The shape's id in the file it came from (`cNvPr id`): kept, because
     /// the slide's animations name shapes by it.
     var fileId: Int? = nil
@@ -472,6 +505,9 @@ final class Slide {
     /// written back with their parts and VML drawing, so PowerPoint still
     /// has them (and draws each one's fallback picture).
     var controlsXML: String? = nil
+    /// The layout's and master's own shapes, drawn behind this slide's
+    /// (from the file it came from); never written, never editable.
+    var decorations: [SlideShape] = []
     /// The layout part this slide used in the file it came from, so a save
     /// keeps it on the same layout (nil: one of ours, by `layout`).
     var layoutPart: String? = nil

@@ -15,7 +15,16 @@ enum SlidesPdf {
         var images: [ImageAttachment] = []
         for slide in deck.slides {
             if let i = slide.background?.image { images.append(i) }
-            for s in slide.shapes { if let i = s.picture { images.append(i) } }
+            if let i = slide.inheritedBackground?.image { images.append(i) }
+            for s in slide.decorations { if let i = s.picture { images.append(i) } }
+            for s in slide.shapes {
+                if let i = s.picture { images.append(i) }
+                if let i = s.fillStyle?.image { images.append(i) }
+                for sub in s.rendered {
+                    if let i = sub.picture { images.append(i) }
+                    if let i = sub.fillStyle?.image { images.append(i) }
+                }
+            }
         }
         await cache.preload(images)
         let size = deck.slideSize

@@ -107,9 +107,13 @@ struct PptxTheme {
     var colors: [String: Color] = [:]
     var major = "Calibri Light"
     var minor = "Calibri"
+    /// The format scheme's fill styles (`a:fillStyleLst`), which a shape's
+    /// style refers to by index with its own colour as `phClr`.
+    var fillStyles: [XNode] = []
 
     init(_ root: XNode?) {
         guard let root, let elements = root.descendant("a:themeElements") else { return }
+        fillStyles = elements.first("a:fmtScheme")?.first("a:fillStyleLst")?.children ?? []
         if let scheme = elements.first("a:clrScheme") {
             for child in scheme.children {
                 let name = String(child.name.drop { $0 != ":" }.dropFirst())
@@ -358,6 +362,30 @@ private struct PptxReader {
             if let tree = slide.first("p:cSld")?.first("p:spTree") {
                 ctx.shapes(in: tree, transform: nil, into: &shapes, id: id)
             }
+            // What the master and the layout draw behind the slide — their
+            // own shapes (logos, bars, pictures), not their placeholders —
+            // unless the slide (or, for the master's, the layout) says
+            // `showMasterSp="0"`. Drawn, never written.
+            var decorations: [ShapeState] = []
+            if slide["showMasterSp"] != "0" {
+                var owners: [(String, XNode)] = []
+                if let masterPart, let master, layout?["showMasterSp"] != "0" { owners.append((masterPart, master)) }
+                if let layoutPart, let layout { owners.append((layoutPart, layout)) }
+                for (ownerPart, xml) in owners {
+                    guard let tree = xml.first("p:cSld")?.first("p:spTree") else { continue }
+                    let octx = SlideContext(package: package, part: ownerPart, slide: xml, layout: layout, master: master,
+                                            colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images)
+                    var found: [ShapeState] = []
+                    octx.shapes(in: tree, transform: nil, into: &found, id: id)
+                    decorations += found.filter { s in
+                        if case .placeholder = s.kind { return false }
+                        // An object this app cannot draw is a labelled box on
+                        // a slide, but nothing in its backdrop.
+                        if case .opaque(let o) = s.kind, o.freeform == nil { return false }
+                        return s.phType == nil && s.phIdx == nil
+                    }
+                }
+            }
             let bg = slide.first("p:cSld")?.first("p:bg")
             let themeRoot = themePart.flatMap(package.xml)
             // The slide's own background is its; one from its layout or
@@ -366,11 +394,11 @@ private struct PptxReader {
             var bgFill: SlideFill? = nil
             var inherited: SlideFill? = nil
             if let b = slide.first("p:cSld")?.first("p:bg") {
-                bgFill = _background(b, owner: part, colors: colors, theme: themeRoot)
+                bgFill = _background(b, owner: part, colors: colors, theme: themeRoot, themePart: themePart)
             } else {
                 for (owner, xml) in [(layoutPart, layout), (masterPart, master)] {
                     guard let owner, let b = xml?.first("p:cSld")?.first("p:bg") else { continue }
-                    inherited = _background(b, owner: owner, colors: colors, theme: themeRoot)
+                    inherited = _background(b, owner: owner, colors: colors, theme: themeRoot, themePart: themePart)
                     break
                 }
             }
@@ -409,6 +437,7 @@ private struct PptxReader {
                 hideMasterShapes: slide["showMasterSp"] == "0",
                 clrMapOvrXML: slide.first("p:clrMapOvr").map(PptxXML.serialize),
                 controlsXML: slide.first("p:cSld")?.first("p:controls").map(PptxXML.serialize),
+                decorations: decorations,
                 notes: ctx.notes(), shapes: shapes, layoutPart: layoutPart,
                 backgroundXML: bg.map(PptxXML.serialize), background: bgFill, inheritedBackground: inherited,
                 sourcePart: part,
@@ -426,7 +455,8 @@ private struct PptxReader {
 
     /// A `p:bg`: its own properties, or a reference into the theme's
     /// background fill styles with the referring colour as `phClr`.
-    private func _background(_ bg: XNode, owner: String, colors: ColorContext, theme: XNode?) -> SlideFill? {
+    private func _background(_ bg: XNode, owner: String, colors: ColorContext, theme: XNode?,
+                             themePart: String?) -> SlideFill? {
         if let pr = bg.first("p:bgPr") { return fill(pr, owner: owner, colors: colors) }
         guard let ref = bg.first("p:bgRef"), let idx = ref["idx"].flatMap(Int.init) else { return nil }
         var c = colors
@@ -437,10 +467,11 @@ private struct PptxReader {
         guard let entries = list?.children, entries.indices.contains(n) else {
             return c.placeholder.map { SlideFill(color: $0) }
         }
-        // The style is one fill element; wrap it so `fill` can read it.
+        // The style is one fill element; wrap it so `fill` can read it. A
+        // picture in it is the theme's, so its r:embed resolves there.
         let holder = XNode(name: "holder", attrs: [:])
         holder.children = [entries[n]]
-        return fill(holder, owner: owner, colors: c)
+        return fill(holder, owner: themePart ?? owner, colors: c)
     }
 
     /// The fill inside a properties element (`p:bgPr`, `p:spPr`).
@@ -455,12 +486,31 @@ private struct PptxReader {
             if stops.count == 1 { return SlideFill(color: stops[0].color) }
             return stops.isEmpty ? nil : SlideFill(color: stops[0].color, stops: stops, angle: angle)
         }
-        if let b = pr.first("a:blipFill"), let rid = b.first("a:blip")?["r:embed"],
+        if let b = pr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
            let rel = package.rels(owner).first(where: { $0.id == rid }), !rel.external,
            package.parts[rel.target] != nil {
-            return SlideFill(image: images.attachment(rel.target, package))
+            var f = SlideFill(image: images.attachment(rel.target, package))
+            (f.imageAlpha, f.duotone) = Self.blipEffects(blip, colors: colors)
+            return f
         }
         return nil
+    }
+
+    /// A blip's transparency (`a:alphaModFix amt`) and duotone (its two
+    /// colours), the effects this app draws.
+    static func blipEffects(_ blip: XNode, colors: ColorContext) -> (Double, [Color]?) {
+        let alpha = (blip.first("a:alphaModFix")?["amt"].flatMap(Double.init) ?? 100000) / 100000
+        var duotone: [Color]? = nil
+        if let d = blip.first("a:duotone") {
+            let holder = XNode(name: "holder", attrs: [:])
+            var pair: [Color] = []
+            for c in d.children {
+                holder.children = [c]
+                if let col = colors.color(in: holder) { pair.append(col) }
+            }
+            if pair.count == 2 { duotone = pair }
+        }
+        return (max(0, min(1, alpha)), duotone)
     }
 
     /// `p:transition`, plain or inside `mc:AlternateContent` (PowerPoint
@@ -562,7 +612,7 @@ private struct SlideContext {
     // MARK: Shapes
 
     func shapes(in tree: XNode, transform: ((Rect) -> Rect)?, into out: inout [ShapeState], id: () -> Int,
-                group: ShapeGroup? = nil) {
+                group: ShapeGroup? = nil, groupFill: Color? = nil) {
         // Each shape keeps its file id (animations name shapes by it). A
         // group is flattened for editing, its members remembering it (the
         // outermost one) so a save groups them again under its id.
@@ -570,6 +620,14 @@ private struct SlideContext {
             guard var s else { return }
             s.fileId = el.descendant("p:cNvPr")?["id"].flatMap(Int.init)
             s.group = group
+            // A member filled by its group (`a:grpFill`): drawn in the
+            // group's colour; still the shape that was read, so a save
+            // keeps its element (and the group's fill with it).
+            if s.fill == nil, let groupFill, el.first("p:spPr")?.has("a:grpFill") == true {
+                s.fill = groupFill
+                s.keptLook?.readFill = groupFill
+                if s.readShape != nil { s.readShape = ReadShape(s) }
+            }
             out.append(s)
         }
         func groupOf(_ el: XNode) -> ShapeGroup? {
@@ -579,7 +637,20 @@ private struct SlideContext {
                 ["a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill", "a:grpFill"].contains($0.name)
             }
             return ShapeGroup(fileId: nv?["id"].flatMap(Int.init), name: nv?["name"] ?? "Group", key: id(),
-                              hidden: nv?["hidden"] == "1", fillXML: fill.map(PptxXML.serialize))
+                              hidden: nv?["hidden"] == "1", fillXML: fill.map(PptxXML.serialize),
+                              fillColor: ownFill(el))
+        }
+        /// The colour a group's members take for `a:grpFill`: the group's
+        /// own solid or gradient fill, or (saying `a:grpFill` itself, or
+        /// nothing) its enclosing group's.
+        func ownFill(_ el: XNode) -> Color? {
+            guard let pr = el.first("p:grpSpPr") else { return groupFill }
+            if let f = pr.first("a:solidFill") { return colors.color(in: f) }
+            if let g = pr.first("a:gradFill") {
+                let stops = g.first("a:gsLst")?.all("a:gs").compactMap { colors.color(in: $0) } ?? []
+                return stops.isEmpty ? groupFill : stops[stops.count / 2]
+            }
+            return groupFill
         }
         for el in tree.children {
             switch el.name {
@@ -588,7 +659,17 @@ private struct SlideContext {
             case "p:pic": add(_picture(el, transform, id: id), el)
             case "p:graphicFrame":
                 if _frameLabel(el) == "Table", let t = _table(el, transform, id: id) { add(t, el) }
-                else if _frameLabel(el) == "Chart", let c = _chart(el, transform, id: id) { add(c, el) } else {
+                else if _frameLabel(el) == "Chart", let c = _chart(el, transform, id: id) { add(c, el) }
+                else if _frameLabel(el) == "SmartArt", var o = _opaque(el, label: "SmartArt", transform, id: id) {
+                    // Kept whole for the file; drawn from the diagram's own
+                    // drawing part (PowerPoint's rendering of it) when the
+                    // file has one.
+                    if case .opaque(var obj) = o.kind {
+                        obj.rendering = _diagram(el, frame: o.frame, id: id)
+                        o.kind = .opaque(obj)
+                    }
+                    add(o, el)
+                } else {
                     add(_opaque(el, label: _frameLabel(el), transform, id: id), el)
                 }
             case "p:grpSp":
@@ -619,7 +700,7 @@ private struct SlideContext {
                                                r.width * sx, r.height * sy)
                     return transform?(mapped) ?? mapped
                 }
-                shapes(in: el, transform: map, into: &out, id: id, group: groupOf(el))
+                shapes(in: el, transform: map, into: &out, id: id, group: groupOf(el), groupFill: ownFill(el))
             case "mc:AlternateContent":
                 // The fallback is what an older reader would draw: keep the
                 // whole thing, show it as an object.
@@ -663,30 +744,74 @@ private struct SlideContext {
             kind = .textBox
         } else if let prst {
             kind = .geometry(ShapePreset(rawValue: prst))
+        } else if let geom = spPr?.first("a:custGeom"),
+                  let ext = xfrm?.first("a:ext"), let cx = ext["cx"].flatMap(Double.init), let cy = ext["cy"].flatMap(Double.init),
+                  let freeform = FreeformGeometry.parse(geom, width: cx, height: cy) {
+            // A freeform: kept whole for the file, drawn along its path.
+            var o = OpaqueObject(xml: PptxXML.serialize(sp), label: "Freeform", sourcePart: part)
+            o.freeform = freeform
+            kind = .opaque(o)
         } else {
-            // A freeform (custGeom): kept whole.
+            // A freeform whose guides this app cannot evaluate: kept whole.
             return _opaque(sp, label: "Freeform", transform, id: id)
         }
 
         // Fill and line: the shape's own, else its style's references.
         var fill: Color? = nil
+        var fillStyle: SlideFill? = nil
         var fillScheme: String? = nil
         var outline: Color? = nil
         var outlineWidth = 0.75
         let style = sp.first("p:style")
-        if spPr?.has("a:noFill") == true {
+        if spPr?.has("a:noFill") == true || sp["useBgFill"] == "1" {
+            // (`useBgFill`: the shape is painted with the slide's background.)
             fill = nil
         } else if let f = spPr?.first("a:solidFill") {
             fill = colors.color(in: f)
             fillScheme = Self._accentSlot(f)
         } else if let g = spPr?.first("a:gradFill") {
-            // A gradient shape is drawn in its middle colour for now.
+            // A gradient: its middle colour stands for it (the theme gallery,
+            // a save that regenerates the shape); drawn as itself.
             let stops = g.first("a:gsLst")?.all("a:gs").compactMap { colors.color(in: $0) } ?? []
             fill = stops.isEmpty ? nil : stops[stops.count / 2]
+            let gradient: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
+                guard let c = colors.color(in: gs) else { return nil }
+                return SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: c)
+            }.sorted { $0.position < $1.position }
+            if gradient.count >= 2 {
+                fillStyle = SlideFill(color: gradient[0].color, stops: gradient,
+                                      angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
+            }
+        } else if let b = spPr?.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
+                  let rel = package.rels(part).first(where: { $0.id == rid }), !rel.external,
+                  package.parts[rel.target] != nil {
+            // A picture fill: drawn stretched within the outline.
+            var f = SlideFill(image: images.attachment(rel.target, package))
+            (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
+            fillStyle = f
+        } else if spPr?.has("a:grpFill") == true {
+            // The group's fill, which the group it is read from supplies.
+            fill = nil
         } else if let ref = style?.first("a:fillRef"), ref["idx"] != "0" {
-            // The shape style's fill (idx 0 is none), for any kind of shape.
+            // The shape style's fill (idx 0 is none), for any kind of shape:
+            // the referred colour, through the theme's fill style when that
+            // is a gradient (oox-gradient-multistep-transparency).
             fill = colors.color(in: ref)
             fillScheme = Self._accentSlot(ref)
+            if let idx = ref["idx"].flatMap(Int.init), theme.fillStyles.indices.contains(idx - 1),
+               theme.fillStyles[idx - 1].name == "a:gradFill" {
+                var c = colors
+                c.placeholder = fill
+                let g = theme.fillStyles[idx - 1]
+                let gradient: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
+                    guard let col = c.color(in: gs) else { return nil }
+                    return SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: col)
+                }.sorted { $0.position < $1.position }
+                if gradient.count >= 2 {
+                    fillStyle = SlideFill(color: gradient[0].color, stops: gradient,
+                                          angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
+                }
+            }
         }
         if let ln = spPr?.first("a:ln") {
             outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? outlineWidth
@@ -696,6 +821,27 @@ private struct SlideContext {
             outline = colors.color(in: ref)
         }
 
+        // A placeholder with no fill or line of its own takes its layout's,
+        // then its master's (tdf95932: a green body from the master).
+        let ownFillNames: Set<String> = ["a:noFill", "a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill", "a:grpFill"]
+        if ph != nil, !(spPr?.children.contains { ownFillNames.contains($0.name) } ?? false), style?.first("a:fillRef") == nil {
+            for node in [inherited.layout, inherited.master] {
+                guard let pr = node?.first("p:spPr") else { continue }
+                if pr.has("a:noFill") { break }
+                if let f = pr.first("a:solidFill") { fill = colors.color(in: f); fillScheme = Self._accentSlot(f); break }
+            }
+        }
+        if ph != nil, spPr?.first("a:ln") == nil, style?.first("a:lnRef") == nil {
+            for node in [inherited.layout, inherited.master] {
+                guard let ln = node?.first("p:spPr")?.first("a:ln") else { continue }
+                if ln.has("a:noFill") { break }
+                if let f = ln.first("a:solidFill") {
+                    outline = colors.color(in: f)
+                    outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? outlineWidth
+                }
+                break
+            }
+        }
         let text = _text(sp, ph: ph, inherited: inherited, kind: kind)
         let rotation = (xfrm?["rot"].flatMap(Double.init) ?? 0) / 60000
         var st = ShapeState(id: id(), name: name, kind: kind, frame: frame, rotation: rotation,
@@ -706,6 +852,31 @@ private struct SlideContext {
                             fillScheme: fillScheme)
         st.autofit = text.autofit
         st.fontScale = text.fontScale
+        st.fillsWithBackground = sp["useBgFill"] == "1"
+        st.fillStyle = fillStyle
+        // A diagram shape's text frame (`txXfrm`, from a SmartArt drawing):
+        // the text sits in that box rather than the shape's.
+        if let txBox = sp.first("p:txXfrm").flatMap(_xfrmRect) {
+            let tr = transform?(txBox) ?? txBox
+            st.insets = EdgeInsets(left: st.insets.left + (tr.left - frame.left), top: st.insets.top + (tr.top - frame.top),
+                                   right: st.insets.right + (frame.right - tr.right),
+                                   bottom: st.insets.bottom + (frame.bottom - tr.bottom))
+        }
+        // A placeholder with no geometry of its own takes its layout's or
+        // master's (custgeom-placeholder: a notched ellipse from the layout).
+        if ph != nil, spPr?.first("a:prstGeom") == nil, spPr?.first("a:custGeom") == nil {
+            for node in [inherited.layout, inherited.master] {
+                guard let pr = node?.first("p:spPr") else { continue }
+                if let p = pr.first("a:prstGeom")?["prst"] {
+                    if p != "rect" { st.inheritedPreset = ShapePreset(rawValue: p) }
+                    break
+                }
+                if let geom = pr.first("a:custGeom") {
+                    st.customPath = FreeformGeometry.parse(geom, width: frame.width * Pptx.emu, height: frame.height * Pptx.emu)
+                    break
+                }
+            }
+        }
         // The look as the file spells it — fills this app flattens (gradients,
         // patterns, pictures), effects it does not draw, the style it refers
         // to — written back while the fill and outline are unchanged.
@@ -824,6 +995,16 @@ private struct SlideContext {
                            outlineWidth: 0, anchor: .top, insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
                            prompt: nil, text: nil, font: nil, size: 18, color: Color(0xFF000000), listIndent: 18,
                            crop: crop)
+        // Mirrored, and cropped to a shape (an ellipse, rounded corners).
+        let xfrm = el.first("p:spPr")?.first("a:xfrm")
+        s.flipH = xfrm?["flipH"] == "1"
+        s.flipV = xfrm?["flipV"] == "1"
+        if let prst = el.first("p:spPr")?.first("a:prstGeom")?["prst"], prst != "rect" {
+            s.pictureGeometry = ShapePreset(rawValue: prst)
+        }
+        if let blip = el.first("p:blipFill")?.first("a:blip") {
+            (s.pictureAlpha, s.pictureDuotone) = PptxReader.blipEffects(blip, colors: colors)
+        }
         // The element too: written back while the picture is unchanged.
         s.sourceXML = PptxXML.serialize(el)
         s.sourcePart = part
@@ -844,7 +1025,8 @@ private struct SlideContext {
         let firstRow = pr?["firstRow"] == "1"
         let banded = pr?["bandRow"] == "1"
         let styleId = pr?.first("a:tableStyleId")?.text.trimmingWhitespace() ?? ""
-        let plain = ["{2D5ABB26-0587-4C30-8999-92F81FD0307C}", "{5940675A-B579-460E-94D1-54222C63F5DA}"].contains(styleId)
+        // No style id at all draws as "No Style, Table Grid" does.
+        let plain = styleId.isEmpty || ["{2D5ABB26-0587-4C30-8999-92F81FD0307C}", "{5940675A-B579-460E-94D1-54222C63F5DA}"].contains(styleId)
         let base = LevelStyle.paragraph(defaults?.first("a:lvl1pPr"), colors)
         var paragraphs: [RichParagraph] = []
         for (r, tr) in tbl.all("a:tr").enumerated() {
@@ -897,7 +1079,7 @@ private struct SlideContext {
         if !widths.isEmpty { doc.tableColumns[tableId] = widths }
         let accent = theme.colors["accent1"] ?? Color(0xFF4472C4)
         doc.tableStyles[tableId] = plain
-            ? TableStyle(borders: styleId.hasPrefix("{5940675A"), headerRow: false, borderColor: colors.scheme("tx1"))
+            ? TableStyle(borders: styleId.isEmpty || styleId.hasPrefix("{5940675A"), headerRow: false, borderColor: colors.scheme("tx1"))
             : TableStyle(borders: true, headerRow: firstRow, headerFill: accent,
                          bandFill: banded ? DeckController.tint(accent, 0.40) : nil,
                          bandAltFill: banded ? DeckController.tint(accent, 0.20) : nil,
@@ -930,6 +1112,47 @@ private struct SlideContext {
         st.sourcePart = part
         st.sourceChart = chart
         return st
+    }
+
+    /// A SmartArt's drawing part (`dsp:drawing`, reached from the data
+    /// part's `dsp:dataModelExt relId`) as shapes at `frame`: its elements
+    /// are DrawingML shapes under another prefix, so they read as `p:` ones.
+    private func _diagram(_ el: XNode, frame: Rect, id: () -> Int) -> [ShapeState] {
+        guard let dm = el.descendant("dgm:relIds")?["r:dm"],
+              let dataPart = package.rels(part).first(where: { $0.id == dm })?.target,
+              let data = package.xml(dataPart),
+              let relId = data.descendant("dsp:dataModelExt")?["relId"],
+              let drawingPart = package.rels(part).first(where: { $0.id == relId })?.target,
+              let drawing = package.xml(drawingPart),
+              let tree = drawing.first("dsp:spTree") else { return [] }
+        func renamed(_ n: XNode) -> XNode {
+            let name = n.name.hasPrefix("dsp:") ? "p:" + n.name.dropFirst(4) : n.name
+            let c = XNode(name: name, attrs: n.attrs)
+            c.text = n.text
+            c.children = n.children.map(renamed)
+            return c
+        }
+        let ctx = SlideContext(package: package, part: drawingPart, slide: slide, layout: layout, master: master,
+                               colors: colors, theme: theme, defaults: defaults, slideSize: slideSize, images: images)
+        var out: [ShapeState] = []
+        ctx.shapes(in: renamed(tree), transform: { r in r.shift(Offset(frame.left, frame.top)) }, into: &out, id: id)
+        // A preset this app has no outline for is drawn as a box, which
+        // serves for the rounded and snipped rectangles diagrams favour but
+        // not for a gear (gear6, gear9): those are left out.
+        return out.filter { s in
+            if case .geometry(let p) = s.kind {
+                // Round things and curved arrows look nothing like their box.
+                let name = p.rawValue
+                if SlidePainter.drawablePresets.contains(name) { return true }
+                for part in ["gear", "Arrow", "arc", "Arc", "pie", "chord", "donut", "moon", "sun", "cloud", "heart",
+                             "lightning", "Circle", "ellipse"] where name.containsSubstring(part) { return false }
+                return true
+            }
+            // A freeform whose guides this app cannot evaluate would be a
+            // labelled box here: nothing is better.
+            if case .opaque(let o) = s.kind, o.freeform == nil { return false }
+            return true
+        }
     }
 
     private func _frameLabel(_ el: XNode) -> String {

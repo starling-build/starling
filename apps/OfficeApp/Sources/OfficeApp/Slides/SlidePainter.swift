@@ -175,14 +175,19 @@ final class SlidePainter: CustomPainter {
                        Rect.fromLTWH(0, 0, size.width, size.height), canvas, cache: cache)
         canvas.save()
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))
+        let area = Rect.fromLTWH(0, 0, size.width, size.height)
+        let backdrop = slide.background ?? slide.inheritedBackground ?? theme.backgroundFill
+        // The master's and layout's own shapes, part of the backdrop.
+        for shape in slide.decorations {
+            Self.paintShape(shape, canvas, pxPerPt: px, cache: cache, theme: theme, text: true, slide: area, backdrop: backdrop)
+        }
         if !shapesOnly {
-            let area = Rect.fromLTWH(0, 0, size.width, size.height)
             for shape in slide.shapes {
                 let f = shape.frame
                 let box = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
                 let draw = {
                     Self.paintShape(shape, canvas, pxPerPt: px, cache: self.cache, theme: self.theme, text: true,
-                                    paragraphs: self.reveals.paragraphs[shape.id], slide: area)
+                                    paragraphs: self.reveals.paragraphs[shape.id], slide: area, backdrop: backdrop)
                 }
                 if let r = reveals.whole[shape.id] {
                     Self.reveal(r, box, slide: area, canvas, draw)
@@ -247,7 +252,7 @@ final class SlidePainter: CustomPainter {
 
     static func paintShape(_ shape: SlideShape, _ canvas: any Canvas, pxPerPt px: Double,
                            cache: SlideTextCache, theme: DeckTheme, text: Bool,
-                           paragraphs: [Int: ShapeReveal]? = nil, slide: Rect? = nil) {
+                           paragraphs: [Int: ShapeReveal]? = nil, slide: Rect? = nil, backdrop: SlideFill? = nil) {
         let f = shape.frame
         let r = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
         canvas.save()
@@ -261,8 +266,25 @@ final class SlidePainter: CustomPainter {
             if let decoded = cache.image(image) {
                 let w = Double(decoded.width), h = Double(decoded.height)
                 let c = shape.crop ?? .zero
-                let src = Rect.fromLTRB(c.left * w, c.top * h, w - c.right * w, h - c.bottom * h)
-                canvas.drawImageRect(decoded, src, r, Paint())
+                // A negative crop pads: the picture sits inside the frame.
+                let src = Rect.fromLTRB(max(0, c.left) * w, max(0, c.top) * h,
+                                        w - max(0, c.right) * w, h - max(0, c.bottom) * h)
+                let spanX = 1 - c.left - c.right, spanY = 1 - c.top - c.bottom
+                let r = spanX > 0 && spanY > 0 ? Rect.fromLTRB(
+                    r.left + (max(0, c.left) - c.left) / spanX * r.width,
+                    r.top + (max(0, c.top) - c.top) / spanY * r.height,
+                    r.left + (1 - max(0, c.right) - c.left) / spanX * r.width,
+                    r.top + (1 - max(0, c.bottom) - c.top) / spanY * r.height) : r
+                canvas.save()
+                if let g = shape.pictureGeometry, !g.isLine { canvas.clipPath(Self.geometryPath(g, r)) }
+                if shape.flipH || shape.flipV {
+                    let c = r.center
+                    canvas.translate(c.dx, c.dy)
+                    canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
+                    canvas.translate(-c.dx, -c.dy)
+                }
+                canvas.drawImageRect(decoded, src, r, imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone))
+                canvas.restore()
             } else {
                 let p = Paint()
                 p.style = .fill
@@ -273,7 +295,45 @@ final class SlidePainter: CustomPainter {
         if let chart = shape.chart {
             ChartPainter.paint(chart, canvas, r, pxPerPt: px, theme: theme)
         }
-        if let opaque = shape.opaque {
+        if shape.fillsWithBackground, let backdrop, let slide {
+            // A window onto the slide's background, in the shape's outline.
+            canvas.save()
+            if let freeform = shape.opaque?.freeform ?? shape.customPath {
+                canvas.clipPath(Self.combinedPath(freeform, r))
+            } else if let preset = shape.preset ?? shape.inheritedPreset, !preset.isLine {
+                canvas.clipPath(geometryPath(preset, r))
+            } else {
+                canvas.clipRect(r)
+            }
+            paintFill(backdrop, slide, canvas, cache: cache)
+            canvas.restore()
+        }
+        if let opaque = shape.opaque, let freeform = opaque.freeform {
+            // A freeform along its own path, in the shape's fill and line.
+            for sub in freeform.subpaths {
+                let path = FreeformGeometry.path(sub, in: r)
+                if sub.fill, let fill = shape.fill {
+                    let p = Paint()
+                    p.style = .fill
+                    p.isAntiAlias = true
+                    p.color = fill
+                    canvas.drawPath(path, p)
+                }
+                if sub.stroke, let line = shape.outline {
+                    let p = Paint()
+                    p.style = .stroke
+                    p.isAntiAlias = true
+                    p.strokeWidth = max(0.5, shape.outlineWidth * px)
+                    p.color = line
+                    canvas.drawPath(path, p)
+                }
+            }
+        } else if shape.opaque != nil, !shape.rendered.isEmpty {
+            // The object's own drawing (a SmartArt's), shape by shape.
+            for sub in shape.rendered {
+                paintShape(sub, canvas, pxPerPt: px, cache: cache, theme: theme, text: text, slide: slide, backdrop: backdrop)
+            }
+        } else if let opaque = shape.opaque {
             // What the deck cannot draw yet: a labelled box where it sits.
             let p = Paint()
             p.style = .fill
@@ -290,15 +350,24 @@ final class SlidePainter: CustomPainter {
             tp.paint(canvas, Offset(r.center.dx - tp.width / 2, r.center.dy - tp.height / 2))
             tp.dispose()
         }
-        let path: Path? = shape.preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
-        if let fill = shape.fill, shape.preset?.isOpenPath != true {
+        let preset = shape.preset ?? shape.inheritedPreset
+        let path: Path? = preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
+            ?? shape.customPath.map { Self.combinedPath($0, r) }
+        let drawnAlready = shape.opaque?.freeform != nil
+        if let style = shape.fillStyle, !drawnAlready {
+            // A gradient or picture fill, within the shape's outline.
+            canvas.save()
+            if let path { canvas.clipPath(path) } else { canvas.clipRect(r) }
+            paintFill(style, r, canvas, cache: cache)
+            canvas.restore()
+        } else if let fill = shape.fill, shape.preset?.isOpenPath != true, !drawnAlready {
             let p = Paint()
             p.style = .fill
             p.isAntiAlias = true
             p.color = fill
             if let path { canvas.drawPath(path, p) } else { canvas.drawRect(r, p) }
         }
-        if let line = shape.outline {
+        if let line = shape.outline, !drawnAlready {
             let p = Paint()
             p.style = .stroke
             p.isAntiAlias = true
@@ -312,7 +381,8 @@ final class SlidePainter: CustomPainter {
                 canvas.drawRect(r, p)
             }
         }
-        if text, !shape.isEmptyText, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
+        // (An empty table still has its rows' fills and borders to draw.)
+        if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
             let ox = r.left + shape.insets.left * px, oy = r.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
@@ -352,13 +422,86 @@ final class SlidePainter: CustomPainter {
             let c = r.center
             let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
             let d = Offset(cos(a) * half, sin(a) * half)
+            let (colors, positions) = Self.linearLight(fill.stops)
             p.shader = Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
-                                colors: fill.stops.map(\.color), colorStops: fill.stops.map(\.position))
+                                colors: colors, colorStops: positions)
+            // The paint's own alpha scales the shader: a first stop that is
+            // transparent must not make the whole gradient so.
+            p.color = Color(0xFFFFFFFF)
         }
         canvas.drawRect(r, p)
         if let image = fill.image, let decoded = cache.image(image) {
-            canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height)), r, Paint())
+            canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height)), r,
+                                 imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone))
         }
+    }
+
+    /// The paint for a picture: its transparency, and a duotone as a colour
+    /// matrix (luminance maps from the first colour to the second).
+    static func imagePaint(alpha: Double, duotone: [Color]?) -> Paint {
+        let p = Paint()
+        if alpha < 1 { p.color = Color(0xFFFFFFFF).withOpacity(alpha) }
+        if let d = duotone, d.count == 2 {
+            func ch(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
+            var m: [Double] = []
+            for sh in [16, 8, 0] {
+                let lo = ch(d[0], sh), hi = ch(d[1], sh), k = hi - lo
+                m += [0.299 * k / 255, 0.587 * k / 255, 0.114 * k / 255, 0, lo]
+            }
+            m += [0, 0, 0, 1, 0]
+            p.colorFilter = ColorFilter(matrix: m)
+        }
+        return p
+    }
+
+    /// The presets `geometryPath` draws as themselves; any other is a box.
+    static let drawablePresets: Set<String> = [
+        "rect", "roundRect", "round2DiagRect", "ellipse", "flowChartConnector", "flowChartTerminator", "triangle",
+        "rtTriangle", "diamond", "flowChartDecision", "parallelogram", "flowChartInputOutput", "hexagon", "homePlate",
+        "chevron", "plus", "mathPlus", "mathMinus", "leftArrow", "upArrow", "downArrow", "leftBrace", "rightBrace",
+        "leftBracket", "rightBracket", "rightArrow", "star5", "wedgeRectCallout", "line",
+    ]
+
+    /// Every filled subpath of a freeform as one path (its holes cut).
+    static func combinedPath(_ g: FreeformGeometry, _ r: Rect) -> Path {
+        let path = Path()
+        path.fillType = .evenOdd
+        for sub in g.subpaths where sub.fill { path.addPath(FreeformGeometry.path(sub, in: r), Offset.zero) }
+        return path
+    }
+
+    /// PowerPoint blends gradient stops in linear light, so the middle of
+    /// red-to-green is a bright orange, not the sRGB midpoint's brown. The
+    /// shader blends in sRGB; these are the stops with linear-light
+    /// in-betweens spelled out, so it lands where PowerPoint does.
+    static func linearLight(_ stops: [SlideFill.GradientStop]) -> ([Color], [Double]) {
+        func lin(_ v: Int) -> Double { let c = Double(v) / 255; return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        func srgb(_ l: Double) -> Int { let c = l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055; return Int((max(0, min(1, c)) * 255).rounded()) }
+        var colors: [Color] = [], positions: [Double] = []
+        for i in 0 ..< stops.count {
+            let s = stops[i]
+            if i > 0 {
+                let a = stops[i - 1]
+                let steps = 8
+                for k in 1 ..< steps {
+                    let t = Double(k) / Double(steps)
+                    func part(_ c: Color, _ sh: Int) -> Int { (c.value >> sh) & 0xFF }
+                    func ch(_ sh: Int) -> Int {
+                        let from = lin(part(a.color, sh)), to = lin(part(s.color, sh))
+                        return srgb(from * (1 - t) + to * t)
+                    }
+                    let aa = Double(part(a.color, 24)), sa = Double(part(s.color, 24))
+                    let alpha = Int((aa * (1 - t) + sa * t).rounded())
+                    let red = ch(16), green = ch(8), blue = ch(0)
+                    let packed: Int = (alpha << 24) | (red << 16) | (green << 8) | blue
+                    colors.append(Color(packed))
+                    positions.append(a.position + (s.position - a.position) * t)
+                }
+            }
+            colors.append(s.color)
+            positions.append(s.position)
+        }
+        return (colors, positions)
     }
 
     /// The outline of a preset shape filling `r`, with PowerPoint's default
@@ -400,6 +543,8 @@ final class SlidePainter: CustomPainter {
             let k = ss * 0.5
             path.addPolygon([Offset(l, t), Offset(r.right - k, t), Offset(r.right, t + h / 2),
                              Offset(r.right - k, r.bottom), Offset(l, r.bottom), Offset(l + k, t + h / 2)], true)
+        case "mathMinus":
+            path.addRect(Rect.fromLTWH(l + w * 0.1, t + h * (0.5 - 0.1176), w * 0.8, h * 0.2352))
         case "plus", "mathPlus":
             let k = ss * 0.25
             path.addPolygon([Offset(l + k, t), Offset(r.right - k, t), Offset(r.right - k, t + k), Offset(r.right, t + k),
