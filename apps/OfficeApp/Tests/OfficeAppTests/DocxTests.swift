@@ -141,8 +141,11 @@ final class DocxTests: XCTestCase {
         entries.append(ZipEntry(name: "word/embeddings/book1.xlsx", data: Data([1, 2, 3, 4])))
 
         let back = try DocxFormat.read(try Zip.write(entries)).document
-        XCTAssertEqual(back.paragraphs.map(\.text), ["Before", "", "After"])
-        let object = back.paragraphs[1].image
+        // In the line with the text, as the file had it.
+        XCTAssertEqual(back.paragraphs.map(\.text), ["Before" + RichParagraph.inlineImageCharacter, "After"])
+        let mark = try XCTUnwrap(back.paragraphs[0].runs.first { $0.style.inlineImage != nil })
+        XCTAssertEqual(mark.length, 1)
+        let object = back.paragraphs[0].inlineImages[mark.style.inlineImage!]
         XCTAssertEqual(object?.width ?? 0, 200, accuracy: 0.01)
         XCTAssertEqual(object?.height ?? 0, 100, accuracy: 0.01)
         XCTAssertEqual(object?.sourceRels.map(\.target), ["charts/chart1.xml"])
@@ -163,7 +166,32 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(text("[Content_Types].xml").contains("PartName=\"/word/embeddings/book1.xlsx\""))
         // And the same again from the copy.
         let again = try DocxFormat.read(try Zip.write(saved)).document
-        XCTAssertEqual(again.paragraphs[1].image?.sourceRels.map(\.id), ["rIdKept1"])
+        XCTAssertEqual(again.paragraphs[0].inlineImages.values.first?.sourceRels.map(\.id), ["rIdKept1"])
+        XCTAssertTrue(body.contains("<w:t xml:space=\"preserve\">Before</w:t></w:r><w:r><w:drawing"), body)
+    }
+
+    /// A picture inline with text takes its place in the line: the
+    /// paragraph is as tall as the picture, and the text around it stays
+    /// in the same paragraph through a save.
+    func testInlinePictureLaysOutInTheLine() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var p = RichParagraph(text: "before" + RichParagraph.inlineImageCharacter + "after")
+        let image = ImageAttachment(data: png, width: 120, height: 90)
+        p.inlineImages[image.id] = image
+        p.applyStyle(6 ..< 7) { $0.inlineImage = image.id }
+        let doc = RichDocument(paragraphs: [p, RichParagraph(text: "plain")])
+        let dump = OfficeLayoutDump.text(doc, pageSetup: .letter)
+        // "¶0 block H" — the paragraph's height, in px: at least the picture's.
+        let line = try XCTUnwrap(dump.split(separator: "\n").first { $0.hasPrefix("¶0 block") })
+        let height = try XCTUnwrap(Double(line.split(separator: " ")[2]))
+        XCTAssertGreaterThanOrEqual(height, 90, String(line))
+        let plain = try XCTUnwrap(dump.split(separator: "\n").first { $0.hasPrefix("¶1 block") })
+        XCTAssertLessThan(try XCTUnwrap(Double(plain.split(separator: " ")[2])), 40, String(plain))
+        // And through a .docx: still one paragraph, picture between the words.
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].text, "before" + RichParagraph.inlineImageCharacter + "after")
+        XCTAssertEqual(back.paragraphs[0].inlineImages.count, 1)
+        XCTAssertEqual(back.paragraphs[0].inlineImages.values.first?.width ?? 0, 120, accuracy: 0.01)
     }
 
     func testZipRoundTrip() throws {

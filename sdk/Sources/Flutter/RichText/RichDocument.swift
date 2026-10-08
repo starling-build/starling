@@ -53,6 +53,9 @@ public struct CharStyle: Hashable, Sendable {
     public var script: ScriptPosition = .normal
     /// Set on the run that is a footnote/endnote reference mark.
     public var note: NoteReference? = nil
+    /// Set on a one-character run (U+FFFC) that is a picture inline with
+    /// the text: the id of an entry in the paragraph's `inlineImages`.
+    public var inlineImage: String? = nil
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,
@@ -599,6 +602,11 @@ public struct RichParagraph: Hashable, Sendable {
     public var image: ImageAttachment? = nil
     /// Set on a paragraph that lives in a table cell.
     public var cell: CellRef? = nil
+    /// Pictures inline with the text, by the id a run's
+    /// `CharStyle.inlineImage` names; each stands where its U+FFFC is.
+    public var inlineImages: [String: ImageAttachment] = [:]
+
+    public static let inlineImageCharacter = "\u{FFFC}"
 
     public init(text: String = "", runs: [Run]? = nil, style: RichParagraphStyle = .body) {
         self.text = text

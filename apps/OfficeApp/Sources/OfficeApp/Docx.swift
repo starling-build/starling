@@ -818,13 +818,30 @@ enum DocxFormat {
         var built: [_Built] = []
         var text = ""
         var runs: [Run] = []
+        var inlineImages: [String: ImageAttachment] = [:]
         func flush(pageBreakAfter: Bool) {
-            var para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
+            var para: RichParagraph
+            if inlineImages.count == 1, text == RichParagraph.inlineImageCharacter, let only = inlineImages.values.first {
+                // A paragraph that is one picture and nothing else: the
+                // editor's picture paragraph, with its handles.
+                para = RichParagraph(image: only, style: style)
+            } else {
+                para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
+                para.inlineImages = inlineImages
+            }
             para.normalize()
             built.append(_Built(paragraph: para, pageBreakAfter: pageBreakAfter))
             text = ""
             runs = []
+            inlineImages = [:]
             style.pageBreakBefore = false
+        }
+        /// A picture or object in the line, where the text has it.
+        func addInline(_ att: ImageAttachment) {
+            inlineImages[att.id] = att
+            var cs = CharStyle()
+            cs.inlineImage = att.id
+            addText(RichParagraph.inlineImageCharacter, cs)
         }
         /// A drawing that is not a picture (a chart, a shape, a diagram), an
         /// embedded object, a VML picture: kept as the file wrote it, with
@@ -867,13 +884,10 @@ enum DocxFormat {
             for prefix in prefixes where prefix != "xml" && node.attrs["xmlns:" + prefix] == nil {
                 if let uri = notes.rootNS["xmlns:" + prefix] { node.attrs["xmlns:" + prefix] = uri }
             }
-            if !text.isEmpty { flush(pageBreakAfter: false) } else { text = ""; runs = [] }
             var att = ImageAttachment(data: Data(), width: w, height: h, name: node.name)
             att.sourceXML = PptxXML.serialize(node)
             att.sourceRels = found
-            var pic = RichParagraph(image: att)
-            pic.style.alignment = style.alignment
-            built.append(_Built(paragraph: pic, pageBreakAfter: false))
+            addInline(att)
         }
         func addImage(_ drawing: XNode) {
             guard let blip = drawing.descendant("a:blip"), let rid = blip["r:embed"],
@@ -884,13 +898,10 @@ enum DocxFormat {
                 w = cx / 12700
                 h = cy / 12700
             }
-            // The text before the picture stands on its own; the picture is a
-            // paragraph of its own; what follows starts another.
-            if !text.isEmpty { flush(pageBreakAfter: false) } else if !built.isEmpty || true { text = ""; runs = [] }
-            var pic = RichParagraph(image: ImageAttachment(data: data, width: w, height: h,
-                                                           name: target.lastPathComponent))
-            pic.style.alignment = style.alignment
-            built.append(_Built(paragraph: pic, pageBreakAfter: false))
+            // In the line where the text has it (several to a line, text
+            // around them); a paragraph of nothing else becomes the
+            // editor's picture paragraph at flush.
+            addInline(ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent))
         }
         func addText(_ s: String, _ cs: CharStyle) {
             guard !s.isEmpty else { return }
@@ -956,9 +967,7 @@ enum DocxFormat {
             }
         }
         walkInline(p, link: nil)
-        if !(text.isEmpty && built.last?.paragraph.isImage == true) {
-            flush(pageBreakAfter: false)
-        }
+        flush(pageBreakAfter: false)
         return built
     }
 
@@ -1112,7 +1121,8 @@ enum DocxFormat {
             case .justify: pPr += "<w:jc w:val=\"both\"/>"
             }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
-            if let image = p.image {
+            /// A picture or kept object as a run's content.
+            func drawingXML(_ image: ImageAttachment) -> String {
                 if let xml = image.sourceXML {
                     // An object the editor cannot show: the file's own
                     // markup, its relationships under fresh ids.
@@ -1125,8 +1135,7 @@ enum DocxFormat {
                         }
                         keptRels += "<Relationship Id=\"\(nid)\" Type=\"\(_esc(rel.type))\" Target=\"\(_esc(rel.target))\"\(rel.external ? " TargetMode=\"External\"" : "")/>"
                     }
-                    body += "<w:r>\(frag)</w:r></w:p>"
-                    return body
+                    return "<w:r>\(frag)</w:r>"
                 }
                 let n = media.count + 1
                 let ext = image.fileExtension
@@ -1136,7 +1145,10 @@ enum DocxFormat {
                 let rid = "rIdImage\(n)"
                 mediaRels.append((rid, "media/\(name)"))
                 let cx = Int(image.width * 12700), cy = Int(image.height * 12700)
-                body += "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
+                return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
+            }
+            if let image = p.image {
+                body += drawingXML(image) + "</w:p>"
                 return body
             }
             var pos = 0
@@ -1147,6 +1159,10 @@ enum DocxFormat {
                 let piece = String(utf16[a ..< b]) ?? ""
                 pos += run.length
                 let s = run.style
+                if let id = s.inlineImage, let image = p.inlineImages[id] {
+                    body += drawingXML(image)
+                    continue
+                }
                 var rPr = ""
                 if let family = s.fontFamily {
                     let name = OfficeFonts.exportName(family)

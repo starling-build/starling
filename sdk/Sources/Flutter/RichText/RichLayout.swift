@@ -233,6 +233,8 @@ public final class RichLayout {
     private var _decoded: [String: Image] = [:]
     private var _decoding: Set<String> = []
     private var _imageSize: [Size?] = []
+    /// Per paragraph, its inline pictures in placeholder order.
+    private var _inline: [[ImageAttachment]] = []
 
     /// Table cells: per paragraph, the row's top and height (for borders and
     /// hit-testing) and the column geometry; nil for ordinary paragraphs.
@@ -373,6 +375,7 @@ public final class RichLayout {
     private func _resize(_ n: Int) {
         _painters = Array(repeating: nil, count: n)
         _imageSize = Array(repeating: nil, count: n)
+        _inline = Array(repeating: [], count: n)
         _cells = Array(repeating: nil, count: n)
         _rowTops = Array(repeating: 0, count: n)
         _textLeft = Array(repeating: 0, count: n)
@@ -429,6 +432,7 @@ public final class RichLayout {
                 let at = min(at, _painters.count)
                 _painters.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _imageSize.insert(contentsOf: Array(repeating: nil, count: n), at: at)
+                _inline.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _cells.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _rowTops.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _textLeft.insert(contentsOf: Array(repeating: 0, count: n), at: at)
@@ -451,6 +455,7 @@ public final class RichLayout {
                 for i in at ..< end { _painters[i]?.dispose() }
                 _painters.removeSubrange(at ..< end)
                 _imageSize.removeSubrange(at ..< end)
+                _inline.removeSubrange(at ..< end)
                 _cells.removeSubrange(at ..< end)
                 _rowTops.removeSubrange(at ..< end)
                 _textLeft.removeSubrange(at ..< end)
@@ -1082,11 +1087,17 @@ public final class RichLayout {
         } else {
             _cells[i] = nil
         }
+        let (span, inline) = _span(for: p, document, textWidth: textWidth)
         let painter = TextPainter(
-            text: _span(for: p, document),
+            text: span,
             textAlign: Self._textAlign(style.alignment),
             textDirection: .ltr
         )
+        if !inline.isEmpty {
+            painter.setPlaceholderDimensions(inline.map { $0.dimensions })
+            for item in inline { _ensureDecoded(item.image) }
+        }
+        _inline[i] = inline.map(\.image)
         painter.layout(minWidth: textWidth, maxWidth: textWidth)
         // Whole pixels: a page break clips between two lines, and a
         // fractional line box leaves the previous line's descenders peeking
@@ -1125,26 +1136,38 @@ public final class RichLayout {
     /// The paragraph's runs as a span tree. An empty paragraph lays out a
     /// single space so it has a line height; offsets are clamped to 0 by
     /// every caller.
-    private func _span(for p: RichParagraph, _ document: RichDocument) -> TextSpan {
+    private func _span(for p: RichParagraph, _ document: RichDocument, textWidth: Double)
+        -> (TextSpan, [(image: ImageAttachment, dimensions: PlaceholderDimensions)]) {
         let named = document.styles.resolve(p.style)
         if p.text.isEmpty {
-            return TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale))
+            return (TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale)), [])
         }
-        if p.runs.count == 1 {
-            return TextSpan(text: p.text, style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale))
+        if p.runs.count == 1, p.runs[0].style.inlineImage == nil {
+            return (TextSpan(text: p.text, style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale)), [])
         }
         var children: [InlineSpan] = []
+        var inline: [(image: ImageAttachment, dimensions: PlaceholderDimensions)] = []
         children.reserveCapacity(p.runs.count)
         var pos = 0
         let utf16 = p.text.utf16
         for run in p.runs where run.length > 0 {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
-            children.append(TextSpan(text: String(utf16[a ..< b]) ?? "",
-                                     style: theme.textStyle(for: run.style, in: p.style, named: named, scale: scale)))
             pos += run.length
+            let style = theme.textStyle(for: run.style, in: p.style, named: named, scale: scale)
+            if let id = run.style.inlineImage, let image = p.inlineImages[id] {
+                // A picture in the line, sitting on the baseline as Word
+                // sets it; shrunk to the column when wider.
+                var w = _px(image.width), h = _px(image.height)
+                if w > textWidth { h *= textWidth / w; w = textWidth }
+                let size = Size(w.rounded(), h.rounded())
+                children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+                inline.append((image, PlaceholderDimensions(size: size, alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: size.height)))
+                continue
+            }
+            children.append(TextSpan(text: String(utf16[a ..< b]) ?? "", style: style))
         }
-        return TextSpan(children: children)
+        return (TextSpan(children: children), inline)
     }
 
     // MARK: Pictures
@@ -1499,6 +1522,20 @@ public final class RichLayout {
             marker.dispose()
         }
         g.painter.paint(canvas, Offset(g.textLeft, g.textTop))
+        if i < _inline.count, !_inline[i].isEmpty, let boxes = g.painter.inlinePlaceholderBoxes {
+            for (k, box) in boxes.enumerated() where k < _inline[i].count {
+                let image = _inline[i][k]
+                let rect = box.toRect().shift(Offset(g.textLeft, g.textTop))
+                let paint = Paint()
+                if let decoded = _decoded[image.id] {
+                    canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height)), rect, paint)
+                } else {
+                    paint.style = .fill
+                    paint.color = Color(0x22808080)
+                    canvas.drawRect(rect, paint)
+                }
+            }
+        }
         _paintSpelling(i, g, canvas, document)
         if theme.showMarks, !document.paragraphs[i].isImage {
             let end = caretRect(RichPosition(paragraph: i, offset: document.paragraphs[i].length), document)
