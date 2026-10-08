@@ -583,6 +583,10 @@ enum DocxFormat {
             for child in node.children {
                 switch child.name {
                 case "w:pPr", "w:rPr": break   // tab STOPS live in w:pPr/w:tabs as w:tab too
+                case "mc:AlternateContent":
+                    // One rendering of the two (a text box's Choice and its
+                    // VML Fallback hold the same text), not both.
+                    if let pick = child.first("mc:Choice") ?? child.first("mc:Fallback") { walk(pick, into: &line) }
                 case "w:t": if !skipping { line += child.text }
                 case "w:tab": if !skipping { line += "\t" }
                 case "w:ptab":
@@ -1235,27 +1239,43 @@ enum DocxFormat {
         // Word numbers per numId across the document, so every list id
         // and every anonymous run of numbered items gets a numId of its
         // own; bullets without an id share one.
+        // A list read from a file keeps its numId: text boxes and notes
+        // kept verbatim still name it (60316's ">" bullets came back as
+        // "1." under a renumbered id). Our own bullet and decimal lists
+        // and anonymous runs take ids above the file's.
         var numIds: [String: Int] = [:]        // list id or "run<n>" → numId
         var numFormats: [Int: [Int: ListLevelFormat]] = [:]
         var numKinds: [Int: ListKind] = [:]
         var numIdOf: [Int] = Array(repeating: 0, count: doc.paragraphs.count)
+        let fileIds = doc.listFormats.keys.compactMap { Int($0) }
+        let bulletId = (fileIds.max() ?? 0) + 1
+        let decimalId = bulletId + 1
+        var nextId = decimalId + 1
+        for (id, formats) in doc.listFormats {
+            guard let n = Int(id) else { continue }
+            numIds[id] = n
+            numFormats[n] = formats
+            numKinds[n] = formats[0]?.format == .bullet ? .bullet : .numbered
+        }
         var runId = 0
         var runOpen = false
         for (i, p) in doc.paragraphs.enumerated() {
             guard let kind = p.style.list else { runOpen = false; continue }
             if let id = p.style.listId {
                 if numIds[id] == nil {
-                    numIds[id] = numIds.count + 3
+                    numIds[id] = nextId
+                    nextId += 1
                     numFormats[numIds[id]!] = doc.listFormats[id] ?? [:]
                     numKinds[numIds[id]!] = kind
                 }
+                if doc.listFormats[id] == nil { numKinds[numIds[id]!] = kind }
                 numIdOf[i] = numIds[id]!
                 runOpen = false
             } else if kind == .bullet {
-                numIdOf[i] = 1
+                numIdOf[i] = bulletId
                 runOpen = false
             } else {
-                if !runOpen { runId += 1; numIds["run\(runId)"] = numIds.count + 3; runOpen = true }
+                if !runOpen { runId += 1; numIds["run\(runId)"] = nextId; nextId += 1; runOpen = true }
                 let n = numIds["run\(runId)"]!
                 numKinds[n] = .numbered
                 numIdOf[i] = n
@@ -1284,8 +1304,11 @@ enum DocxFormat {
             if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
             if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
             if !ind.isEmpty { pPr += "<w:ind\(ind)/>" }
+            let sheetEntry = p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] }
             switch p.style.alignment {
-            case .left: break
+            case .left:
+                // Left under a style that centres has to say so.
+                if let a = sheetEntry?.paragraph.alignment, a != .left { pPr += "<w:jc w:val=\"left\"/>" }
             case .center: pPr += "<w:jc w:val=\"center\"/>"
             case .right: pPr += "<w:jc w:val=\"right\"/>"
             case .justify: pPr += "<w:jc w:val=\"both\"/>"
@@ -1571,7 +1594,7 @@ enum DocxFormat {
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
             ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty).utf8)),
-            ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats).utf8)),
+            ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId).utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
         return try Zip.write(entries)
@@ -1736,7 +1759,8 @@ enum DocxFormat {
     /// numbering.xml: abstract 0 is bullets (numId 1), abstract 1 plain
     /// decimal (numId 2), then one abstract per list the document has,
     /// carrying its level formats.
-    private static func _numberingPart(_ kinds: [Int: ListKind], _ formats: [Int: [Int: ListLevelFormat]]) -> String {
+    private static func _numberingPart(_ kinds: [Int: ListKind], _ formats: [Int: [Int: ListLevelFormat]],
+                                       bulletId: Int, decimalId: Int) -> String {
         var bulletLevels = ""
         var decimalLevels = ""
         let bullets = ["\u{2022}", "o", "\u{25AA}"]
@@ -1748,8 +1772,8 @@ enum DocxFormat {
         }
         var extraAbstract = ""
         var extraNums = ""
-        for numId in kinds.keys.sorted() where numId >= 3 {
-            let abstractId = numId - 1
+        for numId in kinds.keys.sorted() where numId != bulletId && numId != decimalId {
+            let abstractId = numId + 1
             var levels = ""
             for i in 0 ..< 9 {
                 let left = 720 * (i + 1)
@@ -1773,6 +1797,6 @@ enum DocxFormat {
             extraAbstract += "<w:abstractNum w:abstractNumId=\"\(abstractId)\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(levels)</w:abstractNum>"
             extraNums += "<w:num w:numId=\"\(numId)\"><w:abstractNumId w:val=\"\(abstractId)\"/></w:num>"
         }
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(bulletLevels)</w:abstractNum><w:abstractNum w:abstractNumId=\"1\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(decimalLevels)</w:abstractNum>\(extraAbstract)<w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num><w:num w:numId=\"2\"><w:abstractNumId w:val=\"1\"/></w:num>\(extraNums)</w:numbering>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(bulletLevels)</w:abstractNum><w:abstractNum w:abstractNumId=\"1\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(decimalLevels)</w:abstractNum>\(extraAbstract)<w:num w:numId=\"\(bulletId)\"><w:abstractNumId w:val=\"0\"/></w:num><w:num w:numId=\"\(decimalId)\"><w:abstractNumId w:val=\"1\"/></w:num>\(extraNums)</w:numbering>"
     }
 }

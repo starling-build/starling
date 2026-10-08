@@ -278,6 +278,41 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.tableStyles.values.first?.borderColor, Color(0xFF666666))
     }
 
+    func testFileListIdsKeptAlternateContentOnceAndExplicitLeft() throws {
+        // A file's list keeps its numId (kept text boxes still name it),
+        // our own bullets go above it; a footer text box is read once,
+        // not Choice plus Fallback; left under a centred style is written.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "Job"), RichParagraph(text: "Plain bullet"), RichParagraph(text: "Centred style, left")])
+        doc.listFormats["10"] = [0: ListLevelFormat(text: ">", format: .bullet)]
+        doc.paragraphs[0].style.list = .bullet; doc.paragraphs[0].style.listId = "10"
+        doc.paragraphs[1].style.list = .bullet
+        doc.styles["Centred"] = RichNamedStyle(id: "Centred", name: "Centred", paragraph: RichParagraphStyle(alignment: .center), char: CharStyle())
+        doc.paragraphs[2].style.named = "Centred"
+        doc.paragraphs[2].style.alignment = .left
+        let entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let xml = String(decoding: entries.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        let numbering = String(decoding: entries.first { $0.name == "word/numbering.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:numId w:val=\"10\"/>"), xml)
+        XCTAssertTrue(xml.contains("<w:numId w:val=\"11\"/>"), xml)
+        XCTAssertTrue(numbering.contains("<w:num w:numId=\"10\"><w:abstractNumId w:val=\"11\"/></w:num>"), numbering)
+        XCTAssertTrue(numbering.contains("<w:num w:numId=\"11\"><w:abstractNumId w:val=\"0\"/></w:num>"), numbering)
+        XCTAssertTrue(numbering.contains("<w:lvlText w:val=\"&gt;\"/>"), numbering)
+        XCTAssertTrue(xml.contains("<w:pStyle w:val=\"Centred\"/>"), xml)
+        XCTAssertTrue(xml.contains("<w:jc w:val=\"left\"/>"), xml)
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[2].style.alignment, .left)
+        XCTAssertEqual(back.paragraphs[0].style.listId, "10")
+        var footered = doc
+        footered.footer = "Page {PAGE}"
+        var fe = try Zip.read(try DocxFormat.write(footered, pageSetup: .letter))
+        let fi = fe.firstIndex { $0.name == "word/footer1.xml" }!
+        var fxml = String(decoding: fe[fi].data, as: UTF8.self)
+        let inner = fxml[fxml.range(of: "<w:p>")!.lowerBound ..< fxml.range(of: "</w:p>")!.upperBound]
+        fxml = fxml.replacingAll(String(inner), with: "<w:p><w:r><mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><mc:Choice Requires=\"wps\">\(inner)</mc:Choice><mc:Fallback>\(inner)</mc:Fallback></mc:AlternateContent></w:r></w:p>")
+        fe[fi] = ZipEntry(name: "word/footer1.xml", data: Data(fxml.utf8))
+        XCTAssertEqual(try DocxFormat.read(try Zip.write(fe)).document.footer, "Page {PAGE}")
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
