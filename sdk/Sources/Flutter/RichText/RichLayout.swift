@@ -1632,19 +1632,31 @@ public final class RichLayout {
                                     in: .body, scale: scale)
         let left = _px(setup.marginLeft)
         let width = _px(setup.contentWidth)
+        /// One line at `centerY`: as a whole in `align`, or — with tabs —
+        /// Word's header/footer thirds: left, centre and right parts.
+        func line(_ template: String, align: TextAlign, centerY: Double) {
+            let text = RichDocument.fill(template, page: p + 1, pageCount: n)
+            var parts: [(String, TextAlign)]
+            if text.contains("\t") {
+                let pieces = text.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+                parts = [(pieces[0], .left)]
+                if pieces.count > 1 { parts.append((pieces[1], .center)) }
+                if pieces.count > 2 { parts.append((pieces[2...].joined(), .right)) }
+            } else {
+                parts = [(text, align)]
+            }
+            for (piece, a) in parts where !piece.isEmpty {
+                let tp = TextPainter(text: TextSpan(text: piece, style: style), textAlign: a, textDirection: .ltr)
+                tp.layout(minWidth: width, maxWidth: width)
+                tp.paint(canvas, Offset(rect.left + left, centerY - tp.height / 2))
+                tp.dispose()
+            }
+        }
         if !document.header.isEmpty {
-            let text = RichDocument.fill(document.header, page: p + 1, pageCount: n)
-            let tp = TextPainter(text: TextSpan(text: text, style: style), textAlign: .left, textDirection: .ltr)
-            tp.layout(minWidth: width, maxWidth: width)
-            tp.paint(canvas, Offset(rect.left + left, rect.top + _px(setup.marginTop) / 2 - tp.height / 2))
-            tp.dispose()
+            line(document.header, align: .left, centerY: rect.top + _px(setup.marginTop) / 2)
         }
         if !document.footer.isEmpty {
-            let text = RichDocument.fill(document.footer, page: p + 1, pageCount: n)
-            let tp = TextPainter(text: TextSpan(text: text, style: style), textAlign: .center, textDirection: .ltr)
-            tp.layout(minWidth: width, maxWidth: width)
-            tp.paint(canvas, Offset(rect.left + left, rect.bottom - _px(setup.marginBottom) / 2 - tp.height / 2))
-            tp.dispose()
+            line(document.footer, align: .center, centerY: rect.bottom - _px(setup.marginBottom) / 2)
         }
     }
 

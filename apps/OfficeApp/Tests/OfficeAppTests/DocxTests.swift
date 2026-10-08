@@ -222,6 +222,22 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("<w:tblCellMar><w:top w:w=\"72\" w:type=\"dxa\"/>"), saved)
     }
 
+    func testHeaderFooterTabsAreThirds() throws {
+        // A footer "name <right tab> Page N": the positional tab reads as
+        // two tabs (left, centre, right thirds), and the thirds write back
+        // as Word's centre and right tab stops.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "x")])
+        doc.footer = "Left\t\tPage {PAGE}"
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/footer1.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:tabs><w:tab w:val=\"center\" w:pos=\"4680\"/><w:tab w:val=\"right\" w:pos=\"9360\"/></w:tabs>"), xml)
+        XCTAssertTrue(xml.contains("<w:r><w:tab/></w:r><w:r><w:tab/></w:r>"), xml)
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document.footer, "Left\t\tPage {PAGE}")
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let i = entries.firstIndex { $0.name == "word/footer1.xml" }!
+        entries[i] = ZipEntry(name: "word/footer1.xml", data: Data(xml.replacingAll("<w:r><w:tab/></w:r><w:r><w:tab/></w:r>", with: "<w:r><w:ptab w:relativeTo=\"margin\" w:alignment=\"right\" w:leader=\"none\"/></w:r>").utf8))
+        XCTAssertEqual(try DocxFormat.read(try Zip.write(entries)).document.footer, "Left\t\tPage {PAGE}")
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

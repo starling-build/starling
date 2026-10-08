@@ -527,8 +527,18 @@ enum DocxFormat {
         func walk(_ node: XNode, into line: inout String) {
             for child in node.children {
                 switch child.name {
+                case "w:pPr", "w:rPr": break   // tab STOPS live in w:pPr/w:tabs as w:tab too
                 case "w:t": if !skipping { line += child.text }
                 case "w:tab": if !skipping { line += "\t" }
+                case "w:ptab":
+                    // A positional tab: Word's header/footer convention
+                    // is left, centre and right thirds, so a centre tab
+                    // is the first stop and a right tab the second.
+                    if !skipping {
+                        let want = child["w:alignment"] == "right" ? 2 : 1
+                        let have = line.filter { $0 == "\t" }.count
+                        line += String(repeating: "\t", count: max(1, want - have))
+                    }
                 case "w:fldSimple":
                     let instr = (child["w:instr"] ?? "").uppercased()
                     if instr.containsSubstring("NUMPAGES") { line += RichDocument.pageCountField }
@@ -1426,12 +1436,12 @@ enum DocxFormat {
         var extraOverrides = ""
         if !doc.header.isEmpty {
             relsXML += "<Relationship Id=\"rIdHeader\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\"/>"
-            extraParts.append(ZipEntry(name: "word/header1.xml", data: Data(_headerFooterPart("w:hdr", doc.header, center: false).utf8)))
+            extraParts.append(ZipEntry(name: "word/header1.xml", data: Data(_headerFooterPart("w:hdr", doc.header, center: false, width: pageSetup.contentWidth).utf8)))
             extraOverrides += "<Override PartName=\"/word/header1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/>"
         }
         if !doc.footer.isEmpty {
             relsXML += "<Relationship Id=\"rIdFooter\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer\" Target=\"footer1.xml\"/>"
-            extraParts.append(ZipEntry(name: "word/footer1.xml", data: Data(_headerFooterPart("w:ftr", doc.footer, center: true).utf8)))
+            extraParts.append(ZipEntry(name: "word/footer1.xml", data: Data(_headerFooterPart("w:ftr", doc.footer, center: true, width: pageSetup.contentWidth).utf8)))
             extraOverrides += "<Override PartName=\"/word/footer1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>"
         }
         // Settings: the compatibility mode is Word's own (15 = Word 2013 and
@@ -1498,7 +1508,7 @@ enum DocxFormat {
     }
 
     /// A header or footer part: one paragraph, fields as fldSimple.
-    private static func _headerFooterPart(_ tag: String, _ template: String, center: Bool) -> String {
+    private static func _headerFooterPart(_ tag: String, _ template: String, center: Bool, width: Double) -> String {
         var runs = ""
         var literal = ""
         func flush() {
@@ -1506,7 +1516,10 @@ enum DocxFormat {
         }
         var rest = Substring(template)
         while !rest.isEmpty {
-            if rest.hasPrefix(RichDocument.pageField) {
+            if rest.hasPrefix("\t") {
+                flush(); runs += "<w:r><w:tab/></w:r>"
+                rest = rest.dropFirst()
+            } else if rest.hasPrefix(RichDocument.pageField) {
                 flush(); runs += "<w:fldSimple w:instr=\" PAGE \"><w:r><w:t>1</w:t></w:r></w:fldSimple>"
                 rest = rest.dropFirst(RichDocument.pageField.count)
             } else if rest.hasPrefix(RichDocument.pageCountField) {
@@ -1517,7 +1530,13 @@ enum DocxFormat {
             }
         }
         flush()
-        let jc = center ? "<w:pPr><w:jc w:val=\"center\"/></w:pPr>" : ""
+        // Tabs: Word's Header/Footer stops, a centre one halfway across
+        // the text and a right one at its end; the line is then left,
+        // centre and right thirds rather than centred as a whole.
+        let tabbed = template.contains("\t")
+        let jc = tabbed
+            ? "<w:pPr><w:tabs><w:tab w:val=\"center\" w:pos=\"\(Int((width * 10).rounded()))\"/><w:tab w:val=\"right\" w:pos=\"\(Int((width * 20).rounded()))\"/></w:tabs></w:pPr>"
+            : (center ? "<w:pPr><w:jc w:val=\"center\"/></w:pPr>" : "")
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<\(tag) xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:p>\(jc)\(runs)</w:p></\(tag)>"
     }
 
