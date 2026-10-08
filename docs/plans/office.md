@@ -256,7 +256,30 @@ picture turned out to mean:
 
 Harness: the Print dialog's PDF menu sometimes needs a second click,
 and a miss left the dialog open and the rest of the pass "no document
-window" — the script retries three times, then dismisses the dialog.
+window" — the script retries three times, then dismisses the dialog. Two
+more passes lost half the corpus the same way for a different reason:
+the save panel was up and waiting while PowerPoint was frontmost —
+another session sweeping decks on the same Mac — so the typed name went
+there. The panel is a sheet of the Print window after all, so Save is
+clicked through it now and Word is brought to the front before each
+keystroke; a 20-page document of pictures also prints for longer than
+the 30 s the script waited (120 s now).
+
+After the second round (111 scored; the 11 unscored are originals Word
+refuses): 26 documents at 0%, 48 under 1%, 21 between 1 and 5%, 16 over
+5% — from 20 / 39 / 21 / 25 of 105 in round 1. Headers 100% → 0.03%,
+VariousPictures 100% → 4.4%, shapes-with-text 10.5% → 0.24%, chartex
+9.2% → 3.6%, delins 13.3% → 9.5% (the balloons), issue_51265_3 40% →
+27.5% (three of its pictures are anchored, still a paragraph each).
+Two went the other way and are not explained yet: heading123 0.16% →
+4.7% (its Times paragraphs wrap a word wider, with identical margins,
+fonts and spacing in the XML) and Bug51170 13.9% → 15.6% (the logo is in
+the page header, which is kept as text). Still ranked: multi-section
+files whose page counts differ (bib-chernigovka, bug65649, bug59058,
+drawing), the form (form_footnotes: checkbox fields, cell merges, row
+heights), 60329's ragged table, pictures in headers, heading numbering
+defined on a style (3 documents), conditional table-style shading (1),
+`w:caps` and paragraph borders (3 each).
 
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
