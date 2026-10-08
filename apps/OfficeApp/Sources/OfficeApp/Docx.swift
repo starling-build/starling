@@ -1048,6 +1048,11 @@ enum DocxFormat {
         /// embedded object, a VML picture: kept as the file wrote it, with
         /// the parts it names, and shown as an empty box of its size.
         func addObject(_ node: XNode) {
+            if let att = objectAttachment(node) { addInline(att) }
+        }
+        /// The kept-verbatim attachment for `node`, or nil when a part it
+        /// names is missing.
+        func objectAttachment(_ node: XNode) -> ImageAttachment? {
             var w = 300.0, h = 200.0
             if let extent = node.descendant("wp:extent"),
                let cx = Double(extent["cx"] ?? ""), let cy = Double(extent["cy"] ?? ""), cx > 0, cy > 0 {
@@ -1079,7 +1084,7 @@ enum DocxFormat {
             }
             // A part the file names but does not hold (a fuzzer's doing):
             // the object is dropped, as it was before it was kept at all.
-            if found.contains(where: { !$0.external && notes.part(_resolvePath("word", $0.target)) == nil }) { return }
+            if found.contains(where: { !$0.external && notes.part(_resolvePath("word", $0.target)) == nil }) { return nil }
             // Self-contained markup: every prefix it uses that the document's
             // root declared is declared on it.
             for prefix in prefixes where prefix != "xml" && node.attrs["xmlns:" + prefix] == nil {
@@ -1088,7 +1093,7 @@ enum DocxFormat {
             var att = ImageAttachment(data: Data(), width: w, height: h, name: node.name)
             att.sourceXML = PptxXML.serialize(node)
             att.sourceRels = found
-            addInline(att)
+            return att
         }
         func addImage(_ drawing: XNode) {
             guard let blip = drawing.descendant("a:blip"), let rid = blip["r:embed"],
@@ -1102,6 +1107,17 @@ enum DocxFormat {
             // In the line where the text has it (several to a line, text
             // around them); a paragraph of nothing else becomes the
             // editor's picture paragraph at flush.
+            if drawing.first("wp:anchor") != nil, var att = objectAttachment(drawing) {
+                // A floating picture: its anchor (position, wrapping,
+                // behind the text) is kept as written and saved verbatim —
+                // Word then lays it out as the file did (WithGIF's text
+                // flowed over its picture; VariousPictures) — while the
+                // editor shows the picture in the line.
+                att.data = data
+                att.name = target.lastPathComponent
+                addInline(att)
+                return
+            }
             addInline(ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent))
         }
         func addText(_ s: String, _ cs: CharStyle) {

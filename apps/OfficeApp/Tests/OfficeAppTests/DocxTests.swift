@@ -412,6 +412,26 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(layout.geometry(1).painter.textDirection, .ltr)
     }
 
+    func testAnchoredPictureKeepsItsAnchor() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var doc = RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 72, height: 36)), RichParagraph(text: "text")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<wp:inline"), xml)
+        xml = xml.replacingAll("<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">", with: "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"1\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>914400</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV>")
+        xml = xml.replacingAll("<wp:docPr", with: "<wp:wrapNone/><wp:docPr").replacingAll("</wp:inline>", with: "</wp:anchor>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let att = try XCTUnwrap(back.paragraphs[0].image ?? back.paragraphs[0].inlineImages.values.first)
+        XCTAssertEqual(att.data, png, "the editor still has the picture")
+        XCTAssertTrue(att.sourceXML?.contains("<wp:anchor") ?? false, att.sourceXML ?? "nil")
+        XCTAssertEqual(att.width, 72)
+        let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(saved.contains("<wp:anchor ") && saved.contains("<wp:wrapNone/>") && saved.contains("<wp:posOffset>914400</wp:posOffset>"), saved)
+        XCTAssertFalse(saved.contains("<wp:inline"), saved)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
