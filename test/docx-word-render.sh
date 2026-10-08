@@ -17,13 +17,19 @@ DIFF="$WORK/pdf-diff"
 if [ ! -x "$DIFF" ]; then
   swiftc -O -o "$DIFF" "$HERE/pdf-diff.swift" 2>&1 | grep -E 'error:' && exit 1
 fi
+# When Word started (epoch seconds); launched here if it is not running.
+pgrep -x 'Microsoft Word' >/dev/null || { open -a 'Microsoft Word'; sleep 8; }
+WORD_START=$(ps -o lstart= -p "$(pgrep -x 'Microsoft Word' | head -1)" | xargs -I{} date -j -f '%a %b %d %T %Y' '{}' +%s)
+[ -n "$WORD_START" ] || { echo "cannot read Word's start time" >&2; exit 2; }
 names=("$@"); [ ${#names[@]} -gt 0 ] || names=($(cd "$OUT" && ls *.docx))
 for n in "${names[@]}"; do
   n=$(basename "$n"); base=${n%.docx}
   [ -f "$IN/$n" ] || { echo "skip $n: no original"; continue; }
-  # The originals never change, so a PDF already printed for one is reused;
-  # delete it to print it again. Ours is always reprinted.
-  if [ -s "$WORK/pdf/$base-orig.pdf" ]; then r1=pdf
+  # An original's PDF is reused only if this same Word session printed it:
+  # Word rendered heading123's original 4.7% differently the day after
+  # (Times substituted another way), which read as a regression in the
+  # copy. Both sides come from one session, or the score means nothing.
+  if [ -s "$WORK/pdf/$base-orig.pdf" ] && [ "$(stat -f %m "$WORK/pdf/$base-orig.pdf")" -gt "$WORD_START" ]; then r1=pdf
   else r1=$(osascript "$HERE/docx-word-pdf.applescript" "$IN/$n" "$WORK/pdf/$base-orig.pdf" 2>&1); fi
   r2=$(osascript "$HERE/docx-word-pdf.applescript" "$OUT/$n" "$WORK/pdf/$base-ours.pdf" 2>&1)
   if [ "$r1" != "pdf" ] || [ "$r2" != "pdf" ]; then

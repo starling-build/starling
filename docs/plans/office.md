@@ -271,10 +271,15 @@ refuses): 26 documents at 0%, 48 under 1%, 21 between 1 and 5%, 16 over
 VariousPictures 100% → 4.4%, shapes-with-text 10.5% → 0.24%, chartex
 9.2% → 3.6%, delins 13.3% → 9.5% (the balloons), issue_51265_3 40% →
 27.5% (three of its pictures are anchored, still a paragraph each).
-Two went the other way and are not explained yet: heading123 0.16% →
-4.7% (its Times paragraphs wrap a word wider, with identical margins,
-fonts and spacing in the XML) and Bug51170 13.9% → 15.6% (the logo is in
-the page header, which is kept as text). Still ranked: multi-section
+Two seemed to go the other way — heading123 0.16% → 4.7%, Bug51170
+13.9% → 15.6% — and the first turned out not to be ours at all: the
+copy was byte-identical to the first round's, and a fresh print of the
+*original* differed from the stored original PDF by 4.70% (Word, in a
+new session the next day, substituted its Times differently) while the
+copy differed from the fresh original by 0.18%. The driver had been
+reusing an original's PDF across days; it now reuses one only if the
+same Word session printed it, so both sides always come from one
+session. The numbers above are from mixed sessions and are rerun below. Still ranked: multi-section
 files whose page counts differ (bib-chernigovka, bug65649, bug59058,
 drawing), the form (form_footnotes: checkbox fields, cell merges, row
 heights), 60329's ragged table, pictures in headers, heading numbering
