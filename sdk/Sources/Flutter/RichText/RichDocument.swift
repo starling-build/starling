@@ -175,6 +175,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var pageBreakBefore = false
     /// Lines around the paragraph (Word's paragraph borders); nil for none.
     public var borders: ParagraphBorders? = nil
+    /// A tracked change to the paragraph mark itself: deleted, the
+    /// paragraph joins the next once accepted (and Word prints nothing
+    /// for a paragraph whose text and mark are both deleted).
+    public var markRevision: RevisionMark? = nil
 
     public init(alignment: ParagraphAlignment = .left, indentLeft: Double = 0,
                 indentRight: Double = 0, firstLineIndent: Double = 0,

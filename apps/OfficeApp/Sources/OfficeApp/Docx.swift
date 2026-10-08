@@ -862,6 +862,10 @@ enum DocxFormat {
             if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] { sheet.apply(ours, to: &style) }
             _paragraphProps(pPr, into: &style)
             style.indentLeft += indent
+            if let rPr = pPr.first("w:rPr"), let rev = rPr.first("w:del") ?? rPr.first("w:ins") {
+                style.markRevision = RevisionMark(kind: rev.name == "w:ins" ? .inserted : .deleted,
+                                                  author: rev["w:author"] ?? "", date: rev["w:date"] ?? "")
+            }
             if let numPr = pPr.first("w:numPr") {
                 let ilvl = Int(numPr.first("w:ilvl")?["w:val"] ?? "0") ?? 0
                 let numId = numPr.first("w:numId")?["w:val"] ?? ""
@@ -1211,6 +1215,11 @@ enum DocxFormat {
             case .center: pPr += "<w:jc w:val=\"center\"/>"
             case .right: pPr += "<w:jc w:val=\"right\"/>"
             case .justify: pPr += "<w:jc w:val=\"both\"/>"
+            }
+            if let rev = p.style.markRevision {
+                revisionCount += 1
+                let tag = rev.kind == .inserted ? "w:ins" : "w:del"
+                pPr += "<w:rPr><\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")/></w:rPr>"
             }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
             /// A picture or kept object as a run's content.

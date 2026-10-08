@@ -292,6 +292,15 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("<w:del w:id=\"2\" w:author=\"Bob\" w:date=\"2020-01-02T03:04:06Z\"><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:delText xml:space=\"preserve\"> old</w:delText></w:r></w:del>"), saved)
         let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document
         XCTAssertEqual(again.paragraphs[0].runs.map { $0.style.revision }, marks)
+        // A deleted paragraph mark (delins.docx: whole bullets struck out)
+        // survives too, else Word shows an empty bullet for each.
+        var struck = RichDocument(paragraphs: [RichParagraph(text: "gone"), RichParagraph(text: "stays")])
+        struck.paragraphs[0].style.markRevision = RevisionMark(kind: .deleted, author: "pavel", date: "2009-07-24T15:05:00Z")
+        let struckXML = String(decoding: try Zip.read(try DocxFormat.write(struck, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(struckXML.contains("<w:rPr><w:del w:id=\"1\" w:author=\"pavel\" w:date=\"2009-07-24T15:05:00Z\"/></w:rPr></w:pPr>"), struckXML)
+        let struckBack = try DocxFormat.read(try DocxFormat.write(struck, pageSetup: .letter)).document
+        XCTAssertEqual(struckBack.paragraphs[0].style.markRevision, struck.paragraphs[0].style.markRevision)
+        XCTAssertNil(struckBack.paragraphs[1].style.markRevision)
     }
 
     func testZipRoundTrip() throws {
