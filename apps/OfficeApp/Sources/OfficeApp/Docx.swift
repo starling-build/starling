@@ -978,6 +978,7 @@ enum DocxFormat {
                                     _ indent: Double, _ notes: _Shared, _ cellChar: CharStyle = CharStyle()) -> [_Built] {
         var style = base
         var sectionBreakAfter = false
+        var markStyle: CharStyle? = nil   // the paragraph mark's look: an empty paragraph's height
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
             if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] { sheet.apply(ours, to: &style) }
@@ -987,6 +988,7 @@ enum DocxFormat {
                 style.markRevision = RevisionMark(kind: rev.name == "w:ins" ? .inserted : .deleted,
                                                   author: rev["w:author"] ?? "", date: rev["w:date"] ?? "")
             }
+            if let rPr = pPr.first("w:rPr") { markStyle = _charStyle(rPr, base: cellChar) }
             // The paragraph's own numbering, else its style's (a numbered
             // heading style: 65099's "1.1.1 Acronyms").
             var num: (numId: String, ilvl: Int)? = nil
@@ -1027,7 +1029,11 @@ enum DocxFormat {
                 // editor's picture paragraph, with its handles.
                 para = RichParagraph(image: only, style: style)
             } else {
-                para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
+                if text.isEmpty, inlineImages.isEmpty, let mark = markStyle {
+                    para = RichParagraph(text: "", charStyle: mark, style: style)
+                } else {
+                    para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
+                }
                 para.inlineImages = inlineImages
             }
             para.normalize()
@@ -1215,6 +1221,33 @@ enum DocxFormat {
             flush(pageBreakAfter: sectionBreakAfter)
         }
         return built
+    }
+
+    /// A run's properties (CT_RPr children, in schema order).
+    private static func _rPrXML(_ s: CharStyle) -> String {
+        var rPr = ""
+    if let family = s.fontFamily {
+        let name = OfficeFonts.exportName(family)
+        rPr += "<w:rFonts w:ascii=\"\(_esc(name))\" w:hAnsi=\"\(_esc(name))\" w:cs=\"\(_esc(name))\"/>"
+    }
+    if s.bold { rPr += "<w:b/><w:bCs/>" }
+    if s.italic { rPr += "<w:i/><w:iCs/>" }
+    if s.caps { rPr += "<w:caps/>" }
+    if s.smallCaps { rPr += "<w:smallCaps/>" }
+    if s.underline { rPr += "<w:u w:val=\"single\"/>" }
+    if s.strikethrough { rPr += "<w:strike/>" }
+    if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
+    if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
+    if let hl = s.highlight {
+        if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
+            rPr += "<w:highlight w:val=\"\(name)\"/>"
+        } else {
+            rPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(hl))\"/>"
+        }
+    }
+    if s.script == .superscript { rPr += "<w:vertAlign w:val=\"superscript\"/>" }
+    if s.script == .subscript { rPr += "<w:vertAlign w:val=\"subscript\"/>" }
+        return rPr
     }
 
     /// `<w:pBdr>` for a paragraph's borders: sz in eighths of a point.
@@ -1418,11 +1451,18 @@ enum DocxFormat {
             case .right: pPr += "<w:jc w:val=\"right\"/>"
             case .justify: pPr += "<w:jc w:val=\"both\"/>"
             }
+            // The paragraph mark's own run properties: a tracked change to
+            // the mark, and — for an empty paragraph — its look, which is
+            // what gives the empty line its height (bib-chernigovka's
+            // cover: 3,350 such spacers in 11 corpus files).
+            var markRPr = ""
             if let rev = p.style.markRevision {
                 revisionCount += 1
                 let tag = rev.kind == .inserted ? "w:ins" : "w:del"
-                pPr += "<w:rPr><\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")/></w:rPr>"
+                markRPr += "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")/>"
             }
+            if p.text.isEmpty, p.image == nil, let first = p.runs.first { markRPr += _rPrXML(first.style) }
+            if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
@@ -1466,28 +1506,7 @@ enum DocxFormat {
                     body += drawingXML(image)
                     continue
                 }
-                var rPr = ""
-                if let family = s.fontFamily {
-                    let name = OfficeFonts.exportName(family)
-                    rPr += "<w:rFonts w:ascii=\"\(_esc(name))\" w:hAnsi=\"\(_esc(name))\" w:cs=\"\(_esc(name))\"/>"
-                }
-                if s.bold { rPr += "<w:b/><w:bCs/>" }
-                if s.italic { rPr += "<w:i/><w:iCs/>" }
-                if s.caps { rPr += "<w:caps/>" }
-                if s.smallCaps { rPr += "<w:smallCaps/>" }
-                if s.underline { rPr += "<w:u w:val=\"single\"/>" }
-                if s.strikethrough { rPr += "<w:strike/>" }
-                if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
-                if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
-                if let hl = s.highlight {
-                    if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
-                        rPr += "<w:highlight w:val=\"\(name)\"/>"
-                    } else {
-                        rPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(hl))\"/>"
-                    }
-                }
-                if s.script == .superscript { rPr += "<w:vertAlign w:val=\"superscript\"/>" }
-                if s.script == .subscript { rPr += "<w:vertAlign w:val=\"subscript\"/>" }
+                var rPr = _rPrXML(s)
                 if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
                     // The mark's number is Word's to show; the run carries
                     // only the reference (and its custom mark text, if any),

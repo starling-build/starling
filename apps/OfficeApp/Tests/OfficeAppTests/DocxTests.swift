@@ -453,6 +453,23 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(split.paragraphs[2].style.pageBreakBefore)
     }
 
+    func testEmptyParagraphKeepsItsMarkSize() throws {
+        // An empty 28pt paragraph is a 28pt-high spacer in Word; the mark's
+        // run properties carry that through read and write.
+        var big = CharStyle(); big.fontSize = 28; big.bold = true
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: "", charStyle: big), RichParagraph(text: "b")])
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:rPr><w:b/><w:bCs/><w:sz w:val=\"56\"/><w:szCs w:val=\"56\"/></w:rPr></w:pPr></w:p>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[1].text, "")
+        XCTAssertEqual(back.paragraphs[1].runs[0].style.fontSize, 28)
+        XCTAssertTrue(back.paragraphs[1].runs[0].style.bold)
+        XCTAssertNil(back.paragraphs[0].runs[0].style.fontSize)
+        doc.paragraphs[1].style.markRevision = RevisionMark(kind: .deleted, author: "x", date: "")
+        let both = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(both.contains("<w:rPr><w:del w:id=\"1\" w:author=\"x\"/><w:b/><w:bCs/><w:sz w:val=\"56\"/>"), both)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
