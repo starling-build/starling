@@ -387,6 +387,10 @@ final class DocxTests: XCTestCase {
         let savedXML = String(decoding: saved.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(savedXML.contains("<w:headerReference w:type=\"default\" r:id=\"rIdKeptHF0\"/><w:headerReference w:type=\"first\" r:id=\"rIdKeptHF1\"/>"), savedXML)
         XCTAssertTrue(savedXML.contains("<w:titlePg/></w:sectPr>"), savedXML)
+        // A title page without a first-page part: still a title page (an
+        // empty first-page header, as Word shows Bug51170's cover).
+        var bare = RichDocument(paragraphs: [RichParagraph(text: "x")]); bare.header = "h"; bare.titlePage = true
+        XCTAssertTrue(String(decoding: try Zip.read(try DocxFormat.write(bare, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self).contains("<w:titlePg/>"))
         let savedRels = String(decoding: saved.first { $0.name == "word/_rels/document.xml.rels" }!.data, as: UTF8.self)
         XCTAssertTrue(savedRels.contains("Id=\"rIdKeptHF0\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\""), savedRels)
         XCTAssertFalse(savedRels.contains("rIdHeader"), savedRels)
