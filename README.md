@@ -50,6 +50,7 @@ use, dedicated agent workspaces, and new views such as the 3D city.
 | [`termd/`](termd/) | The terminal-session daemon for sessions that survive client disconnects. |
 | [`host/`](host/) | Windowed application-host plumbing. |
 | [`build/`](build/) | Build, packaging, browser, and platform tooling. |
+| [`service/`](service/) | Document-management backend: teams, permissions, sharing, private storage, and revision-safe saves. |
 | [`ui/`](ui/) | The Starling landing page and the Office and Desktop slide presentations. |
 | [`docs/`](docs/) | Setup and user guides, engineering notes, and project plans. |
 | [`macos-compat/`](macos-compat/) | Research into running unmodified Mach-O macOS binaries on Linux. |

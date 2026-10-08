@@ -42,3 +42,6 @@ apps/OfficeApp/Vendor/
 
 # Desktop presentation browser runtime
 ui/desktop/runtime/
+
+# The backend deploys reproducible dependency versions.
+!/service/Package.resolved
