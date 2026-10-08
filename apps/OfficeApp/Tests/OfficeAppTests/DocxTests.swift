@@ -250,16 +250,16 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
         let si = entries.firstIndex { $0.name == "word/styles.xml" }!
         var styles = String(decoding: entries[si].data, as: UTF8.self)
-        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"EdfTitre3\"><w:name w:val=\"Edf Titre 3\"/><w:basedOn w:val=\"Heading3\"/><w:pPr><w:numPr><w:ilvl w:val=\"2\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr><w:rPr><w:b/><w:color w:val=\"auto\"/></w:rPr></w:style><w:style w:type=\"table\" w:styleId=\"Grid4\"><w:name w:val=\"Grid 4\"/><w:tblPr><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"666666\"/></w:tblBorders></w:tblPr><w:tblStylePr w:type=\"firstRow\"><w:rPr><w:b/><w:color w:val=\"FFFFFF\"/></w:rPr><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"000000\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"CCCCCC\"/></w:tcPr></w:tblStylePr></w:style></w:styles>")
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"EdfTitre3\"><w:name w:val=\"Edf Titre 3\"/><w:basedOn w:val=\"Heading3\"/><w:pPr><w:numPr><w:ilvl w:val=\"2\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr><w:rPr><w:b/><w:color w:val=\"auto\"/></w:rPr></w:style><w:style w:type=\"table\" w:styleId=\"Grid4\"><w:name w:val=\"Grid 4\"/><w:tblPr><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"666666\"/></w:tblBorders></w:tblPr><w:tblStylePr w:type=\"firstCol\"><w:rPr><w:b/></w:rPr></w:tblStylePr><w:tblStylePr w:type=\"firstRow\"><w:rPr><w:b/><w:color w:val=\"FFFFFF\"/></w:rPr><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"000000\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"CCCCCC\"/></w:tcPr></w:tblStylePr></w:style></w:styles>")
         entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
         xml = xml.replacingAll("<w:p><w:pPr><w:spacing", with: "<w:p><w:pPr><w:pStyle w:val=\"EdfTitre3\"/><w:spacing")   // the first paragraph only
         xml = xml.replacingAll("<w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/>", with: "<w:tblPr><w:tblStyle w:val=\"Grid4\"/><w:tblW w:w=\"0\" w:type=\"auto\"/>")
         xml = xml.replacingAll("<w:tblBorders>", with: "<w:tblBordersX>").replacingAll("</w:tblBorders>", with: "</w:tblBordersX>")
-        xml = xml.replacingAll("<w:tblLook w:val=\"04A0\"/>", with: "<w:tblLook w:val=\"04A0\" w:firstRow=\"1\" w:noHBand=\"0\"/>")
+        xml = xml.replacingAll("<w:tblLook w:val=\"04A0\"/>", with: "<w:tblLook w:val=\"04A0\" w:firstRow=\"1\" w:firstColumn=\"1\" w:noHBand=\"0\"/>")
         let ni = entries.firstIndex { $0.name == "word/numbering.xml" }
-        let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1\"/></w:lvl><w:lvl w:ilvl=\"1\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.%2\"/></w:lvl><w:lvl w:ilvl=\"2\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.%2.%3\"/></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+        let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1\"/></w:lvl><w:lvl w:ilvl=\"1\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.%2\"/></w:lvl><w:lvl w:ilvl=\"2\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.%2.%3\"/><w:pPr><w:ind w:left=\"720\" w:hanging=\"720\"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
         if let ni { entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8)) }
         XCTAssertNotNil(ni, "the writer always ships a numbering part")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
@@ -275,6 +275,13 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(cells[0].runs[0].style.color, Color(0xFFFFFFFF))
         XCTAssertTrue(cells[0].runs[0].style.bold)
         XCTAssertNil(cells[2].runs[0].style.color)
+        XCTAssertTrue(cells[2].runs[0].style.bold, "firstCol: the first column is bold")
+        XCTAssertFalse(cells[3].runs[0].style.bold)
+        // The numbering level's own indents survive the save.
+        XCTAssertEqual(back.listFormats["1"]?[2]?.indentLeft, 36)
+        XCTAssertEqual(back.listFormats["1"]?[2]?.hanging, 36)
+        let savedNum = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/numbering.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(savedNum.contains("<w:lvlText w:val=\"%1.%2.%3\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"720\" w:hanging=\"720\"/></w:pPr>"), savedNum)
         XCTAssertEqual(back.tableStyles.values.first?.borderColor, Color(0xFF666666))
     }
 
@@ -814,7 +821,7 @@ final class DocxTests: XCTestCase {
         XCTAssertNotEqual(ps[0].style.listId, ps[4].style.listId)
         XCTAssertEqual(ps[4].style.listId, ps[5].style.listId)
         let id = try XCTUnwrap(ps[0].style.listId)
-        XCTAssertEqual(back.document.listFormats[id]?[0], ListLevelFormat(text: "%1)", format: .upperRoman))
+        XCTAssertEqual(back.document.listFormats[id]?[0].map { ($0.text, $0.format) }.map { "\($0.0) \($0.1)" }, "%1) upperRoman")
         XCTAssertEqual(RichListNumbering.labels(back.document), ["I)", "II)", nil, "II.1", "1.", "2."])
     }
 

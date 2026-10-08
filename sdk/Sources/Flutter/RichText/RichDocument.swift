@@ -585,6 +585,10 @@ public enum ListNumberFormat: Hashable, Sendable {
 public struct ListLevelFormat: Hashable, Sendable {
     public var text: String
     public var format: ListNumberFormat
+    /// The level's own indents in points (Word's w:lvl/w:pPr/w:ind), kept
+    /// through a save; nil for the editor's defaults.
+    public var indentLeft: Double? = nil
+    public var hanging: Double? = nil
 
     public init(text: String, format: ListNumberFormat = .decimal) {
         self.text = text

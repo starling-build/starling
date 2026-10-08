@@ -182,6 +182,8 @@ enum DocxFormat {
                         case "firstRow":
                             if cond.headerFill == nil { cond.headerFill = fill }
                             if cond.headerChar == nil, let rPr = part.first("w:rPr") { cond.headerChar = _charStyle(rPr, base: CharStyle()) }
+                        case "firstCol":
+                            if cond.firstColChar == nil, let rPr = part.first("w:rPr") { cond.firstColChar = _charStyle(rPr, base: CharStyle()) }
                         case "band1Horz": if cond.band1 == nil { cond.band1 = fill }
                         case "band2Horz": if cond.band2 == nil { cond.band2 = fill }
                         default: break
@@ -336,6 +338,13 @@ enum DocxFormat {
                         formats[ilvl] = ListLevelFormat(text: lvl.first("w:lvlText")?["w:val"] ?? "%\(ilvl + 1).",
                                                         format: number)
                     }
+                    // The level's indents (65099's "1.1.1" hangs 0.5in at the
+                    // margin; the editor's default put it 1.5in in).
+                    if let ind = lvl.first("w:pPr")?.first("w:ind"), formats[ilvl] != nil {
+                        if let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { formats[ilvl]!.indentLeft = v / 20 }
+                        if let v = Double(ind["w:hanging"] ?? "") { formats[ilvl]!.hanging = v / 20 }
+                        else if let v = Double(ind["w:firstLine"] ?? "") { formats[ilvl]!.hanging = -v / 20 }
+                    }
                 }
                 abstract[id] = levels
                 abstractFormats[id] = formats
@@ -469,6 +478,7 @@ enum DocxFormat {
                 let lookVal = look.flatMap { Int($0["w:val"] ?? "", radix: 16) } ?? 0x04A0
                 let firstRowOn = look?["w:firstRow"].map { $0 != "0" } ?? (lookVal & 0x0020 != 0)
                 let bandsOn = !(look?["w:noHBand"].map { $0 != "0" } ?? (lookVal & 0x0200 != 0))
+                let firstColOn = look?["w:firstColumn"].map { $0 != "0" } ?? (lookVal & 0x0080 != 0)
                 // Where the table sits in the column (w:jc on the table).
                 switch node.first("w:tblPr")?.first("w:jc")?["w:val"] {
                 case "center": style.alignment = .center
@@ -528,7 +538,8 @@ enum DocxFormat {
                             else if bandsOn { fill = (r - (firstRowOn ? 1 : 0)) % 2 == 0 ? cond.band1 : cond.band2 }
                         }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill)
-                        cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle()) : CharStyle()
+                        cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
+                            : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                         if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
@@ -864,6 +875,7 @@ enum DocxFormat {
     struct _Cond {
         var headerFill: Color? = nil
         var headerChar: CharStyle? = nil
+        var firstColChar: CharStyle? = nil
         var band1: Color? = nil
         var band2: Color? = nil
     }
@@ -1971,10 +1983,13 @@ enum DocxFormat {
             let abstractId = numId + 1
             var levels = ""
             for i in 0 ..< 9 {
-                let left = 720 * (i + 1)
+                let own = formats[numId]?[i]
+                let left = own?.indentLeft.map { Int(($0 * 20).rounded()) } ?? 720 * (i + 1)
+                let hang = own?.hanging.map { Int(($0 * 20).rounded()) } ?? 360
+                let ind = hang >= 0 ? "<w:ind w:left=\"\(left)\" w:hanging=\"\(hang)\"/>" : "<w:ind w:left=\"\(left)\" w:firstLine=\"\(-hang)\"/>"
                 if kinds[numId] == .bullet {
                     let glyph = formats[numId]?[i].flatMap { $0.format == .bullet ? $0.text : nil } ?? bullets[i % 3]
-                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\(_esc(glyph))\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"\(left)\" w:hanging=\"360\"/></w:pPr></w:lvl>"
+                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\(_esc(glyph))\"/><w:lvlJc w:val=\"left\"/><w:pPr>\(ind)</w:pPr></w:lvl>"
                 } else {
                     let f = formats[numId]?[i] ?? .plain(i)
                     let fmt: String
@@ -1986,7 +2001,7 @@ enum DocxFormat {
                     case .upperRoman: fmt = "upperRoman"
                     case .bullet: fmt = "bullet"
                     }
-                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"\(fmt)\"/><w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"\(left)\" w:hanging=\"360\"/></w:pPr></w:lvl>"
+                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"\(fmt)\"/><w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"left\"/><w:pPr>\(ind)</w:pPr></w:lvl>"
                 }
             }
             extraAbstract += "<w:abstractNum w:abstractNumId=\"\(abstractId)\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(levels)</w:abstractNum>"
