@@ -71,6 +71,11 @@ public struct CharStyle: Hashable, Sendable {
     public var inlineImage: String? = nil
     /// Set on a run that is a tracked insertion or deletion.
     public var revision: RevisionMark? = nil
+    /// Word's All caps: the run's letters shown as capitals (the text
+    /// itself keeps its case).
+    public var caps = false
+    /// Word's Small caps: lowercase letters shown as smaller capitals.
+    public var smallCaps = false
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,
@@ -102,6 +107,34 @@ public enum ParagraphAlignment: Int, Hashable, Sendable {
 public enum ListKind: Int, Hashable, Sendable {
     case bullet
     case numbered
+}
+
+/// One edge of a paragraph border: a line of `width` points in `color`
+/// (nil for the text colour), `space` points away from the text.
+public struct BorderLine: Hashable, Sendable {
+    public var width: Double
+    public var color: Color?
+    public var space: Double
+    public init(width: Double = 0.75, color: Color? = nil, space: Double = 1) {
+        self.width = width
+        self.color = color
+        self.space = space
+    }
+}
+
+/// A paragraph's borders, each edge its own line or none.
+public struct ParagraphBorders: Hashable, Sendable {
+    public var top: BorderLine? = nil
+    public var bottom: BorderLine? = nil
+    public var left: BorderLine? = nil
+    public var right: BorderLine? = nil
+    public init(top: BorderLine? = nil, bottom: BorderLine? = nil, left: BorderLine? = nil, right: BorderLine? = nil) {
+        self.top = top
+        self.bottom = bottom
+        self.left = left
+        self.right = right
+    }
+    public var isEmpty: Bool { top == nil && bottom == nil && left == nil && right == nil }
 }
 
 /// Paragraph-level formatting. Lengths are in points.
@@ -140,6 +173,8 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// sheet, under any direct formatting.
     public var named: String? = nil
     public var pageBreakBefore = false
+    /// Lines around the paragraph (Word's paragraph borders); nil for none.
+    public var borders: ParagraphBorders? = nil
 
     public init(alignment: ParagraphAlignment = .left, indentLeft: Double = 0,
                 indentRight: Double = 0, firstLineIndent: Double = 0,

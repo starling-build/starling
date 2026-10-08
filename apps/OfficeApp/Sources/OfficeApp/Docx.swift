@@ -570,6 +570,25 @@ enum DocxFormat {
             if let v = Double(ind["w:firstLine"] ?? "") { style.firstLineIndent = v / 20 }
             if let v = Double(ind["w:hanging"] ?? "") { style.firstLineIndent = -v / 20 }
         }
+        if let bdr = pPr.first("w:pBdr") {
+            // Each edge: sz in eighths of a point, space in points, colour
+            // hex or auto. "nil"/"none" is an edge without a line.
+            func line(_ name: String) -> BorderLine? {
+                guard let e = bdr.first(name) else { return nil }
+                switch e["w:val"] ?? "nil" {
+                case "nil", "none": return nil
+                default: break
+                }
+                let sz = Double(e["w:sz"] ?? "4") ?? 4
+                var color: Color? = nil
+                if let hex = e["w:color"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
+                    color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+                }
+                return BorderLine(width: max(0.25, sz / 8), color: color, space: Double(e["w:space"] ?? "0") ?? 0)
+            }
+            let b = ParagraphBorders(top: line("w:top"), bottom: line("w:bottom"), left: line("w:left"), right: line("w:right"))
+            style.borders = b.isEmpty ? nil : b
+        }
         if let sp = pPr.first("w:spacing") {
             if let v = Double(sp["w:before"] ?? "") { style.spaceBefore = v / 20 }
             if let v = Double(sp["w:after"] ?? "") { style.spaceAfter = v / 20 }
@@ -987,6 +1006,16 @@ enum DocxFormat {
         return built
     }
 
+    /// `<w:pBdr>` for a paragraph's borders: sz in eighths of a point.
+    private static func _bordersXML(_ b: ParagraphBorders) -> String {
+        func edge(_ name: String, _ l: BorderLine?) -> String {
+            guard let l else { return "" }
+            let color = l.color.map { _hex($0) } ?? "auto"
+            return "<w:\(name) w:val=\"single\" w:sz=\"\(Int((l.width * 8).rounded()))\" w:space=\"\(Int(l.space.rounded()))\" w:color=\"\(color)\"/>"
+        }
+        return "<w:pBdr>" + edge("top", b.top) + edge("left", b.left) + edge("bottom", b.bottom) + edge("right", b.right) + "</w:pBdr>"
+    }
+
     /// `<w:spacing>` with the style's before, after and line, all of them
     /// (a paragraph that says nothing takes the file's defaults, which
     /// need not be ours). Twips and 240ths, rounded — truncation drifted
@@ -1018,6 +1047,8 @@ enum DocxFormat {
             case "w:i": cs.italic = !_isOff(child)
             case "w:u": cs.underline = child["w:val"] != "none"
             case "w:strike", "w:dstrike": cs.strikethrough = !_isOff(child)
+            case "w:caps": cs.caps = !_isOff(child)
+            case "w:smallCaps": cs.smallCaps = !_isOff(child)
             case "w:sz": if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
                 if let hex = child["w:val"], hex.lowercased() != "auto", let v = Int(hex, radix: 16) {
@@ -1122,6 +1153,7 @@ enum DocxFormat {
             if p.style.list != nil {
                 pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
             }
+            if let b = p.style.borders { pPr += _bordersXML(b) }
             // Spacing spelled out on every paragraph, so that Word and we
             // lay the file out alike whatever its defaults say.
             pPr += _spacingXML(p.style)
@@ -1187,6 +1219,8 @@ enum DocxFormat {
                 }
                 if s.bold { rPr += "<w:b/><w:bCs/>" }
                 if s.italic { rPr += "<w:i/><w:iCs/>" }
+                if s.caps { rPr += "<w:caps/>" }
+                if s.smallCaps { rPr += "<w:smallCaps/>" }
                 if s.underline { rPr += "<w:u w:val=\"single\"/>" }
                 if s.strikethrough { rPr += "<w:strike/>" }
                 if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
@@ -1542,6 +1576,8 @@ enum DocxFormat {
             }
             if entry.char.bold { out += "<w:b/><w:bCs/>" }
             if entry.char.italic { out += "<w:i/><w:iCs/>" }
+            if entry.char.caps { out += "<w:caps/>" }
+            if entry.char.smallCaps { out += "<w:smallCaps/>" }
             if let c = entry.char.color { out += "<w:color w:val=\"\(_hex(c))\"/>" }
             if let size = entry.char.fontSize { out += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
             out += "</w:rPr></w:style>"

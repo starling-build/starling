@@ -197,6 +197,40 @@ final class DocxTests: XCTestCase {
     /// Tracked changes stay tracked: an insertion and a deletion read as
     /// marked runs and are written back as the changes they were, so Word
     /// shows the same markup for the copy.
+    func testCapsAndParagraphBordersRoundTrip() throws {
+        var p = RichParagraph(text: "Rule below")
+        p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
+        var cs = CharStyle()
+        cs.smallCaps = true
+        var q = RichParagraph(text: "Small caps", charStyle: cs)
+        q.style.borders = ParagraphBorders(top: BorderLine(), bottom: BorderLine(), left: BorderLine(), right: BorderLine())
+        var doc = RichDocument(paragraphs: [p, q])
+        doc.paragraphs[0].runs[0].style.caps = true
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:pBdr><w:bottom w:val=\"single\" w:sz=\"6\" w:space=\"1\" w:color=\"DFDFDF\"/></w:pBdr>"), xml)
+        XCTAssertTrue(xml.contains("<w:caps/>"), xml)
+        XCTAssertTrue(xml.contains("<w:smallCaps/>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].style.borders, doc.paragraphs[0].style.borders)
+        XCTAssertEqual(back.paragraphs[1].style.borders, doc.paragraphs[1].style.borders)
+        XCTAssertTrue(back.paragraphs[0].runs[0].style.caps)
+        XCTAssertTrue(back.paragraphs[1].runs[0].style.smallCaps)
+        // Shown as capitals, and a bordered paragraph is taller by the
+        // line and its gap on each bordered side.
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 2)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(back)
+        let ppp = 96.0 / 72.0
+        let g0 = layout.geometry(0), g1 = layout.geometry(1)
+        // Paragraph 0: 8pt after plus a 0.75pt line 1pt below; paragraph
+        // 1: lines on all four sides, so 1.75pt more at the top as well.
+        XCTAssertGreaterThanOrEqual(g0.height, (g0.painter.height + ppp * (8 + 1.75)).rounded(.down))
+        XCTAssertGreaterThanOrEqual(g1.textTop - g1.top, (ppp * 1.75).rounded(.down))
+        XCTAssertEqual(g0.painter.text?.toPlainText(), "RULE BELOW")
+        XCTAssertEqual(g1.painter.text?.toPlainText(), "SMALL CAPS")
+    }
+
     func testTrackedChangesRoundTrip() throws {
         let doc = RichDocument(paragraphs: [RichParagraph(text: "Keep this")])
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))

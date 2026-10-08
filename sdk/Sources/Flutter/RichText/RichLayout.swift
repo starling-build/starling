@@ -1108,8 +1108,11 @@ public final class RichLayout {
         // Whole pixels: a page break clips between two lines, and a
         // fractional line box leaves the previous line's descenders peeking
         // into the next page (and its ascenders shaved off the previous).
-        let before = _px(style.spaceBefore).rounded()
-        let after = _px(style.spaceAfter)
+        // A border's line and its gap lie between the spacing and the text.
+        let bTop = style.borders?.top.map { _px($0.space + $0.width) } ?? 0
+        let bBottom = style.borders?.bottom.map { _px($0.space + $0.width) } ?? 0
+        let before = (_px(style.spaceBefore) + bTop).rounded()
+        let after = _px(style.spaceAfter) + bBottom
         _painters[i] = painter
         _textLeft[i] = left
         _textWidth[i] = textWidth
@@ -1148,8 +1151,38 @@ public final class RichLayout {
         if p.text.isEmpty {
             return (TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale)), [])
         }
+        /// A run's text as shown: capitals for Word's All caps and Small
+        /// caps (the latter with the lowercase letters' capitals at 80%),
+        /// the same number of UTF-16 units as the text, so that offsets
+        /// into the painted text are offsets into the paragraph.
+        func capped(_ text: Substring, _ run: CharStyle, _ style: TextStyle) -> [TextSpan] {
+            let caps = run.caps || (named?.char.caps ?? false)
+            let small = !caps && (run.smallCaps || (named?.char.smallCaps ?? false))
+            if !caps && !small { return [TextSpan(text: String(text), style: style)] }
+            var spans: [TextSpan] = []
+            var piece = ""
+            var pieceSmall = false
+            let smallStyle = small ? style.copyWith(fontSize: (style.fontSize ?? 12) * 0.8) : style
+            for ch in text {
+                let s = String(ch)
+                let up = s.uppercased()
+                let lower = up != s && up.utf16.count == s.utf16.count
+                let isSmall = small && lower
+                if isSmall != pieceSmall, !piece.isEmpty {
+                    spans.append(TextSpan(text: piece, style: pieceSmall ? smallStyle : style))
+                    piece = ""
+                }
+                pieceSmall = isSmall
+                piece += lower ? up : s
+            }
+            if !piece.isEmpty { spans.append(TextSpan(text: piece, style: pieceSmall ? smallStyle : style)) }
+            return spans
+        }
         if p.runs.count == 1, p.runs[0].style.inlineImage == nil {
-            return (TextSpan(text: p.text, style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale)), [])
+            let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale)
+            let spans = capped(p.text[...], p.runs[0].style, style)
+            if spans.count == 1 { return (spans[0], []) }
+            return (TextSpan(children: spans), [])
         }
         var children: [InlineSpan] = []
         var inline: [(image: ImageAttachment, dimensions: PlaceholderDimensions)] = []
@@ -1171,7 +1204,7 @@ public final class RichLayout {
                 inline.append((image, PlaceholderDimensions(size: size, alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: size.height)))
                 continue
             }
-            children.append(TextSpan(text: String(utf16[a ..< b]) ?? "", style: style))
+            children.append(contentsOf: capped(p.text[a ..< b], run.style, style))
         }
         return (TextSpan(children: children), inline)
     }
@@ -1516,6 +1549,40 @@ public final class RichLayout {
                 canvas.drawRect(box, paint)
             }
             return
+        }
+        if let b = document.paragraphs[i].style.borders {
+            // Word's paragraph borders: each edge a line its `space` away
+            // from the text, the horizontal ones spanning the text width
+            // (plus the side edges' own gaps).
+            let textBottom = g.textTop + g.painter.height
+            let leftExt = b.left.map { _px($0.space + $0.width) } ?? 0
+            let rightExt = b.right.map { _px($0.space + $0.width) } ?? 0
+            let x0 = (g.textLeft - leftExt).rounded(), x1 = (g.textLeft + g.textWidth + rightExt).rounded()
+            func stroke(_ l: BorderLine) -> Paint {
+                let p = Paint()
+                p.style = .stroke
+                p.strokeWidth = max(1, _px(l.width).rounded())
+                p.color = l.color ?? theme.textColor
+                return p
+            }
+            if let l = b.top {
+                let y = (g.textTop - _px(l.space) - _px(l.width) / 2).rounded() + 0.5
+                canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
+            }
+            if let l = b.bottom {
+                let y = (textBottom + _px(l.space) + _px(l.width) / 2).rounded() - 0.5
+                canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
+            }
+            let y0 = b.top.map { g.textTop - _px($0.space + $0.width) } ?? g.textTop
+            let y1 = b.bottom.map { textBottom + _px($0.space + $0.width) } ?? textBottom
+            if let l = b.left {
+                let x = (g.textLeft - _px(l.space) - _px(l.width) / 2).rounded() + 0.5
+                canvas.drawLine(Offset(x, y0), Offset(x, y1), stroke(l))
+            }
+            if let l = b.right {
+                let x = (g.textLeft + g.textWidth + _px(l.space) + _px(l.width) / 2).rounded() - 0.5
+                canvas.drawLine(Offset(x, y0), Offset(x, y1), stroke(l))
+            }
         }
         if let label = listLabel(i, document) {
             let p = document.paragraphs[i]
