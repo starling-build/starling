@@ -1050,13 +1050,31 @@ private struct SlideContext {
         let plain = styleId.isEmpty || ["{2D5ABB26-0587-4C30-8999-92F81FD0307C}", "{5940675A-B579-460E-94D1-54222C63F5DA}"].contains(styleId)
         let base = LevelStyle.paragraph(defaults?.first("a:lvl1pPr"), colors)
         var paragraphs: [RichParagraph] = []
+        var sawCellLine = false, visibleCellLine = false
+        var cellBorder: Color? = nil
         for (r, tr) in tbl.all("a:tr").enumerated() {
             var column = 0
             for tc in tr.all("a:tc") {
                 defer { column += 1 }
                 if tc["hMerge"] == "1" || tc["vMerge"] == "1" { continue }
-                let cell = CellRef(table: tableId, row: r, column: column,
+                var cell = CellRef(table: tableId, row: r, column: column,
                                    span: tc["gridSpan"].flatMap(Int.init) ?? 1, rowSpan: tc["rowSpan"].flatMap(Int.init) ?? 1)
+                // The cell's own fill and lines (`a:tcPr`), which a table
+                // laid out by hand carries instead of a style.
+                if let tcPr = tc.first("a:tcPr") {
+                    if let f = tcPr.first("a:solidFill") {
+                        cell.fill = colors.color(in: f)
+                    } else if let g = tcPr.first("a:gradFill") {
+                        let stops = g.first("a:gsLst")?.all("a:gs").compactMap { colors.color(in: $0) } ?? []
+                        if !stops.isEmpty { cell.fill = stops[stops.count / 2] }
+                    }
+                    for ln in ["a:lnL", "a:lnR", "a:lnT", "a:lnB"].compactMap({ tcPr.first($0) }) {
+                        sawCellLine = true
+                        if ln.has("a:noFill") { continue }
+                        visibleCellLine = true
+                        if cellBorder == nil, let f = ln.first("a:solidFill") { cellBorder = colors.color(in: f) }
+                    }
+                }
                 // The header row's text is light and bold in every styled
                 // table PowerPoint offers.
                 var look = base
@@ -1099,12 +1117,15 @@ private struct SlideContext {
         var doc = RichDocument(paragraphs: paragraphs)
         if !widths.isEmpty { doc.tableColumns[tableId] = widths }
         let accent = theme.colors["accent1"] ?? Color(0xFF4472C4)
-        doc.tableStyles[tableId] = plain
+        var ts = plain
             ? TableStyle(borders: styleId.isEmpty || styleId.hasPrefix("{5940675A"), headerRow: false, borderColor: colors.scheme("tx1"))
             : TableStyle(borders: true, headerRow: firstRow, headerFill: accent,
                          bandFill: banded ? DeckController.tint(accent, 0.40) : nil,
                          bandAltFill: banded ? DeckController.tint(accent, 0.20) : nil,
                          borderColor: Color(0xFFFFFFFF))
+        if sawCellLine { ts.borders = visibleCellLine }
+        if let cellBorder { ts.borderColor = cellBorder }
+        doc.tableStyles[tableId] = ts
         var st = ShapeState(id: id(), name: el.descendant("p:cNvPr")?["name"] ?? "Table", kind: .table, frame: frame,
                             rotation: 0, fill: nil, outline: nil, outlineWidth: 0, anchor: .top,
                             insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: doc,

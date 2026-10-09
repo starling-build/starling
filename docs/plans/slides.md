@@ -391,7 +391,7 @@ not draw at all. Over the 553 decks PowerPoint renders:
 | | mean | median | ≤2% | >20% |
 |---|---|---|---|---|
 | before | 9.7% | 2.6% | 256 | 92 |
-| after | 5.8% | 1.3% | 309 | 42 |
+| after | 5.7% | 1.3% | 311 | 42 |
 
 Found and fixed, by pixels (the file is never touched — every one of
 these is read-side or paint-side, and the writer regression round shows
@@ -453,7 +453,10 @@ the saved copies byte-identical):
   FlutterMacOS.framework's copy; the gain was under half a point, so the
   earlier numbers stand. Bulleted text in a shape whose level 0 declares
   no text edge (a SmartArt's) had a zero-width list slot and no bullet:
-  the slot is the first bulleted paragraph's hang now.
+  the slot is the first bulleted paragraph's hang now. A table cell's
+  own fill and line colour (`a:tcPr`) are read — a table laid out by hand
+  carries its look there, not in a style (an IHEP deck's red-and-pink
+  table from 23% to 15%); lines all `noFill` turn the grid off.
 
 Left on the painter side, from the same ranking: SmartArt without a
 drawing part (would need a layout engine), vertical table text, a
