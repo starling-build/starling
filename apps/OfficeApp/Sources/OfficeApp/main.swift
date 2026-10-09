@@ -50,11 +50,22 @@ private func windowMetric(_ key: String, _ fallback: Int) -> Int {
 /// ICU data; without it a paragraph's lines break between characters. Same
 /// file the hosts use.
 func initializeHeadlessText() {
+    // The bridge's ICU starts empty, and without its data every paragraph
+    // wraps between characters instead of words (sdk/CLAUDE.md) — which
+    // reads as a layout bug in whatever is measured. A bare `swift build`
+    // binary has no data/ beside it: STARLING_ICU names the file, or the
+    // loaded FlutterMacOS.framework's own copy serves.
     let exeDir = URL(fileURLWithPath: Bundle.main.executablePath ?? CommandLine.arguments[0])
         .deletingLastPathComponent().path
-    for candidate in [exeDir + "/data/icudtl.dat", exeDir + "/../Resources/data/icudtl.dat",
+    var candidates = [exeDir + "/data/icudtl.dat", exeDir + "/../Resources/data/icudtl.dat",
                       exeDir + "/../share/starling/icudtl.dat"]
-    where FileManager.default.fileExists(atPath: candidate) {
+    if let env = ProcessInfo.processInfo.environment["STARLING_ICU"], !env.isEmpty { candidates.insert(env, at: 0) }
+    #if os(macOS)
+    for framework in Bundle.allFrameworks where framework.bundlePath.hasSuffix("FlutterMacOS.framework") {
+        candidates.append(framework.bundlePath + "/Resources/icudtl.dat")
+    }
+    #endif
+    for candidate in candidates where FileManager.default.fileExists(atPath: candidate) {
         _ = flutter.swift_bridge.InitializeICU(candidate)
         break
     }

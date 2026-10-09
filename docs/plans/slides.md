@@ -441,6 +441,19 @@ the saved copies byte-identical):
   picture or colour fill is drawn under the plot (chart-picture-bg from
   44% to 6%); a video draws as its poster frame, or black without one
   (bnc591147 from 50% to 0); a diagram's text is fitted to its shape.
+- **Third pass**: the dump (`--deck`) lists a diagram's rendered shapes
+  under its frame, which showed that a save LOST them — the drawing part
+  is reached only through the data part's `dsp:dataModelExt relId`, a
+  slide relationship nothing in the slide XML names (the OLE `vmlDrawing`
+  trap again), so the writer now carries it under that id; PowerPoint
+  never needed it (it lays the diagram out afresh) and still opens every
+  copy clean. The headless export had no ICU data (a bare `swift build`
+  binary has no `data/`), so its paragraphs wrapped between characters —
+  `initializeHeadlessText` now takes `STARLING_ICU` or the loaded
+  FlutterMacOS.framework's copy; the gain was under half a point, so the
+  earlier numbers stand. Bulleted text in a shape whose level 0 declares
+  no text edge (a SmartArt's) had a zero-width list slot and no bullet:
+  the slot is the first bulleted paragraph's hang now.
 
 Left on the painter side, from the same ranking: SmartArt without a
 drawing part (would need a layout engine), vertical table text, a

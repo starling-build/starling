@@ -1313,6 +1313,22 @@ private struct SlideContext {
             return l
         }
         let level0 = styled(_level(0, shapeList: list, ph: ph, inherited: inherited), 0, nil)
+        // The list slot the layout indents by, per level: the text edge
+        // level 0 declares (marL), or — for a shape whose level 0 has none, a
+        // SmartArt's text — the hang of its first bulleted paragraph, so the
+        // bullet has a slot to be drawn in rather than none.
+        var listIndent = level0.marL.flatMap { $0 > 0 ? $0 : nil }
+        if listIndent == nil {
+            for p in body?.all("a:p") ?? [] {
+                guard let pPr = p.first("a:pPr"), pPr.has("a:buChar") || pPr.has("a:buAutoNum") else { continue }
+                if let ind = pPr["indent"].flatMap(Double.init), ind < 0 { listIndent = -ind / Pptx.emu; break }
+                if let m = pPr["marL"].flatMap(Double.init), m > 0 {
+                    listIndent = m / Pptx.emu / Double((pPr["lvl"].flatMap(Int.init) ?? 0) + 1)
+                    break
+                }
+            }
+        }
+        let shapeIndent = listIndent ?? 18
         var paragraphs: [RichParagraph] = []
         for p in body?.all("a:p") ?? [] {
             let pPr = p.first("a:pPr")
@@ -1339,7 +1355,6 @@ private struct SlideContext {
                 // the text placed where the file puts it, both written back
                 // as read. The layout indents a list by the shape's list
                 // indent per level; indentLeft carries the difference.
-                let shapeIndent = level0.marL ?? 18
                 if let marL = level.marL { style.indentLeft = marL - shapeIndent * Double(lvl + 1) }
                 // As an offset from the usual hang (-shapeIndent), so 0 is
                 // "the usual" and a file's indent="0" survives as itself.
@@ -1390,7 +1405,7 @@ private struct SlideContext {
         return TextBody(document: RichDocument(paragraphs: paragraphs), anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,
                         color: level0.color ?? tx1 ?? Color(0xFF000000),
-                        listIndent: level0.marL ?? 18,
+                        listIndent: shapeIndent,
                         autofit: fitRule == "a:normAutofit", fontScale: fitRule == "a:normAutofit" ? scale : 1)
     }
 

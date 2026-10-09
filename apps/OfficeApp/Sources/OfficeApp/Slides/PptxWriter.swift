@@ -268,6 +268,19 @@ enum PptxWriter {
             PptxWriterCopy.copy(vml.target, from: p, into: &b, done: &done)
             rels.append(Rel(id: "rIdVml", type: vml.type, target: Pptx.relative(vml.target, from: part)))
         }
+        // A SmartArt's drawing part is reached the same way: the data part's
+        // `dsp:dataModelExt relId` names a slide relationship nothing in the
+        // slide XML does. PowerPoint lays the diagram out afresh without it,
+        // but everything else (this app included) draws from it — carried
+        // under its own id, which the data part still names.
+        if body.containsSubstring("dgm:relIds"), let src = slide.sourcePart, let p = source {
+            for d in p.rels(src) where d.kind == "diagramDrawing" && !d.external && p.parts[d.target] != nil
+                && !rels.contains(where: { $0.id == d.id }) {
+                var done = Set<String>()
+                PptxWriterCopy.copy(d.target, from: p, into: &b, done: &done)
+                rels.append(Rel(id: d.id, type: d.type, target: Pptx.relative(d.target, from: part)))
+            }
+        }
         let hidden = (slide.hidden ? " show=\"0\"" : "") + (slide.hideMasterShapes ? " showMasterSp=\"0\"" : "")
         // Kept XML may lean on prefixes the source slide declared at its
         // root (a14, p14, mc…): the same declarations go on ours.
