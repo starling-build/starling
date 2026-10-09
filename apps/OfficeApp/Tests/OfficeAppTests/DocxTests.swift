@@ -1095,6 +1095,25 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(f.text, "\u{2022}")
     }
 
+    func testStyleWithNoIdOrTypeIsFoundByName() throws {
+        // 60329: `<w:style><w:name w:val="EmptyCellLayoutStyle"/>…` has no
+        // styleId and no type, and its 1pt is what every empty cell wears.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: "b")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">b</w:t>", with: "<w:p><w:pPr><w:pStyle w:val=\"EmptyCellLayoutStyle\"/></w:pPr><w:r><w:t xml:space=\"preserve\">b</w:t>")
+        XCTAssertTrue(xml.contains("EmptyCellLayoutStyle"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("</w:styles>", with: "<w:style><w:name w:val=\"EmptyCellLayoutStyle\"/><w:basedOn w:val=\"Normal\"/><w:rPr><w:sz w:val=\"2\"/></w:rPr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[1].style.named, "EmptyCellLayoutStyle")
+        XCTAssertEqual(back.styles["EmptyCellLayoutStyle"]?.char.fontSize, 1)
+        XCTAssertNil(back.paragraphs[0].style.named)
+    }
+
     func testDocxWrittenByWord() throws {
         // A real Microsoft Word document: BoringCrypto's FIPS security
         // policy (Google; "may be freely reproduced and distributed in its

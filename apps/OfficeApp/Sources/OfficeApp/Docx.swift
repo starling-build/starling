@@ -231,6 +231,7 @@ enum DocxFormat {
         var paragraphStyles: [String: XNode] = [:]
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             _resolveThemeFonts(styles, theme)
+            _normaliseStyleIds(styles)
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
                 _paragraphProps(defaults, into: &base)
             }
@@ -368,6 +369,7 @@ enum DocxFormat {
             // (the writer's defaults), and every line wrapped elsewhere.
             if let styles = part("word/styles.xml").flatMap(XNode.parse) {
                 _resolveThemeFonts(styles, theme)
+                _normaliseStyleIds(styles)
                 var cs = CharStyle()
                 if let rPr = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
                 for style in styles.all("w:style") where style["w:type"] == "paragraph"
@@ -1062,6 +1064,19 @@ enum DocxFormat {
 
     /// Rewrites every `w:rFonts` under `node` whose ascii/hAnsi face is a
     /// theme reference into the face itself.
+    /// A style's `w:styleId` and `w:type` are both optional, and Word fills
+    /// them in: no type is a paragraph style, and a style with no id is
+    /// looked up by its name. 60329's `EmptyCellLayoutStyle` (1pt, no id, no
+    /// type) is what every empty cell's paragraph wears; skipping it set
+    /// those cells in Normal's 10pt + 10pt after, grew every table, and
+    /// cost the copy a fourth page.
+    private static func _normaliseStyleIds(_ styles: XNode) {
+        for style in styles.all("w:style") {
+            if style.attrs["w:type"] == nil { style.attrs["w:type"] = "paragraph" }
+            if style.attrs["w:styleId"] == nil, let name = style.first("w:name")?["w:val"] { style.attrs["w:styleId"] = name }
+        }
+    }
+
     private static func _resolveThemeFonts(_ root: XNode, _ theme: (major: String?, minor: String?)) {
         guard theme.major != nil || theme.minor != nil else { return }
         var stack = [root]   // iterative: a fuzzer's tree is deeper than the call stack
