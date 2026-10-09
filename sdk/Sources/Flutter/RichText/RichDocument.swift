@@ -526,14 +526,20 @@ public struct CellRef: Hashable, Sendable {
     /// This cell's own shading (Word's `w:shd` on the cell), over the
     /// table style's row fills.
     public var fill: Color? = nil
+    /// This cell's own borders (Word's `w:tcBorders`), when they differ
+    /// from the table's `TableStyle.borders`: false for a cell that says
+    /// none inside a ruled table (bug65649's estimate headings and totals
+    /// rows), true for a ruled cell in an unruled one. nil is the table's.
+    public var borders: Bool? = nil
 
-    public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1, fill: Color? = nil) {
+    public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1, fill: Color? = nil, borders: Bool? = nil) {
         self.table = table
         self.row = row
         self.column = column
         self.span = max(1, span)
         self.rowSpan = max(1, rowSpan)
         self.fill = fill
+        self.borders = borders
     }
 
     /// Whether this cell covers grid position (row, column).

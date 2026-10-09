@@ -626,6 +626,34 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(widths.reduce(0, +), 612, accuracy: 2, "the grid scales to the full text width")
     }
 
+    func testCellOwnBordersOverrideTheTables() throws {
+        // bug65649: a ruled estimate table whose heading and totals cells
+        // say nil on every side.
+        var a = RichParagraph(text: "heading"), b = RichParagraph(text: "n"), c = RichParagraph(text: "v")
+        a.cell = CellRef(table: "T", row: 0, column: 0, span: 2, borders: false)
+        b.cell = CellRef(table: "T", row: 1, column: 0)
+        c.cell = CellRef(table: "T", row: 1, column: 1)
+        var doc = RichDocument(paragraphs: [a, b, c, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [100, 100]
+        var ts = TableStyle(); ts.borders = true; doc.tableStyles["T"] = ts
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:gridSpan w:val=\"2\"/><w:tcBorders><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/></w:tcBorders></w:tcPr>"), xml)
+        XCTAssertEqual(xml.components(separatedBy: "<w:tcBorders>").count, 2, "the ruled cells say nothing of their own")
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].cell?.borders, false)
+        XCTAssertNil(back.paragraphs[1].cell?.borders)
+        // And the other way round: one ruled cell in an unruled table.
+        var plain = doc
+        plain.tableStyles["T"]!.borders = false
+        plain.paragraphs[0].cell!.borders = nil
+        plain.paragraphs[2].cell!.borders = true
+        let pxml = String(decoding: try Zip.read(try DocxFormat.write(plain, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(pxml.contains("<w:tcBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"), pxml)
+        let pback = try DocxFormat.read(try DocxFormat.write(plain, pageSetup: .letter)).document
+        XCTAssertEqual(pback.paragraphs[2].cell?.borders, true)
+        XCTAssertNil(pback.paragraphs[0].cell?.borders)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

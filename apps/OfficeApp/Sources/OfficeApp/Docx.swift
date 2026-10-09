@@ -648,7 +648,11 @@ enum DocxFormat {
                             if r == 0 && firstRowOn { fill = cond.headerFill }
                             else if bandsOn { fill = (r - (firstRowOn ? 1 : 0)) % 2 == 0 ? cond.band1 : cond.band2 }
                         }
-                        currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill)
+                        // The cell's own borders, when they differ from the
+                        // table's verdict: nil sides inside a ruled table.
+                        var ownBorders: Bool? = nil
+                        if let own = _borders(tcPr, "w:tcBorders"), own.on != style.borders { ownBorders = own.on }
+                        currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, borders: ownBorders)
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         let before = paragraphs.count
@@ -1892,6 +1896,16 @@ enum DocxFormat {
                 xml += "</w:tblCellMar>"
             }
             xml += "<w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
+            // A cell's own borders, over the table's.
+            func cellBordersXML(_ own: Bool?) -> String {
+                guard let own else { return "" }
+                var out = "<w:tcBorders>"
+                for side in ["top", "left", "bottom", "right"] {
+                    out += own ? "<w:\(side) w:val=\"single\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
+                               : "<w:\(side) w:val=\"nil\"/>"
+                }
+                return out + "</w:tcBorders>"
+            }
             for w in twips { xml += "<w:gridCol w:w=\"\(w)\"/>" }
             xml += "</w:tblGrid>"
             let refs = members.compactMap(\.cell)
@@ -1915,7 +1929,7 @@ enum DocxFormat {
                         let w = twips[c ..< c + span].reduce(0, +)
                         xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
                         if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
-                        xml += "<w:vMerge/></w:tcPr><w:p/></w:tc>"
+                        xml += "<w:vMerge/>" + cellBordersXML(above.borders) + "</w:tcPr><w:p/></w:tc>"
                         c += span
                         continue
                     }
@@ -1927,7 +1941,7 @@ enum DocxFormat {
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
-                    xml += "</w:tcPr>"
+                    xml += cellBordersXML(ref?.borders) + "</w:tcPr>"
                     if cell.isEmpty { xml += "<w:p/>" }
                     // A nested table kept verbatim stands in for its
                     // flattened paragraphs while their text is unchanged.
