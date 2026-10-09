@@ -377,7 +377,21 @@ final class DocxTests: XCTestCase {
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
         entries.append(ZipEntry(name: "word/media/image1.png", data: png))
         entries.append(ZipEntry(name: "word/_rels/header1.xml.rels", data: Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image1.png\"/></Relationships>".utf8)))
+        // The banner's paragraph names a style of its own, and the file's
+        // Normal spacing differs from Word's: both must be written, or the
+        // kept part lays out by our defaults.
+        let hi2 = entries.firstIndex { $0.name == "word/header1.xml" }!
+        let banner2 = banner.replacingAll("<w:p><w:r><w:t>Banner</w:t>", with: "<w:p><w:pPr><w:pStyle w:val=\"Kopfzeile\"/></w:pPr><w:r><w:t>Banner</w:t>")
+        entries[hi2] = ZipEntry(name: "word/header1.xml", data: Data(banner2.utf8))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("<w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault>", with: "<w:spacing w:after=\"200\" w:line=\"276\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault>")
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:styleId=\"Kopfzeile\"><w:name w:val=\"header\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
+        let savedStyles = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/styles.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(savedStyles.contains("w:styleId=\"Kopfzeile\""), savedStyles)
+        XCTAssertTrue(savedStyles.contains("<w:pPrDefault><w:pPr><w:spacing w:after=\"200\" w:line=\"276\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault>"), savedStyles)
         XCTAssertEqual(back.keptParts["word/media/image1.png"], png)
         var withPicture = back
         withPicture.paragraphs.append(RichParagraph(image: ImageAttachment(data: Data([1, 2, 3]), width: 10, height: 10)))
@@ -387,9 +401,9 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.header, "Banner")
         XCTAssertTrue(back.titlePage)
         XCTAssertEqual(back.keptHeaderFooters.map { "\($0.type):\($0.part):\($0.text)" }, ["default:word/header1.xml:Banner", "first:word/header2.xml:First page only"])
-        XCTAssertEqual(back.keptParts["word/header1.xml"], Data(banner.utf8))
+        XCTAssertEqual(back.keptParts["word/header1.xml"], Data(banner2.utf8))
         let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
-        XCTAssertEqual(saved.first { $0.name == "word/header1.xml" }?.data, Data(banner.utf8))
+        XCTAssertEqual(saved.first { $0.name == "word/header1.xml" }?.data, Data(banner2.utf8))
         XCTAssertEqual(saved.first { $0.name == "word/header2.xml" }?.data, Data(first.utf8))
         let savedXML = String(decoding: saved.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(savedXML.contains("<w:headerReference w:type=\"default\" r:id=\"rIdKeptHF0\"/><w:headerReference w:type=\"first\" r:id=\"rIdKeptHF1\"/>"), savedXML)

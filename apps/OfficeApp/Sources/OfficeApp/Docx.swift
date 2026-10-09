@@ -106,6 +106,88 @@ enum DocxFormat {
         guard let docData = part("word/document.xml") else { throw DocxError.noDocumentPart }
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
         let kept = _keptParts(entries, part)
+        // Relationships: hyperlink targets and media parts.
+        var rels: [String: String] = [:]
+        var relInfo: [String: KeptRel] = [:]
+        if let relData = part("word/_rels/document.xml.rels"), let relRoot = XNode.parse(relData) {
+            for r in relRoot.all("Relationship") {
+                if let id = r["Id"], let target = r["Target"] {
+                    rels[id] = target
+                    relInfo[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
+                }
+            }
+        }
+        // Content types, for the parts kept verbatim.
+        var typeByExt: [String: String] = [:], typeByPart: [String: String] = [:]
+        if let ct = part("[Content_Types].xml").flatMap(XNode.parse) {
+            for d in ct.all("Default") { if let e = d["Extension"], let t = d["ContentType"] { typeByExt[e.lowercased()] = t } }
+            for o in ct.all("Override") { if let n = o["PartName"], let t = o["ContentType"] { typeByPart[n.hasPrefix("/") ? String(n.dropFirst()) : n] = t } }
+        }
+        let contentType: (String) -> String? = { path in
+            typeByPart[path] ?? typeByExt[(path.split(separator: ".").last.map(String.init) ?? "").lowercased()]
+        }
+        let rootNS = root.attrs.filter { $0.key.hasPrefix("xmlns:") }
+
+        let media: (String) -> Data? = { target in
+            let name = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
+            return part(name)
+        }
+        guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
+        let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
+
+        // Kept header and footer parts, before the styles are read: the
+        // styles they name must be written too (issue_51265_3's header
+        // paragraphs are "Kopfzeile", which fell back to Normal).
+        var keptHeaderFooters: [KeptHeaderFooter] = []
+        var titlePage = false
+        var evenAndOddHeaders = false
+        var keptCompat: String? = nil
+        if let sect = body.first("w:sectPr") {
+            // A header or footer with a picture, a table or a text box
+            // (a logo, 60329's banner) is more than its text: the part is
+            // kept whole and written back unless the text was edited; the
+            // first-page and even-page ones, which the editor has no
+            // field for, are kept always.
+            titlePage = sect.first("w:titlePg") != nil
+            // Only a block that says something: an empty w:compat (a Word
+            // 2003 conversion) laid our copy out by legacy rules and
+            // form_footnotes lost a page; ours (mode 15) serves those.
+            if let settings = part("word/settings.xml").flatMap(XNode.parse), let compat = settings.first("w:compat"),
+               !compat.children.isEmpty, compat.children.allSatisfy({ $0.name.hasPrefix("w:") }) {
+                keptCompat = PptxXML.serialize(compat)
+            }
+            evenAndOddHeaders = part("word/settings.xml").map { String(decoding: $0, as: UTF8.self).containsSubstring("<w:evenAndOddHeaders") } ?? false
+            for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
+                let type = ref["w:type"] ?? "default"
+                guard ["default", "first", "even"].contains(type), let rid = ref["r:id"], let target = relInfo[rid]?.target,
+                      let data = media(target), _wellFormed(data), let node = XNode.parse(data) else { continue }
+                let xml = String(decoding: data, as: UTF8.self)
+                // Rich: pictures, tables, text boxes, frames — or more than
+                // one line of text (WordWithAttachments' three-line header
+                // in a frame came back as one line).
+                var rich = ["<w:drawing", "<w:pict", "<w:tbl>", "<w:tbl ", "<mc:AlternateContent", "<w:object", "<w:framePr"].contains { xml.containsSubstring($0) }
+                if !rich {
+                    var lines = 0
+                    func count(_ n: XNode) {
+                        for c in n.children {
+                            if c.name == "w:p" {
+                                let wrap = XNode(name: "x", attrs: [:])
+                                wrap.children = [c]
+                                if !_fieldText(wrap).isEmpty { lines += 1 }
+                            } else { count(c) }
+                        }
+                    }
+                    count(node)
+                    rich = lines > 1
+                }
+                guard rich || type != "default" else { continue }
+                let path = _resolvePath("word", target)
+                notes.keep(path)
+                guard notes.kept[path] != nil else { continue }
+                keptHeaderFooters.append(KeptHeaderFooter(kind: ref.name == "w:headerReference" ? .header : .footer,
+                                                                   type: type, part: path, text: _fieldText(node)))
+            }
+        }
         // Theme fonts: "minorHAnsi" in a run or style means the theme's
         // minor Latin face — Calibri only in Word's default theme. Resolved
         // in the trees before anything reads a font, so a Cambria or Aptos
@@ -244,7 +326,7 @@ enum DocxFormat {
                 for c in n.children { collect(c) }
             }
             collect(root)
-            for (name, data) in kept where name.hasSuffix(".xml") {
+            for (name, data) in notes.kept where name.hasSuffix(".xml") {
                 if let n = XNode.parse(data) { collect(n) }
             }
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
@@ -356,34 +438,6 @@ enum DocxFormat {
             }
         }
 
-        // Relationships: hyperlink targets and media parts.
-        var rels: [String: String] = [:]
-        var relInfo: [String: KeptRel] = [:]
-        if let relData = part("word/_rels/document.xml.rels"), let relRoot = XNode.parse(relData) {
-            for r in relRoot.all("Relationship") {
-                if let id = r["Id"], let target = r["Target"] {
-                    rels[id] = target
-                    relInfo[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
-                }
-            }
-        }
-        // Content types, for the parts kept verbatim.
-        var typeByExt: [String: String] = [:], typeByPart: [String: String] = [:]
-        if let ct = part("[Content_Types].xml").flatMap(XNode.parse) {
-            for d in ct.all("Default") { if let e = d["Extension"], let t = d["ContentType"] { typeByExt[e.lowercased()] = t } }
-            for o in ct.all("Override") { if let n = o["PartName"], let t = o["ContentType"] { typeByPart[n.hasPrefix("/") ? String(n.dropFirst()) : n] = t } }
-        }
-        let contentType: (String) -> String? = { path in
-            typeByPart[path] ?? typeByExt[(path.split(separator: ".").last.map(String.init) ?? "").lowercased()]
-        }
-        let rootNS = root.attrs.filter { $0.key.hasPrefix("xmlns:") }
-
-        let media: (String) -> Data? = { target in
-            let name = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
-            return part(name)
-        }
-        guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
-        let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
         var paragraphs: [RichParagraph] = []
         var pageSetup: PageSetup? = nil
         var pendingPageBreak = false
@@ -569,6 +623,10 @@ enum DocxFormat {
         document.listFormats = listFormats
         document.keptParts = notes.kept
         document.keptPartTypes = notes.keptTypes
+        document.keptHeaderFooters = keptHeaderFooters
+        document.titlePage = titlePage
+        document.evenAndOddHeaders = evenAndOddHeaders
+        document.keptCompat = keptCompat
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
         if let sect = body.first("w:sectPr") {
@@ -584,52 +642,6 @@ enum DocxFormat {
                     document.footer = _fieldText(node)
                 }
             }
-            // A header or footer with a picture, a table or a text box
-            // (a logo, 60329's banner) is more than its text: the part is
-            // kept whole and written back unless the text was edited; the
-            // first-page and even-page ones, which the editor has no
-            // field for, are kept always.
-            document.titlePage = sect.first("w:titlePg") != nil
-            // Only a block that says something: an empty w:compat (a Word
-            // 2003 conversion) laid our copy out by legacy rules and
-            // form_footnotes lost a page; ours (mode 15) serves those.
-            if let settings = part("word/settings.xml").flatMap(XNode.parse), let compat = settings.first("w:compat"),
-               !compat.children.isEmpty, compat.children.allSatisfy({ $0.name.hasPrefix("w:") }) {
-                document.keptCompat = PptxXML.serialize(compat)
-            }
-            document.evenAndOddHeaders = part("word/settings.xml").map { String(decoding: $0, as: UTF8.self).containsSubstring("<w:evenAndOddHeaders") } ?? false
-            for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
-                let type = ref["w:type"] ?? "default"
-                guard ["default", "first", "even"].contains(type), let rid = ref["r:id"], let target = relInfo[rid]?.target,
-                      let data = media(target), _wellFormed(data), let node = XNode.parse(data) else { continue }
-                let xml = String(decoding: data, as: UTF8.self)
-                // Rich: pictures, tables, text boxes, frames — or more than
-                // one line of text (WordWithAttachments' three-line header
-                // in a frame came back as one line).
-                var rich = ["<w:drawing", "<w:pict", "<w:tbl>", "<w:tbl ", "<mc:AlternateContent", "<w:object", "<w:framePr"].contains { xml.containsSubstring($0) }
-                if !rich {
-                    var lines = 0
-                    func count(_ n: XNode) {
-                        for c in n.children {
-                            if c.name == "w:p" {
-                                let wrap = XNode(name: "x", attrs: [:])
-                                wrap.children = [c]
-                                if !_fieldText(wrap).isEmpty { lines += 1 }
-                            } else { count(c) }
-                        }
-                    }
-                    count(node)
-                    rich = lines > 1
-                }
-                guard rich || type != "default" else { continue }
-                let path = _resolvePath("word", target)
-                notes.keep(path)
-                guard notes.kept[path] != nil else { continue }
-                document.keptHeaderFooters.append(KeptHeaderFooter(kind: ref.name == "w:headerReference" ? .header : .footer,
-                                                                   type: type, part: path, text: _fieldText(node)))
-            }
-            document.keptParts = notes.kept
-            document.keptPartTypes = notes.keptTypes
         }
         return DocxDocument(document: document, pageSetup: pageSetup)
     }
@@ -1939,7 +1951,12 @@ enum DocxFormat {
         let normal = sheet[RichNamedStyle.normalId]?.char ?? CharStyle()
         let defaultFont = _esc(OfficeFonts.exportName(normal.fontFamily ?? "Calibri"))
         let defaultSize = Int(((normal.fontSize ?? 11) * 2).rounded())
-        out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"\(defaultFont)\" w:hAnsi=\"\(defaultFont)\" w:cs=\"\(defaultFont)\" w:eastAsia=\"\(defaultFont)\"/><w:sz w:val=\"\(defaultSize)\"/><w:szCs w:val=\"\(defaultSize)\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>"
+        // And Normal's spacing: the body's paragraphs spell theirs out, but
+        // a kept part's (a header's, a footnote's, a text box's) fall back
+        // to these — issue_51265_3's header grew by Word's 8pt after.
+        let normalParagraph = sheet[RichNamedStyle.normalId]?.paragraph ?? .body
+        let defaultSpacing = _spacingXML(normalParagraph)
+        out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"\(defaultFont)\" w:hAnsi=\"\(defaultFont)\" w:cs=\"\(defaultFont)\" w:eastAsia=\"\(defaultFont)\"/><w:sz w:val=\"\(defaultSize)\"/><w:szCs w:val=\"\(defaultSize)\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr>\(defaultSpacing)</w:pPr></w:pPrDefault></w:docDefaults>"
         out += "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/></w:style>"
         for entry in sheet.styles where entry.id != RichNamedStyle.normalId {
             let name = entry.paragraph.heading.map { "heading \($0)" } ?? entry.name
