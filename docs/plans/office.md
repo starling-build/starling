@@ -375,8 +375,36 @@ bug59058's mid-document drift of half a page over 52 pages, Word's
 own font substitution for fonts the Mac lacks (Perpetua, Albertus,
 Liberation Serif) — the same on both sides, so not ours.
 
-Numbers for the round: see below once the rerun of the changed copies
-lands.
+After the third round (111 scored, both sides of every document from
+one Word session; the 11 unscored are originals Word refuses): **35
+documents at 0%, 48 under 1%, 15 between 1 and 5%, 13 over 5%** — from
+26 / 52 / 17 / 16 (round 2, mixed sessions) and 20 / 43 / 18 / 24
+(round 1). Movers: issue_51265_3 27.5% → 18.8%, bug65649 31.2% → 23.8%
+(226 → 199 pages against 177), drawing 27.1% → 20.7%, issue_51265_2
+8.3% → 3.3%, WithGIF 4.9% → 0.07%, heading123 4.7% → 0.15%,
+bug-paragraph-alignment 3.6% → 0.4%, chartex 3.1% → 0.0%, 65099 7.8% →
+5.1%, bug57031 6.4% → 4.6%. One went the other way: table-indent 5.1% →
+7.2% (LibreOffice's file: Liberation Serif, which Word substitutes).
+Still over 5%, in order: bib-chernigovka 28.8% (text-box title, page
+count), bug65649 23.8%, drawing 20.7% (nested tables, hidden text),
+bug59058 18.9% (half a page of drift over 54 pages), issue_51265_3
+18.8% (floated pictures' exact positions), 60329 15.0% (nested
+tables), form_footnotes 13.4%, Bug51170 10.5%, IllustrativeCases 9.0%,
+delins 8.5% (comment balloons), table-indent 7.2%, WordWithAttachments
+6.0% (comments, which scale the page), 65099 5.1%.
+
+Two harness lessons from the round. Never swap a copy in while the
+driver is opening it: four "Word refused" verdicts were the "experienced
+an error" dialog from a file replaced mid-open, and Word then refused
+other files until it was relaunched. And `test/ooxml-check.py` had let
+two things through that Word calls unreadable content — a zip with two
+entries of one name, and two drawings with one `wp:docPr` id (a kept
+anchor's and a generated picture's) — both found by bisecting
+drawing.docx with hand-made variants opened by script; the checker
+fails on both now. Word facts settled the same way (a two-variant file,
+printed and diffed): an empty paragraph's height does not follow its
+mark's size; `beforeAutospacing` is 14pt and none between list items;
+an empty `w:compat` means legacy layout.
 
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
