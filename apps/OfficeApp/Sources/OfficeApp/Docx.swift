@@ -662,6 +662,12 @@ enum DocxFormat {
                 if let content = node.first("w:sdtContent") {
                     for child in content.children { walkBlock(child, indent: indent) }
                 }
+            case "w:commentRangeStart":
+                // A range may open or close between paragraphs (comment.docx,
+                // WordWithAttachments), not only inside one.
+                if notes.kept["word/comments.xml"] != nil, let id = node["w:id"] { notes.openComments.append(id) }
+            case "w:commentRangeEnd":
+                if let id = node["w:id"] { notes.openComments.removeAll { $0 == id } }
             case "w:sectPr":
                 pageSetup = _pageSetup(node)
             default:
@@ -1550,6 +1556,17 @@ enum DocxFormat {
         let commentsKept = doc.keptParts["word/comments.xml"] != nil
         var openComments: [String] = []
         var closedComments = Set<String>()   // a range id is started once; Word rejects a second start
+        /// The end markers (and reference runs) of every open range not in
+        /// `keep`, which are then closed for good.
+        func closeComments(except keep: [String]) -> String {
+            var out = ""
+            for id in openComments where !keep.contains(id) {
+                out += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
+                closedComments.insert(id)
+            }
+            openComments.removeAll { !keep.contains($0) }
+            return out
+        }
         /// The comment ids on the run after (`index`, `runIndex`): the next
         /// run of the paragraph, else the next paragraph's first.
         func commentsAfter(_ index: Int, _ runIndex: Int) -> [String] {
@@ -1762,6 +1779,10 @@ enum DocxFormat {
                     runXML = "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")>\(runXML)</\(tag)>"
                 }
                 if commentsKept {
+                    // A range still open that this run is not in (its last
+                    // run sat in a paragraph written another way — a kept
+                    // nested table, a picture): closed here.
+                    body += closeComments(except: s.comments)
                     for id in s.comments where !openComments.contains(id) && !closedComments.contains(id) {
                         body += "<w:commentRangeStart w:id=\"\(_esc(id))\"/>"
                         openComments.append(id)
@@ -1776,15 +1797,9 @@ enum DocxFormat {
                 } else {
                     body += runXML
                 }
-                if commentsKept {
-                    let after = commentsAfter(index, runIndex)
-                    for id in openComments where !after.contains(id) {
-                        body += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
-                        closedComments.insert(id)
-                    }
-                    openComments.removeAll { !after.contains($0) }
-                }
+                if commentsKept { body += closeComments(except: commentsAfter(index, runIndex)) }
             }
+            if commentsKept, index == doc.paragraphs.count - 1 { body += closeComments(except: []) }
             body += "</w:p>"
             return body
         }
