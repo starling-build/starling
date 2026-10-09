@@ -654,6 +654,22 @@ final class DocxTests: XCTestCase {
         XCTAssertNil(pback.paragraphs[0].cell?.borders)
     }
 
+    func testPageBordersKeptVerbatim() throws {
+        // bib-chernigovka: an art border round every page.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let borders = "<w:pgBorders w:offsetFrom=\"page\"><w:top w:val=\"mapleMuffins\" w:sz=\"12\" w:space=\"24\" w:color=\"auto\"/><w:left w:val=\"mapleMuffins\" w:sz=\"12\" w:space=\"24\" w:color=\"auto\"/></w:pgBorders>"
+        xml = xml.replacingAll("w:gutter=\"0\"/>", with: "w:gutter=\"0\"/>" + borders)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        // (The serializer orders attributes by name.)
+        let kept = try XCTUnwrap(back.pageBordersXML)
+        XCTAssertTrue(kept.hasPrefix("<w:pgBorders w:offsetFrom=\"page\"><w:top ") && kept.contains("w:val=\"mapleMuffins\"") && kept.hasSuffix("</w:pgBorders>"), kept)
+        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("w:gutter=\"0\"/>" + kept + "</w:sectPr>"), again)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

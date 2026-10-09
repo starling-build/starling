@@ -695,6 +695,7 @@ enum DocxFormat {
         document.titlePage = titlePage
         document.evenAndOddHeaders = evenAndOddHeaders
         document.keptCompat = keptCompat
+        if let pb = body.first("w:sectPr")?.first("w:pgBorders") { document.pageBordersXML = PptxXML.serialize(pb) }
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
         if let sect = body.first("w:sectPr") {
@@ -2027,6 +2028,7 @@ enum DocxFormat {
         }
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"0\"/>"
+        if let pb = doc.pageBordersXML { body += pb }
         if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
         // A title page with no first-page part referenced is a page with
         // an EMPTY header and footer (Bug51170's cover shows no logo).

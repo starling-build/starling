@@ -1247,6 +1247,10 @@ public struct RichDocument: Hashable, Sendable {
     /// its compatibility mode), written back so Word lays the saved copy
     /// out by the same rules it laid the original out by.
     public var keptCompat: String? = nil
+    /// The section's page borders (`w:pgBorders`), kept as written: an
+    /// art border is nothing the editor can draw, and bib-chernigovka's
+    /// maple-muffins frame on all 16 pages was lost without it.
+    public var pageBordersXML: String? = nil
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
     /// Word's w:evenAndOddHeaders: even pages use the "even" ones.
