@@ -393,6 +393,22 @@ tables), form_footnotes 13.4%, Bug51170 10.5%, IllustrativeCases 9.0%,
 delins 8.5% (comment balloons), table-indent 7.2%, WordWithAttachments
 6.0% (comments, which scale the page), 65099 5.1%.
 
+**Fourth round, 2026-10-09 (in progress).** Found from the round-three
+pairs, all Word-free until the rerun: the styles a kept header names
+and Normal's spacing as the document default (issue_51265_3's header
+grew by Word's 8pt after); hidden text (`w:vanish`); comments kept
+whole with their ranges (Word's balloons scale the page: four files);
+a table's preferred width (`w:tblW` pct/dxa — bug65649's tables came
+back narrower); a cell paragraph's style chain laid over the table
+style's base (every cell row a point too tall: 65099,
+IllustrativeCases, table-indent); auto spacing written off under an
+auto-spaced style; a small "at least" line minimum kept as written
+(Bug51170 held one paragraph less per page); keepNext, keepLines,
+widow control and cantSplit rows. A lesson in passing: reverting a
+commit by slicing its test out between two anchors took the three
+tests added after it with it; they came back from the commit before
+the revert.
+
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced
 an error" dialog from a file replaced mid-open, and Word then refused
