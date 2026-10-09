@@ -404,7 +404,12 @@ style's base (every cell row a point too tall: 65099,
 IllustrativeCases, table-indent); auto spacing written off under an
 auto-spaced style; a small "at least" line minimum kept as written
 (Bug51170 held one paragraph less per page); keepNext, keepLines,
-widow control and cantSplit rows. A lesson in passing: reverting a
+widow control and cantSplit rows; table border widths (sz 6 for most
+of the corpus, sz 4 written before); nested tables kept verbatim with
+their text flattened into the outer cell for the editor and the
+markup written back while that text stands (60329, drawing,
+bug65738); a table's fixed layout and cell spacing; paragraph shading
+and contextual spacing. A lesson in passing: reverting a
 commit by slicing its test out between two anchors took the three
 tests added after it with it; they came back from the commit before
 the revert.
