@@ -1293,6 +1293,21 @@ enum DocxFormat {
         return rPr
     }
 
+    /// `fragment` with its `wp:docPr id="…"` values set to `id` (one drawing
+    /// holds one; a group's inner cNvPr ids are its own).
+    static func _renumberDocPr(_ fragment: String, _ id: Int) -> String {
+        var out = fragment
+        var search = out.startIndex
+        while let r = out.range(of: "<wp:docPr id=\"", range: search ..< out.endIndex) {
+            let digitsStart = r.upperBound
+            var digitsEnd = digitsStart
+            while digitsEnd < out.endIndex, out[digitsEnd].isNumber { digitsEnd = out.index(after: digitsEnd) }
+            out.replaceSubrange(digitsStart ..< digitsEnd, with: String(id))
+            search = out.index(digitsStart, offsetBy: String(id).count)
+        }
+        return out
+    }
+
     /// `<w:pBdr>` for a paragraph's borders: sz in eighths of a point.
     private static func _bordersXML(_ b: ParagraphBorders) -> String {
         func edge(_ name: String, _ l: BorderLine?) -> String {
@@ -1395,6 +1410,7 @@ enum DocxFormat {
         var media: [ZipEntry] = []
         var mediaRels: [(id: String, target: String)] = []
         var keptRels = "", keptRelCount = 0
+        var keptDocPrCount = 0
         var revisionCount = 0
         var usedExtensions: Set<String> = []
         func relId(for link: String) -> String {
@@ -1516,6 +1532,11 @@ enum DocxFormat {
                     // An object the editor cannot show: the file's own
                     // markup, its relationships under fresh ids.
                     var frag = xml
+                    // Every wp:docPr id in a document must be unique: a kept
+                    // anchor's own id clashed with a generated picture's and
+                    // Word called drawing.docx unreadable.
+                    keptDocPrCount += 1
+                    frag = _renumberDocPr(frag, 100_000 + keptDocPrCount)
                     for rel in image.sourceRels {
                         keptRelCount += 1
                         let nid = "rIdKept\(keptRelCount)"
@@ -1526,11 +1547,15 @@ enum DocxFormat {
                     }
                     return "<w:r>\(frag)</w:r>"
                 }
-                // A name no kept part uses: a kept header's media/image1.png
-                // was being dropped for the body's own image1.png
-                // (issue_51265_3's header showed the wrong picture).
+                // A name no kept part and no earlier picture uses: a kept
+                // header's media/image1.png was being dropped for the body's
+                // own image1.png (issue_51265_3's header showed the wrong
+                // picture), and counting from the media count after skipping
+                // a name wrote the same name twice (drawing.docx: two
+                // image2.png entries, which Word calls unreadable).
                 var n = media.count + 1
-                while doc.keptParts.keys.contains(where: { $0.hasPrefix("word/media/image\(n).") }) { n += 1 }
+                while doc.keptParts.keys.contains(where: { $0.hasPrefix("word/media/image\(n).") })
+                    || media.contains(where: { $0.name.hasPrefix("word/media/image\(n).") }) { n += 1 }
                 let ext = image.fileExtension
                 usedExtensions.insert(ext)
                 let name = "image\(n).\(ext)"

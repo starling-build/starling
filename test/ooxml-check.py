@@ -27,7 +27,12 @@ def check(path):
             problems.append(f"zip: bad entry {bad}")
     except zipfile.BadZipFile as e:
         return [f"zip: {e}"]
-    names = set(z.namelist())
+    # Two entries of one name, or two drawings with one wp:docPr id, are
+    # "unreadable content" to Word (drawing.docx, 2026-10-08).
+    all_names = z.namelist()
+    for n in sorted({x for x in all_names if all_names.count(x) > 1}):
+        problems.append(f"zip: duplicate entry {n}")
+    names = set(all_names)
     if "[Content_Types].xml" not in names:
         return ["no [Content_Types].xml"]
     ct = ET.fromstring(z.read("[Content_Types].xml"))
@@ -48,6 +53,13 @@ def check(path):
                 ET.fromstring(z.read(n))
             except ET.ParseError as e:
                 problems.append(f"{n}: not well-formed: {e}")
+    main_part = next((n for n in names if n in ("word/document.xml", "ppt/presentation.xml")), None)
+    if main_part == "word/document.xml":
+        # A Choice/Fallback pair shares one id by design: count the Choice side.
+        body = re.sub(r"<mc:Fallback>.*?</mc:Fallback>", "", z.read(main_part).decode("utf8", "replace"), flags=re.S)
+        ids = re.findall(r'<wp:docPr [^>]*\bid="(\d+)"', body)
+        for i in sorted({x for x in ids if ids.count(x) > 1}):
+            problems.append(f"{main_part}: wp:docPr id {i} used more than once")
     for n in sorted(names):
         if not n.endswith(".rels"):
             continue

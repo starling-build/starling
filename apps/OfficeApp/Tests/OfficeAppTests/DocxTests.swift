@@ -451,6 +451,23 @@ final class DocxTests: XCTestCase {
         let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(saved.contains("<wp:anchor ") && saved.contains("<wp:wrapNone/>") && saved.contains("<wp:posOffset>914400</wp:posOffset>"), saved)
         XCTAssertFalse(saved.contains("<wp:inline"), saved)
+        // With inline pictures beside it: every wp:docPr id unique, every
+        // media name unique (Word calls either clash unreadable content).
+        var both = back
+        both.paragraphs.append(RichParagraph(image: ImageAttachment(data: png, width: 10, height: 10)))
+        both.paragraphs.append(RichParagraph(image: ImageAttachment(data: png, width: 12, height: 12)))
+        let saved2 = try Zip.read(try DocxFormat.write(both, pageSetup: .letter))
+        let xml2 = String(decoding: saved2.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        var ids: [String] = []
+        var pos = xml2.startIndex
+        while let r = xml2.range(of: "<wp:docPr id=\"", range: pos ..< xml2.endIndex) {
+            let end = xml2[r.upperBound...].firstIndex(of: "\"")!
+            ids.append(String(xml2[r.upperBound ..< end])); pos = end
+        }
+        XCTAssertEqual(ids.count, 3, xml2)
+        XCTAssertEqual(Set(ids).count, 3, "\(ids)")
+        let names = saved2.map(\.name)
+        XCTAssertEqual(Set(names).count, names.count, "\(names)")
     }
 
     func testPageBreakEndingAParagraphLeavesNoEmptyLine() throws {
