@@ -651,7 +651,7 @@ enum DocxFormat {
                         // The cell's own borders, when they differ from the
                         // table's verdict: nil sides inside a ruled table.
                         var ownBorders: Bool? = nil
-                        if let own = _borders(tcPr, "w:tcBorders"), own.on != style.borders { ownBorders = own.on }
+                        if let own = _cellBorderSwitch(tcPr), own != style.borders { ownBorders = own }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, borders: ownBorders)
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
@@ -995,6 +995,20 @@ enum DocxFormat {
         }
         let width = Double(first["w:sz"] ?? "").map { max(0.25, $0 / 8) }
         return _Borders(on: true, color: color, width: width)
+    }
+
+    /// A cell's own border switch: false when its `w:tcBorders` turns all
+    /// four sides off, true when it draws all four, nil when it says
+    /// nothing or only some sides (Bug54771a's title cell has a bottom
+    /// rule alone — a one-switch cell would have boxed it).
+    private static func _cellBorderSwitch(_ pr: XNode?) -> Bool? {
+        guard let b = pr?.first("w:tcBorders") else { return nil }
+        var on = 0, off = 0
+        for side in ["w:top", "w:left", "w:bottom", "w:right"] {
+            guard let e = b.first(side) else { return nil }
+            if ["nil", "none"].contains(e["w:val"] ?? "nil") { off += 1 } else { on += 1 }
+        }
+        return on == 4 ? true : off == 4 ? false : nil
     }
 
     /// `w:tblCellMar` of a table or table style (or a cell's `w:tcMar`),
