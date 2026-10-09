@@ -663,9 +663,9 @@ enum DocxFormat {
                     for child in content.children { walkBlock(child, indent: indent) }
                 }
             case "w:commentRangeStart":
-                // A range may open or close between paragraphs (comment.docx,
-                // WordWithAttachments), not only inside one.
-                if notes.kept["word/comments.xml"] != nil, let id = node["w:id"] { notes.openComments.append(id) }
+                // A range may open or close between paragraphs
+                // (WordWithAttachments), not only inside one.
+                if notes.kept["word/comments.xml"] != nil, let id = node["w:id"] { notes.openComments.append(id); notes.seenComments.insert(id) }
             case "w:commentRangeEnd":
                 if let id = node["w:id"] { notes.openComments.removeAll { $0 == id } }
             case "w:sectPr":
@@ -918,6 +918,9 @@ enum DocxFormat {
         /// Comment ranges open at this point of the walk (they cross
         /// paragraphs).
         var openComments: [String] = []
+        /// Every comment id whose range has been opened (a reference run
+        /// for one of these ends a range; any other is a point comment).
+        var seenComments = Set<String>()
         init(kept: [String: Data], rels: [String: KeptRel], rootNS: [String: String],
              part: @escaping (String) -> Data?, contentType: @escaping (String) -> String?) {
             self.kept = kept
@@ -1270,6 +1273,16 @@ enum DocxFormat {
                         addText(on ? "\u{2612}" : "\u{2610}", cs)
                         pendingCheckbox = nil
                     }
+                case "w:commentReference":
+                    // A comment with no range (comment.docx's LibreOffice
+                    // comment) anchors at a point: a zero-width run carries
+                    // it, so the balloon survives the save.
+                    if notes.kept["word/comments.xml"] != nil, let id = child["w:id"], !notes.seenComments.contains(id) {
+                        notes.seenComments.insert(id)
+                        var point = cs
+                        point.comments = cs.comments + [id]
+                        addText("\u{200B}", point)
+                    }
                 case "w:delText": addText(child.text, cs)
                 case "w:tab": addText("\t", cs)
                 case "w:br":
@@ -1323,7 +1336,7 @@ enum DocxFormat {
                 case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
                     walkInline(child, link: link, revision: revision)
                 case "w:commentRangeStart":
-                    if notes.kept["word/comments.xml"] != nil, let id = child["w:id"] { notes.openComments.append(id) }
+                    if notes.kept["word/comments.xml"] != nil, let id = child["w:id"] { notes.openComments.append(id); notes.seenComments.insert(id) }
                 case "w:commentRangeEnd":
                     if let id = child["w:id"] { notes.openComments.removeAll { $0 == id } }
                 case "w:pPr", "w:proofErr", "w:bookmarkStart", "w:bookmarkEnd":

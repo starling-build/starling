@@ -553,6 +553,33 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(xml.contains("<w:t xml:space=\"preserve\">d</w:t></w:r><w:commentRangeEnd w:id=\"0\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"0\"/></w:r><w:r><w:t xml:space=\"preserve\"> e</w:t>"), xml)
         XCTAssertEqual(xml.components(separatedBy: "commentRangeStart").count - 1, 1, xml)
         XCTAssertEqual(xml.components(separatedBy: "commentRangeEnd").count - 1, 1, xml)
+        // A range whose last run is a picture paragraph (written another
+        // way) is still closed, once, before the next run.
+        var pic = doc
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var image = RichParagraph(image: ImageAttachment(data: png, width: 10, height: 10)); image.runs[0].style.comments = ["0"]
+        pic.paragraphs = [pic.paragraphs[0], image, RichParagraph(text: "after")]
+        let pxml = String(decoding: try Zip.read(try DocxFormat.write(pic, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertEqual(pxml.components(separatedBy: "commentRangeStart").count - 1, 1, pxml)
+        XCTAssertEqual(pxml.components(separatedBy: "commentRangeEnd").count - 1, 1, pxml)
+        // And one that runs to the document's end.
+        var tail = doc
+        tail.paragraphs = [tail.paragraphs[0], tail.paragraphs[1]]
+        tail.paragraphs[1].runs = [Run(length: 0, style: on)]
+        let txml = String(decoding: try Zip.read(try DocxFormat.write(tail, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertEqual(txml.components(separatedBy: "commentRangeEnd").count - 1, 1, txml)
+        // A point comment (a reference run with no range) survives as a
+        // zero-width range.
+        var point = RichDocument(paragraphs: [RichParagraph(text: "x")])
+        point.keptParts = doc.keptParts; point.keptPartTypes = doc.keptPartTypes
+        var pentries = try Zip.read(try DocxFormat.write(point, pageSetup: .letter))
+        let pdi = pentries.firstIndex { $0.name == "word/document.xml" }!
+        let pxml0 = String(decoding: pentries[pdi].data, as: UTF8.self).replacingAll("<w:t xml:space=\"preserve\">x</w:t></w:r>", with: "<w:t xml:space=\"preserve\">x</w:t></w:r><w:r><w:commentReference w:id=\"0\"/></w:r>")
+        pentries[pdi] = ZipEntry(name: "word/document.xml", data: Data(pxml0.utf8))
+        let pback = try DocxFormat.read(try Zip.write(pentries)).document
+        XCTAssertEqual(pback.paragraphs[0].runs.map { $0.style.comments }, [[], ["0"]])
+        let pxml1 = String(decoding: try Zip.read(try DocxFormat.write(pback, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(pxml1.contains("<w:commentRangeStart w:id=\"0\"/>") && pxml1.contains("<w:commentRangeEnd w:id=\"0\"/>") && pxml1.contains("<w:commentReference w:id=\"0\"/>"), pxml1)
         let rels = String(decoding: entries.first { $0.name == "word/_rels/document.xml.rels" }!.data, as: UTF8.self)
         XCTAssertTrue(rels.contains("relationships/comments\" Target=\"comments.xml\""), rels)
         XCTAssertNotNil(entries.first { $0.name == "word/comments.xml" })
