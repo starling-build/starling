@@ -275,6 +275,8 @@ public final class RichLayout {
         var ownRowHeight: Double = 0
         /// The cell's own border sides, over the table's (`CellRef.edges`).
         var edges: BorderEdges? = nil
+        /// Where the content sits in a taller row (`CellRef.verticalAlign`).
+        var verticalAlign: String? = nil
     }
     private var _cells: [_CellGeo?] = []
     /// Row top for every paragraph (its own top when not in a table): the
@@ -752,18 +754,24 @@ public final class RichLayout {
             }
             // Second pass: final tops and heights, spanned heights for spanning cells.
             for (r, row) in rows.enumerated() {
+                // Each cell's content height, for anchoring it in a taller row.
+                var content: [Int: Double] = [:]
+                for k in row.first ..< row.end { content[_cells[k]!.column, default: 0] += _heights[k] }
                 var stack: [Int: Double] = [:]
                 for k in row.first ..< row.end {
                     let cell = _cells[k]!
                     let offset = stack[cell.column] ?? 0
-                    _tops[k] = row.top + ins.top + offset
+                    let last = min(rows.count - 1, r + cell.rowSpan - 1)
+                    let spanned = cell.rowSpan > 1 ? rows[r ... last].map(\.height).reduce(0, +) : row.height
+                    let free = max(0, spanned - ins.top - ins.bottom - (content[cell.column] ?? 0))
+                    let shift = cell.verticalAlign == "center" ? free / 2 : cell.verticalAlign == "bottom" ? free : 0
+                    _tops[k] = row.top + ins.top + offset + shift
                     _rowTops[k] = row.top
                     stack[cell.column] = offset + _heights[k]
                     _cells[k]!.rowTop = row.top
                     _cells[k]!.ownRowHeight = row.height
                     if cell.rowSpan > 1 {
-                        let last = min(rows.count - 1, r + cell.rowSpan - 1)
-                        _cells[k]!.rowHeight = rows[r ... last].map(\.height).reduce(0, +)
+                        _cells[k]!.rowHeight = spanned
                     } else {
                         _cells[k]!.rowHeight = row.height
                     }
@@ -1108,7 +1116,8 @@ public final class RichLayout {
                 ? widths[c.column ..< min(widths.count, c.column + c.span)].reduce(0, +) : width
             let colLeft = _tableLeft(c.table, document) + widths.prefix(c.column).reduce(0, +)
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
-                                 colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges)
+                                 colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges,
+                                 verticalAlign: c.verticalAlign)
             let ins = _cellInsets(c.table, document)
             left = colLeft + ins.left + _px(style.indentLeft)
             textWidth = max(1, colWidth - ins.left - ins.right - _px(style.indentLeft) - right)

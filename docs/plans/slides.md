@@ -464,7 +464,9 @@ the saved copies byte-identical):
   own and none on its layout is not on the slide for PowerPoint, whatever
   the master has: read as `invisible`, kept for the file, not drawn.
   Character spacing (`spc`) reaches the layout as `CharStyle.letterSpacing`;
-  the corpus uses it in fractions of a point, so no deck moved.
+  the corpus uses it in fractions of a point, so no deck moved. A cell's
+  `anchor` (`CellRef.anchor`, honoured by RichLayout's row placement)
+  sits its content in the middle or at the bottom of a taller row.
 
 Left on the painter side, from the same ranking: SmartArt without a
 drawing part (would need a layout engine), vertical table text, a

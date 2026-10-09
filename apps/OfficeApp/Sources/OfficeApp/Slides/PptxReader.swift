@@ -1072,6 +1072,7 @@ private struct SlideContext {
                 // The cell's own fill and lines (`a:tcPr`), which a table
                 // laid out by hand carries instead of a style.
                 if let tcPr = tc.first("a:tcPr") {
+                    switch tcPr["anchor"] { case "ctr": cell.verticalAlign = "center"; case "b": cell.verticalAlign = "bottom"; default: break }
                     if let f = tcPr.first("a:solidFill") {
                         cell.fill = colors.color(in: f)
                     } else if let g = tcPr.first("a:gradFill") {
