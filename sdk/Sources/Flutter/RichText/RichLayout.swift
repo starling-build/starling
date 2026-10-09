@@ -609,9 +609,14 @@ public final class RichLayout {
             let cols = columns[c.table] ?? 1
             if let pts = _columnPreview[c.table] ?? document.tableColumns[c.table], pts.count == cols {
                 // Wider than the column: scaled to fit, as Word autofits a
-                // table whose grid outgrows the page.
+                // table whose grid outgrows the page; a preferred width
+                // (a share of the column, or points) scales the grid to it.
                 let sum = pts.reduce(0, +)
-                let scale = sum > 0 && _px(sum) > width ? width / _px(sum) : 1
+                var scale = sum > 0 && _px(sum) > width ? width / _px(sum) : 1
+                if sum > 0, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table] {
+                    if let pct = ts.widthPercent { scale = min(width, width * pct / 100) / _px(sum) }
+                    else if let w = ts.width { scale = min(width, _px(w)) / _px(sum) }
+                }
                 widths[c.table] = pts.map { (_px($0) * scale).rounded(.down) }
             } else {
                 widths[c.table] = Array(repeating: (width / Double(cols)).rounded(.down), count: cols)

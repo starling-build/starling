@@ -560,6 +560,15 @@ enum DocxFormat {
                    let w = Double(ind["w:w"] ?? "") {
                     style.indent = w / 20
                 }
+                // The preferred width: HTML-converted tables say 100% and
+                // their grid says less (bug65649's came back narrower).
+                if let tw = node.first("w:tblPr")?.first("w:tblW"), let w = Double(tw["w:w"] ?? ""), w > 0 {
+                    switch tw["w:type"] ?? "auto" {
+                    case "pct": style.widthPercent = w / 50
+                    case "dxa": style.width = w / 20
+                    default: break
+                    }
+                }
                 for (r, tr) in unwrapped(node, "w:tr").enumerated() {
                     if let h = tr.first("w:trPr")?.first("w:trHeight"), let v = Double(h["w:val"] ?? ""), v > 0 {
                         style.rowHeights[r] = v / 20
@@ -1689,7 +1698,10 @@ enum DocxFormat {
             }
             let twips = widths.map { Int(($0 * 20).rounded()) }
             let style = doc.tableStyles[id] ?? TableStyle()
-            var xml = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/>"
+            var xml = "<w:tbl><w:tblPr>"
+            if let pct = style.widthPercent { xml += "<w:tblW w:w=\"\(Int((pct * 50).rounded()))\" w:type=\"pct\"/>" }
+            else if let w = style.width { xml += "<w:tblW w:w=\"\(Int((w * 20).rounded()))\" w:type=\"dxa\"/>" }
+            else { xml += "<w:tblW w:w=\"0\" w:type=\"auto\"/>" }
             switch style.alignment {
             case .center: xml += "<w:jc w:val=\"center\"/>"
             case .right: xml += "<w:jc w:val=\"right\"/>"

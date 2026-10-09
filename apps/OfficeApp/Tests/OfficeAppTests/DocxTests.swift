@@ -545,6 +545,24 @@ final class DocxTests: XCTestCase {
         XCTAssertNotNil(back.keptParts["word/comments.xml"])
     }
 
+    func testTablePreferredWidthRoundTrip() throws {
+        var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")
+        a.cell = CellRef(table: "T", row: 0, column: 0); b.cell = CellRef(table: "T", row: 0, column: 1)
+        var doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [100, 100]
+        var ts = TableStyle(); ts.widthPercent = 100; doc.tableStyles["T"] = ts
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:tblPr><w:tblW w:w=\"5000\" w:type=\"pct\"/>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.tableStyles.values.first?.widthPercent, 100)
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 3)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(back)
+        let widths = layout.columnWidths(of: back.tableStyles.keys.first!) ?? []
+        XCTAssertEqual(widths.reduce(0, +), 612, accuracy: 2, "the grid scales to the full text width")
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

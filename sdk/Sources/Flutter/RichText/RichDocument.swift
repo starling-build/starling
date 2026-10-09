@@ -518,6 +518,11 @@ public struct CellRef: Hashable, Sendable {
 public struct TableStyle: Hashable, Sendable {
     public var borders = true
     public var headerRow = false
+    /// The table's preferred width as a share of the text width (Word's
+    /// `w:tblW` in pct; 100 = full width), or in points (`width`); the
+    /// grid's columns are scaled to it. Nil: the grid's own widths.
+    public var widthPercent: Double? = nil
+    public var width: Double? = nil
     /// The header row's fill (nil: a faint tint of the text colour).
     public var headerFill: Color? = nil
     /// Banded rows: every other body row filled with this, the rest with
