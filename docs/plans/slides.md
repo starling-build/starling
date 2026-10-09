@@ -468,12 +468,66 @@ the saved copies byte-identical):
   `anchor` (`CellRef.anchor`, honoured by RichLayout's row placement)
   sits its content in the middle or at the bottom of a taller row.
 
+**Fourth pass, 2026-10-09** (sweep 16 over the same 553 decks: mean
+5.57% → 4.83%, ≤2% 317 → 330, >20% 40 → 29; no deck worse by more than
+1.5 points), all read- or paint-side, found by reading the worst pages:
+
+- **Path gradients** (`a:path path="circle|rect|shape"` with
+  `a:fillToRect`) were drawn as linear. `SlideFill.path`/`fillTo`; the
+  painter radiates from the fill-to point to the farthest corner, in a
+  space squeezed to the area's aspect — PowerPoint stretches even a
+  "circle" to the slide (themes.pptx's radial layout is lit to all four
+  edges alike), so rings are ellipses. Every theme's `bgRef` 1003 is one of
+  these: themes 18.7% → 3.1%, lo-tdf114848, GeomLec1.
+- **Colour modifiers**: `satMod`/`satOff` and `hueMod`/`hueOff` were
+  ignored — satMod 350% is what turns a theme's near-grey `lt2` into the
+  cream of its backgrounds — and **tint and shade mix in linear light**,
+  as PowerPoint does (a 55% tint of a dark grey is a light grey, not the
+  sRGB midpoint's medium one; GeomLec1's backgrounds were far too dark).
+  Between `a:gamma` and `a:invGamma`, how a converted .ppt spells its
+  shades, they work on the sRGB values as they are (45541_Header's blue
+  master went too dark without that).
+- **A stretched picture's `a:fillRect`** places it within its frame
+  (`SlideFill.imageInset`, `SlideShape.pictureInset`; negative is beyond,
+  clipped): a background inset 55% from the left and 56% from the top
+  covered the whole slide (lo-tdf153466 78% → 0.2%, lo-n821567 38% → 1.5%).
+- **A mirrored shape** (`flipH`/`flipV` on a `p:sp`) was read only for
+  pictures: a flipped `line` drew along the wrong diagonal (aascu's V).
+  Read for every shape, drawn mirrored (its text upright), written back.
+- **An empty `a:gradFill`** (no stops, 63200's oval) now falls through to
+  the style's `fillRef` instead of drawing nothing; a **placeholder
+  inherits its layout's gradient** too, not only a solid fill
+  (tdf114848's title bar); a **freeform draws its gradient or picture
+  fill** within its path (lo-tdf112209), and **`a:grayscl`** is the
+  black-to-white duotone.
+- **Table styles come from the deck's `tableStyles.xml`** now, by id:
+  the whole table's fill and rules (`a:ln` or `a:lnRef`), `firstRow`,
+  `band1H`/`band2H`, and `lastRow`/`firstCol`/`lastCol` when the table's
+  flags ask, each with its text colour and weight; a translucent band is
+  composited over the table background (`a:tblBg`, a themed style's
+  gradient by its middle colour). The old guess — the first accent, white
+  bold header text — stays for a style the deck does not define.
+  Maloney's "Medium Style 2" went from olive to its navy and grey
+  (25% → 14%); lo-bnc480256's themed styles 34% → 9%; Light styles no
+  longer get a filled header. Cell paragraphs with `a:buChar` draw their
+  bullets (the layout's cell list slot, 18 pt).
+- **Doughnut charts** are read, drawn (rings; the hole shows what is
+  behind) and written (`c:holeSize`), as a pie with a hole:
+  lo-chart_pt_color_bg1 26% → 3%.
+- **`mathEqual`, `mathNotEqual`, `mathMultiply`, `mathDivide`** have
+  paths (`SlidePainter.band` winds a band the way `addRect` does, so the
+  stroke through ≠ fills instead of cutting holes where it crosses).
+- **"Lucida Sans Unicode" came out monospace**: the font substitute took
+  any family with "code" in its name for a code font. Unicode is not code.
+
 Left on the painter side, from the same ranking: SmartArt without a
-drawing part (would need a layout engine), vertical table text, a
-picture's `fillRect` offsets on backgrounds, charts with picture
-backgrounds, video poster frames, EMF/WMF pictures (the engine has no
-decoder; PowerPoint draws them), and the 1–3% that is text wrapping and
-font metrics everywhere.
+drawing part (would need a layout engine — the ~8 `lo-smartart-*` decks
+are most of what is left over 20%), 3D (`a:scene3d` materials and
+lighting), vertical table text (`vert="vert270"`, table_test2),
+`avLst` adjust values on presets (mathNotEqual's file sets its own),
+EMF/WMF and TIFF pictures (the engine has no decoder; PowerPoint draws
+them — lo-tdf113163, ArtisticEffectSample), an OLE object's fallback
+picture, and the 1–3% that is text wrapping and font metrics everywhere.
 
 **S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
 search field open Writer's find bar over the deck: every text body in

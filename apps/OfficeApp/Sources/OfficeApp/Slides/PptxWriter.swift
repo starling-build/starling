@@ -745,7 +745,7 @@ private struct SlideXML {
             default:
                 nv += "<p:cNvSpPr/>"
             }
-            var spPr = Self._xfrm(s.frame, rotation: s.rotation)
+            var spPr = Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV)
             let prst: String = {
                 switch s.kind {
                 case .geometry(let p): return p.rawValue

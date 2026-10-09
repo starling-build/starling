@@ -172,20 +172,50 @@ struct ColorContext {
         "gray": Color(0xFF808080), "grey": Color(0xFF808080), "orange": Color(0xFFFFA500),
     ]
 
-    /// lumMod/lumOff (in HSL), tint, shade and alpha, as DrawingML applies them.
+    /// lumMod/lumOff, satMod/satOff and hueMod/hueOff (in HSL), tint,
+    /// shade and alpha, as DrawingML applies them. (satMod is what makes a
+    /// theme's near-grey `lt2` the warm cream of its radial backgrounds.)
     static func modify(_ c: Color, _ node: XNode) -> Color {
         var r = Double((c.value >> 16) & 0xFF) / 255, g = Double((c.value >> 8) & 0xFF) / 255, b = Double(c.value & 0xFF) / 255
         var alpha = 1.0
+        // Between `a:gamma` and `a:invGamma` (how a converted .ppt spells
+        // its shades) a tint or shade works on the sRGB values as they are.
+        var gammaShifted = false
         for m in node.children {
             let v = (m["val"].flatMap(Double.init) ?? 100000) / 100000
             switch m.name {
+            case "a:gamma": gammaShifted = true
+            case "a:invGamma": gammaShifted = false
             case "a:lumMod", "a:lumOff":
                 var (h, s, l) = _hsl(r, g, b)
                 l = m.name == "a:lumMod" ? l * v : l + v
                 (r, g, b) = _rgb(h, s, min(1, max(0, l)))
                 h = 0; s = 0
-            case "a:tint": r = 1 - (1 - r) * v; g = 1 - (1 - g) * v; b = 1 - (1 - b) * v
-            case "a:shade": r *= v; g *= v; b *= v
+            case "a:satMod", "a:satOff":
+                var (h, s, l) = _hsl(r, g, b)
+                s = m.name == "a:satMod" ? s * v : s + v
+                (r, g, b) = _rgb(h, min(1, max(0, s)), l)
+                h = 0; l = 0
+            case "a:hueMod", "a:hueOff":
+                // Hues are in 60000ths of a degree; the HSL here is 0...1.
+                var (h, s, l) = _hsl(r, g, b)
+                h = m.name == "a:hueMod" ? h * v : h + (m["val"].flatMap(Double.init) ?? 0) / 60000 / 360
+                h -= h.rounded(.down)
+                (r, g, b) = _rgb(h, s, l)
+                s = 0; l = 0
+            case "a:tint", "a:shade":
+                // Mixed with white (tint) or black (shade) in linear light,
+                // as PowerPoint does: a 55% tint of a dark grey is a light
+                // grey, not the sRGB midpoint's medium one (GeomLec1's
+                // backgrounds, a theme's radial fills).
+                func lin(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+                func srgb(_ l: Double) -> Double { l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055 }
+                let tint = m.name == "a:tint"
+                func apply(_ c: Double) -> Double {
+                    if gammaShifted { return tint ? 1 - (1 - c) * v : c * v }
+                    return srgb(tint ? 1 - (1 - lin(c)) * v : lin(c) * v)
+                }
+                r = apply(r); g = apply(g); b = apply(b)
             case "a:alpha": alpha = v
             default: break
             }
@@ -313,7 +343,7 @@ private struct LevelStyle {
 
 // MARK: - Reader
 
-private struct PptxReader {
+struct PptxReader {
     let package: PptxPackage
     let images = PptxImages()
 
@@ -337,6 +367,12 @@ private struct PptxReader {
             if let rid = id["r:id"], let r = rels.first(where: { $0.id == rid }) { slideParts.append(r.target) }
         }
         let defaults = presentation.first("p:defaultTextStyle")
+        // The deck's table styles, by id: what each table's `tableStyleId`
+        // names (PowerPoint writes every style a deck uses into the part).
+        var tableStyles: [String: XNode] = [:]
+        if let lst = package.rel(pres, kind: "tableStyles").flatMap({ package.xml($0.target) }) {
+            for st in lst.all("a:tblStyle") { if let id = st["styleId"] { tableStyles[id] = st } }
+        }
 
         var deckTheme = DeckTheme()
         var slides: [SlideState] = []
@@ -361,7 +397,8 @@ private struct PptxReader {
             }
             if n == 0 { deckTheme = Self._deckTheme(theme, colors) }
             let ctx = SlideContext(package: package, part: part, slide: slide, layout: layout, master: master,
-                                   colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images)
+                                   colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
+                                   tableStyles: tableStyles)
             var shapes: [ShapeState] = []
             if let tree = slide.first("p:cSld")?.first("p:spTree") {
                 ctx.shapes(in: tree, transform: nil, into: &shapes, id: id)
@@ -481,15 +518,7 @@ private struct PptxReader {
     /// The fill inside a properties element (`p:bgPr`, `p:spPr`).
     func fill(_ pr: XNode, owner: String, colors: ColorContext) -> SlideFill? {
         if let f = pr.first("a:solidFill") { return colors.color(in: f).map { SlideFill(color: $0) } }
-        if let g = pr.first("a:gradFill") {
-            let stops: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
-                guard let c = colors.color(in: gs) else { return nil }
-                return SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: c)
-            }.sorted { $0.position < $1.position }
-            let angle = (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000
-            if stops.count == 1 { return SlideFill(color: stops[0].color) }
-            return stops.isEmpty ? nil : SlideFill(color: stops[0].color, stops: stops, angle: angle)
-        }
+        if let g = pr.first("a:gradFill") { return Self.gradient(g, colors: colors) }
         if let b = pr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
            let rel = package.rels(owner).first(where: { $0.id == rid }), !rel.external,
            package.parts[rel.target] != nil {
@@ -499,9 +528,42 @@ private struct PptxReader {
                 f.tiled = true
                 f.tileScale = (tile["sx"].flatMap(Double.init) ?? 100000) / 100000
             }
+            f.imageInset = Self.stretchInset(b)
             return f
         }
         return nil
+    }
+
+    /// An `a:gradFill` as a fill: its stops in order and its direction, or
+    /// its path (`a:path`, radiating from `a:fillToRect`). A single stop is
+    /// a colour; none at all is nothing (the shape's style fill then).
+    static func gradient(_ g: XNode, colors: ColorContext) -> SlideFill? {
+        let stops: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
+            guard let c = colors.color(in: gs) else { return nil }
+            return SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: c)
+        }.sorted { $0.position < $1.position }
+        if stops.isEmpty { return nil }
+        if stops.count == 1 { return SlideFill(color: stops[0].color) }
+        var f = SlideFill(color: stops[0].color, stops: stops,
+                          angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
+        if let path = g.first("a:path") {
+            f.path = path["path"].flatMap(SlideFill.GradientPath.init(rawValue:)) ?? .shape
+            if let to = path.first("a:fillToRect") {
+                func v(_ k: String) -> Double { (to[k].flatMap(Double.init) ?? 0) / 100000 }
+                f.fillTo = Rect.fromLTRB(v("l"), v("t"), 1 - v("r"), 1 - v("b"))
+            } else {
+                f.fillTo = Rect.fromLTRB(0, 0, 1, 1)
+            }
+        }
+        return f
+    }
+
+    /// `a:stretch/a:fillRect` in a blip fill: where the picture sits, as
+    /// fractions inset from each edge.
+    static func stretchInset(_ blipFill: XNode) -> EdgeInsets {
+        guard let fr = blipFill.first("a:stretch")?.first("a:fillRect") else { return .zero }
+        func v(_ k: String) -> Double { (fr[k].flatMap(Double.init) ?? 0) / 100000 }
+        return EdgeInsets(left: v("l"), top: v("t"), right: v("r"), bottom: v("b"))
     }
 
     /// A blip's transparency (`a:alphaModFix amt`) and duotone (its two
@@ -509,6 +571,8 @@ private struct PptxReader {
     static func blipEffects(_ blip: XNode, colors: ColorContext) -> (Double, [Color]?) {
         let alpha = (blip.first("a:alphaModFix")?["amt"].flatMap(Double.init) ?? 100000) / 100000
         var duotone: [Color]? = nil
+        // Greyscale (`a:grayscl`) is the duotone from black to white.
+        if blip.has("a:grayscl") { duotone = [Color(0xFF000000), Color(0xFFFFFFFF)] }
         if let d = blip.first("a:duotone") {
             let holder = XNode(name: "holder", attrs: [:])
             var pair: [Color] = []
@@ -582,6 +646,8 @@ private struct SlideContext {
     let defaults: XNode?
     let slideSize: Size
     let images: PptxImages
+    /// The deck's `a:tblStyle` elements by id.
+    var tableStyles: [String: XNode] = [:]
 
     // MARK: Placeholders
 
@@ -782,25 +848,20 @@ private struct SlideContext {
         } else if let f = spPr?.first("a:solidFill") {
             fill = colors.color(in: f)
             fillScheme = Self._accentSlot(f)
-        } else if let g = spPr?.first("a:gradFill") {
+        } else if let g = spPr?.first("a:gradFill"), let gradient = PptxReader.gradient(g, colors: colors) {
             // A gradient: its middle colour stands for it (the theme gallery,
-            // a save that regenerates the shape); drawn as itself.
-            let stops = g.first("a:gsLst")?.all("a:gs").compactMap { colors.color(in: $0) } ?? []
-            fill = stops.isEmpty ? nil : stops[stops.count / 2]
-            let gradient: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
-                guard let c = colors.color(in: gs) else { return nil }
-                return SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: c)
-            }.sorted { $0.position < $1.position }
-            if gradient.count >= 2 {
-                fillStyle = SlideFill(color: gradient[0].color, stops: gradient,
-                                      angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
-            }
+            // a save that regenerates the shape); drawn as itself. (One with
+            // no stops at all — 63200's oval — is the style's fill, below.)
+            let stops = gradient.stops.map(\.color)
+            fill = stops.isEmpty ? gradient.color : stops[stops.count / 2]
+            if gradient.stops.count >= 2 { fillStyle = gradient }
         } else if let b = spPr?.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
                   let rel = package.rels(part).first(where: { $0.id == rid }), !rel.external,
                   package.parts[rel.target] != nil {
             // A picture fill: drawn stretched within the outline.
             var f = SlideFill(image: images.attachment(rel.target, package))
             (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
+            f.imageInset = PptxReader.stretchInset(b)
             fillStyle = f
         } else if spPr?.has("a:grpFill") == true {
             // The group's fill, which the group it is read from supplies.
@@ -815,14 +876,8 @@ private struct SlideContext {
                theme.fillStyles[idx - 1].name == "a:gradFill" {
                 var c = colors
                 c.placeholder = fill
-                let g = theme.fillStyles[idx - 1]
-                let gradient: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
-                    guard let col = c.color(in: gs) else { return nil }
-                    return SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: col)
-                }.sorted { $0.position < $1.position }
-                if gradient.count >= 2 {
-                    fillStyle = SlideFill(color: gradient[0].color, stops: gradient,
-                                          angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
+                if let gradient = PptxReader.gradient(theme.fillStyles[idx - 1], colors: c), gradient.stops.count >= 2 {
+                    fillStyle = gradient
                 }
             }
         }
@@ -842,6 +897,13 @@ private struct SlideContext {
                 guard let pr = node?.first("p:spPr") else { continue }
                 if pr.has("a:noFill") { break }
                 if let f = pr.first("a:solidFill") { fill = colors.color(in: f); fillScheme = Self._accentSlot(f); break }
+                if let g = pr.first("a:gradFill"), let gradient = PptxReader.gradient(g, colors: colors) {
+                    // The layout's gradient (tdf114848's title bar).
+                    let stops = gradient.stops.map(\.color)
+                    fill = stops.isEmpty ? gradient.color : stops[stops.count / 2]
+                    if gradient.stops.count >= 2 { fillStyle = gradient }
+                    break
+                }
             }
         }
         if ph != nil, spPr?.first("a:ln") == nil, style?.first("a:lnRef") == nil {
@@ -865,6 +927,8 @@ private struct SlideContext {
                             fillScheme: fillScheme)
         st.autofit = text.autofit
         st.fontScale = text.fontScale
+        st.flipH = xfrm?["flipH"] == "1"
+        st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.fillStyle = fillStyle
         st.invisible = hiddenByLayout
@@ -1036,6 +1100,7 @@ private struct SlideContext {
         if let blip = el.first("p:blipFill")?.first("a:blip") {
             (s.pictureAlpha, s.pictureDuotone) = PptxReader.blipEffects(blip, colors: colors)
         }
+        if let b = el.first("p:blipFill") { s.pictureInset = PptxReader.stretchInset(b) }
         // The element too: written back while the picture is unchanged.
         s.sourceXML = PptxXML.serialize(el)
         s.sourcePart = part
@@ -1058,17 +1123,37 @@ private struct SlideContext {
         let styleId = pr?.first("a:tableStyleId")?.text.trimmingWhitespace() ?? ""
         // No style id at all draws as "No Style, Table Grid" does.
         let plain = styleId.isEmpty || ["{2D5ABB26-0587-4C30-8999-92F81FD0307C}", "{5940675A-B579-460E-94D1-54222C63F5DA}"].contains(styleId)
-        let base = LevelStyle.paragraph(defaults?.first("a:lvl1pPr"), colors)
+        var base = LevelStyle.paragraph(defaults?.first("a:lvl1pPr"), colors)
+        // The style the id names, when the deck defines it: the look of the
+        // whole table, its header row, bands, and (when the table's flags
+        // ask) its first and last columns and last row.
+        let style = plain ? nil : tableStyles[styleId]
+        let whole = style.flatMap { _tablePart($0, "a:wholeTbl") }
+        let firstRowPart = firstRow ? style.flatMap { _tablePart($0, "a:firstRow") } : nil
+        let lastRowPart = pr?["lastRow"] == "1" ? style.flatMap { _tablePart($0, "a:lastRow") } : nil
+        let firstColPart = pr?["firstCol"] == "1" ? style.flatMap { _tablePart($0, "a:firstCol") } : nil
+        let lastColPart = pr?["lastCol"] == "1" ? style.flatMap { _tablePart($0, "a:lastCol") } : nil
+        if let c = whole?.textColor { base.color = c }
+        let rowCount = tbl.all("a:tr").count
         var paragraphs: [RichParagraph] = []
         var sawCellLine = false, visibleCellLine = false
         var cellBorder: Color? = nil
         for (r, tr) in tbl.all("a:tr").enumerated() {
             var column = 0
-            for tc in tr.all("a:tc") {
+            let columnCount = tr.all("a:tc").count
+            for (c, tc) in tr.all("a:tc").enumerated() {
                 defer { column += 1 }
                 if tc["hMerge"] == "1" || tc["vMerge"] == "1" { continue }
                 var cell = CellRef(table: tableId, row: r, column: column,
                                    span: tc["gridSpan"].flatMap(Int.init) ?? 1, rowSpan: tc["rowSpan"].flatMap(Int.init) ?? 1)
+                // The style's regional looks, the later ones over the earlier
+                // (a corner cell of the header row looks like the header).
+                var regional: [TablePartStyle] = []
+                if c == 0, let p = firstColPart { regional.append(p) }
+                if c == columnCount - 1, let p = lastColPart { regional.append(p) }
+                if r == rowCount - 1, r > 0, let p = lastRowPart { regional.append(p) }
+                if r == 0, let p = firstRowPart { regional.append(p) }
+                if let f = regional.compactMap(\.fill).last, r > 0 || firstRowPart == nil { cell.fill = f }
                 // The cell's own fill and lines (`a:tcPr`), which a table
                 // laid out by hand carries instead of a style.
                 if let tcPr = tc.first("a:tcPr") {
@@ -1087,9 +1172,15 @@ private struct SlideContext {
                     }
                 }
                 // The header row's text is light and bold in every styled
-                // table PowerPoint offers.
+                // table PowerPoint offers; a style the deck defines says
+                // exactly what (Light Style 2's header is dark text, no fill).
                 var look = base
-                if r == 0 && firstRow && !plain {
+                if style != nil {
+                    for p in regional {
+                        if let b = p.bold { look.bold = b }
+                        if let c = p.textColor { look.color = c }
+                    }
+                } else if r == 0 && firstRow && !plain {
                     look.bold = look.bold ?? true
                     look.color = colors.scheme("lt1") ?? Color(0xFFFFFFFF)
                 }
@@ -1109,6 +1200,20 @@ private struct SlideContext {
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
                     switch level.algn { case "ctr": style.alignment = .center; case "r": style.alignment = .right; default: break }
+                    // A bulleted cell paragraph. In a cell the layout puts
+                    // the text at `indentLeft` and the bullet in the 18 pt
+                    // slot before it (no per-level indent), so the text edge
+                    // is the file's, and at least that slot: PowerPoint's
+                    // unsaid default is the bullet at 0 with the text right
+                    // after it, which this approximates.
+                    switch level.bullet {
+                    case .char?, .number?:
+                        style.list = level.bullet == .char ? .bullet : .numbered
+                        style.listLevel = p.first("a:pPr")?["lvl"].flatMap(Int.init) ?? 0
+                        style.indentLeft = max(18, level.marL ?? 0)
+                    default:
+                        break
+                    }
                     var para = text.isEmpty
                         ? RichParagraph(text: "", runs: [Run(length: 0, style: CharStyle(bold: look.bold ?? false, fontFamily: _font(look.font),
                                                                                           fontSize: look.size ?? 18, color: look.color))], style: style)
@@ -1137,6 +1242,40 @@ private struct SlideContext {
                          bandFill: banded ? DeckController.tint(accent, 0.40) : nil,
                          bandAltFill: banded ? DeckController.tint(accent, 0.20) : nil,
                          borderColor: Color(0xFFFFFFFF))
+        if let style {
+            // As the deck's style has it: the header's own fill (none is
+            // none, not a tint), band 1 and band 2 over the whole table's
+            // fill — which is the table background (`a:tblBg`, a themed
+            // style's gradient, by its middle colour) when the cells say
+            // none — and the whole table's rules.
+            let b1 = _tablePart(style, "a:band1H"), b2 = _tablePart(style, "a:band2H")
+            var under = whole?.fill
+            if under == nil || under == Color(0x00000000), let bg = style.first("a:tblBg") {
+                if let ref = bg.first("a:fillRef"), ref["idx"] != "0" {
+                    if let idx = ref["idx"].flatMap(Int.init), theme.fillStyles.indices.contains(idx - 1),
+                       theme.fillStyles[idx - 1].name == "a:gradFill" {
+                        var c = colors
+                        c.placeholder = colors.color(in: ref)
+                        let stops = theme.fillStyles[idx - 1].first("a:gsLst")?.all("a:gs").compactMap { c.color(in: $0) } ?? []
+                        under = stops.isEmpty ? c.placeholder : stops[stops.count / 2]
+                    } else {
+                        under = colors.color(in: ref)
+                    }
+                } else if let f = bg.first("a:fill") {
+                    under = f.first("a:solidFill").flatMap(colors.color(in:))
+                }
+            }
+            func over(_ fill: Color?) -> Color? {
+                // A translucent band over the table's own fill.
+                guard let fill, let under, (fill.value >> 24) & 0xFF < 0xFF else { return fill ?? under }
+                return DeckController.blend(fill, over: under)
+            }
+            ts.headerFill = firstRow ? (over(firstRowPart?.fill) ?? Color(0x00000000)) : nil
+            ts.bandFill = banded ? over(b1?.fill) : under
+            ts.bandAltFill = banded ? over(b2?.fill) : under
+            if let b = whole?.borders { ts.borders = b }
+            if let c = whole?.borderColor { ts.borderColor = c }
+        }
         if sawCellLine { ts.borders = visibleCellLine }
         if let cellBorder { ts.borderColor = cellBorder }
         for (r, h) in rowHeights.enumerated() where h > 0 { ts.rowHeights[r] = h }
@@ -1226,6 +1365,58 @@ private struct SlideContext {
             if case .opaque(let o) = s.kind, o.freeform == nil { return false }
             return true
         }
+    }
+
+    /// One region of a table style (`a:wholeTbl`, `a:firstRow`, `a:band1H`…):
+    /// its cells' fill and rules, and its text's colour and weight.
+    private struct TablePartStyle {
+        var fill: Color? = nil
+        var textColor: Color? = nil
+        var bold: Bool? = nil
+        var borders: Bool? = nil
+        var borderColor: Color? = nil
+    }
+
+    private func _tablePart(_ style: XNode, _ name: String) -> TablePartStyle? {
+        guard let part = style.first(name) else { return nil }
+        var r = TablePartStyle()
+        if let tc = part.first("a:tcStyle") {
+            if let f = tc.first("a:fill") {
+                if let s = f.first("a:solidFill") {
+                    r.fill = colors.color(in: s)
+                } else if let g = f.first("a:gradFill") {
+                    // Its middle colour stands for the gradient.
+                    let stops = g.first("a:gsLst")?.all("a:gs").compactMap { colors.color(in: $0) } ?? []
+                    if !stops.isEmpty { r.fill = stops[stops.count / 2] }
+                } else if f.has("a:noFill") {
+                    r.fill = Color(0x00000000)
+                }
+            } else if let ref = tc.first("a:fillRef"), ref["idx"] != "0" {
+                r.fill = colors.color(in: ref)
+            }
+            if let bdr = tc.first("a:tcBdr"), !bdr.children.isEmpty {
+                var visible = false
+                for side in ["a:insideH", "a:insideV", "a:left", "a:right", "a:top", "a:bottom"] {
+                    if let ref = bdr.first(side)?.first("a:lnRef") {
+                        // The theme's line style in the referred colour.
+                        if ref["idx"] == "0" { continue }
+                        visible = true
+                        if r.borderColor == nil { r.borderColor = colors.color(in: ref) }
+                        continue
+                    }
+                    guard let ln = bdr.first(side)?.first("a:ln") else { continue }
+                    if ln.has("a:noFill") { continue }
+                    visible = true
+                    if r.borderColor == nil, let f = ln.first("a:solidFill") { r.borderColor = colors.color(in: f) }
+                }
+                r.borders = visible
+            }
+        }
+        if let tx = part.first("a:tcTxStyle") {
+            r.textColor = colors.color(in: tx)
+            switch tx["b"] { case "on": r.bold = true; case "off": r.bold = false; default: break }
+        }
+        return r
     }
 
     private func _frameLabel(_ el: XNode) -> String {

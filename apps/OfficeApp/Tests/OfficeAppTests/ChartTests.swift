@@ -19,7 +19,7 @@ final class ChartTests: XCTestCase {
                 c.categoryAxisTitle = "Quarter"
             }
             var back = try reread(c)
-            if type == .pie { back.series = Array(back.series.prefix(1)) }
+            if type.isPie { back.series = Array(back.series.prefix(1)) }
             XCTAssertEqual(back, c, "\(type)")
         }
     }
@@ -101,7 +101,18 @@ final class ChartTests: XCTestCase {
     }
 
     func testAKindThisAppCannotDrawIsKept() {
-        let doughnut = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:doughnutChart><c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser></c:doughnutChart></c:plotArea></c:chart></c:chartSpace>"
-        XCTAssertNil(ChartXML.read(XNode.parse(Data(doughnut.utf8))!, color: { _ in nil }))
+        let radar = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:radarChart><c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser></c:radarChart></c:plotArea></c:chart></c:chartSpace>"
+        XCTAssertNil(ChartXML.read(XNode.parse(Data(radar.utf8))!, color: { _ in nil }))
+    }
+
+    func testADoughnutIsAPieWithAHole() throws {
+        let doughnut = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:doughnutChart><c:varyColors val=\"1\"/><c:ser><c:val><c:numLit><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt><c:pt idx=\"1\"><c:v>3</c:v></c:pt></c:numLit></c:val></c:ser><c:firstSliceAng val=\"0\"/><c:holeSize val=\"75\"/></c:doughnutChart></c:plotArea></c:chart></c:chartSpace>"
+        let c = try XCTUnwrap(ChartXML.read(XNode.parse(Data(doughnut.utf8))!, color: { _ in nil }))
+        XCTAssertEqual(c.type, .doughnut)
+        XCTAssertEqual(c.holeSize, 75)
+        XCTAssertFalse(c.type.hasAxes)
+        let xml = ChartXML.chartSpace(c)
+        XCTAssertTrue(xml.contains("<c:doughnutChart>") && xml.contains("<c:holeSize val=\"75\"/>"))
+        XCTAssertEqual(try reread(c), c)
     }
 }

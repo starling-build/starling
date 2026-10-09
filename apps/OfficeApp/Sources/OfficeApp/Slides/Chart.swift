@@ -15,7 +15,7 @@ import FluentSystemIcons
 import Foundation
 
 enum ChartType: String, CaseIterable {
-    case column, bar, line, pie, area, scatter
+    case column, bar, line, pie, area, scatter, doughnut
 
     var name: String {
         switch self {
@@ -25,10 +25,13 @@ enum ChartType: String, CaseIterable {
         case .pie: return "Pie"
         case .area: return "Area"
         case .scatter: return "Scatter"
+        case .doughnut: return "Doughnut"
         }
     }
 
-    var hasAxes: Bool { self != .pie }
+    var hasAxes: Bool { !isPie }
+    /// Wedges of one series: a pie, or a doughnut (a pie with a hole).
+    var isPie: Bool { self == .pie || self == .doughnut }
 
     var icon: IconData {
         switch self {
@@ -38,6 +41,7 @@ enum ChartType: String, CaseIterable {
         case .pie: return FluentSystemIcons.chartPie
         case .area: return FluentSystemIcons.chartArea
         case .scatter: return FluentSystemIcons.chartScatter
+        case .doughnut: return FluentSystemIcons.chartPie
         }
     }
 }
@@ -72,6 +76,8 @@ struct Chart: Equatable {
     /// Nil is PowerPoint's default (219 and -27; 150 and 100 stacked).
     var gapWidth: Int? = nil
     var overlap: Int? = nil
+    /// A doughnut's hole, in percent of its diameter (`c:holeSize`).
+    var holeSize = 50
 
     var gap: Double { Double(gapWidth ?? (stacked ? 150 : 219)) / 100 }
     var overlapFraction: Double { Double(overlap ?? (stacked ? 100 : -27)) / 100 }
@@ -79,8 +85,8 @@ struct Chart: Equatable {
     /// PowerPoint's sample data for a freshly inserted chart of `type`.
     static func sample(_ type: ChartType) -> Chart {
         switch type {
-        case .pie:
-            return Chart(type: .pie, title: "Sales", categories: ["1st Qtr", "2nd Qtr", "3rd Qtr", "4th Qtr"],
+        case .pie, .doughnut:
+            return Chart(type: type, title: "Sales", categories: ["1st Qtr", "2nd Qtr", "3rd Qtr", "4th Qtr"],
                          series: [ChartSeries(name: "Sales", values: [8.2, 3.2, 1.4, 1.2])])
         case .scatter:
             return Chart(type: .scatter, title: "Y-Values", categories: ["0.7", "1.8", "2.6"],
@@ -98,7 +104,7 @@ struct Chart: Equatable {
     func converted(to t: ChartType) -> Chart {
         var c = self
         c.type = t
-        if t == .pie || t == .scatter { c.stacked = false; c.percent = false }
+        if t.isPie || t == .scatter { c.stacked = false; c.percent = false }
         return c
     }
 
@@ -133,7 +139,7 @@ struct Chart: Equatable {
 
 enum ChartXML {
     /// The chart in a `c:chartSpace`, or nil for one this app cannot draw
-    /// (3D, doughnut, radar, stock, combinations) — kept as an object then.
+    /// (3D, radar, stock, combinations) — kept as an object then.
     static func read(_ space: XNode, color: (XNode) -> Color?) -> Chart? {
         guard let chart = space.first("c:chart"), let plot = chart.first("c:plotArea") else { return nil }
         let kinds = plot.children.filter { $0.name.hasPrefix("c:") && $0.name.hasSuffix("Chart") }
@@ -143,6 +149,7 @@ enum ChartXML {
         case "c:barChart": type = el.first("c:barDir")?["val"] == "bar" ? .bar : .column
         case "c:lineChart": type = .line
         case "c:pieChart": type = .pie
+        case "c:doughnutChart": type = .doughnut
         case "c:areaChart": type = .area
         case "c:scatterChart": type = .scatter
         default: return nil
@@ -205,6 +212,7 @@ enum ChartXML {
             if c.overlap == (c.stacked ? 100 : -27) { c.overlap = nil }
         }
         c.dataLabels = shows(el.first("c:dLbls")) || el.all("c:ser").contains { shows($0.first("c:dLbls")) }
+        if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         func axisTitle(_ ax: XNode?) -> String? {
             guard let t = ax?.first("c:title") else { return nil }
             let s = _texts(t, "a:t").joined()
@@ -318,7 +326,7 @@ enum ChartXML {
             let pts = c.categories.enumerated().map { "<c:pt idx=\"\($0.offset)\"><c:v>\(_esc($0.element))</c:v></c:pt>" }.joined()
             return "<c:strRef><c:f>\(catRef)</c:f><c:strCache><c:ptCount val=\"\(n)\"/>\(pts)</c:strCache></c:strRef>"
         }()
-        let seriesList = c.type == .pie ? Array(c.series.prefix(1)) : c.series
+        let seriesList = c.type.isPie ? Array(c.series.prefix(1)) : c.series
         for (i, s) in seriesList.enumerated() {
             let col = column(i + 1)
             let tx = "<c:tx><c:strRef><c:f>Sheet1!$\(col)$1</c:f><c:strCache><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>\(_esc(s.name))</c:v></c:pt></c:strCache></c:strRef></c:tx>"
@@ -334,7 +342,7 @@ enum ChartXML {
                 sers += "<c:ser>\(head)<c:spPr><a:ln w=\"28575\" cap=\"rnd\">\(_solid(c, i))<a:round/></a:ln></c:spPr><c:marker><c:symbol val=\"none\"/></c:marker><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val><c:smooth val=\"0\"/></c:ser>"
             case .scatter:
                 sers += "<c:ser>\(head)<c:spPr><a:ln w=\"25400\" cap=\"rnd\"><a:noFill/><a:round/></a:ln></c:spPr><c:marker><c:symbol val=\"circle\"/><c:size val=\"5\"/><c:spPr>\(_solid(c, i))<a:ln w=\"9525\">\(_solid(c, i))</a:ln></c:spPr></c:marker><c:xVal>\(catCache)</c:xVal><c:yVal>\(val)</c:yVal><c:smooth val=\"0\"/></c:ser>"
-            case .pie:
+            case .pie, .doughnut:
                 var dpts = ""
                 for p in 0 ..< n {
                     dpts += "<c:dPt><c:idx val=\"\(p)\"/><c:bubble3D val=\"0\"/><c:spPr>\(_cycleFill(p))<a:ln w=\"19050\"><a:solidFill><a:schemeClr val=\"lt1\"/></a:solidFill></a:ln></c:spPr></c:dPt>"
@@ -358,6 +366,8 @@ enum ChartXML {
             plot = "<c:scatterChart><c:scatterStyle val=\"lineMarker\"/><c:varyColors val=\"0\"/>\(sers)\(labels)\(ax)</c:scatterChart>"
         case .pie:
             plot = "<c:pieChart><c:varyColors val=\"1\"/>\(sers)\(labels)<c:firstSliceAng val=\"0\"/></c:pieChart>"
+        case .doughnut:
+            plot = "<c:doughnutChart><c:varyColors val=\"1\"/>\(sers)\(labels)<c:firstSliceAng val=\"0\"/><c:holeSize val=\"\(c.holeSize)\"/></c:doughnutChart>"
         }
         if c.type.hasAxes {
             let catTitle = c.categoryAxisTitle.map { _rich($0, size: 1330, rotated: c.type == .bar) } ?? ""
@@ -389,7 +399,7 @@ enum ChartXML {
         func cell(_ ref: String, _ s: String) -> String {
             "<c r=\"\(ref)\" t=\"inlineStr\"><is><t xml:space=\"preserve\">\(_esc(s))</t></is></c>"
         }
-        let seriesList = c.type == .pie ? Array(c.series.prefix(1)) : c.series
+        let seriesList = c.type.isPie ? Array(c.series.prefix(1)) : c.series
         var rows = "<row r=\"1\">" + seriesList.enumerated().map { cell("\(column($0.offset + 1))1", $0.element.name) }.joined() + "</row>"
         for (r, name) in c.categories.enumerated() {
             let row = r + 2
@@ -442,7 +452,7 @@ enum ChartPainter {
         }
 
         // The legend: one row of key + name, centred, wrapped when wide.
-        let pie = c.type == .pie
+        let pie = c.type.isPie
         if c.legend {
             let names = pie ? c.categories : c.series.map(\.name)
             let entries = names.enumerated().map { (i: $0.offset, tp: text($0.element, 12)) }
@@ -767,7 +777,7 @@ enum ChartPainter {
                     labels.append((label(v, percent: false), Offset(x, vpos(v) - 9 * k)))
                 }
             }
-        case .pie:
+        case .pie, .doughnut:
             break
         }
         if c.dataLabels {
@@ -798,15 +808,28 @@ enum ChartPainter {
         edge.strokeWidth = max(0.5, 1.5 * k)
         edge.color = theme.background
         var labels: [(String, Offset, Color)] = []
+        // A doughnut's wedges are rings: the hole shows what is behind.
+        let hole = c.type == .doughnut ? radius * Double(max(0, min(90, c.holeSize))) / 100 : 0
+        let inner = Rect.fromCircle(center: centre, radius: hole)
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
             let color = Chart.cycle(i, theme.accents)
             fill.color = color
-            canvas.drawArc(oval, angle, sweep, true, fill)
-            canvas.drawArc(oval, angle, sweep, true, edge)
+            if hole > 0 {
+                let ring = Path()
+                ring.arcTo(oval, angle, sweep, true)
+                ring.arcTo(inner, angle + sweep, -sweep, false)
+                ring.close()
+                canvas.drawPath(ring, fill)
+                canvas.drawPath(ring, edge)
+            } else {
+                canvas.drawArc(oval, angle, sweep, true, fill)
+                canvas.drawArc(oval, angle, sweep, true, edge)
+            }
             let mid = angle + sweep / 2
+            let at = hole > 0 ? (radius + hole) / 2 : radius * 0.7
             labels.append((label(c.series[0].values[i] ?? 0, percent: false),
-                           Offset(centre.dx + cos(mid) * radius * 0.7, centre.dy + sin(mid) * radius * 0.7), color))
+                           Offset(centre.dx + cos(mid) * at, centre.dy + sin(mid) * at), color))
             angle += sweep
         }
         if c.dataLabels {

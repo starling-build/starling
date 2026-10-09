@@ -267,19 +267,23 @@ final class SlidePainter: CustomPainter {
             if let decoded = cache.image(image) {
                 let w = Double(decoded.width), h = Double(decoded.height)
                 let c = shape.crop ?? .zero
+                // `a:fillRect`: the picture's place within the frame.
+                let frame = r
+                let place = Self.inset(r, shape.pictureInset)
                 // A negative crop pads: the picture sits inside the frame.
                 let src = Rect.fromLTRB(max(0, c.left) * w, max(0, c.top) * h,
                                         w - max(0, c.right) * w, h - max(0, c.bottom) * h)
                 let spanX = 1 - c.left - c.right, spanY = 1 - c.top - c.bottom
                 let r = spanX > 0 && spanY > 0 ? Rect.fromLTRB(
-                    r.left + (max(0, c.left) - c.left) / spanX * r.width,
-                    r.top + (max(0, c.top) - c.top) / spanY * r.height,
-                    r.left + (1 - max(0, c.right) - c.left) / spanX * r.width,
-                    r.top + (1 - max(0, c.bottom) - c.top) / spanY * r.height) : r
+                    place.left + (max(0, c.left) - c.left) / spanX * place.width,
+                    place.top + (max(0, c.top) - c.top) / spanY * place.height,
+                    place.left + (1 - max(0, c.right) - c.left) / spanX * place.width,
+                    place.top + (1 - max(0, c.bottom) - c.top) / spanY * place.height) : place
                 canvas.save()
-                if let g = shape.pictureGeometry, !g.isLine { canvas.clipPath(Self.geometryPath(g, r)) }
+                if shape.pictureInset != .zero { canvas.clipRect(frame) }
+                if let g = shape.pictureGeometry, !g.isLine { canvas.clipPath(Self.geometryPath(g, frame)) }
                 if shape.flipH || shape.flipV {
-                    let c = r.center
+                    let c = frame.center
                     canvas.translate(c.dx, c.dy)
                     canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
                     canvas.translate(-c.dx, -c.dy)
@@ -312,9 +316,16 @@ final class SlidePainter: CustomPainter {
         }
         if let opaque = shape.opaque, let freeform = opaque.freeform {
             // A freeform along its own path, in the shape's fill and line.
+            if let style = shape.fillStyle {
+                // A gradient or picture, within every filled subpath at once.
+                canvas.save()
+                canvas.clipPath(Self.combinedPath(freeform, r))
+                paintFill(style, r, canvas, cache: cache, pxPerPt: px)
+                canvas.restore()
+            }
             for sub in freeform.subpaths {
                 let path = FreeformGeometry.path(sub, in: r)
-                if sub.fill, let fill = shape.fill {
+                if sub.fill, shape.fillStyle == nil, let fill = shape.fill {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
@@ -356,6 +367,16 @@ final class SlidePainter: CustomPainter {
         let path: Path? = preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
             ?? shape.customPath.map { Self.combinedPath($0, r) }
         let drawnAlready = shape.opaque?.freeform != nil
+        // A mirrored shape (`flipH`/`flipV`) draws its outline and fill
+        // mirrored; its text stays upright, as PowerPoint keeps it.
+        let mirrored = shape.picture == nil && (shape.flipH || shape.flipV)
+        if mirrored {
+            canvas.save()
+            let c = r.center
+            canvas.translate(c.dx, c.dy)
+            canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
+            canvas.translate(-c.dx, -c.dy)
+        }
         if let style = shape.fillStyle, !drawnAlready, shape.chart == nil {
             // A gradient or picture fill, within the shape's outline.
             canvas.save()
@@ -383,6 +404,7 @@ final class SlidePainter: CustomPainter {
                 canvas.drawRect(r, p)
             }
         }
+        if mirrored { canvas.restore() }
         // (An empty table still has its rows' fills and borders to draw.)
         if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
             let ox = r.left + shape.insets.left * px, oy = r.top + cache.textTop(shape, pxPerPt: px)
@@ -420,13 +442,33 @@ final class SlidePainter: CustomPainter {
         p.style = .fill
         p.color = fill.color ?? Color(0xFFFFFFFF)
         if fill.stops.count >= 2 {
-            let a = fill.angle * .pi / 180
-            let c = r.center
-            let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
-            let d = Offset(cos(a) * half, sin(a) * half)
             let (colors, positions) = Self.linearLight(fill.stops)
-            p.shader = Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
-                                colors: colors, colorStops: positions)
+            if let path = fill.path, r.width > 0, r.height > 0 {
+                // From the fill-to point out to the farthest corner: circles,
+                // or (rect, shape) rings in the area's own proportions — the
+                // ellipse that stands in for PowerPoint's concentric boxes.
+                // PowerPoint stretches even a "circle" to the area's
+                // proportions (themes.pptx's radial slide is lit to all four
+                // edges alike), so every kind is a circle in a space squeezed
+                // to the area's aspect — y scaled by width/height — and its
+                // rings are ellipses.
+                _ = path
+                let f = fill.fillTo
+                let c = Offset(r.left + (f.left + f.right) / 2 * r.width, r.top + (f.top + f.bottom) / 2 * r.height)
+                let corners = [Offset(r.left, r.top), Offset(r.right, r.top), Offset(r.left, r.bottom), Offset(r.right, r.bottom)]
+                let sy = r.width / r.height
+                let radius = corners.map { hypot($0.dx - c.dx, ($0.dy - c.dy) * sy) }.max() ?? 1
+                p.shader = Gradient(radial: Offset(c.dx, c.dy * sy), radius: max(1, radius), colors: colors,
+                                    colorStops: positions,
+                                    matrix4: [1, 0, 0, 0, 0, 1 / sy, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+            } else {
+                let a = fill.angle * .pi / 180
+                let c = r.center
+                let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
+                let d = Offset(cos(a) * half, sin(a) * half)
+                p.shader = Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
+                                    colors: colors, colorStops: positions)
+            }
             // The paint's own alpha scales the shader: a first stop that is
             // transparent must not make the whole gradient so.
             p.color = Color(0xFFFFFFFF)
@@ -453,10 +495,23 @@ final class SlidePainter: CustomPainter {
                     y += th
                 }
                 canvas.restore()
+            } else if fill.imageInset != .zero {
+                // `a:fillRect`: stretched into its place within the area.
+                canvas.save()
+                canvas.clipRect(r)
+                canvas.drawImageRect(decoded, src, Self.inset(r, fill.imageInset), paint)
+                canvas.restore()
             } else {
                 canvas.drawImageRect(decoded, src, r, paint)
             }
         }
+    }
+
+    /// `r` inset by fractions of its own size from each edge.
+    static func inset(_ r: Rect, _ f: EdgeInsets) -> Rect {
+        guard f != .zero else { return r }
+        return Rect.fromLTRB(r.left + f.left * r.width, r.top + f.top * r.height,
+                             r.right - f.right * r.width, r.bottom - f.bottom * r.height)
     }
 
     /// The paint for a picture: its transparency, and a duotone as a colour
@@ -481,9 +536,25 @@ final class SlidePainter: CustomPainter {
     static let drawablePresets: Set<String> = [
         "rect", "roundRect", "round2DiagRect", "ellipse", "flowChartConnector", "flowChartTerminator", "triangle",
         "rtTriangle", "diamond", "flowChartDecision", "parallelogram", "flowChartInputOutput", "hexagon", "homePlate",
-        "chevron", "plus", "mathPlus", "mathMinus", "leftArrow", "upArrow", "downArrow", "leftBrace", "rightBrace",
+        "chevron", "plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide",
+        "leftArrow", "upArrow", "downArrow", "leftBrace", "rightBrace",
         "leftBracket", "rightBracket", "rightArrow", "star5", "wedgeRectCallout", "line",
     ]
+
+    /// A straight band `width` wide from `a` to `b`, added to `path` wound
+    /// the way `addRect` winds (clockwise on screen), so bands and boxes in
+    /// one path fill as their union rather than cutting holes where they
+    /// cross.
+    static func band(_ path: Path, _ a: Offset, _ b: Offset, _ width: Double) {
+        let len = max(1e-6, hypot(b.dx - a.dx, b.dy - a.dy))
+        let n = Offset(-(b.dy - a.dy) / len * width / 2, (b.dx - a.dx) / len * width / 2)
+        var pts = [Offset(a.dx - n.dx, a.dy - n.dy), Offset(a.dx + n.dx, a.dy + n.dy),
+                   Offset(b.dx + n.dx, b.dy + n.dy), Offset(b.dx - n.dx, b.dy - n.dy)]
+        var area = 0.0
+        for i in pts.indices { let p = pts[i], q = pts[(i + 1) % 4]; area += p.dx * q.dy - q.dx * p.dy }
+        if area < 0 { pts.reverse() }
+        path.addPolygon(pts, true)
+    }
 
     /// Every filled subpath of a freeform as one path (its holes cut).
     static func combinedPath(_ g: FreeformGeometry, _ r: Rect) -> Path {
@@ -568,6 +639,36 @@ final class SlidePainter: CustomPainter {
                              Offset(r.right - k, r.bottom), Offset(l, r.bottom), Offset(l + k, t + h / 2)], true)
         case "mathMinus":
             path.addRect(Rect.fromLTWH(l + w * 0.1, t + h * (0.5 - 0.1176), w * 0.8, h * 0.2352))
+        case "mathEqual", "mathNotEqual":
+            // Two bars 73.49% wide, each 23.52% tall, 11.76% apart (the
+            // preset's defaults); "not equal" adds a stroke through them
+            // at 110°, running the full height.
+            let dx = w * 0.36745, bar = h * 0.2352, gap = h * 0.0588
+            let vc = t + h / 2
+            path.addRect(Rect.fromLTRB(l + w / 2 - dx, vc - gap - bar, l + w / 2 + dx, vc - gap))
+            path.addRect(Rect.fromLTRB(l + w / 2 - dx, vc + gap, l + w / 2 + dx, vc + gap + bar))
+            if preset.rawValue == "mathNotEqual" {
+                let ang = 110.0 * .pi / 180
+                let dir = Offset(cos(ang), sin(ang))
+                let top = (t - vc) / dir.dy, bottom = (r.bottom - vc) / dir.dy
+                Self.band(path, Offset(l + w / 2 + dir.dx * top, t), Offset(l + w / 2 + dir.dx * bottom, r.bottom), bar)
+            }
+        case "mathMultiply":
+            // An X along the diagonals: arms 23.52% of the short side thick,
+            // reaching 48% of the diagonal out from the centre.
+            let th = ss * 0.2352, diag = hypot(w, h), reach = diag * 0.48 / 2 + th / 2
+            let c = r.center
+            for d in [Offset(w / diag, h / diag), Offset(w / diag, -h / diag)] {
+                Self.band(path, Offset(c.dx - d.dx * reach, c.dy - d.dy * reach),
+                          Offset(c.dx + d.dx * reach, c.dy + d.dy * reach), th)
+            }
+        case "mathDivide":
+            // A bar with a dot above and below it (the preset's defaults).
+            let dx = w * 0.36745, dy = h * 0.1176, gap = h * 0.0588, rad = h * 0.1176
+            let vc = t + h / 2
+            path.addRect(Rect.fromLTRB(l + w / 2 - dx, vc - dy, l + w / 2 + dx, vc + dy))
+            path.addOval(Rect.fromCircle(center: Offset(l + w / 2, vc - dy - gap - rad), radius: rad))
+            path.addOval(Rect.fromCircle(center: Offset(l + w / 2, vc + dy + gap + rad), radius: rad))
         case "plus", "mathPlus":
             let k = ss * 0.25
             path.addPolygon([Offset(l + k, t), Offset(r.right - k, t), Offset(r.right - k, t + k), Offset(r.right, t + k),

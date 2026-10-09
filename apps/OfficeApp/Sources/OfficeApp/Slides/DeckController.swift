@@ -35,6 +35,7 @@ struct ShapeState: Equatable {
     var pictureGeometry: ShapePreset? = nil
     var pictureAlpha = 1.0
     var pictureDuotone: [Color]? = nil
+    var pictureInset = EdgeInsets.zero
     var fillsWithBackground = false
     var inheritedPreset: ShapePreset? = nil
     var customPath: FreeformGeometry? = nil
@@ -742,6 +743,20 @@ final class DeckController: ChangeNotifier {
         return Color(0xFF00_0000 | Int64((mix((v >> 16) & 0xFF) << 16) | (mix((v >> 8) & 0xFF) << 8) | mix(v & 0xFF)))
     }
 
+    /// `c` composited over an opaque `under` by its own alpha; the result
+    /// is opaque.
+    static func blend(_ c: Color, over under: Color) -> Color {
+        let v = c.value, u = under.value
+        let a = Double((v >> 24) & 0xFF) / 255
+        func mix(_ sh: Int) -> Int {
+            let top = Double((v >> sh) & 0xFF), bottom = Double((u >> sh) & 0xFF)
+            return Int((top * a + bottom * (1 - a)).rounded())
+        }
+        let r = mix(16), g = mix(8), b = mix(0)
+        let rgb: Int = (r << 16) | (g << 8) | b
+        return Color(0xFF00_0000 | Int64(rgb))
+    }
+
     func deleteSelection() {
         guard !selection.isEmpty else { return }
         _checkpoint()
@@ -1092,7 +1107,7 @@ final class DeckController: ChangeNotifier {
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop,
                    flipH: s.flipH, flipV: s.flipV, pictureGeometry: s.pictureGeometry,
-                   pictureAlpha: s.pictureAlpha, pictureDuotone: s.pictureDuotone,
+                   pictureAlpha: s.pictureAlpha, pictureDuotone: s.pictureDuotone, pictureInset: s.pictureInset,
                    fillsWithBackground: s.fillsWithBackground, inheritedPreset: s.inheritedPreset,
                    customPath: s.customPath, fillStyle: s.fillStyle, invisible: s.invisible, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
@@ -1127,6 +1142,7 @@ final class DeckController: ChangeNotifier {
         shape.pictureGeometry = st.pictureGeometry
         shape.pictureAlpha = st.pictureAlpha
         shape.pictureDuotone = st.pictureDuotone
+        shape.pictureInset = st.pictureInset
         shape.fillsWithBackground = st.fillsWithBackground
         shape.inheritedPreset = st.inheritedPreset
         shape.customPath = st.customPath

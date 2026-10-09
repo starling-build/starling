@@ -62,7 +62,10 @@ enum OfficeFonts {
         case "caladea", "cambria":
             return cambria
         default:
-            if n.containsSubstring("mono") || n.containsSubstring("code") || n.containsSubstring("courier") {
+            // ("code" as in Source Code Pro — not as in Lucida Sans Unicode,
+            // which came up monospace for a while.)
+            if n.containsSubstring("mono") || n.containsSubstring("courier")
+                || (n.containsSubstring("code") && !n.containsSubstring("unicode")) {
                 return mono
             }
             if n.containsSubstring("serif") && !n.containsSubstring("sans") { return serif }

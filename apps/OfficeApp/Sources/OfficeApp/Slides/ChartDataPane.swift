@@ -95,7 +95,7 @@ final class ChartDataPaneState: State<StatefulWidget> {
         }
         let caption = fluent.typography.caption
         let cellW = 84.0, firstW = 104.0, rowH = 30.0
-        let seriesCount = chart.type == .pie ? min(1, chart.series.count) : chart.series.count
+        let seriesCount = chart.type.isPie ? min(1, chart.series.count) : chart.series.count
 
         func cell(_ r: Int, _ c: Int) -> Widget {
             let key = "\(r):\(c)"
@@ -135,13 +135,13 @@ final class ChartDataPaneState: State<StatefulWidget> {
                     for i in c.series.indices where !c.series[i].values.isEmpty { c.series[i].values.removeLast() }
                 }
             } : nil, child: Text("Remove Row")),
-            Button(onPressed: chart.type == .pie ? nil : { [weak self] in
+            Button(onPressed: chart.type.isPie ? nil : { [weak self] in
                 self?._reshape { c in
                     c.series.append(ChartSeries(name: "Series \(c.series.count + 1)",
                                                 values: Array(repeating: nil, count: c.categories.count)))
                 }
             }, child: Text("Add Series")),
-            Button(onPressed: chart.series.count > 1 && chart.type != .pie ? { [weak self] in
+            Button(onPressed: chart.series.count > 1 && !chart.type.isPie ? { [weak self] in
                 self?._reshape { c in c.series.removeLast() }
             } : nil, child: Text("Remove Series")),
         ])

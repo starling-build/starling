@@ -269,6 +269,18 @@ struct SlideFill: Equatable {
     /// clockwise from left-to-right.
     var stops: [GradientStop] = []
     var angle = 0.0
+    /// `a:path`: the gradient radiates from `fillTo` (a rectangle in
+    /// fractions of the area, usually a point) out to the edges — circles
+    /// for `circle`, the area's own proportions for `rect` and `shape` —
+    /// instead of running along `angle`.
+    var path: GradientPath? = nil
+    var fillTo = Rect.fromLTRB(0.5, 0.5, 0.5, 0.5)
+    /// `a:stretch/a:fillRect`: where a stretched picture sits within the
+    /// area, as fractions inset from each edge (negative: beyond it, and
+    /// clipped).
+    var imageInset = EdgeInsets.zero
+
+    enum GradientPath: String { case circle, rect, shape }
 
     struct GradientStop: Equatable {
         var position: Double
@@ -321,6 +333,9 @@ final class SlideShape {
     /// A picture's transparency and duotone recolouring, as read.
     var pictureAlpha = 1.0
     var pictureDuotone: [Color]? = nil
+    /// A picture's place within its frame (`a:fillRect`), as fractions
+    /// inset from each edge.
+    var pictureInset = EdgeInsets.zero
     /// `useBgFill="1"`: the shape is filled with the slide's background
     /// (a window onto it, over whatever lies between).
     var fillsWithBackground = false
