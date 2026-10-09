@@ -1131,7 +1131,14 @@ final class DeckController: ChangeNotifier {
         shape.customPath = st.customPath
         shape.fillStyle = st.fillStyle
         if case .opaque(let o) = st.kind, !o.rendering.isEmpty {
-            if shape.rendered.map(_state) != o.rendering { shape.rendered = o.rendering.map(_make) }
+            if shape.rendered.map(_state) != o.rendering {
+                shape.rendered = o.rendering.map(_make)
+                // A diagram's text is fitted to its shape, as PowerPoint
+                // lays it out; the drawing part's size is only a cache.
+                for r in shape.rendered where r.autofit && r.fontScale == 1 {
+                    r.fontScale = SlideTextCache.autofitScale(r)
+                }
+            }
         } else if !shape.rendered.isEmpty {
             shape.rendered = []
         }

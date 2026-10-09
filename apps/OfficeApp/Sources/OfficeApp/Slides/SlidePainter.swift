@@ -172,7 +172,7 @@ final class SlidePainter: CustomPainter {
     override func paint(_ canvas: any Canvas, _ size: Size) {
         let px = size.width / slideSize.width
         Self.paintFill(slide.background ?? slide.inheritedBackground ?? theme.backgroundFill,
-                       Rect.fromLTWH(0, 0, size.width, size.height), canvas, cache: cache)
+                       Rect.fromLTWH(0, 0, size.width, size.height), canvas, cache: cache, pxPerPt: px)
         canvas.save()
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))
         let area = Rect.fromLTWH(0, 0, size.width, size.height)
@@ -293,6 +293,7 @@ final class SlidePainter: CustomPainter {
             }
         }
         if let chart = shape.chart {
+            if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px) }
             ChartPainter.paint(chart, canvas, r, pxPerPt: px, theme: theme)
         }
         if shape.fillsWithBackground, let backdrop, let slide {
@@ -305,7 +306,7 @@ final class SlidePainter: CustomPainter {
             } else {
                 canvas.clipRect(r)
             }
-            paintFill(backdrop, slide, canvas, cache: cache)
+            paintFill(backdrop, slide, canvas, cache: cache, pxPerPt: px)
             canvas.restore()
         }
         if let opaque = shape.opaque, let freeform = opaque.freeform {
@@ -354,11 +355,11 @@ final class SlidePainter: CustomPainter {
         let path: Path? = preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
             ?? shape.customPath.map { Self.combinedPath($0, r) }
         let drawnAlready = shape.opaque?.freeform != nil
-        if let style = shape.fillStyle, !drawnAlready {
+        if let style = shape.fillStyle, !drawnAlready, shape.chart == nil {
             // A gradient or picture fill, within the shape's outline.
             canvas.save()
             if let path { canvas.clipPath(path) } else { canvas.clipRect(r) }
-            paintFill(style, r, canvas, cache: cache)
+            paintFill(style, r, canvas, cache: cache, pxPerPt: px)
             canvas.restore()
         } else if let fill = shape.fill, shape.preset?.isOpenPath != true, !drawnAlready {
             let p = Paint()
@@ -413,7 +414,7 @@ final class SlidePainter: CustomPainter {
     }
 
     /// A colour, gradient or picture filling `r`.
-    static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache) {
+    static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache, pxPerPt: Double = 1) {
         let p = Paint()
         p.style = .fill
         p.color = fill.color ?? Color(0xFFFFFFFF)
@@ -431,8 +432,29 @@ final class SlidePainter: CustomPainter {
         }
         canvas.drawRect(r, p)
         if let image = fill.image, let decoded = cache.image(image) {
-            canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height)), r,
-                                 imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone))
+            let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
+            let paint = imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone)
+            let tw = max(1, Double(decoded.width) * 0.75 * fill.tileScale * pxPerPt)
+            let th = max(1, Double(decoded.height) * 0.75 * fill.tileScale * pxPerPt)
+            // A tile larger than the area in both directions is a photo
+            // marked "tile": PowerPoint shows it fitted, not cropped.
+            if fill.tiled, tw < r.width || th < r.height {
+                // At the picture's own size (96/in) times the tile scale.
+                canvas.save()
+                canvas.clipRect(r)
+                var y = r.top
+                while y < r.bottom {
+                    var x = r.left
+                    while x < r.right {
+                        canvas.drawImageRect(decoded, src, Rect.fromLTWH(x, y, tw, th), paint)
+                        x += tw
+                    }
+                    y += th
+                }
+                canvas.restore()
+            } else {
+                canvas.drawImageRect(decoded, src, r, paint)
+            }
         }
     }
 

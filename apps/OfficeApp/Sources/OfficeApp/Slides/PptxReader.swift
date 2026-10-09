@@ -491,6 +491,10 @@ private struct PptxReader {
            package.parts[rel.target] != nil {
             var f = SlideFill(image: images.attachment(rel.target, package))
             (f.imageAlpha, f.duotone) = Self.blipEffects(blip, colors: colors)
+            if let tile = b.first("a:tile") {
+                f.tiled = true
+                f.tileScale = (tile["sx"].flatMap(Double.init) ?? 100000) / 100000
+            }
             return f
         }
         return nil
@@ -963,7 +967,24 @@ private struct SlideContext {
         // still calls them, and PowerPoint repairs the slide. Kept whole.
         if let nv = el.first("p:nvPicPr")?.first("p:nvPr"),
            nv.children.contains(where: { ["a:audioFile", "a:videoFile", "a:quickTimeFile", "a:wavAudioFile"].contains($0.name) }) {
-            return _opaque(el, label: "Media", transform, id: id)
+            // Drawn as its poster frame (the pic's own picture), or black
+            // where it has none, as PowerPoint shows a video at rest.
+            guard var o = _opaque(el, label: "Media", transform, id: id) else { return nil }
+            if case .opaque(var obj) = o.kind {
+                var poster = ShapeState(id: id(), name: "Poster", kind: .geometry(.rect), frame: o.frame, rotation: 0,
+                                        fill: Color(0xFF000000), outline: nil, outlineWidth: 0, anchor: .top,
+                                        insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: nil,
+                                        font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)
+                if let rid = el.first("p:blipFill")?.first("a:blip")?["r:embed"],
+                   let target = package.rels(part).first(where: { $0.id == rid }), !target.external,
+                   package.parts[target.target] != nil {
+                    poster.kind = .picture(images.attachment(target.target, package))
+                    poster.fill = nil
+                }
+                obj.rendering = [poster]
+                o.kind = .opaque(obj)
+            }
+            return o
         }
         // A picture in a placeholder (`p:ph`) may leave its frame to the
         // layout's (`<p:spPr/>`): the inherited placeholder says where.
@@ -1111,6 +1132,19 @@ private struct SlideContext {
         st.sourceXML = PptxXML.serialize(el)
         st.sourcePart = part
         st.sourceChart = chart
+        // The chart area's own picture or gradient fill (chart-picture-bg),
+        // drawn under the plot.
+        if let pr = space.first("c:spPr") {
+            if let b = pr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
+               let img = package.rels(rel.target).first(where: { $0.id == rid }), !img.external,
+               package.parts[img.target] != nil {
+                var f = SlideFill(image: images.attachment(img.target, package))
+                (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
+                st.fillStyle = f
+            } else if let f = pr.first("a:solidFill"), let c = colors.color(in: f) {
+                st.fillStyle = SlideFill(color: c)
+            }
+        }
         return st
     }
 
@@ -1139,6 +1173,9 @@ private struct SlideContext {
         // A preset this app has no outline for is drawn as a box, which
         // serves for the rounded and snipped rectangles diagrams favour but
         // not for a gear (gear6, gear9): those are left out.
+        // The drawing part caches one layout of the text; PowerPoint fits it
+        // to the shapes afresh, so every text shrinks to fit here too.
+        for i in out.indices where out[i].text != nil { out[i].autofit = true }
         return out.filter { s in
             if case .geometry(let p) = s.kind {
                 // Round things and curved arrows look nothing like their box.

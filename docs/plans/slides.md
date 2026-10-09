@@ -391,7 +391,7 @@ not draw at all. Over the 553 decks PowerPoint renders:
 | | mean | median | ≤2% | >20% |
 |---|---|---|---|---|
 | before | 9.7% | 2.6% | 256 | 92 |
-| after | 6.1% | 1.4% | 305 | 45 |
+| after | 5.8% | 1.3% | 309 | 42 |
 
 Found and fixed, by pixels (the file is never touched — every one of
 these is read-side or paint-side, and the writer regression round shows
@@ -435,6 +435,12 @@ the saved copies byte-identical):
   their outline; a group with a zero child extent is kept whole.
 - **Tables**: an empty table still draws its rows' fills and borders; a
   table with no style id draws as a plain grid; `mathMinus` has a path.
+- **Second pass, same day**: a background picture marked `a:tile` is
+  tiled at its own size (a tile larger than the slide is a photo someone
+  marked "tile": fitted, as PowerPoint shows it); a chart area's own
+  picture or colour fill is drawn under the plot (chart-picture-bg from
+  44% to 6%); a video draws as its poster frame, or black without one
+  (bnc591147 from 50% to 0); a diagram's text is fitted to its shape.
 
 Left on the painter side, from the same ranking: SmartArt without a
 drawing part (would need a layout engine), vertical table text, a
