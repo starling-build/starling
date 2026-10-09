@@ -570,6 +570,14 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(xml.contains("<w:tblPr><w:tblW w:w=\"5000\" w:type=\"pct\"/>"), xml)
         let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
         XCTAssertEqual(back.tableStyles.values.first?.widthPercent, 100)
+        // Fixed layout and cell spacing ride along.
+        var fixed = doc
+        fixed.tableStyles["T"]!.fixedLayout = true; fixed.tableStyles["T"]!.cellSpacing = 0.75
+        let fxml = String(decoding: try Zip.read(try DocxFormat.write(fixed, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(fxml.contains("<w:tblCellSpacing w:w=\"15\" w:type=\"dxa\"/>") && fxml.contains("</w:tblBorders><w:tblLayout w:type=\"fixed\"/>"), fxml)
+        let fback = try DocxFormat.read(try DocxFormat.write(fixed, pageSetup: .letter)).document.tableStyles.values.first
+        XCTAssertEqual(fback?.fixedLayout, true)
+        XCTAssertEqual(fback?.cellSpacing, 0.75)
         let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 3)
         layout.pageSetup = .letter
         layout.width = 612 * 96.0 / 72.0

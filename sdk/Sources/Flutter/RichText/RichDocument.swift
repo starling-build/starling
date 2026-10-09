@@ -541,6 +541,12 @@ public struct TableStyle: Hashable, Sendable {
     /// grid's columns are scaled to it. Nil: the grid's own widths.
     public var widthPercent: Double? = nil
     public var width: Double? = nil
+    /// Word's fixed layout (w:tblLayout fixed): the grid as given, no
+    /// autofit to the cells' content.
+    public var fixedLayout = false
+    /// Space between cells in points (w:tblCellSpacing, HTML's
+    /// cellspacing); nil for none.
+    public var cellSpacing: Double? = nil
     /// The header row's fill (nil: a faint tint of the text colour).
     public var headerFill: Color? = nil
     /// Banded rows: every other body row filled with this, the rest with

@@ -594,6 +594,11 @@ enum DocxFormat {
                    let w = Double(ind["w:w"] ?? "") {
                     style.indent = w / 20
                 }
+                if node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] == "fixed" { style.fixedLayout = true }
+                if let sp = node.first("w:tblPr")?.first("w:tblCellSpacing"), (sp["w:type"] ?? "dxa") == "dxa",
+                   let w = Double(sp["w:w"] ?? ""), w > 0 {
+                    style.cellSpacing = w / 20
+                }
                 // The preferred width: HTML-converted tables say 100% and
                 // their grid says less (bug65649's came back narrower).
                 if let tw = node.first("w:tblPr")?.first("w:tblW"), let w = Double(tw["w:w"] ?? ""), w > 0 {
@@ -1783,6 +1788,7 @@ enum DocxFormat {
             case .right: xml += "<w:jc w:val=\"right\"/>"
             default: break
             }
+            if let sp = style.cellSpacing { xml += "<w:tblCellSpacing w:w=\"\(Int((sp * 20).rounded()))\" w:type=\"dxa\"/>" }
             if style.indent != 0 { xml += "<w:tblInd w:w=\"\(Int((style.indent * 20).rounded()))\" w:type=\"dxa\"/>" }
             xml += "<w:tblBorders>"
             let borderColor = style.borderColor.map { _hex($0) } ?? "auto"
@@ -1792,6 +1798,7 @@ enum DocxFormat {
                                      : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
             xml += "</w:tblBorders>"
+            if style.fixedLayout { xml += "<w:tblLayout w:type=\"fixed\"/>" }
             let margins: [(String, Double?)] = [("top", style.cellMarginTop), ("left", style.cellMarginLeft),
                                                 ("bottom", style.cellMarginBottom), ("right", style.cellMarginRight)]
             if margins.contains(where: { $0.1 != nil }) {
