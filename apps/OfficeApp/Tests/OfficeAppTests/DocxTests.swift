@@ -218,7 +218,8 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(ts.borderColor, Color(0xFFE1E1E1))
         XCTAssertEqual([ts.cellMarginTop, ts.cellMarginLeft, ts.cellMarginBottom, ts.cellMarginRight], [3.6, 3.6, 3.6, 3.6])
         let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
-        XCTAssertTrue(saved.contains("<w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"E1E1E1\"/>"), saved)
+        XCTAssertEqual(ts.borderWidth, 0.75)
+        XCTAssertTrue(saved.contains("<w:top w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/>"), saved)
         XCTAssertTrue(saved.contains("<w:tblCellMar><w:top w:w=\"72\" w:type=\"dxa\"/>"), saved)
     }
 

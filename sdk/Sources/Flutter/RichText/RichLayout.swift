@@ -1514,7 +1514,7 @@ public final class RichLayout {
         if let c = _cells[i], c.firstInRow, document.tableStyles[c.table]?.borders ?? true {
             let stroke = Paint()
             stroke.style = .stroke
-            stroke.strokeWidth = 1
+            stroke.strokeWidth = max(1, _px(document.tableStyles[c.table]?.borderWidth ?? 0.5).rounded())
             stroke.color = document.tableStyles[c.table]?.borderColor ?? theme.textColor.withOpacity(0.6)
             // Every line lies inside the row (the paint is clipped to the
             // row's page piece, so a stroke centred on the row's bottom

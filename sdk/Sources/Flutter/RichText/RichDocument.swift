@@ -536,6 +536,8 @@ public struct TableStyle: Hashable, Sendable {
     public var bandAltFill: Color? = nil
     /// Border colour (nil: the text colour at 60%).
     public var borderColor: Color? = nil
+    /// The border lines' width in points (Word's sz / 8); nil for 0.5pt.
+    public var borderWidth: Double? = nil
     /// Where a table narrower than the text column sits: Word's table
     /// alignment (`w:jc` on the table). Justify reads as left.
     public var alignment: ParagraphAlignment = .left

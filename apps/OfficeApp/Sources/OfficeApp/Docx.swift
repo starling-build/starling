@@ -545,6 +545,7 @@ enum DocxFormat {
                 let borders = cellBorders ?? _borders(node.first("w:tblPr"), "w:tblBorders") ?? styledBorders ?? defaultBorders
                 style.borders = borders?.on ?? false
                 style.borderColor = borders?.color
+                style.borderWidth = borders?.width.flatMap { $0 == 0.5 ? nil : $0 }   // nil is Word's 0.5pt
                 if unwrapped(node, "w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
                 // The style's conditional parts, as w:tblLook switches them
                 // on (attributes in 2010 files, bits of w:val in 2007's).
@@ -923,6 +924,7 @@ enum DocxFormat {
     struct _Borders {
         var on: Bool
         var color: Color?
+        var width: Double? = nil
     }
 
     /// A table style's conditional formatting, the parts the editor shows.
@@ -947,7 +949,8 @@ enum DocxFormat {
            hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
             color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
         }
-        return _Borders(on: true, color: color)
+        let width = Double(first["w:sz"] ?? "").map { max(0.25, $0 / 8) }
+        return _Borders(on: true, color: color, width: width)
     }
 
     /// `w:tblCellMar` of a table or table style (or a cell's `w:tcMar`),
@@ -1743,8 +1746,9 @@ enum DocxFormat {
             if style.indent != 0 { xml += "<w:tblInd w:w=\"\(Int((style.indent * 20).rounded()))\" w:type=\"dxa\"/>" }
             xml += "<w:tblBorders>"
             let borderColor = style.borderColor.map { _hex($0) } ?? "auto"
+            let borderSz = Int(((style.borderWidth ?? 0.5) * 8).rounded())
             for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
-                xml += style.borders ? "<w:\(side) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
+                xml += style.borders ? "<w:\(side) w:val=\"single\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
                                      : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
             xml += "</w:tblBorders>"
