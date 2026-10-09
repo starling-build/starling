@@ -1116,6 +1116,9 @@ private struct SlideContext {
         guard !paragraphs.isEmpty else { return nil }
         var doc = RichDocument(paragraphs: paragraphs)
         if !widths.isEmpty { doc.tableColumns[tableId] = widths }
+        // The rows' own heights (`a:tr h`), as minimums: PowerPoint keeps a
+        // row that tall however little is in it.
+        let rowHeights = tbl.all("a:tr").map { ($0["h"].flatMap(Double.init) ?? 0) / Pptx.emu }
         let accent = theme.colors["accent1"] ?? Color(0xFF4472C4)
         var ts = plain
             ? TableStyle(borders: styleId.isEmpty || styleId.hasPrefix("{5940675A"), headerRow: false, borderColor: colors.scheme("tx1"))
@@ -1125,6 +1128,7 @@ private struct SlideContext {
                          borderColor: Color(0xFFFFFFFF))
         if sawCellLine { ts.borders = visibleCellLine }
         if let cellBorder { ts.borderColor = cellBorder }
+        for (r, h) in rowHeights.enumerated() where h > 0 { ts.rowHeights[r] = h }
         doc.tableStyles[tableId] = ts
         var st = ShapeState(id: id(), name: el.descendant("p:cNvPr")?["name"] ?? "Table", kind: .table, frame: frame,
                             rotation: 0, fill: nil, outline: nil, outlineWidth: 0, anchor: .top,

@@ -391,7 +391,7 @@ not draw at all. Over the 553 decks PowerPoint renders:
 | | mean | median | ≤2% | >20% |
 |---|---|---|---|---|
 | before | 9.7% | 2.6% | 256 | 92 |
-| after | 5.7% | 1.3% | 311 | 42 |
+| after | 5.6% | 1.2% | 317 | 40 |
 
 Found and fixed, by pixels (the file is never touched — every one of
 these is read-side or paint-side, and the writer regression round shows
@@ -456,7 +456,11 @@ the saved copies byte-identical):
   the slot is the first bulleted paragraph's hang now. A table cell's
   own fill and line colour (`a:tcPr`) are read — a table laid out by hand
   carries its look there, not in a style (an IHEP deck's red-and-pink
-  table from 23% to 15%); lines all `noFill` turn the grid off.
+  table from 23% to 15%); lines all `noFill` turn the grid off. A row's
+  own height (`a:tr h`) is a minimum now — `RichDocument.tableRowHeights`,
+  honoured by RichLayout — which PowerPoint keeps however little is in
+  the row (tcPr-vert from 39% to 2%, tdf144092-tableHeight from 30% to
+  12%).
 
 Left on the painter side, from the same ranking: SmartArt without a
 drawing part (would need a layout engine), vertical table text, a
