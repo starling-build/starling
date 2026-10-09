@@ -574,6 +574,79 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(widths.reduce(0, +), 612, accuracy: 2, "the grid scales to the full text width")
     }
 
+    func testSectionsAndCompatModeKeptVerbatim() throws {
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "portrait"), RichParagraph(text: "landscape")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let sect = "<w:sectPr><w:headerReference w:type=\"default\" r:id=\"rIdNone\"/><w:type w:val=\"nextPage\"/><w:pgSz w:w=\"16839\" w:h=\"11907\" w:orient=\"landscape\"/><w:pgMar w:top=\"567\" w:right=\"567\" w:bottom=\"567\" w:left=\"1134\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/><w:cols w:space=\"720\"/></w:sectPr>"
+        // Into the first paragraph's properties: the last </w:pPr> before its text.
+        let textAt = xml.range(of: ">portrait<")!.lowerBound
+        let close = xml.range(of: "</w:pPr>", options: .backwards, range: xml.startIndex ..< textAt)!
+        xml.insert(contentsOf: sect, at: close.lowerBound)
+        XCTAssertTrue(xml.contains("w:orient=\"landscape\""), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let si = entries.firstIndex { $0.name == "word/settings.xml" }!
+        let settings = String(decoding: entries[si].data, as: UTF8.self).replacingAll("w:val=\"15\"/></w:compat>", with: "w:val=\"14\"/><w:useFELayout/></w:compat>")
+        XCTAssertTrue(settings.contains("useFELayout"), settings)
+        entries[si] = ZipEntry(name: "word/settings.xml", data: Data(settings.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(back.paragraphs[1].style.pageBreakBefore)
+        let kept = try XCTUnwrap(back.paragraphs[0].style.sectionXML)
+        XCTAssertTrue(kept.contains("w:orient=\"landscape\"") && !kept.contains("headerReference"), kept)
+        XCTAssertEqual(back.keptCompat, "<w:compat><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"14\"/><w:useFELayout/></w:compat>")
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        let savedXML = String(decoding: saved.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(savedXML.contains("<w:sectPr><w:type w:val=\"nextPage\"/><w:pgSz w:h=\"11907\" w:orient=\"landscape\" w:w=\"16839\"/>"), savedXML)
+        XCTAssertFalse(savedXML.contains("rIdNone"), savedXML)
+        XCTAssertEqual(savedXML.components(separatedBy: "<w:sectPr>").count - 1, 2, "the section and the body's own")
+        let savedSettings = String(decoding: saved.first { $0.name == "word/settings.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(savedSettings.contains("w:val=\"14\"/><w:useFELayout/></w:compat>"), savedSettings)
+    }
+
+    func testRunTurningOffItsStyleBoldIsWrittenOff() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "plain heading")])
+        doc.styles = OfficeStyles.sheet
+        var h3 = try XCTUnwrap(doc.styles["Heading3"]); h3.char.bold = true; h3.char.italic = true; doc.styles["Heading3"] = h3
+        doc.styles.apply("Heading3", to: &doc.paragraphs[0].style)
+        // A plain run inherits the style's bold: nothing written (52288's
+        // chapter names must stay bold).
+        let plain = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertFalse(plain.contains("w:val=\"0\""), plain)
+        // A run that turns them off says so, and reads back the same.
+        doc.paragraphs[0].runs[0].style.off = [.bold, .italic]
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:rPr><w:b w:val=\"0\"/><w:i w:val=\"0\"/></w:rPr>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].runs[0].style.off, [.bold, .italic])
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 1)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(back)
+        XCTAssertEqual((layout.geometry(0).painter.text as? TextSpan)?.style?.fontWeight, .normal, "the editor shows it un-bold too")
+    }
+
+    func testAutoSpacingRoundTrip() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "html paragraph")])
+        doc.paragraphs[0].style.spaceBefore = 5; doc.paragraphs[0].style.spaceBeforeAuto = true; doc.paragraphs[0].style.spaceAfterAuto = true
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:spacing w:before=\"100\" w:beforeAutospacing=\"1\" w:after=\"160\" w:afterAutospacing=\"1\""), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertTrue(back.paragraphs[0].style.spaceBeforeAuto && back.paragraphs[0].style.spaceAfterAuto)
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 1)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(back)
+        XCTAssertEqual(layout.geometry(0).textTop - layout.geometry(0).top, (14 * 96.0 / 72.0).rounded())
+        // Under an auto-spaced style, a paragraph that turns it off says so.
+        var styled = doc
+        styled.styles["Web"] = RichNamedStyle(id: "Web", name: "Web", paragraph: { var p = RichParagraphStyle(); p.spaceBeforeAuto = true; p.spaceAfterAuto = true; return p }(), char: CharStyle())
+        styled.paragraphs[0].style.named = "Web"
+        styled.paragraphs[0].style.spaceBeforeAuto = false; styled.paragraphs[0].style.spaceAfterAuto = false; styled.paragraphs[0].style.spaceAfter = 12
+        let off = String(decoding: try Zip.read(try DocxFormat.write(styled, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(off.contains("<w:spacing w:before=\"100\" w:beforeAutospacing=\"0\" w:after=\"240\" w:afterAutospacing=\"0\""), off)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

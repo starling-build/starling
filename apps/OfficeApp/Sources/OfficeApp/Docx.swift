@@ -1382,12 +1382,15 @@ enum DocxFormat {
     /// (a paragraph that says nothing takes the file's defaults, which
     /// need not be ours). Twips and 240ths, rounded — truncation drifted
     /// 1.08 lines to 258/240 and on down with every save.
-    static func _spacingXML(_ s: RichParagraphStyle) -> String {
+    /// `under` is the paragraph style's spacing: auto spacing the style
+    /// turns on and the paragraph turns off is written as off (drawing's
+    /// "after 240, afterAutospacing 0" under an auto-spaced style).
+    static func _spacingXML(_ s: RichParagraphStyle, under: RichParagraphStyle? = nil) -> String {
         var spacing = ""
         if s.spaceBefore > 0 { spacing += " w:before=\"\(Int((s.spaceBefore * 20).rounded()))\"" }
-        if s.spaceBeforeAuto { spacing += " w:beforeAutospacing=\"1\"" }
+        if s.spaceBeforeAuto { spacing += " w:beforeAutospacing=\"1\"" } else if under?.spaceBeforeAuto ?? false { spacing += " w:beforeAutospacing=\"0\"" }
         spacing += " w:after=\"\(Int((s.spaceAfter * 20).rounded()))\""
-        if s.spaceAfterAuto { spacing += " w:afterAutospacing=\"1\"" }
+        if s.spaceAfterAuto { spacing += " w:afterAutospacing=\"1\"" } else if under?.spaceAfterAuto ?? false { spacing += " w:afterAutospacing=\"0\"" }
         if let pts = s.lineHeightPoints {
             spacing += " w:line=\"\(Int((pts * 20).rounded()))\" w:lineRule=\"\(s.lineHeightIsMinimum ? "atLeast" : "exact")\""
         } else {
@@ -1561,7 +1564,7 @@ enum DocxFormat {
             }
             // Spacing spelled out on every paragraph, so that Word and we
             // lay the file out alike whatever its defaults say.
-            pPr += _spacingXML(p.style)
+            pPr += _spacingXML(p.style, under: (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph)
             // Indents the style sets and the paragraph unsets are written
             // as zero: IllustrativeCases' Body Text Indent hangs 0.75in
             // into the margin and every paragraph of it says left 0.
