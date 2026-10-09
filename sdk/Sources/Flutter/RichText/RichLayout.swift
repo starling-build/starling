@@ -99,7 +99,8 @@ public final class RichTextTheme {
         }
         return TextStyle(
             color: color,
-            backgroundColor: style.highlight,
+            // Commented text carries Word's balloon tint.
+            backgroundColor: style.highlight ?? (style.comments.isEmpty ? nil : Color(0x40FFD966)),
             fontSize: style.script == .normal ? px : px * 0.65,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,

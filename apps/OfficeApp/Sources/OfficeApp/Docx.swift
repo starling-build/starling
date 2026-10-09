@@ -188,6 +188,12 @@ enum DocxFormat {
                                                                    type: type, part: path, text: _fieldText(node)))
             }
         }
+        // Comments: the part (and Word's extended parts) kept whole; the
+        // ranges ride on the runs. Word prints them as balloons, which
+        // scale the page (WordWithAttachments, delins, testComment).
+        for p in ["word/comments.xml", "word/commentsExtended.xml", "word/commentsIds.xml", "word/commentsExtensible.xml"] {
+            if let data = part(p), _wellFormed(data) { notes.keep(p) }
+        }
         // Theme fonts: "minorHAnsi" in a run or style means the theme's
         // minor Latin face — Calibri only in Word's default theme. Resolved
         // in the trees before anything reads a font, so a Cambria or Aptos
@@ -846,6 +852,9 @@ enum DocxFormat {
         let contentType: (String) -> String?
         var kept: [String: Data]
         var keptTypes: [String: String] = [:]
+        /// Comment ranges open at this point of the walk (they cross
+        /// paragraphs).
+        var openComments: [String] = []
         init(kept: [String: Data], rels: [String: KeptRel], rootNS: [String: String],
              part: @escaping (String) -> Data?, contentType: @escaping (String) -> String?) {
             self.kept = kept
@@ -1186,6 +1195,7 @@ enum DocxFormat {
             var cs = cellChar
             cs.link = link
             cs.revision = revision
+            cs.comments = notes.openComments
             if let rPr = r.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
             for child in r.children {
                 switch child.name {
@@ -1254,6 +1264,10 @@ enum DocxFormat {
                     walkInline(child, link: link, revision: mark)
                 case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
                     walkInline(child, link: link, revision: revision)
+                case "w:commentRangeStart":
+                    if notes.kept["word/comments.xml"] != nil, let id = child["w:id"] { notes.openComments.append(id) }
+                case "w:commentRangeEnd":
+                    if let id = child["w:id"] { notes.openComments.removeAll { $0 == id } }
                 case "w:pPr", "w:proofErr", "w:bookmarkStart", "w:bookmarkEnd":
                     break
                 default: break
@@ -1425,6 +1439,15 @@ enum DocxFormat {
         var mediaRels: [(id: String, target: String)] = []
         var keptRels = "", keptRelCount = 0
         var keptDocPrCount = 0
+        let commentsKept = doc.keptParts["word/comments.xml"] != nil
+        var openComments: [String] = []
+        /// The comment ids on the run after (`index`, `runIndex`): the next
+        /// run of the paragraph, else the next paragraph's first.
+        func commentsAfter(_ index: Int, _ runIndex: Int) -> [String] {
+            let p = doc.paragraphs[index]
+            if let next = p.runs[(runIndex + 1)...].first(where: { $0.length > 0 }) { return next.style.comments }
+            return index + 1 < doc.paragraphs.count ? (doc.paragraphs[index + 1].runs.first?.style.comments ?? []) : []
+        }
         var revisionCount = 0
         var usedExtensions: Set<String> = []
         func relId(for link: String) -> String {
@@ -1585,7 +1608,7 @@ enum DocxFormat {
             }
             var pos = 0
             let utf16 = p.text.utf16
-            for run in p.runs where run.length > 0 {
+            for (runIndex, run) in p.runs.enumerated() where run.length > 0 {
                 let a = utf16.index(utf16.startIndex, offsetBy: pos)
                 let b = utf16.index(a, offsetBy: run.length)
                 let piece = String(utf16[a ..< b]) ?? ""
@@ -1623,6 +1646,12 @@ enum DocxFormat {
                     let tag = rev.kind == .inserted ? "w:ins" : "w:del"
                     runXML = "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")>\(runXML)</\(tag)>"
                 }
+                if commentsKept {
+                    for id in s.comments where !openComments.contains(id) {
+                        body += "<w:commentRangeStart w:id=\"\(_esc(id))\"/>"
+                        openComments.append(id)
+                    }
+                }
                 if let link = s.link {
                     if link.hasPrefix("#") {
                         body += "<w:hyperlink w:anchor=\"\(_esc(String(link.dropFirst())))\">\(runXML)</w:hyperlink>"
@@ -1631,6 +1660,13 @@ enum DocxFormat {
                     }
                 } else {
                     body += runXML
+                }
+                if commentsKept {
+                    let after = commentsAfter(index, runIndex)
+                    for id in openComments where !after.contains(id) {
+                        body += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
+                    }
+                    openComments.removeAll { !after.contains($0) }
                 }
             }
             body += "</w:p>"
@@ -1804,6 +1840,18 @@ enum DocxFormat {
             case "word/endnotes.xml":
                 relsXML += "<Relationship Id=\"rIdEndnotes\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes\" Target=\"endnotes.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/endnotes.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml\"/>"
+            case "word/comments.xml":
+                relsXML += "<Relationship Id=\"rIdComments\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments\" Target=\"comments.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/comments.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml\"/>"
+            case "word/commentsExtended.xml":
+                relsXML += "<Relationship Id=\"rIdCommentsExt\" Type=\"http://schemas.microsoft.com/office/2011/relationships/commentsExtended\" Target=\"commentsExtended.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/commentsExtended.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml\"/>"
+            case "word/commentsIds.xml":
+                relsXML += "<Relationship Id=\"rIdCommentsIds\" Type=\"http://schemas.microsoft.com/office/2016/09/relationships/commentsIds\" Target=\"commentsIds.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/commentsIds.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml\"/>"
+            case "word/commentsExtensible.xml":
+                relsXML += "<Relationship Id=\"rIdCommentsExtensible\" Type=\"http://schemas.microsoft.com/office/2018/08/relationships/commentsExtensible\" Target=\"commentsExtensible.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/commentsExtensible.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtensible+xml\"/>"
             case _ where name.hasPrefix("word/theme/"):
                 relsXML += "<Relationship Id=\"rIdTheme\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"\(_esc(String(name.dropFirst(5))))\"/>"
                 extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>"

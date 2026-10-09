@@ -94,6 +94,9 @@ public struct CharStyle: Hashable, Sendable {
     /// Word's hidden text (w:vanish): kept in the document, not shown or
     /// printed.
     public var hidden = false
+    /// Ids of the comments whose ranges cover this run (the comments
+    /// themselves live in the kept `word/comments.xml`).
+    public var comments: [String] = []
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,

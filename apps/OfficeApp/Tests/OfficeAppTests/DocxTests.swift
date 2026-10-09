@@ -524,6 +524,27 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(layout.geometry(0).painter.width, other.geometry(0).painter.width, accuracy: 1, "hidden text takes no width")
     }
 
+    func testCommentsKeptWithTheirRanges() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "a b c"), RichParagraph(text: "d e")])
+        var on = CharStyle(); on.comments = ["0"]
+        doc.paragraphs[0].runs = [Run(length: 2), Run(length: 3, style: on)]
+        doc.paragraphs[1].runs = [Run(length: 1, style: on), Run(length: 2)]   // the range crosses the paragraph
+        doc.keptParts["word/comments.xml"] = Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:comment w:id=\"0\" w:author=\"poi\" w:date=\"2021-05-20T10:57:00Z\" w:initials=\"s\"><w:p><w:r><w:annotationRef/></w:r><w:r><w:t>note</w:t></w:r></w:p></w:comment></w:comments>".utf8)
+        doc.keptPartTypes["word/comments.xml"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"
+        let entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let xml = String(decoding: entries.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:t xml:space=\"preserve\">a </w:t></w:r><w:commentRangeStart w:id=\"0\"/><w:r><w:t xml:space=\"preserve\">b c</w:t></w:r></w:p>"), xml)
+        XCTAssertTrue(xml.contains("<w:t xml:space=\"preserve\">d</w:t></w:r><w:commentRangeEnd w:id=\"0\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"0\"/></w:r><w:r><w:t xml:space=\"preserve\"> e</w:t>"), xml)
+        XCTAssertEqual(xml.components(separatedBy: "commentRangeStart").count - 1, 1)
+        let rels = String(decoding: entries.first { $0.name == "word/_rels/document.xml.rels" }!.data, as: UTF8.self)
+        XCTAssertTrue(rels.contains("relationships/comments\" Target=\"comments.xml\""), rels)
+        XCTAssertNotNil(entries.first { $0.name == "word/comments.xml" })
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].runs.map { $0.style.comments }, [[], ["0"]])
+        XCTAssertEqual(back.paragraphs[1].runs.map { $0.style.comments }, [["0"], []])
+        XCTAssertNotNil(back.keptParts["word/comments.xml"])
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
