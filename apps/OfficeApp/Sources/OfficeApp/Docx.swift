@@ -588,6 +588,7 @@ enum DocxFormat {
                     if let h = tr.first("w:trPr")?.first("w:trHeight"), let v = Double(h["w:val"] ?? ""), v > 0 {
                         style.rowHeights[r] = v / 20
                     }
+                    if let c = tr.first("w:trPr")?.first("w:cantSplit"), !_isOff(c) { style.rowsCantSplit.insert(r) }
                 }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
@@ -771,6 +772,9 @@ enum DocxFormat {
             if let v = Double(ind["w:hanging"] ?? "") { style.firstLineIndent = -v / 20 }
         }
         if let bidi = pPr.first("w:bidi") { style.rightToLeft = !_isOff(bidi) }
+        if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }
+        if let k = pPr.first("w:keepLines") { style.keepLines = !_isOff(k) }
+        if let w = pPr.first("w:widowControl") { style.widowControl = !_isOff(w) }
         if let tabs = pPr.first("w:tabs") {
             var stops: [TabStop] = []
             for t in tabs.all("w:tab") {
@@ -1546,7 +1550,10 @@ enum DocxFormat {
             if let h = p.style.heading { pPr += "<w:pStyle w:val=\"Heading\(min(h, 6))\"/>" }
             else if let n = p.style.named, doc.styles[n] != nil { pPr += "<w:pStyle w:val=\"\(_esc(n))\"/>" }
             else if p.style.list != nil { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
+            if p.style.keepNext { pPr += "<w:keepNext/>" }
+            if p.style.keepLines { pPr += "<w:keepLines/>" }
             if p.style.pageBreakBefore { pPr += "<w:pageBreakBefore/>" }
+            if !p.style.widowControl { pPr += "<w:widowControl w:val=\"0\"/>" }
             if p.style.list != nil {
                 pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
             }
@@ -1754,6 +1761,7 @@ enum DocxFormat {
             let refs = members.compactMap(\.cell)
             for r in 0 ..< rows {
                 var trPr = ""
+                if style.rowsCantSplit.contains(r) { trPr += "<w:cantSplit/>" }
                 if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"/>" }
                 if r == 0 && style.headerRow { trPr += "<w:tblHeader/>" }
                 xml += trPr.isEmpty ? "<w:tr>" : "<w:tr><w:trPr>\(trPr)</w:trPr>"

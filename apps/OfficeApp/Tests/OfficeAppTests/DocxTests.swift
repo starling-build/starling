@@ -647,6 +647,22 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(off.contains("<w:spacing w:before=\"100\" w:beforeAutospacing=\"0\" w:after=\"240\" w:afterAutospacing=\"0\""), off)
     }
 
+    func testPaginationHintsRoundTrip() throws {
+        var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")
+        a.cell = CellRef(table: "T", row: 0, column: 0); b.cell = CellRef(table: "T", row: 1, column: 0)
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "head"), a, b, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [200]
+        var ts = TableStyle(); ts.rowsCantSplit = [1]; doc.tableStyles["T"] = ts
+        doc.paragraphs[0].style.keepNext = true; doc.paragraphs[0].style.keepLines = true; doc.paragraphs[0].style.widowControl = false
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:pPr><w:keepNext/><w:keepLines/><w:widowControl w:val=\"0\"/><w:spacing"), xml)
+        XCTAssertTrue(xml.contains("<w:tr><w:trPr><w:cantSplit/></w:trPr>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertTrue(back.paragraphs[0].style.keepNext && back.paragraphs[0].style.keepLines && !back.paragraphs[0].style.widowControl)
+        XCTAssertTrue(back.paragraphs[1].style.widowControl)
+        XCTAssertEqual(back.tableStyles.values.first?.rowsCantSplit, [1])
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

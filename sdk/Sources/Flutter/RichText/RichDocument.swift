@@ -226,6 +226,11 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// sheet, under any direct formatting.
     public var named: String? = nil
     public var pageBreakBefore = false
+    /// Word's pagination hints, kept through a save (the layout paginates
+    /// its own way): keep with next, keep lines together, widow control.
+    public var keepNext = false
+    public var keepLines = false
+    public var widowControl = true
     /// Lines around the paragraph (Word's paragraph borders); nil for none.
     public var borders: ParagraphBorders? = nil
     /// The section this paragraph ends, as Word wrote it (a `w:sectPr`
@@ -539,6 +544,8 @@ public struct TableStyle: Hashable, Sendable {
     public var indent: Double = 0
     /// Minimum row heights in points by row index (Word's `w:trHeight`);
     /// a row without one is as tall as its content.
+    /// Rows Word may not split across pages (w:cantSplit), by index.
+    public var rowsCantSplit: Set<Int> = []
     public var rowHeights: [Int: Double] = [:]
     /// Cell margins in points (Word's `w:tblCellMar`: 0 above and below,
     /// 5.4 at the sides by default); nil takes the layout's own padding.
