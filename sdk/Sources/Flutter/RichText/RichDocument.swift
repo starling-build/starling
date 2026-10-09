@@ -94,6 +94,9 @@ public struct CharStyle: Hashable, Sendable {
     /// Word's hidden text (w:vanish): kept in the document, not shown or
     /// printed.
     public var hidden = false
+    /// Extra space between characters in points (Word's w:spacing on a
+    /// run); negative condenses.
+    public var letterSpacing: Double? = nil
     /// Ids of the comments whose ranges cover this run (the comments
     /// themselves live in the kept `word/comments.xml`).
     public var comments: [String] = []
@@ -248,6 +251,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var borders: ParagraphBorders? = nil
     /// A fill behind the whole paragraph (Word's paragraph shading).
     public var fill: Color? = nil
+    /// Word's frame (w:framePr: a paragraph positioned on the page), kept
+    /// as written for the save; the layout flows it like any other.
+    public var frameXML: String? = nil
     /// Word's "don't add space between paragraphs of the same style"
     /// (w:contextualSpacing): the space before/after is dropped where the
     /// neighbour has the same named style.

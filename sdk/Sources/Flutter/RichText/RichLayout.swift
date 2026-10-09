@@ -104,6 +104,7 @@ public final class RichTextTheme {
             fontSize: style.script == .normal ? px : px * 0.65,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,
+            letterSpacing: style.letterSpacing.map { $0 * pixelsPerPoint * scale },
             // An exact line height is the same multiple of every run's own
             // size: points over size.
             height: paragraph.lineHeightPoints.map { size > 0 ? (paragraph.lineHeightIsMinimum ? max($0 / size, paragraph.lineSpacing) : $0 / size) : 1 } ?? paragraph.lineSpacing,

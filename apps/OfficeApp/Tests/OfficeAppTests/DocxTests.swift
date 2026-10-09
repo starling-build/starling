@@ -729,6 +729,18 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThan(layout.geometry(1).height, layout.geometry(1).painter.height + 20)
     }
 
+    func testFrameAndLetterSpacingRoundTrip() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "boxed")])
+        doc.paragraphs[0].style.frameXML = "<w:framePr w:w=\"2000\" w:hAnchor=\"margin\" w:xAlign=\"right\" w:wrap=\"around\"/>"
+        doc.paragraphs[0].runs[0].style.letterSpacing = 1.5
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:pPr><w:framePr w:w=\"2000\""), xml)
+        XCTAssertTrue(xml.contains("<w:spacing w:val=\"30\"/>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertTrue(back.paragraphs[0].style.frameXML?.contains("w:xAlign=\"right\"") ?? false)
+        XCTAssertEqual(back.paragraphs[0].runs[0].style.letterSpacing, 1.5)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

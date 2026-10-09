@@ -801,6 +801,7 @@ enum DocxFormat {
             style.fill = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
         }
         if let c = pPr.first("w:contextualSpacing") { style.contextualSpacing = !_isOff(c) }
+        if let frame = pPr.first("w:framePr") { style.frameXML = PptxXML.serialize(frame) }
         if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }
         if let k = pPr.first("w:keepLines") { style.keepLines = !_isOff(k) }
         if let w = pPr.first("w:widowControl") { style.widowControl = !_isOff(w) }
@@ -1350,6 +1351,7 @@ enum DocxFormat {
     if s.underline { rPr += "<w:u w:val=\"single\"/>" } else if s.off.contains(.underline) { rPr += "<w:u w:val=\"none\"/>" }
     if s.strikethrough { rPr += "<w:strike/>" } else { rPr += off("strike", .strikethrough) }
     if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
+    if let ls = s.letterSpacing, ls != 0 { rPr += "<w:spacing w:val=\"\(Int((ls * 20).rounded()))\"/>" }
     if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
     if let hl = s.highlight {
         if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
@@ -1473,6 +1475,7 @@ enum DocxFormat {
             case "w:strike", "w:dstrike": cs.strikethrough = !_isOff(child); if cs.strikethrough { cs.off.remove(.strikethrough) } else { cs.off.insert(.strikethrough) }
             case "w:caps": cs.caps = !_isOff(child); if cs.caps { cs.off.remove(.caps) } else { cs.off.insert(.caps) }
             case "w:vanish": cs.hidden = !_isOff(child)
+            case "w:spacing": if let v = Double(child["w:val"] ?? "") { cs.letterSpacing = v / 20 }
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }
             case "w:sz": if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
@@ -1621,6 +1624,7 @@ enum DocxFormat {
             if p.style.keepNext { pPr += "<w:keepNext/>" }
             if p.style.keepLines { pPr += "<w:keepLines/>" }
             if p.style.pageBreakBefore { pPr += "<w:pageBreakBefore/>" }
+            if let frame = p.style.frameXML { pPr += frame }
             if !p.style.widowControl { pPr += "<w:widowControl w:val=\"0\"/>" }
             if p.style.list != nil {
                 pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
