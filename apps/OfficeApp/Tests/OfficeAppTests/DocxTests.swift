@@ -739,6 +739,15 @@ final class DocxTests: XCTestCase {
         let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
         XCTAssertTrue(back.paragraphs[0].style.frameXML?.contains("w:xAlign=\"right\"") ?? false)
         XCTAssertEqual(back.paragraphs[0].runs[0].style.letterSpacing, 1.5)
+        // A run's own right-to-left flag and kerning threshold ride along.
+        var arabic = RichDocument(paragraphs: [RichParagraph(text: "إسبانيا 504")])
+        arabic.paragraphs[0].runs[0].style.rightToLeft = true
+        arabic.paragraphs[0].runs[0].style.kerningFrom = 14
+        let axml = String(decoding: try Zip.read(try DocxFormat.write(arabic, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(axml.contains("<w:kern w:val=\"28\"/>") && axml.contains("<w:rtl/>"), axml)
+        let aback = try DocxFormat.read(try DocxFormat.write(arabic, pageSetup: .letter)).document.paragraphs[0].runs[0].style
+        XCTAssertTrue(aback.rightToLeft)
+        XCTAssertEqual(aback.kerningFrom, 14)
     }
 
     func testCapsAndParagraphBordersRoundTrip() throws {

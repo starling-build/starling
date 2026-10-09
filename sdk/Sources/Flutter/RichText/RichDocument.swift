@@ -97,6 +97,11 @@ public struct CharStyle: Hashable, Sendable {
     /// Extra space between characters in points (Word's w:spacing on a
     /// run); negative condenses.
     public var letterSpacing: Double? = nil
+    /// Word's run-level right-to-left flag (w:rtl), which decides how
+    /// neutral characters and digits sit in a right-to-left paragraph.
+    public var rightToLeft = false
+    /// Kerning from this size up, in points (Word's w:kern); nil for none.
+    public var kerningFrom: Double? = nil
     /// Ids of the comments whose ranges cover this run (the comments
     /// themselves live in the kept `word/comments.xml`).
     public var comments: [String] = []

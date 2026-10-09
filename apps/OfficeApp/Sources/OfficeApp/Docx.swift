@@ -1352,6 +1352,7 @@ enum DocxFormat {
     if s.strikethrough { rPr += "<w:strike/>" } else { rPr += off("strike", .strikethrough) }
     if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
     if let ls = s.letterSpacing, ls != 0 { rPr += "<w:spacing w:val=\"\(Int((ls * 20).rounded()))\"/>" }
+    if let k = s.kerningFrom { rPr += "<w:kern w:val=\"\(Int((k * 2).rounded()))\"/>" }
     if let size = s.fontSize { rPr += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
     if let hl = s.highlight {
         if let name = highlightNames.first(where: { $0.1 == hl })?.0 {
@@ -1362,6 +1363,7 @@ enum DocxFormat {
     }
     if s.script == .superscript { rPr += "<w:vertAlign w:val=\"superscript\"/>" }
     if s.script == .subscript { rPr += "<w:vertAlign w:val=\"subscript\"/>" }
+    if s.rightToLeft { rPr += "<w:rtl/>" }
         return rPr
     }
 
@@ -1476,6 +1478,8 @@ enum DocxFormat {
             case "w:caps": cs.caps = !_isOff(child); if cs.caps { cs.off.remove(.caps) } else { cs.off.insert(.caps) }
             case "w:vanish": cs.hidden = !_isOff(child)
             case "w:spacing": if let v = Double(child["w:val"] ?? "") { cs.letterSpacing = v / 20 }
+            case "w:rtl": cs.rightToLeft = !_isOff(child)
+            case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }
             case "w:sz": if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
