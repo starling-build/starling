@@ -818,15 +818,14 @@ enum DocxFormat {
                     style.lineHeightPoints = v / 20
                     style.lineHeightIsMinimum = false
                 case "atLeast":
-                    // "At least 1pt" (Bug51170's atLeast 23 twips) is single
-                    // spacing in effect; a real minimum is kept as one.
-                    if v / 20 >= 12 {
-                        style.lineHeightPoints = v / 20
-                        style.lineHeightIsMinimum = true
-                    } else {
-                        style.lineHeightPoints = nil
-                        style.lineSpacing = 1.0
-                    }
+                    // A minimum, however small: Word lays "at least 1pt"
+                    // (Bug51170's atLeast 23 twips) out tighter than
+                    // single-auto — the font's own height without the
+                    // multiple — so it is kept as the minimum it is, over
+                    // single lines, and written back as such.
+                    style.lineHeightPoints = v / 20
+                    style.lineHeightIsMinimum = true
+                    style.lineSpacing = 1.0
                 default:
                     style.lineSpacing = v / 240
                     style.lineHeightPoints = nil
