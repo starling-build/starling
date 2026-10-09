@@ -1160,7 +1160,15 @@ enum DocxFormat {
                 // editor's picture paragraph, with its handles.
                 para = RichParagraph(image: only, style: style)
             } else {
-                para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
+                if text.isEmpty, inlineImages.isEmpty, !notes.openComments.isEmpty {
+                    // An empty paragraph inside a comment range carries the
+                    // range too, or the writer would close and reopen it.
+                    var cs = cellChar
+                    cs.comments = notes.openComments
+                    para = RichParagraph(text: "", charStyle: cs, style: style)
+                } else {
+                    para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
+                }
                 para.inlineImages = inlineImages
             }
             para.normalize()
@@ -1541,12 +1549,15 @@ enum DocxFormat {
         var keptDocPrCount = 100_000   // kept drawings' docPr ids start here, above the generated pictures'
         let commentsKept = doc.keptParts["word/comments.xml"] != nil
         var openComments: [String] = []
+        var closedComments = Set<String>()   // a range id is started once; Word rejects a second start
         /// The comment ids on the run after (`index`, `runIndex`): the next
         /// run of the paragraph, else the next paragraph's first.
         func commentsAfter(_ index: Int, _ runIndex: Int) -> [String] {
             let p = doc.paragraphs[index]
             if let next = p.runs[(runIndex + 1)...].first(where: { $0.length > 0 }) { return next.style.comments }
-            return index + 1 < doc.paragraphs.count ? (doc.paragraphs[index + 1].runs.first?.style.comments ?? []) : []
+            guard index + 1 < doc.paragraphs.count else { return [] }
+            let np = doc.paragraphs[index + 1]
+            return (np.runs.first(where: { $0.length > 0 }) ?? np.runs.first)?.style.comments ?? []
         }
         var revisionCount = 0
         var usedExtensions: Set<String> = []
@@ -1751,7 +1762,7 @@ enum DocxFormat {
                     runXML = "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")>\(runXML)</\(tag)>"
                 }
                 if commentsKept {
-                    for id in s.comments where !openComments.contains(id) {
+                    for id in s.comments where !openComments.contains(id) && !closedComments.contains(id) {
                         body += "<w:commentRangeStart w:id=\"\(_esc(id))\"/>"
                         openComments.append(id)
                     }
@@ -1769,6 +1780,7 @@ enum DocxFormat {
                     let after = commentsAfter(index, runIndex)
                     for id in openComments where !after.contains(id) {
                         body += "<w:commentRangeEnd w:id=\"\(_esc(id))\"/><w:r><w:rPr><w:rStyle w:val=\"CommentReference\"/></w:rPr><w:commentReference w:id=\"\(_esc(id))\"/></w:r>"
+                        closedComments.insert(id)
                     }
                     openComments.removeAll { !after.contains($0) }
                 }
