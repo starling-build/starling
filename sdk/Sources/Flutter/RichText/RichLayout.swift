@@ -1135,8 +1135,16 @@ public final class RichLayout {
         let bBottom = style.borders?.bottom.map { _px($0.space + $0.width) } ?? 0
         // Word's auto spacing: 14pt, none between items of a list.
         let autoGap = style.list == nil ? 14.0 : 0.0
-        let before = (_px(style.spaceBeforeAuto ? autoGap : style.spaceBefore) + bTop).rounded()
-        let after = _px(style.spaceAfterAuto ? autoGap : style.spaceAfter) + bBottom
+        // Contextual spacing: no space against a neighbour of the same style.
+        func sameStyle(_ j: Int) -> Bool {
+            guard j >= 0, j < document.paragraphs.count else { return false }
+            let o = document.paragraphs[j].style
+            return o.named == style.named && o.heading == style.heading && o.list == style.list
+        }
+        let skipBefore = style.contextualSpacing && sameStyle(i - 1)
+        let skipAfter = style.contextualSpacing && sameStyle(i + 1)
+        let before = ((skipBefore ? 0 : _px(style.spaceBeforeAuto ? autoGap : style.spaceBefore)) + bTop).rounded()
+        let after = (skipAfter ? 0 : _px(style.spaceAfterAuto ? autoGap : style.spaceAfter)) + bBottom
         _painters[i] = painter
         _textLeft[i] = left
         _textWidth[i] = textWidth
@@ -1482,6 +1490,14 @@ public final class RichLayout {
     /// A table row's shading — the header's, or a band's — under every cell
     /// of the row; drawn by its first cell's paragraph, before the selection.
     private func _paintShading(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        if let fill = document.paragraphs[i].style.fill, i < count {
+            // The paragraph's own shading, text area wide.
+            let g = geometry(i)
+            let paint = Paint()
+            paint.style = .fill
+            paint.color = fill
+            canvas.drawRect(Rect.fromLTWH(g.textLeft.rounded(), g.textTop.rounded(), g.textWidth.rounded(), g.painter.height.rounded()), paint)
+        }
         if let c = _cells[i], c.firstInRow, let ts = document.tableStyles[c.table] {
             // The row's shading, under every cell of the row: the header's,
             // or a band's.

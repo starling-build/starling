@@ -246,6 +246,12 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var widowControl = true
     /// Lines around the paragraph (Word's paragraph borders); nil for none.
     public var borders: ParagraphBorders? = nil
+    /// A fill behind the whole paragraph (Word's paragraph shading).
+    public var fill: Color? = nil
+    /// Word's "don't add space between paragraphs of the same style"
+    /// (w:contextualSpacing): the space before/after is dropped where the
+    /// neighbour has the same named style.
+    public var contextualSpacing = false
     /// The section this paragraph ends, as Word wrote it (a `w:sectPr`
     /// without its header/footer references): page size, margins,
     /// columns, numbering. The layout shows one page size for the whole

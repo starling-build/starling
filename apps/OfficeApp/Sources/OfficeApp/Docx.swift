@@ -797,6 +797,10 @@ enum DocxFormat {
             if let v = Double(ind["w:hanging"] ?? "") { style.firstLineIndent = -v / 20 }
         }
         if let bidi = pPr.first("w:bidi") { style.rightToLeft = !_isOff(bidi) }
+        if let shd = pPr.first("w:shd"), let hex = shd["w:fill"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
+            style.fill = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+        }
+        if let c = pPr.first("w:contextualSpacing") { style.contextualSpacing = !_isOff(c) }
         if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }
         if let k = pPr.first("w:keepLines") { style.keepLines = !_isOff(k) }
         if let w = pPr.first("w:widowControl") { style.widowControl = !_isOff(w) }
@@ -1622,6 +1626,7 @@ enum DocxFormat {
                 pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
             }
             if let b = p.style.borders { pPr += _bordersXML(b) }
+            if let fill = p.style.fill { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
             if p.style.rightToLeft { pPr += "<w:bidi/>" }
             else if p.style.named.flatMap({ doc.styles[$0] })?.paragraph.rightToLeft ?? false { pPr += "<w:bidi w:val=\"0\"/>" }
             if !p.style.tabStops.isEmpty {
@@ -1647,6 +1652,7 @@ enum DocxFormat {
             else if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
             else if (sp?.firstLineIndent ?? 0) != 0 { ind += " w:firstLine=\"0\" w:hanging=\"0\"" }
             if !ind.isEmpty { pPr += "<w:ind\(ind)/>" }
+            if p.style.contextualSpacing { pPr += "<w:contextualSpacing/>" }
             switch p.style.alignment {
             case .left:
                 // Left under a style that centres has to say so.

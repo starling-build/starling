@@ -709,6 +709,26 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved2.contains(">changed<"), saved2)
     }
 
+    func testParagraphShadingAndContextualSpacingRoundTrip() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "one"), RichParagraph(text: "two"), RichParagraph(text: "three")])
+        for i in 0 ..< 2 { doc.paragraphs[i].style.named = "ListParagraph"; doc.paragraphs[i].style.contextualSpacing = true; doc.paragraphs[i].style.spaceAfter = 20 }
+        doc.styles["ListParagraph"] = RichNamedStyle(id: "ListParagraph", name: "List Paragraph", paragraph: RichParagraphStyle(), char: CharStyle())
+        doc.paragraphs[0].style.fill = Color(0xFFDDDDDD)
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"DDDDDD\"/>"), xml)
+        XCTAssertTrue(xml.contains("<w:contextualSpacing/>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].style.fill, Color(0xFFDDDDDD))
+        XCTAssertEqual(back.paragraphs.map { $0.style.contextualSpacing }, [true, true, false])
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 3)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(back)
+        // No 20pt after between the two list paragraphs; the 20pt stays after the second (the next differs).
+        XCTAssertEqual(layout.geometry(0).height, layout.geometry(0).painter.height.rounded(.up), accuracy: 1)
+        XCTAssertGreaterThan(layout.geometry(1).height, layout.geometry(1).painter.height + 20)
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))
