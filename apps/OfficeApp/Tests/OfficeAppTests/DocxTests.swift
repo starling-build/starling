@@ -250,13 +250,19 @@ final class DocxTests: XCTestCase {
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
         let si = entries.firstIndex { $0.name == "word/styles.xml" }!
         var styles = String(decoding: entries[si].data, as: UTF8.self)
-        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"EdfTitre3\"><w:name w:val=\"Edf Titre 3\"/><w:basedOn w:val=\"Heading3\"/><w:pPr><w:numPr><w:ilvl w:val=\"2\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr><w:rPr><w:b/><w:color w:val=\"auto\"/></w:rPr></w:style><w:style w:type=\"table\" w:styleId=\"Grid4\"><w:name w:val=\"Grid 4\"/><w:tblPr><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"666666\"/></w:tblBorders></w:tblPr><w:tblStylePr w:type=\"firstCol\"><w:rPr><w:b/></w:rPr></w:tblStylePr><w:tblStylePr w:type=\"firstRow\"><w:rPr><w:b/><w:color w:val=\"FFFFFF\"/></w:rPr><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"000000\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"CCCCCC\"/></w:tcPr></w:tblStylePr></w:style></w:styles>")
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"EdfTitre3\"><w:name w:val=\"Edf Titre 3\"/><w:basedOn w:val=\"Heading3\"/><w:pPr><w:numPr><w:ilvl w:val=\"2\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr><w:rPr><w:b/><w:color w:val=\"auto\"/></w:rPr></w:style><w:style w:type=\"paragraph\" w:styleId=\"Body\"><w:name w:val=\"Body\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"120\"/></w:pPr></w:style><w:style w:type=\"table\" w:styleId=\"Grid4\"><w:name w:val=\"Grid 4\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:tblPr><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"666666\"/></w:tblBorders></w:tblPr><w:tblStylePr w:type=\"firstCol\"><w:rPr><w:b/></w:rPr></w:tblStylePr><w:tblStylePr w:type=\"firstRow\"><w:rPr><w:b/><w:color w:val=\"FFFFFF\"/></w:rPr><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"000000\"/></w:tcPr></w:tblStylePr><w:tblStylePr w:type=\"band1Horz\"><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"CCCCCC\"/></w:tcPr></w:tblStylePr></w:style></w:styles>")
         entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:p><w:pPr><w:spacing", with: "<w:p><w:pPr><w:pStyle w:val=\"EdfTitre3\"/><w:spacing")   // the first paragraph only
+        if let first = xml.range(of: "<w:p><w:pPr><w:spacing") {   // the first paragraph only
+            xml.replaceSubrange(first, with: "<w:p><w:pPr><w:pStyle w:val=\"EdfTitre3\"/><w:spacing")
+        }
         xml = xml.replacingAll("<w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/>", with: "<w:tblPr><w:tblStyle w:val=\"Grid4\"/><w:tblW w:w=\"0\" w:type=\"auto\"/>")
         xml = xml.replacingAll("<w:tblBorders>", with: "<w:tblBordersX>").replacingAll("</w:tblBorders>", with: "</w:tblBordersX>")
+        // Every cell paragraph in the Body style (its spacing then comes from the chain).
+        xml = xml.replacingAll("<w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr>", with: "<w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:pStyle w:val=\"Body\"/>")
+        xml = xml.replacingAll("<w:pStyle w:val=\"Body\"/><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/>", with: "<w:pStyle w:val=\"Body\"/>")
+        XCTAssertTrue(xml.contains("<w:pStyle w:val=\"Body\"/>"), xml)
         xml = xml.replacingAll("<w:tblLook w:val=\"04A0\"/>", with: "<w:tblLook w:val=\"04A0\" w:firstRow=\"1\" w:firstColumn=\"1\" w:noHBand=\"0\"/>")
         let ni = entries.firstIndex { $0.name == "word/numbering.xml" }
         let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1\"/></w:lvl><w:lvl w:ilvl=\"1\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.%2\"/></w:lvl><w:lvl w:ilvl=\"2\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.%2.%3\"/><w:pPr><w:ind w:left=\"720\" w:hanging=\"720\"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
@@ -283,6 +289,11 @@ final class DocxTests: XCTestCase {
         let savedNum = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/numbering.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(savedNum.contains("<w:lvlText w:val=\"%1.%2.%3\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"720\" w:hanging=\"720\"/></w:pPr>"), savedNum)
         XCTAssertEqual(back.tableStyles.values.first?.borderColor, Color(0xFF666666))
+        // Inside the cells, the table style's line rule lies under the
+        // paragraph style's: Body (after 120, no line) over Grid4's
+        // single lines, not over the document's 1.15.
+        XCTAssertEqual(cells[0].style.lineSpacing, 1.0, accuracy: 0.001)
+        XCTAssertEqual(cells[0].style.spaceAfter, 6, accuracy: 0.001)
     }
 
     func testFileListIdsKeptAlternateContentOnceAndExplicitLeft() throws {

@@ -228,6 +228,7 @@ enum DocxFormat {
         // Numbering a paragraph style carries itself (a numbered heading
         // style): the paragraphs of that style number without a numPr.
         var styleNums: [String: (numId: String, ilvl: Int)] = [:]
+        var paragraphStyles: [String: XNode] = [:]
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             _resolveThemeFonts(styles, theme)
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
@@ -295,7 +296,6 @@ enum DocxFormat {
             // Reading each style alone lost everything a parent gave it
             // (52288's "Chapter Number", based on a "Chapter Name" that holds
             // the bold and the size, came back as plain Normal text).
-            var paragraphStyles: [String: XNode] = [:]
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 if let id = style["w:styleId"] { paragraphStyles[id] = style }
             }
@@ -452,6 +452,20 @@ enum DocxFormat {
         var tableCount = 0
         var currentCell: CellRef? = nil
         var cellChar = CharStyle()   // the table style's look for the first row's runs
+        /// A paragraph style's chain laid over `base` — the table style's
+        /// paragraph props inside a cell: Word puts the table style under
+        /// the paragraph style, so a style that sets only "after" keeps the
+        /// table style's line rule (65099's cells were a line of 1.15, not 1.0).
+        func chainOver(_ id: String, _ base: RichParagraphStyle) -> RichParagraphStyle? {
+            guard paragraphStyles[id] != nil else { return nil }
+            var ids: [String] = [], seen = Set<String>(), cur: String? = id
+            while let c = cur, !seen.contains(c), let node = paragraphStyles[c] {
+                ids.append(c); seen.insert(c); cur = node.first("w:basedOn")?["w:val"]
+            }
+            var ps = base
+            for c in ids.reversed() { if let pPr = paragraphStyles[c]?.first("w:pPr") { _paragraphProps(pPr, into: &ps) } }
+            return ps
+        }
         var cellBase = base   // the table style's spacing while inside one
 
         func emit(_ p: RichParagraph) {
@@ -488,7 +502,8 @@ enum DocxFormat {
         func walkBlock(_ node: XNode, indent: Double, depth: Int = 0) {
             switch node.name {
             case "w:p":
-                for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar) {
+                for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
+                                     currentCell != nil ? { id in chainOver(id, cellBase) } : nil) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
                 }
             case "w:tbl" where currentCell != nil:
@@ -1044,12 +1059,21 @@ enum DocxFormat {
                                     _ sheet: RichStyleSheet,
                                     _ nums: [String: [Int: ListKind]],
                                     _ rels: [String: String], _ media: (String) -> Data?,
-                                    _ indent: Double, _ notes: _Shared, _ cellChar: CharStyle = CharStyle()) -> [_Built] {
+                                    _ indent: Double, _ notes: _Shared, _ cellChar: CharStyle = CharStyle(),
+                                    _ cellResolve: ((String) -> RichParagraphStyle?)? = nil) -> [_Built] {
         var style = base
         var sectionBreakAfter = false
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
-            if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] { sheet.apply(ours, to: &style) }
+            if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] {
+                sheet.apply(ours, to: &style)
+                if let inCell = cellResolve?(id) {
+                    let named = style.named, heading = style.heading
+                    style = inCell
+                    style.named = named
+                    style.heading = heading
+                }
+            }
             _paragraphProps(pPr, into: &style)
             style.indentLeft += indent
             if let rPr = pPr.first("w:rPr"), let rev = rPr.first("w:del") ?? rPr.first("w:ins") {
