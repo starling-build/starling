@@ -237,6 +237,12 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// Items of one id number on across other paragraphs; nil items number
     /// as a run, restarting after an interruption.
     public var listId: String? = nil
+    /// A list paragraph's OWN left indent, in points, when it states one:
+    /// direct formatting that overrides its level's (`ListLevelFormat.
+    /// indentLeft`). nil is the level's. bug65649's appendix says left 0
+    /// under levels indented 6186 twips, and lost it, so every numbered
+    /// clause started two-thirds of the way across the page.
+    public var listIndentLeft: Double? = nil
     /// 1...6 for a heading, nil for body text. The outline level is what
     /// `.docx`, RTF and Markdown all carry; the look comes from the
     /// document's style sheet ("Heading1"...) when it has that entry.

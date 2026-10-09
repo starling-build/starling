@@ -330,6 +330,16 @@ final class DocxTests: XCTestCase {
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(back.paragraphs[2].style.alignment, .left)
         XCTAssertEqual(back.paragraphs[0].style.listId, "10")
+        // A list paragraph's own left (bug65649: 0 under a level at 6186
+        // twips) is direct formatting above the level's, and is kept.
+        var own = doc
+        own.paragraphs[0].style.listIndentLeft = 0
+        own.paragraphs[0].style.firstLineIndent = 28.35
+        let ownXML = String(decoding: try Zip.read(try DocxFormat.write(own, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(ownXML.contains("<w:ind w:left=\"0\" w:firstLine=\"567\"/>"), ownXML)
+        let ownBack = try DocxFormat.read(try DocxFormat.write(own, pageSetup: .letter)).document
+        XCTAssertEqual(ownBack.paragraphs[0].style.listIndentLeft, 0)
+        XCTAssertNil(ownBack.paragraphs[1].style.listIndentLeft)
         var footered = doc
         footered.footer = "Page {PAGE}"
         var fe = try Zip.read(try DocxFormat.write(footered, pageSetup: .letter))

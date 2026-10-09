@@ -1152,8 +1152,13 @@ enum DocxFormat {
                     style.list = nums[numId]?[ilvl] ?? nums[numId]?[0] ?? .bullet
                     style.listLevel = min(8, ilvl)
                     style.listId = numId
-                    // The list's own indent replaces the style's.
+                    // The list's own indent replaces the style's — unless
+                    // the paragraph states a left of its own, which Word
+                    // puts above the level's.
                     style.indentLeft = indent
+                    if let ind = pPr.first("w:ind"), let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") {
+                        style.listIndentLeft = v / 20
+                    }
                 }
             }
             if pPr.first("w:pageBreakBefore") != nil, !_isOff(pPr.first("w:pageBreakBefore")!) {
@@ -1710,7 +1715,11 @@ enum DocxFormat {
             let sheetEntry = p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] }
             let sp = sheetEntry?.paragraph
             var ind = ""
-            if (p.style.indentLeft != 0 || (sp?.indentLeft ?? 0) != 0) && p.style.list == nil { ind += " w:left=\"\(Int(p.style.indentLeft * 20))\"" }
+            if p.style.list != nil {
+                if let own = p.style.listIndentLeft { ind += " w:left=\"\(Int((own * 20).rounded()))\"" }
+            } else if p.style.indentLeft != 0 || (sp?.indentLeft ?? 0) != 0 {
+                ind += " w:left=\"\(Int(p.style.indentLeft * 20))\""
+            }
             if p.style.indentRight != 0 || (sp?.indentRight ?? 0) != 0 { ind += " w:right=\"\(Int(p.style.indentRight * 20))\"" }
             if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
             else if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
