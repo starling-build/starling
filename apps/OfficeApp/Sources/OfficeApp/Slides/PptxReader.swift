@@ -248,6 +248,8 @@ private struct LevelStyle {
     var font: String?
     var color: Color?
     var baseline: Double?
+    /// Character spacing in points (`spc`, hundredths of a point).
+    var spc: Double?
 
     func filled(from lower: LevelStyle) -> LevelStyle {
         var s = self
@@ -266,6 +268,7 @@ private struct LevelStyle {
         s.font = s.font ?? lower.font
         s.color = s.color ?? lower.color
         s.baseline = s.baseline ?? lower.baseline
+        s.spc = s.spc ?? lower.spc
         return s
     }
 
@@ -301,6 +304,7 @@ private struct LevelStyle {
         s.underline = r["u"].map { $0 != "none" }
         s.strike = r["strike"].map { $0 != "noStrike" }
         s.baseline = r["baseline"].flatMap(Double.init)
+        s.spc = r["spc"].flatMap(Double.init).map { $0 / 100 }
         s.font = r.first("a:latin")?["typeface"]
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
         return s
@@ -730,6 +734,11 @@ private struct SlideContext {
         let fromLayout: Rect? = inherited.layout?.first("p:spPr")?.first("a:xfrm").flatMap { _xfrmRect($0) }
         let fromMaster: Rect? = inherited.master?.first("p:spPr")?.first("a:xfrm").flatMap { _xfrmRect($0) }
         guard var frame = own ?? fromLayout ?? fromMaster else { return nil }
+        // A date, footer or slide-number placeholder with no frame of its
+        // own and none on the layout is not on the slide for PowerPoint,
+        // whatever the master has (the file keeps it; a save does too).
+        let hiddenByLayout = own == nil && inherited.layout == nil
+            && ["dt", "ftr", "sldNum"].contains(ph?["type"] ?? "")
         if let t = transform { frame = t(frame) }
         let name = sp.first("p:nvSpPr")?.first("p:cNvPr")?["name"] ?? "Shape"
         let isTextBox = sp.first("p:nvSpPr")?.first("p:cNvSpPr")?["txBox"] == "1"
@@ -858,6 +867,7 @@ private struct SlideContext {
         st.fontScale = text.fontScale
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.fillStyle = fillStyle
+        st.invisible = hiddenByLayout
         // A diagram shape's text frame (`txXfrm`, from a SmartArt drawing):
         // the text sits in that box rather than the shape's.
         if let txBox = sp.first("p:txXfrm").flatMap(_xfrmRect) {
@@ -1094,7 +1104,7 @@ private struct SlideContext {
                         runs.append(Run(length: t.utf16.count, style: CharStyle(
                             bold: s.bold ?? false, italic: s.italic ?? false, underline: s.underline ?? false,
                             fontFamily: _font(s.font), fontSize: s.size ?? 18,
-                            color: s.color ?? colors.scheme("tx1"))))
+                            color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
                     switch level.algn { case "ctr": style.alignment = .center; case "r": style.alignment = .right; default: break }
@@ -1399,6 +1409,7 @@ private struct SlideContext {
                                    fontFamily: _font(s.font), fontSize: ((s.size ?? 18) * 10).rounded() / 10,
                                    color: s.color ?? tx1)
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
+                if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
                 text += t
                 runs.append(Run(length: t.utf16.count, style: cs))
             }

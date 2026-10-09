@@ -460,7 +460,11 @@ the saved copies byte-identical):
   own height (`a:tr h`) is a minimum now — `RichDocument.tableRowHeights`,
   honoured by RichLayout — which PowerPoint keeps however little is in
   the row (tcPr-vert from 39% to 2%, tdf144092-tableHeight from 30% to
-  12%).
+  12%). A date, footer or slide-number placeholder with no frame of its
+  own and none on its layout is not on the slide for PowerPoint, whatever
+  the master has: read as `invisible`, kept for the file, not drawn.
+  Character spacing (`spc`) reaches the layout as `CharStyle.letterSpacing`;
+  the corpus uses it in fractions of a point, so no deck moved.
 
 Left on the painter side, from the same ranking: SmartArt without a
 drawing part (would need a layout engine), vertical table text, a

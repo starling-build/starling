@@ -253,6 +253,7 @@ final class SlidePainter: CustomPainter {
     static func paintShape(_ shape: SlideShape, _ canvas: any Canvas, pxPerPt px: Double,
                            cache: SlideTextCache, theme: DeckTheme, text: Bool,
                            paragraphs: [Int: ShapeReveal]? = nil, slide: Rect? = nil, backdrop: SlideFill? = nil) {
+        if shape.invisible { return }
         let f = shape.frame
         let r = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
         canvas.save()

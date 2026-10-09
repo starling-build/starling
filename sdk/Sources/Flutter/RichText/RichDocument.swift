@@ -123,7 +123,8 @@ public struct CharStyle: Hashable, Sendable {
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,
                 fontSize: Double? = nil, color: Color? = nil, highlight: Color? = nil,
-                link: String? = nil, script: ScriptPosition = .normal, note: NoteReference? = nil) {
+                link: String? = nil, script: ScriptPosition = .normal, note: NoteReference? = nil,
+                letterSpacing: Double? = nil) {
         self.bold = bold
         self.italic = italic
         self.underline = underline
@@ -135,6 +136,7 @@ public struct CharStyle: Hashable, Sendable {
         self.link = link
         self.script = script
         self.note = note
+        self.letterSpacing = letterSpacing
     }
 
     public static let plain = CharStyle()

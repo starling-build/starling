@@ -327,6 +327,10 @@ final class SlideShape {
     /// A kept object's look as shapes (`OpaqueObject.rendering`), built
     /// with this shape; drawn where the object sits.
     var rendered: [SlideShape] = []
+    /// Not drawn: a date, footer or slide-number placeholder whose layout
+    /// has no such placeholder, which PowerPoint leaves off the slide (the
+    /// file still has it, and a save keeps it).
+    var invisible = false
     /// A placeholder's geometry inherited from its layout or master: a
     /// preset, or a custom path evaluated for this shape's size.
     var inheritedPreset: ShapePreset? = nil

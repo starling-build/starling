@@ -39,6 +39,7 @@ struct ShapeState: Equatable {
     var inheritedPreset: ShapePreset? = nil
     var customPath: FreeformGeometry? = nil
     var fillStyle: SlideFill? = nil
+    var invisible = false
     var fileId: Int? = nil
     var sourceXML: String? = nil
     var sourceText: RichDocument? = nil
@@ -1093,7 +1094,7 @@ final class DeckController: ChangeNotifier {
                    flipH: s.flipH, flipV: s.flipV, pictureGeometry: s.pictureGeometry,
                    pictureAlpha: s.pictureAlpha, pictureDuotone: s.pictureDuotone,
                    fillsWithBackground: s.fillsWithBackground, inheritedPreset: s.inheritedPreset,
-                   customPath: s.customPath, fillStyle: s.fillStyle, fileId: s.fileId,
+                   customPath: s.customPath, fillStyle: s.fillStyle, invisible: s.invisible, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
                    keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale, keptLook: s.keptLook)
@@ -1130,6 +1131,7 @@ final class DeckController: ChangeNotifier {
         shape.inheritedPreset = st.inheritedPreset
         shape.customPath = st.customPath
         shape.fillStyle = st.fillStyle
+        shape.invisible = st.invisible
         if case .opaque(let o) = st.kind, !o.rendering.isEmpty {
             if shape.rendered.map(_state) != o.rendering {
                 shape.rendered = o.rendering.map(_make)
