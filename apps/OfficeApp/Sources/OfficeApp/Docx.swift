@@ -1017,7 +1017,6 @@ enum DocxFormat {
                                     _ indent: Double, _ notes: _Shared, _ cellChar: CharStyle = CharStyle()) -> [_Built] {
         var style = base
         var sectionBreakAfter = false
-        var markStyle: CharStyle? = nil   // the paragraph mark's look: an empty paragraph's height
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
             if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] { sheet.apply(ours, to: &style) }
@@ -1027,7 +1026,6 @@ enum DocxFormat {
                 style.markRevision = RevisionMark(kind: rev.name == "w:ins" ? .inserted : .deleted,
                                                   author: rev["w:author"] ?? "", date: rev["w:date"] ?? "")
             }
-            if let rPr = pPr.first("w:rPr") { markStyle = _charStyle(rPr, base: cellChar) }
             // The paragraph's own numbering, else its style's (a numbered
             // heading style: 65099's "1.1.1 Acronyms").
             var num: (numId: String, ilvl: Int)? = nil
@@ -1073,11 +1071,7 @@ enum DocxFormat {
                 // editor's picture paragraph, with its handles.
                 para = RichParagraph(image: only, style: style)
             } else {
-                if text.isEmpty, inlineImages.isEmpty, let mark = markStyle {
-                    para = RichParagraph(text: "", charStyle: mark, style: style)
-                } else {
-                    para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
-                }
+                para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
                 para.inlineImages = inlineImages
             }
             para.normalize()
@@ -1503,16 +1497,16 @@ enum DocxFormat {
             case .justify: pPr += "<w:jc w:val=\"both\"/>"
             }
             // The paragraph mark's own run properties: a tracked change to
-            // the mark, and — for an empty paragraph — its look, which is
-            // what gives the empty line its height (bib-chernigovka's
-            // cover: 3,350 such spacers in 11 corpus files).
+            // the mark. (Its look is NOT written for an empty paragraph:
+            // Word 16.113 printed 4pt and 28pt marks at the same height as
+            // none — probed 2026-10-08 — and writing them cost
+            // form_footnotes a page.)
             var markRPr = ""
             if let rev = p.style.markRevision {
                 revisionCount += 1
                 let tag = rev.kind == .inserted ? "w:ins" : "w:del"
                 markRPr += "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")/>"
             }
-            if p.text.isEmpty, p.image == nil, let first = p.runs.first { markRPr += _rPrXML(first.style) }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += sect }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"

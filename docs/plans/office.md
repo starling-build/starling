@@ -286,6 +286,98 @@ heights), 60329's ragged table, pictures in headers, heading numbering
 defined on a style (3 documents), conditional table-style shading (1),
 `w:caps` and paragraph borders (3 each).
 
+**Third pixel round, 2026-10-08, one Word session.** The rerun was
+driven with both sides printed by one Word session (the first pass of
+it wedged at the 26th document: a stray keystroke from the other
+session's PowerPoint sweep had opened the Wi-Fi menu over the Print
+dialog's go-to-folder sheet, and 63 documents in a row were "no
+document window" — the screenshot, not the log, said so). Fixed by
+rank while it ran, each from its pair picture:
+
+- **All caps, Small caps, paragraph borders** (`w:caps`, `w:smallCaps`,
+  `w:pBdr`; bug65649 alone has 102 bottom rules): `CharStyle.caps`/
+  `smallCaps` shown as capitals (small caps at 80%, the UTF-16 count
+  kept so offsets still map), `RichParagraphStyle.borders` reserving
+  the line and its gap and painting it. capitalized.docx 0%.
+- **Borders and margins the cells carry** (bug65649's 5,734-cell table,
+  bug59058, table-indent, 60329, bib-chernigovka — HTML-converted
+  tables say `w:tcBorders`/`w:tcMar` per cell and nothing on the
+  table): more than half the cells decide, with their colour; border
+  colours (`TableStyle.borderColor`) are read and written now, every
+  table border had been the theme's grey.
+- **Header and footer thirds**: `w:tab`, `w:ptab` and the Header/Footer
+  tab stops; eleven documents' "name <tab> Page N" had come back run
+  together and centred. A paragraph's own `w:tabs` are tab STOPS spelled
+  `w:tab` too, and were being read as typed tabs.
+- **Deleted paragraph marks** (delins 9%): `w:pPr/w:rPr/w:del` is kept
+  (`markRevision`), else Word prints an empty bullet per struck line.
+- **Numbered heading styles, colour auto, conditional table parts**
+  (65099): a style's own `numPr` numbers its paragraphs ("1.1.1
+  Acronyms"); `w:color auto` clears an inherited colour (it was kept);
+  a table style's `firstRow`/`band1Horz`/`band2Horz` fills and the
+  first row's run look land on the cells, as `w:tblLook` switches them.
+- **A file's list ids are kept** (60316's ">" bullets had come back as
+  "1." under a renumbered id inside a kept text box); explicit left
+  alignment under a centred style is written (bug-paragraph-alignment);
+  a footer text box is read from its `mc:Choice` alone ("Page 1Page 1").
+- **Form checkboxes, tab stops, 10pt, the border majority**
+  (form_footnotes): FORMCHECKBOX fields have no result text and had
+  vanished — a box glyph now; `w:tabs` round-trip; a file that states
+  no size anywhere is 10pt in Word, not 11; borders from cells need
+  more than half of them.
+- **Headers and footers with pictures, tables or text boxes, and the
+  first-page ones** (Bug51170's logo, 60329's banner, issue_51265_2/3,
+  headerPic; four files with `w:titlePg`): kept whole with their
+  relationships (`keptHeaderFooters`), referenced from the section again
+  unless the editor's header text changed — then regenerated under a
+  name no kept part uses. The header text reader walks into tables and
+  text boxes too.
+- **Indents of zero that unset a style's** (IllustrativeCases: Body Text
+  Indent hangs 0.75in into the margin, every paragraph says left 0; the
+  writer wrote only non-zero indents, so the body ran 0.75in wide and
+  the tables' first column was clipped).
+- **Right-to-left paragraphs** (rtl.docx): `w:bidi`, in styles too;
+  the layout runs such a paragraph from the right.
+- **A floating picture's anchor** (WithGIF's text flowed over its
+  picture, VariousPictures, issue_51265_3): `wp:anchor` is kept as
+  written and saved verbatim like a chart's, while the editor decodes
+  the picture and shows it in the line.
+- **A paragraph that ends with its page break** (SampleDoc) was split
+  into the part before and an empty part after, and that empty
+  paragraph began the next page a line down; the remainder is dropped.
+- **An empty paragraph's height is NOT its mark's font** — probed
+  against Word 16.113 with 4pt and 28pt marks (`w:pPr/w:rPr/w:sz`) on
+  empty paragraphs: the next line landed where it lands with no mark at
+  all. A commit that wrote the marks (on the usual "the pilcrow's size
+  sets the empty line" lore) cost form_footnotes a page and did nothing
+  for bib-chernigovka; reverted the same day. The run-properties
+  builder it factored out stays.
+- **Every section's page setup, and the compatibility mode**: bug65649
+  has 15 sections, some landscape, and every page came out portrait at
+  the last section's margins — a paragraph that ends a section keeps
+  its `w:sectPr` (minus header/footer references) and writes it back,
+  the layout still showing one page size. And 32 of the corpus's files
+  are in compatibility mode 12 or 14 (52 more state none), whose line
+  breaking and table spacing differ from 15's: the settings' `w:compat`
+  block is kept and written in place of ours.
+- **A run's explicit off** under a style that turns bold, italic, caps,
+  underline or strike on (drawing.docx's `b w:val=0` runs under a bold
+  heading 3 came back bold) is written, like indents and alignment.
+  The editor still shows such a run bold: `CharStyle` has no
+  "explicitly off" — a tri-state is the fix, not taken yet.
+- **Body picture names** skipped past a kept part's: a kept header's
+  media/image1.png was dropped for the body's own image1.png and
+  issue_51265_3's header showed the wrong picture.
+
+Not taken, seen: nested tables (60329's body is a table inside a
+table's cell; the reader flattens it, so its boxes and widths go),
+bug59058's mid-document drift of half a page over 52 pages, Word's
+own font substitution for fonts the Mac lacks (Perpetua, Albertus,
+Liberation Serif) — the same on both sides, so not ours.
+
+Numbers for the round: see below once the rerun of the changed copies
+lands.
+
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
 in the document is fine), so the gallery menu caps its previews at 13.
