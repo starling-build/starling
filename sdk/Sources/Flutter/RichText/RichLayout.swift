@@ -90,7 +90,13 @@ public final class RichTextTheme {
             decorations.append(revision.kind == .deleted ? .lineThrough : .underline)
             if style.color == nil { color = Color(0xFFC00000) }
         }
-        let px = size * pixelsPerPoint * scale
+        var px = size * pixelsPerPoint * scale
+        if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
+            // Hidden text takes no room and shows nothing, as Word prints it;
+            // a hair of a size keeps the span (and the caret) in the line.
+            px = 0.01
+            color = color.withOpacity(0)
+        }
         return TextStyle(
             color: color,
             backgroundColor: style.highlight,

@@ -91,6 +91,9 @@ public struct CharStyle: Hashable, Sendable {
     public var caps = false
     /// Word's Small caps: lowercase letters shown as smaller capitals.
     public var smallCaps = false
+    /// Word's hidden text (w:vanish): kept in the document, not shown or
+    /// printed.
+    public var hidden = false
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,

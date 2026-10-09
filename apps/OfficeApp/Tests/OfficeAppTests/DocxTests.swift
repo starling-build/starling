@@ -505,6 +505,25 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(split.paragraphs[2].style.pageBreakBefore)
     }
 
+    func testHiddenTextRoundTrip() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "shown hidden")])
+        doc.paragraphs[0].runs = [Run(length: 6), Run(length: 6, style: { var c = CharStyle(); c.hidden = true; return c }())]
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:rPr><w:vanish/></w:rPr><w:t xml:space=\"preserve\">hidden</w:t>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].runs.map { $0.style.hidden }, [false, true])
+        let layout = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 1)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(back)
+        let visible = RichDocument(paragraphs: [RichParagraph(text: "shown ")])
+        let other = RichLayout(theme: RichTextTheme(fontFamily: OfficeFonts.sans), paragraphCount: 1)
+        other.pageSetup = .letter
+        other.width = 612 * 96.0 / 72.0
+        other.ensureLaidOut(visible)
+        XCTAssertEqual(layout.geometry(0).painter.width, other.geometry(0).painter.width, accuracy: 1, "hidden text takes no width")
+    }
+
     func testCapsAndParagraphBordersRoundTrip() throws {
         var p = RichParagraph(text: "Rule below")
         p.style.borders = ParagraphBorders(bottom: BorderLine(width: 0.75, color: Color(0xFFDFDFDF), space: 1))

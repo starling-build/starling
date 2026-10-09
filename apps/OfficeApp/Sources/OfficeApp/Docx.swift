@@ -1288,6 +1288,7 @@ enum DocxFormat {
     if s.bold { rPr += "<w:b/><w:bCs/>" } else { rPr += off("b", .bold) }
     if s.italic { rPr += "<w:i/><w:iCs/>" } else { rPr += off("i", .italic) }
     if s.caps { rPr += "<w:caps/>" } else { rPr += off("caps", .caps) }
+    if s.hidden { rPr += "<w:vanish/>" }
     if s.smallCaps { rPr += "<w:smallCaps/>" } else { rPr += off("smallCaps", .smallCaps) }
     if s.underline { rPr += "<w:u w:val=\"single\"/>" } else if s.off.contains(.underline) { rPr += "<w:u w:val=\"none\"/>" }
     if s.strikethrough { rPr += "<w:strike/>" } else { rPr += off("strike", .strikethrough) }
@@ -1364,6 +1365,7 @@ enum DocxFormat {
             case "w:u": cs.underline = child["w:val"] != "none"; if cs.underline { cs.off.remove(.underline) } else { cs.off.insert(.underline) }
             case "w:strike", "w:dstrike": cs.strikethrough = !_isOff(child); if cs.strikethrough { cs.off.remove(.strikethrough) } else { cs.off.insert(.strikethrough) }
             case "w:caps": cs.caps = !_isOff(child); if cs.caps { cs.off.remove(.caps) } else { cs.off.insert(.caps) }
+            case "w:vanish": cs.hidden = !_isOff(child)
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }
             case "w:sz": if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
