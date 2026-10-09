@@ -452,6 +452,8 @@ enum DocxFormat {
         var tableCount = 0
         var currentCell: CellRef? = nil
         var cellChar = CharStyle()   // the table style's look for the first row's runs
+        var keptTables: [String: KeptTable] = [:]
+        var keptTableCount = 0
         /// A paragraph style's chain laid over `base` — the table style's
         /// paragraph props inside a cell: Word puts the table style under
         /// the paragraph style, so a style that sets only "after" keeps the
@@ -507,15 +509,31 @@ enum DocxFormat {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
                 }
             case "w:tbl" where currentCell != nil:
-                // A nested table flattens into its cell, indented.
+                // A nested table flattens into its cell, indented — and,
+                // unless it nests absurdly (a fuzzer's 5,000 levels), is
+                // kept as written: 60329's body is a table in a cell, and
+                // flattened it lost its boxes and widths. The save writes
+                // the kept markup back while the flattened text stands.
+                let before = paragraphs.count
+                var keptId: String? = nil
+                if depth < maxNesting, _nestingDepth(node) <= 6, let frag = _keptFragment(node, notes) {
+                    keptTableCount += 1
+                    keptId = "kt\(keptTableCount)"
+                    keptTables[keptId!] = KeptTable(xml: frag.xml, rels: frag.rels, texts: [])
+                }
                 if depth >= maxNesting {
                     for p in deepParagraphs(node) { walkBlock(p, indent: indent + 18, depth: depth + 1) }
-                    break
-                }
-                for tr in unwrapped(node, "w:tr") {
-                    for tc in unwrapped(tr, "w:tc") {
-                        for child in tc.children { walkBlock(child, indent: indent + 18, depth: depth + 1) }
+                } else {
+                    for tr in unwrapped(node, "w:tr") {
+                        for tc in unwrapped(tr, "w:tc") {
+                            for child in tc.children { walkBlock(child, indent: indent + 18, depth: depth + 1) }
+                        }
                     }
+                }
+                if let kid = keptId {
+                    if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
+                    for k in before ..< paragraphs.count { paragraphs[k].keptTable = kid }
+                    keptTables[kid]!.texts = paragraphs[before...].map(\.text)
                 }
             case "w:tbl":
                 tableCount += 1
@@ -655,6 +673,7 @@ enum DocxFormat {
         document.listFormats = listFormats
         document.keptParts = notes.kept
         document.keptPartTypes = notes.keptTypes
+        document.keptTables = keptTables
         document.keptHeaderFooters = keptHeaderFooters
         document.titlePage = titlePage
         document.evenAndOddHeaders = evenAndOddHeaders
@@ -1169,34 +1188,10 @@ enum DocxFormat {
                     if kv[0].trimmingWhitespace() == "width" { w = v } else if kv[0].trimmingWhitespace() == "height" { h = v }
                 }
             }
-            var found: [KeptRel] = []
-            var prefixes = Set<String>()
-            var stack = [node]
-            while let n = stack.popLast() {
-                if let i = n.name.firstIndex(of: ":") { prefixes.insert(String(n.name[..<i])) }
-                for (k, v) in n.attrs {
-                    if let i = k.firstIndex(of: ":"), !k.hasPrefix("xmlns:") { prefixes.insert(String(k[..<i])) }
-                    // mc:Choice Requires="cx" needs cx in scope right there,
-                    // not on the element that uses it further down.
-                    if k == "Requires" || k == "mc:Ignorable" { for t in v.split(separator: " ") { prefixes.insert(String(t)) } }
-                    guard ["r:embed", "r:id", "r:link", "r:pict", "r:href"].contains(k), let rel = notes.rels[v],
-                          !found.contains(where: { $0.id == v }) else { continue }
-                    found.append(rel)
-                    if !rel.external { notes.keep(_resolvePath("word", rel.target)) }
-                }
-                stack.append(contentsOf: n.children)
-            }
-            // A part the file names but does not hold (a fuzzer's doing):
-            // the object is dropped, as it was before it was kept at all.
-            if found.contains(where: { !$0.external && notes.part(_resolvePath("word", $0.target)) == nil }) { return nil }
-            // Self-contained markup: every prefix it uses that the document's
-            // root declared is declared on it.
-            for prefix in prefixes where prefix != "xml" && node.attrs["xmlns:" + prefix] == nil {
-                if let uri = notes.rootNS["xmlns:" + prefix] { node.attrs["xmlns:" + prefix] = uri }
-            }
+            guard let frag = _keptFragment(node, notes) else { return nil }   // a part it names is missing
             var att = ImageAttachment(data: Data(), width: w, height: h, name: node.name)
-            att.sourceXML = PptxXML.serialize(node)
-            att.sourceRels = found
+            att.sourceXML = frag.xml
+            att.sourceRels = frag.rels
             return att
         }
         func addImage(_ drawing: XNode) {
@@ -1359,17 +1354,64 @@ enum DocxFormat {
         return rPr
     }
 
-    /// `fragment` with its `wp:docPr id="…"` values set to `id` (one drawing
-    /// holds one; a group's inner cNvPr ids are its own).
-    static func _renumberDocPr(_ fragment: String, _ id: Int) -> String {
+    /// How deep `w:tbl` elements nest under `node` (iterative; a fuzzer's
+    /// 5,000-level table must not recurse).
+    static func _nestingDepth(_ node: XNode) -> Int {
+        var deepest = 0
+        var stack: [(XNode, Int)] = [(node, 0)]
+        while let (n, d) = stack.popLast() {
+            let nd = n.name == "w:tbl" ? d + 1 : d
+            deepest = max(deepest, nd)
+            if nd > 8 { return nd }
+            for c in n.children { stack.append((c, nd)) }
+        }
+        return deepest
+    }
+
+    /// `node` serialized as a self-contained fragment: its relationships
+    /// collected (and their parts kept), every prefix it uses declared on
+    /// it. Nil when a part it names is missing from the package.
+    static func _keptFragment(_ node: XNode, _ notes: _Shared) -> (xml: String, rels: [KeptRel])? {
+        var found: [KeptRel] = []
+        var prefixes = Set<String>()
+        var stack = [node]
+        while let n = stack.popLast() {
+            if let i = n.name.firstIndex(of: ":") { prefixes.insert(String(n.name[..<i])) }
+            for (k, v) in n.attrs {
+                if let i = k.firstIndex(of: ":"), !k.hasPrefix("xmlns:") { prefixes.insert(String(k[..<i])) }
+                if k == "Requires" || k == "mc:Ignorable" { for t in v.split(separator: " ") { prefixes.insert(String(t)) } }
+                guard ["r:embed", "r:id", "r:link", "r:pict", "r:href"].contains(k), let rel = notes.rels[v],
+                      !found.contains(where: { $0.id == v }) else { continue }
+                found.append(rel)
+                if !rel.external { notes.keep(_resolvePath("word", rel.target)) }
+            }
+            stack.append(contentsOf: n.children)
+        }
+        if found.contains(where: { !$0.external && notes.part(_resolvePath("word", $0.target)) == nil }) { return nil }
+        for prefix in prefixes where prefix != "xml" && node.attrs["xmlns:" + prefix] == nil {
+            if let uri = notes.rootNS["xmlns:" + prefix] { node.attrs["xmlns:" + prefix] = uri }
+        }
+        return (PptxXML.serialize(node), found)
+    }
+
+    /// `fragment` with each `wp:docPr id="…"` given the next id from
+    /// `next` (a kept nested table holds several drawings; one id for all
+    /// of them was "unreadable content" to Word).
+    static func _renumberDocPr(_ fragment: String, next: inout Int) -> String {
         var out = fragment
         var search = out.startIndex
-        while let r = out.range(of: "<wp:docPr id=\"", range: search ..< out.endIndex) {
+        // The serializer sorts attributes, so `id` may follow `descr`:
+        // find the tag, then its id attribute.
+        while let tag = out.range(of: "<wp:docPr", range: search ..< out.endIndex) {
+            guard let close = out[tag.upperBound...].firstIndex(of: ">"),
+                  let r = out.range(of: " id=\"", range: tag.upperBound ..< close) else { search = tag.upperBound; continue }
+            next += 1
+            let id = String(next)
             let digitsStart = r.upperBound
             var digitsEnd = digitsStart
             while digitsEnd < out.endIndex, out[digitsEnd].isNumber { digitsEnd = out.index(after: digitsEnd) }
-            out.replaceSubrange(digitsStart ..< digitsEnd, with: String(id))
-            search = out.index(digitsStart, offsetBy: String(id).count)
+            out.replaceSubrange(digitsStart ..< digitsEnd, with: id)
+            search = out.index(digitsStart, offsetBy: id.count)
         }
         return out
     }
@@ -1480,7 +1522,7 @@ enum DocxFormat {
         var media: [ZipEntry] = []
         var mediaRels: [(id: String, target: String)] = []
         var keptRels = "", keptRelCount = 0
-        var keptDocPrCount = 0
+        var keptDocPrCount = 100_000   // kept drawings' docPr ids start here, above the generated pictures'
         let commentsKept = doc.keptParts["word/comments.xml"] != nil
         var openComments: [String] = []
         /// The comment ids on the run after (`index`, `runIndex`): the next
@@ -1546,6 +1588,20 @@ enum DocxFormat {
         }
 
         var body = ""
+        /// A kept fragment with its relationships under fresh ids and its
+        /// drawings' docPr ids made unique.
+        func keptFragmentXML(_ xml: String, _ rels: [KeptRel]) -> String {
+            var frag = _renumberDocPr(xml, next: &keptDocPrCount)
+            for rel in rels {
+                keptRelCount += 1
+                let nid = "rIdKept\(keptRelCount)"
+                for attr in ["r:embed", "r:id", "r:link", "r:pict", "r:href"] {
+                    frag = frag.replacingAll("\(attr)=\"\(rel.id)\"", with: "\(attr)=\"\(nid)\"")
+                }
+                keptRels += "<Relationship Id=\"\(nid)\" Type=\"\(_esc(rel.type))\" Target=\"\(_esc(rel.target))\"\(rel.external ? " TargetMode=\"External\"" : "")/>"
+            }
+            return frag
+        }
         func paragraphXML(_ index: Int) -> String {
             let p = doc.paragraphs[index]
             var body = ""
@@ -1611,23 +1667,7 @@ enum DocxFormat {
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
                 if let xml = image.sourceXML {
-                    // An object the editor cannot show: the file's own
-                    // markup, its relationships under fresh ids.
-                    var frag = xml
-                    // Every wp:docPr id in a document must be unique: a kept
-                    // anchor's own id clashed with a generated picture's and
-                    // Word called drawing.docx unreadable.
-                    keptDocPrCount += 1
-                    frag = _renumberDocPr(frag, 100_000 + keptDocPrCount)
-                    for rel in image.sourceRels {
-                        keptRelCount += 1
-                        let nid = "rIdKept\(keptRelCount)"
-                        for attr in ["r:embed", "r:id", "r:link", "r:pict", "r:href"] {
-                            frag = frag.replacingAll("\(attr)=\"\(rel.id)\"", with: "\(attr)=\"\(nid)\"")
-                        }
-                        keptRels += "<Relationship Id=\"\(nid)\" Type=\"\(_esc(rel.type))\" Target=\"\(_esc(rel.target))\"\(rel.external ? " TargetMode=\"External\"" : "")/>"
-                    }
-                    return "<w:r>\(frag)</w:r>"
+                    return "<w:r>\(keptFragmentXML(xml, image.sourceRels))</w:r>"
                 }
                 // A name no kept part and no earlier picture uses: a kept
                 // header's media/image1.png was being dropped for the body's
@@ -1792,7 +1832,29 @@ enum DocxFormat {
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
                     xml += "</w:tcPr>"
                     if cell.isEmpty { xml += "<w:p/>" }
-                    for k in cell { xml += paragraphXML(k) }
+                    // A nested table kept verbatim stands in for its
+                    // flattened paragraphs while their text is unchanged.
+                    var j = 0
+                    var endedWithTable = false
+                    while j < cell.count {
+                        let k = cell[j]
+                        if let kid = doc.paragraphs[k].keptTable, let kept = doc.keptTables[kid] {
+                            var group: [Int] = []
+                            while j < cell.count, doc.paragraphs[cell[j]].keptTable == kid { group.append(cell[j]); j += 1 }
+                            if group.map({ doc.paragraphs[$0].text }) == kept.texts {
+                                xml += keptFragmentXML(kept.xml, kept.rels)
+                                endedWithTable = true
+                                continue
+                            }
+                            for g in group { xml += paragraphXML(g) }
+                            endedWithTable = false
+                            continue
+                        }
+                        xml += paragraphXML(k)
+                        endedWithTable = false
+                        j += 1
+                    }
+                    if endedWithTable { xml += "<w:p/>" }   // a cell ends in a paragraph
                     xml += "</w:tc>"
                     c += span
                 }

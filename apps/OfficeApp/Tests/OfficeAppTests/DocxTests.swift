@@ -467,7 +467,7 @@ final class DocxTests: XCTestCase {
         var xml = String(decoding: entries[di].data, as: UTF8.self)
         XCTAssertTrue(xml.contains("<wp:inline"), xml)
         xml = xml.replacingAll("<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">", with: "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"1\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>914400</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV>")
-        xml = xml.replacingAll("<wp:docPr", with: "<wp:wrapNone/><wp:docPr").replacingAll("</wp:inline>", with: "</wp:anchor>")
+        xml = xml.replacingAll("<wp:docPr", with: "<wp:wrapNone/><wp:docPr descr=\"a picture\"").replacingAll("</wp:inline>", with: "</wp:anchor>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
         let att = try XCTUnwrap(back.paragraphs[0].image ?? back.paragraphs[0].inlineImages.values.first)
@@ -486,12 +486,15 @@ final class DocxTests: XCTestCase {
         let xml2 = String(decoding: saved2.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         var ids: [String] = []
         var pos = xml2.startIndex
-        while let r = xml2.range(of: "<wp:docPr id=\"", range: pos ..< xml2.endIndex) {
+        while let tag = xml2.range(of: "<wp:docPr", range: pos ..< xml2.endIndex) {
+            let close = xml2[tag.upperBound...].firstIndex(of: ">")!
+            let r = xml2.range(of: " id=\"", range: tag.upperBound ..< close)!
             let end = xml2[r.upperBound...].firstIndex(of: "\"")!
-            ids.append(String(xml2[r.upperBound ..< end])); pos = end
+            ids.append(String(xml2[r.upperBound ..< end])); pos = close
         }
         XCTAssertEqual(ids.count, 3, xml2)
         XCTAssertEqual(Set(ids).count, 3, "\(ids)")
+        XCTAssertTrue(xml2.contains("<wp:docPr descr=\"a picture\" id=\"100001\""), "a kept docPr with descr before id is renumbered too: \(xml2)")
         let names = saved2.map(\.name)
         XCTAssertEqual(Set(names).count, names.count, "\(names)")
     }
@@ -662,6 +665,40 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(back.paragraphs[0].style.keepNext && back.paragraphs[0].style.keepLines && !back.paragraphs[0].style.widowControl)
         XCTAssertTrue(back.paragraphs[1].style.widowControl)
         XCTAssertEqual(back.tableStyles.values.first?.rowsCantSplit, [1])
+    }
+
+    func testNestedTableKeptVerbatim() throws {
+        var a = RichParagraph(text: "outer")
+        a.cell = CellRef(table: "T", row: 0, column: 0)
+        let doc = RichDocument(paragraphs: [a, RichParagraph(text: "")])
+        var d = doc; d.tableColumns["T"] = [300]
+        var entries = try Zip.read(try DocxFormat.write(d, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let inner = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"8\" w:space=\"0\" w:color=\"FF0000\"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>in1</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>in2</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+        let cellOpen = xml.range(of: "</w:tcPr>")!
+        xml.insert(contentsOf: inner, at: cellOpen.upperBound)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let flat = back.paragraphs.filter { $0.keptTable != nil }
+        XCTAssertEqual(flat.map(\.text), ["in1", "in2"])
+        XCTAssertEqual(flat.map { $0.cell?.table }, [flat[0].cell?.table, flat[0].cell?.table], "flattened into the outer cell")
+        XCTAssertEqual(back.paragraphs.filter { $0.cell != nil }.map(\.text), ["in1", "in2", "outer"])
+        let kept = try XCTUnwrap(back.keptTables[flat[0].keptTable!])
+        XCTAssertEqual(kept.texts, ["in1", "in2"])
+        XCTAssertTrue(kept.xml.hasPrefix("<w:tbl"), kept.xml)
+        let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(saved.contains("</w:tcPr><w:tbl") && saved.contains("w:color=\"FF0000\"") && saved.contains("</w:tbl><w:p>"), saved)
+        func tables(_ x: String) -> Int { x.components(separatedBy: "<w:tbl>").count + x.components(separatedBy: "<w:tbl ").count - 2 }
+        XCTAssertEqual(tables(saved), 2, "the outer table and the kept inner one")
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document.paragraphs.filter { $0.keptTable != nil }.map(\.text), ["in1", "in2"])
+        // Edited text: the flattened paragraphs are written instead.
+        var edited = back
+        let i = edited.paragraphs.firstIndex { $0.text == "in1" }!
+        edited.paragraphs[i] = { var p = edited.paragraphs[i]; p.text = "changed"; p.runs = [Run(length: 7)]; return p }()
+        let saved2 = String(decoding: try Zip.read(try DocxFormat.write(edited, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertEqual(tables(saved2), 1, saved2)
+        XCTAssertTrue(saved2.contains(">changed<"), saved2)
     }
 
     func testCapsAndParagraphBordersRoundTrip() throws {

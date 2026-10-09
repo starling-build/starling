@@ -159,6 +159,19 @@ public struct KeptHeaderFooter: Hashable, Sendable {
     }
 }
 
+/// A table nested in a cell, kept as the file wrote it (see
+/// `RichDocument.keptTables`): the editor shows its text flattened into
+/// the cell; the save writes this markup back while that text stands.
+public struct KeptTable: Hashable, Sendable {
+    public var xml: String
+    public var rels: [KeptRel]
+    /// The flattened paragraphs' texts as read, in order.
+    public var texts: [String]
+    public init(xml: String, rels: [KeptRel], texts: [String]) {
+        self.xml = xml; self.rels = rels; self.texts = texts
+    }
+}
+
 /// A tab stop: `position` points from the paragraph's left edge.
 public struct TabStop: Hashable, Sendable {
     public enum Alignment: Int, Hashable, Sendable { case left, center, right, decimal }
@@ -741,6 +754,9 @@ public struct RichParagraph: Hashable, Sendable {
     /// Pictures inline with the text, by the id a run's
     /// `CharStyle.inlineImage` names; each stands where its U+FFFC is.
     public var inlineImages: [String: ImageAttachment] = [:]
+    /// Set on the paragraphs flattened out of a nested table: the key of
+    /// the entry in `RichDocument.keptTables`.
+    public var keptTable: String? = nil
 
     public static let inlineImageCharacter = "\u{FFFC}"
 
@@ -1189,6 +1205,9 @@ public struct RichDocument: Hashable, Sendable {
     /// first-page and even-page ones. `text` is what the part read as, so
     /// the writer knows whether the editor's `header`/`footer` changed.
     public var keptHeaderFooters: [KeptHeaderFooter] = []
+    /// Nested tables kept verbatim, by the id their flattened paragraphs
+    /// carry in `keptTable`.
+    public var keptTables: [String: KeptTable] = [:]
     /// The file's compatibility settings (Word's `w:compat` block, with
     /// its compatibility mode), written back so Word lays the saved copy
     /// out by the same rules it laid the original out by.
