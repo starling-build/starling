@@ -616,6 +616,27 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(widths.reduce(0, +), 612, accuracy: 2, "the grid scales to the full text width")
     }
 
+    func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
+        // bug65649: every row's last cell spans into columns no cell STARTS
+        // in, so counting start columns lost the grid's tail and the
+        // file's 63 widths fell back to 62 equal ones.
+        var a = RichParagraph(text: "a"), b = RichParagraph(text: "b"), c = RichParagraph(text: "c")
+        a.cell = CellRef(table: "T", row: 0, column: 0)
+        b.cell = CellRef(table: "T", row: 0, column: 1, span: 3)
+        c.cell = CellRef(table: "T", row: 1, column: 0, span: 4)
+        var d = RichParagraph(text: "d")
+        d.cell = CellRef(table: "T", row: 2, column: 0)   // a short row: Word allows one, and padding it adds a paragraph
+        var doc = RichDocument(paragraphs: [a, b, c, d, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [20, 30, 40, 400]
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:tblGrid><w:gridCol w:w=\"400\"/><w:gridCol w:w=\"600\"/><w:gridCol w:w=\"800\"/><w:gridCol w:w=\"8000\"/></w:tblGrid>"), xml)
+        XCTAssertTrue(xml.contains("<w:tcW w:w=\"9400\" w:type=\"dxa\"/><w:gridSpan w:val=\"3\"/>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.tableColumns.values.first ?? [], [20, 30, 40, 400])
+        XCTAssertEqual(back.paragraphs.count, doc.paragraphs.count)
+        XCTAssertTrue(xml.contains("<w:tr><w:tc><w:tcPr><w:tcW w:w=\"400\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">d</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"), xml)
+    }
+
     func testSectionsAndCompatModeKeptVerbatim() throws {
         let doc = RichDocument(paragraphs: [RichParagraph(text: "portrait"), RichParagraph(text: "landscape")])
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))

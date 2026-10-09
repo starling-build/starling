@@ -1840,7 +1840,14 @@ enum DocxFormat {
             while end < doc.paragraphs.count, doc.paragraphs[end].cell?.table == id { end += 1 }
             let members = doc.paragraphs[start ..< end]
             let rows = (members.compactMap { $0.cell?.row }.max() ?? 0) + 1
-            let cols = (members.compactMap { $0.cell?.column }.max() ?? 0) + 1
+            // The grid is as wide as the furthest cell REACHES, span
+            // included: counting start columns alone lost the last
+            // column of any row whose final cell spans several, and the
+            // file's widths then failed to match and fell back to a
+            // uniform grid (bug65649's 63-column estimate table came
+            // back as 62 equal columns, every description one word wide,
+            // and 34 pages longer).
+            let cols = members.compactMap { $0.cell.map { $0.column + $0.span } }.max() ?? 1
             var widths = doc.tableColumns[id] ?? []
             if widths.count != cols {
                 let content = pageSetup.width - pageSetup.marginLeft - pageSetup.marginRight
@@ -1885,8 +1892,13 @@ enum DocxFormat {
                 if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"/>" }
                 if r == 0 && style.headerRow { trPr += "<w:tblHeader/>" }
                 xml += trPr.isEmpty ? "<w:tr>" : "<w:tr><w:trPr>\(trPr)</w:trPr>"
+                // A row ends where its last cell does: Word allows a row
+                // shorter than the grid (145 of bug65649's 480 rows are,
+                // and drawing's), and padding one with an empty cell adds a
+                // paragraph the file never had.
+                let rowEnd = refs.filter { $0.covers(row: r, column: $0.column) }.map { $0.column + $0.span }.max() ?? cols
                 var c = 0
-                while c < cols {
+                while c < rowEnd {
                     // A cell from a row above spanning into this row: a
                     // continuation cell, empty, marked vMerge.
                     if let above = refs.first(where: { $0.row < r && $0.rowSpan > 1 && $0.covers(row: r, column: c) }) {
