@@ -234,3 +234,97 @@ final class PresetGeometryTests: XCTestCase {
         XCTAssertNil(PptxReader.imageDPI(Data(jpg)), "unit 0 is an aspect ratio, not a resolution")
     }
 }
+
+/// Table cells turned, margined and lined as the file has them
+/// (2026-10-11, table_test2): `vert`, `marL`…`marB`, `lnL`…`lnB`.
+final class TableCellTests: XCTestCase {
+    private func tableSlide(_ package: PptxPackage) throws -> String {
+        try XCTUnwrap(package.parts.keys.first { k in
+            k.hasPrefix("ppt/slides/slide") && String(data: package.parts[k]!, encoding: .utf8)!.contains("<a:tbl>")
+        })
+    }
+
+    /// The first cell turned to read upwards with its own margins and a
+    /// thick red left line and no top line: read as such, and written back
+    /// the same way once the table is edited.
+    func testACellsDirectionMarginsAndLinesRoundTrip() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let part = try tableSlide(package)
+        var slide = String(data: package.parts[part]!, encoding: .utf8)!
+        let first = try XCTUnwrap(slide.range(of: "<a:tcPr anchor=\"ctr\">"))
+        let end = try XCTUnwrap(slide.range(of: "</a:tcPr>", range: first.upperBound ..< slide.endIndex))
+        slide.replaceSubrange(first.lowerBound ..< end.upperBound,
+                              with: "<a:tcPr marL=\"137160\" marT=\"91440\" vert=\"vert270\">"
+                              + "<a:lnL w=\"76200\"><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></a:lnL>"
+                              + "<a:lnT><a:noFill/></a:lnT></a:tcPr>")
+        package.parts[part] = Data(slide.utf8)
+        var (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let s = try XCTUnwrap(state.slides.firstIndex { $0.shapes.contains { $0.kind == .table } })
+        let t = try XCTUnwrap(state.slides[s].shapes.firstIndex { $0.kind == .table })
+        let doc = try XCTUnwrap(state.slides[s].shapes[t].text)
+        let cell = try XCTUnwrap(doc.paragraphs.first?.cell)
+        XCTAssertEqual(cell.textDirection, .up)
+        XCTAssertEqual(cell.padding, EdgeInsets(left: 10.8, top: 7.2, right: 7.2, bottom: 3.6), "its own margins over PowerPoint's defaults")
+        XCTAssertEqual(cell.borders.left, CellRef.CellLine(width: 6, color: Color(0xFFFF0000)))
+        XCTAssertEqual(cell.borders.top, CellRef.CellLine.hidden, "no line where the style would draw one")
+        XCTAssertNil(cell.borders.right, "the style's line")
+        let other = try XCTUnwrap(doc.paragraphs.first { $0.cell?.column == 1 }?.cell)
+        XCTAssertEqual(other.textDirection, .horizontal)
+        XCTAssertEqual(other.padding, EdgeInsets(left: 7.2, top: 3.6, right: 7.2, bottom: 3.6))
+        XCTAssertNotNil(other.borders.left, "the sample spells its lines on every cell")
+        XCTAssertNotEqual(other.borders.left, CellRef.CellLine.hidden)
+        let style = try XCTUnwrap(doc.tableStyles.values.first)
+        XCTAssertNotEqual(style.borderColor, Color(0xFFFF0000), "one cell's line does not recolour the table's rules")
+        // Edited, so the table is regenerated.
+        var edited = doc
+        edited.paragraphs[0].text = "Changed"
+        edited.paragraphs[0].runs = [Run(length: 7, style: edited.paragraphs[0].runs[0].style)]
+        state.slides[s].shapes[t].text = edited
+        let written = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        let out = String(data: written.parts[try tableSlide(written)]!, encoding: .utf8)!
+        XCTAssertTrue(out.contains("Changed"), "regenerated: " + String(out[out.range(of: "<a:tbl>")!.lowerBound...].prefix(1500)))
+        XCTAssertTrue(out.contains("vert=\"vert270\""))
+        XCTAssertTrue(out.contains("marL=\"137160\""))
+        XCTAssertTrue(out.contains("marT=\"91440\""))
+        XCTAssertFalse(out.contains("marR="), "a default margin is not spelled out")
+        XCTAssertTrue(out.contains("<a:lnL w=\"76200\"><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></a:lnL>"))
+        XCTAssertTrue(out.contains("<a:lnT w=\"12700\"><a:noFill/></a:lnT>"))
+    }
+
+    /// A turned cell's lines run along the row's height and stack across
+    /// the column: the row is as tall as the other cells make it, or as
+    /// the turned cell's longest word when that is longer.
+    func testATurnedCellWrapsAtTheRowHeight() throws {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 18)
+        func layout(_ vertical: String?) -> (RichLayout, RichDocument) {
+            var a = RichParagraph(text: "x")
+            a.cell = CellRef(table: "t", row: 0, column: 0)
+            var b = RichParagraph(text: vertical ?? "y")
+            b.cell = CellRef(table: "t", row: 0, column: 1)
+            b.cell?.textDirection = vertical == nil ? .horizontal : .up
+            var doc = RichDocument(paragraphs: [a, b])
+            doc.tableColumns["t"] = [100, 100]
+            let l = RichLayout(theme: theme, paragraphCount: 2)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return (l, doc)
+        }
+        let (plain, _) = layout(nil)
+        let oneLine = plain.totalHeight
+        // A word shorter than the row's height: the row keeps its height.
+        let (short, _) = layout("ab")
+        XCTAssertEqual(short.totalHeight, oneLine, accuracy: 0.5)
+        // Words longer than it: the row grows to the longest word, which
+        // wraps the rest onto further lines across the column.
+        let (long, _) = layout("Wednesday afternoon")
+        let word = TextPainter(text: TextSpan(text: "Wednesday", style: theme.textStyle(for: CharStyle(), in: RichParagraphStyle(), scale: 1)),
+                               textDirection: .ltr)
+        word.layout(minWidth: 0, maxWidth: .infinity)
+        XCTAssertEqual(long.totalHeight, word.longestLine + long.cellPadding * 2, accuracy: 1.5, "the row is the longest word plus the margins")
+        XCTAssertGreaterThan(long.totalHeight, oneLine)
+        // The turned paragraph sits at the row's top in the flow.
+        XCTAssertEqual(long.geometry(1).top, 0, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(long.rowRect(1)).height, long.totalHeight, accuracy: 0.01)
+    }
+}

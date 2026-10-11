@@ -585,6 +585,49 @@ public struct CellRef: Hashable, Sendable {
     /// wrapped "зарплаты" onto a second line and we did not, which made
     /// the header row a line shorter and every section a page longer.
     public var borderWidth: Double? = nil
+    /// Which way the cell's text runs (PowerPoint's `vert`, Word's
+    /// `w:textDirection`): across as usual, or turned a quarter so the
+    /// lines run up or down the cell and stack across its width.
+    public var textDirection: CellTextDirection = .horizontal
+    /// The cell's own margins, in points (PowerPoint's `marL`…`marB`,
+    /// Word's `w:tcMar`), over the table's (`TableStyle.cellMargin…`);
+    /// nil: the table's.
+    public var padding: EdgeInsets? = nil
+    /// The cell's own edge lines where each has its own width and colour
+    /// (PowerPoint's `lnL`…`lnB`), over `edges` and the table's rules;
+    /// an edge left nil is theirs.
+    public var borders = CellBorders()
+
+    /// One edge's line: a width in points and a colour, or no line at all
+    /// (`color` nil) where the style would have drawn one.
+    public struct CellLine: Hashable, Sendable {
+        public var width: Double
+        public var color: Color?
+        public init(width: Double, color: Color?) { self.width = width; self.color = color }
+        /// No line on the edge (the name avoids `Optional.none`, which an
+        /// unqualified `.none` resolves to on a `CellLine?`).
+        public static let hidden = CellLine(width: 0, color: nil)
+    }
+
+    public struct CellBorders: Hashable, Sendable {
+        public var left: CellLine? = nil
+        public var right: CellLine? = nil
+        public var top: CellLine? = nil
+        public var bottom: CellLine? = nil
+        public init() {}
+        public var isEmpty: Bool { left == nil && right == nil && top == nil && bottom == nil }
+    }
+
+    public enum CellTextDirection: Hashable, Sendable {
+        case horizontal
+        /// Turned a quarter clockwise: the text reads top to bottom and the
+        /// first line is at the cell's right (PowerPoint's `vert`, Word's
+        /// `tbRl`).
+        case down
+        /// Turned a quarter anticlockwise: the text reads bottom to top and
+        /// the first line is at the cell's left (`vert270`, `btLr`).
+        case up
+    }
 
     public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1, fill: Color? = nil, edges: BorderEdges? = nil, verticalAlign: String? = nil) {
         self.table = table

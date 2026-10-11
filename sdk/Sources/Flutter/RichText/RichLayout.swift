@@ -277,6 +277,20 @@ public final class RichLayout {
         var edges: BorderEdges? = nil
         /// Where the content sits in a taller row (`CellRef.verticalAlign`).
         var verticalAlign: String? = nil
+        var direction: CellRef.CellTextDirection = .horizontal
+        /// A turned cell: where this paragraph's block starts across the
+        /// cell's width (from the left edge for text reading up, from the
+        /// right edge for text reading down), padding included.
+        var across: Double = 0
+        /// The cell's margins, px: its own, or the table's.
+        var pad = EdgeInsets.zero
+        /// The cell's own edge lines (`CellRef.borders`).
+        var borders = CellRef.CellBorders()
+        var vertical: Bool { direction != .horizontal }
+        /// Where a turned cell's text starts along its reading direction:
+        /// at the bottom margin reading up, the top margin reading down.
+        var alongStart: Double { direction == .up ? pad.bottom : pad.top }
+        var acrossStart: Double { direction == .up ? pad.left : pad.right }
     }
     private var _cells: [_CellGeo?] = []
     /// Row top for every paragraph (its own top when not in a table): the
@@ -716,13 +730,18 @@ public final class RichLayout {
                 for k in k0 ..< j {
                     let cell = _cells[k]!
                     let offset = stack[cell.column] ?? 0
-                    _tops[k] = y + ins.top + offset
+                    _tops[k] = y + cell.pad.top + offset
                     _rowTops[k] = y
                     stack[cell.column] = offset + _heights[k]
-                    // A spanning cell's content counts against the rows it spans, below.
-                    if cell.rowSpan == 1 { rowHeight = max(rowHeight, offset + _heights[k]) }
+                    // A spanning cell's content counts against the rows it
+                    // spans, below; a turned cell's against the placed height.
+                    if cell.rowSpan == 1, !cell.vertical {
+                        rowHeight = max(rowHeight, offset + _heights[k] + cell.pad.top + cell.pad.bottom)
+                    }
                 }
-                rowHeight += ins.top + ins.bottom
+                // (A row of spanning or turned cells alone is still its
+                // margins tall.)
+                rowHeight = max(rowHeight, ins.top + ins.bottom)
                 // A row the file gave a height: at least that tall.
                 if let least = document.tableStyles[table]?.rowHeights[d.row] { rowHeight = max(rowHeight, _px(least)) }
                 for k in k0 ..< j {
@@ -740,9 +759,9 @@ public final class RichLayout {
                 var stackByColumn: [Int: Double] = [:]
                 for k in row.first ..< row.end {
                     let cell = _cells[k]!
-                    guard cell.rowSpan > 1 else { continue }
+                    guard cell.rowSpan > 1, !cell.vertical else { continue }
                     stackByColumn[cell.column, default: 0] += _heights[k]
-                    let need = stackByColumn[cell.column]! + ins.top + ins.bottom
+                    let need = stackByColumn[cell.column]! + cell.pad.top + cell.pad.bottom
                     let last = min(rows.count - 1, r + cell.rowSpan - 1)
                     let have = rows[r ... last].map(\.height).reduce(0, +)
                     if need > have + 0.01 {
@@ -752,9 +771,52 @@ public final class RichLayout {
                     }
                 }
             }
+            // Turned cells: wrapped at the height the rows now have (as
+            // PowerPoint wraps them), their lines stacking across the
+            // column; a word longer than that height stretches the last
+            // row the cell covers, as a spanning cell's content does.
+            for (r, row) in rows.enumerated() {
+                var k = row.first
+                while k < row.end {
+                    let cell = _cells[k]!
+                    guard cell.vertical else { k += 1; continue }
+                    var members = [k]
+                    while members.last! + 1 < row.end, _cells[members.last! + 1]!.column == cell.column { members.append(members.last! + 1) }
+                    k = members.last! + 1
+                    let last = min(rows.count - 1, r + cell.rowSpan - 1)
+                    let spanned = rows[r ... last].map(\.height).reduce(0, +)
+                    var need = 0.0
+                    for m in members {
+                        let style = document.paragraphs[m].style
+                        let inset = cell.pad.top + cell.pad.bottom + _px(style.indentLeft) + _px(style.indentRight)
+                        guard let painter = _painters[m] else { continue }
+                        var length = max(1, spanned - inset)
+                        painter.layout(minWidth: length, maxWidth: length)
+                        // No shorter than its longest word: the paragraph
+                        // engine breaks the word instead, where PowerPoint
+                        // makes the row taller. (The engine knows the word
+                        // only once it has wrapped: after an unconstrained
+                        // layout it reports nothing.)
+                        let word = painter.minIntrinsicWidth.rounded(.up)
+                        if word > length + 0.01 {
+                            length = word
+                            painter.layout(minWidth: length, maxWidth: length)
+                        }
+                        _textWidth[m] = length
+                        _heights[m] = (_spaceBefore[m] + painter.height + _px(style.spaceAfter)).rounded(.up)
+                        need = max(need, painter.longestLine + inset)
+                    }
+                    if need > spanned + 0.01 {
+                        let extra = need - spanned
+                        rows[last].height += extra
+                        for (rr, later) in rows.enumerated() where rr > last { rows[rr].top = later.top + extra }
+                    }
+                }
+            }
             // Second pass: final tops and heights, spanned heights for spanning cells.
             for (r, row) in rows.enumerated() {
-                // Each cell's content height, for anchoring it in a taller row.
+                // Each cell's content height, for anchoring it in a taller
+                // row (a turned cell's content width, across the column).
                 var content: [Int: Double] = [:]
                 for k in row.first ..< row.end { content[_cells[k]!.column, default: 0] += _heights[k] }
                 var stack: [Int: Double] = [:]
@@ -763,9 +825,15 @@ public final class RichLayout {
                     let offset = stack[cell.column] ?? 0
                     let last = min(rows.count - 1, r + cell.rowSpan - 1)
                     let spanned = cell.rowSpan > 1 ? rows[r ... last].map(\.height).reduce(0, +) : row.height
-                    let free = max(0, spanned - ins.top - ins.bottom - (content[cell.column] ?? 0))
+                    let room = cell.vertical ? cell.colWidth - cell.pad.left - cell.pad.right : spanned - cell.pad.top - cell.pad.bottom
+                    let free = max(0, room - (content[cell.column] ?? 0))
                     let shift = cell.verticalAlign == "center" ? free / 2 : cell.verticalAlign == "bottom" ? free : 0
-                    _tops[k] = row.top + ins.top + offset + shift
+                    if cell.vertical {
+                        _tops[k] = row.top
+                        _cells[k]!.across = cell.acrossStart + offset + shift
+                    } else {
+                        _tops[k] = row.top + cell.pad.top + offset + shift
+                    }
                     _rowTops[k] = row.top
                     stack[cell.column] = offset + _heights[k]
                     _cells[k]!.rowTop = row.top
@@ -1115,12 +1183,23 @@ public final class RichLayout {
             let colWidth = c.column < widths.count
                 ? widths[c.column ..< min(widths.count, c.column + c.span)].reduce(0, +) : width
             let colLeft = _tableLeft(c.table, document) + widths.prefix(c.column).reduce(0, +)
+            let ins = _cellInsets(c.table, document)
+            let pad = c.padding.map { EdgeInsets(left: _px($0.left), top: _px($0.top), right: _px($0.right), bottom: _px($0.bottom)) }
+                ?? EdgeInsets(left: ins.left, top: ins.top, right: ins.right, bottom: ins.bottom)
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
                                  colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges,
-                                 verticalAlign: c.verticalAlign)
-            let ins = _cellInsets(c.table, document)
-            left = colLeft + ins.left + _px(style.indentLeft)
-            textWidth = max(1, colWidth - ins.left - ins.right - _px(style.indentLeft) - right)
+                                 verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, borders: c.borders)
+            left = colLeft + pad.left + _px(style.indentLeft)
+            textWidth = max(1, colWidth - pad.left - pad.right - _px(style.indentLeft) - right)
+            if c.textDirection != .horizontal {
+                // Turned text runs along the row's height, which the row's
+                // other cells decide: laid out provisionally at the rows'
+                // own heights, and again at the placed height in
+                // `_placeBlocks`.
+                let heights = document.tableStyles[c.table]?.rowHeights ?? [:]
+                let own = (c.row ..< c.row + c.rowSpan).reduce(0.0) { $0 + (heights[$1] ?? 0) }
+                textWidth = own > 0 ? max(1, _px(own) - pad.top - pad.bottom - _px(style.indentLeft) - right) : 100_000
+            }
         } else {
             _cells[i] = nil
         }
@@ -1563,7 +1642,9 @@ public final class RichLayout {
             // edge lost its outer half and the table's last row had no
             // bottom border). Rows share edges: a row draws its bottom and
             // only the first row its top; columns draw their left and only
-            // the last its right.
+            // the last its right. A cell's own edge lines (the file's
+            // lnL…lnB) replace the style's rule on that edge: drawn at
+            // their width and colour, or not at all.
             let widths = _columnWidths[c.table] ?? []
             let rowTop = c.rowTop.rounded()
             let rowBottom = (c.rowTop + c.ownRowHeight).rounded()
@@ -1574,19 +1655,43 @@ public final class RichLayout {
             var probe = i
             while probe < _cells.count, let d = _cells[probe], d.table == c.table, d.row == c.row { probe += 1 }
             let lastRow = !(probe < _cells.count && _cells[probe]?.table == c.table)
-            func paintEdges(_ d: _CellGeo, bottomHere: Bool) {
+            // A cell's own line on an edge (the file's lnL…lnB, with its
+            // own width and colour) replaces the rule there: drawn centred
+            // on the edge, or not at all for a hidden one.
+            func line(_ own: CellRef.CellLine?, _ ruled: Bool, _ from: Offset, _ to: Offset, inward: Offset) {
+                if let own {
+                    guard let color = own.color, own.width > 0 else { return }
+                    let p = Paint()
+                    p.style = .stroke
+                    p.strokeWidth = max(1, _px(own.width))
+                    p.color = color
+                    canvas.save()
+                    canvas.clipRect(Rect.fromLTRB(-1e6, rowTop, 1e6, rowBottom))
+                    canvas.drawLine(from, to, p)
+                    canvas.restore()
+                } else if ruled {
+                    canvas.drawLine(from + inward * 0.5, to + inward * 0.5, stroke)
+                }
+            }
+            func paintEdges(_ d: _CellGeo, bottomHere: Bool, ownTop: Bool) {
                 let cellRight = (d.colLeft + d.colWidth).rounded()
-                if on(d.edges?.left, d.column == 0 ? te?.left : te?.insideV) {
-                    canvas.drawLine(Offset(d.colLeft + 0.5, rowTop), Offset(d.colLeft + 0.5, rowBottom), stroke)
+                line(d.borders.left, on(d.edges?.left, d.column == 0 ? te?.left : te?.insideV),
+                     Offset(d.colLeft, rowTop), Offset(d.colLeft, rowBottom), inward: Offset(1, 0))
+                // The row above drew this cell's top, unless the cell has
+                // its own line there (on the first row it covers).
+                if (c.row == 0 && d.row == 0) || (ownTop && d.borders.top != nil) {
+                    line(d.borders.top, c.row == 0 && d.row == 0 && on(d.edges?.top, te?.top),
+                         Offset(d.colLeft, rowTop), Offset(cellRight, rowTop), inward: Offset(0, 1))
                 }
-                if c.row == 0, d.row == 0, on(d.edges?.top, te?.top) {
-                    canvas.drawLine(Offset(d.colLeft, rowTop + 0.5), Offset(cellRight, rowTop + 0.5), stroke)
+                if bottomHere {
+                    line(d.borders.bottom, on(d.edges?.bottom, lastRow ? te?.bottom : te?.insideH),
+                         Offset(d.colLeft, rowBottom), Offset(cellRight, rowBottom), inward: Offset(0, -1))
                 }
-                if bottomHere, on(d.edges?.bottom, lastRow ? te?.bottom : te?.insideH) {
-                    canvas.drawLine(Offset(d.colLeft, rowBottom - 0.5), Offset(cellRight, rowBottom - 0.5), stroke)
-                }
-                if cellRight >= right - 0.5, on(d.edges?.right, te?.right) {
-                    canvas.drawLine(Offset(right - 0.5, rowTop), Offset(right - 0.5, rowBottom), stroke)
+                if cellRight >= right - 0.5 {
+                    line(d.borders.right, on(d.edges?.right, te?.right),
+                         Offset(right, rowTop), Offset(right, rowBottom), inward: Offset(-1, 0))
+                } else if d.borders.right != nil {
+                    line(d.borders.right, false, Offset(cellRight, rowTop), Offset(cellRight, rowBottom), inward: Offset(-1, 0))
                 }
             }
             // Each cell of the row draws its edges; a cell from above that
@@ -1596,7 +1701,7 @@ public final class RichLayout {
             var lastColumn = -1
             while j < _cells.count, let d = _cells[j], d.table == c.table, d.row == c.row {
                 if d.column != lastColumn {
-                    paintEdges(d, bottomHere: d.rowSpan == 1)
+                    paintEdges(d, bottomHere: d.rowSpan == 1, ownTop: true)
                     lastColumn = d.column
                 }
                 j += 1
@@ -1606,7 +1711,7 @@ public final class RichLayout {
             while k >= 0, let d = _cells[k], d.table == c.table {
                 if d.rowSpan > 1, d.row < c.row, d.row + d.rowSpan > c.row, !seen.contains(d.column) {
                     seen.insert(d.column)
-                    paintEdges(d, bottomHere: d.row + d.rowSpan - 1 == c.row)
+                    paintEdges(d, bottomHere: d.row + d.rowSpan - 1 == c.row, ownTop: false)
                 }
                 k -= 1
             }
@@ -1623,6 +1728,26 @@ public final class RichLayout {
                 paint.color = Color(0x22808080)
                 canvas.drawRect(box, paint)
             }
+            return
+        }
+        if let c = _cells[i], c.vertical {
+            // The block painted in its own horizontal space, turned a
+            // quarter about the cell's corner it reads from: text reading
+            // up starts at the bottom-left corner with its lines stacking
+            // rightwards, text reading down at the top-right corner with
+            // its lines stacking leftwards.
+            let height = c.rowSpan > 1 ? c.rowHeight : c.ownRowHeight
+            canvas.save()
+            if c.direction == .up {
+                canvas.translate(c.colLeft, c.rowTop + height)
+                canvas.rotate(-Double.pi / 2)
+            } else {
+                canvas.translate(c.colLeft + c.colWidth, c.rowTop)
+                canvas.rotate(Double.pi / 2)
+            }
+            let along = c.alongStart + _px(document.paragraphs[i].style.indentLeft)
+            g.painter.paint(canvas, Offset(along, c.across + _spaceBefore[i]))
+            canvas.restore()
             return
         }
         if let b = document.paragraphs[i].style.borders {

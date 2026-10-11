@@ -773,6 +773,12 @@ enum DocxFormat {
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         // The cell's own line width, over the table's.
                         if let w = _borders(tcPr, "w:tcBorders")?.width, w != (style.borderWidth ?? 0.5) { currentCell?.borderWidth = w }
+                        // Text turned a quarter (Word's w:textDirection).
+                        switch tcPr?.first("w:textDirection")?["w:val"] {
+                        case "tbRl", "tbRlV": currentCell?.textDirection = .down
+                        case "btLr", "lrTbV": currentCell?.textDirection = .up
+                        default: break
+                        }
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         let before = paragraphs.count
@@ -2231,6 +2237,12 @@ enum DocxFormat {
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += cellBordersXML(ref?.edges, width: ref?.borderWidth)   // schema order: borders, then shading
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
+                    // Schema order: the text direction before the alignment.
+                    switch ref?.textDirection {
+                    case .down?: xml += "<w:textDirection w:val=\"tbRl\"/>"
+                    case .up?: xml += "<w:textDirection w:val=\"btLr\"/>"
+                    default: break
+                    }
                     if let v = ref?.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
                     xml += "</w:tcPr>"
                     if cell.isEmpty { xml += "<w:p/>" }

@@ -626,9 +626,38 @@ Sweep 19: corpus mean 3.84% → 3.42%, ≤2% 339 → 348, decks over 20% 15 →
 pie_textarea 19 → 3.4, vert_and_padding 11 → 3.8, the Scene3d lightRig
 trio 19 → 13, cycle-matrix 16 → 9.
 
+**Table cells as the file has them, 2026-10-11** (`CellRef` in the SDK's
+`RichDocument.swift`, `RichLayout.swift`). A cell's text direction
+(`tcPr vert`: `vert` reads down, `vert270` up — `CellRef.textDirection`),
+its own margins (`marL`…`marB`, PowerPoint's 0.1"/0.05" defaults where
+the file is silent — `padding`, in points) and its own edge lines
+(`lnL`…`lnB` with width and colour, or `noFill` — `borders`) are read,
+laid out and written back; Word's `w:textDirection` is read and written
+too. A turned cell is laid out in its own horizontal space and painted
+turned a quarter about the corner it reads from (bottom-left reading
+up, top-right reading down). Its lines run along the row's height,
+which the row's other cells decide, so the layout places the rows
+first, then wraps each turned cell at the height its rows came to — no
+shorter than its longest word, since the paragraph engine would break
+the word where PowerPoint grows the row (and it reports the word's
+width only once it has wrapped: after an unconstrained layout
+`minIntrinsicWidth` is nothing) — and stretches the last row the cell
+covers if the longest line still does not fit. Lines then stack across
+the column, where the anchor's free space is. Edge lines are drawn per
+cell over the style's rules at their own width, a hidden edge drawn as
+nothing; before, the first cell line found recoloured every rule of the
+table (table_test2's whole grid was orange). Caret and selection in a
+turned cell are not turned with it: editing one works, but looks wrong
+until that is done. Sweep 20: table_test2 21.2 → 5.9%, the two aascu
+decks −1.4, tableBorderLineStyle 4.1 → 3.5, bug68703 +0.4 (its cells
+set no top and bottom margin, and the text now sits where that puts
+it); corpus mean 3.42 → 3.37%, decks over 20% 11 → 10. What remains of table_test2
+is the line height — Calibri's at 18 pt is 22.0 pt in PowerPoint and
+20.6 here, so a five-line cell is 7 pt shorter and a turned cell next
+to it wraps one line more.
+
 Left on the painter side, from the same ranking: 3D (`a:scene3d`
-materials and lighting), vertical table text (`vert="vert270"`,
-table_test2), EMF/WMF and TIFF pictures (the engine has no decoder;
+materials and lighting), EMF/WMF and TIFF pictures (the engine has no decoder;
 PowerPoint draws them — lo-tdf113163, ArtisticEffectSample, the OLE and
 ActiveX fallbacks), WordArt text fills and warps (tdf139618), a 2×2
 JPEG stretched over a slide that PowerPoint shows flat (tdf146223),

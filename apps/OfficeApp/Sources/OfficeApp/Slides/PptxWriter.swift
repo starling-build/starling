@@ -880,7 +880,23 @@ private struct SlideXML {
                 if cell.span > 1 { attrs += " gridSpan=\"\(cell.span)\"" }
                 if cell.rowSpan > 1 { attrs += " rowSpan=\"\(cell.rowSpan)\"" }
                 let body = PptxText.paragraphs(RichDocument(paragraphs: paras.map { var p = $0; p.cell = nil; return p }), defaults: s)
-                xml += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(body)</a:txBody><a:tcPr anchor=\"ctr\">\(borders)\(fill(r))</a:tcPr></a:tc>"
+                var tcPr = cell.textDirection == .down ? " vert=\"vert\"" : cell.textDirection == .up ? " vert=\"vert270\"" : ""
+                if let m = cell.padding {
+                    for (name, v, dflt) in [("marL", m.left, 7.2), ("marR", m.right, 7.2), ("marT", m.top, 3.6), ("marB", m.bottom, 3.6)]
+                    where abs(v - dflt) > 0.01 {
+                        tcPr += " \(name)=\"\(Self._emu(v))\""
+                    }
+                }
+                // The cell's own edge lines where it has them, the style's
+                // elsewhere.
+                func own(_ tag: String, _ l: CellRef.CellLine?) -> String {
+                    guard let l else { return border(tag) }
+                    guard let c = l.color, l.width > 0 else { return "<\(tag) w=\"12700\"><a:noFill/></\(tag)>" }
+                    return "<\(tag) w=\"\(Self._emu(l.width))\"><a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill></\(tag)>"
+                }
+                let lines = cell.borders.isEmpty ? borders
+                    : own("a:lnL", cell.borders.left) + own("a:lnR", cell.borders.right) + own("a:lnT", cell.borders.top) + own("a:lnB", cell.borders.bottom)
+                xml += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(body)</a:txBody><a:tcPr\(tcPr) anchor=\"ctr\">\(lines)\(fill(r))</a:tcPr></a:tc>"
             }
             xml += "</a:tr>"
         }

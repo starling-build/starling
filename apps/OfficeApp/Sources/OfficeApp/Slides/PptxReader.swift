@@ -1230,8 +1230,6 @@ private struct SlideContext {
         if let c = whole?.textColor { base.color = c }
         let rowCount = tbl.all("a:tr").count
         var paragraphs: [RichParagraph] = []
-        var sawCellLine = false, visibleCellLine = false
-        var cellBorder: Color? = nil
         for (r, tr) in tbl.all("a:tr").enumerated() {
             var column = 0
             let columnCount = tr.all("a:tc").count
@@ -1248,22 +1246,38 @@ private struct SlideContext {
                 if r == rowCount - 1, r > 0, let p = lastRowPart { regional.append(p) }
                 if r == 0, let p = firstRowPart { regional.append(p) }
                 if let f = regional.compactMap(\.fill).last, r > 0 || firstRowPart == nil { cell.fill = f }
-                // The cell's own fill and lines (`a:tcPr`), which a table
-                // laid out by hand carries instead of a style.
-                if let tcPr = tc.first("a:tcPr") {
+                // The cell's margins: PowerPoint's 0.1" sides and 0.05" top
+                // and bottom unless the cell says otherwise. Its own fill
+                // and edge lines (`a:tcPr`) go over the style's.
+                let tcPr = tc.first("a:tcPr")
+                func margin(_ name: String, _ fallback: Double) -> Double {
+                    tcPr?[name].flatMap(Double.init).map { $0 / Pptx.emu } ?? fallback
+                }
+                cell.padding = EdgeInsets(left: margin("marL", 7.2), top: margin("marT", 3.6),
+                                          right: margin("marR", 7.2), bottom: margin("marB", 3.6))
+                if let tcPr {
                     switch tcPr["anchor"] { case "ctr": cell.verticalAlign = "center"; case "b": cell.verticalAlign = "bottom"; default: break }
+                    switch tcPr["vert"] { case "vert", "eaVert": cell.textDirection = .down; case "vert270": cell.textDirection = .up; default: break }
                     if let f = tcPr.first("a:solidFill") {
                         cell.fill = colors.color(in: f)
                     } else if let g = tcPr.first("a:gradFill") {
                         let stops = g.first("a:gsLst")?.all("a:gs").compactMap { colors.color(in: $0) } ?? []
                         if !stops.isEmpty { cell.fill = stops[stops.count / 2] }
                     }
-                    for ln in ["a:lnL", "a:lnR", "a:lnT", "a:lnB"].compactMap({ tcPr.first($0) }) {
-                        sawCellLine = true
-                        if ln.has("a:noFill") { continue }
-                        visibleCellLine = true
-                        if cellBorder == nil, let f = ln.first("a:solidFill") { cellBorder = colors.color(in: f) }
+                    func line(_ tag: String) -> CellRef.CellLine? {
+                        guard let ln = tcPr.first(tag) else { return nil }
+                        if ln.has("a:noFill") { return CellRef.CellLine.hidden }
+                        let width = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 1
+                        if let f = ln.first("a:solidFill") { return CellRef.CellLine(width: width, color: colors.color(in: f)) }
+                        if let g = ln.first("a:gradFill"), let gs = g.first("a:gsLst")?.all("a:gs").first {
+                            return CellRef.CellLine(width: width, color: colors.color(in: gs))
+                        }
+                        return nil   // a width alone: the style's line, as it is
                     }
+                    cell.borders.left = line("a:lnL")
+                    cell.borders.right = line("a:lnR")
+                    cell.borders.top = line("a:lnT")
+                    cell.borders.bottom = line("a:lnB")
                 }
                 // The header row's text is light and bold in every styled
                 // table PowerPoint offers; a style the deck defines says
@@ -1370,8 +1384,6 @@ private struct SlideContext {
             if let b = whole?.borders { ts.borders = b }
             if let c = whole?.borderColor { ts.borderColor = c }
         }
-        if sawCellLine { ts.borders = visibleCellLine }
-        if let cellBorder { ts.borderColor = cellBorder }
         for (r, h) in rowHeights.enumerated() where h > 0 { ts.rowHeights[r] = h }
         doc.tableStyles[tableId] = ts
         var st = ShapeState(id: id(), name: el.descendant("p:cNvPr")?["name"] ?? "Table", kind: .table, frame: frame,

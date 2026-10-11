@@ -1020,6 +1020,16 @@ public final class TextPainter {
         return _layoutCache!.layout.maxIntrinsicLineExtent
     }
 
+    /// The distance from the left edge of the leftmost glyph to the right
+    /// edge of the rightmost glyph: what the text actually spans, where
+    /// `width` is what it was given.
+    ///
+    /// Valid only after `layout` has been called.
+    public var longestLine: Double {
+        assert(_layoutCache != nil, "Text layout not available. Call layout() first.")
+        return _layoutCache!.layout.longestLine
+    }
+
     /// The horizontal space required to paint this text.
     ///
     /// Valid only after `layout` has been called.
