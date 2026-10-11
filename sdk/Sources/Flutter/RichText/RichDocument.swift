@@ -253,6 +253,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// The glyph this bulleted paragraph shows, when the file names one
     /// (PowerPoint's `buChar`); nil for the list's or the level's own.
     public var bulletText: String? = nil
+    /// The marker's own colour and size as a share of the text's
+    /// (PowerPoint's `buClr`, `buSzPct`); nil follows the text.
+    public var bulletColor: Color? = nil
+    public var bulletScale: Double? = nil
     /// Which list this paragraph belongs to, for numbering: Word's numId.
     /// Items of one id number on across other paragraphs; nil items number
     /// as a run, restarting after an interruption.

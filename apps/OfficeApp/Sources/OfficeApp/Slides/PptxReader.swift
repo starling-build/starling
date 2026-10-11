@@ -274,6 +274,12 @@ private struct LevelStyle {
     /// mapped to the glyph it shows).
     var bulletChar: String?
     var bulletFont: String?
+    /// `a:buClr` and `a:buSzPct` (a share of the text size); the `…Tx`
+    /// forms (follow the text) read as nil.
+    var bulletColor: Color?
+    var bulletScale: Double?
+    var bulletColorFollows = false
+    var bulletSizeFollows = false
     /// `cap`: "all", "small" or "none".
     var caps: String?
     var size: Double?
@@ -297,6 +303,8 @@ private struct LevelStyle {
         s.afterPoints = s.afterPoints ?? lower.afterPoints
         s.bullet = s.bullet ?? lower.bullet
         if s.bulletChar == nil { s.bulletChar = lower.bulletChar; s.bulletFont = s.bulletFont ?? lower.bulletFont }
+        if s.bulletColor == nil, !s.bulletColorFollows { s.bulletColor = lower.bulletColor; s.bulletColorFollows = lower.bulletColorFollows }
+        if s.bulletScale == nil, !s.bulletSizeFollows { s.bulletScale = lower.bulletScale; s.bulletSizeFollows = lower.bulletSizeFollows }
         s.caps = s.caps ?? lower.caps
         s.size = s.size ?? lower.size
         s.bold = s.bold ?? lower.bold
@@ -329,6 +337,10 @@ private struct LevelStyle {
         if p.has("a:buNone") { s.bullet = Bullet.none }
         if let bu = p.first("a:buChar") { s.bullet = .char; s.bulletChar = bu["char"] }
         if let f = p.first("a:buFont")?["typeface"] { s.bulletFont = f }
+        if let c = p.first("a:buClr") { s.bulletColor = colors.color(in: c) }
+        if p.has("a:buClrTx") { s.bulletColorFollows = true }
+        if let v = p.first("a:buSzPct")?["val"].flatMap(Double.init) { s.bulletScale = v / 100000 }
+        if p.has("a:buSzTx") { s.bulletSizeFollows = true }
         if p.has("a:buAutoNum") { s.bullet = .number }
         if let r = p.first("a:defRPr") { s = run(r, colors).filled(from: s) }
         return s
@@ -1748,6 +1760,8 @@ private struct SlideContext {
                 style.list = level.bullet == .char ? .bullet : .numbered
                 style.listLevel = lvl
                 if level.bullet == .char { style.bulletText = level.bulletGlyph }
+                style.bulletColor = level.bulletColor
+                style.bulletScale = level.bulletScale
                 // The file's own text edge (marL) and bullet offset (indent):
                 // the text placed where the file puts it, both written back
                 // as read. The layout indents a list by the shape's list

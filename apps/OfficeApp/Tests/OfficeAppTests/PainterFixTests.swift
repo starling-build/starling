@@ -407,7 +407,8 @@ final class RunCapsAndBulletTests: XCTestCase {
         var slide = try XCTUnwrap(String(data: try XCTUnwrap(package.parts[part]), encoding: .utf8))
         // The first bulleted paragraph: a Wingdings square and a capitals run.
         let bu = try XCTUnwrap(slide.range(of: "<a:buFont typeface=\"Arial\"/><a:buChar char=\"•\"/>"))
-        slide.replaceSubrange(bu, with: "<a:buFont typeface=\"Wingdings\"/><a:buChar char=\"§\"/>")
+        slide.replaceSubrange(bu, with: "<a:buClr><a:srgbClr val=\"FF8800\"/></a:buClr><a:buSzPct val=\"70000\"/>"
+                              + "<a:buFont typeface=\"Wingdings\"/><a:buChar char=\"§\"/>")
         let run = try XCTUnwrap(slide.range(of: "<a:rPr", range: bu.lowerBound ..< slide.endIndex))
         slide.replaceSubrange(run, with: "<a:rPr cap=\"all\"")
         package.parts[part] = Data(slide.utf8)
@@ -416,6 +417,8 @@ final class RunCapsAndBulletTests: XCTestCase {
         let doc = try XCTUnwrap(state.slides[1].shapes[s].text)
         let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.style.list == .bullet })
         XCTAssertEqual(doc.paragraphs[i].style.bulletText, "▪", "Wingdings' § is a small square")
+        XCTAssertEqual(doc.paragraphs[i].style.bulletColor, Color(0xFFFF8800))
+        XCTAssertEqual(doc.paragraphs[i].style.bulletScale ?? 0, 0.7, accuracy: 0.0001)
         XCTAssertTrue(doc.paragraphs[i].runs[0].style.caps)
         XCTAssertNotEqual(doc.paragraphs[i].text, doc.paragraphs[i].text.uppercased(), "the text keeps its case; the layout shows capitals")
         // Written back once edited.
@@ -425,6 +428,7 @@ final class RunCapsAndBulletTests: XCTestCase {
         state.slides[1].shapes[s].text = edited
         let out = try XCTUnwrap(String(data: try XCTUnwrap(PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg))).parts[part]), encoding: .utf8))
         XCTAssertTrue(out.contains("<a:buChar char=\"▪\"/>"))
+        XCTAssertTrue(out.contains("<a:buClr><a:srgbClr val=\"FF8800\"/></a:buClr><a:buSzPct val=\"70000\"/>"))
         XCTAssertTrue(out.contains("cap=\"all\""))
     }
 

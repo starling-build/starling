@@ -718,6 +718,19 @@ PDF export draw nothing there. Divino_Revelado 16.2 → 15.2,
 lo-tdf131553 11.3 → 10.6; the EMF/WMF decks are unmoved (their
 pictures go through the picture path, not this one).
 
+**Bullets where and how the file has them, 2026-10-11.** The marker
+sat right before its text, right-aligned in the list indent; PowerPoint
+puts a bullet's left edge at `marL + indent`, the hanging position, and
+so does Word. A Slides theme now asks for that (`markersAtHang`: the
+list indent before the text plus the paragraph's first-line indent,
+never over the text), and the marker takes the level's own colour and
+size (`buClr`, `buSzPct` — `bulletColor`, `bulletScale` on the
+paragraph style, written back; the `…Tx` forms follow the text). 60810
+and alterman_security now show their bullets as PowerPoint does; the
+scores barely move (a bullet is a few pixels), autofitIndentation −0.15.
+Writer keeps its own marker placement — Word's hang is the numbering
+definition's, which the Writer model carries differently.
+
 Left on the painter side, from the same ranking: 3D (`a:scene3d`
 materials and lighting), EMF/WMF and TIFF pictures (the engine has no decoder;
 PowerPoint draws them — lo-tdf113163, ArtisticEffectSample, the OLE and

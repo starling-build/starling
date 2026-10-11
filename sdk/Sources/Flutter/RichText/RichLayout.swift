@@ -48,6 +48,11 @@ public final class RichTextTheme {
     /// Whether an empty list paragraph shows its marker: Word does,
     /// PowerPoint does not.
     public var marksEmptyListItems = true
+    /// Where a list marker sits: right before the text (the editor's
+    /// own look), or at the paragraph's hanging position — the list
+    /// indent before the text, plus the first-line indent — as
+    /// PowerPoint places a bullet at `marL + indent`.
+    public var markersAtHang = false
 
     /// Each face's natural line height as a multiple of its size (ascent,
     /// descent and line gap — Calibri's 1.22, Arial's 1.15), measured once:
@@ -1822,12 +1827,25 @@ public final class RichLayout {
         }
         if let label = listLabel(i, document), theme.marksEmptyListItems || !document.paragraphs[i].text.isEmpty {
             let p = document.paragraphs[i]
-            let markerStyle = theme.textStyle(for: p.runs[0].style, in: p.style, scale: scale)
+            var markerChar = p.runs[0].style
+            if let c = p.style.bulletColor { markerChar.color = c }
+            if let k = p.style.bulletScale {
+                markerChar.fontSize = (markerChar.fontSize ?? document.styles.resolve(p.style)?.char.fontSize ?? theme.fontSize) * k
+            }
+            let markerStyle = theme.textStyle(for: markerChar, in: p.style, scale: scale)
             let marker = TextPainter(text: TextSpan(text: label, style: markerStyle),
                                      textAlign: .right, textDirection: .ltr)
             let slot = _px(theme.listIndent)
-            marker.layout(minWidth: slot - 8, maxWidth: slot - 8)
-            marker.paint(canvas, Offset(g.textLeft - slot, g.textTop))
+            if theme.markersAtHang {
+                // At the hang, and never over the text: a bullet whose hang
+                // is at the text (indent 0) sits just before it instead.
+                marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
+                let hang = g.textLeft - slot + _px(p.style.firstLineIndent)
+                marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4), g.textTop))
+            } else {
+                marker.layout(minWidth: slot - 8, maxWidth: slot - 8)
+                marker.paint(canvas, Offset(g.textLeft - slot, g.textTop))
+            }
             marker.dispose()
         }
         g.painter.paint(canvas, Offset(g.textLeft, g.textTop))

@@ -1024,8 +1024,12 @@ enum PptxText {
             inner += "<a:spcBef><a:spcPts val=\"\(Int((st.spaceBefore * 100).rounded()))\"/></a:spcBef>"
             inner += "<a:spcAft><a:spcPts val=\"\(Int((st.spaceAfter * 100).rounded()))\"/></a:spcAft>"
             switch st.list {
-            case .bullet?: inner += "<a:buFont typeface=\"Arial\"/><a:buChar char=\"\(PptxXML.escape(st.bulletText ?? "•", attribute: true))\"/>"
-            case .numbered?: inner += "<a:buFont typeface=\"+mj-lt\"/><a:buAutoNum type=\"arabicPeriod\"/>"
+            case .bullet?, .numbered?:
+                if let c = st.bulletColor { inner += "<a:buClr><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:buClr>" }
+                if let k = st.bulletScale { inner += "<a:buSzPct val=\"\(Int((k * 100000).rounded()))\"/>" }
+                inner += st.list == .bullet
+                    ? "<a:buFont typeface=\"Arial\"/><a:buChar char=\"\(PptxXML.escape(st.bulletText ?? "•", attribute: true))\"/>"
+                    : "<a:buFont typeface=\"+mj-lt\"/><a:buAutoNum type=\"arabicPeriod\"/>"
             case nil: inner += "<a:buNone/>"
             }
             out += "<a:p><a:pPr\(pPr)>\(inner)</a:pPr>"
