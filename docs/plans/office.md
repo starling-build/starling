@@ -526,14 +526,30 @@ original breaks before it. delins (4.8%) is not ours to fix: Word
 prints its ORIGINAL 4.6% differently from one session to the next (the
 tracked-change balloons), measured by reprinting the original alone.
 
-The harness keeps Word's prints of the originals across sessions now.
-Reprinting 15 originals in a later session gave 13 pixel-identical and
-two not (heading123, whose "Times" is substituted differently per
-session, and delins); those two are reprinted every session, and the
-rest are reused once a small stable canary original reprints identical
-to its kept print. Our own copy still has to go through Word each time
-— what Word makes of our file is the thing measured — so the cost that
-remains is one print per changed copy.
+Whether Word's prints of the originals can be kept across sessions was
+tried and answered no. Word prints some originals differently from one
+session to the next (font substitution falling another way: heading123
+4.7%, delins 4.6%, bug59058 7.9%, drawing 19.7%), and WHICH ones differ
+changes per session — drawing was pixel-identical across two sessions
+and 19.7% off in the third — so a cache behind one stable canary
+reported two regressions that were only the cache. Reuse is
+session-bound again; `DOCX_RENDER_REUSE=1` is there for quick iteration
+and its numbers are not to be committed. The same effect moves SCORES:
+drawing is 0.56% in one session and 6.4% in another with the same copy,
+so a jump on a file with substituted fonts is checked by reprinting the
+previous build's copy in the same session before it is believed.
+
+Then form_footnotes' page break, the last large number. Its last row
+carries `w:tblPrEx` — a row's own exceptions to the table's borders —
+and its cells rule single sides at their own style (a double bottom
+under single inside rules); both were dropped, and the row was 2pt
+short of breaking where Word breaks it. A row's border exceptions are
+kept as written (not its cell-margin ones: margins are flattened into
+the table's, and drawing's exception restating them put margins back),
+and each cell's `w:tcBorders` is kept verbatim and written back while
+the table's border switch is what the file had. 44% to 37%: the row
+breaks where Word's does now, and what is left is a 2pt offset on page
+one.
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced

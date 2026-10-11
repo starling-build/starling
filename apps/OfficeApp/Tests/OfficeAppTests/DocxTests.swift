@@ -224,12 +224,18 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual([ts.cellMarginTop, ts.cellMarginLeft, ts.cellMarginBottom, ts.cellMarginRight], [3.6, 3.6, 3.6, 3.6])
         let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertEqual(ts.borderWidth, 0.75)
-        XCTAssertTrue(saved.contains("<w:top w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/>"), saved)
+        // (The cells' own border markup is kept, attributes in the serializer's order.)
+        XCTAssertTrue(saved.contains("<w:top w:color=\"E1E1E1\" w:space=\"0\" w:sz=\"6\" w:val=\"single\"/>"), saved)
         // Ruled through its cells, nothing at the table level: written back
         // the same way — no w:tblBorders, every cell its own sides.
         XCTAssertTrue(ts.bordersFromCells)
         XCTAssertFalse(saved.contains("<w:tblBorders>"), saved)
-        XCTAssertEqual(saved.components(separatedBy: "<w:tcBorders><w:top w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/><w:bottom w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/></w:tcBorders>").count, 3, saved)
+        XCTAssertEqual(saved.components(separatedBy: "<w:tcBorders><w:top w:color=\"E1E1E1\" w:space=\"0\" w:sz=\"6\" w:val=\"single\"/><w:bottom w:color=\"E1E1E1\" w:space=\"0\" w:sz=\"6\" w:val=\"single\"/></w:tcBorders>").count, 3, saved)
+        // Borders toggled off in the editor: the kept markup steps aside.
+        var off = back
+        off.tableStyles[off.tableStyles.keys.first!]!.borders = false
+        let offXML = String(decoding: try Zip.read(try DocxFormat.write(off, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertFalse(offXML.contains("w:color=\"E1E1E1\" w:space=\"0\" w:sz=\"6\" w:val=\"single\""), offXML)
         XCTAssertTrue(saved.contains("<w:tblCellMar><w:top w:w=\"72\" w:type=\"dxa\"/>"), saved)
     }
 
@@ -996,6 +1002,15 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(wxml.contains("<w:top w:val=\"single\" w:sz=\"12\" w:space=\"0\" w:color=\"auto\"/><w:bottom w:val=\"nil\"/>"), wxml)
         XCTAssertTrue(wxml.contains("<w:vMerge/><w:tcBorders><w:top w:val=\"nil\"/><w:bottom w:val=\"single\" w:sz=\"12\""), wxml)
         XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(wide, pageSetup: .letter)).document.paragraphs[0].cell?.borderWidth, 1.5)
+        // In a table with its OWN borders, a cell that draws the same
+        // sides wider still keeps them (form_footnotes' heading cell).
+        var own = doc
+        own.tableStyles["T"]!.bordersFromCells = false
+        own.paragraphs[0].cell = CellRef(table: "T", row: 0, column: 0, rowSpan: 1, edges: BorderEdges(top: true, left: true))
+        own.paragraphs[0].cell!.borderWidth = 2.25
+        let oback = try DocxFormat.read(try DocxFormat.write(own, pageSetup: .letter)).document.paragraphs[0].cell
+        XCTAssertEqual(oback?.borderWidth, 2.25)
+        XCTAssertEqual(oback?.edges, BorderEdges(top: true, left: true))
     }
 
     func testNamedStyleKeepsItsTabStops() throws {
@@ -1055,6 +1070,20 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(lvl.suffix, "space")
         XCTAssertEqual(lvl.numberRPrXML, "<w:rPr><w:b w:val=\"0\"/><w:sz w:val=\"28\"/></w:rPr>")
         XCTAssertNil(back.listFormats["7"]?[0]?.numberRPrXML)
+    }
+
+    func testRowPropertyExceptionsKept() throws {
+        // form_footnotes: a row that rules itself (w:tblPrEx) over the table.
+        var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")
+        a.cell = CellRef(table: "T", row: 0, column: 0); b.cell = CellRef(table: "T", row: 1, column: 0)
+        var doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [200]
+        let ex = "<w:tblPrEx><w:tblBorders><w:top w:color=\"auto\" w:space=\"0\" w:sz=\"18\" w:val=\"single\"/></w:tblBorders></w:tblPrEx>"
+        var ts = TableStyle(); ts.rowExceptions = [1: ex]; ts.rowHeights = [1: 45.15]; doc.tableStyles["T"] = ts
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:tr>" + ex + "<w:trPr><w:trHeight w:val=\"903\"/></w:trPr>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document.tableStyles.values.first
+        XCTAssertEqual(back?.rowExceptions, [1: ex])
     }
 
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {

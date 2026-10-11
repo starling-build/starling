@@ -21,22 +21,23 @@ fi
 pgrep -x 'Microsoft Word' >/dev/null || { open -a 'Microsoft Word'; sleep 8; }
 WORD_START=$(ps -o lstart= -p "$(pgrep -x 'Microsoft Word' | head -1)" | xargs -I{} date -j -f '%a %b %d %T %Y' '{}' +%s)
 [ -n "$WORD_START" ] || { echo "cannot read Word's start time" >&2; exit 2; }
-# Word's prints of the ORIGINALS are kept across Word sessions. They were
-# once trusted only within the session that made them, and every relaunch
-# then reprinted every original, 180 pages of bug65649 included. Measured
-# 2026-10-11: 13 of 15 originals reprint pixel-identically in a later
-# session; two do not — heading123 (its "Times" is substituted another
-# way from one session to the next, 4.7%) and delins (its tracked-change
-# balloons, 4.6%). So: the UNSTABLE originals are reprinted every session,
-# and the rest are reused behind a canary — each new session reprints one
-# small stable original and compares it with its kept print: identical,
-# and the kept prints are trusted for the session; different (a Word
-# update, a font change), and the session reprints everything.
-# CANARY names the file; DOCX_RENDER_FRESH=1 reprints all.
-UNSTABLE=" ${UNSTABLE:-heading123.docx delins.docx} "
+# Word's prints of the ORIGINALS are trusted only within the Word session
+# that made them: both sides of a score come from one session, or the
+# score means nothing. Word prints some originals differently from one
+# session to the next — heading123 by 4.7%, delins 4.6%, bug59058 7.9%,
+# drawing 19.7% (font substitution falling another way) — and WHICH ones
+# differ changes per session: drawing was pixel-identical across two
+# sessions and 19.7% off in the third. A cross-session cache behind one
+# stable canary was tried on 2026-10-11 and reported two regressions
+# that were only the cache (the canary passed while those two differed),
+# so reuse across sessions is opt-in, for quick iteration on files known
+# to be stable: DOCX_RENDER_REUSE=1 reuses kept prints once the CANARY
+# original reprints identical, except the UNSTABLE names. Never commit a
+# number measured that way.
+UNSTABLE=" ${UNSTABLE:-heading123.docx delins.docx bug59058.docx drawing.docx} "
 CANARY=${CANARY:-Styles.docx}; cbase=${CANARY%.docx}
 MARK="$WORK/pdf/.trusted-$WORD_START"
-if [ -z "$DOCX_RENDER_FRESH" ] && [ ! -e "$MARK" ] && [ ! -e "$MARK.no" ]; then
+if [ -n "$DOCX_RENDER_REUSE" ] && [ ! -e "$MARK" ] && [ ! -e "$MARK.no" ]; then
   if [ -s "$WORK/pdf/$cbase-orig.pdf" ] && [ -f "$IN/$CANARY" ]; then
     r=$(osascript "$HERE/docx-word-pdf.applescript" "$IN/$CANARY" "$WORK/pdf/canary-check.pdf" 2>&1)
     c=$([ "$r" = pdf ] && "$DIFF" "$WORK/pdf/$cbase-orig.pdf" "$WORK/pdf/canary-check.pdf" "$WORK/pdf" 1 | tail -1)
@@ -51,8 +52,9 @@ for n in "${names[@]}"; do
   # Reuse the kept print when this session is trusted (or made it) and
   # the original has not changed since.
   o="$WORK/pdf/$base-orig.pdf"
-  trusted=$MARK; case "$UNSTABLE" in *" $n "*) trusted=/nonexistent ;; esac
-  if [ -s "$o" ] && [ "$o" -nt "$IN/$n" ] && [ -z "$DOCX_RENDER_FRESH" ] && { [ -e "$trusted" ] || [ "$(stat -f %m "$o")" -gt "$WORD_START" ]; }; then r1=pdf
+  trusted=/nonexistent
+  if [ -n "$DOCX_RENDER_REUSE" ]; then trusted=$MARK; case "$UNSTABLE" in *" $n "*) trusted=/nonexistent ;; esac; fi
+  if [ -s "$o" ] && [ "$o" -nt "$IN/$n" ] && { [ -e "$trusted" ] || [ "$(stat -f %m "$o")" -gt "$WORD_START" ]; }; then r1=pdf
   else r1=$(osascript "$HERE/docx-word-pdf.applescript" "$IN/$n" "$o" 2>&1); fi
   r2=$(osascript "$HERE/docx-word-pdf.applescript" "$OUT/$n" "$WORK/pdf/$base-ours.pdf" 2>&1)
   if [ "$r1" != "pdf" ] || [ "$r2" != "pdf" ]; then

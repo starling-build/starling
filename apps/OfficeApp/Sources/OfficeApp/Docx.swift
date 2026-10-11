@@ -700,6 +700,13 @@ enum DocxFormat {
                         style.rowHeights[r] = v / 20
                     }
                     if let c = tr.first("w:trPr")?.first("w:cantSplit"), !_isOff(c) { style.rowsCantSplit.insert(r) }
+                    // Its borders only: cell margins are flattened into the
+                    // table's, and an exception restating the table's own
+                    // margins over cells that zeroed theirs (drawing) would
+                    // put the margins back.
+                    if let ex = tr.first("w:tblPrEx"), let b = ex.first("w:tblBorders") {
+                        style.rowExceptions[r] = "<w:tblPrEx>" + PptxXML.serialize(b) + "</w:tblPrEx>"
+                    }
                 }
                 // Cells without a stated width autofit to their content.
                 let widthless = cells.filter { c in
@@ -727,9 +734,11 @@ enum DocxFormat {
                                 // and this row's own stated sides.
                                 var contEdges = _edges(tcPr, "w:tcBorders")
                                 contEdges?.insideH = nil; contEdges?.insideV = nil
+                                let contXML = tcPr?.first("w:tcBorders").map { PptxXML.serialize($0) }
                                 for k in range {
                                     paragraphs[k].cell?.rowSpan += 1
                                     paragraphs[k].cell?.continuationEdges.append(contEdges)
+                                    paragraphs[k].cell?.continuationBordersXML.append(contXML)
                                 }
                                 column += span
                                 continue
@@ -762,15 +771,30 @@ enum DocxFormat {
                             } else {
                             let te = style.edges ?? BorderEdges()
                             let lastRow = r == rowCount - 1, lastCol = column + span >= gridCount
+                            // A cell ruled at its own width keeps the sides it
+                            // draws even where the table draws them too — the
+                            // width is the difference (form_footnotes' heading
+                            // cell: 2.25pt over the table's 1.5pt).
+                            let ownWidth = _borders(tcPr, "w:tcBorders")?.width
+                            let wider = ownWidth != nil && ownWidth != (style.borderWidth ?? 0.5)
+                            if wider {
+                                if own.top == false, own.top == (r == 0 ? te.top : te.insideH) ?? style.borders { own.top = nil }
+                                if own.left == false, own.left == (column == 0 ? te.left : te.insideV) ?? style.borders { own.left = nil }
+                                if own.bottom == false, own.bottom == (lastRow ? te.bottom : te.insideH) ?? style.borders { own.bottom = nil }
+                                if own.right == false, own.right == (lastCol ? te.right : te.insideV) ?? style.borders { own.right = nil }
+                            } else {
                             if own.top == (r == 0 ? te.top : te.insideH) ?? style.borders { own.top = nil }
                             if own.left == (column == 0 ? te.left : te.insideV) ?? style.borders { own.left = nil }
                             if own.bottom == (lastRow ? te.bottom : te.insideH) ?? style.borders { own.bottom = nil }
                             if own.right == (lastCol ? te.right : te.insideV) ?? style.borders { own.right = nil }
+                            }
                             if !own.isEmpty { ownEdges = own }
                             }
                         }
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
+                        currentCell?.bordersXML = tcPr?.first("w:tcBorders").map { PptxXML.serialize($0) }
+                        currentCell?.bordersKeptUnder = style.borders
                         // The cell's own line width, over the table's.
                         if let w = _borders(tcPr, "w:tcBorders")?.width, w != (style.borderWidth ?? 0.5) { currentCell?.borderWidth = w }
                         // Text turned a quarter (Word's w:textDirection).
@@ -2186,7 +2210,8 @@ enum DocxFormat {
                 style.autoCellWidths ? "<w:tcW w:w=\"0\" w:type=\"auto\"/>" : "<w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
             }
             // A cell's own sides, over the table's, at its own width.
-            func cellBordersXML(_ own: BorderEdges?, width: Double? = nil) -> String {
+            func cellBordersXML(_ own: BorderEdges?, width: Double? = nil, kept: String? = nil, under: Bool? = nil) -> String {
+                if let kept, under == style.borders { return kept }
                 guard let own else { return "" }
                 let sz = width.map { Int(($0 * 8).rounded()) } ?? borderSz
                 var out = "<w:tcBorders>"
@@ -2205,7 +2230,7 @@ enum DocxFormat {
                 if style.rowsCantSplit.contains(r) { trPr += "<w:cantSplit/>" }
                 if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"/>" }
                 if style.headerRow && r < style.headerRowCount { trPr += "<w:tblHeader/>" }
-                xml += trPr.isEmpty ? "<w:tr>" : "<w:tr><w:trPr>\(trPr)</w:trPr>"
+                xml += "<w:tr>" + (style.rowExceptions[r] ?? "") + (trPr.isEmpty ? "" : "<w:trPr>\(trPr)</w:trPr>")
                 // A row ends where its last cell does: Word allows a row
                 // shorter than the grid (145 of bug65649's 480 rows are,
                 // and drawing's), and padding one with an empty cell adds a
@@ -2222,7 +2247,8 @@ enum DocxFormat {
                         if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                         let offset = r - above.row - 1
                         let contEdges = offset < above.continuationEdges.count ? above.continuationEdges[offset] : above.edges
-                        xml += "<w:vMerge/>" + cellBordersXML(contEdges, width: above.borderWidth)
+                        let contKept = offset < above.continuationBordersXML.count ? above.continuationBordersXML[offset] : nil
+                        xml += "<w:vMerge/>" + cellBordersXML(contEdges, width: above.borderWidth, kept: contKept, under: above.bordersKeptUnder)
                         if let v = above.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
                         xml += "</w:tcPr><w:p/></w:tc>"
                         c += span
@@ -2235,7 +2261,7 @@ enum DocxFormat {
                     xml += "<w:tc><w:tcPr>" + tcW(w)
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
-                    xml += cellBordersXML(ref?.edges, width: ref?.borderWidth)   // schema order: borders, then shading
+                    xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML, under: ref?.bordersKeptUnder)   // schema order: borders, then shading
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
                     // Schema order: the text direction before the alignment.
                     switch ref?.textDirection {

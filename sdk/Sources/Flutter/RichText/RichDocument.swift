@@ -593,6 +593,17 @@ public struct CellRef: Hashable, Sendable {
     /// wrapped "зарплаты" onto a second line and we did not, which made
     /// the header row a line shorter and every section a page longer.
     public var borderWidth: Double? = nil
+    /// The cell's `w:tcBorders` as the file wrote it, and each continuation
+    /// row's for a cell merged downward: every side's own line style,
+    /// width and colour, which `edges` and `borderWidth` only summarise.
+    /// Written back while the table's border switch is what the file had
+    /// (`bordersKeptUnder`). form_footnotes rules one row's bottom
+    /// double under single inside rules, 2pt taller — which decided a page.
+    public var bordersXML: String? = nil
+    public var continuationBordersXML: [String?] = []
+    /// The table's border switch when `bordersXML` was read: once the
+    /// editor toggles the table's borders, the summary is written instead.
+    public var bordersKeptUnder: Bool? = nil
     /// Which way the cell's text runs (PowerPoint's `vert`, Word's
     /// `w:textDirection`): across as usual, or turned a quarter so the
     /// lines run up or down the cell and stack across its width.
@@ -755,6 +766,11 @@ public struct TableStyle: Hashable, Sendable {
     /// a row without one is as tall as its content.
     /// Rows Word may not split across pages (w:cantSplit), by index.
     public var rowsCantSplit: Set<Int> = []
+    /// A row's exceptions to the table's properties (Word's `w:tblPrEx`:
+    /// its own borders or cell margins), by row index, kept as written.
+    /// form_footnotes rules twenty of its form rows this way, and without
+    /// the last one's 2.25pt box that row fitted a page Word breaks before.
+    public var rowExceptions: [Int: String] = [:]
     public var rowHeights: [Int: Double] = [:]
     /// Cell margins in points (Word's `w:tblCellMar`: 0 above and below,
     /// 5.4 at the sides by default); nil takes the layout's own padding.
