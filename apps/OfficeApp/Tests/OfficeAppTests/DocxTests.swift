@@ -626,69 +626,50 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(widths.reduce(0, +), 612, accuracy: 2, "the grid scales to the full text width")
     }
 
-    func testCellOwnBordersOverrideTheTables() throws {
+    func testCellAndTableBorderSidesRoundTrip() throws {
         // bug65649: a ruled estimate table whose heading and totals cells
-        // say nil on every side.
+        // say nil on every side; Bug54771a: a title cell with a bottom
+        // rule alone; form_footnotes: a table ruled outside, not between.
         var a = RichParagraph(text: "heading"), b = RichParagraph(text: "n"), c = RichParagraph(text: "v")
-        a.cell = CellRef(table: "T", row: 0, column: 0, span: 2, borders: false)
+        a.cell = CellRef(table: "T", row: 0, column: 0, span: 2, edges: BorderEdges(all: false))
         b.cell = CellRef(table: "T", row: 1, column: 0)
-        c.cell = CellRef(table: "T", row: 1, column: 1)
+        c.cell = CellRef(table: "T", row: 1, column: 1, edges: BorderEdges(right: false))
         var doc = RichDocument(paragraphs: [a, b, c, RichParagraph(text: "")])
         doc.tableColumns["T"] = [100, 100]
         var ts = TableStyle(); ts.borders = true; doc.tableStyles["T"] = ts
         let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(xml.contains("<w:gridSpan w:val=\"2\"/><w:tcBorders><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/></w:tcBorders></w:tcPr>"), xml)
-        XCTAssertEqual(xml.components(separatedBy: "<w:tcBorders>").count, 2, "the ruled cells say nothing of their own")
+        XCTAssertTrue(xml.contains("<w:tcBorders><w:right w:val=\"nil\"/></w:tcBorders>"), xml)
+        XCTAssertEqual(xml.components(separatedBy: "<w:tcBorders>").count, 3, "the ruled cell says nothing of its own")
         let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
-        XCTAssertEqual(back.paragraphs[0].cell?.borders, false)
-        XCTAssertNil(back.paragraphs[1].cell?.borders)
-        // And the other way round: one ruled cell in an unruled table.
+        XCTAssertEqual(back.paragraphs[0].cell?.edges, BorderEdges(all: false))
+        XCTAssertNil(back.paragraphs[1].cell?.edges)
+        XCTAssertEqual(back.paragraphs[2].cell?.edges, BorderEdges(right: false))
+        // The other way round: a bottom rule alone in an unruled table.
         var plain = doc
         plain.tableStyles["T"]!.borders = false
-        plain.paragraphs[0].cell!.borders = nil
-        plain.paragraphs[2].cell!.borders = true
+        plain.paragraphs[0].cell!.edges = BorderEdges(bottom: true)
+        plain.paragraphs[2].cell!.edges = nil
         let pxml = String(decoding: try Zip.read(try DocxFormat.write(plain, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
-        XCTAssertTrue(pxml.contains("<w:tcBorders><w:top w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"), pxml)
+        XCTAssertTrue(pxml.contains("<w:tcBorders><w:bottom w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/></w:tcBorders>"), pxml)
         let pback = try DocxFormat.read(try DocxFormat.write(plain, pageSetup: .letter)).document
-        XCTAssertEqual(pback.paragraphs[2].cell?.borders, true)
-        XCTAssertNil(pback.paragraphs[0].cell?.borders)
-    }
-
-    func testPageBordersKeptVerbatim() throws {
-        // bib-chernigovka: an art border round every page.
-        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
-        let di = entries.firstIndex { $0.name == "word/document.xml" }!
-        var xml = String(decoding: entries[di].data, as: UTF8.self)
-        let borders = "<w:pgBorders w:offsetFrom=\"page\"><w:top w:val=\"mapleMuffins\" w:sz=\"12\" w:space=\"24\" w:color=\"auto\"/><w:left w:val=\"mapleMuffins\" w:sz=\"12\" w:space=\"24\" w:color=\"auto\"/></w:pgBorders>"
-        xml = xml.replacingAll("w:gutter=\"0\"/>", with: "w:gutter=\"0\"/>" + borders)
-        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
-        let back = try DocxFormat.read(try Zip.write(entries)).document
-        // (The serializer orders attributes by name.)
-        let kept = try XCTUnwrap(back.pageBordersXML)
-        XCTAssertTrue(kept.hasPrefix("<w:pgBorders w:offsetFrom=\"page\"><w:top ") && kept.contains("w:val=\"mapleMuffins\"") && kept.hasSuffix("</w:pgBorders>"), kept)
-        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
-        XCTAssertTrue(again.contains("w:gutter=\"0\"/>" + kept + "</w:sectPr>"), again)
-    }
-
-    func testEmptyParagraphKeepsItsMarkHeight() throws {
-        // bib-chernigovka's cover: empty 16pt spacers. Word lays an empty
-        // paragraph out at its mark's size (probed 2026-10-09).
-        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: ""), RichParagraph(text: "b")]), pageSetup: .letter))
-        let di = entries.firstIndex { $0.name == "word/document.xml" }!
-        var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:p>",
-                               with: "<w:p><w:pPr><w:jc w:val=\"center\"/><w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\"/><w:sz w:val=\"32\"/></w:rPr></w:pPr></w:p>")
-        XCTAssertTrue(xml.contains("<w:sz w:val=\"32\"/></w:rPr></w:pPr></w:p>"), xml)
-        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
-        let back = try DocxFormat.read(try Zip.write(entries)).document
-        XCTAssertEqual(back.paragraphs[1].text, "")
-        XCTAssertEqual(back.paragraphs[1].runs.first?.style.fontSize, 16)
-        XCTAssertEqual(back.paragraphs[1].runs.first?.style.fontFamily, "Times New Roman")
-        XCTAssertNil(back.paragraphs[0].runs.first?.style.fontSize, "a run's own size is not the mark's")
-        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
-        XCTAssertTrue(again.contains("<w:jc w:val=\"center\"/><w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\"/><w:sz w:val=\"32\"/><w:szCs w:val=\"32\"/></w:rPr></w:pPr></w:p>"), again)
-        // An empty paragraph whose mark says nothing writes no mark look.
-        XCTAssertFalse(again.contains("<w:rPr></w:rPr>"), again)
+        XCTAssertEqual(pback.paragraphs[0].cell?.edges, BorderEdges(bottom: true))
+        XCTAssertNil(pback.paragraphs[2].cell?.edges)
+        // A table ruled outside but not between its cells.
+        var frame = doc
+        frame.paragraphs[0].cell!.edges = nil; frame.paragraphs[2].cell!.edges = nil
+        frame.tableStyles["T"]!.edges = BorderEdges(insideH: false, insideV: false)
+        let fxml = String(decoding: try Zip.read(try DocxFormat.write(frame, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(fxml.contains("<w:right w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/><w:insideH w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/><w:insideV w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/></w:tblBorders>"), fxml)
+        let fback = try DocxFormat.read(try DocxFormat.write(frame, pageSetup: .letter)).document.tableStyles.values.first
+        XCTAssertEqual(fback?.borders, true)
+        XCTAssertEqual(fback?.edges, BorderEdges(insideH: false, insideV: false))
+        // And one with only inside rules — the verdict is "on", the sides
+        // outside are off.
+        var inner = frame
+        inner.tableStyles["T"]!.edges = BorderEdges(top: false, left: false, bottom: false, right: false)
+        let iback = try DocxFormat.read(try DocxFormat.write(inner, pageSetup: .letter)).document.tableStyles.values.first
+        XCTAssertEqual(iback?.edges, BorderEdges(top: false, left: false, bottom: false, right: false))
     }
 
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {

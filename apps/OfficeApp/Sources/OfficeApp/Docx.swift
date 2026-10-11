@@ -221,6 +221,7 @@ enum DocxFormat {
         // Whether a table style draws borders (Table Grid does, Normal Table
         // does not): a table that says nothing itself takes its style's word.
         var tableBorders: [String: _Borders] = [:]
+        var tableEdges: [String: BorderEdges?] = [:]
         var defaultBorders: _Borders? = nil
         // A table style's conditional parts: the first row's fill and run
         // look, the body rows' bands.
@@ -246,6 +247,7 @@ enum DocxFormat {
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
                 tableBases[id] = ps
                 tableNodes[id] = style
+                tableEdges[id] = _edges(style.first("w:tblPr"), "w:tblBorders")
                 if style["w:default"] == "1" {
                     defaultMargins = _cellMargins(style.first("w:tblPr"))
                     defaultBorders = _borders(style.first("w:tblPr"), "w:tblBorders")
@@ -566,6 +568,28 @@ enum DocxFormat {
                 style.borders = borders?.on ?? false
                 style.borderColor = borders?.color
                 style.borderWidth = borders?.width.flatMap { $0 == 0.5 ? nil : $0 }   // nil is Word's 0.5pt
+                // The table's sides, where they differ from that verdict:
+                // its own w:tblBorders over its style's, and a side neither
+                // names is none (form_footnotes' tables are ruled outside,
+                // not between their cells; the verdict alone ruled every
+                // row and grew the form by a line of borders).
+                let styledEdges = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableEdges[$0] ?? nil }
+                if let own = _edges(node.first("w:tblPr"), "w:tblBorders") ?? styledEdges {
+                    var e = BorderEdges()
+                    e.top = own.top ?? styledEdges?.top ?? false
+                    e.left = own.left ?? styledEdges?.left ?? false
+                    e.bottom = own.bottom ?? styledEdges?.bottom ?? false
+                    e.right = own.right ?? styledEdges?.right ?? false
+                    e.insideH = own.insideH ?? styledEdges?.insideH ?? false
+                    e.insideV = own.insideV ?? styledEdges?.insideV ?? false
+                    if e.top == style.borders { e.top = nil }
+                    if e.left == style.borders { e.left = nil }
+                    if e.bottom == style.borders { e.bottom = nil }
+                    if e.right == style.borders { e.right = nil }
+                    if e.insideH == style.borders { e.insideH = nil }
+                    if e.insideV == style.borders { e.insideV = nil }
+                    if !e.isEmpty { style.edges = e }
+                }
                 if unwrapped(node, "w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
                 // The style's conditional parts, as w:tblLook switches them
                 // on (attributes in 2010 files, bits of w:val in 2007's).
@@ -620,6 +644,8 @@ enum DocxFormat {
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.
                 var openSpan: [Int: Range<Int>] = [:]   // column → the spanning cell's paragraphs
+                let rowCount = unwrapped(node, "w:tr").count
+                let gridCount = tableColumns[id]?.count ?? Int.max
                 for (r, tr) in unwrapped(node, "w:tr").enumerated() {
                     var column = 0
                     for tc in unwrapped(tr, "w:tc") {
@@ -650,9 +676,21 @@ enum DocxFormat {
                         }
                         // The cell's own borders, when they differ from the
                         // table's verdict: nil sides inside a ruled table.
-                        var ownBorders: Bool? = nil
-                        if let own = _cellBorderSwitch(tcPr), own != style.borders { ownBorders = own }
-                        currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, borders: ownBorders)
+                        // The cell's own sides, where they differ from what
+                        // the table gives that position (an outer side on
+                        // the rim, an inside one elsewhere).
+                        var ownEdges: BorderEdges? = nil
+                        if var own = _edges(tcPr, "w:tcBorders") {
+                            own.insideH = nil; own.insideV = nil
+                            let te = style.edges ?? BorderEdges()
+                            let lastRow = r == rowCount - 1, lastCol = column + span >= gridCount
+                            if own.top == (r == 0 ? te.top : te.insideH) ?? style.borders { own.top = nil }
+                            if own.left == (column == 0 ? te.left : te.insideV) ?? style.borders { own.left = nil }
+                            if own.bottom == (lastRow ? te.bottom : te.insideH) ?? style.borders { own.bottom = nil }
+                            if own.right == (lastCol ? te.right : te.insideV) ?? style.borders { own.right = nil }
+                            if !own.isEmpty { ownEdges = own }
+                        }
+                        currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges)
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         let before = paragraphs.count
@@ -998,18 +1036,17 @@ enum DocxFormat {
         return _Borders(on: true, color: color, width: width)
     }
 
-    /// A cell's own border switch: false when its `w:tcBorders` turns all
-    /// four sides off, true when it draws all four, nil when it says
-    /// nothing or only some sides (Bug54771a's title cell has a bottom
-    /// rule alone — a one-switch cell would have boxed it).
-    private static func _cellBorderSwitch(_ pr: XNode?) -> Bool? {
-        guard let b = pr?.first("w:tcBorders") else { return nil }
-        var on = 0, off = 0
-        for side in ["w:top", "w:left", "w:bottom", "w:right"] {
-            guard let e = b.first(side) else { return nil }
-            if ["nil", "none"].contains(e["w:val"] ?? "nil") { off += 1 } else { on += 1 }
+    /// The sides a `w:tblBorders`/`w:tcBorders` names: false for nil or
+    /// none, true for a drawn line, nil for a side it does not mention.
+    private static func _edges(_ pr: XNode?, _ tag: String) -> BorderEdges? {
+        guard let b = pr?.first(tag) else { return nil }
+        func side(_ name: String) -> Bool? {
+            guard let e = b.first(name) else { return nil }
+            return !["nil", "none"].contains(e["w:val"] ?? "nil")
         }
-        return on == 4 ? true : off == 4 ? false : nil
+        let e = BorderEdges(top: side("w:top"), left: side("w:left"), bottom: side("w:bottom"), right: side("w:right"),
+                            insideH: side("w:insideH"), insideV: side("w:insideV"))
+        return e.isEmpty ? nil : e
     }
 
     /// `w:tblCellMar` of a table or table style (or a cell's `w:tcMar`),
@@ -1907,9 +1944,10 @@ enum DocxFormat {
             xml += "<w:tblBorders>"
             let borderColor = style.borderColor.map { _hex($0) } ?? "auto"
             let borderSz = Int(((style.borderWidth ?? 0.5) * 8).rounded())
-            for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
-                xml += style.borders ? "<w:\(side) w:val=\"single\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
-                                     : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
+            let e = style.edges ?? BorderEdges()
+            for (side, own) in [("top", e.top), ("left", e.left), ("bottom", e.bottom), ("right", e.right), ("insideH", e.insideH), ("insideV", e.insideV)] {
+                xml += (own ?? style.borders) ? "<w:\(side) w:val=\"single\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
+                                              : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
             xml += "</w:tblBorders>"
             if style.fixedLayout { xml += "<w:tblLayout w:type=\"fixed\"/>" }
@@ -1921,13 +1959,14 @@ enum DocxFormat {
                 xml += "</w:tblCellMar>"
             }
             xml += "<w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
-            // A cell's own borders, over the table's.
-            func cellBordersXML(_ own: Bool?) -> String {
+            // A cell's own sides, over the table's.
+            func cellBordersXML(_ own: BorderEdges?) -> String {
                 guard let own else { return "" }
                 var out = "<w:tcBorders>"
-                for side in ["top", "left", "bottom", "right"] {
-                    out += own ? "<w:\(side) w:val=\"single\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
-                               : "<w:\(side) w:val=\"nil\"/>"
+                for (side, v) in [("top", own.top), ("left", own.left), ("bottom", own.bottom), ("right", own.right)] {
+                    guard let v else { continue }
+                    out += v ? "<w:\(side) w:val=\"single\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
+                             : "<w:\(side) w:val=\"nil\"/>"
                 }
                 return out + "</w:tcBorders>"
             }
@@ -1954,7 +1993,7 @@ enum DocxFormat {
                         let w = twips[c ..< c + span].reduce(0, +)
                         xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
                         if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
-                        xml += "<w:vMerge/>" + cellBordersXML(above.borders) + "</w:tcPr><w:p/></w:tc>"
+                        xml += "<w:vMerge/>" + cellBordersXML(above.edges) + "</w:tcPr><w:p/></w:tc>"
                         c += span
                         continue
                     }
@@ -1966,7 +2005,7 @@ enum DocxFormat {
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
-                    xml += cellBordersXML(ref?.borders) + "</w:tcPr>"
+                    xml += cellBordersXML(ref?.edges) + "</w:tcPr>"
                     if cell.isEmpty { xml += "<w:p/>" }
                     // A nested table kept verbatim stands in for its
                     // flattened paragraphs while their text is unchanged.

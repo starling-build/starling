@@ -266,8 +266,8 @@ public final class RichLayout {
         /// The row's own height when the cell spans rows (rowHeight then
         /// covers every row it spans).
         var ownRowHeight: Double = 0
-        /// The cell's own border switch, over the table's (`CellRef.borders`).
-        var borders: Bool? = nil
+        /// The cell's own border sides, over the table's (`CellRef.edges`).
+        var edges: BorderEdges? = nil
     }
     private var _cells: [_CellGeo?] = []
     /// Row top for every paragraph (its own top when not in a table): the
@@ -1101,7 +1101,7 @@ public final class RichLayout {
                 ? widths[c.column ..< min(widths.count, c.column + c.span)].reduce(0, +) : width
             let colLeft = _tableLeft(c.table, document) + widths.prefix(c.column).reduce(0, +)
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
-                                 colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, borders: c.borders)
+                                 colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges)
             let ins = _cellInsets(c.table, document)
             left = colLeft + ins.left + _px(style.indentLeft)
             textWidth = max(1, colWidth - ins.left - ins.right - _px(style.indentLeft) - right)
@@ -1531,13 +1531,17 @@ public final class RichLayout {
     private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
         let g = geometry(i)
         if let c = _cells[i], c.firstInRow {
-            // The table's switch, which a cell may override either way.
-            let tableOn = document.tableStyles[c.table]?.borders ?? true
-            func ruled(_ d: _CellGeo) -> Bool { d.borders ?? tableOn }
+            // The table's switch, refined by its own sides and by each
+            // cell's: a side a cell states wins, then the table's side
+            // for that position (outer or inside), then the switch.
+            let ts = document.tableStyles[c.table]
+            let tableOn = ts?.borders ?? true
+            let te = ts?.edges
+            func on(_ cell: Bool?, _ table: Bool?) -> Bool { cell ?? table ?? tableOn }
             let stroke = Paint()
             stroke.style = .stroke
-            stroke.strokeWidth = max(1, _px(document.tableStyles[c.table]?.borderWidth ?? 0.5).rounded())
-            stroke.color = document.tableStyles[c.table]?.borderColor ?? theme.textColor.withOpacity(0.6)
+            stroke.strokeWidth = max(1, _px(ts?.borderWidth ?? 0.5).rounded())
+            stroke.color = ts?.borderColor ?? theme.textColor.withOpacity(0.6)
             // Every line lies inside the row (the paint is clipped to the
             // row's page piece, so a stroke centred on the row's bottom
             // edge lost its outer half and the table's last row had no
@@ -1549,28 +1553,34 @@ public final class RichLayout {
             let rowBottom = (c.rowTop + c.ownRowHeight).rounded()
             let tableLeft = (c.colLeft - widths.prefix(c.column).reduce(0, +)).rounded()
             let right = (tableLeft + widths.reduce(0, +)).rounded()
-            // Each cell of the row draws its left edge and, unless it spans
-            // further down, its bottom — and on the first row its top, on
-            // the last column its right; a cell from above that spans into
-            // this row draws its left edge here too, and its bottom on its
-            // last row. A cell whose own switch is off draws none of them.
+            // Is this the table's last row? (Its bottom is then the outer
+            // bottom side, not an inside one.)
+            var probe = i
+            while probe < _cells.count, let d = _cells[probe], d.table == c.table, d.row == c.row { probe += 1 }
+            let lastRow = !(probe < _cells.count && _cells[probe]?.table == c.table)
+            func paintEdges(_ d: _CellGeo, bottomHere: Bool) {
+                let cellRight = (d.colLeft + d.colWidth).rounded()
+                if on(d.edges?.left, d.column == 0 ? te?.left : te?.insideV) {
+                    canvas.drawLine(Offset(d.colLeft + 0.5, rowTop), Offset(d.colLeft + 0.5, rowBottom), stroke)
+                }
+                if c.row == 0, d.row == 0, on(d.edges?.top, te?.top) {
+                    canvas.drawLine(Offset(d.colLeft, rowTop + 0.5), Offset(cellRight, rowTop + 0.5), stroke)
+                }
+                if bottomHere, on(d.edges?.bottom, lastRow ? te?.bottom : te?.insideH) {
+                    canvas.drawLine(Offset(d.colLeft, rowBottom - 0.5), Offset(cellRight, rowBottom - 0.5), stroke)
+                }
+                if cellRight >= right - 0.5, on(d.edges?.right, te?.right) {
+                    canvas.drawLine(Offset(right - 0.5, rowTop), Offset(right - 0.5, rowBottom), stroke)
+                }
+            }
+            // Each cell of the row draws its edges; a cell from above that
+            // spans into this row draws its left edge here too, and its
+            // bottom on its last row.
             var j = i
             var lastColumn = -1
             while j < _cells.count, let d = _cells[j], d.table == c.table, d.row == c.row {
                 if d.column != lastColumn {
-                    let cellRight = (d.colLeft + d.colWidth).rounded()
-                    if ruled(d) {
-                        canvas.drawLine(Offset(d.colLeft + 0.5, rowTop), Offset(d.colLeft + 0.5, rowBottom), stroke)
-                        if c.row == 0 {
-                            canvas.drawLine(Offset(d.colLeft, rowTop + 0.5), Offset(cellRight, rowTop + 0.5), stroke)
-                        }
-                        if d.rowSpan == 1 {
-                            canvas.drawLine(Offset(d.colLeft, rowBottom - 0.5), Offset(cellRight, rowBottom - 0.5), stroke)
-                        }
-                        if cellRight >= right - 0.5 {
-                            canvas.drawLine(Offset(right - 0.5, rowTop), Offset(right - 0.5, rowBottom), stroke)
-                        }
-                    }
+                    paintEdges(d, bottomHere: d.rowSpan == 1)
                     lastColumn = d.column
                 }
                 j += 1
@@ -1580,16 +1590,7 @@ public final class RichLayout {
             while k >= 0, let d = _cells[k], d.table == c.table {
                 if d.rowSpan > 1, d.row < c.row, d.row + d.rowSpan > c.row, !seen.contains(d.column) {
                     seen.insert(d.column)
-                    if ruled(d) {
-                        let cellRight = (d.colLeft + d.colWidth).rounded()
-                        canvas.drawLine(Offset(d.colLeft + 0.5, rowTop), Offset(d.colLeft + 0.5, rowBottom), stroke)
-                        if d.row + d.rowSpan - 1 == c.row {
-                            canvas.drawLine(Offset(d.colLeft, rowBottom - 0.5), Offset(cellRight, rowBottom - 0.5), stroke)
-                        }
-                        if cellRight >= right - 0.5 {
-                            canvas.drawLine(Offset(right - 0.5, rowTop), Offset(right - 0.5, rowBottom), stroke)
-                        }
-                    }
+                    paintEdges(d, bottomHere: d.row + d.rowSpan - 1 == c.row)
                 }
                 k -= 1
             }

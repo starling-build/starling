@@ -526,20 +526,21 @@ public struct CellRef: Hashable, Sendable {
     /// This cell's own shading (Word's `w:shd` on the cell), over the
     /// table style's row fills.
     public var fill: Color? = nil
-    /// This cell's own borders (Word's `w:tcBorders`), when they differ
-    /// from the table's `TableStyle.borders`: false for a cell that says
-    /// none inside a ruled table (bug65649's estimate headings and totals
-    /// rows), true for a ruled cell in an unruled one. nil is the table's.
-    public var borders: Bool? = nil
+    /// This cell's own borders, by side (Word's `w:tcBorders`), where
+    /// they differ from the table's: a heading cell that says none on
+    /// every side inside a ruled table (bug65649's estimates), a title
+    /// cell with a bottom rule alone (Bug54771a), a form cell with no
+    /// right edge (form_footnotes). A side left nil is the table's.
+    public var edges: BorderEdges? = nil
 
-    public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1, fill: Color? = nil, borders: Bool? = nil) {
+    public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1, fill: Color? = nil, edges: BorderEdges? = nil) {
         self.table = table
         self.row = row
         self.column = column
         self.span = max(1, span)
         self.rowSpan = max(1, rowSpan)
         self.fill = fill
-        self.borders = borders
+        self.edges = edges
     }
 
     /// Whether this cell covers grid position (row, column).
@@ -562,8 +563,32 @@ public struct CellRef: Hashable, Sendable {
 /// A table's look beyond its cells: Word's borders on or off, and a
 /// header row that repeats at the top of every page the table runs on
 /// (and is shaded so the reader sees it is one).
+/// Border switches by side, each nil where nothing is said. A table's
+/// six (Word's `w:tblBorders`, the inside ones between its cells) or a
+/// cell's four (`w:tcBorders`) refine the one switch `TableStyle.borders`.
+public struct BorderEdges: Hashable, Sendable {
+    public var top: Bool? = nil
+    public var left: Bool? = nil
+    public var bottom: Bool? = nil
+    public var right: Bool? = nil
+    public var insideH: Bool? = nil
+    public var insideV: Bool? = nil
+
+    public init(top: Bool? = nil, left: Bool? = nil, bottom: Bool? = nil, right: Bool? = nil,
+                insideH: Bool? = nil, insideV: Bool? = nil) {
+        self.top = top; self.left = left; self.bottom = bottom; self.right = right
+        self.insideH = insideH; self.insideV = insideV
+    }
+    /// The four outer sides set alike.
+    public init(all: Bool) { self.init(top: all, left: all, bottom: all, right: all) }
+    public var isEmpty: Bool { top == nil && left == nil && bottom == nil && right == nil && insideH == nil && insideV == nil }
+}
+
 public struct TableStyle: Hashable, Sendable {
     public var borders = true
+    /// Per-side exceptions to `borders` (a form table ruled outside but
+    /// not between its cells); nil sides follow `borders`.
+    public var edges: BorderEdges? = nil
     public var headerRow = false
     /// The table's preferred width as a share of the text width (Word's
     /// `w:tblW` in pct; 100 = full width), or in points (`width`); the
