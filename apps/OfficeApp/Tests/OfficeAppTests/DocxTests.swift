@@ -728,6 +728,27 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(srels.contains("Id=\"rIdKept1\"") && srels.contains("Target=\"media/parchment.jpeg\""), srels)
     }
 
+    func testRunCharacterStyleIsResolved() throws {
+        // drawing.docx: a date in a Tahoma 7.5pt shaded character style,
+        // based on another that sets bold.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "12.04.2006")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">12.04.2006</w:t>", with: "<w:r><w:rPr><w:rStyle w:val=\"date1\"/></w:rPr><w:t xml:space=\"preserve\">12.04.2006</w:t>")
+        XCTAssertTrue(xml.contains("date1"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"character\" w:styleId=\"strong0\"><w:name w:val=\"strong0\"/><w:rPr><w:b/></w:rPr></w:style><w:style w:type=\"character\" w:customStyle=\"1\" w:styleId=\"date1\"><w:name w:val=\"date1\"/><w:basedOn w:val=\"strong0\"/><w:rPr><w:rFonts w:ascii=\"Tahoma\" w:hAnsi=\"Tahoma\" w:cs=\"Tahoma\"/><w:sz w:val=\"15\"/><w:szCs w:val=\"15\"/><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F1DDAB\"/></w:rPr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let cs = try XCTUnwrap(back.paragraphs[0].runs.first?.style)
+        XCTAssertEqual(cs.fontFamily, "Tahoma")
+        XCTAssertEqual(cs.fontSize, 7.5)
+        XCTAssertTrue(cs.bold, "inherited from the style it is based on")
+        XCTAssertEqual(cs.highlight, Color(0xFFF1DDAB))
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

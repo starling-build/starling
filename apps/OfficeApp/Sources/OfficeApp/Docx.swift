@@ -307,6 +307,19 @@ enum DocxFormat {
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 if let id = style["w:styleId"] { paragraphStyles[id] = style }
             }
+            var charNodes: [String: XNode] = [:]
+            for style in styles.all("w:style") where style["w:type"] == "character" {
+                if let id = style["w:styleId"] { charNodes[id] = style }
+            }
+            for id in charNodes.keys {
+                var chain: [XNode] = [], seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = charNodes[c] {
+                    seen.insert(c)
+                    if let rPr = node.first("w:rPr") { chain.insert(rPr, at: 0) }
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
+                notes.charStyleChains[id] = chain
+            }
             for id in paragraphStyles.keys {
                 var seen = Set<String>(), cur: String? = id
                 while let c = cur, !seen.contains(c), let node = paragraphStyles[c] {
@@ -979,6 +992,11 @@ enum DocxFormat {
         /// Every comment id whose range has been opened (a reference run
         /// for one of these ends a range; any other is a point comment).
         var seenComments = Set<String>()
+        /// Character styles (w:rStyle on a run), each as its chain of run
+        /// properties from the root style down, applied under the run's
+        /// own. drawing.docx's dates wear a Tahoma 7.5pt shaded style and
+        /// its headings a bold 14pt one; both came back as plain text.
+        var charStyleChains: [String: [XNode]] = [:]
         init(kept: [String: Data], rels: [String: KeptRel], rootNS: [String: String],
              part: @escaping (String) -> Data?, contentType: @escaping (String) -> String?) {
             self.kept = kept
@@ -1362,7 +1380,13 @@ enum DocxFormat {
             cs.link = link
             cs.revision = revision
             cs.comments = notes.openComments
-            if let rPr = r.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
+            if let rPr = r.first("w:rPr") {
+                // The run's character style first, then its own properties.
+                if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id] {
+                    for styled in chain { cs = _charStyle(styled, base: cs) }
+                }
+                cs = _charStyle(rPr, base: cs)
+            }
             for child in r.children {
                 switch child.name {
                 case "w:t": addText(child.text, cs)
