@@ -124,7 +124,8 @@ public struct CharStyle: Hashable, Sendable {
                 strikethrough: Bool = false, fontFamily: String? = nil,
                 fontSize: Double? = nil, color: Color? = nil, highlight: Color? = nil,
                 link: String? = nil, script: ScriptPosition = .normal, note: NoteReference? = nil,
-                letterSpacing: Double? = nil) {
+                letterSpacing: Double? = nil, caps: Bool = false) {
+        self.caps = caps
         self.bold = bold
         self.italic = italic
         self.underline = underline
@@ -249,6 +250,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var lineHeightIsMinimum = false
     public var list: ListKind? = nil
     public var listLevel: Int = 0
+    /// The glyph this bulleted paragraph shows, when the file names one
+    /// (PowerPoint's `buChar`); nil for the list's or the level's own.
+    public var bulletText: String? = nil
     /// Which list this paragraph belongs to, for numbering: Word's numId.
     /// Items of one id number on across other paragraphs; nil items number
     /// as a run, restarting after an interruption.
@@ -890,7 +894,7 @@ public enum RichListNumbering {
             let lvl = min(max(0, s.listLevel), 8)
             if kind == .bullet {
                 let chosen = s.listId.flatMap { document.listFormats[$0]?[lvl] }
-                out[i] = chosen?.format == .bullet ? chosen!.text : ListLevelFormat.defaultBullet(lvl)
+                out[i] = s.bulletText ?? (chosen?.format == .bullet ? chosen!.text : ListLevelFormat.defaultBullet(lvl))
                 if s.listId == nil { counters[anonymous] = nil }
                 continue
             }

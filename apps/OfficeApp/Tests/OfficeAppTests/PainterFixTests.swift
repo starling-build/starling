@@ -396,3 +396,56 @@ final class DiagramTextFrameTests: XCTestCase {
         XCTAssertEqual(shape.insets.top, 72 - shape.frame.top + 3.6, accuracy: 0.01)
     }
 }
+
+/// Capitals, the file's own bullet glyphs and empty list paragraphs
+/// (2026-10-11, 60810 and alterman_security).
+final class RunCapsAndBulletTests: XCTestCase {
+    func testCapsAndBulletGlyphsReadAndWriteBack() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let part = "ppt/slides/slide2.xml"
+        var slide = try XCTUnwrap(String(data: try XCTUnwrap(package.parts[part]), encoding: .utf8))
+        // The first bulleted paragraph: a Wingdings square and a capitals run.
+        let bu = try XCTUnwrap(slide.range(of: "<a:buFont typeface=\"Arial\"/><a:buChar char=\"•\"/>"))
+        slide.replaceSubrange(bu, with: "<a:buFont typeface=\"Wingdings\"/><a:buChar char=\"§\"/>")
+        let run = try XCTUnwrap(slide.range(of: "<a:rPr", range: bu.lowerBound ..< slide.endIndex))
+        slide.replaceSubrange(run, with: "<a:rPr cap=\"all\"")
+        package.parts[part] = Data(slide.utf8)
+        var (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let s = try XCTUnwrap(state.slides[1].shapes.firstIndex { $0.text?.paragraphs.contains { $0.style.list == .bullet } == true })
+        let doc = try XCTUnwrap(state.slides[1].shapes[s].text)
+        let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.style.list == .bullet })
+        XCTAssertEqual(doc.paragraphs[i].style.bulletText, "▪", "Wingdings' § is a small square")
+        XCTAssertTrue(doc.paragraphs[i].runs[0].style.caps)
+        XCTAssertNotEqual(doc.paragraphs[i].text, doc.paragraphs[i].text.uppercased(), "the text keeps its case; the layout shows capitals")
+        // Written back once edited.
+        var edited = doc
+        edited.paragraphs[i].text += "!"
+        edited.paragraphs[i].runs[edited.paragraphs[i].runs.count - 1].length += 1
+        state.slides[1].shapes[s].text = edited
+        let out = try XCTUnwrap(String(data: try XCTUnwrap(PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg))).parts[part]), encoding: .utf8))
+        XCTAssertTrue(out.contains("<a:buChar char=\"▪\"/>"))
+        XCTAssertTrue(out.contains("cap=\"all\""))
+    }
+
+    func testAnEmptyListParagraphShowsNoMarkerInSlides() {
+        func bytesDrawn(marking: Bool) -> Int {
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 18)
+            theme.marksEmptyListItems = marking
+            var p = RichParagraph(text: "")
+            p.style.list = .bullet
+            let layout = RichLayout(theme: theme, paragraphCount: 1)
+            layout.width = 300
+            let doc = RichDocument(paragraphs: [p])
+            layout.ensureLaidOut(doc)
+            XCTAssertNotNil(layout.listLabel(0, doc), "the label exists for the editor either way")
+            let recorder = NativePictureRecorder()
+            let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, 300, 100))
+            layout.paint(canvas, visible: Rect.fromLTWH(0, 0, 300, 100), document: doc, selection: nil, caret: nil)
+            let picture = recorder.endRecording()
+            defer { picture.dispose() }
+            return picture.approximateBytesUsed
+        }
+        XCTAssertLessThan(bytesDrawn(marking: false), bytesDrawn(marking: true), "Slides draws no marker; Writer does")
+    }
+}

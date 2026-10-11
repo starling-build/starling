@@ -45,6 +45,9 @@ public final class RichTextTheme {
     /// shrink-to-fit reduces the spacing of a whole body (`lnSpcReduction`)
     /// without touching what the paragraphs say.
     public var lineSpacingScale = 1.0
+    /// Whether an empty list paragraph shows its marker: Word does,
+    /// PowerPoint does not.
+    public var marksEmptyListItems = true
 
     /// Each face's natural line height as a multiple of its size (ascent,
     /// descent and line gap — Calibri's 1.22, Arial's 1.15), measured once:
@@ -1817,7 +1820,7 @@ public final class RichLayout {
                 canvas.drawLine(Offset(x, y0), Offset(x, y1), stroke(l))
             }
         }
-        if let label = listLabel(i, document) {
+        if let label = listLabel(i, document), theme.marksEmptyListItems || !document.paragraphs[i].text.isEmpty {
             let p = document.paragraphs[i]
             let markerStyle = theme.textStyle(for: p.runs[0].style, in: p.style, scale: scale)
             let marker = TextPainter(text: TextSpan(text: label, style: markerStyle),

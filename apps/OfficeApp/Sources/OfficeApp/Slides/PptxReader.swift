@@ -270,6 +270,12 @@ private struct LevelStyle {
     var beforePercent: Double?
     var afterPoints: Double?
     var bullet: Bullet?
+    /// `a:buChar`'s glyph and `a:buFont`'s face (a symbol face's code
+    /// mapped to the glyph it shows).
+    var bulletChar: String?
+    var bulletFont: String?
+    /// `cap`: "all", "small" or "none".
+    var caps: String?
     var size: Double?
     var bold: Bool?
     var italic: Bool?
@@ -290,6 +296,8 @@ private struct LevelStyle {
         if s.beforePoints == nil && s.beforePercent == nil { s.beforePoints = lower.beforePoints; s.beforePercent = lower.beforePercent }
         s.afterPoints = s.afterPoints ?? lower.afterPoints
         s.bullet = s.bullet ?? lower.bullet
+        if s.bulletChar == nil { s.bulletChar = lower.bulletChar; s.bulletFont = s.bulletFont ?? lower.bulletFont }
+        s.caps = s.caps ?? lower.caps
         s.size = s.size ?? lower.size
         s.bold = s.bold ?? lower.bold
         s.italic = s.italic ?? lower.italic
@@ -319,10 +327,36 @@ private struct LevelStyle {
         }
         if let v = p.first("a:spcAft")?.first("a:spcPts")?["val"].flatMap(Double.init) { s.afterPoints = v / 100 }
         if p.has("a:buNone") { s.bullet = Bullet.none }
-        if p.has("a:buChar") { s.bullet = .char }
+        if let bu = p.first("a:buChar") { s.bullet = .char; s.bulletChar = bu["char"] }
+        if let f = p.first("a:buFont")?["typeface"] { s.bulletFont = f }
         if p.has("a:buAutoNum") { s.bullet = .number }
         if let r = p.first("a:defRPr") { s = run(r, colors).filled(from: s) }
         return s
+    }
+
+    /// The bullet as a Unicode glyph: the file's character, or what a
+    /// symbol face (Wingdings, Symbol) shows for that code; nil for a code
+    /// in such a face this app does not know, which draws the level's own.
+    var bulletGlyph: String? {
+        guard let ch = bulletChar, let scalar = ch.unicodeScalars.first else { return nil }
+        // Symbol faces are often spelled in the private range (U+F0xx).
+        let code = (0xF000 ... 0xF0FF).contains(scalar.value) ? scalar.value - 0xF000 : scalar.value
+        let face = (bulletFont ?? "").lowercased()
+        if face.hasPrefix("wingdings") {
+            let map: [UInt32: String] = [
+                0x6C: "●", 0x6D: "❍", 0x6E: "■", 0x6F: "□", 0x70: "◻", 0x71: "❑", 0x72: "❒", 0x73: "◆",
+                0x74: "❖", 0x75: "◆", 0x76: "❖", 0x77: "◆", 0x78: "⌧", 0x7E: "⬥", 0xA7: "▪", 0xA8: "◻",
+                0xB7: "●", 0xD8: "➢", 0xDC: "➨", 0xE0: "⇨", 0xE8: "➔", 0xF0: "⇨", 0xF6: "⇦", 0xFC: "✓",
+                0xFE: "☑", 0xA1: "○", 0x9F: "•", 0x9E: "·", 0x4A: "☺",
+            ]
+            return map[code]
+        }
+        if face.hasPrefix("symbol") {
+            let map: [UInt32: String] = [0xB7: "•", 0x2D: "–", 0x3E: ">", 0xB2: "″", 0xA8: "♦", 0xA7: "♣", 0xAE: "→", 0xDE: "⇒"]
+            return map[code]
+        }
+        if face.hasPrefix("webdings") { return nil }
+        return ch
     }
 
     /// A `a:rPr` / `a:defRPr` / `a:endParaRPr` element.
@@ -333,6 +367,7 @@ private struct LevelStyle {
         s.italic = r["i"].map { $0 == "1" || $0 == "true" }
         s.underline = r["u"].map { $0 != "none" }
         s.strike = r["strike"].map { $0 != "noStrike" }
+        s.caps = r["cap"]
         s.baseline = r["baseline"].flatMap(Double.init)
         s.spc = r["spc"].flatMap(Double.init).map { $0 / 100 }
         s.font = r.first("a:latin")?["typeface"]
@@ -1712,6 +1747,7 @@ private struct SlideContext {
             case .char?, .number?:
                 style.list = level.bullet == .char ? .bullet : .numbered
                 style.listLevel = lvl
+                if level.bullet == .char { style.bulletText = level.bulletGlyph }
                 // The file's own text edge (marL) and bullet offset (indent):
                 // the text placed where the file puts it, both written back
                 // as read. The layout indents a list by the shape's list
@@ -1736,6 +1772,7 @@ private struct SlideContext {
                                    color: s.color ?? tx1)
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
+                if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
                 text += t
                 runs.append(Run(length: t.utf16.count, style: cs))
             }

@@ -691,6 +691,24 @@ whose diagrams are drawn with text frames, none moved up: SmartArt_Pie
 17 → 0.7, tdf150789 15 → 1.5, SmartArt_Pyramid 8.8 → 1.6,
 SmartArt_rightArrow 5.8 → 2.3.
 
+**Capitals, the file's bullets, empty items, 2026-10-11** (60810,
+alterman_security). Three things every bulleted deck showed: a run's
+`cap="all"` was ignored (60810's titles are all capitals by its
+master), a bullet was always the level's default glyph (• ◦) where the
+master names one (`buChar` — "–" for the second level in both decks),
+and an empty paragraph in a list drew its bullet, which PowerPoint
+never does. The reader sets Writer's `CharStyle.caps` (and
+`smallCaps` for `cap="small"`), which the layout already shows in
+capitals for Word's All caps — the text keeps its case and is written
+back with the attribute; `RichParagraphStyle.bulletText` is
+the file's glyph, with a Wingdings or Symbol code mapped to the Unicode
+glyph it shows (§ → ▪, Symbol's · → •; a code this app does not know
+draws the level's own); and a Slides theme sets
+`marksEmptyListItems` off, which Writer leaves on as Word does.
+Sweep 23: 60810 12.9 → 12.4, a handful of decks by a tenth; the
+corpus mean stays 3.15% — the glyphs and the empty items are a few
+pixels each, and most decks' bullets were the default already.
+
 Left on the painter side, from the same ranking: 3D (`a:scene3d`
 materials and lighting), EMF/WMF and TIFF pictures (the engine has no decoder;
 PowerPoint draws them — lo-tdf113163, ArtisticEffectSample, the OLE and

@@ -1024,7 +1024,7 @@ enum PptxText {
             inner += "<a:spcBef><a:spcPts val=\"\(Int((st.spaceBefore * 100).rounded()))\"/></a:spcBef>"
             inner += "<a:spcAft><a:spcPts val=\"\(Int((st.spaceAfter * 100).rounded()))\"/></a:spcAft>"
             switch st.list {
-            case .bullet?: inner += "<a:buFont typeface=\"Arial\"/><a:buChar char=\"•\"/>"
+            case .bullet?: inner += "<a:buFont typeface=\"Arial\"/><a:buChar char=\"\(PptxXML.escape(st.bulletText ?? "•", attribute: true))\"/>"
             case .numbered?: inner += "<a:buFont typeface=\"+mj-lt\"/><a:buAutoNum type=\"arabicPeriod\"/>"
             case nil: inner += "<a:buNone/>"
             }
@@ -1065,6 +1065,7 @@ enum PptxText {
         a += c.italic ? " i=\"1\"" : " i=\"0\""
         a += c.underline ? " u=\"sng\"" : " u=\"none\""
         a += c.strikethrough ? " strike=\"sngStrike\"" : " strike=\"noStrike\""
+        if c.caps { a += " cap=\"all\"" } else if c.smallCaps { a += " cap=\"small\"" }
         switch c.script {
         case .superscript: a += " baseline=\"30000\""
         case .subscript: a += " baseline=\"-25000\""

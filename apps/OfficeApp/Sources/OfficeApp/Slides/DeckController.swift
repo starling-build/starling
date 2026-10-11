@@ -1263,6 +1263,7 @@ final class DeckController: ChangeNotifier {
         let theme = RichTextTheme(fontFamily: font, fontSize: size, textColor: color, caretColor: color,
                                   headingColor: nil, listIndent: 18)
         theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.marksEmptyListItems = false   // PowerPoint shows no bullet on an empty paragraph
         return theme
     }
 
