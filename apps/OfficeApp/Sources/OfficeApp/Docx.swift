@@ -1141,6 +1141,13 @@ enum DocxFormat {
                                     _ cellResolve: ((String) -> RichParagraphStyle?)? = nil) -> [_Built] {
         var style = base
         var sectionBreakAfter = false
+        // The paragraph mark's look (w:pPr/w:rPr): an empty paragraph is
+        // as tall as its mark's font — a 28pt mark is a 28pt spacer. Word
+        // honours it in every spelling (probed 2026-10-09 with 30 marks of
+        // 28pt: END lands on page two; the 2026-10-08 probe that said
+        // otherwise was wrong). bib-chernigovka's cover is 7 such spacers
+        // at 16pt, and without them its first table ran onto page one.
+        var markStyle: CharStyle? = nil
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
             if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] {
@@ -1158,6 +1165,7 @@ enum DocxFormat {
                 style.markRevision = RevisionMark(kind: rev.name == "w:ins" ? .inserted : .deleted,
                                                   author: rev["w:author"] ?? "", date: rev["w:date"] ?? "")
             }
+            if let rPr = pPr.first("w:rPr") { markStyle = _charStyle(rPr, base: cellChar) }
             // The paragraph's own numbering, else its style's (a numbered
             // heading style: 65099's "1.1.1 Acronyms").
             var num: (numId: String, ilvl: Int)? = nil
@@ -1208,11 +1216,13 @@ enum DocxFormat {
                 // editor's picture paragraph, with its handles.
                 para = RichParagraph(image: only, style: style)
             } else {
-                if text.isEmpty, inlineImages.isEmpty, !notes.openComments.isEmpty {
-                    // An empty paragraph inside a comment range carries the
-                    // range too, or the writer would close and reopen it.
-                    var cs = cellChar
-                    cs.comments = notes.openComments
+                if text.isEmpty, inlineImages.isEmpty, markStyle != nil || !notes.openComments.isEmpty {
+                    // An empty paragraph takes its mark's look as its one
+                    // run's style (its height); one inside a comment range
+                    // carries the range too, or the writer would close
+                    // and reopen it.
+                    var cs = markStyle ?? cellChar
+                    if !notes.openComments.isEmpty { cs.comments = notes.openComments }
                     para = RichParagraph(text: "", charStyle: cs, style: style)
                 } else {
                     para = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
@@ -1754,16 +1764,16 @@ enum DocxFormat {
             case .justify: pPr += "<w:jc w:val=\"both\"/>"
             }
             // The paragraph mark's own run properties: a tracked change to
-            // the mark. (Its look is NOT written for an empty paragraph:
-            // Word 16.113 printed 4pt and 28pt marks at the same height as
-            // none — probed 2026-10-08 — and writing them cost
-            // form_footnotes a page.)
+            // the mark, and — for an empty paragraph — its look, which is
+            // what gives the empty line its height (Word honours it in
+            // every spelling, probed 2026-10-09; bib-chernigovka's cover).
             var markRPr = ""
             if let rev = p.style.markRevision {
                 revisionCount += 1
                 let tag = rev.kind == .inserted ? "w:ins" : "w:del"
                 markRPr += "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")/>"
             }
+            if p.text.isEmpty, p.image == nil, let first = p.runs.first { markRPr += _rPrXML(first.style) }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += sect }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"

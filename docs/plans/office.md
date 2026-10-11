@@ -345,13 +345,14 @@ rank while it ran, each from its pair picture:
 - **A paragraph that ends with its page break** (SampleDoc) was split
   into the part before and an empty part after, and that empty
   paragraph began the next page a line down; the remainder is dropped.
-- **An empty paragraph's height is NOT its mark's font** — probed
-  against Word 16.113 with 4pt and 28pt marks (`w:pPr/w:rPr/w:sz`) on
-  empty paragraphs: the next line landed where it lands with no mark at
-  all. A commit that wrote the marks (on the usual "the pilcrow's size
-  sets the empty line" lore) cost form_footnotes a page and did nothing
-  for bib-chernigovka; reverted the same day. The run-properties
-  builder it factored out stays.
+- **An empty paragraph's height IS its mark's font** — the 2026-10-08
+  probe said otherwise (4pt and 28pt marks on empty paragraphs, scored
+  by pdf-diff) and was wrong; a 2026-10-09 probe with 30 empty
+  paragraphs of 28pt marks lands the next line on page two in every
+  spelling of `w:pPr/w:rPr`. The commit that wrote the marks was
+  reverted on the wrong probe's word and reapplied the next day; it
+  took Bug51170 from 10.1% to 0.01%. Make a layout probe a page-count
+  test, not a score: a score moves for other reasons.
 - **Every section's page setup, and the compatibility mode**: bug65649
   has 15 sections, some landscape, and every page came out portrait at
   the last section's margins — a paragraph that ends a section keeps
@@ -423,9 +424,10 @@ entries of one name, and two drawings with one `wp:docPr` id (a kept
 anchor's and a generated picture's) — both found by bisecting
 drawing.docx with hand-made variants opened by script; the checker
 fails on both now. Word facts settled the same way (a two-variant file,
-printed and diffed): an empty paragraph's height does not follow its
-mark's size; `beforeAutospacing` is 14pt and none between list items;
-an empty `w:compat` means legacy layout.
+printed and diffed): `beforeAutospacing` is 14pt and none between list
+items; an empty `w:compat` means legacy layout. (The same method
+"settled" that an empty paragraph's height ignores its mark's size,
+and that was wrong — see the fourth round.)
 
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3

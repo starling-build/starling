@@ -670,6 +670,27 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(again.contains("w:gutter=\"0\"/>" + kept + "</w:sectPr>"), again)
     }
 
+    func testEmptyParagraphKeepsItsMarkHeight() throws {
+        // bib-chernigovka's cover: empty 16pt spacers. Word lays an empty
+        // paragraph out at its mark's size (probed 2026-10-09).
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: ""), RichParagraph(text: "b")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:p>",
+                               with: "<w:p><w:pPr><w:jc w:val=\"center\"/><w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\"/><w:sz w:val=\"32\"/></w:rPr></w:pPr></w:p>")
+        XCTAssertTrue(xml.contains("<w:sz w:val=\"32\"/></w:rPr></w:pPr></w:p>"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[1].text, "")
+        XCTAssertEqual(back.paragraphs[1].runs.first?.style.fontSize, 16)
+        XCTAssertEqual(back.paragraphs[1].runs.first?.style.fontFamily, "Times New Roman")
+        XCTAssertNil(back.paragraphs[0].runs.first?.style.fontSize, "a run's own size is not the mark's")
+        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("<w:jc w:val=\"center\"/><w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\"/><w:sz w:val=\"32\"/><w:szCs w:val=\"32\"/></w:rPr></w:pPr></w:p>"), again)
+        // An empty paragraph whose mark says nothing writes no mark look.
+        XCTAssertFalse(again.contains("<w:rPr></w:rPr>"), again)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the
