@@ -556,6 +556,19 @@ public struct CellRef: Hashable, Sendable {
     /// Where the cell's content sits when the row is taller than it:
     /// Word's `w:vAlign` ("center" or "bottom"; nil is the top).
     public var verticalAlign: String? = nil
+    /// For a cell spanning rows: the sides each continuation row's cell
+    /// stated (Word's w:tcBorders on the vMerge-continued cells), by row
+    /// offset 1...rowSpan-1. Word draws a merged cell's bottom edge from
+    /// its LAST continuation cell; writing the first cell's sides on
+    /// every row left bug65649's merged headers open at the bottom and
+    /// ruled inside.
+    public var continuationEdges: [BorderEdges?] = []
+    /// This cell's own border line width in points, where it differs from
+    /// the table's: bug65649's header cells are ruled at 1.5pt over data
+    /// rows at 0.75, and the extra width eats into the text area — Word
+    /// wrapped "зарплаты" onto a second line and we did not, which made
+    /// the header row a line shorter and every section a page longer.
+    public var borderWidth: Double? = nil
 
     public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1, fill: Color? = nil, edges: BorderEdges? = nil, verticalAlign: String? = nil) {
         self.table = table

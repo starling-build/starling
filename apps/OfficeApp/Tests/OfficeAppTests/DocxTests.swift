@@ -969,6 +969,35 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(resized.contains("cx=\"1828800\""), resized)
     }
 
+    func testMergedCellKeepsEachContinuationRowsSides() throws {
+        // bug65649: a header cell merged down three rows, its first cell
+        // ruled on top and open below, its last continuation ruled below.
+        var a = RichParagraph(text: "head"), b = RichParagraph(text: "r0"), c = RichParagraph(text: "r1"), d = RichParagraph(text: "r2")
+        a.cell = CellRef(table: "T", row: 0, column: 0, rowSpan: 3, edges: BorderEdges(top: true, bottom: false))
+        a.cell!.continuationEdges = [BorderEdges(top: false, bottom: false), BorderEdges(top: false, bottom: true)]
+        b.cell = CellRef(table: "T", row: 0, column: 1); c.cell = CellRef(table: "T", row: 1, column: 1); d.cell = CellRef(table: "T", row: 2, column: 1)
+        var doc = RichDocument(paragraphs: [a, b, c, d, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [100, 100]
+        var ts = TableStyle(); ts.borders = true; ts.bordersFromCells = true; doc.tableStyles["T"] = ts
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:vMerge/><w:tcBorders><w:top w:val=\"nil\"/><w:bottom w:val=\"nil\"/></w:tcBorders>"), xml)
+        XCTAssertTrue(xml.contains("<w:vMerge/><w:tcBorders><w:top w:val=\"nil\"/><w:bottom w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/></w:tcBorders>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        let cell = try XCTUnwrap(back.paragraphs[0].cell)
+        XCTAssertEqual(cell.rowSpan, 3)
+        XCTAssertEqual(cell.continuationEdges.count, 2)
+        XCTAssertEqual(cell.continuationEdges[1]?.bottom, true)
+        XCTAssertEqual(cell.continuationEdges[0]?.bottom, false)
+        // A cell ruled wider than the table (bug65649's 1.5pt headers over
+        // 0.75pt rows) keeps its width, on its continuation rows too.
+        var wide = doc
+        wide.paragraphs[0].cell!.borderWidth = 1.5
+        let wxml = String(decoding: try Zip.read(try DocxFormat.write(wide, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(wxml.contains("<w:top w:val=\"single\" w:sz=\"12\" w:space=\"0\" w:color=\"auto\"/><w:bottom w:val=\"nil\"/>"), wxml)
+        XCTAssertTrue(wxml.contains("<w:vMerge/><w:tcBorders><w:top w:val=\"nil\"/><w:bottom w:val=\"single\" w:sz=\"12\""), wxml)
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(wide, pageSetup: .letter)).document.paragraphs[0].cell?.borderWidth, 1.5)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

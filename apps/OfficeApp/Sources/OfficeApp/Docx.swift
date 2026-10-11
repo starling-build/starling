@@ -719,8 +719,14 @@ enum DocxFormat {
                             if v["w:val"] == "restart" {
                                 restart = true
                             } else if let range = openSpan[column], range.upperBound <= paragraphs.count {
-                                // Every paragraph of the cell carries the span.
-                                for k in range { paragraphs[k].cell?.rowSpan += 1 }
+                                // Every paragraph of the cell carries the span,
+                                // and this row's own stated sides.
+                                var contEdges = _edges(tcPr, "w:tcBorders")
+                                contEdges?.insideH = nil; contEdges?.insideV = nil
+                                for k in range {
+                                    paragraphs[k].cell?.rowSpan += 1
+                                    paragraphs[k].cell?.continuationEdges.append(contEdges)
+                                }
                                 column += span
                                 continue
                             }
@@ -761,6 +767,8 @@ enum DocxFormat {
                         }
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
+                        // The cell's own line width, over the table's.
+                        if let w = _borders(tcPr, "w:tcBorders")?.width, w != (style.borderWidth ?? 0.5) { currentCell?.borderWidth = w }
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         let before = paragraphs.count
@@ -2138,13 +2146,14 @@ enum DocxFormat {
             func tcW(_ w: Int) -> String {
                 style.autoCellWidths ? "<w:tcW w:w=\"0\" w:type=\"auto\"/>" : "<w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
             }
-            // A cell's own sides, over the table's.
-            func cellBordersXML(_ own: BorderEdges?) -> String {
+            // A cell's own sides, over the table's, at its own width.
+            func cellBordersXML(_ own: BorderEdges?, width: Double? = nil) -> String {
                 guard let own else { return "" }
+                let sz = width.map { Int(($0 * 8).rounded()) } ?? borderSz
                 var out = "<w:tcBorders>"
                 for (side, v) in [("top", own.top), ("left", own.left), ("bottom", own.bottom), ("right", own.right)] {
                     guard let v else { continue }
-                    out += v ? "<w:\(side) w:val=\"\(borderVal)\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
+                    out += v ? "<w:\(side) w:val=\"\(borderVal)\" w:sz=\"\(sz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
                              : "<w:\(side) w:val=\"nil\"/>"
                 }
                 return out + "</w:tcBorders>"
@@ -2172,7 +2181,9 @@ enum DocxFormat {
                         let w = twips[c ..< c + span].reduce(0, +)
                         xml += "<w:tc><w:tcPr>" + tcW(w)
                         if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
-                        xml += "<w:vMerge/>" + cellBordersXML(above.edges)
+                        let offset = r - above.row - 1
+                        let contEdges = offset < above.continuationEdges.count ? above.continuationEdges[offset] : above.edges
+                        xml += "<w:vMerge/>" + cellBordersXML(contEdges, width: above.borderWidth)
                         if let v = above.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
                         xml += "</w:tcPr><w:p/></w:tc>"
                         c += span
@@ -2185,7 +2196,7 @@ enum DocxFormat {
                     xml += "<w:tc><w:tcPr>" + tcW(w)
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
-                    xml += cellBordersXML(ref?.edges)   // schema order: borders, then shading
+                    xml += cellBordersXML(ref?.edges, width: ref?.borderWidth)   // schema order: borders, then shading
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
                     if let v = ref?.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
                     xml += "</w:tcPr>"

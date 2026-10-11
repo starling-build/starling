@@ -483,8 +483,21 @@ to 0.10, Bug60337 0.52 to 0.00). A table's sides keep their own line
 style and width (double outside, single between). form_footnotes'
 rows then match Word's to two points — which puts its last box back on
 page one by those two points, where Word's original breaks before it:
-44%, a knife edge and not the rows. Still above 5%: bug65649 (14%),
-delins (9%), issue_51265_3 (9%), bug59058 (8%), table-indent (7%).
+44%, a knife edge and not the rows. Two more: an inline picture's
+markup is kept verbatim until the editor resizes it (its effectExtent
+decided where issue_51265_3's row of four pictures wrapped: 9.1% to
+4.2%, VariousPictures to 0.00); and a list paragraph read from a file
+keeps the style the file gave it, none included — we had given every
+one List Paragraph, and Word's contextual spacing, which suppresses
+space only between paragraphs of the SAME style, then stopped
+suppressing it before the plain paragraph after each numbered heading
+(bug59058 7.7% to 1.2%, delins 9.2 to 4.7). Where it stands: 111
+scored, 100 within 1%, 8 within 5%, 2 within 15% (bug65649 12.8%,
+table-indent 6.9%), and form_footnotes on its knife edge at 44%. Then
+a table ruled through its cells, with nothing at the table level (every
+HTML conversion), gets no table-level borders back — we had written the
+cell-majority verdict as w:tblBorders with inside rules on top of the
+cells' own: table-indent 6.9% to 0.09.
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced
