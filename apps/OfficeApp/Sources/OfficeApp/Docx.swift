@@ -1664,9 +1664,9 @@ enum DocxFormat {
         var search = out.startIndex
         // The serializer sorts attributes, so `id` may follow `descr`:
         // find the tag, then its id attribute.
-        while let tag = out.range(of: "<wp:docPr", range: search ..< out.endIndex) {
+        while let tag = out.rangeOfSubstring("<wp:docPr", in: search ..< out.endIndex) {
             guard let close = out[tag.upperBound...].firstIndex(of: ">"),
-                  let r = out.range(of: " id=\"", range: tag.upperBound ..< close) else { search = tag.upperBound; continue }
+                  let r = out.rangeOfSubstring(" id=\"", in: tag.upperBound ..< close) else { search = tag.upperBound; continue }
             next += 1
             let id = String(next)
             let digitsStart = r.upperBound
@@ -1801,7 +1801,7 @@ enum DocxFormat {
         var out = Set<String>()
         for attr in ["w:ascii=\"", "w:hAnsi=\""] {
             var search = text.startIndex
-            while let r = text.range(of: attr, range: search ..< text.endIndex) {
+            while let r = text.rangeOfSubstring(attr, in: search ..< text.endIndex) {
                 if let end = text[r.upperBound...].firstIndex(of: "\"") {
                     let name = String(text[r.upperBound ..< end])
                     if !name.isEmpty { out.insert(name) }
@@ -2396,7 +2396,7 @@ enum DocxFormat {
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
         var settings = doc.evenAndOddHeaders && keptHF.contains(where: { $0.element.type == "even" })
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
-        if let compat = doc.keptCompat, let start = settings.range(of: "<w:compat>"), let end = settings.range(of: "</w:compat>") {
+        if let compat = doc.keptCompat, let start = settings.rangeOfSubstring("<w:compat>"), let end = settings.rangeOfSubstring("</w:compat>") {
             // The file's own compatibility mode and switches: Word 2007 and
             // 2010 files (a third of the corpus) break lines and space
             // tables by their mode's rules, and a copy that said 15 did not.
@@ -2462,7 +2462,7 @@ enum DocxFormat {
         // Tabs: Word's Header/Footer stops, a centre one halfway across
         // the text and a right one at its end; the line is then left,
         // centre and right thirds rather than centred as a whole.
-        let tabbed = template.contains("\t")
+        let tabbed = template.contains("\t" as Character)
         let jc = tabbed
             ? "<w:pPr><w:tabs><w:tab w:val=\"center\" w:pos=\"\(Int((width * 10).rounded()))\"/><w:tab w:val=\"right\" w:pos=\"\(Int((width * 20).rounded()))\"/></w:tabs></w:pPr>"
             : (center ? "<w:pPr><w:jc w:val=\"center\"/></w:pPr>" : "")

@@ -104,6 +104,16 @@ extension StringProtocol {
     }
 }
 
+extension String {
+    /// The first occurrence of `target` within `range` (the whole string
+    /// when nil), by character comparison: Foundation's
+    /// `range(of:range:)`, which the browser build cannot link, without
+    /// copying the string.
+    public func rangeOfSubstring(_ target: String, in range: Range<Index>? = nil) -> Range<Index>? {
+        self[range ?? startIndex ..< endIndex].firstRange(ofSubstring: target)
+    }
+}
+
 extension Substring {
     /// The first occurrence of `target`, by character comparison. Its own
     /// name, on `Substring` specifically: `range(of:)` on a `StringProtocol`

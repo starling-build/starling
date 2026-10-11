@@ -1891,7 +1891,7 @@ public final class RichLayout {
         func line(_ template: String, align: TextAlign, centerY: Double) {
             let text = RichDocument.fill(template, page: p + 1, pageCount: n)
             var parts: [(String, TextAlign)]
-            if text.contains("\t") {
+            if text.contains("\t" as Character) {
                 let pieces = text.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
                 parts = [(pieces[0], .left)]
                 if pieces.count > 1 { parts.append((pieces[1], .center)) }
