@@ -656,6 +656,30 @@ is the line height — Calibri's at 18 pt is 22.0 pt in PowerPoint and
 20.6 here, so a five-line cell is 7 pt shorter and a turned cell next
 to it wraps one line more.
 
+**Single spacing is the face's own height, 2026-10-11** (`RichTextTheme`
+in the SDK's `RichLayout.swift`). `RichParagraphStyle.lineSpacing` was
+documented as a multiple of the font's natural line height and passed
+to the engine as a multiple of the font size (Flutter's `height`), so
+every single-spaced line was the size exactly: 18 pt of Calibri made
+18 pt lines where PowerPoint makes 22 (Calibri's ascent, descent and
+gap are 1.22 of its size; Arial's 1.15 — Carlito and Liberation Sans
+match, which is what they are for). The theme now measures each face's
+natural height once (a 100 px probe, cached per family and weight) and
+scales the multiple by it, so 100% is the face's own and Word's 1.08
+is 1.08 of that — Writer's lines grow the same way, which is how Word
+has them (Calibri 11 single-spaced is 13.4 pt there). With that, a
+body PowerPoint shrank to fit needs the share it took off the line
+spacing as well as off the sizes: `normAutofit lnSpcReduction` is read
+beside `fontScale` (`SlideShape.lineReduction`), carried on the shape's
+theme as `lineSpacingScale`, applied by every layout of it (painter,
+editor, autofit) and written back; before, the short lines happened to
+stand in for it. Sweep 21: corpus mean 3.37 → 3.23%, decks ≤2% 349 →
+357; the three 45541/45545 decks −2.7, lo-group −2.6, table_test2
+5.9 → 3.4, tableHeight 3.2 → 1.5, twenty-odd decks −1; up: lo-tdf160487
++0.6 and lo-tdf158512 +0.7. Writer's own rendering changed with it and
+has no pixel oracle (the Word gate scores Word against Word); the
+native-versus-browser layout gate still passes.
+
 Left on the painter side, from the same ranking: 3D (`a:scene3d`
 materials and lighting), EMF/WMF and TIFF pictures (the engine has no decoder;
 PowerPoint draws them — lo-tdf113163, ArtisticEffectSample, the OLE and

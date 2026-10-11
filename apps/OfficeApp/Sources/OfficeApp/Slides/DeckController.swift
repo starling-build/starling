@@ -53,6 +53,7 @@ struct ShapeState: Equatable {
     var autofit = false
     var fontScale = 1.0
     var insetsFollowFont = false
+    var lineReduction = 0.0
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
     var readShape: ReadShape? = nil
@@ -1101,7 +1102,7 @@ final class DeckController: ChangeNotifier {
     }
 
     private func _state(_ s: SlideShape) -> ShapeState {
-        ShapeState(id: s.id, name: s.name, kind: s.kind, frame: s.frame, rotation: s.rotation,
+        var st = ShapeState(id: s.id, name: s.name, kind: s.kind, frame: s.frame, rotation: s.rotation,
                    fill: s.fill, outline: s.outline, outlineWidth: s.outlineWidth, anchor: s.anchor,
                    insets: s.insets, prompt: s.prompt, text: s.text?.document,
                    font: s.textTheme?.fontFamily, size: s.textTheme?.fontSize ?? 18,
@@ -1115,6 +1116,8 @@ final class DeckController: ChangeNotifier {
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
                    keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
+        st.lineReduction = s.lineReduction
+        return st
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -1178,6 +1181,8 @@ final class DeckController: ChangeNotifier {
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont
+        shape.lineReduction = st.lineReduction
+        shape.textTheme?.lineSpacingScale = 1 - st.lineReduction
         shape.keptLook = st.keptLook
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }

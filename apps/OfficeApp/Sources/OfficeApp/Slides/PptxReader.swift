@@ -990,6 +990,7 @@ private struct SlideContext {
                             fillScheme: fillScheme)
         st.autofit = text.autofit
         st.fontScale = text.fontScale
+        st.lineReduction = text.lineReduction
         st.insetsFollowFont = text.insetsFollowFont
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
@@ -1578,6 +1579,7 @@ private struct SlideContext {
         /// `normAutofit`: shrink the text to fit, by `fontScale` now.
         var autofit = false
         var fontScale = 1.0
+        var lineReduction = 0.0
         /// The insets are fractions of the font size (a diagram's margins)
         /// and shrink with it.
         var insetsFollowFont = false
@@ -1652,6 +1654,7 @@ private struct SlideContext {
         // normAutofit's fontScale: PowerPoint shrank the text to fit. The
         // sizes stay the file's; the shape draws them at the scale.
         let scale = (body?.first("a:bodyPr")?.first("a:normAutofit")?["fontScale"].flatMap(Double.init)).map { $0 / 100000 } ?? 1
+        let reduction = (body?.first("a:bodyPr")?.first("a:normAutofit")?["lnSpcReduction"].flatMap(Double.init)).map { $0 / 100000 } ?? 0
         let fitRule = bodies.lazy.compactMap { b in
             b?.children.first { ["a:normAutofit", "a:spAutoFit", "a:noAutofit"].contains($0.name) }?.name
         }.first
@@ -1762,6 +1765,7 @@ private struct SlideContext {
                         color: level0.color ?? tx1 ?? Color(0xFF000000),
                         listIndent: shapeIndent,
                         autofit: fitRule == "a:normAutofit", fontScale: fitRule == "a:normAutofit" ? scale : 1,
+                        lineReduction: fitRule == "a:normAutofit" ? min(1, max(0, reduction)) : 0,
                         insetsFollowFont: body?.first("a:bodyPr")?["starling:insScale"] == "1")
     }
 

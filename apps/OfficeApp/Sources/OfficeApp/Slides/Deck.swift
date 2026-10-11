@@ -320,6 +320,9 @@ final class SlideShape {
     /// A diagram's margins are fractions of its font size: they shrink
     /// with the text when it is fitted.
     var insetsFollowFont = false
+    /// `normAutofit lnSpcReduction`: the share PowerPoint took off the
+    /// line spacing to fit (0.2 = lines at 80%); the theme carries it.
+    var lineReduction = 0.0
     /// The insets as drawn: scaled with the text when they follow it.
     var drawInsets: EdgeInsets {
         guard insetsFollowFont, fontScale != 1 else { return insets }

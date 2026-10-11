@@ -328,3 +328,48 @@ final class TableCellTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(long.rowRect(1)).height, long.totalHeight, accuracy: 0.01)
     }
 }
+
+/// Line spacing as a multiple of the face's natural line height
+/// (2026-10-11): PowerPoint's and Word's "single" is the font's ascent,
+/// descent and gap, not the size; a body shrunk to fit also carries the
+/// share taken off its line spacing.
+final class LineHeightTests: XCTestCase {
+    func testSingleSpacingIsTheFacesNaturalHeight() {
+        let theme = RichTextTheme(fontFamily: "Carlito", fontSize: 18)
+        var p = RichParagraph(text: "x")
+        p.style.lineSpacing = 1.0
+        let layout = RichLayout(theme: theme, paragraphCount: 1)
+        layout.width = 400
+        layout.ensureLaidOut(RichDocument(paragraphs: [p]))
+        let line = layout.geometry(0).painter.height / theme.pixelsPerPoint
+        XCTAssertEqual(line, 18 * 1.22, accuracy: 0.3, "Carlito (Calibri) is 1.22 of its size, as PowerPoint draws it")
+        theme.lineSpacingScale = 0.8
+        let reduced = RichLayout(theme: theme, paragraphCount: 1)
+        reduced.width = 400
+        reduced.ensureLaidOut(RichDocument(paragraphs: [p]))
+        // (The engine rounds a line to whole pixels: ±0.75 pt.)
+        XCTAssertEqual(reduced.geometry(0).painter.height / theme.pixelsPerPoint, 18 * 1.22 * 0.8, accuracy: 0.75)
+        XCTAssertEqual(theme.naturalLineHeight(family: "Arial", bold: false, italic: false), 1.15, accuracy: 0.01)
+    }
+
+    func testAFittedBodysLineReductionRoundTrips() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let part = "ppt/slides/slide2.xml"
+        var slide = try XCTUnwrap(String(data: try XCTUnwrap(package.parts[part]), encoding: .utf8))
+        let fit = try XCTUnwrap(slide.range(of: "<a:normAutofit"))
+        let end = try XCTUnwrap(slide.range(of: "/>", range: fit.upperBound ..< slide.endIndex))
+        slide.replaceSubrange(fit.lowerBound ..< end.upperBound, with: "<a:normAutofit fontScale=\"85000\" lnSpcReduction=\"20000\"/>")
+        package.parts[part] = Data(slide.utf8)
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let shape = try XCTUnwrap(state.slides[1].shapes.first { $0.fontScale < 1 })
+        XCTAssertEqual(shape.lineReduction, 0.2, accuracy: 0.0001)
+        let controller = DeckController()
+        controller.load(state, theme: theme, package: pkg)
+        let live = try XCTUnwrap(controller.slides[1].shapes.first { $0.fontScale < 1 })
+        XCTAssertEqual(live.textTheme?.lineSpacingScale ?? 1, 0.8, accuracy: 0.0001, "the theme carries it to the layout")
+        let out = try XCTUnwrap(String(data: try XCTUnwrap(PptxPackage(try Zip.read(try PptxWriter.write(controller.snapshot(), theme: theme, package: pkg)))
+            .parts[part]), encoding: .utf8))
+        XCTAssertTrue(out.contains("lnSpcReduction=\"20000\""), out)
+    }
+}

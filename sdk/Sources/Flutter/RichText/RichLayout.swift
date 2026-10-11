@@ -41,6 +41,28 @@ public final class RichTextTheme {
     /// stands in for it (Office: a metric-compatible clone). nil draws the
     /// name as given.
     public var fontFamilyResolver: ((String) -> String)? = nil
+    /// Every paragraph's line spacing multiplied by this: PowerPoint's
+    /// shrink-to-fit reduces the spacing of a whole body (`lnSpcReduction`)
+    /// without touching what the paragraphs say.
+    public var lineSpacingScale = 1.0
+
+    /// Each face's natural line height as a multiple of its size (ascent,
+    /// descent and line gap — Calibri's 1.22, Arial's 1.15), measured once:
+    /// what Word's and PowerPoint's "single" spacing is a multiple of.
+    private var _naturalHeights: [String: Double] = [:]
+
+    public func naturalLineHeight(family: String?, bold: Bool, italic: Bool) -> Double {
+        let key = "\(family ?? "")|\(bold)|\(italic)"
+        if let h = _naturalHeights[key] { return h }
+        let probe = TextPainter(text: TextSpan(text: "x", style: TextStyle(fontSize: 100, fontWeight: bold ? .bold : .normal,
+                                                                            fontStyle: italic ? .italic : .normal, fontFamily: family)),
+                                textDirection: .ltr)
+        probe.layout(minWidth: 0, maxWidth: 1000)
+        let h = probe.height > 0 ? probe.height / 100 : 1.2
+        probe.dispose()
+        _naturalHeights[key] = h
+        return h
+    }
 
     public init(fontFamily: String? = nil, fontSize: Double = 11,
                 textColor: Color = Color(0xFF1B1B1B),
@@ -61,7 +83,12 @@ public final class RichTextTheme {
         self.headingSizes = headingSizes
         self.headingColor = headingColor
         self.listIndent = listIndent
+        // A face that arrives later (the browser fetches fonts on demand)
+        // has its own height: measure again.
+        SystemFontsNotifier.shared.addListener({ [weak self] in self?._naturalHeights.removeAll() }, owner: self)
     }
+
+    deinit { SystemFontsNotifier.shared.removeListeners(owner: self) }
 
     /// Resolve a run's style inside a paragraph to an engine TextStyle, at
     /// `scale` (zoom, 1.0 = 100%).
@@ -106,8 +133,14 @@ public final class RichTextTheme {
             fontStyle: italic ? .italic : .normal,
             letterSpacing: style.letterSpacing.map { $0 * pixelsPerPoint * scale },
             // An exact line height is the same multiple of every run's own
-            // size: points over size.
-            height: paragraph.lineHeightPoints.map { size > 0 ? (paragraph.lineHeightIsMinimum ? max($0 / size, paragraph.lineSpacing) : $0 / size) : 1 } ?? paragraph.lineSpacing,
+            // size: points over size ("at least" that, or the multiple when
+            // it is more). A multiple is of the face's natural line height
+            // (the engine's `height` is of the size).
+            height: {
+                let multiple = paragraph.lineSpacing * lineSpacingScale * naturalLineHeight(family: family, bold: bold, italic: italic)
+                guard let points = paragraph.lineHeightPoints, size > 0 else { return multiple }
+                return paragraph.lineHeightIsMinimum ? max(points / size, multiple) : points / size
+            }(),
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
             fontFamily: family

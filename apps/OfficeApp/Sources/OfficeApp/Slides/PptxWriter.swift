@@ -789,7 +789,10 @@ private struct SlideXML {
                 if s.autofit {
                     // Shrink to fit — a text box can say so too.
                     let scale = Int((s.fontScale * 100000).rounded())
-                    fit = scale < 100000 ? "<a:normAutofit fontScale=\"\(scale)\"/>" : "<a:normAutofit/>"
+                    let reduction = Int((s.lineReduction * 100000).rounded())
+                    var attrs = scale < 100000 ? " fontScale=\"\(scale)\"" : ""
+                    if reduction > 0 { attrs += " lnSpcReduction=\"\(reduction)\"" }
+                    fit = "<a:normAutofit\(attrs)/>"
                 } else if s.kind == .textBox {
                     fit = "<a:spAutoFit/>"
                 } else {
