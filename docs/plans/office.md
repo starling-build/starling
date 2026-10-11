@@ -518,8 +518,8 @@ its equipment table (page 139) autofits to different column widths in
 Word than the original's, and no single part explains it — the
 original's table markup inside our package prints like ours, and so do
 its styles, settings, numbering, theme and font table swapped in one at
-a time; the original's numbering part alone does take the document to
-4.2%, so something in our numbering part is still worth a look.
+a time. (The original's numbering part alone took the document to 4.2%;
+that was the levels' own number properties and suffix, kept since.)
 form_footnotes (44%): its rows now match Word's to two points, which
 leaves its last box fitting page one by those two points where Word's
 original breaks before it. delins (4.8%): Word's "Formatted:" balloons
