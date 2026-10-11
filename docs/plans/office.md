@@ -522,10 +522,18 @@ a time. (The original's numbering part alone took the document to 4.2%;
 that was the levels' own number properties and suffix, kept since.)
 form_footnotes (44%): its rows now match Word's to two points, which
 leaves its last box fitting page one by those two points where Word's
-original breaks before it. delins (4.8%): Word's "Formatted:" balloons
-describe the diff between a run's old and new properties, so the
-balloon text follows whatever we write differently (fonts, language),
-not only the change itself.
+original breaks before it. delins (4.8%) is not ours to fix: Word
+prints its ORIGINAL 4.6% differently from one session to the next (the
+tracked-change balloons), measured by reprinting the original alone.
+
+The harness keeps Word's prints of the originals across sessions now.
+Reprinting 15 originals in a later session gave 13 pixel-identical and
+two not (heading123, whose "Times" is substituted differently per
+session, and delins); those two are reprinted every session, and the
+rest are reused once a small stable canary original reprints identical
+to its kept print. Our own copy still has to go through Word each time
+— what Word makes of our file is the thing measured — so the cost that
+remains is one print per changed copy.
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced
