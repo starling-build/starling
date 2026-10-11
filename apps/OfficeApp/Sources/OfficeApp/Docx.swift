@@ -686,6 +686,12 @@ enum DocxFormat {
                     }
                     if let c = tr.first("w:trPr")?.first("w:cantSplit"), !_isOff(c) { style.rowsCantSplit.insert(r) }
                 }
+                // Cells without a stated width autofit to their content.
+                let widthless = cells.filter { c in
+                    let w = c.first("w:tcPr")?.first("w:tcW")
+                    return w == nil || w?["w:type"] == "auto"
+                }.count
+                if !cells.isEmpty, widthless * 2 > cells.count, !style.fixedLayout { style.autoCellWidths = true }
                 if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.
@@ -736,7 +742,8 @@ enum DocxFormat {
                             if own.right == (lastCol ? te.right : te.insideV) ?? style.borders { own.right = nil }
                             if !own.isEmpty { ownEdges = own }
                         }
-                        currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges)
+                        let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil }
+                        currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         let before = paragraphs.count
@@ -1265,6 +1272,7 @@ enum DocxFormat {
             }
             if let rPr = pPr.first("w:rPr") { markStyle = _charStyle(rPr, base: cellChar) }
             if markStyle?.hidden == true { style.markHidden = true }
+            style.mark = markStyle
             // The paragraph's own numbering, else its style's (a numbered
             // heading style: 65099's "1.1.1 Acronyms").
             var num: (numId: String, ilvl: Int)? = nil
@@ -1284,6 +1292,10 @@ enum DocxFormat {
                     style.indentLeft = indent
                     if let ind = pPr.first("w:ind"), let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") {
                         style.listIndentLeft = v / 20
+                    }
+                    if let ind = pPr.first("w:ind") {
+                        if let v = Double(ind["w:hanging"] ?? "") { style.listFirstLine = -v / 20 }
+                        else if let v = Double(ind["w:firstLine"] ?? "") { style.listFirstLine = v / 20 }
                     }
                 }
             }
@@ -1844,7 +1856,16 @@ enum DocxFormat {
             else if p.style.list != nil { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
             if p.style.keepNext { pPr += "<w:keepNext/>" }
             if p.style.keepLines { pPr += "<w:keepLines/>" }
-            if p.style.pageBreakBefore { pPr += "<w:pageBreakBefore/>" }
+            // A section break written on the paragraph before already
+            // starts this one on a new page; saying it again here, with the
+            // paragraph first in a table, gave Word an empty page per
+            // section (bug65649: 15 sections, five pages of nothing).
+            let afterSectionBreak: Bool = {
+                guard index > 0, let prev = Optional(doc.paragraphs[index - 1]), prev.cell == nil,
+                      let sect = prev.style.sectionXML else { return false }
+                return !sect.containsSubstring("w:val=\"continuous\"")
+            }()
+            if p.style.pageBreakBefore && !afterSectionBreak { pPr += "<w:pageBreakBefore/>" }
             if let frame = p.style.frameXML { pPr += frame }
             if !p.style.widowControl { pPr += "<w:widowControl w:val=\"0\"/>" }
             if p.style.list != nil {
@@ -1877,7 +1898,12 @@ enum DocxFormat {
                 ind += " w:left=\"\(Int(p.style.indentLeft * 20))\""
             }
             if p.style.indentRight != 0 || (sp?.indentRight ?? 0) != 0 { ind += " w:right=\"\(Int(p.style.indentRight * 20))\"" }
-            if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
+            if p.style.list != nil, let own = p.style.listFirstLine {
+                // A list paragraph's own first line, zero included, over
+                // its level's hanging (bug65649's centred numbered headings
+                // say left 0, firstLine 0 under a level hanging 375).
+                ind += own < 0 ? " w:hanging=\"\(Int((-own * 20).rounded()))\"" : " w:firstLine=\"\(Int((own * 20).rounded()))\""
+            } else if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
             else if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
             else if (sp?.firstLineIndent ?? 0) != 0 { ind += " w:firstLine=\"0\" w:hanging=\"0\"" }
             if !ind.isEmpty { pPr += "<w:ind\(ind)/>" }
@@ -1903,9 +1929,12 @@ enum DocxFormat {
             let anchorOnly = p.image?.sourceXML?.containsSubstring("<wp:anchor") ?? false
             if p.text.isEmpty, p.image == nil || anchorOnly, let first = p.runs.first {
                 markRPr += _rPrXML(first.style, fileFonts: doc.fileFonts)
+            } else if let mark = p.style.mark {
+                // The mark's own look on a paragraph with text: a list
+                // number is formatted with it, and a hidden mark over
+                // hidden text makes Word show no line and no border.
+                markRPr += _rPrXML(mark, fileFonts: doc.fileFonts)
             } else if p.style.markHidden {
-                // A hidden mark on a paragraph with text: with the text
-                // hidden too, Word shows no line and no border.
                 markRPr += "<w:vanish/>"
             }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
@@ -2074,6 +2103,11 @@ enum DocxFormat {
                 xml += "</w:tblCellMar>"
             }
             xml += "<w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
+            // A cell's preferred width: the grid's, or none at all when the
+            // file's cells stated none and Word autofits them.
+            func tcW(_ w: Int) -> String {
+                style.autoCellWidths ? "<w:tcW w:w=\"0\" w:type=\"auto\"/>" : "<w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
+            }
             // A cell's own sides, over the table's.
             func cellBordersXML(_ own: BorderEdges?) -> String {
                 guard let own else { return "" }
@@ -2106,9 +2140,11 @@ enum DocxFormat {
                     if let above = refs.first(where: { $0.row < r && $0.rowSpan > 1 && $0.covers(row: r, column: c) }) {
                         let span = min(cols - c, above.span)
                         let w = twips[c ..< c + span].reduce(0, +)
-                        xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
+                        xml += "<w:tc><w:tcPr>" + tcW(w)
                         if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
-                        xml += "<w:vMerge/>" + cellBordersXML(above.edges) + "</w:tcPr><w:p/></w:tc>"
+                        xml += "<w:vMerge/>" + cellBordersXML(above.edges)
+                        if let v = above.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
+                        xml += "</w:tcPr><w:p/></w:tc>"
                         c += span
                         continue
                     }
@@ -2116,11 +2152,13 @@ enum DocxFormat {
                     let ref = cell.first.flatMap { doc.paragraphs[$0].cell }
                     let span = min(cols - c, max(1, ref?.span ?? 1))
                     let w = twips[c ..< c + span].reduce(0, +)
-                    xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
+                    xml += "<w:tc><w:tcPr>" + tcW(w)
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
+                    xml += cellBordersXML(ref?.edges)   // schema order: borders, then shading
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
-                    xml += cellBordersXML(ref?.edges) + "</w:tcPr>"
+                    if let v = ref?.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
+                    xml += "</w:tcPr>"
                     if cell.isEmpty { xml += "<w:p/>" }
                     // A nested table kept verbatim stands in for its
                     // flattened paragraphs while their text is unchanged.

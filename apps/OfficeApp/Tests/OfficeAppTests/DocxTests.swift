@@ -852,6 +852,69 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(read.isLandscape)
     }
 
+    func testNoPageBreakBeforeAfterAPageStartingSection() throws {
+        // bug65649: a kept next-page section break followed by a table whose
+        // first paragraph also said pageBreakBefore gave Word an empty page.
+        var a = RichParagraph(text: "end of section"), b = RichParagraph(text: "next")
+        a.style.sectionXML = "<w:sectPr><w:type w:val=\"nextPage\"/><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"708\" w:footer=\"708\" w:gutter=\"0\"/></w:sectPr>"
+        b.style.pageBreakBefore = true
+        let doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "tail")])
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:type w:val=\"nextPage\"/>"), xml)
+        XCTAssertFalse(xml.contains("<w:pageBreakBefore/>"), xml)
+        var cont = doc
+        cont.paragraphs[0].style.sectionXML = cont.paragraphs[0].style.sectionXML!.replacingAll("nextPage", with: "continuous")
+        let cxml = String(decoding: try Zip.read(try DocxFormat.write(cont, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(cxml.contains("<w:pageBreakBefore/>"), cxml)
+    }
+
+    func testListParagraphMarkAndFirstLineKept() throws {
+        // bug65649: a centred numbered heading whose mark is bold 12pt
+        // (Word sets the number in it) and which says firstLine 0 under a
+        // level hanging 375.
+        var h = RichParagraph(text: "Heading")
+        h.style.list = .numbered; h.style.listId = "19"; h.style.alignment = .center
+        var doc = RichDocument(paragraphs: [h, RichParagraph(text: "body")])
+        doc.listFormats["19"] = [0: { var f = ListLevelFormat(text: "%1.", format: .decimal); f.indentLeft = 47.1; f.hanging = 18.75; return f }()]
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:jc w:val=\"center\"/></w:pPr>", with: "<w:ind w:left=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/><w:rPr><w:b/><w:sz w:val=\"24\"/></w:rPr></w:pPr>")
+        XCTAssertTrue(xml.contains("<w:firstLine=\"0\"") || xml.contains("w:firstLine=\"0\"/>"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].style.listFirstLine, 0)
+        XCTAssertEqual(back.paragraphs[0].style.listIndentLeft, 0)
+        XCTAssertEqual(back.paragraphs[0].style.mark?.bold, true)
+        XCTAssertEqual(back.paragraphs[0].style.mark?.fontSize, 12)
+        XCTAssertNil(back.paragraphs[1].style.mark)
+        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("<w:ind w:left=\"0\" w:firstLine=\"0\"/>"), again)
+        XCTAssertTrue(again.contains("<w:jc w:val=\"center\"/><w:rPr><w:b/><w:bCs/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr></w:pPr><w:r>"), again)
+    }
+
+    func testAutoCellWidthsAndVerticalAlignRoundTrip() throws {
+        // bib-chernigovka: tcW auto everywhere (Word autofits the columns)
+        // and every cell centred vertically.
+        var a = RichParagraph(text: "5"), b = RichParagraph(text: "long text")
+        a.cell = CellRef(table: "T", row: 0, column: 0, verticalAlign: "center")
+        b.cell = CellRef(table: "T", row: 0, column: 1, verticalAlign: "center")
+        var doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [50, 400]
+        var ts = TableStyle(); ts.autoCellWidths = true; doc.tableStyles["T"] = ts
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "<w:tcW w:w=\"0\" w:type=\"auto\"/>").count, 3, xml)
+        XCTAssertEqual(xml.components(separatedBy: "<w:vAlign w:val=\"center\"/>").count, 3, xml)
+        XCTAssertFalse(xml.contains("w:type=\"dxa\"/><w:gridSpan"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.tableStyles.values.first?.autoCellWidths, true)
+        XCTAssertEqual(back.paragraphs[0].cell?.verticalAlign, "center")
+        // Stated widths stay stated.
+        var fixed = doc
+        fixed.tableStyles["T"]!.autoCellWidths = false
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(fixed, pageSetup: .letter)).document.tableStyles.values.first?.autoCellWidths ?? false, false)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

@@ -248,6 +248,15 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// included; without the mark's flag the line stays, empty, with its
     /// rules (bug59058's "Bottom of Form" paragraphs).
     public var markHidden = false
+    /// The paragraph mark's own run properties as the file had them
+    /// (w:pPr/w:rPr), written back on every paragraph that had any: Word
+    /// formats a list paragraph's NUMBER with them (bug65649's bold "1."
+    /// came back small and plain), and sizes a last line by them.
+    public var mark: CharStyle? = nil
+    /// A list paragraph's own first-line indent, in points, when it states
+    /// one (negative hangs): direct formatting above its level's hanging,
+    /// zero included. nil is the level's.
+    public var listFirstLine: Double? = nil
     /// 1...6 for a heading, nil for body text. The outline level is what
     /// `.docx`, RTF and Markdown all carry; the look comes from the
     /// document's style sheet ("Heading1"...) when it has that entry.
@@ -537,8 +546,11 @@ public struct CellRef: Hashable, Sendable {
     /// cell with a bottom rule alone (Bug54771a), a form cell with no
     /// right edge (form_footnotes). A side left nil is the table's.
     public var edges: BorderEdges? = nil
+    /// Where the cell's content sits when the row is taller than it:
+    /// Word's `w:vAlign` ("center" or "bottom"; nil is the top).
+    public var verticalAlign: String? = nil
 
-    public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1, fill: Color? = nil, edges: BorderEdges? = nil) {
+    public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1, fill: Color? = nil, edges: BorderEdges? = nil, verticalAlign: String? = nil) {
         self.table = table
         self.row = row
         self.column = column
@@ -546,6 +558,7 @@ public struct CellRef: Hashable, Sendable {
         self.rowSpan = max(1, rowSpan)
         self.fill = fill
         self.edges = edges
+        self.verticalAlign = verticalAlign
     }
 
     /// Whether this cell covers grid position (row, column).
@@ -608,6 +621,12 @@ public struct TableStyle: Hashable, Sendable {
     /// Word's fixed layout (w:tblLayout fixed): the grid as given, no
     /// autofit to the cells' content.
     public var fixedLayout = false
+    /// The cells state no preferred width (Word's `w:tcW` auto or absent):
+    /// Word then autofits the columns to their content, and the grid is
+    /// only a starting point. Writing the grid's widths as the cells'
+    /// preferences froze bib-chernigovka's number column at its grid
+    /// width and wrapped the text column a line early.
+    public var autoCellWidths = false
     /// Space between cells in points (w:tblCellSpacing, HTML's
     /// cellspacing); nil for none.
     public var cellSpacing: Double? = nil

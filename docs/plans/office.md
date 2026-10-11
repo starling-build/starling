@@ -463,11 +463,18 @@ the sides clipped; we added the attribute and printed the page whole.
 The writer now adds it only where the file had it (`PageSetup.
 orientStated`) — the original document part in our package had
 already printed at 0.00%, which is the bisection's cleanest verdict:
-when that happens the body writer is the whole story. Still above 5%:
-bug65649 (16%, one page a section), form_footnotes (13%), bug59058
-(8%), issue_51265_3 (9%), delins, IllustrativeCases (a knife edge:
-its page-one heading fits by the width of a line), bib-chernigovka,
-table-indent.
+when that happens the body writer is the whole story. Three more
+after it: a table's border width is the width MOST of its cells draw,
+not the first cell's (bug65649's headings were sz 12, its rows sz 6);
+a form checkbox goes back as the field, not a glyph in a fallback font;
+and the paragraph MARK's run properties are written on every paragraph
+that had them — Word sets a list paragraph's number in them and sizes
+a last line by them, and IllustrativeCases, which had been a "knife
+edge" at 7.6%, went to 0.11% with nothing else changed (drawing 1.4 to
+0.7). A kept next-page section break followed by our own pageBreakBefore
+had given bug65649 an empty page. Still above 5%: bug65649 (14%),
+form_footnotes (12%), delins (9%), issue_51265_3 (9%), bug59058 (8%),
+bib-chernigovka (7%), table-indent (7%).
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced
