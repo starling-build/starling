@@ -595,6 +595,64 @@ kept, since the original was laid out by it. (The same method
 "settled" that an empty paragraph's height ignores its mark's size,
 and that was wrong — see the fourth round.)
 
+**Fifth round, 2026-10-11 (commits 0bad9f05, bd0608d1, 281e8ace).**
+The eight above 1% taken one at a time, each by reading the two
+packages side by side before printing anything; every one ended in
+markup the writer dropped or restated. 111 scored in one Word session:
+67 at 0.00%, 43 more within 1%, one above (delins 4.65%, which is
+Word's own drift between prints of its original). The fourth round
+ended at 103 within 1% and eight above.
+
+- **rtl 3.41% → 0.00.** The file names a complex-script face (`w:cs`)
+  apart from the Latin one, and we wrote the Latin face into every
+  slot; Word then substituted another Arabic font and wrapped each
+  paragraph elsewhere. `CharStyle` carries the `w:cs` and `w:eastAsia`
+  faces now, and the document defaults keep their `w:kern`.
+- **Bug54771b 2.04% → 0.00.** Two rules: a paragraph style with no
+  `w:basedOn` starts from the document defaults, not from Normal (its
+  No Spacing had come back with Normal's 10pt after), in the body and
+  in table cells; and a floating table keeps its `w:tblpPr`.
+- **FancyFoot 1.03% → 0.01, SimpleHeadThreeColFoot 0.83% → 0.01.** A
+  one-line footer was flattened to plain text whatever it held. One
+  with a border, a font, an alignment tab (`w:ptab`) or an empty
+  second paragraph is kept whole now, as the multi-line ones were.
+- **bug57031 3.03% → 0.31.** `w:tblCellSpacing` of ZERO is a
+  statement: Word then rules each cell on its own and every row
+  stands a border taller. Probed with five variants in one pass — the
+  table-level zero alone does it; the rows' own and `w:hideMark` add
+  nothing.
+- **bug59058 1.27% → 0.85.** A style's `w:vanish` was not written, so
+  the HTML importer's "Top of Form" markers printed.
+- **bug65649 4.06% → 0.03, 177 pages on both sides.** Two finds. The
+  default tab distance (`w:defaultTabStop`, 708 twips in a third of
+  the corpus) was always written as 720, which moved every typed
+  "4.2.8.<tab>text". And the three-page drift that no swapped part
+  explained was one optional hyphen: `w:softHyphen` was written back
+  as the character U+00AD inside `w:t`, which is no break opportunity
+  to Word, so the equipment table's header word stayed whole and its
+  autofit column grew. Both hyphens are elements again.
+- **drawing 6.20% → 0.88.** Not session-dependent after all. A table
+  most of whose cells state a `w:tcMar` was saved with the cells'
+  margins as the table's, so the cells stating none lost the table's
+  own 5.25pt. Cell, row-exception and table margins go back as read.
+
+Left, all under 1%: drawing 0.88 (page 15 alone), bug59058 0.85 (a
+point's shift after an inline picture on eleven pages),
+form_footnotes 0.64, Bug66263-paragraph 0.60, MultipleBodyBug 0.55.
+Not modelled by our own layout, only kept for Word: the `w:cs` face,
+the default tab distance, a floating table's position, per-cell
+margins. Eight originals state `w:autoHyphenation`, which is dropped;
+none of them shows it in the score. Gates: 309 unit tests, the corpus
+at 122 converted and the 8 expected read failures, `ooxml-check`
+clean. (`test/run.sh` fails one step on the Mac, termd's remote
+sessions, a broken pipe in `termd/test-termd.py` — not Office's.)
+
+Method note: this round printed far less than the fourth. Diffing the
+original's and the copy's XML for the first differing paragraph on
+the first differing page found six of the seven causes before Word
+was asked anything; Word was the check, and the probe only where two
+candidates had to be told apart.
+
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
 in the document is fine), so the gallery menu caps its previews at 13.
