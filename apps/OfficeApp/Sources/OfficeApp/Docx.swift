@@ -966,6 +966,7 @@ enum DocxFormat {
             return nil
         }
         var setup = PageSetup(width: w / 20, height: h / 20)
+        setup.orientStated = sz["w:orient"] != nil
         if let mar = sect.first("w:pgMar") {
             setup.marginTop = Double(mar["w:top"] ?? "1440").map { abs($0) / 20 } ?? 72
             setup.marginBottom = Double(mar["w:bottom"] ?? "1440").map { abs($0) / 20 } ?? 72
@@ -2161,7 +2162,7 @@ enum DocxFormat {
         for (i, k) in keptHF {
             body += "<w:\(k.kind == .header ? "headerReference" : "footerReference") w:type=\"\(k.type)\" r:id=\"rIdKeptHF\(i)\"/>"
         }
-        body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape ? " w:orient=\"landscape\"" : "")/>"
+        body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"0\"/>"
         if let pb = doc.pageBordersXML { body += pb }
         if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }

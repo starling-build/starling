@@ -457,10 +457,17 @@ style (`w:rStyle`, ignored before), the file's own style ids defined
 as aliases for kept markup, several repeating header rows, a hidden
 paragraph mark, file-named fonts written as named (Liberation Serif
 is not Times New Roman's line height), LibreOffice's `w:start`/`w:end`
-border sides. Still above 5%: bug65649 (16%, one page a section),
-60329 (15%), form_footnotes (13%), bug59058 (12%), issue_51265_3
-(9%), delins, IllustrativeCases (a knife edge: its page-one heading
-fits by the width of a line), bib-chernigovka, table-indent.
+border sides. And 60329's last 15% was one attribute: landscape
+dimensions with no `w:orient` print, in Word, onto portrait paper with
+the sides clipped; we added the attribute and printed the page whole.
+The writer now adds it only where the file had it (`PageSetup.
+orientStated`) — the original document part in our package had
+already printed at 0.00%, which is the bisection's cleanest verdict:
+when that happens the body writer is the whole story. Still above 5%:
+bug65649 (16%, one page a section), form_footnotes (13%), bug59058
+(8%), issue_51265_3 (9%), delins, IllustrativeCases (a knife edge:
+its page-one heading fits by the width of a line), bib-chernigovka,
+table-indent.
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced

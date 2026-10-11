@@ -828,6 +828,24 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(again.contains("w:ascii=\"Liberation Serif\""), again)
     }
 
+    func testLandscapeWithoutOrientStaysWithout() throws {
+        // 60329: landscape dimensions and no w:orient. Word prints that onto
+        // portrait paper, clipped; adding the attribute printed ours whole,
+        // 15% away from the original. The editor's own landscape says so.
+        var land = PageSetup.letter.rotated()
+        XCTAssertTrue(land.isLandscape && land.orientStated)
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: land)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:pgSz w:w=\"15840\" w:h=\"12240\" w:orient=\"landscape\"/>"), xml)
+        land.orientStated = false
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: land))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        let bare = String(decoding: entries[di].data, as: UTF8.self)
+        XCTAssertTrue(bare.contains("<w:pgSz w:w=\"15840\" w:h=\"12240\"/>"), bare)
+        let read = try XCTUnwrap(try DocxFormat.read(try Zip.write(entries)).pageSetup)
+        XCTAssertFalse(read.orientStated)
+        XCTAssertTrue(read.isLandscape)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

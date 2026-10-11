@@ -133,6 +133,12 @@ public struct PageSetup: Equatable, Sendable {
     /// edges, in points (Word's pgMar header/footer; 0.49in by default).
     public var headerDistance: Double = 35.4
     public var footerDistance: Double = 35.4
+    /// Whether a landscape page says so (Word's `w:orient`). A file that
+    /// gives landscape dimensions without the attribute prints, in Word,
+    /// onto portrait paper with the sides clipped — 60329 does — and the
+    /// writer must not add what the file did not say, or the saved copy
+    /// prints differently from the original. True for the editor's own.
+    public var orientStated = true
 
     public init(width: Double, height: Double, marginTop: Double = 72,
                 marginBottom: Double = 72, marginLeft: Double = 72,
@@ -167,6 +173,7 @@ public struct PageSetup: Equatable, Sendable {
     public func rotated() -> PageSetup {
         var p = self
         swap(&p.width, &p.height)
+        p.orientStated = true
         return p
     }
 }
