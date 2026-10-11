@@ -612,6 +612,14 @@ enum DocxFormat {
                 // table's own (a table ruled by its cells' nil sides still
                 // names outset on its tblBorders).
                 style.borderStyle = borders?.style ?? _borders(node.first("w:tblPr"), "w:tblBorders")?.style
+                // Sides whose line style or width differ from the table's.
+                if let tb = node.first("w:tblPr")?.first("w:tblBorders") {
+                    for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
+                        guard let e = tb.first("w:" + side), !["nil", "none"].contains(e["w:val"] ?? "nil") else { continue }
+                        if let v = e["w:val"], v != (style.borderStyle ?? "single") { style.edgeStyles[side] = v }
+                        if let sz = Double(e["w:sz"] ?? ""), max(0.25, sz / 8) != (style.borderWidth ?? 0.5) { style.edgeWidths[side] = max(0.25, sz / 8) }
+                    }
+                }
                 // The table's sides, where they differ from that verdict:
                 // its own w:tblBorders over its style's, and a side neither
                 // names is none (form_footnotes' tables are ruled outside,
@@ -2090,7 +2098,9 @@ enum DocxFormat {
             let borderVal = _esc(style.borderStyle ?? "single")
             let e = style.edges ?? BorderEdges()
             for (side, own) in [("top", e.top), ("left", e.left), ("bottom", e.bottom), ("right", e.right), ("insideH", e.insideH), ("insideV", e.insideV)] {
-                xml += (own ?? style.borders) ? "<w:\(side) w:val=\"\(borderVal)\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
+                let val = style.edgeStyles[side].map { _esc($0) } ?? borderVal
+                let sz = style.edgeWidths[side].map { Int(($0 * 8).rounded()) } ?? borderSz
+                xml += (own ?? style.borders) ? "<w:\(side) w:val=\"\(val)\" w:sz=\"\(sz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
                                               : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
             xml += "</w:tblBorders>"
@@ -2487,6 +2497,10 @@ enum DocxFormat {
         }
         out += "<w:style w:type=\"paragraph\" w:styleId=\"ListParagraph\"><w:name w:val=\"List Paragraph\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:ind w:left=\"720\"/><w:contextualSpacing/></w:pPr></w:style>"
         out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>"
+        // Word's default table style, as Word writes it. Without it Word
+        // (in its legacy layout mode) set form_footnotes' tables 5pt to
+        // the right of the original's: 12.3% -> 9.9% with it.
+        out += "<w:style w:type=\"table\" w:default=\"1\" w:styleId=\"TableNormal\"><w:name w:val=\"Normal Table\"/><w:uiPriority w:val=\"99\"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr></w:style>"
         // The file's ids for our styles, for kept markup that names them.
         for (fileId, ours) in aliases.sorted(by: { $0.key < $1.key }) where sheet[ours] != nil || ours == RichNamedStyle.normalId {
             out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(fileId))\"><w:name w:val=\"\(_esc(ours)) \(_esc(fileId))\"/><w:basedOn w:val=\"\(_esc(ours))\"/></w:style>"

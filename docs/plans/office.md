@@ -472,9 +472,12 @@ that had them — Word sets a list paragraph's number in them and sizes
 a last line by them, and IllustrativeCases, which had been a "knife
 edge" at 7.6%, went to 0.11% with nothing else changed (drawing 1.4 to
 0.7). A kept next-page section break followed by our own pageBreakBefore
-had given bug65649 an empty page. Still above 5%: bug65649 (14%),
-form_footnotes (12%), delins (9%), issue_51265_3 (9%), bug59058 (8%),
-bib-chernigovka (7%), table-indent (7%).
+had given bug65649 an empty page. And cells that state no width
+(`w:tcW` auto) autofit in Word: our grid widths written as their
+preferences froze bib-chernigovka's number column and wrapped its text
+column a line early — 7.3% to 0.13% (`TableStyle.autoCellWidths`).
+Still above 5%: bug65649 (14%), form_footnotes (12%), delins (9%),
+issue_51265_3 (9%), bug59058 (8%), table-indent (7%).
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced

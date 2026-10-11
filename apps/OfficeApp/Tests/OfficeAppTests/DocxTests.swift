@@ -66,6 +66,9 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(text("word/_rels/document.xml.rels").contains("Target=\"footnotes.xml\""))
         XCTAssertTrue(text("[Content_Types].xml").contains("/word/footnotes.xml"))
         XCTAssertTrue(text("word/styles.xml").contains("w:styleId=\"FootnoteText\""))
+        // Word's default table style is always there: without it Word (in
+        // its legacy mode) set form_footnotes' tables 5pt to the right.
+        XCTAssertTrue(text("word/styles.xml").contains("<w:style w:type=\"table\" w:default=\"1\" w:styleId=\"TableNormal\"><w:name w:val=\"Normal Table\"/><w:uiPriority w:val=\"99\"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr></w:style>"), text("word/styles.xml"))
         // Read again: still one mark, the same note.
         let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document
         XCTAssertEqual(again.paragraphs[0].text, "Body with a note1 here.")
@@ -698,6 +701,19 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(oxml.contains("<w:top w:val=\"outset\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"), oxml)
         XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(outset, pageSetup: .letter)).document.tableStyles.values.first?.borderStyle, "outset")
         XCTAssertNil(fback?.borderStyle, "single is the default, not a style")
+        // Sides of their own style and width: double sz 6 outside, single
+        // sz 4 between (form_footnotes).
+        var mixed = doc
+        mixed.paragraphs[0].cell!.edges = nil; mixed.paragraphs[2].cell!.edges = nil
+        mixed.tableStyles["T"]!.borderStyle = "double"; mixed.tableStyles["T"]!.borderWidth = 0.75
+        mixed.tableStyles["T"]!.edgeStyles = ["insideH": "single", "insideV": "single"]
+        mixed.tableStyles["T"]!.edgeWidths = ["insideH": 0.5, "insideV": 0.5]
+        let mxml = String(decoding: try Zip.read(try DocxFormat.write(mixed, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(mxml.contains("<w:top w:val=\"double\" w:sz=\"6\"") && mxml.contains("<w:insideH w:val=\"single\" w:sz=\"4\""), mxml)
+        let mback = try XCTUnwrap(try DocxFormat.read(try DocxFormat.write(mixed, pageSetup: .letter)).document.tableStyles.values.first)
+        XCTAssertEqual(mback.borderStyle, "double")
+        XCTAssertEqual(mback.edgeStyles, ["insideH": "single", "insideV": "single"])
+        XCTAssertEqual(mback.edgeWidths, ["insideH": 0.5, "insideV": 0.5])
     }
 
     func testEmptyFooterPartIsKept() throws {

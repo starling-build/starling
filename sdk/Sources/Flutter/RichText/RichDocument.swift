@@ -645,6 +645,13 @@ public struct TableStyle: Hashable, Sendable {
     /// draws bib-chernigovka's outset rules as grey 3D lines, and single
     /// black ones in their place were most of what differed on 16 pages.
     public var borderStyle: String? = nil
+    /// Per-side line styles and widths (points) where a side differs from
+    /// `borderStyle`/`borderWidth`, keyed by Word's side names (top, left,
+    /// bottom, right, insideH, insideV): form_footnotes' tables are double
+    /// outside and single between their cells, and one style for all six
+    /// sides drew the inside rules double and grew every row.
+    public var edgeStyles: [String: String] = [:]
+    public var edgeWidths: [String: Double] = [:]
     /// Where a table narrower than the text column sits: Word's table
     /// alignment (`w:jc` on the table). Justify reads as left.
     public var alignment: ParagraphAlignment = .left
