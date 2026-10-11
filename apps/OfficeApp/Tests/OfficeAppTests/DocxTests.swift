@@ -1728,6 +1728,95 @@ final class DocxTests: XCTestCase {
         }
     }
 
+    /// A written package with one part's text between two markers swapped
+    /// for `with` — the hand-made variants the Word rounds are probed by.
+    private func patched(_ doc: RichDocument, part: String, from: String, through: String, with new: String) throws -> Data {
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == part })
+        var xml = String(decoding: entries[i].data, as: UTF8.self)
+        let lo = try XCTUnwrap(xml.range(of: from)).lowerBound
+        let hi = try XCTUnwrap(xml.range(of: through, range: lo ..< xml.endIndex)).upperBound
+        xml.replaceSubrange(lo ..< hi, with: new)
+        entries[i] = ZipEntry(name: part, data: Data(xml.utf8))
+        return try Zip.write(entries)
+    }
+
+    private func part(_ name: String, of doc: RichDocument) throws -> String {
+        String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == name }).data, as: UTF8.self)
+    }
+
+    func testComplexScriptAndEastAsianFontSlotsKept() throws {
+        // rtl.docx: Arabic set in the w:cs face. Written back with the
+        // Latin face in every slot, Word substituted another Arabic font
+        // and wrapped each paragraph elsewhere (3.4% -> 0.00).
+        let defaults = "<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Liberation Serif\" w:hAnsi=\"Liberation Serif\" w:eastAsia=\"Noto Serif CJK SC\" w:cs=\"Noto Sans Arabic UI\"/><w:kern w:val=\"2\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr></w:rPrDefault></w:docDefaults>"
+        let data = try patched(RichDocument(paragraphs: [RichParagraph(text: "a")]), part: "word/styles.xml",
+                               from: "<w:docDefaults>", through: "</w:docDefaults>", with: defaults)
+        let back = try DocxFormat.read(data).document
+        let styles = try part("word/styles.xml", of: back)
+        XCTAssertTrue(styles.contains("<w:rFonts w:ascii=\"Liberation Serif\" w:hAnsi=\"Liberation Serif\" w:cs=\"Noto Sans Arabic UI\" w:eastAsia=\"Noto Serif CJK SC\"/><w:kern w:val=\"2\"/>"), styles)
+    }
+
+    func testDefaultTabStopKept() throws {
+        // bug65649: 708 twips, not our 720 — its typed numbers are
+        // followed by a tab, and every first line moved.
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "a")])
+        XCTAssertTrue(try part("word/settings.xml", of: doc).contains("<w:defaultTabStop w:val=\"720\"/>"))
+        let back = try DocxFormat.read(try patched(doc, part: "word/settings.xml", from: "<w:defaultTabStop", through: "/>",
+                                                   with: "<w:defaultTabStop w:val=\"708\"/>")).document
+        XCTAssertEqual(back.defaultTabStop, 35.4)
+        XCTAssertTrue(try part("word/settings.xml", of: back).contains("<w:defaultTabStop w:val=\"708\"/>"))
+    }
+
+    func testStyleWithNoParentStartsFromTheDocumentDefaults() throws {
+        // Bug54771b: No Spacing names no w:basedOn, so it never takes
+        // Normal's 10pt after and 1.15 lines.
+        let styles = "<w:docDefaults/><w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"200\" w:line=\"276\" w:lineRule=\"auto\"/></w:pPr></w:style>"
+            + "<w:style w:type=\"paragraph\" w:styleId=\"Bare\"><w:name w:val=\"Bare\"/><w:rPr><w:sz w:val=\"22\"/></w:rPr></w:style>"
+            + "<w:style w:type=\"paragraph\" w:styleId=\"Hid\"><w:name w:val=\"Hid\"/><w:basedOn w:val=\"Normal\"/><w:rPr><w:vanish/></w:rPr></w:style>"
+            + "<w:style w:type=\"paragraph\" w:styleId=\"Child\"><w:name w:val=\"Child\"/><w:basedOn w:val=\"Normal\"/></w:style></w:styles>"
+        var entries = try Zip.read(try patched(RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: "b")]), part: "word/styles.xml",
+                                               from: "<w:docDefaults>", through: "</w:styles>", with: styles))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:pPr><w:pStyle w:val=\"Bare\"/></w:pPr><w:r><w:t>a</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val=\"Child\"/></w:pPr><w:r><w:t>b</w:t></w:r></w:p>"
+            + "<w:tbl><w:tblPr><w:tblpPr w:vertAnchor=\"page\" w:horzAnchor=\"margin\" w:tblpXSpec=\"right\" w:tblpY=\"1475\"/><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblCellSpacing w:w=\"0\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"3000\"/></w:tblGrid><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val=\"Bare\"/></w:pPr><w:r><w:t>c</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:pStyle w:val=\"Hid\"/></w:pPr><w:r><w:t>Top of Form</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let ps = back.paragraphs
+        XCTAssertEqual(ps[0].style.spaceAfter, 0)
+        XCTAssertEqual(ps[0].style.lineSpacing, 1.0)
+        XCTAssertEqual(ps[1].style.spaceAfter, 10)
+        XCTAssertEqual(ps[1].style.lineSpacing, 1.15, accuracy: 0.001)
+        // The same inside a table cell.
+        XCTAssertEqual(ps[2].text, "c")
+        XCTAssertEqual(ps[2].style.spaceAfter, 0)
+        // And the table still floats where the file put it.
+        let again = try part("word/document.xml", of: back)
+        XCTAssertTrue(again.contains("<w:tblPr><w:tblpPr w:horzAnchor=\"margin\" w:tblpXSpec=\"right\" w:tblpY=\"1475\" w:vertAnchor=\"page\"/>"), again)
+        // A cell spacing of zero is stated again (bug57031: Word rules
+        // such a table cell by cell), and a style that hides its text
+        // still hides it (bug59058's "Top of Form" markers).
+        XCTAssertTrue(again.contains("<w:tblCellSpacing w:w=\"0\" w:type=\"dxa\"/>"), again)
+        let stylesAgain = try part("word/styles.xml", of: back)
+        let hid = try XCTUnwrap(stylesAgain.range(of: "w:styleId=\"Hid\""))
+        XCTAssertTrue(stylesAgain[hid.upperBound...].prefix(while: { _ in true }).components(separatedBy: "</w:style>")[0].contains("<w:vanish/>"), stylesAgain)
+    }
+
+    func testFooterThePlainFormCannotSayIsKept() throws {
+        // FancyFoot: one line of text, but ruled above, in the heading
+        // face, with an alignment tab and an empty paragraph under it.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "a")])
+        doc.footer = "x"
+        let footer = "<w:p><w:pPr><w:pStyle w:val=\"Footer\"/><w:pBdr><w:top w:val=\"thinThickSmallGap\" w:sz=\"24\" w:space=\"1\" w:color=\"622423\"/></w:pBdr></w:pPr><w:r><w:t>Left</w:t></w:r><w:r><w:ptab w:relativeTo=\"margin\" w:alignment=\"right\" w:leader=\"none\"/></w:r><w:r><w:t>Right</w:t></w:r></w:p>"
+        for (variant, kept) in [(footer, true), ("<w:p><w:r><w:t>Left</w:t></w:r></w:p><w:p/>", true), ("<w:p><w:pPr><w:pStyle w:val=\"Footer\"/></w:pPr><w:r><w:t>Left</w:t></w:r></w:p>", false)] {
+            let back = try DocxFormat.read(try patched(doc, part: "word/footer1.xml", from: "<w:p>", through: "</w:p>", with: variant)).document
+            XCTAssertEqual(back.keptHeaderFooters.count, kept ? 1 : 0, variant)
+            if kept { XCTAssertTrue(try part(back.keptHeaderFooters[0].part, of: back).contains(variant), variant) }
+        }
+    }
+
     func testDocxWrittenByTextEdit() throws {
         // apps/OfficeApp/Tests/OfficeAppTests/Fixtures/textedit.docx: the
         // Phase 0 document, saved as RTF by Office and converted by macOS

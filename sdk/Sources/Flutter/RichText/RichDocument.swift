@@ -116,6 +116,11 @@ public struct CharStyle: Hashable, Sendable {
     public var rightToLeft = false
     /// Kerning from this size up, in points (Word's w:kern); nil for none.
     public var kerningFrom: Double? = nil
+    /// The faces a file names for complex-script (Arabic, Hebrew) and
+    /// East Asian characters when it names them (Word's w:cs and
+    /// w:eastAsia font slots); nil means `fontFamily` serves them too.
+    public var complexFontFamily: String? = nil
+    public var eastAsiaFontFamily: String? = nil
     /// Ids of the comments whose ranges cover this run (the comments
     /// themselves live in the kept `word/comments.xml`).
     public var comments: [String] = []
@@ -702,6 +707,10 @@ public struct BorderEdges: Hashable, Sendable {
 
 public struct TableStyle: Hashable, Sendable {
     public var borders = true
+    /// A floating table's position as the file wrote it (Word's
+    /// w:tblpPr, and w:tblOverlap after it): the editor lays the table
+    /// out in the text's flow, and a save puts it back where it floated.
+    public var keptPosition: String? = nil
     /// Per-side exceptions to `borders` (a form table ruled outside but
     /// not between its cells); nil sides follow `borders`.
     public var edges: BorderEdges? = nil
@@ -726,7 +735,8 @@ public struct TableStyle: Hashable, Sendable {
     /// width and wrapped the text column a line early.
     public var autoCellWidths = false
     /// Space between cells in points (w:tblCellSpacing, HTML's
-    /// cellspacing); nil for none.
+    /// cellspacing); nil when the file says nothing. Zero is kept apart
+    /// from nil: Word draws a table that states it with separate borders.
     public var cellSpacing: Double? = nil
     /// The header row's fill (nil: a faint tint of the text colour).
     public var headerFill: Color? = nil
@@ -1436,6 +1446,10 @@ public struct RichDocument: Hashable, Sendable {
     /// its compatibility mode), written back so Word lays the saved copy
     /// out by the same rules it laid the original out by.
     public var keptCompat: String? = nil
+    /// The distance between default tab stops in points when the file
+    /// states one (Word's `w:defaultTabStop`; 36pt when nil). Written
+    /// back as read; the editor's own tabs still step by 36.
+    public var defaultTabStop: Double? = nil
     /// The section's page borders (`w:pgBorders`), kept as written: an
     /// art border is nothing the editor can draw, and bib-chernigovka's
     /// maple-muffins frame on all 16 pages was lost without it.

@@ -142,6 +142,11 @@ enum DocxFormat {
         var titlePage = false
         var evenAndOddHeaders = false
         var keptCompat: String? = nil
+        // The default tab distance: 35.4pt in a third of the corpus (metric
+        // Word's 1.25cm), and every typed "4.2.8.<tab>text" lands
+        // elsewhere under our 36 — bug65649's first lines.
+        let defaultTabStop = part("word/settings.xml").flatMap(XNode.parse)?.first("w:defaultTabStop")
+            .flatMap { Double($0["w:val"] ?? "") }.flatMap { $0 > 0 ? $0 / 20 : nil }
         if let sect = body.first("w:sectPr") {
             // A header or footer with a picture, a table or a text box
             // (a logo, 60329's banner) is more than its text: the part is
@@ -191,6 +196,24 @@ enum DocxFormat {
                     // body's bottom edge 6pt down and form_footnotes' last
                     // box onto the wrong page.
                     rich = lines > 1 || lines == 0
+                    // And a line the plain form cannot say: a border, a
+                    // font, an alignment tab — or a second, empty paragraph
+                    // under it, which is height the body loses (FancyFoot's
+                    // ruled Cambria footer came back bare, a line lower;
+                    // SimpleHeadThreeColFoot's w:ptab columns moved).
+                    if !rich {
+                        let plainNames: Set<String> = ["w:hdr", "w:ftr", "w:p", "w:pPr", "w:pStyle", "w:r", "w:rPr", "w:noProof", "w:lang",
+                                                       "w:t", "w:tab", "w:fldSimple", "w:fldChar", "w:instrText", "w:proofErr",
+                                                       "w:bookmarkStart", "w:bookmarkEnd", "w:lastRenderedPageBreak"]
+                        var paragraphCount = 0, plain = true
+                        var stack = [node]
+                        while let n = stack.popLast(), plain {
+                            if n.name == "w:p" { paragraphCount += 1 }
+                            if !plainNames.contains(n.name) { plain = false }
+                            stack.append(contentsOf: n.children)
+                        }
+                        rich = !plain || paragraphCount > 1
+                    }
                 }
                 guard rich || type != "default" else { continue }
                 let path = _resolvePath("word", target)
@@ -226,6 +249,10 @@ enum DocxFormat {
         var sheet = RichStyleSheet.word
         var base = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
         var tableBases: [String: RichParagraphStyle] = [:]
+        // The same over the document defaults alone, for a cell paragraph
+        // whose style chain does not reach Normal.
+        var tableRootBases: [String: RichParagraphStyle] = [:]
+        var docBase = base
         // Cell margins by table style, each side from the style's chain
         // down to the default table style, then Word's own (0, 5.4pt).
         var tableMargins: [String: _Margins] = [:]
@@ -249,6 +276,23 @@ enum DocxFormat {
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
                 _paragraphProps(defaults, into: &base)
             }
+            // What a style with no w:basedOn starts from: the document
+            // defaults alone. Only a style based on Normal takes Normal's
+            // look (Bug54771b's No Spacing names no parent, and came back
+            // with Normal's 10pt after and 1.15 lines in every cell).
+            docBase = base
+            var docChar = CharStyle()
+            if let rPr = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr") { docChar = _charStyle(rPr, base: docChar) }
+            var normalChar = docChar
+            for style in styles.all("w:style") where style["w:type"] == "paragraph"
+                && (style["w:default"] == "1" || style["w:styleId"] == "Normal") {
+                if let rPr = style.first("w:rPr") { normalChar = _charStyle(rPr, base: normalChar) }
+            }
+            // (A style's look is kept as what it says over Normal's, so
+            // only where the defaults differ from Normal are they stated.)
+            var rootChar = CharStyle()
+            if docChar.fontSize != normalChar.fontSize { rootChar.fontSize = docChar.fontSize }
+            if docChar.fontFamily != normalChar.fontFamily { rootChar.fontFamily = docChar.fontFamily }
             for style in styles.all("w:style") where style["w:type"] == "paragraph"
                 && (style["w:default"] == "1" || style["w:styleId"] == "Normal") {
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &base) }
@@ -259,6 +303,9 @@ enum DocxFormat {
                 var ps = base
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
                 tableBases[id] = ps
+                var rootPs = docBase
+                if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &rootPs) }
+                tableRootBases[id] = rootPs
                 tableNodes[id] = style
                 tableEdges[id] = _edges(style.first("w:tblPr"), "w:tblBorders")
                 if style["w:default"] == "1" {
@@ -345,7 +392,9 @@ enum DocxFormat {
             func resolve(_ id: String, _ seen: Set<String> = []) -> (paragraph: RichParagraphStyle, char: CharStyle) {
                 if let r = resolved[id] { return r }
                 guard let style = paragraphStyles[id], !seen.contains(id) else { return (paragraph: base, char: CharStyle()) }
-                var r = style.first("w:basedOn")?["w:val"].map { resolve($0, seen.union([id])) } ?? (paragraph: base, char: CharStyle())
+                let isDefault = style["w:default"] == "1" || id == "Normal"
+                var r = style.first("w:basedOn")?["w:val"].map { resolve($0, seen.union([id])) }
+                    ?? (isDefault ? (paragraph: base, char: CharStyle()) : (paragraph: docBase, char: rootChar))
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &r.paragraph) }
                 if let rPr = style.first("w:rPr") { r.char = _charStyle(rPr, base: r.char) }
                 resolved[id] = r
@@ -497,17 +546,22 @@ enum DocxFormat {
         /// paragraph props inside a cell: Word puts the table style under
         /// the paragraph style, so a style that sets only "after" keeps the
         /// table style's line rule (65099's cells were a line of 1.15, not 1.0).
-        func chainOver(_ id: String, _ base: RichParagraphStyle) -> RichParagraphStyle? {
+        func chainOver(_ id: String, _ base: RichParagraphStyle, _ rootBase: RichParagraphStyle) -> RichParagraphStyle? {
             guard paragraphStyles[id] != nil else { return nil }
             var ids: [String] = [], seen = Set<String>(), cur: String? = id
             while let c = cur, !seen.contains(c), let node = paragraphStyles[c] {
                 ids.append(c); seen.insert(c); cur = node.first("w:basedOn")?["w:val"]
             }
-            var ps = base
+            // A chain that ends in a style other than Normal never takes
+            // Normal's look (see `docBase`).
+            let root = ids.last.flatMap { paragraphStyles[$0] }
+            let reachesNormal = root.map { $0["w:default"] == "1" || $0["w:styleId"] == "Normal" } ?? true
+            var ps = reachesNormal ? base : rootBase
             for c in ids.reversed() { if let pPr = paragraphStyles[c]?.first("w:pPr") { _paragraphProps(pPr, into: &ps) } }
             return ps
         }
         var cellBase = base   // the table style's spacing while inside one
+        var cellRootBase = docBase
 
         func emit(_ p: RichParagraph) {
             var p = p
@@ -544,7 +598,7 @@ enum DocxFormat {
             switch node.name {
             case "w:p":
                 for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
-                                     currentCell != nil ? { id in chainOver(id, cellBase) } : nil) {
+                                     currentCell != nil ? { id in chainOver(id, cellBase, cellRootBase) } : nil) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
                 }
             case "w:tbl" where currentCell != nil:
@@ -580,6 +634,7 @@ enum DocxFormat {
                 // Word's Table Grid says no space after and single lines;
                 // a table with no style leaves the document defaults.
                 cellBase = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableBases[$0] } ?? base
+                cellRootBase = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableRootBases[$0] } ?? docBase
                 if let grid = node.first("w:tblGrid") {
                     let widths = grid.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.map { $0 / 20 }
                     if !widths.isEmpty { tableColumns[id] = widths }
@@ -683,8 +738,19 @@ enum DocxFormat {
                     style.indent = w / 20
                 }
                 if node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] == "fixed" { style.fixedLayout = true }
+                // A floating table's anchor (Bug54771b's title block sits at
+                // the right margin, a set distance down the page).
+                if let pos = node.first("w:tblPr")?.first("w:tblpPr") {
+                    style.keptPosition = PptxXML.serialize(pos)
+                        + (node.first("w:tblPr")?.first("w:tblOverlap").map { PptxXML.serialize($0) } ?? "")
+                }
+                // A spacing of ZERO is still a statement: Word then rules each
+                // cell on its own rather than collapsing shared edges, and
+                // every row of an HTML-converted table stands a border
+                // taller (bug57031's SAS tables, 2.2% -> 0.3% with the
+                // table's zero written back; the rows' own add nothing).
                 if let sp = node.first("w:tblPr")?.first("w:tblCellSpacing"), (sp["w:type"] ?? "dxa") == "dxa",
-                   let w = Double(sp["w:w"] ?? ""), w > 0 {
+                   let w = Double(sp["w:w"] ?? ""), w >= 0 {
                     style.cellSpacing = w / 20
                 }
                 // The preferred width: HTML-converted tables say 100% and
@@ -853,6 +919,7 @@ enum DocxFormat {
         document.titlePage = titlePage
         document.evenAndOddHeaders = evenAndOddHeaders
         document.keptCompat = keptCompat
+        document.defaultTabStop = defaultTabStop
         if let pb = body.first("w:sectPr")?.first("w:pgBorders") { document.pageBordersXML = PptxXML.serialize(pb) }
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
@@ -1210,7 +1277,7 @@ enum DocxFormat {
     }
 
     /// Parts the editor does not model but the file had — Word's footnotes
-    /// and endnotes, each with its rels and whatever those reach (a
+    /// and endnotes, each with its rels and whatever those reach (metric
     /// picture in a note) — kept verbatim so a save keeps the notes the
     /// body still references.
     private static func _keptParts(_ entries: [ZipEntry], _ part: (String) -> Data?) -> [String: Data] {
@@ -1606,6 +1673,20 @@ enum DocxFormat {
         return built
     }
 
+    /// `w:rFonts` for a look: the Latin face in ascii and hAnsi, and in
+    /// the complex-script slot too unless the file named another face
+    /// there — rtl.docx's Arabic is set in its w:cs face, and with the
+    /// Latin one written over it Word substituted a wider font and
+    /// wrapped every paragraph elsewhere.
+    private static func _rFontsXML(_ s: CharStyle, fileFonts: Set<String>, eastAsiaDefault: Bool = false) -> String {
+        let latin = s.fontFamily.map { fileFonts.contains($0) ? $0 : OfficeFonts.exportName($0) }
+        var attrs = ""
+        if let latin { attrs += " w:ascii=\"\(_esc(latin))\" w:hAnsi=\"\(_esc(latin))\"" }
+        if let cs = s.complexFontFamily ?? latin { attrs += " w:cs=\"\(_esc(cs))\"" }
+        if let ea = s.eastAsiaFontFamily ?? (eastAsiaDefault ? latin : nil) { attrs += " w:eastAsia=\"\(_esc(ea))\"" }
+        return attrs.isEmpty ? "" : "<w:rFonts\(attrs)/>"
+    }
+
     /// A run's properties (CT_RPr children, in schema order). A switch
     /// the run turns off explicitly (`off`) is written as off: a false
     /// alone means "inherit" (drawing.docx's "b w:val=0" runs under a
@@ -1614,10 +1695,7 @@ enum DocxFormat {
     private static func _rPrXML(_ s: CharStyle, fileFonts: Set<String> = [], changeId: Int? = nil) -> String {
         var rPr = ""
         func off(_ tag: String, _ sw: CharSwitches) -> String { s.off.contains(sw) ? "<w:\(tag) w:val=\"0\"/>" : "" }
-    if let family = s.fontFamily {
-        let name = fileFonts.contains(family) ? family : OfficeFonts.exportName(family)
-        rPr += "<w:rFonts w:ascii=\"\(_esc(name))\" w:hAnsi=\"\(_esc(name))\" w:cs=\"\(_esc(name))\"/>"
-    }
+    rPr += _rFontsXML(s, fileFonts: fileFonts)
     if s.bold { rPr += "<w:b/><w:bCs/>" } else { rPr += off("b", .bold) }
     if s.italic { rPr += "<w:i/><w:iCs/>" } else { rPr += off("i", .italic) }
     if s.caps { rPr += "<w:caps/>" } else { rPr += off("caps", .caps) }
@@ -1793,7 +1871,11 @@ enum DocxFormat {
                     cs.highlight = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
                 }
             case "w:rFonts":
-                cs.fontFamily = _family(child["w:ascii"] ?? child["w:hAnsi"] ?? "")
+                // A slot the element leaves out is inherited, not cleared
+                // (a style's lone w:cs must not drop its Latin face).
+                if let f = _family(child["w:ascii"] ?? child["w:hAnsi"] ?? "") { cs.fontFamily = f }
+                if let f = _family(child["w:cs"] ?? "") { cs.complexFontFamily = f }
+                if let f = _family(child["w:eastAsia"] ?? "") { cs.eastAsiaFontFamily = f }
             case "w:vertAlign":
                 switch child["w:val"] {
                 case "superscript": cs.script = .superscript
@@ -2194,6 +2276,7 @@ enum DocxFormat {
             let twips = widths.map { Int(($0 * 20).rounded()) }
             let style = doc.tableStyles[id] ?? TableStyle()
             var xml = "<w:tbl><w:tblPr>"
+            if let pos = style.keptPosition { xml += pos }
             if let pct = style.widthPercent { xml += "<w:tblW w:w=\"\(Int((pct * 50).rounded()))\" w:type=\"pct\"/>" }
             else if let w = style.width { xml += "<w:tblW w:w=\"\(Int((w * 20).rounded()))\" w:type=\"dxa\"/>" }
             else { xml += "<w:tblW w:w=\"0\" w:type=\"auto\"/>" }
@@ -2443,6 +2526,9 @@ enum DocxFormat {
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
         var settings = doc.evenAndOddHeaders && keptHF.contains(where: { $0.element.type == "even" })
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
+        if let tab = doc.defaultTabStop {
+            settings = settings.replacingAll("<w:defaultTabStop w:val=\"720\"/>", with: "<w:defaultTabStop w:val=\"\(Int((tab * 20).rounded()))\"/>")
+        }
         if let compat = doc.keptCompat, let start = settings.rangeOfSubstring("<w:compat>"), let end = settings.rangeOfSubstring("</w:compat>") {
             // The file's own compatibility mode and switches: Word 2007 and
             // 2010 files (a third of the corpus) break lines and space
@@ -2575,14 +2661,19 @@ enum DocxFormat {
         // The document defaults are Normal's look (the file's, when it was
         // read from one): Calibri 11 only for a document that never said.
         let normal = sheet[RichNamedStyle.normalId]?.char ?? CharStyle()
-        let defaultFont = _esc(exportName(normal.fontFamily ?? "Calibri"))
+        var defaultLook = normal
+        defaultLook.fontFamily = normal.fontFamily ?? "Calibri"
+        let defaultFonts = _rFontsXML(defaultLook, fileFonts: fileFonts, eastAsiaDefault: true)
+        // Kerning on by default (every LibreOffice file says so) moves
+        // each Latin pair, so the default goes back with the fonts.
+        let defaultKern = normal.kerningFrom.map { "<w:kern w:val=\"\(Int(($0 * 2).rounded()))\"/>" } ?? ""
         let defaultSize = Int(((normal.fontSize ?? 11) * 2).rounded())
         // And Normal's spacing: the body's paragraphs spell theirs out, but
         // a kept part's (a header's, a footnote's, a text box's) fall back
         // to these — issue_51265_3's header grew by Word's 8pt after.
         let normalParagraph = sheet[RichNamedStyle.normalId]?.paragraph ?? .body
         let defaultSpacing = _spacingXML(normalParagraph)
-        out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"\(defaultFont)\" w:hAnsi=\"\(defaultFont)\" w:cs=\"\(defaultFont)\" w:eastAsia=\"\(defaultFont)\"/><w:sz w:val=\"\(defaultSize)\"/><w:szCs w:val=\"\(defaultSize)\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr>\(defaultSpacing)</w:pPr></w:pPrDefault></w:docDefaults>"
+        out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr>\(defaultFonts)\(defaultKern)<w:sz w:val=\"\(defaultSize)\"/><w:szCs w:val=\"\(defaultSize)\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr>\(defaultSpacing)</w:pPr></w:pPrDefault></w:docDefaults>"
         out += "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/></w:style>"
         for entry in sheet.styles where entry.id != RichNamedStyle.normalId {
             let name = entry.paragraph.heading.map { "heading \($0)" } ?? entry.name
@@ -2617,14 +2708,15 @@ enum DocxFormat {
             }
             if let h = entry.paragraph.heading { out += "<w:outlineLvl w:val=\"\(h - 1)\"/>" }
             out += "</w:pPr><w:rPr>"
-            if let family = entry.char.fontFamily {
-                let f = exportName(family)
-                out += "<w:rFonts w:ascii=\"\(_esc(f))\" w:hAnsi=\"\(_esc(f))\" w:cs=\"\(_esc(f))\"/>"
-            }
+            out += _rFontsXML(entry.char, fileFonts: fileFonts)
             if entry.char.bold { out += "<w:b/><w:bCs/>" }
             if entry.char.italic { out += "<w:i/><w:iCs/>" }
             if entry.char.caps { out += "<w:caps/>" }
             if entry.char.smallCaps { out += "<w:smallCaps/>" }
+            // A style that hides its text (the HTML form markers Word's
+            // importer leaves: bug59058 printed "Top of Form" over a rule
+            // above each of its tables).
+            if entry.char.hidden { out += "<w:vanish/>" }
             if let c = entry.char.color { out += "<w:color w:val=\"\(_hex(c))\"/>" }
             if let size = entry.char.fontSize { out += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
             out += "</w:rPr></w:style>"
