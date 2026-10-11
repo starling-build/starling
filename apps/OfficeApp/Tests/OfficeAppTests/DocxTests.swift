@@ -1014,10 +1014,13 @@ final class DocxTests: XCTestCase {
     func testComplexScriptBoldAndFormatChangeRoundTrip() throws {
         // rtl.docx: an Arabic heading bold by w:bCs alone; delins: a run
         // whose formatting was changed with tracking on.
-        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: "b")]), pageSetup: .letter))
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "\u{0625}\u{0633}"), RichParagraph(text: "b"), RichParagraph(text: "Reino")]), pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
-        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">a</w:t>", with: "<w:r><w:rPr><w:bCs/><w:szCs w:val=\"28\"/><w:rtl w:val=\"true\"/></w:rPr><w:t xml:space=\"preserve\">a</w:t>")
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>", with: "<w:r><w:rPr><w:bCs/><w:szCs w:val=\"28\"/><w:rtl w:val=\"true\"/></w:rPr><w:t xml:space=\"preserve\">\u{0625}\u{0633}</w:t>")
+        // Latin text in the same kind of run: the complex-script bold does
+        // not apply to it.
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">Reino</w:t>", with: "<w:r><w:rPr><w:i/><w:bCs/><w:rtl w:val=\"true\"/></w:rPr><w:t xml:space=\"preserve\">Reino</w:t>")
         xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">b</w:t>", with: "<w:r><w:rPr><w:i/><w:rPrChange w:id=\"7\" w:author=\"Ann\" w:date=\"2009-03-01T10:00:00Z\"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr><w:t xml:space=\"preserve\">b</w:t>")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
@@ -1031,6 +1034,9 @@ final class DocxTests: XCTestCase {
         let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(again.contains("<w:i/><w:iCs/><w:rPrChange w:id=\"1\" w:author=\"Ann\" w:date=\"2009-03-01T10:00:00Z\"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr>"), again)
         XCTAssertTrue(again.contains("<w:b/><w:bCs/>") && again.contains("<w:rtl/>"), again)
+        let latin = try XCTUnwrap(back.paragraphs[2].runs.first?.style)
+        XCTAssertTrue(latin.italic)
+        XCTAssertFalse(latin.bold)
     }
 
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {

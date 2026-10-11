@@ -1458,10 +1458,14 @@ enum DocxFormat {
             cs.comments = notes.openComments
             if let rPr = r.first("w:rPr") {
                 // The run's character style first, then its own properties.
-                if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id] {
-                    for styled in chain { cs = _charStyle(styled, base: cs) }
+                let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
+                let complex = runText.unicodeScalars.contains {
+                    (0x0590...0x08FF).contains($0.value) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
                 }
-                cs = _charStyle(rPr, base: cs)
+                if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id] {
+                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex) }
+                }
+                cs = _charStyle(rPr, base: cs, complexText: complex)
             }
             for child in r.children {
                 switch child.name {
@@ -1702,7 +1706,11 @@ enum DocxFormat {
         }
     }
 
-    private static func _charStyle(_ rPr: XNode, base: CharStyle) -> CharStyle {
+    /// `complexText` says whether the run's characters are complex-script
+    /// ones (Arabic, Hebrew, ...): Word applies w:bCs/w:iCs/w:szCs to those
+    /// characters only, so a Latin "Reino de España" inside an Arabic
+    /// paragraph stays plain. nil falls back to the run's w:rtl.
+    private static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil) -> CharStyle {
         var cs = base
         // Complex-script bold, italic and size (w:bCs, w:iCs, w:szCs) are
         // what a right-to-left run is set in; rtl.docx's Arabic headings
@@ -1753,7 +1761,7 @@ enum DocxFormat {
             default: break
             }
         }
-        if cs.rightToLeft {
+        if complexText ?? cs.rightToLeft {
             if !sawB, let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
             if !sawSz, let z = szCs { cs.fontSize = z }
