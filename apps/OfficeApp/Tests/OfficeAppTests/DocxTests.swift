@@ -676,6 +676,14 @@ final class DocxTests: XCTestCase {
         inner.tableStyles["T"]!.edges = BorderEdges(top: false, left: false, bottom: false, right: false)
         let iback = try DocxFormat.read(try DocxFormat.write(inner, pageSetup: .letter)).document.tableStyles.values.first
         XCTAssertEqual(iback?.edges, BorderEdges(top: false, left: false, bottom: false, right: false))
+        // A line style other than single rides along (bib-chernigovka's
+        // outset rules, grey 3D in Word).
+        var outset = doc
+        outset.tableStyles["T"]!.borderStyle = "outset"
+        let oxml = String(decoding: try Zip.read(try DocxFormat.write(outset, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(oxml.contains("<w:top w:val=\"outset\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"), oxml)
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(outset, pageSetup: .letter)).document.tableStyles.values.first?.borderStyle, "outset")
+        XCTAssertNil(fback?.borderStyle, "single is the default, not a style")
     }
 
     func testEmptyFooterPartIsKept() throws {

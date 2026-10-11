@@ -573,6 +573,10 @@ enum DocxFormat {
                 style.borders = borders?.on ?? false
                 style.borderColor = borders?.color
                 style.borderWidth = borders?.width.flatMap { $0 == 0.5 ? nil : $0 }   // nil is Word's 0.5pt
+                // The line style: the cells' when they decided, else the
+                // table's own (a table ruled by its cells' nil sides still
+                // names outset on its tblBorders).
+                style.borderStyle = borders?.style ?? _borders(node.first("w:tblPr"), "w:tblBorders")?.style
                 // The table's sides, where they differ from that verdict:
                 // its own w:tblBorders over its style's, and a side neither
                 // names is none (form_footnotes' tables are ruled outside,
@@ -1017,6 +1021,7 @@ enum DocxFormat {
         var on: Bool
         var color: Color?
         var width: Double? = nil
+        var style: String? = nil   // w:val when drawn and not "single"
     }
 
     /// A table style's conditional formatting, the parts the editor shows.
@@ -1042,7 +1047,8 @@ enum DocxFormat {
             color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
         }
         let width = Double(first["w:sz"] ?? "").map { max(0.25, $0 / 8) }
-        return _Borders(on: true, color: color, width: width)
+        let style = first["w:val"].flatMap { $0 == "single" ? nil : $0 }
+        return _Borders(on: true, color: color, width: width, style: style)
     }
 
     /// The sides a `w:tblBorders`/`w:tcBorders` names: false for nil or
@@ -1958,9 +1964,10 @@ enum DocxFormat {
             xml += "<w:tblBorders>"
             let borderColor = style.borderColor.map { _hex($0) } ?? "auto"
             let borderSz = Int(((style.borderWidth ?? 0.5) * 8).rounded())
+            let borderVal = _esc(style.borderStyle ?? "single")
             let e = style.edges ?? BorderEdges()
             for (side, own) in [("top", e.top), ("left", e.left), ("bottom", e.bottom), ("right", e.right), ("insideH", e.insideH), ("insideV", e.insideV)] {
-                xml += (own ?? style.borders) ? "<w:\(side) w:val=\"single\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
+                xml += (own ?? style.borders) ? "<w:\(side) w:val=\"\(borderVal)\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
                                               : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
             xml += "</w:tblBorders>"
@@ -1979,7 +1986,7 @@ enum DocxFormat {
                 var out = "<w:tcBorders>"
                 for (side, v) in [("top", own.top), ("left", own.left), ("bottom", own.bottom), ("right", own.right)] {
                     guard let v else { continue }
-                    out += v ? "<w:\(side) w:val=\"single\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
+                    out += v ? "<w:\(side) w:val=\"\(borderVal)\" w:sz=\"\(borderSz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
                              : "<w:\(side) w:val=\"nil\"/>"
                 }
                 return out + "</w:tcBorders>"

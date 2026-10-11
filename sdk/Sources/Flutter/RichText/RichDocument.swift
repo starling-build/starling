@@ -611,6 +611,11 @@ public struct TableStyle: Hashable, Sendable {
     public var borderColor: Color? = nil
     /// The border lines' width in points (Word's sz / 8); nil for 0.5pt.
     public var borderWidth: Double? = nil
+    /// Word's line style when it is not a plain single line (`outset`,
+    /// `inset`, `double`, `dashed`, ...), carried through unchanged: Word
+    /// draws bib-chernigovka's outset rules as grey 3D lines, and single
+    /// black ones in their place were most of what differed on 16 pages.
+    public var borderStyle: String? = nil
     /// Where a table narrower than the text column sits: Word's table
     /// alignment (`w:jc` on the table). Justify reads as left.
     public var alignment: ParagraphAlignment = .left
