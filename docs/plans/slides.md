@@ -739,10 +739,43 @@ scores barely move (a bullet is a few pixels), autofitIndentation −0.15.
 Writer keeps its own marker placement — Word's hang is the numbering
 definition's, which the Writer model carries differently.
 
+**WMF and EMF pictures, 2026-10-11** (`Metafile.swift`, app-level so
+Writer can use it too). 47 corpus decks carry a metafile — clip art, an
+embedded sheet's or slide's preview, every ActiveX control's picture —
+and no image codec reads one: it is GDI calls, not pixels. `Metafile`
+plays the records once into steps (fill, stroke, text, bitmap, clip)
+and paints them as vectors, stretched into the picture's frame with the
+crop applied; `SlideTextCache.metafile(_:)` parses by magic bytes and
+`image(_:)` stays out of the way. The subset is what the corpus uses,
+found by histogramming all 101 WMFs and 18 EMFs: pens, brushes and
+fonts with the object table (WMF's lowest free slot, EMF's own indices
+and stock objects), polygons and polylines, EMF path brackets with
+béziers, rectangles and ellipses, `ExtTextOut` with its alignment,
+escapement and opaque box, `PatBlt` and the DIB blits (the bitmap
+rewrapped as a BMP file for the codec; AND, OR and XOR masks as
+multiply, screen and difference), rectangular and region clips, and the
+mapping — WMF's window, EMF's window, viewport and world transform,
+applied to every point as it is read, so a turned or skewed ellipse is
+four mapped cubics. The picture is WMF's first window, and EMF's frame
+taken to device units. Text in Wingdings, Webdings or Symbol is mapped
+to the Unicode glyphs it shows. Not done: hatches and pattern brushes
+(a grey), arcs, EMF+ records (the GDI ones beside them are drawn),
+raster operations beyond copy and the mask idioms, `clrChange` on a
+metafile. An embedded object from before `p:pic` fallbacks keeps its
+preview in the slide's VML drawing (`<v:shape id=spid><v:imagedata>`),
+read as text since VML is not always XML — 45541's embedded slide, a
+whole page that was blank, is its WMF now.
+
+Two places where the oracle and GDI part: `ExtTextOut` with ETO_OPAQUE
+and no text fills its box with the background colour in GDI, and
+PowerPoint for Mac leaves it white (lo-activex_textbox's green field,
++3.5 here); and lo-tdf113163 exports black from PowerPoint where the
+EMF's visible part is white (the pie chart it holds draws correctly
+when the whole picture is on the slide). GDI's reading is kept.
+
 Left on the painter side, from the same ranking: 3D (`a:scene3d`
-materials and lighting), EMF/WMF and TIFF pictures (the engine has no decoder;
-PowerPoint draws them — lo-tdf113163, ArtisticEffectSample, the OLE and
-ActiveX fallbacks), WordArt text fills and warps (tdf139618), a 2×2
+materials and lighting), TIFF and JPEG-XR pictures (no decoder —
+ArtisticEffectSample), WordArt text fills and warps (tdf139618), a 2×2
 JPEG stretched over a slide that PowerPoint shows flat (tdf146223),
 and the 1–3% that is text wrapping and font metrics everywhere.
 

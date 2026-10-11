@@ -851,6 +851,16 @@ private struct SlideContext {
                        let r = _picture(pic, transform, id: id), case .picture = r.kind {
                         obj.rendering = [r]
                         o.kind = .opaque(obj)
+                    } else if case .opaque(var obj) = o.kind, let spid = el.descendant("p:oleObj")?["spid"],
+                              let image = _vmlImage(spid) {
+                        // An object from before the fallback picture: its
+                        // preview is the VML drawing's shape of that id.
+                        obj.rendering = [ShapeState(
+                            id: id(), name: "Preview", kind: .picture(image), frame: o.frame, rotation: 0, fill: nil,
+                            outline: nil, outlineWidth: 0, anchor: .top,
+                            insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: nil,
+                            font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)]
+                        o.kind = .opaque(obj)
                     }
                     add(o, el)
                 } else {
@@ -1168,6 +1178,30 @@ private struct SlideContext {
         st.sourcePart = part
         st.keptLine = KeptLine(line: frame, box: box, outline: color, width: width)
         return st
+    }
+
+    /// The picture a legacy VML drawing shows for shape `spid`
+    /// (`<v:shape id="…"><v:imagedata o:relid="…"/>`): what an embedded
+    /// object written before `p:pic` fallbacks displays. The drawing is
+    /// read as text — VML is not always well-formed XML.
+    private func _vmlImage(_ spid: String) -> ImageAttachment? {
+        for rel in package.rels(part) where rel.kind == "vmlDrawing" && !rel.external {
+            guard let data = package.parts[rel.target], let vml = String(data: data, encoding: .utf8),
+                  let shape = vml.rangeOfSubstring("id=\"\(spid)\""),
+                  let end = vml.rangeOfSubstring("</v:shape>", in: shape.upperBound ..< vml.endIndex) else { continue }
+            let body = vml[shape.upperBound ..< end.lowerBound]
+            for key in ["o:relid=\"", "r:id=\"", "r:pict=\""] {
+                guard let at = String(body).rangeOfSubstring(key) else { continue }
+                let rest = String(body)[at.upperBound...]
+                guard let close = rest.firstIndex(of: "\"") else { continue }
+                let rid = String(rest[..<close])
+                if let target = package.rels(rel.target).first(where: { $0.id == rid }), !target.external,
+                   package.parts[target.target] != nil {
+                    return images.attachment(target.target, package)
+                }
+            }
+        }
+        return nil
     }
 
     private func _picture(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {

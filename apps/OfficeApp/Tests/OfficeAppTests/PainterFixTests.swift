@@ -475,3 +475,80 @@ final class PlaceholderBoxTests: XCTestCase {
         XCTAssertLessThan(bytes(placeholders: false), bytes(placeholders: true), "the labelled box is the editor's")
     }
 }
+
+/// WMF and EMF pictures played into drawing steps (2026-10-11): what a
+/// deck shows for clip art, an embedded object's preview or a control.
+final class MetafileTests: XCTestCase {
+    private func le16(_ v: Int) -> [UInt8] { [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF)] }
+    private func le32(_ v: Int) -> [UInt8] { le16(v & 0xFFFF) + le16((v >> 16) & 0xFFFF) }
+
+    /// A WMF record: its function and 16-bit parameters, last argument first.
+    private func wmf(_ fn: Int, _ params: [Int], tail: [UInt8] = []) -> [UInt8] {
+        let body = params.flatMap(le16) + tail
+        return le32((6 + body.count) / 2) + le16(fn) + body
+    }
+
+    func testAWMFPlaysItsWindowBrushRectangleAndText() throws {
+        // The placeable header (key, handle, box, units per inch, reserved,
+        // checksum), then the nine-word header proper.
+        var file: [UInt8] = [0xD7, 0xCD, 0xC6, 0x9A, 0, 0]
+        for v in [0, 0, 200, 100, 96, 0, 0, 0] { file += le16(v) }
+        for v in [1, 9, 0x0300, 0, 0, 0, 0, 0, 0] { file += le16(v) }
+        file += wmf(0x020B, [0, 0])                       // SetWindowOrg
+        file += wmf(0x020C, [100, 200])                   // SetWindowExt: 200 wide, 100 high
+        file += wmf(0x02FC, [0], tail: [0x10, 0x20, 0x30, 0] + le16(0))   // a solid brush, R 0x10 G 0x20 B 0x30
+        file += wmf(0x012D, [0])                          // SelectObject 0
+        file += wmf(0x041B, [90, 190, 10, 10])            // Rectangle: bottom, right, top, left
+        let text = Array("Hi".utf8)
+        file += wmf(0x0A32, [50, 20, text.count, 0], tail: text)   // ExtTextOut at (20, 50)
+        file += wmf(0x0000, [])
+        XCTAssertTrue(Metafile.isMetafile(Data(file)))
+        let m = try XCTUnwrap(Metafile(Data(file), id: "t"))
+        XCTAssertEqual(m.bounds, Rect.fromLTWH(0, 0, 200, 100), "the window is the picture")
+        guard case .fill(let path, let color) = m.steps[0] else { return XCTFail("the rectangle's fill first: \(m.steps)") }
+        XCTAssertEqual(color, Color(0xFF102030), "a COLORREF is red first")
+        XCTAssertEqual(path.getBounds(), Rect.fromLTRB(10, 10, 190, 90))
+        guard case .stroke = m.steps[1] else { return XCTFail("then its outline, in the default pen") }
+        guard case .text(let run) = m.steps[2] else { return XCTFail("then the text") }
+        XCTAssertEqual(run.text, "Hi")
+        XCTAssertEqual(run.at, Offset(20, 50))
+    }
+
+    func testAnEMFPlaysThroughItsWorldTransform() throws {
+        func record(_ type: Int, _ ints: [Int]) -> [UInt8] { le32(type) + le32(8 + ints.count * 4) + ints.flatMap(le32) }
+        // The header: bounds 0…99, a frame of 2646 × 2646 hundredths of a
+        // millimetre on a 96 dpi device (100 × 100 device units).
+        var header: [UInt8] = []
+        for v in [1, 108, 0, 0, 99, 99, 0, 0, 2646, 2646] { header += le32(v) }
+        header += [0x20, 0x45, 0x4D, 0x46]
+        for v in [0x10000, 0, 0, 0, 0, 0, 0] { header += le32(v) }
+        for v in [1024, 768, 271, 203] { header += le32(v) }   // device size, then its millimetres
+        header += [UInt8](repeating: 0, count: 108 - header.count)
+        var file = header
+        let half = Int(Float(0.5).bitPattern)
+        file += record(35, [half, 0, 0, half, 0, 0])                 // SetWorldTransform: half size
+        file += record(39, [1, 0, 0x00FF0000, 0])                    // CreateBrushIndirect 1: blue (COLORREF 0x00BBGGRR)
+        file += record(37, [1])
+        file += record(37, [Int(Int32(bitPattern: 0x8000_0008))])   // the stock null pen
+        file += record(43, [20, 40, 120, 140])                       // Rectangle
+        file += record(14, [0, 0, 20])
+        XCTAssertTrue(Metafile.isMetafile(Data(file)))
+        let m = try XCTUnwrap(Metafile(Data(file), id: "e"))
+        XCTAssertEqual(m.bounds.width, 100, accuracy: 0.5, "the frame in device units")
+        XCTAssertEqual(m.steps.count, 1, "filled, not stroked: \(m.steps)")
+        guard case .fill(let path, let color) = m.steps[0] else { return XCTFail("a fill") }
+        XCTAssertEqual(color, Color(0xFF0000FF))
+        XCTAssertEqual(path.getBounds(), Rect.fromLTRB(10, 20, 60, 70), "through the world transform")
+    }
+
+    func testSymbolFacesShowTheirGlyphs() {
+        XCTAssertEqual(Metafile.symbols("n g", face: "Webdings"), "● ■")
+        XCTAssertEqual(Metafile.symbols("l\u{F06E}", face: "Wingdings 2"), "●■", "the private-range spelling too")
+        XCTAssertEqual(Metafile.symbols("n", face: "Arial"), "n")
+    }
+
+    func testOtherPicturesAreNotMetafiles() {
+        XCTAssertFalse(Metafile.isMetafile(Data([0x89, 0x50, 0x4E, 0x47] + [UInt8](repeating: 0, count: 60))))
+        XCTAssertFalse(Metafile.isMetafile(Data()))
+    }
+}

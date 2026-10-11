@@ -44,6 +44,8 @@ enum SlidesPdf {
 extension SlideTextCache {
     /// Decode every picture now, so a synchronous paint finds them all.
     func preload(_ images: [ImageAttachment]) async {
+        // A metafile's own bitmaps are what there is to decode of it.
+        let images = images.flatMap { metafile($0)?.bitmaps ?? [$0] }
         for image in images where self.image(image) == nil {
             // `image(_:)` started the decode; wait for it to land.
             for _ in 0 ..< 200 {

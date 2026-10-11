@@ -37,6 +37,12 @@ final class SlideTextCache {
     func image(_ attachment: ImageAttachment) -> Image? {
         if let source = imageSource { return source.image(attachment) }
         if let image = _images[attachment.id] { return image }
+        // A metafile is drawing calls, not pixels: `metafile(_:)` plays it.
+        if let known = _metafiles[attachment.id] {
+            if known != nil { return nil }
+        } else if Metafile.isMetafile(attachment.data) {
+            return nil
+        }
         if _decoding.contains(attachment.id) { return nil }
         _decoding.insert(attachment.id)
         let bytes = [UInt8](attachment.data)
@@ -55,6 +61,19 @@ final class SlideTextCache {
             }
         }
         return nil
+    }
+
+    private var _metafiles: [String: Metafile?] = [:]
+
+    /// The picture as a played metafile, when its bytes are a WMF or an
+    /// EMF (parsed once; nil for any other picture, or one that draws
+    /// nothing this app reads).
+    func metafile(_ attachment: ImageAttachment) -> Metafile? {
+        if let source = imageSource { return source.metafile(attachment) }
+        if let known = _metafiles[attachment.id] { return known }
+        let played = Metafile.isMetafile(attachment.data) ? Metafile(attachment.data, id: attachment.id) : nil
+        _metafiles[attachment.id] = .some(played)
+        return played
     }
 
     /// PowerPoint's autofit steps, largest first.
@@ -293,7 +312,30 @@ final class SlidePainter: CustomPainter {
             canvas.translate(-c.dx, -c.dy)
         }
         if let image = shape.picture {
-            if let decoded = cache.image(image) {
+            if let metafile = cache.metafile(image) {
+                // A WMF or EMF, as vectors: the whole picture placed so that
+                // the crop's share of it fills the frame.
+                let c = shape.crop ?? .zero
+                let place = Self.inset(r, shape.pictureInset)
+                let spanX = 1 - c.left - c.right, spanY = 1 - c.top - c.bottom
+                let whole = spanX > 0 && spanY > 0 ? Rect.fromLTWH(
+                    place.left - c.left / spanX * place.width, place.top - c.top / spanY * place.height,
+                    place.width / spanX, place.height / spanY) : place
+                canvas.save()
+                canvas.clipRect(r)
+                if let g = shape.pictureGeometry, !g.isLine {
+                    canvas.clipPath(PresetGeometry.path(g.rawValue, in: r) ?? Self.geometryPath(g, r))
+                }
+                if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px) }
+                if shape.flipH || shape.flipV {
+                    let c = r.center
+                    canvas.translate(c.dx, c.dy)
+                    canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
+                    canvas.translate(-c.dx, -c.dy)
+                }
+                metafile.paint(canvas, in: whole, image: { cache.image($0) }, font: OfficeFonts.substitute)
+                canvas.restore()
+            } else if let decoded = cache.image(image) {
                 let w = Double(decoded.width), h = Double(decoded.height)
                 let c = shape.crop ?? .zero
                 // `a:fillRect`: the picture's place within the frame.
