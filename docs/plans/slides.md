@@ -715,8 +715,16 @@ Divino_Revelado; an unknown object) got a labelled grey box
 everywhere. PowerPoint shows nothing in its place, so the box is now
 the editor's only (`SlidePainter(placeholders:)`): the show and the
 PDF export draw nothing there. Divino_Revelado 16.2 → 15.2,
-lo-tdf131553 11.3 → 10.6; the EMF/WMF decks are unmoved (their
-pictures go through the picture path, not this one).
+lo-tdf131553 11.3 → 10.6, lo-tdf169781 −1.7, lo-group-rot −1.0,
+radar-chart −0.8; the EMF/WMF decks are unmoved (their pictures go
+through the picture path, not this one). The one loss: 45541_Footer,
+45541_Header and 45545_Comment (one deck three times) go 11 → 17.7,
+because slide 8 is an embedded PowerPoint slide whose only preview
+is a WMF in a VML drawing — PowerPoint draws that, this app cannot,
+and the full-slide grey box happened to be nearer to it than the
+master's blue gradient now showing through. Taken: a show should not
+display an editor's box. Sweep 25: corpus mean 3.15 → 3.18%, decks
+≤2% 362 → 363.
 
 **Bullets where and how the file has them, 2026-10-11.** The marker
 sat right before its text, right-aligned in the list indent; PowerPoint
