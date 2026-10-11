@@ -491,7 +491,7 @@ keeps the style the file gave it, none included — we had given every
 one List Paragraph, and Word's contextual spacing, which suppresses
 space only between paragraphs of the SAME style, then stopped
 suppressing it before the plain paragraph after each numbered heading
-(bug59058 7.7% to 1.2%, delins 9.2 to 4.7). Where it stands: 111
+(bug59058 7.7% to 1.2%, delins 9.2 to 4.7). At that point: 111
 scored, 100 within 1%, 8 within 5%, 2 within 15% (bug65649 12.8%,
 table-indent 6.9%), and form_footnotes on its knife edge at 44%. Then
 a table ruled through its cells, with nothing at the table level (every
@@ -510,21 +510,11 @@ one cell's sides, printing each; the enlarged crop of the two headers
 side by side showed the wrap. issue_51265_3's last 4% was one missing
 thing in the styles part: a named style's TAB STOPS were never written,
 and its header style centres and right-aligns the header's pictures by
-two of them (0.00% with them). Where it stands: 111 scored, 102 within
+two of them (0.00% with them). At that point: 111 scored, 102 within
 1%, 8 within 5%, none within 15%, form_footnotes on its knife edge.
 
-Left open, with what is known. bug65649 (4.7%, 180 pages against 177):
-its equipment table (page 139) autofits to different column widths in
-Word than the original's, and no single part explains it — the
-original's table markup inside our package prints like ours, and so do
-its styles, settings, numbering, theme and font table swapped in one at
-a time. (The original's numbering part alone took the document to 4.2%;
-that was the levels' own number properties and suffix, kept since.)
-form_footnotes (44%): its rows now match Word's to two points, which
-leaves its last box fitting page one by those two points where Word's
-original breaks before it. delins (4.8%) is not ours to fix: Word
-prints its ORIGINAL 4.6% differently from one session to the next (the
-tracked-change balloons), measured by reprinting the original alone.
+(What was open at that point — bug65649's equipment table, form_footnotes'
+page break, delins — is brought up to date under "Standing" below.)
 
 Whether Word's prints of the originals can be kept across sessions was
 tried and answered no. Word prints some originals differently from one
@@ -557,11 +547,38 @@ body font; and bullet levels whose `w:lvlText` is such a private-use
 code, read as a round bullet and written back as one. With those, every
 anchor on page one sits where Word's original has it and the last row
 breaks where Word breaks it: form_footnotes 0.64%, checkboxes 1.2 to
-0.01, Numbering 0.3 to 0.06. Where it stands: 111 scored, 103 within
-1%, and eight above it: drawing 6.2 (session-dependent: 0.56 in another
-session with the same copy), delins 5.1 (Word's own session
-difference), bug65649 4.1, rtl 3.4, bug57031 3.0, Bug54771b 2.0,
-bug59058 1.3, FancyFoot 1.0.
+0.01, Numbering 0.3 to 0.06.
+
+**Standing at the end of the fourth round (2026-10-11, commit
+ab4bc7c4).** 111 scored, both sides printed in one Word session; 103
+within 1%. Round three ended at 35 within 0%, 48 under 1%, 15 under
+5%, 13 above. Gates: 304 unit tests, the corpus at 122 converted and
+the 8 expected read failures, `ooxml-check` clean. Word refuses the
+ORIGINALS of the fuzzer, truncated, unicode-path, crash, deep-table-cell
+and ExternalEntity files, so those are outside the scored set. The
+eight above 1%, and what is known of each:
+
+- **drawing, 6.2%** — session-dependent: 0.56% in another session with
+  the same copy. Check in a fresh session before touching it.
+- **delins, 5.1%** — not ours: Word prints its ORIGINAL 4.6% differently
+  from one session to the next (the tracked-change balloons).
+- **bug65649, 4.1%** — 180 pages against 177. Its equipment table (page
+  139) autofits to other column widths than the original's, and no
+  single part explains it: the original's table markup inside our
+  package prints like ours, and so do its styles, settings, numbering,
+  theme and font table swapped in one at a time. Next: a cut-down copy
+  of that one section.
+- **rtl 3.4%, bug57031 3.0%, Bug54771b 2.0%, bug59058 1.3%, FancyFoot
+  1.0%** — not yet investigated. rtl's Latin runs carry `w:rtl
+  w:val="false"` and a language we drop; bug57031's worst pages are
+  its SAS tables, a point a row.
+
+How to work the next one: probe with a cut-down copy (a 180-page print
+per question is what made this round slow); swap one part of the
+original into our package and print (styles, settings, numbering, then
+one table, one row, one cell); measure anchors to a hundredth of a
+point down the page on both sides until one moves; and batch unrelated
+fixes into one Word pass.
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced
