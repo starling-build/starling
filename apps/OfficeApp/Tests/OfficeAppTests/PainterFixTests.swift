@@ -449,3 +449,25 @@ final class RunCapsAndBulletTests: XCTestCase {
         XCTAssertLessThan(bytesDrawn(marking: false), bytesDrawn(marking: true), "Slides draws no marker; Writer does")
     }
 }
+
+/// An object the deck cannot draw is boxed in the editor only (2026-10-11,
+/// Divino_Revelado): a show and an export show nothing, as PowerPoint does.
+final class PlaceholderBoxTests: XCTestCase {
+    func testAnUndrawableObjectIsBoxedOnlyInTheEditor() {
+        func bytes(placeholders: Bool) -> Int {
+            let object = OpaqueObject(xml: "<p:pic/>", label: "Picture", sourcePart: "ppt/slides/slide1.xml")
+            let shape = SlideShape(id: 1, name: "Picture 1", kind: .opaque(object), frame: Rect.fromLTWH(100, 100, 300, 200),
+                                   text: nil, textTheme: nil)
+            let slide = Slide(id: 1, layout: .blank, shapes: [shape], notes: RichDocumentController())
+            let painter = SlidePainter(slide: slide, theme: DeckTheme.presets[0], slideSize: Size(960, 540), revision: 0,
+                                       cache: SlideTextCache(), placeholders: placeholders)
+            let recorder = NativePictureRecorder()
+            let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, 960, 540))
+            painter.paint(canvas, Size(960, 540))
+            let picture = recorder.endRecording()
+            defer { picture.dispose() }
+            return picture.approximateBytesUsed
+        }
+        XCTAssertLessThan(bytes(placeholders: false), bytes(placeholders: true), "the labelled box is the editor's")
+    }
+}

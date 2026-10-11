@@ -32,7 +32,8 @@ enum SlidesPdf {
         for slide in deck.slides where !slide.hidden {
             let recorder = NativePictureRecorder()
             let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
-            let painter = SlidePainter(slide: slide, theme: deck.theme, slideSize: size, revision: deck.revision, cache: cache)
+            let painter = SlidePainter(slide: slide, theme: deck.theme, slideSize: size, revision: deck.revision, cache: cache,
+                                       placeholders: false)
             painter.paint(canvas, size)
             pages.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
         }

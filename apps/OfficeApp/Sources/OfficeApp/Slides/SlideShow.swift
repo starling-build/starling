@@ -282,7 +282,7 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         let next: Widget = nextIndex.map { i in
             AspectRatio(aspectRatio: deck.slideSize.width / deck.slideSize.height, child: CustomPaint(
                 painter: SlidePainter(slide: deck.slides[i], theme: deck.theme, slideSize: deck.slideSize,
-                                      revision: deck.revision, cache: _cache),
+                                      revision: deck.revision, cache: _cache, placeholders: false),
                 child: SizedBox(expand: ())))
         } ?? label("End of slide show", 16, dim)
         let remaining = _at < _order.count ? max(0, _plan.groups.count - _played) : 0
@@ -458,7 +458,7 @@ private final class _ShowPainter: CustomPainter {
             canvas.translate(box.left + offset.dx, box.top + offset.dy)
             // The outgoing slide as its animations left it: all played.
             SlidePainter(slide: slide, theme: theme, slideSize: slideSize, revision: 0, cache: cache,
-                         reveals: slide === current ? reveals : ShapeReveals())
+                         reveals: slide === current ? reveals : ShapeReveals(), placeholders: false)
                 .paint(canvas, Size(w, h))
             canvas.restore()
         }

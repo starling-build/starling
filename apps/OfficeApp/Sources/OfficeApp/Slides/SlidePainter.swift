@@ -175,11 +175,15 @@ final class SlidePainter: CustomPainter {
     let cache: SlideTextCache
     /// Only the background (the editing canvas draws shapes as layers).
     let shapesOnly: Bool
+    /// Whether an object the deck cannot draw gets a labelled box: the
+    /// editor shows one; a show and an export show nothing there, as
+    /// PowerPoint shows nothing for what it cannot draw either.
+    let placeholders: Bool
     /// Entrances under way in the show; shapes absent are drawn whole.
     let reveals: ShapeReveals
 
     init(slide: Slide, theme: DeckTheme, slideSize: Size, revision: Int, cache: SlideTextCache,
-         shapesOnly: Bool = false, reveals: ShapeReveals = ShapeReveals()) {
+         shapesOnly: Bool = false, reveals: ShapeReveals = ShapeReveals(), placeholders: Bool = true) {
         self.slide = slide
         self.theme = theme
         self.slideSize = slideSize
@@ -187,6 +191,7 @@ final class SlidePainter: CustomPainter {
         self.cache = cache
         self.shapesOnly = shapesOnly
         self.reveals = reveals
+        self.placeholders = placeholders
         super.init()
     }
 
@@ -200,7 +205,8 @@ final class SlidePainter: CustomPainter {
         let backdrop = slide.background ?? slide.inheritedBackground ?? theme.backgroundFill
         // The master's and layout's own shapes, part of the backdrop.
         for shape in slide.decorations {
-            Self.paintShape(shape, canvas, pxPerPt: px, cache: cache, theme: theme, text: true, slide: area, backdrop: backdrop)
+            Self.paintShape(shape, canvas, pxPerPt: px, cache: cache, theme: theme, text: true, slide: area, backdrop: backdrop,
+                            placeholders: placeholders)
         }
         if !shapesOnly {
             for shape in slide.shapes {
@@ -208,7 +214,8 @@ final class SlidePainter: CustomPainter {
                 let box = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
                 let draw = {
                     Self.paintShape(shape, canvas, pxPerPt: px, cache: self.cache, theme: self.theme, text: true,
-                                    paragraphs: self.reveals.paragraphs[shape.id], slide: area, backdrop: backdrop)
+                                    paragraphs: self.reveals.paragraphs[shape.id], slide: area, backdrop: backdrop,
+                                    placeholders: self.placeholders)
                 }
                 if let r = reveals.whole[shape.id] {
                     Self.reveal(r, box, slide: area, canvas, draw)
@@ -273,7 +280,8 @@ final class SlidePainter: CustomPainter {
 
     static func paintShape(_ shape: SlideShape, _ canvas: any Canvas, pxPerPt px: Double,
                            cache: SlideTextCache, theme: DeckTheme, text: Bool,
-                           paragraphs: [Int: ShapeReveal]? = nil, slide: Rect? = nil, backdrop: SlideFill? = nil) {
+                           paragraphs: [Int: ShapeReveal]? = nil, slide: Rect? = nil, backdrop: SlideFill? = nil,
+                           placeholders: Bool = true) {
         if shape.invisible { return }
         let f = shape.frame
         let r = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
@@ -384,9 +392,10 @@ final class SlidePainter: CustomPainter {
         } else if shape.opaque != nil, !shape.rendered.isEmpty {
             // The object's own drawing (a SmartArt's), shape by shape.
             for sub in shape.rendered {
-                paintShape(sub, canvas, pxPerPt: px, cache: cache, theme: theme, text: text, slide: slide, backdrop: backdrop)
+                paintShape(sub, canvas, pxPerPt: px, cache: cache, theme: theme, text: text, slide: slide, backdrop: backdrop,
+                           placeholders: placeholders)
             }
-        } else if let opaque = shape.opaque {
+        } else if let opaque = shape.opaque, placeholders {
             // What the deck cannot draw yet: a labelled box where it sits.
             let p = Paint()
             p.style = .fill

@@ -709,6 +709,15 @@ Sweep 23: 60810 12.9 → 12.4, a handful of decks by a tenth; the
 corpus mean stays 3.15% — the glyphs and the empty items are a few
 pixels each, and most decks' bullets were the default already.
 
+**No placeholder boxes in a show or an export, 2026-10-11.** An
+object the deck cannot draw (a picture whose part the file lacks,
+Divino_Revelado; an unknown object) got a labelled grey box
+everywhere. PowerPoint shows nothing in its place, so the box is now
+the editor's only (`SlidePainter(placeholders:)`): the show and the
+PDF export draw nothing there. Divino_Revelado 16.2 → 15.2,
+lo-tdf131553 11.3 → 10.6; the EMF/WMF decks are unmoved (their
+pictures go through the picture path, not this one).
+
 Left on the painter side, from the same ranking: 3D (`a:scene3d`
 materials and lighting), EMF/WMF and TIFF pictures (the engine has no decoder;
 PowerPoint draws them — lo-tdf113163, ArtisticEffectSample, the OLE and
