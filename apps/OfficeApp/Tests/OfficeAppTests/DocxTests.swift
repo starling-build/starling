@@ -651,6 +651,14 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[0].cell?.edges, BorderEdges(all: false))
         XCTAssertNil(back.paragraphs[1].cell?.edges)
         XCTAssertEqual(back.paragraphs[2].cell?.edges, BorderEdges(right: false))
+        // LibreOffice's w:start/w:end are left/right (table-indent).
+        var lo = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let li = lo.firstIndex { $0.name == "word/document.xml" }!
+        var lxml = String(decoding: lo[li].data, as: UTF8.self)
+        lxml = lxml.replacingAll("<w:tcBorders><w:right w:val=\"nil\"/></w:tcBorders>", with: "<w:tcBorders><w:end w:val=\"nil\"/></w:tcBorders>")
+        XCTAssertTrue(lxml.contains("<w:end w:val=\"nil\"/>"), lxml)
+        lo[li] = ZipEntry(name: "word/document.xml", data: Data(lxml.utf8))
+        XCTAssertEqual(try DocxFormat.read(try Zip.write(lo)).document.paragraphs[2].cell?.edges, BorderEdges(right: false))
         // The other way round: a bottom rule alone in an unruled table.
         var plain = doc
         plain.tableStyles["T"]!.borders = false
@@ -769,6 +777,57 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(again.contains("<w:style w:type=\"paragraph\" w:styleId=\"1\"><w:name w:val=\"Heading1 1\"/><w:basedOn w:val=\"Heading1\"/></w:style>"), again)
     }
 
+    func testSeveralHeaderRowsRepeat() throws {
+        // bug59058: a caption row and a heading row both repeat.
+        var a = RichParagraph(text: "caption"), b = RichParagraph(text: "Year"), c = RichParagraph(text: "1990")
+        a.cell = CellRef(table: "T", row: 0, column: 0); b.cell = CellRef(table: "T", row: 1, column: 0); c.cell = CellRef(table: "T", row: 2, column: 0)
+        var doc = RichDocument(paragraphs: [a, b, c, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [200]
+        var ts = TableStyle(); ts.headerRow = true; ts.headerRowCount = 2; doc.tableStyles["T"] = ts
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "<w:tblHeader/>").count, 3, xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document.tableStyles.values.first
+        XCTAssertEqual(back?.headerRow, true)
+        XCTAssertEqual(back?.headerRowCount, 2)
+    }
+
+    func testHiddenParagraphMarkIsKept() throws {
+        // bug59058: "Bottom of Form" — hidden text under a hidden mark,
+        // with a top border Word draws only when the line shows.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "Bottom of Form"), RichParagraph(text: "b")])
+        doc.paragraphs[0].runs[0].style.hidden = true
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("</w:pPr><w:r><w:rPr><w:vanish/></w:rPr>", with: "<w:rPr><w:vanish/></w:rPr></w:pPr><w:r><w:rPr><w:vanish/></w:rPr>")
+        XCTAssertTrue(xml.contains("<w:rPr><w:vanish/></w:rPr></w:pPr>"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(back.paragraphs[0].style.markHidden)
+        XCTAssertFalse(back.paragraphs[1].style.markHidden)
+        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("<w:rPr><w:vanish/></w:rPr></w:pPr><w:r><w:rPr><w:vanish/></w:rPr>"), again)
+    }
+
+    func testFileNamedFontsAreWrittenAsNamed() throws {
+        // A fresh document's serif exports as Times New Roman; a file
+        // that names Liberation Serif (table-indent, a LibreOffice file)
+        // gets it back by name — Times New Roman's line height differs.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "a")])
+        doc.paragraphs[0].runs[0].style.fontFamily = OfficeFonts.serif
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("w:ascii=\"Times New Roman\""), xml)
+        xml = xml.replacingAll("w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\"", with: "w:ascii=\"Liberation Serif\" w:hAnsi=\"Liberation Serif\" w:cs=\"Liberation Serif\"")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(back.fileFonts.contains("Liberation Serif"), "\(back.fileFonts)")
+        XCTAssertEqual(back.paragraphs[0].runs[0].style.fontFamily, "Liberation Serif")
+        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("w:ascii=\"Liberation Serif\""), again)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the
@@ -811,6 +870,17 @@ final class DocxTests: XCTestCase {
         let kept = try XCTUnwrap(back.paragraphs[0].style.sectionXML)
         XCTAssertTrue(kept.contains("w:orient=\"landscape\"") && !kept.contains("headerReference"), kept)
         XCTAssertEqual(back.keptCompat, "<w:compat><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"14\"/><w:useFELayout/></w:compat>")
+        // An EMPTY block is Word's legacy layout mode and is kept too
+        // (drawing.docx wrapped tighter under mode 15).
+        var legacy = entries
+        let li = legacy.firstIndex { $0.name == "word/settings.xml" }!
+        var lset = String(decoding: legacy[li].data, as: UTF8.self)
+        lset = lset.replacingAll(String(lset[lset.range(of: "<w:compat>")!.lowerBound ..< lset.range(of: "</w:compat>")!.upperBound]), with: "<w:compat/>")
+        legacy[li] = ZipEntry(name: "word/settings.xml", data: Data(lset.utf8))
+        let lback = try DocxFormat.read(try Zip.write(legacy)).document
+        XCTAssertEqual(lback.keptCompat, "<w:compat/>")
+        let lsaved = String(decoding: try Zip.read(try DocxFormat.write(lback, pageSetup: .letter)).first { $0.name == "word/settings.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(lsaved.contains("<w:compat/>") && !lsaved.contains("compatibilityMode"), lsaved)
         let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
         let savedXML = String(decoding: saved.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(savedXML.contains("<w:sectPr><w:type w:val=\"nextPage\"/><w:pgSz w:h=\"11907\" w:orient=\"landscape\" w:w=\"16839\"/>"), savedXML)

@@ -243,6 +243,11 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// under levels indented 6186 twips, and lost it, so every numbered
     /// clause started two-thirds of the way across the page.
     public var listIndentLeft: Double? = nil
+    /// The paragraph mark is hidden text (w:vanish on w:pPr/w:rPr). With
+    /// every run hidden too, Word shows nothing of the paragraph, borders
+    /// included; without the mark's flag the line stays, empty, with its
+    /// rules (bug59058's "Bottom of Form" paragraphs).
+    public var markHidden = false
     /// 1...6 for a heading, nil for body text. The outline level is what
     /// `.docx`, RTF and Markdown all carry; the look comes from the
     /// document's style sheet ("Heading1"...) when it has that entry.
@@ -590,6 +595,11 @@ public struct TableStyle: Hashable, Sendable {
     /// not between its cells); nil sides follow `borders`.
     public var edges: BorderEdges? = nil
     public var headerRow = false
+    /// How many leading rows repeat at the top of every page the table
+    /// runs onto when `headerRow` is set (Word's w:tblHeader on each):
+    /// bug59058's data tables repeat a caption row and a column-heading
+    /// row, and came back repeating only the caption.
+    public var headerRowCount = 1
     /// The table's preferred width as a share of the text width (Word's
     /// `w:tblW` in pct; 100 = full width), or in points (`width`); the
     /// grid's columns are scaled to it. Nil: the grid's own widths.
@@ -1293,6 +1303,12 @@ public struct RichDocument: Hashable, Sendable {
     /// them: a nested table's heading, a header's paragraphs. The writer
     /// defines each as a style based on ours.
     public var styleAliases: [String: String] = [:]
+    /// Font families the file itself named (in its styles or its runs),
+    /// written back as named. The editor's own faces are Liberation
+    /// Sans/Serif/Mono and export as Arial/Times/Courier — but a file that
+    /// says Liberation Serif means it, and Times New Roman's line height
+    /// is not the same (table-indent's rows grew a point each).
+    public var fileFonts: Set<String> = []
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
     /// Word's w:evenAndOddHeaders: even pages use the "even" ones.

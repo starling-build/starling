@@ -360,7 +360,11 @@ rank while it ran, each from its pair picture:
   the layout still showing one page size. And 32 of the corpus's files
   are in compatibility mode 12 or 14 (52 more state none), whose line
   breaking and table spacing differ from 15's: the settings' `w:compat`
-  block is kept and written in place of ours.
+  block is kept and written in place of ours — the EMPTY block too,
+  which is Word's legacy (2003) mode: 39 corpus files are in it, and
+  drawing.docx wrapped tighter under mode 15, two lines ahead by page
+  seven (13% to 1.4% with the empty block put back; an earlier reading
+  had dropped it over a form_footnotes page that was a knife edge).
 - **A run's explicit off** under a style that turns bold, italic, caps,
   underline or strike on (drawing.docx's `b w:val=0` runs under a bold
   heading 3 came back bold) is written, like indents and alignment.
@@ -394,7 +398,7 @@ tables), form_footnotes 13.4%, Bug51170 10.5%, IllustrativeCases 9.0%,
 delins 8.5% (comment balloons), table-indent 7.2%, WordWithAttachments
 6.0% (comments, which scale the page), 65099 5.1%.
 
-**Fourth round, 2026-10-09 (in progress).** Found from the round-three
+**Fourth round, 2026-10-09 to 10-11.** Found from the round-three
 pairs, all Word-free until the rerun: the styles a kept header names
 and Normal's spacing as the document default (issue_51265_3's header
 grew by Word's 8pt after); hidden text (`w:vanish`); comments kept
@@ -415,6 +419,49 @@ commit by slicing its test out between two anchors took the three
 tests added after it with it; they came back from the commit before
 the revert.
 
+Where the round ended, with both sides printed in one Word session:
+124 scored, 104 within 1%, 10 within 5%, 5 within 15%, 5 above (round
+three: 111 scored, 35/48/15/13). The second half of the round was
+bisection work — swap one part of the original into our package,
+print, repeat — and each bisection ended in a rule Word follows that we
+did not: a style with no `w:styleId` and no `w:type` is a paragraph
+style looked up by its NAME (60329's 1pt `EmptyCellLayoutStyle` in
+every empty cell: 36.6% and four pages to 15.4% and three); a grid is
+as wide as its cells REACH, span included, and a row may be shorter
+than the grid (bug65649's 63-column estimate table had come back as 62
+equal columns, 34 pages longer); a list paragraph's own `w:ind
+w:left` sits above its level's (bug65649's appendix clauses started
+two-thirds across the page); table and cell borders are per SIDE
+(`BorderEdges`: a form ruled outside but not between its cells, a
+title cell with a bottom rule alone, heading cells with none inside a
+ruled table); a section's `w:pgBorders` is kept (bib-chernigovka's art
+frame on 16 pages); an empty header or footer part still reserves its
+height; and an empty paragraph IS as tall as its mark's font — the
+2026-10-08 probe was wrong, see the trap above (Bug51170 10.1% to
+0.01%). bug65649 went 29.4% and 211 pages to 16.2% and 184 against the
+original's 177. Two late finds: a table's border LINE STYLE
+(`outset`, `double`, ... kept as written) and the document background
+(`w:background` — never printed, yet Word lays a document with one out
+18pt lower; found by swapping the original's document part in, 0.00%,
+then removing only the background, 19%). form_footnotes had fit its
+last box on page one by a point where Word's original breaks before
+it — the footnote block, the empty footer, the per-side borders and
+finally the line styles each closed part of that point: 46% to 13%.
+bib-chernigovka 23% to 7%. Then the largest single find of the round:
+an EMPTY `w:compat` is Word's legacy layout mode and 39 corpus files
+are in it; writing the empty block back took drawing from 13% to 1.4%
+(it had wrapped tighter under mode 15, two lines ahead by page seven)
+and moved issue_51265_3 10.4 to 9.1, WordWithAttachments 0.9 to 0.4,
+with delins the one loser (8.5 to 9.2). After that: a run's character
+style (`w:rStyle`, ignored before), the file's own style ids defined
+as aliases for kept markup, several repeating header rows, a hidden
+paragraph mark, file-named fonts written as named (Liberation Serif
+is not Times New Roman's line height), LibreOffice's `w:start`/`w:end`
+border sides. Still above 5%: bug65649 (16%, one page a section),
+60329 (15%), form_footnotes (13%), bug59058 (12%), issue_51265_3
+(9%), delins, IllustrativeCases (a knife edge: its page-one heading
+fits by the width of a line), bib-chernigovka, table-indent.
+
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced
 an error" dialog from a file replaced mid-open, and Word then refused
@@ -425,7 +472,8 @@ anchor's and a generated picture's) — both found by bisecting
 drawing.docx with hand-made variants opened by script; the checker
 fails on both now. Word facts settled the same way (a two-variant file,
 printed and diffed): `beforeAutospacing` is 14pt and none between list
-items; an empty `w:compat` means legacy layout. (The same method
+items; an empty `w:compat` means legacy layout — and is therefore
+kept, since the original was laid out by it. (The same method
 "settled" that an empty paragraph's height ignores its mark's size,
 and that was wrong — see the fourth round.)
 

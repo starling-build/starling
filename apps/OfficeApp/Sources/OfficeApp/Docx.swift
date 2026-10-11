@@ -149,12 +149,19 @@ enum DocxFormat {
             // first-page and even-page ones, which the editor has no
             // field for, are kept always.
             titlePage = sect.first("w:titlePg") != nil
-            // Only a block that says something: an empty w:compat (a Word
-            // 2003 conversion) laid our copy out by legacy rules and
-            // form_footnotes lost a page; ours (mode 15) serves those.
-            if let settings = part("word/settings.xml").flatMap(XNode.parse), let compat = settings.first("w:compat"),
-               !compat.children.isEmpty, compat.children.allSatisfy({ $0.name.hasPrefix("w:") }) {
-                keptCompat = PptxXML.serialize(compat)
+            // The file's compatibility block, as it stands — including an
+            // EMPTY one, which is Word's legacy (2003) layout mode and lays
+            // text out measurably differently: drawing.docx wrapped tighter
+            // under mode 15 and ran two lines ahead by page 7 (13% -> 1.4%
+            // with its empty block put back). An earlier reading dropped
+            // the empty block over a form_footnotes page that has since
+            // turned out to be a one-point knife edge.
+            if let settings = part("word/settings.xml").flatMap(XNode.parse), let compat = settings.first("w:compat") {
+                if compat.children.isEmpty {
+                    keptCompat = "<w:compat/>"
+                } else if compat.children.allSatisfy({ $0.name.hasPrefix("w:") }) {
+                    keptCompat = PptxXML.serialize(compat)
+                }
             }
             evenAndOddHeaders = part("word/settings.xml").map { String(decoding: $0, as: UTF8.self).containsSubstring("<w:evenAndOddHeaders") } ?? false
             for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
@@ -617,7 +624,9 @@ enum DocxFormat {
                     if e.insideV == style.borders { e.insideV = nil }
                     if !e.isEmpty { style.edges = e }
                 }
-                if unwrapped(node, "w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
+                // Leading rows that repeat on every page: all of them.
+                let repeating = unwrapped(node, "w:tr").prefix { $0.first("w:trPr")?.first("w:tblHeader") != nil }.count
+                if repeating > 0 { style.headerRow = true; style.headerRowCount = repeating }
                 // The style's conditional parts, as w:tblLook switches them
                 // on (attributes in 2010 files, bits of w:val in 2007's).
                 let cond = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableConds[$0] } ?? _Cond()
@@ -753,6 +762,7 @@ enum DocxFormat {
         document.tableStyles = tableStyles
         document.styles = sheet
         document.styleAliases = styleAliases
+        document.fileFonts = _declaredFonts(docData).union(_declaredFonts(part("word/styles.xml")))
         document.listFormats = listFormats
         if let bg = root.first("w:background"), let frag = _keptFragment(bg, notes) {
             document.backgroundXML = frag.xml
@@ -1083,8 +1093,9 @@ enum DocxFormat {
             guard let e = b.first(name) else { return nil }
             return !["nil", "none"].contains(e["w:val"] ?? "nil")
         }
-        let e = BorderEdges(top: side("w:top"), left: side("w:left"), bottom: side("w:bottom"), right: side("w:right"),
-                            insideH: side("w:insideH"), insideV: side("w:insideV"))
+        // LibreOffice spells the sides w:start/w:end.
+        let e = BorderEdges(top: side("w:top"), left: side("w:left") ?? side("w:start"), bottom: side("w:bottom"),
+                            right: side("w:right") ?? side("w:end"), insideH: side("w:insideH"), insideV: side("w:insideV"))
         return e.isEmpty ? nil : e
     }
 
@@ -1242,6 +1253,7 @@ enum DocxFormat {
                                                   author: rev["w:author"] ?? "", date: rev["w:date"] ?? "")
             }
             if let rPr = pPr.first("w:rPr") { markStyle = _charStyle(rPr, base: cellChar) }
+            if markStyle?.hidden == true { style.markHidden = true }
             // The paragraph's own numbering, else its style's (a numbered
             // heading style: 65099's "1.1.1 Acronyms").
             var num: (numId: String, ilvl: Int)? = nil
@@ -1498,11 +1510,11 @@ enum DocxFormat {
     /// alone means "inherit" (drawing.docx's "b w:val=0" runs under a
     /// bold heading 3 came back bold; 52288's plain runs under a bold
     /// style must not come back un-bold).
-    private static func _rPrXML(_ s: CharStyle) -> String {
+    private static func _rPrXML(_ s: CharStyle, fileFonts: Set<String> = []) -> String {
         var rPr = ""
         func off(_ tag: String, _ sw: CharSwitches) -> String { s.off.contains(sw) ? "<w:\(tag) w:val=\"0\"/>" : "" }
     if let family = s.fontFamily {
-        let name = OfficeFonts.exportName(family)
+        let name = fileFonts.contains(family) ? family : OfficeFonts.exportName(family)
         rPr += "<w:rFonts w:ascii=\"\(_esc(name))\" w:hAnsi=\"\(_esc(name))\" w:cs=\"\(_esc(name))\"/>"
     }
     if s.bold { rPr += "<w:b/><w:bCs/>" } else { rPr += off("b", .bold) }
@@ -1688,6 +1700,23 @@ enum DocxFormat {
     /// The font name as the file has it. Kept, not mapped: the face it
     /// draws with is `OfficeFonts.substitute`'s choice at render time, and
     /// the name goes back out unchanged on save.
+    /// Every family a part names in a `w:rFonts` (ascii and hAnsi).
+    private static func _declaredFonts(_ data: Data?) -> Set<String> {
+        guard let data, let text = String(data: data, encoding: .utf8) else { return [] }
+        var out = Set<String>()
+        for attr in ["w:ascii=\"", "w:hAnsi=\""] {
+            var search = text.startIndex
+            while let r = text.range(of: attr, range: search ..< text.endIndex) {
+                if let end = text[r.upperBound...].firstIndex(of: "\"") {
+                    let name = String(text[r.upperBound ..< end])
+                    if !name.isEmpty { out.insert(name) }
+                    search = end
+                } else { break }
+            }
+        }
+        return out
+    }
+
     private static func _family(_ name: String) -> String? {
         let n = name.trimmingWhitespace()
         return n.isEmpty ? nil : n
@@ -1860,7 +1889,13 @@ enum DocxFormat {
                 markRPr += "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")/>"
             }
             let anchorOnly = p.image?.sourceXML?.containsSubstring("<wp:anchor") ?? false
-            if p.text.isEmpty, p.image == nil || anchorOnly, let first = p.runs.first { markRPr += _rPrXML(first.style) }
+            if p.text.isEmpty, p.image == nil || anchorOnly, let first = p.runs.first {
+                markRPr += _rPrXML(first.style, fileFonts: doc.fileFonts)
+            } else if p.style.markHidden {
+                // A hidden mark on a paragraph with text: with the text
+                // hidden too, Word shows no line and no border.
+                markRPr += "<w:vanish/>"
+            }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += sect }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
@@ -1903,7 +1938,7 @@ enum DocxFormat {
                     body += drawingXML(image)
                     continue
                 }
-                var rPr = _rPrXML(s)
+                var rPr = _rPrXML(s, fileFonts: doc.fileFonts)
                 if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
                     // The mark's number is Word's to show; the run carries
                     // only the reference (and its custom mark text, if any),
@@ -2028,7 +2063,7 @@ enum DocxFormat {
                 var trPr = ""
                 if style.rowsCantSplit.contains(r) { trPr += "<w:cantSplit/>" }
                 if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"/>" }
-                if r == 0 && style.headerRow { trPr += "<w:tblHeader/>" }
+                if style.headerRow && r < style.headerRowCount { trPr += "<w:tblHeader/>" }
                 xml += trPr.isEmpty ? "<w:tr>" : "<w:tr><w:trPr>\(trPr)</w:trPr>"
                 // A row ends where its last cell does: Word allows a row
                 // shorter than the grid (145 of bug65649's 480 rows are,
@@ -2228,7 +2263,7 @@ enum DocxFormat {
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
-            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases).utf8)),
+            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases, fileFonts: doc.fileFonts).utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId).utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
@@ -2334,12 +2369,13 @@ enum DocxFormat {
 
     /// styles.xml from the document's sheet: Normal as the default, every
     /// other entry with its look, plus List Paragraph and Hyperlink.
-    private static func _stylesPart(_ sheet: RichStyleSheet, notes: Bool = false, aliases: [String: String] = [:]) -> String {
+    private static func _stylesPart(_ sheet: RichStyleSheet, notes: Bool = false, aliases: [String: String] = [:], fileFonts: Set<String> = []) -> String {
+        func exportName(_ family: String) -> String { fileFonts.contains(family) ? family : OfficeFonts.exportName(family) }
         var out = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
         // The document defaults are Normal's look (the file's, when it was
         // read from one): Calibri 11 only for a document that never said.
         let normal = sheet[RichNamedStyle.normalId]?.char ?? CharStyle()
-        let defaultFont = _esc(OfficeFonts.exportName(normal.fontFamily ?? "Calibri"))
+        let defaultFont = _esc(exportName(normal.fontFamily ?? "Calibri"))
         let defaultSize = Int(((normal.fontSize ?? 11) * 2).rounded())
         // And Normal's spacing: the body's paragraphs spell theirs out, but
         // a kept part's (a header's, a footnote's, a text box's) fall back
@@ -2371,7 +2407,7 @@ enum DocxFormat {
             if let h = entry.paragraph.heading { out += "<w:outlineLvl w:val=\"\(h - 1)\"/>" }
             out += "</w:pPr><w:rPr>"
             if let family = entry.char.fontFamily {
-                let f = OfficeFonts.exportName(family)
+                let f = exportName(family)
                 out += "<w:rFonts w:ascii=\"\(_esc(f))\" w:hAnsi=\"\(_esc(f))\" w:cs=\"\(_esc(f))\"/>"
             }
             if entry.char.bold { out += "<w:b/><w:bCs/>" }
