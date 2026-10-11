@@ -1276,6 +1276,13 @@ public struct RichDocument: Hashable, Sendable {
     /// art border is nothing the editor can draw, and bib-chernigovka's
     /// maple-muffins frame on all 16 pages was lost without it.
     public var pageBordersXML: String? = nil
+    /// The document background (`w:background`, with its VML fill), kept
+    /// as written with the parts it names. Word lays a document with one
+    /// out differently — bib-chernigovka's title page sits 18pt lower and
+    /// its tables a line further down on every page — so dropping it
+    /// moved every page, not just its colour.
+    public var backgroundXML: String? = nil
+    public var backgroundRels: [KeptRel] = []
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
     /// Word's w:evenAndOddHeaders: even pages use the "even" ones.

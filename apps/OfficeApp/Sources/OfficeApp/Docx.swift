@@ -731,6 +731,10 @@ enum DocxFormat {
         document.tableStyles = tableStyles
         document.styles = sheet
         document.listFormats = listFormats
+        if let bg = root.first("w:background"), let frag = _keptFragment(bg, notes) {
+            document.backgroundXML = frag.xml
+            document.backgroundRels = frag.rels
+        }
         document.keptParts = notes.kept
         document.keptPartTypes = notes.keptTypes
         document.keptTables = keptTables
@@ -1257,6 +1261,10 @@ enum DocxFormat {
                 // A paragraph that is one picture and nothing else: the
                 // editor's picture paragraph, with its handles.
                 para = RichParagraph(image: only, style: style)
+                // A paragraph of one ANCHORED picture has no text on its
+                // line: its mark's font is its height, as for an empty one
+                // (bib-chernigovka's title box sat in a 16pt paragraph).
+                if let mark = markStyle, only.sourceXML?.containsSubstring("<wp:anchor") == true { para.runs[0].style = mark }
             } else {
                 if text.isEmpty, inlineImages.isEmpty, markStyle != nil || !notes.openComments.isEmpty {
                     // An empty paragraph takes its mark's look as its one
@@ -1815,7 +1823,8 @@ enum DocxFormat {
                 let tag = rev.kind == .inserted ? "w:ins" : "w:del"
                 markRPr += "<\(tag) w:id=\"\(revisionCount)\" w:author=\"\(_esc(rev.author.isEmpty ? "Author" : rev.author))\"\(rev.date.isEmpty ? "" : " w:date=\"\(_esc(rev.date))\"")/>"
             }
-            if p.text.isEmpty, p.image == nil, let first = p.runs.first { markRPr += _rPrXML(first.style) }
+            let anchorOnly = p.image?.sourceXML?.containsSubstring("<wp:anchor") ?? false
+            if p.text.isEmpty, p.image == nil || anchorOnly, let first = p.runs.first { markRPr += _rPrXML(first.style) }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += sect }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
@@ -2090,7 +2099,8 @@ enum DocxFormat {
         body += "</w:sectPr>"
 
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:wp14=\"http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15 wp14\""
-        let document = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document \(ns)><w:body>\(body)</w:body></w:document>"
+        let background = doc.backgroundXML.map { keptFragmentXML($0, doc.backgroundRels) } ?? ""
+        let document = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document \(ns)>\(background)<w:body>\(body)</w:body></w:document>"
 
         var relsXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
         relsXML += "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>"

@@ -478,14 +478,20 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(xml.contains("<wp:inline"), xml)
         xml = xml.replacingAll("<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">", with: "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"1\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\"><wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>914400</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV>")
         xml = xml.replacingAll("<wp:docPr", with: "<wp:wrapNone/><wp:docPr descr=\"a picture\"").replacingAll("</wp:inline>", with: "</wp:anchor>")
+        // The anchor's paragraph has a 16pt mark: with no text on its
+        // line, that is its height (bib-chernigovka's title box).
+        xml = xml.replacingAll("</w:pPr><w:r><w:drawing>", with: "<w:rPr><w:sz w:val=\"32\"/></w:rPr></w:pPr><w:r><w:drawing>")
+        XCTAssertTrue(xml.contains("<w:sz w:val=\"32\"/></w:rPr></w:pPr><w:r><w:drawing>"), xml)
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].runs.first?.style.fontSize, 16)
         let att = try XCTUnwrap(back.paragraphs[0].image ?? back.paragraphs[0].inlineImages.values.first)
         XCTAssertEqual(att.data, png, "the editor still has the picture")
         XCTAssertTrue(att.sourceXML?.contains("<wp:anchor") ?? false, att.sourceXML ?? "nil")
         XCTAssertEqual(att.width, 72)
         let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(saved.contains("<wp:anchor ") && saved.contains("<wp:wrapNone/>") && saved.contains("<wp:posOffset>914400</wp:posOffset>"), saved)
+        XCTAssertTrue(saved.contains("<w:rPr><w:sz w:val=\"32\"/><w:szCs w:val=\"32\"/></w:rPr></w:pPr><w:r><w:drawing"), saved)
         XCTAssertFalse(saved.contains("<wp:inline"), saved)
         // With inline pictures beside it: every wp:docPr id unique, every
         // media name unique (Word calls either clash unreadable content).
@@ -688,6 +694,30 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.keptHeaderFooters.map(\.kind), [.footer])
         let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(again.contains("<w:footerReference w:type=\"default\" r:id=\"rIdKeptHF0\"/>"), again)
+    }
+
+    func testDocumentBackgroundKeptWithItsPicture() throws {
+        // bib-chernigovka: a tiled parchment background. Word lays the
+        // document out differently with it, so it is kept, picture and all.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:body>", with: "<w:background w:color=\"FFFFCC\"><v:background xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" id=\"_x0000_s1025\" o:bwmode=\"white\" fillcolor=\"#ffc\"><v:fill r:id=\"rIdBg\" o:title=\"Parchment\" type=\"tile\"/></v:background></w:background><w:body>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let ri = entries.firstIndex { $0.name == "word/_rels/document.xml.rels" }!
+        var rels = String(decoding: entries[ri].data, as: UTF8.self)
+        rels = rels.replacingAll("</Relationships>", with: "<Relationship Id=\"rIdBg\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/parchment.jpeg\"/></Relationships>")
+        entries[ri] = ZipEntry(name: "word/_rels/document.xml.rels", data: Data(rels.utf8))
+        entries.append(ZipEntry(name: "word/media/parchment.jpeg", data: Data([0xFF, 0xD8, 0xFF, 0xD9])))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(back.backgroundXML?.hasPrefix("<w:background") ?? false, back.backgroundXML ?? "nil")
+        XCTAssertEqual(back.backgroundRels.map(\.target), ["media/parchment.jpeg"])
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        let again = String(decoding: saved.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("><w:background ") && again.contains("w:color=\"FFFFCC\"") && again.contains("r:id=\"rIdKept1\"") && again.contains("</w:background><w:body>"), again)
+        XCTAssertTrue(saved.contains { $0.name == "word/media/parchment.jpeg" }, "\(saved.map(\.name))")
+        let srels = String(decoding: saved.first { $0.name == "word/_rels/document.xml.rels" }!.data, as: UTF8.self)
+        XCTAssertTrue(srels.contains("Id=\"rIdKept1\"") && srels.contains("Target=\"media/parchment.jpeg\""), srels)
     }
 
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
