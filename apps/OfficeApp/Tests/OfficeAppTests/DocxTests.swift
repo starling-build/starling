@@ -672,6 +672,24 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(iback?.edges, BorderEdges(top: false, left: false, bottom: false, right: false))
     }
 
+    func testEmptyFooterPartIsKept() throws {
+        // form_footnotes: a footer of one blank paragraph reserves its
+        // height in Word; the body's bottom edge moved 6pt without it.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "a")])
+        doc.footer = "x"
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let fi = entries.firstIndex { $0.name == "word/footer1.xml" }!
+        var fxml = String(decoding: entries[fi].data, as: UTF8.self)
+        let inner = fxml[fxml.range(of: "<w:p>")!.lowerBound ..< fxml.range(of: "</w:p>")!.upperBound]
+        fxml = fxml.replacingAll(String(inner), with: "<w:p><w:pPr><w:pStyle w:val=\"Footer\"/><w:jc w:val=\"right\"/></w:pPr></w:p>")
+        entries[fi] = ZipEntry(name: "word/footer1.xml", data: Data(fxml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.footer, "")
+        XCTAssertEqual(back.keptHeaderFooters.map(\.kind), [.footer])
+        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("<w:footerReference w:type=\"default\" r:id=\"rIdKeptHF0\"/>"), again)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

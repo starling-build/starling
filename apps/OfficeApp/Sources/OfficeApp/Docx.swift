@@ -178,7 +178,12 @@ enum DocxFormat {
                         }
                     }
                     count(node)
-                    rich = lines > 1
+                    // An EMPTY part is kept too: a footer of one blank
+                    // paragraph still reserves its height, and the editor
+                    // has nothing to show for it, so dropping it moved the
+                    // body's bottom edge 6pt down and form_footnotes' last
+                    // box onto the wrong page.
+                    rich = lines > 1 || lines == 0
                 }
                 guard rich || type != "default" else { continue }
                 let path = _resolvePath("word", target)
