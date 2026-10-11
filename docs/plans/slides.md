@@ -135,6 +135,70 @@ round trip.
 
 ## Where it stands
 
+### Next (as of 2026-10-11)
+
+The painter gate after sweep 27, 553 decks against PowerPoint's own
+export of each: mean 3.01% of pixels differing. By band:
+
+| deck's mean | decks | points of the 3.01 |
+|---|---|---|
+| ≤ 2% | 371 | 0.34 |
+| 2–20% | 174 (90 at 2–5, 54 at 5–10, 30 at 10–20) | 1.96 |
+| > 20% | 8 | 0.71 |
+
+So the worst-ranked decks are no longer where the work is. Of the
+eight over 20%, two are truncated zips from a fuzzer that PowerPoint
+recovers more of, one PowerPoint exports black (tdf113163), and the
+rest want whole features for one to five decks each (`a:scene3d`
+materials, TIFF and JPEG-XR, WordArt fills). Two thirds of what is left
+is in the middle band, where one cause tends to recur across many
+decks — the line height was one such, and moved dozens at once.
+
+In order:
+
+1. **See today's work on screen.** Everything since the SmartArt engine
+   was verified through the headless PDF export, and the editor has
+   paths the export never takes. Known already: a turned table cell's
+   text draws turned but its caret and selection do not, so editing one
+   looks wrong; a metafile's own bitmaps decode asynchronously and rely
+   on the repaint that `onImageDecoded` asks for; a metafile as a shape
+   or background *fill* (not a picture) is not drawn. `test/slides-drive.py`
+   is the way in.
+2. **Triage the 2–20% band.** Sample it (every fifth deck by rank, say),
+   put a cause on each from its pair image, and fix what recurs.
+   Suspects, unmeasured: wrapping that differs by a word (font
+   substitution — Liberation and Carlito are metric-compatible, the
+   rest are not), autofit landing a step off, bullet and paragraph
+   spacing given as a percentage, and the title shadows and glows this
+   app does not draw.
+3. **Metafiles in Writer.** `Metafile` is app-level and only Slides
+   calls it: a Word document's WMF or EMF picture is still a box.
+   Mostly wiring, in `RichLayout`'s picture path and the PDF export.
+4. **The mid-size features**, when a deck that matters needs one:
+   multi-column bodies (`bodyPr numCol`, two corpus decks), WordArt
+   text fills and warps (two or three), and the metafile leftovers —
+   hatched and pattern brushes, arcs, EMF+ where there are no GDI
+   records beside it.
+
+About the oracle. PowerPoint's side of every score is a cache:
+`NAME-orig.pdf` in `~/starling-ppt-check`, exported once by
+`test/pptx-powerpoint-render.sh` on 2026-10-08. A sweep runs only this
+app and `test/pdf-diff.swift`, which is why sweeps are comparable with
+each other — and why an update to PowerPoint, or to a corpus file,
+means regenerating the cache before the next number means anything.
+Where PowerPoint for Mac and the file format part ways the format's
+reading is kept and the cost written down (an `ExtTextOut` opaque box,
++3.5 on activex_textbox; the editor's placeholder box no longer shown
+in an export, +6.6 on the 45541 deck until its WMF preview drew).
+
+The branch: this work is on `office` (fast-forwarded from `sheets`,
+which is kept level with it), rebased over the Writer session's
+commits. Where the two met, Writer's model won and Slides reads into
+it — `TableStyle.rowHeights`, `CellRef.verticalAlign` (which the layout
+now applies, for Writer too), `CharStyle.caps` — with what PowerPoint
+needs beyond it added beside: a cell's own margins, text direction and
+coloured edge lines.
+
 **S1 done 2026-09-30**, seen on screen through `test/slides-drive.py`:
 Backstage offers Blank document and Blank presentation and the window
 switches kind; a deck opens on a 16:9 title slide with the ribbon's
