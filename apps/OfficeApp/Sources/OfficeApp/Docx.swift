@@ -2499,6 +2499,17 @@ enum DocxFormat {
             out += "<w:qFormat/><w:pPr>"
             if entry.paragraph.heading != nil { out += "<w:keepNext/>" }
             if entry.paragraph.rightToLeft { out += "<w:bidi/>" }
+            // The style's tab stops: a header style's centre and right
+            // tabs place what the kept header part lays out with them
+            // (issue_51265_3's header pictures, 4.2% -> 0.00).
+            if !entry.paragraph.tabStops.isEmpty {
+                out += "<w:tabs>"
+                for t in entry.paragraph.tabStops {
+                    let val = ["left", "center", "right", "decimal"][t.alignment.rawValue]
+                    out += "<w:tab w:val=\"\(val)\" w:pos=\"\(Int((t.position * 20).rounded()))\"/>"
+                }
+                out += "</w:tabs>"
+            }
             out += _spacingXML(entry.paragraph)
             var ind = ""
             if entry.paragraph.indentLeft != 0 { ind += " w:left=\"\(Int(entry.paragraph.indentLeft * 20))\"" }

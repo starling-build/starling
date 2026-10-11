@@ -998,6 +998,19 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(wide, pageSetup: .letter)).document.paragraphs[0].cell?.borderWidth, 1.5)
     }
 
+    func testNamedStyleKeepsItsTabStops() throws {
+        // issue_51265_3: the header style's centre and right tabs lay out
+        // the kept header part; written without them it collapsed.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "h")])
+        var ps = RichParagraphStyle(); ps.tabStops = [TabStop(position: 226.8, alignment: .center), TabStop(position: 453.6, alignment: .right)]
+        doc.styles["Kopfzeile"] = RichNamedStyle(id: "Kopfzeile", name: "header", paragraph: ps, char: CharStyle())
+        doc.paragraphs[0].style.named = "Kopfzeile"
+        let styles = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/styles.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(styles.contains("w:styleId=\"Kopfzeile\"><w:name w:val=\"header\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:tabs><w:tab w:val=\"center\" w:pos=\"4536\"/><w:tab w:val=\"right\" w:pos=\"9072\"/></w:tabs>"), styles)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.styles["Kopfzeile"]?.paragraph.tabStops, ps.tabStops)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the
