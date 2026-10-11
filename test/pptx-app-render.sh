@@ -11,9 +11,20 @@
 # the side-by-side PNGs of pages over the threshold (pairs/), and
 # render.tsv (name, pages, worst %, mean %); rows already there are
 # skipped, so a sweep resumes. OFFICE_APP picks the binary.
-#   test/pptx-app-render.sh ~/.cache/starling/pptx-corpus/in ~/starling-ppt-check ~/starling-ppt-check/app
-IN=$1; PPT=$2; WORK=$3; shift 3; HERE=$(cd "$(dirname "$0")" && pwd)
+#   test/pptx-app-render.sh                  # the corpus in the repo, into ~/starling-ppt-check/app
+#   test/pptx-app-render.sh WORK             # … into WORK
+#   test/pptx-app-render.sh test/corpus/pptx/decks test/corpus/pptx/powerpoint WORK [names…]
+# The decks and PowerPoint's PDFs of them are checked in under
+# test/corpus/pptx (its README says where they come from and how the PDFs
+# were made); with fewer than three arguments those are what is swept.
+HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
+if [ $# -le 1 ]; then
+  IN="$ROOT/test/corpus/pptx/decks"; PPT="$ROOT/test/corpus/pptx/powerpoint"; WORK="${1:-$HOME/starling-ppt-check/app}"
+  shift $#
+else
+  IN=$1; PPT=$2; WORK=$3; shift 3
+fi
 APP="${OFFICE_APP:-$ROOT/apps/OfficeApp/.build/release/OfficeApp}"
 [ -d "$IN" ] && [ -d "$PPT" ] || { echo "usage: $0 IN_DIR PPT_DIR WORK [names]" >&2; exit 2; }
 mkdir -p "$WORK/pdf" "$WORK/pairs"

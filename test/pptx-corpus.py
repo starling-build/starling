@@ -6,7 +6,7 @@
 Downloads Apache POI's .pptx test files (real decks from bug reports, and
 fuzzer cases), LibreOffice's sd/qa pptx regression decks (as lo-*) and its
 oox/qa decks (as oox-*) into DIR (default ~/.cache/starling/pptx-corpus/in)
-once — never into the repo — then for each: read (`OfficeApp --deck`), save and
+once, then for each: read (`OfficeApp --deck`), save and
 re-read (`--deck-roundtrip`), and `test/pptx-check.py` on the saved copy.
 With --render (macOS, needs Pillow) it also has Quick Look draw slide 1
 and the middle slide of the original and of the saved copy and reports
@@ -16,6 +16,12 @@ clusterfuzz-* files are deliberately broken (refused cleanly or
 salvaged); Divino_Revelado is truncated (salvaged); bug62513's duplicate
 ids are the original's own. Baseline 2026-10-01: 86 ok, 18 of 118
 renders over 2.
+
+The set as downloaded on 2026-10-01 is pinned in test/corpus/pptx/decks,
+with PowerPoint's own rendering of each beside it: that copy is what the
+painter gate (test/pptx-app-render.sh) sweeps, and its README says where
+every file comes from. This script still downloads to its own DIR, whose
+sibling directories take its outputs — do not point --dir into the repo.
 """
 import argparse, json, os, re, subprocess, sys, time, urllib.request, zipfile
 

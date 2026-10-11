@@ -46,3 +46,10 @@ build/session/starling-session   text eol=lf
 *.jpg           binary
 *.mp4           binary
 *.dat           binary
+
+# The .pptx corpus and PowerPoint's renderings of it (test/corpus): bytes,
+# never text — a fuzzer deck that looks like text must not get its line
+# endings "fixed", and none of them diffs.
+test/corpus/**/*.pptx   binary
+test/corpus/**/*.pdf    binary
+test/corpus/**/*.tsv    text eol=lf

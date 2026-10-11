@@ -180,12 +180,18 @@ In order:
    hatched and pattern brushes, arcs, EMF+ where there are no GDI
    records beside it.
 
-About the oracle. PowerPoint's side of every score is a cache:
-`NAME-orig.pdf` in `~/starling-ppt-check`, exported once by
-`test/pptx-powerpoint-render.sh` on 2026-10-08. A sweep runs only this
-app and `test/pdf-diff.swift`, which is why sweeps are comparable with
-each other — and why an update to PowerPoint, or to a corpus file,
-means regenerating the cache before the next number means anything.
+About the oracle. PowerPoint's side of every score is a fixed set of
+PDFs, exported once by `test/pptx-powerpoint-render.sh` on 2026-10-08
+(PowerPoint for Mac 16.113). A sweep runs only this app and
+`test/pdf-diff.swift`, which is why sweeps are comparable with each
+other — and why an update to PowerPoint, or to a corpus file, means
+regenerating all of them before the next number means anything. Since
+2026-10-11 the decks, those PDFs and the last sweep's per-deck scores
+are in the repository (`test/corpus/pptx`, with a README on provenance,
+licences and how to run and regenerate): they had lived only in
+`~/.cache` and `~/starling-ppt-check` on one Mac, and the PDFs cannot
+be downloaded again. `test/pptx-app-render.sh` with no arguments sweeps
+that copy.
 Where PowerPoint for Mac and the file format part ways the format's
 reading is kept and the cost written down (an `ExtTextOut` opaque box,
 +3.5 on activex_textbox; the editor's placeholder box no longer shown
