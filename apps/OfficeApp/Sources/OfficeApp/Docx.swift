@@ -447,6 +447,7 @@ enum DocxFormat {
                             default: glyph = raw
                             }
                             formats[ilvl] = ListLevelFormat(text: glyph, format: .bullet)
+                            if glyph != raw { formats[ilvl]!.rawText = raw; formats[ilvl]!.rawTextGlyph = glyph }
                         }
                     } else {
                         let number: ListNumberFormat
@@ -1536,8 +1537,12 @@ enum DocxFormat {
                 case "w:noBreakHyphen": addText("\u{2011}", cs)
                 case "w:softHyphen": addText("\u{00AD}", cs)
                 case "w:sym":
+                    // A symbol: the character means its glyph only in the
+                    // named font (Symbol F094 is a box), so the run takes it.
                     if let code = child["w:char"], let v = UInt32(code, radix: 16), let sc = UnicodeScalar(v) {
-                        addText(String(Character(sc)), cs)
+                        var sym = cs
+                        if let font = child["w:font"], !font.isEmpty { sym.fontFamily = font }
+                        addText(String(Character(sc)), sym)
                     }
                 case "w:drawing", "w:pict":
                     addImage(child)
@@ -1721,7 +1726,10 @@ enum DocxFormat {
     /// "after 240, afterAutospacing 0" under an auto-spaced style).
     static func _spacingXML(_ s: RichParagraphStyle, under: RichParagraphStyle? = nil) -> String {
         var spacing = ""
-        if s.spaceBefore > 0 { spacing += " w:before=\"\(Int((s.spaceBefore * 20).rounded()))\"" }
+        // Zero included, when the paragraph's style has space before: a
+        // Heading 6 spacer that says before 0 came back with the style's
+        // 2pt, which moved the rest of form_footnotes' first page.
+        if s.spaceBefore > 0 || (under?.spaceBefore ?? 0) > 0 { spacing += " w:before=\"\(Int((s.spaceBefore * 20).rounded()))\"" }
         if s.spaceBeforeAuto { spacing += " w:beforeAutospacing=\"1\"" } else if under?.spaceBeforeAuto ?? false { spacing += " w:beforeAutospacing=\"0\"" }
         spacing += " w:after=\"\(Int((s.spaceAfter * 20).rounded()))\""
         if s.spaceAfterAuto { spacing += " w:afterAutospacing=\"1\"" } else if under?.spaceAfterAuto ?? false { spacing += " w:afterAutospacing=\"0\"" }
@@ -2111,6 +2119,19 @@ enum DocxFormat {
                         } else {
                             text.append(ch)
                         }
+                    }
+                    flush()
+                } else if s.revision?.kind != .deleted, let font = s.fontFamily,
+                          piece.unicodeScalars.contains(where: { (0xF000...0xF0FF).contains($0.value) }) {
+                    // Private-use characters in a named font go back as
+                    // w:sym, the font with them.
+                    var text = ""
+                    func flush() { if !text.isEmpty { runXML += "<w:r>\(rPrXML)\(_text(text))</w:r>"; text = "" } }
+                    for sc in piece.unicodeScalars {
+                        if (0xF000...0xF0FF).contains(sc.value) {
+                            flush()
+                            runXML += "<w:r>\(rPrXML)<w:sym w:font=\"\(_esc(font))\" w:char=\"\(String(sc.value, radix: 16, uppercase: true))\"/></w:r>"
+                        } else { text.unicodeScalars.append(sc) }
                     }
                     flush()
                 } else if s.revision?.kind == .deleted {
@@ -2658,7 +2679,8 @@ enum DocxFormat {
                 let suff = own?.suffix.map { "<w:suff w:val=\"\(_esc($0))\"/>" } ?? ""
                 let numRPr = own?.numberRPrXML ?? ""
                 if kinds[numId] == .bullet {
-                    let glyph = formats[numId]?[i].flatMap { $0.format == .bullet ? $0.text : nil } ?? bullets[i % 3]
+                    var glyph = formats[numId]?[i].flatMap { $0.format == .bullet ? $0.text : nil } ?? bullets[i % 3]
+                    if let own, let raw = own.rawText, own.rawTextGlyph == own.text, own.numberRPrXML != nil { glyph = raw }
                     levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/>\(suff)<w:lvlText w:val=\"\(_esc(glyph))\"/><w:lvlJc w:val=\"left\"/><w:pPr>\(ind)</w:pPr>\(numRPr)</w:lvl>"
                 } else {
                     let f = formats[numId]?[i] ?? .plain(i)

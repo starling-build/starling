@@ -547,9 +547,20 @@ short of breaking where Word breaks it. A row's border exceptions are
 kept as written (not its cell-margin ones: margins are flattened into
 the table's, and drawing's exception restating them put margins back),
 and each cell's `w:tcBorders` is kept verbatim and written back while
-the table's border switch is what the file had. 44% to 37%: the row
-breaks where Word's does now, and what is left is a 2pt offset on page
-one.
+the table's border switch is what the file had. 44% to 37%. The rest
+was three small things found by measuring anchors to a hundredth of a
+point down the page until one moved: a spacer paragraph that says
+`w:before="0"` under a style with space before (zero is now written
+there); `w:sym` runs — a character that means its glyph only in the
+named font, Symbol F094 being a box — written back as text in the
+body font; and bullet levels whose `w:lvlText` is such a private-use
+code, read as a round bullet and written back as one. With those, every
+anchor on page one sits where Word's original has it and the last row
+breaks where Word breaks it: form_footnotes 0.64%, checkboxes 1.2 to
+0.01, Numbering 0.3 to 0.06. Where it stands: 111 scored, 104 within
+1%, 7 within 5.1% (delins, which is Word's own session difference;
+bug65649 4.1; drawing, session-dependent; bug57031 3.0; rtl 3.4;
+Bug54771b 2.0; bug59058 1.3), none above.
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced

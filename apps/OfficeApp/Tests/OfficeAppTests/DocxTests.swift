@@ -1086,6 +1086,48 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back?.rowExceptions, [1: ex])
     }
 
+    func testSpaceBeforeZeroWrittenUnderAStyleThatHasSome() throws {
+        // form_footnotes: a Heading 6 spacer paragraph that says before 0.
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "h"), RichParagraph(text: "plain")])
+        var ps = RichParagraphStyle(); ps.spaceBefore = 2; ps.spaceAfter = 2
+        doc.styles["Spacer"] = RichNamedStyle(id: "Spacer", name: "Spacer", paragraph: ps, char: CharStyle())
+        doc.paragraphs[0].style.named = "Spacer"; doc.paragraphs[0].style.spaceBefore = 0; doc.paragraphs[0].style.spaceAfter = 0
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:pStyle w:val=\"Spacer\"/><w:spacing w:before=\"0\" w:after=\"0\""), xml)
+        XCTAssertEqual(xml.components(separatedBy: "w:before=").count, 2, "the plain paragraph says nothing of before: \(xml)")
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document.paragraphs[0].style.spaceBefore, 0)
+    }
+
+    func testSymbolRunsAndSymbolBulletsRoundTrip() throws {
+        // form_footnotes: "OF [box] TEL" with the box as w:sym Symbol F094,
+        // and lists whose bullet is the same private-use code.
+        var p = RichParagraph(text: "item"); p.style.list = .bullet; p.style.listId = "2"
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "OF X TEL"), p])
+        doc.listFormats["2"] = [0: ListLevelFormat(text: "\u{2022}", format: .bullet)]
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">OF X TEL</w:t></w:r>", with: "<w:r><w:t xml:space=\"preserve\">OF </w:t></w:r><w:r><w:sym w:font=\"Symbol\" w:char=\"F094\"/></w:r><w:r><w:t xml:space=\"preserve\"> TEL</w:t></w:r>")
+        XCTAssertTrue(xml.contains("w:sym"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let ni = entries.firstIndex { $0.name == "word/numbering.xml" }!
+        var num = String(decoding: entries[ni].data, as: UTF8.self)
+        let lvl = "<w:lvlText w:val=\"\u{2022}\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"720\" w:hanging=\"360\"/></w:pPr>"
+        XCTAssertTrue(num.contains(lvl), num)
+        num = num.replacingAll(lvl, with: "<w:lvlText w:val=\"\u{F094}\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"720\" w:hanging=\"360\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"Symbol\" w:hAnsi=\"Symbol\"/></w:rPr>")
+        entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(num.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].text, "OF \u{F094} TEL")
+        XCTAssertEqual(back.paragraphs[0].runs.count, 3)
+        XCTAssertEqual(back.paragraphs[0].runs[1].style.fontFamily, "Symbol")
+        XCTAssertEqual(back.listFormats["2"]?[0]?.rawText, "\u{F094}")
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        let again = String(decoding: saved.first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("<w:sym w:font=\"Symbol\" w:char=\"F094\"/>"), again)
+        let numAgain = String(decoding: saved.first { $0.name == "word/numbering.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(numAgain.contains("<w:lvlText w:val=\"\u{F094}\"/>"), numAgain)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

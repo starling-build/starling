@@ -844,6 +844,13 @@ public struct ListLevelFormat: Hashable, Sendable {
     /// What follows the number (w:suff: "tab" is the default, "space",
     /// "nothing"), kept when the level says.
     public var suffix: String? = nil
+    /// A bullet level's `w:lvlText` as the file wrote it — often a
+    /// private-use code that means a glyph only in the level's symbol
+    /// font — with the display glyph it was read as. Written back while
+    /// `text` is still that glyph: form_footnotes' lists are Symbol
+    /// U+F094 boxes, and came back as round bullets a little shorter.
+    public var rawText: String? = nil
+    public var rawTextGlyph: String? = nil
 
     public init(text: String, format: ListNumberFormat = .decimal) {
         self.text = text
