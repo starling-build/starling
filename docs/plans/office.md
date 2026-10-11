@@ -476,8 +476,15 @@ had given bug65649 an empty page. And cells that state no width
 (`w:tcW` auto) autofit in Word: our grid widths written as their
 preferences froze bib-chernigovka's number column and wrapped its text
 column a line early — 7.3% to 0.13% (`TableStyle.autoCellWidths`).
-Still above 5%: bug65649 (14%), form_footnotes (12%), delins (9%),
-issue_51265_3 (9%), bug59058 (8%), table-indent (7%).
+Then Word's default table style, which the styles part now always
+carries: without it Word in its legacy mode set form_footnotes' tables
+5pt to the right, and fourteen files moved down with it (65099 1.35%
+to 0.10, Bug60337 0.52 to 0.00). A table's sides keep their own line
+style and width (double outside, single between). form_footnotes'
+rows then match Word's to two points — which puts its last box back on
+page one by those two points, where Word's original breaks before it:
+44%, a knife edge and not the rows. Still above 5%: bug65649 (14%),
+delins (9%), issue_51265_3 (9%), bug59058 (8%), table-indent (7%).
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced

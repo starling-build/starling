@@ -897,6 +897,9 @@ final class DocxTests: XCTestCase {
         var xml = String(decoding: entries[di].data, as: UTF8.self)
         xml = xml.replacingAll("<w:jc w:val=\"center\"/></w:pPr>", with: "<w:ind w:left=\"0\" w:firstLine=\"0\"/><w:jc w:val=\"center\"/><w:rPr><w:b/><w:sz w:val=\"24\"/></w:rPr></w:pPr>")
         XCTAssertTrue(xml.contains("<w:firstLine=\"0\"") || xml.contains("w:firstLine=\"0\"/>"), xml)
+        let editorXML = xml
+        // The file's heading has no paragraph style of its own.
+        xml = xml.replacingAll("<w:pStyle w:val=\"ListParagraph\"/>", with: "")
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(back.paragraphs[0].style.listFirstLine, 0)
@@ -907,6 +910,11 @@ final class DocxTests: XCTestCase {
         let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(again.contains("<w:ind w:left=\"0\" w:firstLine=\"0\"/>"), again)
         XCTAssertTrue(again.contains("<w:jc w:val=\"center\"/><w:rPr><w:b/><w:bCs/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr></w:pPr><w:r>"), again)
+        // The file gave the heading no style, so none is added (the editor's
+        // own lists get List Paragraph); contextual spacing then still
+        // matches the plain paragraph after it.
+        XCTAssertTrue(editorXML.contains("<w:pStyle w:val=\"ListParagraph\"/>"), "an editor-made list: \(editorXML)")
+        XCTAssertFalse(again.contains("<w:pStyle w:val=\"ListParagraph\"/>"), again)
     }
 
     func testAutoCellWidthsAndVerticalAlignRoundTrip() throws {
@@ -929,6 +937,29 @@ final class DocxTests: XCTestCase {
         var fixed = doc
         fixed.tableStyles["T"]!.autoCellWidths = false
         XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(fixed, pageSetup: .letter)).document.tableStyles.values.first?.autoCellWidths ?? false, false)
+    }
+
+    func testInlinePictureKeptVerbatimUntilResized() throws {
+        // issue_51265_3: four inline pictures with effectExtent, which the
+        // regenerated markup dropped.
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 72, height: 36))]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<wp:docPr", with: "<wp:effectExtent l=\"19050\" t=\"0\" r=\"8214\" b=\"0\"/><wp:docPr")
+        XCTAssertTrue(xml.contains("<wp:effectExtent"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        var back = try DocxFormat.read(try Zip.write(entries)).document
+        let att = try XCTUnwrap(back.paragraphs[0].image)
+        XCTAssertEqual(att.sourceWidth, 72)
+        XCTAssertTrue(att.sourceXML?.contains("effectExtent") ?? false)
+        let same = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(same.contains("<wp:effectExtent"), same)
+        // Resized in the editor: regenerated at the new size.
+        back.paragraphs[0].image!.width = 144; back.paragraphs[0].image!.height = 72
+        let resized = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertFalse(resized.contains("<wp:effectExtent"), resized)
+        XCTAssertTrue(resized.contains("cx=\"1828800\""), resized)
     }
 
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {

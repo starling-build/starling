@@ -787,6 +787,7 @@ enum DocxFormat {
         document.tableStyles = tableStyles
         document.styles = sheet
         document.styleAliases = styleAliases
+        document.readFromFile = true
         document.fileFonts = _declaredFonts(docData).union(_declaredFonts(part("word/styles.xml")))
         document.listFormats = listFormats
         if let bg = root.first("w:background"), let frag = _keptFragment(bg, notes) {
@@ -1416,7 +1417,16 @@ enum DocxFormat {
                 addInline(att)
                 return
             }
-            addInline(ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent))
+            // An inline picture keeps its markup too (effectExtent, docPr,
+            // crop), used while the editor has not resized it.
+            var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
+            if let frag = _keptFragment(drawing, notes) {
+                att.sourceXML = frag.xml
+                att.sourceRels = frag.rels
+                att.sourceWidth = w
+                att.sourceHeight = h
+            }
+            addInline(att)
         }
         func addText(_ s: String, _ cs: CharStyle) {
             guard !s.isEmpty else { return }
@@ -1861,7 +1871,7 @@ enum DocxFormat {
             var pPr = ""
             if let h = p.style.heading { pPr += "<w:pStyle w:val=\"Heading\(min(h, 6))\"/>" }
             else if let n = p.style.named, doc.styles[n] != nil { pPr += "<w:pStyle w:val=\"\(_esc(n))\"/>" }
-            else if p.style.list != nil { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
+            else if p.style.list != nil, !doc.readFromFile { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
             if p.style.keepNext { pPr += "<w:keepNext/>" }
             if p.style.keepLines { pPr += "<w:keepLines/>" }
             // A section break written on the paragraph before already
@@ -1950,7 +1960,8 @@ enum DocxFormat {
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
-                if let xml = image.sourceXML {
+                let unresized = image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height)
+                if let xml = image.sourceXML, unresized {
                     return "<w:r>\(keptFragmentXML(xml, image.sourceRels))</w:r>"
                 }
                 // A name no kept part and no earlier picture uses: a kept

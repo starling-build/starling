@@ -481,6 +481,13 @@ public struct ImageAttachment: Hashable, Sendable {
     /// of its size.
     public var sourceXML: String? = nil
     public var sourceRels: [KeptRel] = []
+    /// The size the kept markup was read at, in points: an inline picture
+    /// is written from `sourceXML` only while it still has this size, and
+    /// regenerated once the editor resized it. (An anchored one is always
+    /// kept.) issue_51265_3's four inline pictures lost their effectExtent
+    /// when regenerated, and the row of them wrapped elsewhere.
+    public var sourceWidth: Double? = nil
+    public var sourceHeight: Double? = nil
 
     public init(data: Data, width: Double, height: Double, name: String = "image.png",
                 naturalWidth: Double? = nil, naturalHeight: Double? = nil) {
@@ -1335,6 +1342,12 @@ public struct RichDocument: Hashable, Sendable {
     /// says Liberation Serif means it, and Times New Roman's line height
     /// is not the same (table-indent's rows grew a point each).
     public var fileFonts: Set<String> = []
+    /// Set by a file reader. A list paragraph the editor made gets Word's
+    /// List Paragraph style on save; one read from a file keeps whatever
+    /// style the file gave it, none included — bug65649's numbered
+    /// headings are plain paragraphs with contextual spacing, and giving
+    /// them a style the next paragraph lacked put 10pt back between them.
+    public var readFromFile = false
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
     /// Word's w:evenAndOddHeaders: even pages use the "even" ones.
