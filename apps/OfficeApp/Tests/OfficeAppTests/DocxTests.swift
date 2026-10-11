@@ -1039,6 +1039,24 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(latin.bold)
     }
 
+    func testListLevelKeepsItsNumberLookAndSuffix() throws {
+        // bug65649: sub-levels whose numbers are 14pt and not bold, and a
+        // level followed by a space rather than a tab.
+        var p = RichParagraph(text: "item")
+        p.style.list = .numbered; p.style.listId = "7"; p.style.listLevel = 1
+        var doc = RichDocument(paragraphs: [p])
+        var l1 = ListLevelFormat(text: "%1.%2.", format: .decimal)
+        l1.numberRPrXML = "<w:rPr><w:b w:val=\"0\"/><w:sz w:val=\"28\"/></w:rPr>"; l1.suffix = "space"
+        doc.listFormats["7"] = [0: ListLevelFormat(text: "%1.", format: .decimal), 1: l1]
+        let numbering = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/numbering.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(numbering.contains("<w:numFmt w:val=\"decimal\"/><w:suff w:val=\"space\"/><w:lvlText w:val=\"%1.%2.\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"1440\" w:hanging=\"360\"/></w:pPr><w:rPr><w:b w:val=\"0\"/><w:sz w:val=\"28\"/></w:rPr></w:lvl>"), numbering)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        let lvl = try XCTUnwrap(back.listFormats["7"]?[1])
+        XCTAssertEqual(lvl.suffix, "space")
+        XCTAssertEqual(lvl.numberRPrXML, "<w:rPr><w:b w:val=\"0\"/><w:sz w:val=\"28\"/></w:rPr>")
+        XCTAssertNil(back.listFormats["7"]?[0]?.numberRPrXML)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

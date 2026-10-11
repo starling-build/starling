@@ -768,6 +768,13 @@ public struct ListLevelFormat: Hashable, Sendable {
     /// through a save; nil for the editor's defaults.
     public var indentLeft: Double? = nil
     public var hanging: Double? = nil
+    /// The level's own run properties for the NUMBER (Word's w:rPr on the
+    /// w:lvl), kept as written: bug65649's sub-levels set their numbers
+    /// at 14pt under 11pt text, and a 14pt number makes the line taller.
+    public var numberRPrXML: String? = nil
+    /// What follows the number (w:suff: "tab" is the default, "space",
+    /// "nothing"), kept when the level says.
+    public var suffix: String? = nil
 
     public init(text: String, format: ListNumberFormat = .decimal) {
         self.text = text

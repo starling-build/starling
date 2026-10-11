@@ -462,6 +462,10 @@ enum DocxFormat {
                     }
                     // The level's indents (65099's "1.1.1" hangs 0.5in at the
                     // margin; the editor's default put it 1.5in in).
+                    if formats[ilvl] != nil {
+                        if let rPr = lvl.first("w:rPr"), !rPr.children.isEmpty { formats[ilvl]!.numberRPrXML = PptxXML.serialize(rPr) }
+                        if let suff = lvl.first("w:suff")?["w:val"] { formats[ilvl]!.suffix = suff }
+                    }
                     if let ind = lvl.first("w:pPr")?.first("w:ind"), formats[ilvl] != nil {
                         if let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { formats[ilvl]!.indentLeft = v / 20 }
                         if let v = Double(ind["w:hanging"] ?? "") { formats[ilvl]!.hanging = v / 20 }
@@ -2613,9 +2617,11 @@ enum DocxFormat {
                 let left = own?.indentLeft.map { Int(($0 * 20).rounded()) } ?? 720 * (i + 1)
                 let hang = own?.hanging.map { Int(($0 * 20).rounded()) } ?? 360
                 let ind = hang >= 0 ? "<w:ind w:left=\"\(left)\" w:hanging=\"\(hang)\"/>" : "<w:ind w:left=\"\(left)\" w:firstLine=\"\(-hang)\"/>"
+                let suff = own?.suffix.map { "<w:suff w:val=\"\(_esc($0))\"/>" } ?? ""
+                let numRPr = own?.numberRPrXML ?? ""
                 if kinds[numId] == .bullet {
                     let glyph = formats[numId]?[i].flatMap { $0.format == .bullet ? $0.text : nil } ?? bullets[i % 3]
-                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\(_esc(glyph))\"/><w:lvlJc w:val=\"left\"/><w:pPr>\(ind)</w:pPr></w:lvl>"
+                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/>\(suff)<w:lvlText w:val=\"\(_esc(glyph))\"/><w:lvlJc w:val=\"left\"/><w:pPr>\(ind)</w:pPr>\(numRPr)</w:lvl>"
                 } else {
                     let f = formats[numId]?[i] ?? .plain(i)
                     let fmt: String
@@ -2627,7 +2633,7 @@ enum DocxFormat {
                     case .upperRoman: fmt = "upperRoman"
                     case .bullet: fmt = "bullet"
                     }
-                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"\(fmt)\"/><w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"left\"/><w:pPr>\(ind)</w:pPr></w:lvl>"
+                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"\(fmt)\"/>\(suff)<w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"left\"/><w:pPr>\(ind)</w:pPr>\(numRPr)</w:lvl>"
                 }
             }
             extraAbstract += "<w:abstractNum w:abstractNumId=\"\(abstractId)\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(levels)</w:abstractNum>"
