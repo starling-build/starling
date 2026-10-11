@@ -235,6 +235,7 @@ enum DocxFormat {
         // style): the paragraphs of that style number without a numPr.
         var styleNums: [String: (numId: String, ilvl: Int)] = [:]
         var paragraphStyles: [String: XNode] = [:]
+        var styleAliases: [String: String] = [:]
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             _resolveThemeFonts(styles, theme)
             _normaliseStyleIds(styles)
@@ -380,6 +381,10 @@ enum DocxFormat {
                     sheet[id] = RichNamedStyle(id: id, name: rawName, paragraph: chain.paragraph, char: chain.char)
                 }
             }
+            // Kept markup (a nested table, a header part) still names the
+            // file's ids: drawing.docx's heading 1 is "1", and inside its
+            // kept table it fell back to plain text.
+            styleAliases = styleByDocx.filter { used.contains($0.key) && $0.key != $0.value }
         }
         if var normal = sheet[RichNamedStyle.normalId] {
             normal.paragraph = base
@@ -747,6 +752,7 @@ enum DocxFormat {
         document.tableColumns = tableColumns
         document.tableStyles = tableStyles
         document.styles = sheet
+        document.styleAliases = styleAliases
         document.listFormats = listFormats
         if let bg = root.first("w:background"), let frag = _keptFragment(bg, notes) {
             document.backgroundXML = frag.xml
@@ -2222,7 +2228,7 @@ enum DocxFormat {
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
-            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty).utf8)),
+            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases).utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId).utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
@@ -2328,7 +2334,7 @@ enum DocxFormat {
 
     /// styles.xml from the document's sheet: Normal as the default, every
     /// other entry with its look, plus List Paragraph and Hyperlink.
-    private static func _stylesPart(_ sheet: RichStyleSheet, notes: Bool = false) -> String {
+    private static func _stylesPart(_ sheet: RichStyleSheet, notes: Bool = false, aliases: [String: String] = [:]) -> String {
         var out = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
         // The document defaults are Normal's look (the file's, when it was
         // read from one): Calibri 11 only for a document that never said.
@@ -2378,6 +2384,10 @@ enum DocxFormat {
         }
         out += "<w:style w:type=\"paragraph\" w:styleId=\"ListParagraph\"><w:name w:val=\"List Paragraph\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:ind w:left=\"720\"/><w:contextualSpacing/></w:pPr></w:style>"
         out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>"
+        // The file's ids for our styles, for kept markup that names them.
+        for (fileId, ours) in aliases.sorted(by: { $0.key < $1.key }) where sheet[ours] != nil || ours == RichNamedStyle.normalId {
+            out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(fileId))\"><w:name w:val=\"\(_esc(ours)) \(_esc(fileId))\"/><w:basedOn w:val=\"\(_esc(ours))\"/></w:style>"
+        }
         if notes {
             // The marks and the notes' own paragraphs, Word's defaults;
             // a file that defined its own note text style keeps it above.

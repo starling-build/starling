@@ -749,6 +749,26 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(cs.highlight, Color(0xFFF1DDAB))
     }
 
+    func testFileStyleIdsAliasedForKeptMarkup() throws {
+        // drawing.docx: heading 1 is style "1"; a kept nested table's
+        // paragraph names it, and our sheet only defined Heading1.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "h"), RichParagraph(text: "b")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:p><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr><w:r><w:t xml:space=\"preserve\">h</w:t>", with: "<w:p><w:pPr><w:pStyle w:val=\"1\"/></w:pPr><w:r><w:t xml:space=\"preserve\">h</w:t>")
+        XCTAssertTrue(xml.contains("<w:pStyle w:val=\"1\"/>"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:styleId=\"1\"><w:name w:val=\"heading 1\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:keepNext/><w:outlineLvl w:val=\"0\"/></w:pPr><w:rPr><w:b/><w:sz w:val=\"32\"/></w:rPr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].style.heading, 1)
+        XCTAssertEqual(back.styleAliases, ["1": "Heading1"])
+        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/styles.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("<w:style w:type=\"paragraph\" w:styleId=\"1\"><w:name w:val=\"Heading1 1\"/><w:basedOn w:val=\"Heading1\"/></w:style>"), again)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

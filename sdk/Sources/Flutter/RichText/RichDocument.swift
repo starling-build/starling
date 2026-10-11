@@ -1288,6 +1288,11 @@ public struct RichDocument: Hashable, Sendable {
     /// moved every page, not just its colour.
     public var backgroundXML: String? = nil
     public var backgroundRels: [KeptRel] = []
+    /// The file's own ids for styles the sheet knows under ours (its "1"
+    /// is our Heading1), for the markup kept verbatim that still names
+    /// them: a nested table's heading, a header's paragraphs. The writer
+    /// defines each as a style based on ours.
+    public var styleAliases: [String: String] = [:]
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
     /// Word's w:evenAndOddHeaders: even pages use the "even" ones.
