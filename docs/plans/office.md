@@ -513,6 +513,20 @@ and its header style centres and right-aligns the header's pictures by
 two of them (0.00% with them). Where it stands: 111 scored, 102 within
 1%, 8 within 5%, none within 15%, form_footnotes on its knife edge.
 
+Left open, with what is known. bug65649 (4.7%, 180 pages against 177):
+its equipment table (page 139) autofits to different column widths in
+Word than the original's, and no single part explains it — the
+original's table markup inside our package prints like ours, and so do
+its styles, settings, numbering, theme and font table swapped in one at
+a time; the original's numbering part alone does take the document to
+4.2%, so something in our numbering part is still worth a look.
+form_footnotes (44%): its rows now match Word's to two points, which
+leaves its last box fitting page one by those two points where Word's
+original breaks before it. delins (4.8%): Word's "Formatted:" balloons
+describe the diff between a run's old and new properties, so the
+balloon text follows whatever we write differently (fonts, language),
+not only the change itself.
+
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced
 an error" dialog from a file replaced mid-open, and Word then refused
