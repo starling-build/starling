@@ -680,6 +680,17 @@ stand in for it. Sweep 21: corpus mean 3.37 → 3.23%, decks ≤2% 349 →
 has no pixel oracle (the Word gate scores Word against Word); the
 native-versus-browser layout gate still passes.
 
+**A drawn diagram's callouts, 2026-10-11.** A SmartArt drawing part's
+shape carries its own text frame (`dsp:txXfrm`), and the reader took
+that branch instead of evaluating the shape's preset, so a header
+drawn as an `upArrowCallout` had no outline and the filter that drops
+arrows the painter cannot draw dropped it (tdf150789 lost two headers
+and their arrows). The preset is evaluated whatever the text frame,
+which now only decides where the text goes. Of the 36 corpus decks
+whose diagrams are drawn with text frames, none moved up: SmartArt_Pie
+17 → 0.7, tdf150789 15 → 1.5, SmartArt_Pyramid 8.8 → 1.6,
+SmartArt_rightArrow 5.8 → 2.3.
+
 Left on the painter side, from the same ranking: 3D (`a:scene3d`
 materials and lighting), EMF/WMF and TIFF pictures (the engine has no decoder;
 PowerPoint draws them — lo-tdf113163, ArtisticEffectSample, the OLE and

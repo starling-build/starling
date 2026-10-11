@@ -999,22 +999,26 @@ private struct SlideContext {
         st.invisible = hiddenByLayout
         // A diagram shape's text frame (`txXfrm`, from a SmartArt drawing):
         // the text sits in that box rather than the shape's.
-        if let txBox = sp.first("p:txXfrm").flatMap(_xfrmRect) {
+        let txBox = sp.first("p:txXfrm").flatMap(_xfrmRect)
+        if let txBox {
             let tr = transform?(txBox) ?? txBox
             st.insets = EdgeInsets(left: st.insets.left + (tr.left - frame.left), top: st.insets.top + (tr.top - frame.top),
                                    right: st.insets.right + (frame.right - tr.right),
                                    bottom: st.insets.bottom + (frame.bottom - tr.bottom))
-        } else if case .geometry(let preset) = kind, preset.rawValue != "rect", !preset.isLine {
+        }
+        if case .geometry(let preset) = kind, preset.rawValue != "rect", !preset.isLine {
             // A preset from its definition, at the shape's adjust values;
             // its text within the definition's text rectangle (an oval's
-            // inscribed box, a pie's quarter). For the frame as placed — a
-            // group's child is scaled by the group, and PowerPoint sizes the
-            // arrow's head by the frame it ends up with (63200), not by the
-            // child's own extent.
+            // inscribed box, a pie's quarter) unless the shape has its own
+            // text frame above. For the frame as placed — a group's child
+            // is scaled by the group, and PowerPoint sizes the arrow's head
+            // by the frame it ends up with (63200), not by the child's own
+            // extent. (A diagram's callout header used to skip this for its
+            // text frame, and the arrow filter then dropped it — tdf150789.)
             if let g = PresetGeometry.geometry(preset.rawValue, width: frame.width * Pptx.emu, height: frame.height * Pptx.emu,
                                                adjustments: PresetGeometry.adjustments(spPr?.first("a:prstGeom"))) {
                 st.customPath = g
-                if let box = g.textRect {
+                if txBox == nil, let box = g.textRect {
                     st.insets = EdgeInsets(left: st.insets.left + box.left * frame.width,
                                            top: st.insets.top + box.top * frame.height,
                                            right: st.insets.right + (1 - box.right) * frame.width,

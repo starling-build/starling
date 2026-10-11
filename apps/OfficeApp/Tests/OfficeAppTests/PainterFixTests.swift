@@ -373,3 +373,26 @@ final class LineHeightTests: XCTestCase {
         XCTAssertTrue(out.contains("lnSpcReduction=\"20000\""), out)
     }
 }
+
+/// A diagram shape with its own text frame keeps its preset outline
+/// (2026-10-11, tdf150789): the callout headers of a drawn SmartArt used
+/// to lose theirs and be dropped as "an arrow the painter cannot draw".
+final class DiagramTextFrameTests: XCTestCase {
+    func testAShapeWithATextFrameStillHasItsOutline() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(data: package.parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        let box = try XCTUnwrap(slide.range(of: "prst=\"roundRect\""))
+        slide.replaceSubrange(box, with: "prst=\"upArrowCallout\"")
+        // The text frame goes after the shape's properties, as a drawing part has it.
+        let sppr = try XCTUnwrap(slide.range(of: "</p:spPr>", range: box.upperBound ..< slide.endIndex))
+        slide.replaceSubrange(sppr, with: "</p:spPr><p:txXfrm><a:off x=\"914400\" y=\"914400\"/><a:ext cx=\"914400\" cy=\"457200\"/></p:txXfrm>")
+        package.parts["ppt/slides/slide6.xml"] = Data(slide.utf8)
+        let (state, _, _) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let shape = try XCTUnwrap(state.slides[5].shapes.first { $0.kind == .geometry(ShapePreset(rawValue: "upArrowCallout")) })
+        XCTAssertNotNil(shape.customPath, "the preset is evaluated whatever the text frame")
+        // The text sits in the frame's box, not the definition's rectangle.
+        XCTAssertEqual(shape.insets.left, 72 - shape.frame.left + 7.2, accuracy: 0.01)
+        XCTAssertEqual(shape.insets.top, 72 - shape.frame.top + 3.6, accuracy: 0.01)
+    }
+}
