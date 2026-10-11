@@ -1011,6 +1011,28 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.styles["Kopfzeile"]?.paragraph.tabStops, ps.tabStops)
     }
 
+    func testComplexScriptBoldAndFormatChangeRoundTrip() throws {
+        // rtl.docx: an Arabic heading bold by w:bCs alone; delins: a run
+        // whose formatting was changed with tracking on.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: "b")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">a</w:t>", with: "<w:r><w:rPr><w:bCs/><w:szCs w:val=\"28\"/><w:rtl w:val=\"true\"/></w:rPr><w:t xml:space=\"preserve\">a</w:t>")
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">b</w:t>", with: "<w:r><w:rPr><w:i/><w:rPrChange w:id=\"7\" w:author=\"Ann\" w:date=\"2009-03-01T10:00:00Z\"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr><w:t xml:space=\"preserve\">b</w:t>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let a = try XCTUnwrap(back.paragraphs[0].runs.first?.style)
+        XCTAssertTrue(a.bold && a.rightToLeft)
+        XCTAssertEqual(a.fontSize, 14)
+        let b = try XCTUnwrap(back.paragraphs[1].runs.first?.style)
+        XCTAssertTrue(b.italic)
+        XCTAssertEqual(b.formatChange?.author, "Ann")
+        XCTAssertEqual(b.formatChange?.oldRPrXML, "<w:rPr><w:b/></w:rPr>")
+        let again = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(again.contains("<w:i/><w:iCs/><w:rPrChange w:id=\"1\" w:author=\"Ann\" w:date=\"2009-03-01T10:00:00Z\"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr>"), again)
+        XCTAssertTrue(again.contains("<w:b/><w:bCs/>") && again.contains("<w:rtl/>"), again)
+    }
+
     func testGridKeepsTheColumnsOnlySpannedCellsReach() throws {
         // bug65649: every row's last cell spans into columns no cell STARTS
         // in, so counting start columns lost the grid's tail and the

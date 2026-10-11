@@ -497,7 +497,21 @@ table-indent 6.9%), and form_footnotes on its knife edge at 44%. Then
 a table ruled through its cells, with nothing at the table level (every
 HTML conversion), gets no table-level borders back — we had written the
 cell-majority verdict as w:tblBorders with inside rules on top of the
-cells' own: table-indent 6.9% to 0.09.
+cells' own: table-indent 6.9% to 0.09. And bug65649's last page per
+section was two things in one merged header cell: Word draws a cell
+merged down several rows from its first cell's top and its LAST
+continuation cell's bottom, where we wrote the first cell's sides on
+every row; and a cell ruled at 1.5pt over 0.75pt rows loses that width
+from its text area, so Word wrapped "зарплаты" onto a second line and
+we did not — a line less per header, a page more per section. 12.8% to
+4.7%, 180 pages against 177. The method, for the record: swap the
+original's table in (7.2%), then its header rows, then one row, then
+one cell's sides, printing each; the enlarged crop of the two headers
+side by side showed the wrap. issue_51265_3's last 4% was one missing
+thing in the styles part: a named style's TAB STOPS were never written,
+and its header style centres and right-aligns the header's pictures by
+two of them (0.00% with them). Where it stands: 111 scored, 102 within
+1%, 8 within 5%, none within 15%, form_footnotes on its knife edge.
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced

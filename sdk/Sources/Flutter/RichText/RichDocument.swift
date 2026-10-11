@@ -42,6 +42,18 @@ public struct NoteReference: Hashable, Sendable {
 /// A tracked change on a run: text someone inserted or deleted, shown
 /// as Word shows it (underlined or struck through, in the reviewer's
 /// colour) and saved back as the change it was.
+/// A tracked FORMAT change on a run (Word's `w:rPrChange`): who changed
+/// it, when, and the run properties it had before, kept as written so the
+/// "Formatted:" balloon comes back (delins has thirty).
+public struct FormatChange: Hashable, Sendable {
+    public var author: String
+    public var date: String
+    public var oldRPrXML: String
+    public init(author: String, date: String, oldRPrXML: String) {
+        self.author = author; self.date = date; self.oldRPrXML = oldRPrXML
+    }
+}
+
 public struct RevisionMark: Hashable, Sendable {
     public enum Kind: Int, Hashable, Sendable { case inserted, deleted }
     public var kind: Kind
@@ -83,6 +95,8 @@ public struct CharStyle: Hashable, Sendable {
     public var inlineImage: String? = nil
     /// Set on a run that is a tracked insertion or deletion.
     public var revision: RevisionMark? = nil
+    /// A tracked change to this run's formatting, with what it was.
+    public var formatChange: FormatChange? = nil
     /// Switches this run turns OFF under a style that turns them on
     /// (Word's `w:b w:val="0"`): a false `bold` alone means "inherit".
     public var off: CharSwitches = []

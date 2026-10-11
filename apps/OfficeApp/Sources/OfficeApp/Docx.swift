@@ -1568,7 +1568,7 @@ enum DocxFormat {
     /// alone means "inherit" (drawing.docx's "b w:val=0" runs under a
     /// bold heading 3 came back bold; 52288's plain runs under a bold
     /// style must not come back un-bold).
-    private static func _rPrXML(_ s: CharStyle, fileFonts: Set<String> = []) -> String {
+    private static func _rPrXML(_ s: CharStyle, fileFonts: Set<String> = [], changeId: Int? = nil) -> String {
         var rPr = ""
         func off(_ tag: String, _ sw: CharSwitches) -> String { s.off.contains(sw) ? "<w:\(tag) w:val=\"0\"/>" : "" }
     if let family = s.fontFamily {
@@ -1595,6 +1595,9 @@ enum DocxFormat {
     }
     if s.script == .superscript { rPr += "<w:vertAlign w:val=\"superscript\"/>" }
     if s.script == .subscript { rPr += "<w:vertAlign w:val=\"subscript\"/>" }
+    if let fc = s.formatChange, let id = changeId {
+        rPr += "<w:rPrChange w:id=\"\(id)\" w:author=\"\(_esc(fc.author.isEmpty ? "Author" : fc.author))\"\(fc.date.isEmpty ? "" : " w:date=\"\(_esc(fc.date))\"")>\(fc.oldRPrXML)</w:rPrChange>"
+    }
     if s.rightToLeft { rPr += "<w:rtl/>" }
         return rPr
     }
@@ -1701,10 +1704,21 @@ enum DocxFormat {
 
     private static func _charStyle(_ rPr: XNode, base: CharStyle) -> CharStyle {
         var cs = base
+        // Complex-script bold, italic and size (w:bCs, w:iCs, w:szCs) are
+        // what a right-to-left run is set in; rtl.docx's Arabic headings
+        // say bCs alone and came back plain.
+        var sawB = false, sawI = false, sawSz = false
+        var bCs: Bool? = nil, iCs: Bool? = nil, szCs: Double? = nil
         for child in rPr.children {
             switch child.name {
-            case "w:b": cs.bold = !_isOff(child); if cs.bold { cs.off.remove(.bold) } else { cs.off.insert(.bold) }
-            case "w:i": cs.italic = !_isOff(child); if cs.italic { cs.off.remove(.italic) } else { cs.off.insert(.italic) }
+            case "w:bCs": bCs = !_isOff(child)
+            case "w:iCs": iCs = !_isOff(child)
+            case "w:szCs": szCs = Double(child["w:val"] ?? "").map { $0 / 2 }
+            case "w:rPrChange":
+                cs.formatChange = FormatChange(author: child["w:author"] ?? "", date: child["w:date"] ?? "",
+                                               oldRPrXML: child.first("w:rPr").map { PptxXML.serialize($0) } ?? "<w:rPr/>")
+            case "w:b": sawB = true; cs.bold = !_isOff(child); if cs.bold { cs.off.remove(.bold) } else { cs.off.insert(.bold) }
+            case "w:i": sawI = true; cs.italic = !_isOff(child); if cs.italic { cs.off.remove(.italic) } else { cs.off.insert(.italic) }
             case "w:u": cs.underline = child["w:val"] != "none"; if cs.underline { cs.off.remove(.underline) } else { cs.off.insert(.underline) }
             case "w:strike", "w:dstrike": cs.strikethrough = !_isOff(child); if cs.strikethrough { cs.off.remove(.strikethrough) } else { cs.off.insert(.strikethrough) }
             case "w:caps": cs.caps = !_isOff(child); if cs.caps { cs.off.remove(.caps) } else { cs.off.insert(.caps) }
@@ -1713,7 +1727,7 @@ enum DocxFormat {
             case "w:rtl": cs.rightToLeft = !_isOff(child)
             case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }
-            case "w:sz": if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
+            case "w:sz": sawSz = true; if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
                 if let hex = child["w:val"], hex.lowercased() != "auto", let v = Int(hex, radix: 16) {
                     cs.color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
@@ -1738,6 +1752,11 @@ enum DocxFormat {
                 }
             default: break
             }
+        }
+        if cs.rightToLeft {
+            if !sawB, let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
+            if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
+            if !sawSz, let z = szCs { cs.fontSize = z }
         }
         return cs
     }
@@ -2015,7 +2034,9 @@ enum DocxFormat {
                     body += drawingXML(image)
                     continue
                 }
-                var rPr = _rPrXML(s, fileFonts: doc.fileFonts)
+                var changeId: Int? = nil
+                if s.formatChange != nil { revisionCount += 1; changeId = revisionCount }
+                var rPr = _rPrXML(s, fileFonts: doc.fileFonts, changeId: changeId)
                 if let note = s.note, doc.keptParts[note.kind == .footnote ? "word/footnotes.xml" : "word/endnotes.xml"] != nil {
                     // The mark's number is Word's to show; the run carries
                     // only the reference (and its custom mark text, if any),
