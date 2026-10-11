@@ -302,7 +302,10 @@ final class SlidePainter: CustomPainter {
                     place.top + (1 - max(0, c.bottom) - c.top) / spanY * place.height) : place
                 canvas.save()
                 if shape.pictureInset != .zero { canvas.clipRect(frame) }
-                if let g = shape.pictureGeometry, !g.isLine { canvas.clipPath(Self.geometryPath(g, frame)) }
+                if let g = shape.pictureGeometry, !g.isLine {
+                    canvas.clipPath(PresetGeometry.path(g.rawValue, in: frame) ?? Self.geometryPath(g, frame))
+                }
+                if let style = shape.fillStyle { paintFill(style, frame, canvas, cache: cache, pxPerPt: px) }
                 if shape.flipH || shape.flipV {
                     let c = frame.center
                     canvas.translate(c.dx, c.dy)
@@ -335,7 +338,22 @@ final class SlidePainter: CustomPainter {
             paintFill(backdrop, slide, canvas, cache: cache, pxPerPt: px)
             canvas.restore()
         }
-        if let opaque = shape.opaque, let freeform = opaque.freeform {
+        // A mirrored shape (`flipH`/`flipV`) draws its outline and fill
+        // mirrored; its text stays upright, as PowerPoint keeps it.
+        let mirrored = shape.picture == nil && (shape.flipH || shape.flipV)
+        func mirror() {
+            canvas.save()
+            let c = r.center
+            canvas.translate(c.dx, c.dy)
+            canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
+            canvas.translate(-c.dx, -c.dy)
+        }
+        // A freeform's path, or a preset's as evaluated from its definition
+        // (`customPath`): drawn contour by contour, each filled and stroked
+        // as the definition says.
+        let freeform = shape.opaque?.freeform ?? (shape.picture == nil && shape.chart == nil ? shape.customPath : nil)
+        if let freeform {
+            if mirrored { mirror() }
             // A freeform along its own path, in the shape's fill and line.
             if let style = shape.fillStyle {
                 // A gradient or picture, within every filled subpath at once.
@@ -346,11 +364,11 @@ final class SlidePainter: CustomPainter {
             }
             for sub in freeform.subpaths {
                 let path = FreeformGeometry.path(sub, in: r)
-                if sub.fill, shape.fillStyle == nil, let fill = shape.fill {
+                if sub.fill, shape.fillStyle == nil, let fill = shape.fill, shape.preset?.isOpenPath != true {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
-                    p.color = fill
+                    p.color = FreeformGeometry.toned(fill, sub.tone)
                     canvas.drawPath(path, p)
                 }
                 if sub.stroke, let line = shape.outline {
@@ -362,6 +380,7 @@ final class SlidePainter: CustomPainter {
                     canvas.drawPath(path, p)
                 }
             }
+            if mirrored { canvas.restore() }
         } else if shape.opaque != nil, !shape.rendered.isEmpty {
             // The object's own drawing (a SmartArt's), shape by shape.
             for sub in shape.rendered {
@@ -386,19 +405,9 @@ final class SlidePainter: CustomPainter {
         }
         let preset = shape.preset ?? shape.inheritedPreset
         let path: Path? = preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
-            ?? shape.customPath.map { Self.combinedPath($0, r) }
-        let drawnAlready = shape.opaque?.freeform != nil
-        // A mirrored shape (`flipH`/`flipV`) draws its outline and fill
-        // mirrored; its text stays upright, as PowerPoint keeps it.
-        let mirrored = shape.picture == nil && (shape.flipH || shape.flipV)
-        if mirrored {
-            canvas.save()
-            let c = r.center
-            canvas.translate(c.dx, c.dy)
-            canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
-            canvas.translate(-c.dx, -c.dy)
-        }
-        if let style = shape.fillStyle, !drawnAlready, shape.chart == nil {
+        let drawnAlready = freeform != nil
+        if mirrored { mirror() }
+        if let style = shape.fillStyle, !drawnAlready, shape.chart == nil, shape.picture == nil {
             // A gradient or picture fill, within the shape's outline.
             canvas.save()
             if let path { canvas.clipPath(path) } else { canvas.clipRect(r) }
@@ -539,6 +548,7 @@ final class SlidePainter: CustomPainter {
     /// matrix (luminance maps from the first colour to the second).
     static func imagePaint(alpha: Double, duotone: [Color]?) -> Paint {
         let p = Paint()
+        p.filterQuality = .medium
         if alpha < 1 { p.color = Color(0xFFFFFFFF).withOpacity(alpha) }
         if let d = duotone, d.count == 2 {
             func ch(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
@@ -553,7 +563,9 @@ final class SlidePainter: CustomPainter {
         return p
     }
 
-    /// The presets `geometryPath` draws as themselves; any other is a box.
+    /// The presets `geometryPath` draws as themselves (at their default
+    /// adjust values) when a shape has no evaluated path; a shape read from
+    /// a file has one for every preset in `PresetDefinitions`.
     static let drawablePresets: Set<String> = [
         "rect", "roundRect", "round2DiagRect", "ellipse", "flowChartConnector", "flowChartTerminator", "triangle",
         "rtTriangle", "diamond", "flowChartDecision", "parallelogram", "flowChartInputOutput", "hexagon", "homePlate",

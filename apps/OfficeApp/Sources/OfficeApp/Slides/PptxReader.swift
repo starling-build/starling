@@ -427,6 +427,19 @@ struct PptxReader {
                     }
                 }
             }
+            // An ActiveX control (`p:controls`) shows as its fallback
+            // picture. Drawn with the backdrop, so under the slide's
+            // shapes; PowerPoint draws controls over them (rarely overlap).
+            if let controls = slide.first("p:cSld")?.first("p:controls") {
+                let tree = XNode(name: "p:spTree", attrs: [:])
+                func collect(_ n: XNode) {
+                    for c in n.children { if c.name == "p:pic" { tree.children.append(c) } else { collect(c) } }
+                }
+                collect(controls)
+                var found: [ShapeState] = []
+                ctx.shapes(in: tree, transform: nil, into: &found, id: id)
+                decorations += found.filter { if case .picture = $0.kind { return true } else { return false } }
+            }
             let bg = slide.first("p:cSld")?.first("p:bg")
             let themeRoot = themePart.flatMap(package.xml)
             // The slide's own background is its; one from its layout or
@@ -526,10 +539,51 @@ struct PptxReader {
             (f.imageAlpha, f.duotone) = Self.blipEffects(blip, colors: colors)
             if let tile = b.first("a:tile") {
                 f.tiled = true
-                f.tileScale = (tile["sx"].flatMap(Double.init) ?? 100000) / 100000
+                // At the picture's own resolution (its declared dpi) times
+                // `sx`. One that declares none comes out at 144 dpi — as
+                // measured against PowerPoint's (for Mac) export of
+                // lo-page_transparent_bitmap, a 94 px PNG drawn 47 pt wide;
+                // its pixels taken as a Retina screen's, it seems.
+                let dpi = package.parts[rel.target].flatMap(Self.imageDPI) ?? 144
+                f.tileScale = (tile["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
             }
             f.imageInset = Self.stretchInset(b)
             return f
+        }
+        return nil
+    }
+
+    /// The resolution a picture declares, in dots per inch: a PNG's `pHYs`,
+    /// a JPEG's JFIF density. Nil when it declares none.
+    static func imageDPI(_ data: Data) -> Double? {
+        let b = [UInt8](data.prefix(64 * 1024))
+        func be32(_ i: Int) -> Int { (Int(b[i]) << 24) | (Int(b[i + 1]) << 16) | (Int(b[i + 2]) << 8) | Int(b[i + 3]) }
+        if b.count > 8, b[0] == 0x89, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47 {
+            var i = 8
+            while i + 8 <= b.count {
+                let len = be32(i)
+                let type = String(decoding: b[i + 4 ..< i + 8], as: UTF8.self)
+                if type == "pHYs", i + 17 <= b.count {
+                    let x = be32(i + 8), unit = b[i + 16]
+                    return unit == 1 && x > 0 ? Double(x) * 0.0254 : nil
+                }
+                if type == "IDAT" || type == "IEND" { return nil }
+                i += 12 + len
+            }
+            return nil
+        }
+        if b.count > 18, b[0] == 0xFF, b[1] == 0xD8 {
+            var i = 2
+            while i + 4 <= b.count, b[i] == 0xFF {
+                let marker = b[i + 1], len = (Int(b[i + 2]) << 8) | Int(b[i + 3])
+                if marker == 0xE0, i + 18 <= b.count, b[i + 4] == 0x4A, b[i + 5] == 0x46, b[i + 6] == 0x49, b[i + 7] == 0x46 {
+                    let unit = b[i + 11], x = (Int(b[i + 12]) << 8) | Int(b[i + 13])
+                    if x <= 1 { return nil }
+                    return unit == 1 ? Double(x) : unit == 2 ? Double(x) * 2.54 : nil
+                }
+                if marker == 0xDA { return nil }
+                i += 2 + len
+            }
         }
         return nil
     }
@@ -743,6 +797,15 @@ private struct SlideContext {
                         o.kind = .opaque(obj)
                     }
                     add(o, el)
+                } else if _frameLabel(el) == "Embedded object", var o = _opaque(el, label: "Embedded object", transform, id: id) {
+                    // Drawn from the object's own fallback picture (what the
+                    // file shows where the object is not activated).
+                    if case .opaque(var obj) = o.kind, let pic = el.descendant("p:pic"),
+                       let r = _picture(pic, transform, id: id), case .picture = r.kind {
+                        obj.rendering = [r]
+                        o.kind = .opaque(obj)
+                    }
+                    add(o, el)
                 } else {
                     add(_opaque(el, label: _frameLabel(el), transform, id: id), el)
                 }
@@ -940,6 +1003,23 @@ private struct SlideContext {
             st.insets = EdgeInsets(left: st.insets.left + (tr.left - frame.left), top: st.insets.top + (tr.top - frame.top),
                                    right: st.insets.right + (frame.right - tr.right),
                                    bottom: st.insets.bottom + (frame.bottom - tr.bottom))
+        } else if case .geometry(let preset) = kind, preset.rawValue != "rect", !preset.isLine {
+            // A preset from its definition, at the shape's adjust values;
+            // its text within the definition's text rectangle (an oval's
+            // inscribed box, a pie's quarter). For the frame as placed — a
+            // group's child is scaled by the group, and PowerPoint sizes the
+            // arrow's head by the frame it ends up with (63200), not by the
+            // child's own extent.
+            if let g = PresetGeometry.geometry(preset.rawValue, width: frame.width * Pptx.emu, height: frame.height * Pptx.emu,
+                                               adjustments: PresetGeometry.adjustments(spPr?.first("a:prstGeom"))) {
+                st.customPath = g
+                if let box = g.textRect {
+                    st.insets = EdgeInsets(left: st.insets.left + box.left * frame.width,
+                                           top: st.insets.top + box.top * frame.height,
+                                           right: st.insets.right + (1 - box.right) * frame.width,
+                                           bottom: st.insets.bottom + (1 - box.bottom) * frame.height)
+                }
+            }
         }
         // A placeholder with no geometry of its own takes its layout's or
         // master's (custgeom-placeholder: a notched ellipse from the layout).
@@ -947,7 +1027,11 @@ private struct SlideContext {
             for node in [inherited.layout, inherited.master] {
                 guard let pr = node?.first("p:spPr") else { continue }
                 if let p = pr.first("a:prstGeom")?["prst"] {
-                    if p != "rect" { st.inheritedPreset = ShapePreset(rawValue: p) }
+                    if p != "rect" {
+                        st.inheritedPreset = ShapePreset(rawValue: p)
+                        st.customPath = PresetGeometry.geometry(p, width: frame.width * Pptx.emu, height: frame.height * Pptx.emu,
+                                                                adjustments: PresetGeometry.adjustments(pr.first("a:prstGeom")))
+                    }
                     break
                 }
                 if let geom = pr.first("a:custGeom") {
@@ -1102,6 +1186,15 @@ private struct SlideContext {
             (s.pictureAlpha, s.pictureDuotone) = PptxReader.blipEffects(blip, colors: colors)
         }
         if let b = el.first("p:blipFill") { s.pictureInset = PptxReader.stretchInset(b) }
+        // A fill of its own, behind the picture (showing through its
+        // transparent parts and around one padded by a negative crop).
+        if let pr = el.first("p:spPr") {
+            if let f = pr.first("a:solidFill"), let c = colors.color(in: f) {
+                s.fillStyle = SlideFill(color: c)
+            } else if let g = pr.first("a:gradFill"), let gradient = PptxReader.gradient(g, colors: colors), gradient.stops.count >= 2 {
+                s.fillStyle = gradient
+            }
+        }
         // The element too: written back while the picture is unchanged.
         s.sourceXML = PptxXML.serialize(el)
         s.sourcePart = part
@@ -1374,7 +1467,7 @@ private struct SlideContext {
             if case .geometry(let p) = s.kind {
                 // Round things and curved arrows look nothing like their box.
                 let name = p.rawValue
-                if SlidePainter.drawablePresets.contains(name) { return true }
+                if SlidePainter.drawablePresets.contains(name) || s.customPath != nil { return true }
                 for part in ["gear", "Arrow", "arc", "Arc", "pie", "chord", "donut", "moon", "sun", "cloud", "heart",
                              "lightning", "Circle", "ellipse"] where name.containsSubstring(part) { return false }
                 return true

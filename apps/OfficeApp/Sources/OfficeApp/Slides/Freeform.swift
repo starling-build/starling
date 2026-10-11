@@ -24,10 +24,18 @@ struct FreeformGeometry: Equatable {
     struct Subpath: Equatable {
         var fill: Bool
         var stroke: Bool
+        /// The path's `fill` mode as a tone on the shape's colour: 0 for
+        /// `norm`, negative to darken (`darken` −0.4, `darkenLess` −0.2),
+        /// positive to lighten towards white (`lighten` 0.4, `lightenLess`
+        /// 0.2) — the faces of a cube or a can.
+        var tone = 0.0
         var commands: [Command]
     }
 
     var subpaths: [Subpath]
+    /// Where the text goes (`a:rect`), as fractions of the frame; nil for
+    /// the whole frame.
+    var textRect: Rect? = nil
 
     /// The subpath as a `Path` in `r`.
     static func path(_ s: Subpath, in r: Rect) -> Path {
@@ -44,7 +52,14 @@ struct FreeformGeometry: Equatable {
             case .cubic(let u1, let v1, let u2, let v2, let u, let v):
                 path.cubicTo(x(u1), y(v1), x(u2), y(v2), x(u), y(v))
             case .arc(let b, let start, let sweep):
-                path.arcTo(Rect.fromLTWH(x(b.left), y(b.top), b.width * r.width, b.height * r.height), start, sweep, false)
+                let oval = Rect.fromLTWH(x(b.left), y(b.top), b.width * r.width, b.height * r.height)
+                if abs(sweep) >= 2 * .pi - 1e-9 {
+                    // A whole turn (a funnel's rim, a donut's hole): the oval
+                    // itself — an arc of a full sweep is not one.
+                    path.addOval(oval)
+                } else {
+                    path.arcTo(oval, start, sweep, false)
+                }
             case .close: path.close()
             }
         }
@@ -53,15 +68,27 @@ struct FreeformGeometry: Equatable {
 
     // MARK: Reading
 
-    /// `custGeom` evaluated for a shape `w` by `h` EMU. Nil when a guide
-    /// cannot be evaluated (the shape is then shown as a box).
-    static func parse(_ geom: XNode, width w: Double, height h: Double) -> FreeformGeometry? {
+    /// `custGeom` (or a preset's definition) evaluated for a shape `w` by
+    /// `h` EMU, `adjustments` standing in for the adjust values the
+    /// definition declares (a shape's own `avLst` over a preset's defaults).
+    /// Nil when a guide cannot be evaluated (the shape is then shown as a
+    /// box).
+    static func parse(_ geom: XNode, width w: Double, height h: Double,
+                      adjustments: [String: Double] = [:]) -> FreeformGeometry? {
         var guides = Guides(width: w, height: h)
         for list in ["a:avLst", "a:gdLst"] {
             for gd in geom.first(list)?.all("a:gd") ?? [] {
                 guard let name = gd["name"], let fmla = gd["fmla"], let v = guides.evaluate(fmla) else { return nil }
                 guides.values[name] = v
             }
+            if list == "a:avLst" { for (k, v) in adjustments { guides.values[k] = v } }
+        }
+        var textRect: Rect? = nil
+        if let rect = geom.first("a:rect"), w > 0, h > 0,
+           let l = rect["l"].flatMap(guides.value), let t = rect["t"].flatMap(guides.value),
+           let r = rect["r"].flatMap(guides.value), let b = rect["b"].flatMap(guides.value) {
+            let box = Rect.fromLTRB(l / w, t / h, r / w, b / h)
+            if box != Rect.fromLTRB(0, 0, 1, 1), box.width > 0, box.height > 0 { textRect = box }
         }
         var subpaths: [Subpath] = []
         for p in geom.first("a:pathLst")?.all("a:path") ?? [] {
@@ -107,9 +134,30 @@ struct FreeformGeometry: Equatable {
                 }
             }
             guard !cmds.isEmpty else { continue }
-            subpaths.append(Subpath(fill: p["fill"] != "none", stroke: p["stroke"] != "0", commands: cmds))
+            let tone: Double
+            switch p["fill"] {
+            case "darken": tone = -0.4
+            case "darkenLess": tone = -0.2
+            case "lighten": tone = 0.4
+            case "lightenLess": tone = 0.2
+            default: tone = 0
+            }
+            // (The booleans are spelled "0" or "false".)
+            let stroked = !["0", "false"].contains(p["stroke"] ?? "1")
+            subpaths.append(Subpath(fill: p["fill"] != "none", stroke: stroked, tone: tone, commands: cmds))
         }
-        return subpaths.isEmpty ? nil : FreeformGeometry(subpaths: subpaths)
+        return subpaths.isEmpty ? nil : FreeformGeometry(subpaths: subpaths, textRect: textRect)
+    }
+
+    /// `color` at `tone` (see `Subpath.tone`).
+    static func toned(_ color: Color, _ tone: Double) -> Color {
+        guard tone != 0 else { return color }
+        func ch(_ sh: Int) -> Int {
+            let v = Double((color.value >> sh) & 0xFF)
+            let out = tone < 0 ? v * (1 + tone) : v + (255 - v) * tone
+            return Int(max(0, min(255, out)).rounded())
+        }
+        return Color((((color.value >> 24) & 0xFF) << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0))
     }
 
     /// DrawingML's guide language: the built-in names for a shape of this

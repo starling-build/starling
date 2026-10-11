@@ -591,13 +591,48 @@ fill-color-list (hList1's text boxes end short of the frame), the
 `asst` and `hang` org-chart branches, `pyraAcct` text strips, and the
 layouts the corpus does not exercise.
 
+**Presets from their definitions, 2026-10-11** (`Slides/PresetGeometry.swift`,
+`PresetDefinitions.swift`). The painter drew some thirty presets from
+hand-written outlines at PowerPoint's default adjust values, and the
+rest as their box; a pie with its own angles, a funnel, a "not equal"
+with a slanted stroke all came out wrong (18–26%). Now every `prstGeom`
+is evaluated like a freeform from the spec's definitions
+(presetShapeDefinitions.xml — ECMA-376's, as LibreOffice carries it: 187
+presets, generated into a Swift string with the `a:` prefix the freeform
+reader expects, handles and connection sites stripped), with the shape's
+`avLst` over the definition's defaults, at the size of the frame as
+placed (a group's child scaled by the group — PowerPoint sizes an
+arrow's head by the frame it ends up with, 63200). The outline goes
+through `customPath`, drawn contour by contour as the definition says:
+`fill="none"` contours stroked only, `stroke="false"` ones filled only,
+`darken`/`lighten` ones toned (a cube's faces), a whole turn of `arcTo`
+as the oval itself (Skia's arc of a full sweep is nothing — the funnel's
+rim had no hole). The definition's `a:rect` is where the text goes: an
+oval's text box is its inscribed rectangle, a pie's its quarter, and the
+reader adds the difference to the shape's insets. A picture's own
+`spPr` fill is painted behind it (a black square around a padded
+image, tdf163803); an OLE object's and an ActiveX control's fallback
+`p:pic` are read (the object's as its rendering, the controls' as
+decorations), though both corpus cases are WMF/EMF and stay grey. A
+tiled picture repeats at its declared resolution (PNG `pHYs`, JFIF
+density — `PptxReader.imageDPI`) rather than a flat 96 dpi, and one
+that declares none at 144: measured by cross-correlating the tile at
+candidate sizes against PowerPoint's export of lo-page_transparent_bitmap
+(a 94 px PNG drawn 47 pt wide — its pixels taken as a Retina screen's,
+it seems; 43% → 4%). Images draw with bilinear filtering.
+
+Sweep 19: corpus mean 3.84% → 3.42%, ≤2% 339 → 348, decks over 20% 15 →
+11. mathNotEqual 26 → 0, funnel 25 → 1.5, image_with_fill 21 → 0,
+pie_textarea 19 → 3.4, vert_and_padding 11 → 3.8, the Scene3d lightRig
+trio 19 → 13, cycle-matrix 16 → 9.
+
 Left on the painter side, from the same ranking: 3D (`a:scene3d`
 materials and lighting), vertical table text (`vert="vert270"`,
-table_test2), `avLst` adjust values on presets (mathNotEqual's file sets
-its own), EMF/WMF and TIFF pictures (the engine has no decoder;
-PowerPoint draws them — lo-tdf113163, ArtisticEffectSample), an OLE
-object's fallback picture, and the 1–3% that is text wrapping and font
-metrics everywhere.
+table_test2), EMF/WMF and TIFF pictures (the engine has no decoder;
+PowerPoint draws them — lo-tdf113163, ArtisticEffectSample, the OLE and
+ActiveX fallbacks), WordArt text fills and warps (tdf139618), a 2×2
+JPEG stretched over a slide that PowerPoint shows flat (tdf146223),
+and the 1–3% that is text wrapping and font metrics everywhere.
 
 **S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
 search field open Writer's find bar over the deck: every text body in

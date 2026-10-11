@@ -149,3 +149,88 @@ final class PainterFixTests: XCTestCase {
         XCTAssertEqual(header.bold, false, "the style says the header is not bold")
     }
 }
+
+/// Presets from their definitions (2026-10-11): adjust values, text
+/// rectangles, fill tones; a tiled picture at its own resolution.
+final class PresetGeometryTests: XCTestCase {
+    private let ns = "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
+
+    func testEveryPresetIsDefinedAndEvaluates() {
+        for name in ["rect", "ellipse", "pie", "funnel", "mathNotEqual", "gear6", "cloud", "wedgeRectCallout", "star5",
+                     "leftBrace", "can", "cube", "roundRect", "heart", "sun", "moon", "donut", "blockArc", "swooshArrow"] {
+            XCTAssertTrue(PresetGeometry.has(name), name)
+            XCTAssertNotNil(PresetGeometry.geometry(name, width: 914400, height: 914400), name)
+        }
+        XCTAssertFalse(PresetGeometry.has("noSuchShape"))
+        XCTAssertNil(PresetGeometry.geometry("noSuchShape", width: 10, height: 10))
+    }
+
+    func testAPiesAnglesComeFromItsAdjustValues() throws {
+        let xml = "<a:prstGeom prst=\"pie\" \(ns)><a:avLst><a:gd name=\"adj1\" fmla=\"val 20345271\"/><a:gd name=\"adj2\" fmla=\"val 5405194\"/></a:avLst></a:prstGeom>"
+        let adj = PresetGeometry.adjustments(XNode.parse(Data(xml.utf8)))
+        XCTAssertEqual(adj["adj1"], 20_345_271)
+        XCTAssertEqual(adj["adj2"], 5_405_194)
+        let g = try XCTUnwrap(PresetGeometry.geometry("pie", width: 4_320_000, height: 2_880_000, adjustments: adj))
+        let d = try XCTUnwrap(PresetGeometry.geometry("pie", width: 4_320_000, height: 2_880_000))
+        XCTAssertNotEqual(g.subpaths, d.subpaths, "the adjusted pie is not the default three-quarter one")
+        guard case .arc(_, let start, let sweep) = g.subpaths[0].commands[1] else { return XCTFail("an arc from the rim") }
+        XCTAssertEqual(start, 20_345_271 / 60000 * .pi / 180, accuracy: 1e-9)
+        // From 339° on to 90°: 111° of sweep, the long way round avoided.
+        XCTAssertEqual(sweep, (5_405_194 - 20_345_271 + 21_600_000) / 60000 * .pi / 180, accuracy: 1e-9)
+        // The text sits in the box the definition names (the inscribed one).
+        let box = try XCTUnwrap(g.textRect)
+        XCTAssertEqual(box.left, 0.5 - cos(.pi / 4) / 2, accuracy: 1e-6)
+        XCTAssertEqual(box.bottom, 0.5 + sin(.pi / 4) / 2, accuracy: 1e-6)
+        XCTAssertNil(try XCTUnwrap(PresetGeometry.geometry("rect", width: 10, height: 10)).textRect, "a rect's text box is the whole")
+    }
+
+    func testAFunnelsRimIsAHoleAndACubesFacesAreToned() throws {
+        let f = try XCTUnwrap(PresetGeometry.geometry("funnel", width: 3_600_000, height: 3_600_000))
+        XCTAssertEqual(f.subpaths.count, 1)
+        XCTAssertEqual(f.subpaths[0].commands.filter { if case .move = $0 { return true } else { return false } }.count, 2,
+                       "the body and the rim's hole are two contours of one path")
+        let c = try XCTUnwrap(PresetGeometry.geometry("cube", width: 914400, height: 914400))
+        XCTAssertEqual(c.subpaths.map(\.tone), [0, -0.2, 0.2, 0], "the front, a darker side, a lighter top, the outline")
+        XCTAssertEqual(c.subpaths.map(\.stroke), [false, false, false, true])
+        XCTAssertEqual(FreeformGeometry.toned(Color(0xFF808080), -0.5), Color(0xFF404040))
+        XCTAssertEqual(FreeformGeometry.toned(Color(0xFF808080), 0.5), Color(0xFFC0C0C0))
+        XCTAssertEqual(FreeformGeometry.toned(Color(0x80123456), 0), Color(0x80123456))
+    }
+
+    func testAMathNotEqualsStrokeAngleIsAdjustable() throws {
+        let upright = try XCTUnwrap(PresetGeometry.geometry("mathNotEqual", width: 100_000, height: 100_000,
+                                                            adjustments: ["adj2": 5_400_000]))
+        let slanted = try XCTUnwrap(PresetGeometry.geometry("mathNotEqual", width: 100_000, height: 100_000,
+                                                            adjustments: ["adj2": 6_600_000]))
+        XCTAssertNotEqual(upright.subpaths, slanted.subpaths)
+    }
+
+    func testAPicturesResolutionIsRead() {
+        // A PNG: signature, IHDR, then pHYs at 3780 dots per metre (96 dpi).
+        func be32(_ v: Int) -> [UInt8] { [UInt8((v >> 24) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 8) & 0xFF), UInt8(v & 0xFF)] }
+        func chunk(_ type: String, _ body: [UInt8]) -> [UInt8] {
+            var out = be32(body.count)
+            out += Array(type.utf8)
+            out += body
+            out += be32(0)
+            return out
+        }
+        let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        let ihdr = chunk("IHDR", [UInt8](repeating: 0, count: 13))
+        var phys: [UInt8] = be32(3780)
+        phys += be32(3780)
+        phys += [1]
+        let png = signature + ihdr + chunk("pHYs", phys) + chunk("IEND", [])
+        XCTAssertEqual(PptxReader.imageDPI(Data(png))!, 96, accuracy: 0.1)
+        XCTAssertNil(PptxReader.imageDPI(Data(signature + ihdr + chunk("IEND", []))), "no pHYs: none declared")
+        // A JPEG with a JFIF segment at 150 dpi, and one at 300 dots per cm.
+        let soi: [UInt8] = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]
+        let jfif: [UInt8] = [0, 1, 1, 1, 0, 150, 0, 150, 0, 0]
+        var jpg = soi + Array("JFIF".utf8) + jfif
+        XCTAssertEqual(PptxReader.imageDPI(Data(jpg))!, 150, accuracy: 0.1)
+        jpg[13] = 2; jpg[14] = 1; jpg[15] = 44
+        XCTAssertEqual(PptxReader.imageDPI(Data(jpg))!, 300 * 2.54, accuracy: 0.1)
+        jpg[13] = 0
+        XCTAssertNil(PptxReader.imageDPI(Data(jpg)), "unit 0 is an aspect ratio, not a resolution")
+    }
+}
