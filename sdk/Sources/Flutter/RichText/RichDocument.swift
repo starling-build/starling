@@ -605,6 +605,10 @@ public struct CellRef: Hashable, Sendable {
     /// (`bordersKeptUnder`). form_footnotes rules one row's bottom
     /// double under single inside rules, 2pt taller — which decided a page.
     public var bordersXML: String? = nil
+    /// The cell's own margins (`w:tcMar`) as the file wrote them. The
+    /// editor lays every cell out with the table's; a save restates the
+    /// cell's so Word spaces it as it did.
+    public var marginsXML: String? = nil
     public var continuationBordersXML: [String?] = []
     /// The table's border switch when `bordersXML` was read: once the
     /// editor toggles the table's borders, the summary is written instead.
@@ -711,6 +715,12 @@ public struct TableStyle: Hashable, Sendable {
     /// w:tblpPr, and w:tblOverlap after it): the editor lays the table
     /// out in the text's flow, and a save puts it back where it floated.
     public var keptPosition: String? = nil
+    /// The table's own `w:tblCellMar` when the editor's margins were
+    /// taken from the cells instead (most of them stating a `w:tcMar`),
+    /// with the margins that were current when it was read: written
+    /// back while those still stand.
+    public var keptCellMarginsXML: String? = nil
+    public var keptCellMarginsUnder: [Double?] = []
     /// Per-side exceptions to `borders` (a form table ruled outside but
     /// not between its cells); nil sides follow `borders`.
     public var edges: BorderEdges? = nil

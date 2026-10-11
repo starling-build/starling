@@ -236,7 +236,11 @@ final class DocxTests: XCTestCase {
         off.tableStyles[off.tableStyles.keys.first!]!.borders = false
         let offXML = String(decoding: try Zip.read(try DocxFormat.write(off, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertFalse(offXML.contains("w:color=\"E1E1E1\" w:space=\"0\" w:sz=\"6\" w:val=\"single\""), offXML)
-        XCTAssertTrue(saved.contains("<w:tblCellMar><w:top w:w=\"72\" w:type=\"dxa\"/>"), saved)
+        // The margins go back where the file had them: each cell's own,
+        // over the table's (Word's defaults here) — a cell that states
+        // none must not inherit its neighbours' (drawing.docx).
+        XCTAssertEqual(saved.components(separatedBy: "<w:tcMar><w:top w:type=\"dxa\" w:w=\"72\"/>").count, 3, saved)
+        XCTAssertTrue(saved.contains("<w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/>"), saved)
     }
 
     func testHeaderFooterTabsAreThirds() throws {

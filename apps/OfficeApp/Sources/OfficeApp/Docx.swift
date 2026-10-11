@@ -733,6 +733,20 @@ enum DocxFormat {
                 style.cellMarginLeft = margins.left
                 style.cellMarginBottom = margins.bottom
                 style.cellMarginRight = margins.right
+                // The table's own margins, for the save: the cells keep
+                // their w:tcMar, and the cells that state none take these
+                // (drawing.docx zeroes its banner row's and leaves 5.25pt
+                // on the rest; flattened to zero, every article under a
+                // banner sat that much high — 6.1% over twenty pages).
+                if !cellMars.isEmpty {
+                    let own = _cellMargins(node.first("w:tblPr")).under(styled).under(defaultMargins).under(_Margins.word)
+                    var xml = "<w:tblCellMar>"
+                    for (side, v) in [("top", own.top), ("left", own.left), ("bottom", own.bottom), ("right", own.right)] {
+                        if let v { xml += "<w:\(side) w:w=\"\(Int((v * 20).rounded()))\" w:type=\"dxa\"/>" }
+                    }
+                    style.keptCellMarginsXML = xml + "</w:tblCellMar>"
+                    style.keptCellMarginsUnder = [margins.top, margins.left, margins.bottom, margins.right]
+                }
                 if let ind = node.first("w:tblPr")?.first("w:tblInd"), (ind["w:type"] ?? "dxa") == "dxa",
                    let w = Double(ind["w:w"] ?? "") {
                     style.indent = w / 20
@@ -767,12 +781,11 @@ enum DocxFormat {
                         style.rowHeights[r] = v / 20
                     }
                     if let c = tr.first("w:trPr")?.first("w:cantSplit"), !_isOff(c) { style.rowsCantSplit.insert(r) }
-                    // Its borders only: cell margins are flattened into the
-                    // table's, and an exception restating the table's own
-                    // margins over cells that zeroed theirs (drawing) would
-                    // put the margins back.
-                    if let ex = tr.first("w:tblPrEx"), let b = ex.first("w:tblBorders") {
-                        style.rowExceptions[r] = "<w:tblPrEx>" + PptxXML.serialize(b) + "</w:tblPrEx>"
+                    // Its borders and its cell margins (the table's own
+                    // and each cell's go back beside them).
+                    if let ex = tr.first("w:tblPrEx") {
+                        let kept = ["w:tblBorders", "w:tblCellMar"].compactMap { ex.first($0) }.map { PptxXML.serialize($0) }.joined()
+                        if !kept.isEmpty { style.rowExceptions[r] = "<w:tblPrEx>" + kept + "</w:tblPrEx>" }
                     }
                 }
                 // Cells without a stated width autofit to their content.
@@ -861,6 +874,7 @@ enum DocxFormat {
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         currentCell?.bordersXML = tcPr?.first("w:tcBorders").map { PptxXML.serialize($0) }
+                        currentCell?.marginsXML = tcPr?.first("w:tcMar").map { PptxXML.serialize($0) }
                         currentCell?.bordersKeptUnder = style.borders
                         // The cell's own line width, over the table's.
                         if let w = _borders(tcPr, "w:tcBorders")?.width, w != (style.borderWidth ?? 0.5) { currentCell?.borderWidth = w }
@@ -2302,7 +2316,9 @@ enum DocxFormat {
             if style.fixedLayout { xml += "<w:tblLayout w:type=\"fixed\"/>" }
             let margins: [(String, Double?)] = [("top", style.cellMarginTop), ("left", style.cellMarginLeft),
                                                 ("bottom", style.cellMarginBottom), ("right", style.cellMarginRight)]
-            if margins.contains(where: { $0.1 != nil }) {
+            if let kept = style.keptCellMarginsXML, style.keptCellMarginsUnder == margins.map(\.1) {
+                xml += kept
+            } else if margins.contains(where: { $0.1 != nil }) {
                 xml += "<w:tblCellMar>"
                 for (side, v) in margins { if let v { xml += "<w:\(side) w:w=\"\(Int((v * 20).rounded()))\" w:type=\"dxa\"/>" } }
                 xml += "</w:tblCellMar>"
@@ -2367,6 +2383,7 @@ enum DocxFormat {
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML, under: ref?.bordersKeptUnder)   // schema order: borders, then shading
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
+                    if let mar = ref?.marginsXML { xml += mar }
                     // Schema order: the text direction before the alignment.
                     switch ref?.textDirection {
                     case .down?: xml += "<w:textDirection w:val=\"tbRl\"/>"
