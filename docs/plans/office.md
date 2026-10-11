@@ -557,10 +557,11 @@ body font; and bullet levels whose `w:lvlText` is such a private-use
 code, read as a round bullet and written back as one. With those, every
 anchor on page one sits where Word's original has it and the last row
 breaks where Word breaks it: form_footnotes 0.64%, checkboxes 1.2 to
-0.01, Numbering 0.3 to 0.06. Where it stands: 111 scored, 104 within
-1%, 7 within 5.1% (delins, which is Word's own session difference;
-bug65649 4.1; drawing, session-dependent; bug57031 3.0; rtl 3.4;
-Bug54771b 2.0; bug59058 1.3), none above.
+0.01, Numbering 0.3 to 0.06. Where it stands: 111 scored, 103 within
+1%, and eight above it: drawing 6.2 (session-dependent: 0.56 in another
+session with the same copy), delins 5.1 (Word's own session
+difference), bug65649 4.1, rtl 3.4, bug57031 3.0, Bug54771b 2.0,
+bug59058 1.3, FancyFoot 1.0.
 
 Two harness lessons from the round. Never swap a copy in while the
 driver is opening it: four "Word refused" verdicts were the "experienced
