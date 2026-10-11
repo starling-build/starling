@@ -2603,7 +2603,11 @@ enum DocxFormat {
     }
 
     private static func _text(_ s: String) -> String {
-        // Tabs and line breaks are elements, not characters.
+        // Tabs and line breaks are elements, not characters — and so are
+        // the optional and the non-breaking hyphen: the character U+00AD
+        // in a w:t is not a break opportunity to Word, so bug65649's
+        // "Техни-ческому" stayed whole and its autofit column grew by
+        // the half word (three pages over 180).
         var out = ""
         var buf = ""
         func flush() {
@@ -2613,6 +2617,8 @@ enum DocxFormat {
             switch ch {
             case "\t": flush(); out += "<w:tab/>"
             case "\n": flush(); out += "<w:br/>"
+            case "\u{00AD}": flush(); out += "<w:softHyphen/>"
+            case "\u{2011}": flush(); out += "<w:noBreakHyphen/>"
             default: buf.append(ch)
             }
         }

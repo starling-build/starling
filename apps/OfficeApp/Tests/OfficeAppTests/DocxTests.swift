@@ -1757,6 +1757,17 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(styles.contains("<w:rFonts w:ascii=\"Liberation Serif\" w:hAnsi=\"Liberation Serif\" w:cs=\"Noto Sans Arabic UI\" w:eastAsia=\"Noto Serif CJK SC\"/><w:kern w:val=\"2\"/>"), styles)
     }
 
+    func testOptionalAndNonBreakingHyphensAreElements() throws {
+        // bug65649: U+00AD as a character in w:t is no break opportunity
+        // to Word; the header cell's word stayed whole and widened its
+        // autofit column.
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "Техни\u{00AD}ческому a\u{2011}b")])
+        let xml = try part("word/document.xml", of: doc)
+        XCTAssertTrue(xml.contains("Техни</w:t><w:softHyphen/><w:t xml:space=\"preserve\">ческому a</w:t><w:noBreakHyphen/><w:t xml:space=\"preserve\">b</w:t>"), xml)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].text, "Техни\u{00AD}ческому a\u{2011}b")
+    }
+
     func testDefaultTabStopKept() throws {
         // bug65649: 708 twips, not our 720 — its typed numbers are
         // followed by a tab, and every first line moved.
