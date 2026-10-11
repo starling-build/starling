@@ -927,6 +927,7 @@ private struct SlideContext {
                             fillScheme: fillScheme)
         st.autofit = text.autofit
         st.fontScale = text.fontScale
+        st.insetsFollowFont = text.insetsFollowFont
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
@@ -1327,13 +1328,9 @@ private struct SlideContext {
     /// part's `dsp:dataModelExt relId`) as shapes at `frame`: its elements
     /// are DrawingML shapes under another prefix, so they read as `p:` ones.
     private func _diagram(_ el: XNode, frame: Rect, id: () -> Int) -> [ShapeState] {
-        guard let dm = el.descendant("dgm:relIds")?["r:dm"],
+        guard let relIds = el.descendant("dgm:relIds"), let dm = relIds["r:dm"],
               let dataPart = package.rels(part).first(where: { $0.id == dm })?.target,
-              let data = package.xml(dataPart),
-              let relId = data.descendant("dsp:dataModelExt")?["relId"],
-              let drawingPart = package.rels(part).first(where: { $0.id == relId })?.target,
-              let drawing = package.xml(drawingPart),
-              let tree = drawing.first("dsp:spTree") else { return [] }
+              let data = package.xml(dataPart) else { return [] }
         func renamed(_ n: XNode) -> XNode {
             let name = n.name.hasPrefix("dsp:") ? "p:" + n.name.dropFirst(4) : n.name
             let c = XNode(name: name, attrs: n.attrs)
@@ -1341,10 +1338,32 @@ private struct SlideContext {
             c.children = n.children.map(renamed)
             return c
         }
+        func related(_ key: String) -> (String, XNode)? {
+            guard let rid = relIds[key], let p = package.rels(part).first(where: { $0.id == rid })?.target,
+                  let x = package.xml(p) else { return nil }
+            return (p, x)
+        }
+        var tree: XNode? = nil
+        var drawingPart = part
+        if let relId = data.descendant("dsp:dataModelExt")?["relId"],
+           let dp = package.rels(part).first(where: { $0.id == relId })?.target,
+           let drawing = package.xml(dp), let t = drawing.first("dsp:spTree"),
+           t.children.contains(where: { $0.name == "dsp:sp" || $0.name == "dsp:grpSp" }) {
+            // PowerPoint's own drawing of the diagram. (LibreOffice writes
+            // the part with nothing in it; that counts as none.)
+            tree = renamed(t)
+            drawingPart = dp
+        } else if let (_, layoutDef) = related("r:lo") {
+            // No drawing (a deck LibreOffice saved): laid out here from the
+            // data and the layout definition.
+            tree = DiagramLayout.render(data: data, layout: layoutDef, colors: related("r:cs")?.1, style: related("r:qs")?.1,
+                                        frame: Rect.fromLTWH(0, 0, frame.width, frame.height))
+        }
+        guard let tree else { return [] }
         let ctx = SlideContext(package: package, part: drawingPart, slide: slide, layout: layout, master: master,
                                colors: colors, theme: theme, defaults: defaults, slideSize: slideSize, images: images)
         var out: [ShapeState] = []
-        ctx.shapes(in: renamed(tree), transform: { r in r.shift(Offset(frame.left, frame.top)) }, into: &out, id: id)
+        ctx.shapes(in: tree, transform: { r in r.shift(Offset(frame.left, frame.top)) }, into: &out, id: id)
         // A preset this app has no outline for is drawn as a box, which
         // serves for the rounded and snipped rectangles diagrams favour but
         // not for a gear (gear6, gear9): those are left out.
@@ -1454,6 +1473,9 @@ private struct SlideContext {
         /// `normAutofit`: shrink the text to fit, by `fontScale` now.
         var autofit = false
         var fontScale = 1.0
+        /// The insets are fractions of the font size (a diagram's margins)
+        /// and shrink with it.
+        var insetsFollowFont = false
     }
 
     /// The master text style a placeholder (or plain shape) draws from.
@@ -1634,7 +1656,8 @@ private struct SlideContext {
                         font: _font(level0.font), size: level0.size ?? 18,
                         color: level0.color ?? tx1 ?? Color(0xFF000000),
                         listIndent: shapeIndent,
-                        autofit: fitRule == "a:normAutofit", fontScale: fitRule == "a:normAutofit" ? scale : 1)
+                        autofit: fitRule == "a:normAutofit", fontScale: fitRule == "a:normAutofit" ? scale : 1,
+                        insetsFollowFont: body?.first("a:bodyPr")?["starling:insScale"] == "1")
     }
 
     // MARK: Notes

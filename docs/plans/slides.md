@@ -520,14 +520,84 @@ the saved copies byte-identical):
 - **"Lucida Sans Unicode" came out monospace**: the font substitute took
   any family with "code" in its name for a code font. Unicode is not code.
 
-Left on the painter side, from the same ranking: SmartArt without a
-drawing part (would need a layout engine — the ~8 `lo-smartart-*` decks
-are most of what is left over 20%), 3D (`a:scene3d` materials and
-lighting), vertical table text (`vert="vert270"`, table_test2),
-`avLst` adjust values on presets (mathNotEqual's file sets its own),
-EMF/WMF and TIFF pictures (the engine has no decoder; PowerPoint draws
-them — lo-tdf113163, ArtisticEffectSample), an OLE object's fallback
-picture, and the 1–3% that is text wrapping and font metrics everywhere.
+**SmartArt laid out here, 2026-10-11** (`Slides/Diagram.swift`). A
+diagram in a .pptx is data (the text and its hierarchy), a layout
+definition (an algorithm), a colour scheme and a style — and, when
+PowerPoint saved it, a cached drawing of the result. A deck LibreOffice
+saved has no drawing (or an empty one), and the ~25 `lo-smartart-*` decks
+were labelled boxes, most of what was left over 20%. `DiagramLayout` is
+an interpreter for the layout definition language (`dgm:layoutDef`),
+reduced to what the built-in layouts use:
+
+- **Building the presentation tree**: `forEach` over the data by axis
+  (`ch`, `des`, `desOrSelf`, `followSib`/`precedSib` through the sibling
+  sequence of transitions, `par`, `root`…), with per-step `st`/`cnt`
+  (`axis="ch desOrSelf" st="1 1" cnt="1 0"`), `ptType` filters, the last
+  sibling's transition hidden; `choose`/`if` on `cnt`, `pos`, `revPos`,
+  `depth`, `maxDepth` and variables (`dir`, `hierBranch`, from the
+  definition's `varLst` or the data's `presLayoutVars`); `ref` to a named
+  forEach for recursion.
+- **Constraints**: `w h l t r b ctrX ctrY sibSp sp primFontSz …` by
+  `for`/`forName`/`ptType` and `refType`/`refFor`/`refForName`, with
+  `fact`, `val`, `op` (`lte`/`gte` as caps and floors), `INF` as
+  "unbounded — take what is left". A size tied to the node's other size
+  (h = 0.6 w) is remembered and kept in step when the layout scales it;
+  a cap on one takes the other with it (the circle stays round). A laid-out
+  node's size is the slot it got; its own constraints can only shrink it.
+- **Algorithms**: `composite` (children by their l/t/w/h/ctrX/ctrY/r/b,
+  `lOff`/`rOff`, re-anchored when they come out smaller, `INF` rules
+  filling what is left); `lin` (children along the direction at their
+  natural size — a container's being what its children add up to —
+  shrunk together to fit, or only those a `rule` names along with the
+  spaces that follow them, the unbounded ones sharing any slack and
+  filling across; each child aligned across the line by what it holds;
+  the line as long as its run, spaces included); `snake` (the column
+  count whose grid is closest to the frame's proportions, scaled to fit,
+  centred); `cycle` (a ring from `stAng` by `spanAng`, radius from
+  `sibSp` or `diam` — which caps the nodes to keep their spacing — the
+  first node in the centre for `ctrShpMap=fNode`, nodes turned along the
+  path, connectors between neighbours sized against the nodes as they
+  ended up); `hierRoot`/`hierChild` (natural layout, the root centred
+  over its children's block, two or more leaves hanging to the right
+  of the parent's middle, the whole tree scaled into the frame at the
+  end); `pyra` (bands of a triangle, the first at the top); `conn` as a
+  bent line from the parent's bottom to the child's top (or across to a
+  hanging child's side), or a block arrow in a line or ring.
+- **Shapes**: ordinary `p:sp` elements the slide reader then reads like a
+  drawing part's — preset, adjustments, rotation (180° as a mirror so the
+  text stays upright, ±90° with the box turned), `hideGeom`, `zOrderOff`
+  as places in the stack; fill and line from the colour scheme's style
+  label (the data's presentation point names it, else the definition's,
+  else `node<depth>`) by its index among that label, `repeat`/`cycle`/
+  `span`, over the quick style's references; the point's own `spPr`
+  first. Text from the points the node presents, the node's own first and
+  its descendants as bulleted levels, at the constrained font size
+  (65 pt down to 5), fitted by the reader with words kept whole, the
+  margins (fractions of the font size) shrinking with it
+  (`starling:insScale`, `SlideShape.insetsFollowFont`).
+- `STARLING_DIAGRAM_DEBUG=1` prints the presentation tree with every
+  node's rect, values and caps to stderr.
+
+Over the 30 drawing-less decks (sweep 18): bullet-list 36% → 0.9,
+font-size 46 → 2.7, table-list 38 → 2.3, autofit-sync 41 → 5, chevron
+8 → 0.2, cnt (vProcess5) 30 → 1.5, pyramid 27 → 0.4, center-cycle
+13 → 1.2, org-chart2 19 → 8, children 35 → 7, linear-rule 20 → 9,
+linear-rule-vert 31 → 7.5. The whole corpus: mean 4.83% → 3.84%, decks over
+20% from 29 to 15 (three decks whose empty drawing part used to draw
+as a labelled box score a few points worse laid out — snake-rows,
+picture-strip, accent-process — because the box was small). Left: missing-bullet (PowerPoint sizes its text far
+smaller than the box allows, for a reason the file does not show),
+fill-color-list (hList1's text boxes end short of the frame), the
+`asst` and `hang` org-chart branches, `pyraAcct` text strips, and the
+layouts the corpus does not exercise.
+
+Left on the painter side, from the same ranking: 3D (`a:scene3d`
+materials and lighting), vertical table text (`vert="vert270"`,
+table_test2), `avLst` adjust values on presets (mathNotEqual's file sets
+its own), EMF/WMF and TIFF pictures (the engine has no decoder;
+PowerPoint draws them — lo-tdf113163, ArtisticEffectSample), an OLE
+object's fallback picture, and the 1–3% that is text wrapping and font
+metrics everywhere.
 
 **S8, find and replace, 2026-09-30.** ⌘F, ⌘H and the title bar's
 search field open Writer's find bar over the deck: every text body in

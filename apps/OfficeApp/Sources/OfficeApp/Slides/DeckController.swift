@@ -52,6 +52,7 @@ struct ShapeState: Equatable {
     var keptPicture: KeptPicture? = nil
     var autofit = false
     var fontScale = 1.0
+    var insetsFollowFont = false
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
     var readShape: ReadShape? = nil
@@ -1112,7 +1113,8 @@ final class DeckController: ChangeNotifier {
                    customPath: s.customPath, fillStyle: s.fillStyle, invisible: s.invisible, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
-                   keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale, keptLook: s.keptLook)
+                   keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
+                   insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
     }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
@@ -1153,8 +1155,10 @@ final class DeckController: ChangeNotifier {
                 shape.rendered = o.rendering.map(_make)
                 // A diagram's text is fitted to its shape, as PowerPoint
                 // lays it out; the drawing part's size is only a cache.
+                // (Laid out here, a diagram's words stay whole, as PowerPoint
+                // fits them; a drawing part's text was fitted by PowerPoint.)
                 for r in shape.rendered where r.autofit && r.fontScale == 1 {
-                    r.fontScale = SlideTextCache.autofitScale(r)
+                    r.fontScale = SlideTextCache.autofitScale(r, wholeWords: r.insetsFollowFont)
                 }
             }
         } else if !shape.rendered.isEmpty {
@@ -1173,6 +1177,7 @@ final class DeckController: ChangeNotifier {
         shape.keptPicture = st.keptPicture
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
+        shape.insetsFollowFont = st.insetsFollowFont
         shape.keptLook = st.keptLook
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }

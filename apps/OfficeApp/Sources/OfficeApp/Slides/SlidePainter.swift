@@ -60,25 +60,46 @@ final class SlideTextCache {
     /// PowerPoint's autofit steps, largest first.
     static let autofitSteps = [1.0, 0.925, 0.85, 0.775, 0.7, 0.625, 0.55, 0.475, 0.4, 0.325, 0.25]
 
-    /// The largest step at which `shape`'s text fits its box.
-    static func autofitScale(_ shape: SlideShape) -> Double {
+    /// The largest step at which `shape`'s text fits its box. With
+    /// `wholeWords`, a step that would break a word across lines does not
+    /// count as fitting (a SmartArt shape shrinks its text until the words
+    /// are whole, as PowerPoint lays it out).
+    static func autofitScale(_ shape: SlideShape, wholeWords: Bool = false) -> Double {
         guard let text = shape.text, let theme = shape.textTheme else { return 1 }
-        let room = shape.frame.height - shape.insets.top - shape.insets.bottom
-        let width = max(1, shape.frame.width - shape.insets.left - shape.insets.right)
         for scale in autofitSteps {
+            let k = shape.insetsFollowFont ? scale : 1
+            let room = shape.frame.height - (shape.insets.top + shape.insets.bottom) * k
+            let width = max(1, shape.frame.width - (shape.insets.left + shape.insets.right) * k)
             let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
             layout.scale = scale / theme.pixelsPerPoint
             layout.width = width
             layout.ensureLaidOut(text.document)
-            if layout.totalHeight <= room + 0.5 { return scale }
+            if layout.totalHeight <= room + 0.5, !wholeWords || widestWord(text.document, theme, scale: scale) <= width + 0.5 {
+                return scale
+            }
         }
         return autofitSteps.last!
+    }
+
+    /// The widest single word of the document at `scale`, as laid out.
+    private static func widestWord(_ doc: RichDocument, _ theme: RichTextTheme, scale: Double) -> Double {
+        var widest = 0.0
+        for p in doc.paragraphs {
+            let style = theme.textStyle(for: p.runs.first?.style ?? CharStyle(), in: p.style, scale: scale / theme.pixelsPerPoint)
+            for word in p.text.split(separator: " ") where !word.isEmpty {
+                let tp = TextPainter(text: TextSpan(text: String(word), style: style), textDirection: .ltr)
+                tp.layout(minWidth: 0, maxWidth: .infinity)
+                widest = max(widest, tp.width)
+                tp.dispose()
+            }
+        }
+        return widest
     }
 
     /// The body of `shape` laid out at `pxPerPt` device pixels per point.
     func layout(_ shape: SlideShape, pxPerPt: Double) -> RichLayout? {
         guard let text = shape.text, let theme = shape.textTheme else { return nil }
-        let width = max(1, (shape.frame.width - shape.insets.left - shape.insets.right) * pxPerPt)
+        let width = max(1, (shape.frame.width - shape.drawInsets.left - shape.drawInsets.right) * pxPerPt)
         let scale = pxPerPt * shape.fontScale / theme.pixelsPerPoint
         let key = ObjectIdentifier(text)
         if let e = _entries[key], e.revision == text.revision, e.width == width, e.scale == scale,
@@ -100,9 +121,9 @@ final class SlideTextCache {
     /// for top, both ways for middle, up for bottom), so this can be
     /// negative, as PowerPoint's can.
     func textTop(_ shape: SlideShape, pxPerPt: Double) -> Double {
-        let top = shape.insets.top * pxPerPt
+        let top = shape.drawInsets.top * pxPerPt
         guard let layout = layout(shape, pxPerPt: pxPerPt) else { return top }
-        let room = (shape.frame.height - shape.insets.top - shape.insets.bottom) * pxPerPt
+        let room = (shape.frame.height - shape.drawInsets.top - shape.drawInsets.bottom) * pxPerPt
         let spare = room - layout.totalHeight
         switch shape.anchor {
         case .top: return top
@@ -407,7 +428,7 @@ final class SlidePainter: CustomPainter {
         if mirrored { canvas.restore() }
         // (An empty table still has its rows' fills and borders to draw.)
         if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
-            let ox = r.left + shape.insets.left * px, oy = r.top + cache.textTop(shape, pxPerPt: px)
+            let ox = r.left + shape.drawInsets.left * px, oy = r.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
             if let paragraphs, !paragraphs.isEmpty {

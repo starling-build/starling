@@ -317,6 +317,15 @@ final class SlideShape {
     /// PowerPoint's default body insets: 0.1 in left and right, 0.05 in top
     /// and bottom.
     var insets = EdgeInsets(left: 7.2, top: 3.6, right: 7.2, bottom: 3.6)
+    /// A diagram's margins are fractions of its font size: they shrink
+    /// with the text when it is fitted.
+    var insetsFollowFont = false
+    /// The insets as drawn: scaled with the text when they follow it.
+    var drawInsets: EdgeInsets {
+        guard insetsFollowFont, fontScale != 1 else { return insets }
+        return EdgeInsets(left: insets.left * fontScale, top: insets.top * fontScale,
+                          right: insets.right * fontScale, bottom: insets.bottom * fontScale)
+    }
     /// Shown greyed in an empty placeholder until it is typed into.
     var prompt: String?
     /// The placeholder's `type` and `idx` in the file, which bind it to its
