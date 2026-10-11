@@ -214,6 +214,8 @@ final class DocxTests: XCTestCase {
         var xml = String(decoding: entries[i].data, as: UTF8.self)
         xml = xml.replacingAll("<w:tcPr>", with: "<w:tcPr><w:tcBorders><w:top w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/><w:bottom w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/></w:tcBorders><w:tcMar><w:top w:w=\"72\" w:type=\"dxa\"/><w:left w:w=\"72\" w:type=\"dxa\"/><w:bottom w:w=\"72\" w:type=\"dxa\"/><w:right w:w=\"72\" w:type=\"dxa\"/></w:tcMar>")
         XCTAssertTrue(xml.contains("w:tcMar"), xml)
+        // Nothing on the table itself, as an HTML conversion writes it.
+        xml = xml.replacingAll(String(xml[xml.range(of: "<w:tblBorders>")!.lowerBound ..< xml.range(of: "</w:tblBorders>")!.upperBound]), with: "")
         entries[i] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
         let ts = try XCTUnwrap(back.tableStyles.values.first)
@@ -223,6 +225,11 @@ final class DocxTests: XCTestCase {
         let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertEqual(ts.borderWidth, 0.75)
         XCTAssertTrue(saved.contains("<w:top w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/>"), saved)
+        // Ruled through its cells, nothing at the table level: written back
+        // the same way — no w:tblBorders, every cell its own sides.
+        XCTAssertTrue(ts.bordersFromCells)
+        XCTAssertFalse(saved.contains("<w:tblBorders>"), saved)
+        XCTAssertEqual(saved.components(separatedBy: "<w:tcBorders><w:top w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/><w:bottom w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"E1E1E1\"/></w:tcBorders>").count, 3, saved)
         XCTAssertTrue(saved.contains("<w:tblCellMar><w:top w:w=\"72\" w:type=\"dxa\"/>"), saved)
     }
 

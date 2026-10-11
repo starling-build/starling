@@ -659,6 +659,12 @@ public struct TableStyle: Hashable, Sendable {
     /// sides drew the inside rules double and grew every row.
     public var edgeStyles: [String: String] = [:]
     public var edgeWidths: [String: Double] = [:]
+    /// The file ruled this table through its CELLS (w:tcBorders on each)
+    /// and said nothing at the table level. `borders` then only summarises
+    /// them for the editor; the writer puts no w:tblBorders back and every
+    /// cell keeps its own sides. Adding table-level inside rules on top of
+    /// bug65649's cell rules grew its 370-row estimate a point a row.
+    public var bordersFromCells = false
     /// Where a table narrower than the text column sits: Word's table
     /// alignment (`w:jc` on the table). Justify reads as left.
     public var alignment: ParagraphAlignment = .left

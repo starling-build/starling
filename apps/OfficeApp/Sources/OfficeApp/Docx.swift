@@ -606,6 +606,9 @@ enum DocxFormat {
                 }
                 let borders = cellBorders ?? _borders(node.first("w:tblPr"), "w:tblBorders") ?? styledBorders ?? defaultBorders
                 style.borders = borders?.on ?? false
+                if cellBorders != nil, node.first("w:tblPr")?.first("w:tblBorders") == nil, styledBorders == nil {
+                    style.bordersFromCells = true
+                }
                 style.borderColor = borders?.color
                 style.borderWidth = borders?.width.flatMap { $0 == 0.5 ? nil : $0 }   // nil is Word's 0.5pt
                 // The line style: the cells' when they decided, else the
@@ -742,6 +745,11 @@ enum DocxFormat {
                         var ownEdges: BorderEdges? = nil
                         if var own = _edges(tcPr, "w:tcBorders") {
                             own.insideH = nil; own.insideV = nil
+                            if style.bordersFromCells {
+                                // Every stated side stays: the writer puts
+                                // no table-level borders under them.
+                                ownEdges = own
+                            } else {
                             let te = style.edges ?? BorderEdges()
                             let lastRow = r == rowCount - 1, lastCol = column + span >= gridCount
                             if own.top == (r == 0 ? te.top : te.insideH) ?? style.borders { own.top = nil }
@@ -749,6 +757,7 @@ enum DocxFormat {
                             if own.bottom == (lastRow ? te.bottom : te.insideH) ?? style.borders { own.bottom = nil }
                             if own.right == (lastCol ? te.right : te.insideV) ?? style.borders { own.right = nil }
                             if !own.isEmpty { ownEdges = own }
+                            }
                         }
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
@@ -2103,18 +2112,18 @@ enum DocxFormat {
             }
             if let sp = style.cellSpacing { xml += "<w:tblCellSpacing w:w=\"\(Int((sp * 20).rounded()))\" w:type=\"dxa\"/>" }
             if style.indent != 0 { xml += "<w:tblInd w:w=\"\(Int((style.indent * 20).rounded()))\" w:type=\"dxa\"/>" }
-            xml += "<w:tblBorders>"
             let borderColor = style.borderColor.map { _hex($0) } ?? "auto"
             let borderSz = Int(((style.borderWidth ?? 0.5) * 8).rounded())
             let borderVal = _esc(style.borderStyle ?? "single")
             let e = style.edges ?? BorderEdges()
-            for (side, own) in [("top", e.top), ("left", e.left), ("bottom", e.bottom), ("right", e.right), ("insideH", e.insideH), ("insideV", e.insideV)] {
+            if !style.bordersFromCells { xml += "<w:tblBorders>" }
+            for (side, own) in [("top", e.top), ("left", e.left), ("bottom", e.bottom), ("right", e.right), ("insideH", e.insideH), ("insideV", e.insideV)] where !style.bordersFromCells {
                 let val = style.edgeStyles[side].map { _esc($0) } ?? borderVal
                 let sz = style.edgeWidths[side].map { Int(($0 * 8).rounded()) } ?? borderSz
                 xml += (own ?? style.borders) ? "<w:\(side) w:val=\"\(val)\" w:sz=\"\(sz)\" w:space=\"0\" w:color=\"\(borderColor)\"/>"
                                               : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
-            xml += "</w:tblBorders>"
+            if !style.bordersFromCells { xml += "</w:tblBorders>" }
             if style.fixedLayout { xml += "<w:tblLayout w:type=\"fixed\"/>" }
             let margins: [(String, Double?)] = [("top", style.cellMarginTop), ("left", style.cellMarginLeft),
                                                 ("bottom", style.cellMarginBottom), ("right", style.cellMarginRight)]
