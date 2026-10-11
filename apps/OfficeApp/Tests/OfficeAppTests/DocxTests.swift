@@ -371,6 +371,12 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[0].text, "\u{2612} no diploma")
         XCTAssertEqual(back.paragraphs[0].style.tabStops, doc.paragraphs[0].style.tabStops)
         XCTAssertEqual(back.styles[RichNamedStyle.normalId]?.char.fontSize, 10)
+        // And the box goes back as the form field, checked, not as a glyph
+        // (whose fallback font made every line taller than Word's).
+        let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(saved.contains("<w:checkBox><w:sizeAuto/><w:default w:val=\"1\"/></w:checkBox></w:ffData></w:fldChar></w:r><w:r><w:instrText xml:space=\"preserve\"> FORMCHECKBOX </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r><w:r><w:t xml:space=\"preserve\"> no diploma</w:t>"), saved)
+        XCTAssertFalse(saved.contains("\u{2612}"), saved)
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document.paragraphs[0].text, "\u{2612} no diploma")
     }
 
     func testRichAndFirstPageHeadersKeptVerbatim() throws {

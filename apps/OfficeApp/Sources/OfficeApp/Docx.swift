@@ -591,7 +591,17 @@ enum DocxFormat {
                 var cellBorders: _Borders? = nil
                 if cellSaid.count * 2 >= cells.count, !cells.isEmpty {
                     let on = cellSaid.filter(\.on)
-                    if on.count * 2 > cells.count { cellBorders = on.first { $0.color != nil } ?? on[0] }
+                    if on.count * 2 > cells.count {
+                        // The width most cells draw, not the first cell's:
+                        // bug65649's estimate rows rule their cells at sz 6
+                        // and a few headings at sz 12, and the first cell
+                        // was a heading — every row came out a point taller.
+                        var pick = on.first { $0.color != nil } ?? on[0]
+                        var counts: [Double: Int] = [:]
+                        for b in on { if let w = b.width { counts[w, default: 0] += 1 } }
+                        if let best = counts.max(by: { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }) { pick.width = best.key }
+                        cellBorders = pick
+                    }
                     else if (cellSaid.count - on.count) * 2 > cells.count { cellBorders = _Borders(on: false, color: nil) }
                 }
                 let borders = cellBorders ?? _borders(node.first("w:tblPr"), "w:tblBorders") ?? styledBorders ?? defaultBorders
@@ -1730,6 +1740,7 @@ enum DocxFormat {
         var media: [ZipEntry] = []
         var mediaRels: [(id: String, target: String)] = []
         var keptRels = "", keptRelCount = 0
+        var checkboxCount = 0   // FORMCHECKBOX fields written, for their names
         var keptDocPrCount = 100_000   // kept drawings' docPr ids start here, above the generated pictures'
         let commentsKept = doc.keptParts["word/comments.xml"] != nil
         var openComments: [String] = []
@@ -1953,15 +1964,32 @@ enum DocxFormat {
                     body += "</w:r>"
                     continue
                 }
-                var runXML = "<w:r>"
                 if s.link != nil { rPr = "<w:rStyle w:val=\"Hyperlink\"/>" + rPr }
-                if !rPr.isEmpty { runXML += "<w:rPr>\(rPr)</w:rPr>" }
-                if s.revision?.kind == .deleted {
-                    runXML += _text(piece).replacingAll("<w:t ", with: "<w:delText ").replacingAll("<w:t>", with: "<w:delText>").replacingAll("</w:t>", with: "</w:delText>")
+                let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
+                var runXML = ""
+                let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }
+                if s.revision?.kind != .deleted, piece.contains(where: isBox) {
+                    // A checkbox glyph goes back as the form field it came
+                    // from (form_footnotes' 29): the glyph's fallback font
+                    // made every line it sat on taller than Word's.
+                    var text = ""
+                    func flush() { if !text.isEmpty { runXML += "<w:r>\(rPrXML)\(_text(text))</w:r>"; text = "" } }
+                    for ch in piece {
+                        if isBox(ch) {
+                            flush()
+                            checkboxCount += 1
+                            runXML += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\"><w:ffData><w:name w:val=\"Check\(checkboxCount)\"/><w:enabled/><w:calcOnExit w:val=\"0\"/><w:checkBox><w:sizeAuto/><w:default w:val=\"\(ch == "\u{2612}" ? 1 : 0)\"/></w:checkBox></w:ffData></w:fldChar></w:r>"
+                            runXML += "<w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> FORMCHECKBOX </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>"
+                        } else {
+                            text.append(ch)
+                        }
+                    }
+                    flush()
+                } else if s.revision?.kind == .deleted {
+                    runXML = "<w:r>\(rPrXML)" + _text(piece).replacingAll("<w:t ", with: "<w:delText ").replacingAll("<w:t>", with: "<w:delText>").replacingAll("</w:t>", with: "</w:delText>") + "</w:r>"
                 } else {
-                    runXML += _text(piece)
+                    runXML = "<w:r>\(rPrXML)\(_text(piece))</w:r>"
                 }
-                runXML += "</w:r>"
                 if let rev = s.revision {
                     revisionCount += 1
                     let tag = rev.kind == .inserted ? "w:ins" : "w:del"
