@@ -122,6 +122,15 @@ enum OfficeFonts {
         // (the shell does the same).
         _ = FluentSystemIcons.registerFont()
         _ = SelawikFont.registerFont()
+        // Coverage for what the document faces lack (⌘, arrows): the browser
+        // build lists DejaVu Sans as its glyph fallback and macOS has the
+        // system's; Linux and Windows have neither, so the same face is
+        // loaded here and every document style falls back to it.
+        #if !os(macOS) && !os(iOS) && !os(WASI)
+        if let symbols = TerminalFontLoader.registerSymbolFallback() {
+            RichTextTheme.glyphFallback = [symbols]
+        }
+        #endif
         guard let bundle = _bundle("OfficeApp_OfficeApp") else {
             FileHandle.standardError.write("[Office] font bundle not found; documents use the engine's default face\n".data(using: .utf8)!)
             return false

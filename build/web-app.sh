@@ -113,6 +113,16 @@ fi
 # RichText/ out (sdk/Package.swift says why).
 RICHTEXT=""
 [ "$PACKAGE" = sdk ] || RICHTEXT=1
+# Ubuntu 26.04: the toolchain's wasm-ld wants libxml2.so.2, which 26.04 no
+# longer has. bootstrap.sh's compat symlink sits in the toolchain's runtime
+# directory, which swift's own tools search and wasm-ld does not — so the
+# link dies with "unable to execute command" and no mention of a library.
+if [ "$(uname -s)" = Linux ]; then
+    TOOLCHAIN_LIB="$(dirname "$(readlink -f "$(command -v swift)")")/../lib/swift/linux"
+    if [ -e "$TOOLCHAIN_LIB/libxml2.so.2" ] && ! ldconfig -p | grep -q 'libxml2\.so\.2 '; then
+        export LD_LIBRARY_PATH="$TOOLCHAIN_LIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    fi
+fi
 if [ "$BUILD" = 1 ]; then
     STARLING_WASM=1 STARLING_WASM_RICHTEXT="$RICHTEXT" \
         swift build --package-path "$REPO/$PACKAGE" --scratch-path "$SCRATCH" \

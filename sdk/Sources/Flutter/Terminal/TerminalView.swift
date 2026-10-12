@@ -240,6 +240,20 @@ public enum TerminalFontLoader {
         _registered = ok
         return ok
     }
+
+    /// Just the symbol face — DejaVu Sans, under `symbolFallbackFamily` — for
+    /// an app that draws documents rather than a grid and wants ⌘, arrows and
+    /// box drawing to exist where the engine has no system fallback, without
+    /// the terminal's monospace and CJK faces. Returns the family to put in a
+    /// style's `fontFamilyFallback`, or nil when the bundle is not there.
+    public static func registerSymbolFallback() -> String? {
+        if _symbolFallbackRegistered { return symbolFallbackFamily }
+        guard let url = _resources?.url(forResource: "DejaVuSans", withExtension: "ttf"),
+              flutter.swift_bridge.LoadFontFromFile(url.path, symbolFallbackFamily) else { return nil }
+        _symbolFallbackRegistered = true
+        return symbolFallbackFamily
+    }
+    private nonisolated(unsafe) static var _symbolFallbackRegistered = false
 }
 
 // MARK: - TerminalView

@@ -41,6 +41,14 @@ public final class RichTextTheme {
     /// stands in for it (Office: a metric-compatible clone). nil draws the
     /// name as given.
     public var fontFamilyResolver: ((String) -> String)? = nil
+    /// Families tried, in order, for a character the run's own family
+    /// lacks. Process-wide rather than per theme: it answers "which faces did
+    /// this app load for coverage", which is one fact, and an app builds a
+    /// theme in many places. Empty leaves the platform's own fallback — all
+    /// there is on macOS and in the browser, and nothing at all on Linux,
+    /// where a ⌘ in a Liberation run otherwise draws as a missing glyph and
+    /// lays its line out a pixel shorter than everywhere else.
+    public nonisolated(unsafe) static var glyphFallback: [String] = []
     /// Every paragraph's line spacing multiplied by this: PowerPoint's
     /// shrink-to-fit reduces the spacing of a whole body (`lnSpcReduction`)
     /// without touching what the paragraphs say.
@@ -151,7 +159,8 @@ public final class RichTextTheme {
             }(),
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
-            fontFamily: family
+            fontFamily: family,
+            fontFamilyFallback: Self.glyphFallback.isEmpty ? nil : Self.glyphFallback
         )
     }
 }

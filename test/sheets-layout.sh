@@ -20,11 +20,23 @@
 #   test/sheets-layout.sh book.xlsx    # one file
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-BIN="${OFFICE_BIN:-$REPO/.build-macos-office/arm64-apple-macosx/debug/OfficeApp}"
+# Per platform: the macOS debug build, or what build/build-all.sh makes on
+# Linux. And on Linux the binary's own RUNPATH must pick the engine — an
+# inherited LD_LIBRARY_PATH outranks it (the packaged terminal exports one to
+# every shell inside it, and with it an older engine).
+if [ "$(uname -s)" = Darwin ]; then
+    DEFAULT_BIN="$REPO/.build-macos-office/arm64-apple-macosx/debug/OfficeApp"
+    DEFAULT_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+else
+    unset LD_LIBRARY_PATH
+    DEFAULT_BIN="$REPO/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp"
+    DEFAULT_CHROME="$(command -v google-chrome || command -v chromium || echo google-chrome)"
+fi
+BIN="${OFFICE_BIN:-$DEFAULT_BIN}"
 STAGE="$REPO/.stage-web-OfficeApp"
 PORT="${PORT:-8137}"
 DRIVE="$REPO/build/tools/web-drive.mjs"
-CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
+CHROME="${CHROME:-$DEFAULT_CHROME}"
 
 skip() { echo "  SKIPPED — $1"; exit 0; }
 [ -x "$BIN" ] || skip "no native OfficeApp at $BIN (OFFICE_BIN=…)"
@@ -49,7 +61,7 @@ else
 fi
 
 fails=0
-export URL="http://127.0.0.1:$PORT/" CHROME_PROFILE="$WORK/profile"
+export URL="http://127.0.0.1:$PORT/" CHROME_PROFILE="$WORK/profile" CHROME
 for doc in "${DOCS[@]}"; do
     name="$(basename "$doc")"
     native="$WORK/$name.native.txt"
