@@ -91,6 +91,18 @@ final class SheetsShellState: State<StatefulWidget> {
             // document's name, and the status bar's message.
             #if os(WASI)
             if kind == "pdf" { self?._export("pdf"); return "exporting" }
+            // 'book-pdf': the entire workbook, cut off where the rendering
+            // gate cuts Excel's (test/xlsx-app-render.sh) — what
+            // `--sheet-pdf` writes natively.
+            if kind == "book-pdf", let self, let grid = self._grid {
+                let name = self.session.title.deletingPathExtension + ".pdf"
+                Task { @MainActor [weak self] in
+                    let ok = await grid.writePdf(to: name, title: self?.session.title ?? "", filePath: self?.session.path,
+                                                 wholeBook: true, maxPages: 20)
+                    self?._flash(ok ? "Exported \(name)" : "Nothing to export in this workbook")
+                }
+                return "exporting"
+            }
             if kind == "name" { return self?.session.title }
             if kind == "status" { return self?._status ?? "" }
             #endif

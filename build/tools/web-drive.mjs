@@ -44,7 +44,7 @@
 import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 
 const args = process.argv.slice(2);
 const W = +(process.env.W || 1400), H = +(process.env.H || 900);
@@ -71,12 +71,14 @@ if (!targets) { console.error(`web-drive: no DevTools on port ${port}`); finish(
 const ws = new WebSocket(targets.find((t) => t.type === 'page').webSocketDebuggerUrl);
 await new Promise((r) => ws.addEventListener('open', r));
 let id = 0; const pending = new Map();
+let thrown = 0;   // exceptions the page has thrown: a trap ends the app
 ws.addEventListener('message', ({ data }) => {
   const m = JSON.parse(data);
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
   else if (m.method === 'Runtime.consoleAPICalled') {
     console.log(m.params.type + ':', m.params.args.map((a) => a.value ?? a.description).join(' ').slice(0, 30000));
   } else if (m.method === 'Runtime.exceptionThrown') {
+    thrown++;
     console.log('exception:', (m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text).slice(0, 20000));
   }
 });
@@ -141,7 +143,7 @@ try {
       await send('DOM.setFileInputFiles', { files: [path], nodeId });
       await sleep(300);
     } else if (op === 'pdfs') {
-      const list = readFileSync(args.shift(), 'utf8').split('\n').map((l) => l.trim()).filter(Boolean);
+      const list = readFileSync(args.shift(), 'utf8').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => resolve(l));
       const out = args.shift();
       mkdirSync(out, { recursive: true });
       await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: out, eventsEnabled: true });
@@ -179,9 +181,12 @@ try {
             if (await evaluate('window.starling.fontsPending ? window.starling.fontsPending() : 0').catch(() => 0)) quiet = Date.now();
             return Date.now() - quiet >= +(process.env.SETTLE_MS || 800);
           });
-          await debug('pdf');
+          // PDF_QUERY=book-pdf is Sheets' whole workbook, as the gate prints it.
+          const before = thrown;
+          await debug(process.env.PDF_QUERY || 'pdf').catch(() => null);
           const done = await until(+(process.env.EXPORT_MS || 120000), async () => {
             if (existsSync(pdf)) return 'ok';
+            if (thrown > before) return 'the page threw';
             const status = (await debug('status')) || '';
             return /^(Could not|Nothing)/.test(status) ? status : null;
           });

@@ -416,9 +416,18 @@ final class SheetGridState: State<StatefulWidget> {
 
     private var _images: [String: Image] = [:]
     private var _decoding: Set<String> = []
+    /// The workbook the cache is of: its keys are part names, and every
+    /// workbook has an `xl/media/image1.png`.
+    private var _imagesBook: ObjectIdentifier? = nil
 
     /// A picture, decoded once; nil (and a repaint later) while it decodes.
     func _image(_ key: String, _ data: Data) -> Image? {
+        let book = ObjectIdentifier(controller.book)
+        if _imagesBook != book {
+            for image in _images.values { image.dispose() }
+            _images.removeAll(); _decoding.removeAll()
+            _imagesBook = book
+        }
         if let image = _images[key] { return image }
         guard !_decoding.contains(key) else { return nil }
         _decoding.insert(key)
@@ -429,7 +438,7 @@ final class SheetGridState: State<StatefulWidget> {
                 decoded = (try? await codec.getNextFrame())?.image
                 codec.dispose()
             }
-            guard let self, self.mounted || self._headless != nil else { decoded?.dispose(); return }
+            guard let self, self.mounted || self._headless != nil, self._imagesBook == book else { decoded?.dispose(); return }
             self._decoding.remove(key)
             if let decoded {
                 if self._images[key] == nil { self._images[key] = decoded } else { decoded.dispose() }

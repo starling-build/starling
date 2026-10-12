@@ -627,10 +627,13 @@ enum NumberFormat {
         let totalSec = (serial * 86400 * scale).rounded(.toNearestOrAwayFromZero) / scale
         let whole = floor(totalSec)
         let fracPart = Int(((totalSec - whole) * scale).rounded())
+        // In 64 bits: a date since 1968 is more seconds than a 32-bit Int
+        // holds, and Int is 32 bits in the browser build.
         let dayNumber = Int(floor(whole / 86400))
-        let secOfDay = Int(whole) - dayNumber * 86400
+        let seconds = Int64(whole)
+        let secOfDay = Int(seconds - Int64(dayNumber) * 86400)
         let hh = secOfDay / 3600, mi = (secOfDay % 3600) / 60, ss = secOfDay % 60
-        let elapsedHours = Int(whole) / 3600, elapsedMinutes = Int(whole) / 60, elapsedSeconds = Int(whole)
+        let elapsedHours = seconds / 3600, elapsedMinutes = seconds / 60, elapsedSeconds = seconds
         let (y, mo, d) = ExcelDate.ymd(Double(dayNumber))
         let weekday = ExcelDate.weekday(Double(dayNumber)) - 1
         let lower = code.lowercased()
@@ -638,12 +641,12 @@ enum NumberFormat {
         var out = ""
         var k = 0
         var prevToken: Character = " "
-        func pad(_ n: Int, _ width: Int) -> String {
+        func pad(_ n: some BinaryInteger, _ width: Int) -> String {
             var s = String(n)
             while s.count < width { s = "0" + s }
             return s
         }
-        func two(_ n: Int) -> String { pad(n, 2) }
+        func two(_ n: some BinaryInteger) -> String { pad(n, 2) }
         func run(_ c: Character) -> Int {
             var n = 0
             while k + n < chars.count, chars[k + n].lowercased() == String(c) { n += 1 }
@@ -691,9 +694,9 @@ enum NumberFormat {
                 k += n; prevToken = "d"; continue
             case "h":
                 let n = run("h")
-                var h = hh
+                var h = Int64(hh)
                 if elapsedH { h = elapsedHours }
-                else if ampm { h = hh % 12; if h == 0 { h = 12 } }
+                else if ampm { h = Int64(hh % 12); if h == 0 { h = 12 } }
                 out += n >= 2 ? two(h) : String(h)
                 k += n; prevToken = "h"; continue
             case "m":
@@ -701,7 +704,7 @@ enum NumberFormat {
                 // Minutes right after an hour or a second, or right before a
                 // second; a month otherwise.
                 if (prevToken == "h" || prevToken == "s" || nextToken(k + n) == "s") && n <= 2 {
-                    let m = elapsedM ? elapsedMinutes : mi
+                    let m = elapsedM ? elapsedMinutes : Int64(mi)
                     out += n == 2 ? two(m) : String(m)
                 } else {
                     switch n {
@@ -715,7 +718,7 @@ enum NumberFormat {
                 k += n; prevToken = "m"; continue
             case "s":
                 let n = run("s")
-                let s = elapsedS ? elapsedSeconds : ss
+                let s = elapsedS ? elapsedSeconds : Int64(ss)
                 out += n >= 2 ? two(s) : String(s)
                 k += n; prevToken = "s"
                 // ss.000: the fraction, to as many places as the code has.
