@@ -424,7 +424,23 @@ struct DiagramLayout {
         case "var":
             let arg = el["arg"] ?? ""
             lhs = node.variable(arg) ?? Self.defaultVar(arg)
-            if arg == "dir" && lhs.isEmpty { lhs = "norm" }
+            // A variable named without a value has its default: an org
+            // chart's `<dgm:hierBranch/>` is "std", not nothing (which matched
+            // no branch, and drew a standard block with hanging connectors).
+            if lhs.isEmpty { lhs = Self.defaultVar(arg) }
+            if arg == "hierBranch", lhs == "init" {
+                // "init" is PowerPoint's own choice, not one the definition
+                // has a branch for: a node whose children are all leaves hangs
+                // them to its right, any other — and the top of the chart —
+                // sets them side by side (org-chart2 against its picture).
+                var declaring: DgmPresNode? = node
+                while let d = declaring, d.vars[arg] == nil { declaring = d.parent }
+                let p = (declaring ?? node).point
+                let kids = p.children.filter { $0.type == "node" }
+                let top = p.parent == nil || p.parent?.type == "doc"
+                let leaves = kids.allSatisfy { k in !k.children.contains { $0.type == "node" || $0.type == "asst" } }
+                lhs = !top && kids.count >= 2 && leaves ? "r" : "std"
+            }
         default: lhs = ""
         }
         if let a = Double(lhs), let b = Double(val) {
@@ -815,6 +831,11 @@ struct DiagramLayout {
         let ring = centreFirst ? Array(items.dropFirst()) : items
         let m = ring.count
         func sizes(_ c: DgmPresNode) -> (Double, Double) {
+            // The node's own constraints first: its `h` = `w` is what makes
+            // cycle2's nodes circles. (Left to its own layout, the rule could
+            // only shrink the slot given here, and a slot in the frame's
+            // proportions is too flat to shrink into a circle.)
+            applyConstraints(c, selfOnly: true)
             var w = c.value("w") ?? W, h = c.value("h") ?? H
             if let d = c.derived["h"], d.ref == "w" { h = w * d.fact } else if let d = c.derived["w"], d.ref == "h" { w = h * d.fact }
             return (w, h)
@@ -824,10 +845,14 @@ struct DiagramLayout {
         let full = abs(abs(spanAng) - 360) < 0.01
         let step = m > 1 ? (full ? spanAng / Double(m) : spanAng / Double(m - 1)) : 0
         var radius = 0.0
-        if let d = node.vals["diam"] {
+        // A spacing between siblings decides the ring by itself: the chord
+        // between neighbours is a node and that space, and the whole is
+        // scaled into the frame below. (cycle7 also gives `diam` = the
+        // frame's width, with nodes that wide and a space 0.65 of one —
+        // proportions, not lengths: held to that ring with the space at its
+        // unscaled length, its boxes came out a third of PowerPoint's.)
+        if let d = node.vals["diam"], node.vals["sibSp"] == nil || m < 2 {
             radius = d / 2
-            // On a ring of a given size the nodes shrink to keep their
-            // spacing (cycle7's boxes on a ring as wide as the frame).
             if m > 1 {
                 let chord = 2 * radius * sin(abs(step) / 2 * .pi / 180)
                 let room = chord - (node.vals["sibSp"] ?? 0)
@@ -861,7 +886,10 @@ struct DiagramLayout {
             let cw = (c.value("w") ?? preferredW * 0.25) * (preferredW > 0 ? w / preferredW : 1)
             var ch = (c.value("h") ?? cw) * (preferredW > 0 ? w / preferredW : 1)
             if let d = c.derived["h"], d.ref == "w" { ch = cw * d.fact }
-            placed.append((c, pos(a), cw, ch, spanAng < 0 ? a + 180 : a))
+            // Between its two neighbours, on the straight line from one to
+            // the other — nearer the centre than the ring by the chord's sag.
+            let at = pos(a), sag = cos(abs(step) / 2 * .pi / 180)
+            placed.append((c, Offset(at.dx * sag, at.dy * sag), cw, ch, spanAng < 0 ? a + 180 : a))
         }
         for p in placed {
             minX = min(minX, p.1.dx - p.2 / 2); maxX = max(maxX, p.1.dx + p.2 / 2)
@@ -923,15 +951,24 @@ struct DiagramLayout {
         let gap = node.vals["sp"] ?? node.parent?.vals["sp"] ?? 0
         var y = node.rect.top
         var blocks: [DgmPresNode] = []
-        for c in node.children {
+        // The shape, then its children's block, then its assistants' — but
+        // the assistants stand between the two, beside the line that goes
+        // down to the children (an org chart's `hierChild3` with something
+        // in it), so they are laid out, and stacked, second.
+        var order = Array(node.children)
+        let hasAssistants = order.count >= 3 && order[2].algType == "hierChild"
+            && order[2].children.contains { !$0.isConnector }
+        if hasAssistants { order.swapAt(1, 2) }
+        for c in order {
             let w = c.value("w") ?? node.rect.width, h = c.value("h") ?? node.rect.height
             c.rect = Rect.fromLTWH(node.rect.left, y, w, h)
             layoutNode(c)
             let box = extent(of: [c]) ?? c.rect
             c.rect = box.width > 0 ? box : c.rect
-            y = c.rect.bottom + gap
+            if c.rect.height > 0 || c === order.first { y = c.rect.bottom + gap }
             blocks.append(c)
         }
+        if hasAssistants { blocks.swapAt(1, 2) }
         // Centre each block on the widest; a hanging block (children
         // stacked, `linDir=fromT`) hangs to the right of the shape's middle.
         let width = blocks.map(\.rect.width).max() ?? 0
@@ -944,8 +981,14 @@ struct DiagramLayout {
             // (One child alone sits straight below, as PowerPoint puts it.)
             let hang = blocks[1]
             let childWidth = hang.children.first { !$0.isConnector }?.rect.width ?? hang.rect.width
-            let dx = shape.rect.center.dx - 0.2 * childWidth - hang.rect.left
+            let dx = shape.rect.center.dx - 0.25 * childWidth - hang.rect.left
             if abs(dx) > 0.01 { shift(hang, Offset(dx, 0)) }
+        }
+        if hasAssistants, let shape = blocks.first {
+            // An assistant's right edge a little left of the shape's middle.
+            let asst = blocks[2]
+            let dx = shape.rect.center.dx - 0.11 * shape.rect.width - asst.rect.right
+            if abs(dx) > 0.01 { shift(asst, Offset(dx, 0)) }
         }
         if let u = union(of: node.children) { node.rect = u }
     }
@@ -991,7 +1034,12 @@ struct DiagramLayout {
         func apply(_ n: DgmPresNode) {
             n.rect = Rect.fromLTWH(dx + (n.rect.left - u.left) * scale, dy + (n.rect.top - u.top) * scale,
                                    n.rect.width * scale, n.rect.height * scale)
-            for k in ["primFontSz", "secFontSz", "lMarg", "rMarg", "tMarg", "bMarg"] { if let v = n.vals[k] { n.vals[k] = v * scale } }
+            // The font sizes and the margins (fractions of them) are not
+            // scaled with the tree: an org chart is defined at ten times the
+            // frame (`w` = 10 x the width) and brought down by this very
+            // scale, and its 65 pt cap is meant for the boxes as they end
+            // up — scaled along, every label was 2.3 pt. The reader fits
+            // the text to its shape from the cap down.
             for c in n.children { apply(c) }
         }
         for c in root.children { apply(c) }
@@ -1123,16 +1171,25 @@ struct DiagramLayout {
             // or, for a child hanging below, down from the parent's middle
             // and across to the child's side.
             guard let (a, b) = connectorEnds(n, root: root) else { return nil }
-            let from = Offset(a.center.dx, a.bottom)
+            var from = Offset(a.center.dx, a.bottom)
             if (n.params["endPts"] ?? "").hasPrefix("mid"), abs(b.center.dx - a.center.dx) > 1 {
-                let side = b.center.dx >= a.center.dx ? b.left : b.right
+                let right = b.center.dx >= a.center.dx
+                let side = right ? b.left : b.right
+                // The line comes down clear of the children it serves, a
+                // little outside their edge, not through them.
+                let clear = side + (right ? -1 : 1) * 0.16 * b.width
+                if right ? side < from.dx : side > from.dx { from = Offset(clear, a.bottom) }
                 let to = Offset(side, b.center.dy)
                 r = Rect.fromLTRB(min(from.dx, to.dx), min(from.dy, to.dy), max(from.dx, to.dx) + 0.01, max(from.dy, to.dy) + 0.01)
                 geometry = Self.path([from, Offset(from.dx, to.dy), to], in: r)
             } else if n.params["connRout"] == "bend" || n.params["endPts"] == "tCtr" {
                 let to = Offset(b.center.dx, b.top)
                 r = Rect.fromLTRB(min(from.dx, to.dx), min(from.dy, to.dy), max(from.dx, to.dx) + 0.01, max(from.dy, to.dy) + 0.01)
-                let mid = (from.dy + to.dy) / 2
+                // Bent halfway — or, `bendPt="end"`, half a level's space
+                // above the child, however far up the parent is (assistants
+                // may stand in between).
+                var mid = (from.dy + to.dy) / 2
+                if n.params["bendPt"] == "end" { mid = max(mid, to.dy - 0.105 * b.width) }
                 geometry = Self.path([from, Offset(from.dx, mid), Offset(to.dx, mid), to], in: r)
             } else {
                 let to = Offset(b.center.dx, b.top)
@@ -1142,7 +1199,10 @@ struct DiagramLayout {
             rot = 0
         } else {
             var prst = n.shapeType ?? "rect"
-            if prst == "conn" { prst = "rightArrow" }
+            if prst == "conn" {
+                // Arrowheads at both ends make it the two-headed arrow.
+                prst = n.params["begSty"] == "arr" && n.params["endSty"] == "arr" ? "leftRightArrow" : "rightArrow"
+            }
             geometry = XNode(name: "a:prstGeom", attrs: ["prst": prst])
             let av = XNode(name: "a:avLst", attrs: [:])
             for (i, v) in n.adjustments {

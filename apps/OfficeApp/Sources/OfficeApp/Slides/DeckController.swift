@@ -1165,6 +1165,17 @@ final class DeckController: ChangeNotifier {
                 for r in shape.rendered where r.autofit && r.fontScale == 1 {
                     r.fontScale = SlideTextCache.autofitScale(r, wholeWords: r.insetsFollowFont)
                 }
+                // Laid out here, the shapes that start from one size end at
+                // one size — the smallest any of them needed — as PowerPoint
+                // keeps a diagram's nodes alike (`primFontSz op="equ"`, which
+                // every built-in layout asks of its nodes).
+                var smallest: [Double: Double] = [:]
+                func nominal(_ r: SlideShape) -> Double? {
+                    guard r.autofit, r.insetsFollowFont else { return nil }
+                    return r.text?.document.paragraphs.first?.runs.first?.style.fontSize
+                }
+                for r in shape.rendered { if let n = nominal(r) { smallest[n] = min(smallest[n] ?? 1, r.fontScale) } }
+                for r in shape.rendered { if let n = nominal(r), let s = smallest[n] { r.fontScale = s } }
             }
         } else if !shape.rendered.isEmpty {
             shape.rendered = []

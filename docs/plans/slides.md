@@ -285,6 +285,54 @@ and that deck's `indent="900000"` on a plain paragraph is not drawn;
 text in an ellipse wraps a word early (shape-text-glow-effect, whose
 glow is not drawn either); a path gradient's focus (tdf94238).
 
+**The diagram engine against its pictures, 2026-10-11** (sweep 30,
+Windows and MuPDF: 2.90 → 2.85%; 12 decks down, two up by under 0.1).
+The band's largest single cause, taken deck by deck:
+
+- **A hierarchy's labels were 2.3 pt.** An org chart is defined at ten
+  times the frame (`w` = 10 × the width) and brought down by `fit`,
+  which scaled `primFontSz` and the margins along with the boxes. They
+  are left alone now — the 65 pt cap is for the boxes as they end up,
+  and the reader fits the text from there. Every org chart had been
+  boxes with a dot in them, on the Mac too (the baseline scores agree).
+- **`hierBranch`**: named without a value it is "std" (it had matched
+  no branch: a standard block drawn with hanging connectors, and a
+  child lost), and "init" is PowerPoint's own choice, which the
+  definition has no branch for — a node whose children are all leaves
+  hangs them to its right, any other and the top of the chart sets
+  them side by side (worked out from org-chart2 and org-chart against
+  their pictures). The line to hanging children comes down clear of
+  them, 0.16 of a box outside their edge; they sit 0.25 of a box left
+  of the parent's middle. recursion 14.7 → 2.8.
+- **Assistants** (`hierChild3`) stand between the shape and its
+  children, their right edge just left of the trunk, and a
+  `bendPt="end"` connector bends half a level's space above the child
+  however far up the parent is. org-chart 15.5 → 13.0: what is left is
+  packing — PowerPoint sets the second root beside the first, over its
+  subtree's empty corner, where this sets subtree boxes side by side.
+- **A cycle's ring** follows from the space between siblings when there
+  is one (the chord is a node and that space), ahead of `diam`: cycle7
+  gives both as proportions of a frame-wide node, and held to the
+  diameter its boxes were a third of PowerPoint's. Connectors sit on
+  the chord between their neighbours, not out on the ring (which also
+  swelled the extent everything is scaled from), and arrowheads at both
+  ends are a `leftRightArrow`. multidirectional 10.9 → 3.9.
+- **A cycle node's own constraints are applied before it is sized**:
+  `h` = `w` is what makes cycle2's nodes circles, and applied after, it
+  could only shrink a slot already too flat. cycle 4.6 → 1.3.
+- **Nodes that start at one size end at one size**, the smallest any of
+  them needed (`primFontSz op="equ"`) — `DeckController`, over a
+  diagram's laid-out shapes by their nominal size. Eight decks by a
+  little.
+
+Left, from the same sheets: snake-rows and accent-process (the
+composite inside each item is laid out wrong — accent-process loses its
+parent boxes altogether), linear-rule (the arrow's text and
+proportions), missing-bullet and background (a `bgShp` behind the
+nodes is not drawn or is drawn pale), vertical-box-list (the box is
+taller than PowerPoint's), children (rows share height unlike
+PowerPoint's 3:4), cycle-matrix.
+
 The branch: this work is on `office` (fast-forwarded from `sheets`,
 which is kept level with it), rebased over the Writer session's
 commits. Where the two met, Writer's model won and Slides reads into
