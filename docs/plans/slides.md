@@ -391,6 +391,39 @@ Seen and left: a chart's own series colours, bold title and data labels
 table row's height (tdf144092-emptyShapeTextProps); hList1's item
 heights and shadows (fill-color-list).
 
+**Where a body's lines fall, 2026-10-12** (sweep 33, Linux and MuPDF:
+2.70 → 2.57%, ≤2% 387 → 396, 2–20% 158 → 149; 120 decks down, 14 up, the
+most by 0.5; 60 matched — two gained, `lo-slidenum_field` lost at 0.01%).
+Measured, not seen: the baseline of every line in PowerPoint's PDF
+against ours (`page.get_text("dict")` in MuPDF gives both), which says
+which of two lines is off by a point where a pair image shows a blur.
+Four things, each of which alone made as many decks worse as better,
+because they had been cancelling each other:
+
+- **"Single" is 1.2 of the size, for every face.** PowerPoint's own pages
+  have Arial, Consolas and Lucida Sans Unicode (1.15, 1.17 and 1.47 by
+  their metrics) all at 1.2; Calibri's 1.22 was near enough to have
+  looked like the face's own. `RichTextTheme.singleLineHeight`; Word
+  keeps the face's.
+- **No space before a body's first paragraph** (`omitsLeadingSpace`):
+  `sample` lands on PowerPoint's baseline to the tenth of a point.
+- **`lnSpcReduction` is taken off the spacing, not multiplied into it**:
+  90% less 20% is 70%. `lineSpacingReduction`, in `lineSpacingScale`'s
+  place.
+- **The export lays out at four pixels a point.** The engine sets a line
+  on whole pixels, so at one a point 12.8 was 13 and 26.5 was 27, and a
+  long body ended a third of a line low.
+
+With them: **`bodyPr numCol`** — a body in columns, each filled to the
+box's height before the next, `spcCol` apart, as the layout's pages
+(lo-3columns 12.4 → 7.0); and **a bullet sits on its line's baseline**,
+where one at 80% of the size hung six points above the text.
+
+Left: the editor's caret and selection in a columned body follow the
+layout's page geometry and were not looked at on screen; autofit does not
+know about columns; lo-tdf169524 (+0.3) spaces its lines at 1.08 of the
+size by something not found.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

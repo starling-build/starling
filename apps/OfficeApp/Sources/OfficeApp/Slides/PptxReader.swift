@@ -1133,6 +1133,8 @@ private struct SlideContext {
         st.lineReduction = text.lineReduction
         st.insetsFollowFont = text.insetsFollowFont
         st.noWrap = text.noWrap
+        st.columns = text.columns
+        st.columnGap = text.columnGap
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
@@ -1819,6 +1821,9 @@ private struct SlideContext {
         var insetsFollowFont = false
         /// `bodyPr wrap="none"`.
         var noWrap = false
+        /// `bodyPr numCol` and `spcCol` (points).
+        var columns = 1
+        var columnGap = 0.0
     }
 
     /// The master text style a placeholder (or plain shape) draws from.
@@ -2025,7 +2030,9 @@ private struct SlideContext {
                         autofit: fitRule == "a:normAutofit", fontScale: fitRule == "a:normAutofit" ? scale : 1,
                         lineReduction: fitRule == "a:normAutofit" ? min(1, max(0, reduction)) : 0,
                         insetsFollowFont: body?.first("a:bodyPr")?["starling:insScale"] == "1",
-                        noWrap: bodies.compactMap { $0?["wrap"] }.first == "none")
+                        noWrap: bodies.compactMap { $0?["wrap"] }.first == "none",
+                        columns: max(1, min(16, attr("numCol").flatMap(Int.init) ?? 1)),
+                        columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0)
     }
 
     // MARK: Notes

@@ -49,10 +49,13 @@ public final class RichTextTheme {
     /// where a ⌘ in a Liberation run otherwise draws as a missing glyph and
     /// lays its line out a pixel shorter than everywhere else.
     public nonisolated(unsafe) static var glyphFallback: [String] = []
-    /// Every paragraph's line spacing multiplied by this: PowerPoint's
-    /// shrink-to-fit reduces the spacing of a whole body (`lnSpcReduction`)
-    /// without touching what the paragraphs say.
-    public var lineSpacingScale = 1.0
+    /// Taken off every paragraph's line spacing: PowerPoint's shrink-to-fit
+    /// reduces the spacing of a whole body (`lnSpcReduction`) without
+    /// touching what the paragraphs say — 90% less 20% is 70%, not 72.
+    public var lineSpacingReduction = 0.0
+    /// Whether the first paragraph's space before is left out, as
+    /// PowerPoint leaves it out at the top of a body; Word keeps it.
+    public var omitsLeadingSpace = false
     /// Whether an empty list paragraph shows its marker: Word does,
     /// PowerPoint does not.
     public var marksEmptyListItems = true
@@ -67,7 +70,14 @@ public final class RichTextTheme {
     /// what Word's and PowerPoint's "single" spacing is a multiple of.
     private var _naturalHeights: [String: Double] = [:]
 
+    /// "Single" spacing as a multiple of the size whatever the face, where
+    /// nil takes each face's own. PowerPoint's is 1.2 for every face — its
+    /// pages have Arial (1.15 by its metrics), Consolas (1.17) and Lucida
+    /// Sans Unicode (1.47) all at 1.2; Word's is the face's.
+    public var singleLineHeight: Double? = nil
+
     public func naturalLineHeight(family: String?, bold: Bool, italic: Bool) -> Double {
+        if let singleLineHeight { return singleLineHeight }
         let key = "\(family ?? "")|\(bold)|\(italic)"
         if let h = _naturalHeights[key] { return h }
         let probe = TextPainter(text: TextSpan(text: "x", style: TextStyle(fontSize: 100, fontWeight: bold ? .bold : .normal,
@@ -153,7 +163,7 @@ public final class RichTextTheme {
             // it is more). A multiple is of the face's natural line height
             // (the engine's `height` is of the size).
             height: {
-                let multiple = paragraph.lineSpacing * lineSpacingScale * naturalLineHeight(family: family, bold: bold, italic: italic)
+                let multiple = max(0.1, paragraph.lineSpacing - lineSpacingReduction) * naturalLineHeight(family: family, bold: bold, italic: italic)
                 guard let points = paragraph.lineHeightPoints, size > 0 else { return multiple }
                 return paragraph.lineHeightIsMinimum ? max(points / size, multiple) : points / size
             }(),
@@ -1289,7 +1299,7 @@ public final class RichLayout {
             let o = document.paragraphs[j].style
             return o.named == style.named && o.heading == style.heading && o.list == style.list
         }
-        let skipBefore = style.contextualSpacing && sameStyle(i - 1)
+        let skipBefore = style.contextualSpacing && sameStyle(i - 1) || theme.omitsLeadingSpace && i == 0
         let skipAfter = style.contextualSpacing && sameStyle(i + 1)
         let before = ((skipBefore ? 0 : _px(style.spaceBeforeAuto ? autoGap : style.spaceBefore)) + bTop).rounded()
         let after = (skipAfter ? 0 : _px(style.spaceAfterAuto ? autoGap : style.spaceAfter)) + bBottom
@@ -1866,15 +1876,21 @@ public final class RichLayout {
             let marker = TextPainter(text: TextSpan(text: label, style: markerStyle),
                                      textAlign: .right, textDirection: .ltr)
             let slot = _px(theme.listIndent)
+            // On the first line's baseline: a marker of another size (a
+            // bullet at 80%) has its own, higher or lower than the text's.
+            func top() -> Double {
+                g.textTop + g.painter.computeDistanceToActualBaseline(.alphabetic)
+                    - marker.computeDistanceToActualBaseline(.alphabetic)
+            }
             if theme.markersAtHang {
                 // At the hang, and never over the text: a bullet whose hang
                 // is at the text (indent 0) sits just before it instead.
                 marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
                 let hang = g.textLeft - slot + _px(p.style.firstLineIndent)
-                marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4), g.textTop))
+                marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4), top()))
             } else {
                 marker.layout(minWidth: slot - 8, maxWidth: slot - 8)
-                marker.paint(canvas, Offset(g.textLeft - slot, g.textTop))
+                marker.paint(canvas, Offset(g.textLeft - slot, top()))
             }
             marker.dispose()
         }
