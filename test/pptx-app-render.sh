@@ -37,6 +37,14 @@ if [ "$(uname)" = Darwin ]; then
   if [ ! -x "$DIFF" ]; then
     swiftc -O -o "$DIFF" "$HERE/pdf-diff.swift" 2>&1 | grep -E 'error:' && exit 1
   fi
+elif [ "$(uname)" = Linux ]; then
+  # What build/build-all.sh makes, and its own RUNPATH picking the engine:
+  # an inherited LD_LIBRARY_PATH outranks it (the packaged terminal exports
+  # one to every shell inside it, and with it an older engine). PYTHON names
+  # an interpreter that has pymupdf, where the system's does not.
+  unset LD_LIBRARY_PATH
+  DIFF=("${PYTHON:-python3}" "$HERE/pdf-diff.py")
+  [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp"
 else
   DIFF=(python "$HERE/pdf-diff.py")
   [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/apps/OfficeApp/.build/x86_64-unknown-windows-msvc/release/OfficeApp.exe"

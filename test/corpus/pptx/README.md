@@ -61,6 +61,14 @@ On Windows the scripts run under Git Bash, with a release build from
 OfficeApp -Configuration release`, the engine's out directory on `PATH`
 (for `flutter_engine.dll`) and `STARLING_ICU` naming its `icudtl.dat`.
 
+On Linux the sweep takes what `build/build-all.sh` makes, with nothing to
+set: `PYTHON=~/venv/bin/python test/pptx-app-render.sh WORK` where the
+system's python3 has no pymupdf. It scores as Windows does — sweep 29's
+2.90%, 551 of 553 decks within 0.15 (2026-10-11). The engine must have
+been generated since PDF export went in: an out directory whose `args.gn`
+still says `skia_enable_pdf = false` writes an empty file, and every deck
+reports `could not write`. Set it to `true`, `gn gen`, rebuild.
+
 ## PowerPoint's side
 
 `powerpoint/` was exported on 2026-10-08 by PowerPoint for Mac 16.113 on
