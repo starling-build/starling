@@ -517,6 +517,9 @@ public final class RichLayout {
     /// each paragraph's text for its first line's indent or its list
     /// number; 0 for none.
     private var _leadWidth: [Double] = []
+    /// The tabs of each paragraph that are filled with a leader (a
+    /// contents page's dots): the tab's offset, and the character.
+    private var _leaders: [[(offset: Int, fill: String)]] = []
     private var _heights: [Double] = []
     private var _tops: [Double] = []
     private var _listLabels: [String?] = []
@@ -637,6 +640,7 @@ public final class RichLayout {
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
+        _leaders = Array(repeating: [], count: n)
         _heights = Array(repeating: 0, count: n)
         _tops = Array(repeating: 0, count: n)
         _listLabels = Array(repeating: nil, count: n)
@@ -697,6 +701,7 @@ public final class RichLayout {
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inkShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _heights.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _tops.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _listLabels.insert(contentsOf: Array(repeating: nil, count: n), at: at)
@@ -723,6 +728,7 @@ public final class RichLayout {
                 _spaceBefore.removeSubrange(at ..< end)
                 _inkShift.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
+                _leaders.removeSubrange(at ..< end)
                 _heights.removeSubrange(at ..< end)
                 _tops.removeSubrange(at ..< end)
                 _listLabels.removeSubrange(at ..< end)
@@ -1672,7 +1678,68 @@ public final class RichLayout {
             lead = end == 0 ? 0.01 : end
         }
         _leadWidth[i] = lead
-        let (span, inline) = _span(for: p, document, textWidth: textWidth, lead: lead)
+        // Tabs, as Word sets them: each takes the text to the next stop —
+        // the paragraph's own, the hanging indent, then the document's
+        // default distance apart — and a centred, right or decimal stop
+        // sets what follows about it. The engine gives a tab no width of
+        // its own, so each is widened by what its stop needs.
+        var tabs: [Int: Double] = [:]
+        _leaders[i] = []
+        if theme.wordRules, !style.rightToLeft, p.text.utf16.contains(0x09) {
+            let (probeSpan, probeInline) = _span(for: p, document, textWidth: textWidth, lead: lead)
+            let probe = TextPainter(text: probeSpan, textAlign: .left, textDirection: .ltr)
+            if !probeInline.isEmpty { probe.setPlaceholderDimensions(probeInline.map { $0.dimensions }) }
+            probe.layout(minWidth: 0, maxWidth: 10_000_000)
+            let shiftBy = lead != 0 ? 1 : 0
+            // (Each character's left edge, by its box: the caret after a
+            // tab is not at the tab's far side.)
+            func edge(_ offset: Int) -> Double {
+                if offset >= units.count {
+                    return probe.getBoxesForSelection(TextSelection(baseOffset: units.count - 1 + shiftBy, extentOffset: units.count + shiftBy)).last?.right ?? 0
+                }
+                return probe.getBoxesForSelection(TextSelection(baseOffset: offset + shiftBy, extentOffset: offset + 1 + shiftBy)).first?.left
+                    ?? probe.getOffsetForCaret(TextPosition(offset: offset + shiftBy), Rect.zero).dx
+            }
+            let units = Array(p.text.utf16)
+            let stops = style.tabStops.sorted { $0.position < $1.position }
+            let step = _px(document.defaultTabStop ?? 36)
+            var shift = 0.0
+            var lastTab = 0
+            for (t, u) in units.enumerated() where u == 0x09 {
+                // (A line break since the last tab: the line starts over.)
+                if units[lastTab ..< t].contains(where: { $0 == 0x0A || $0 == 0x2028 }) { shift = 0 }
+                lastTab = t
+                let at = edge(t), after = edge(t + 1)
+                let x = ownLeft + at + shift          // from the column's left
+                let own = after - at
+                var stop: (x: Double, alignment: TabStop.Alignment, leader: String?)? = nil
+                if let s = stops.first(where: { _px($0.position) > x + 0.5 }) { stop = (_px(s.position), s.alignment, s.leader) }
+                if lead < 0, ownLeft > x + 0.5, stop.map({ ownLeft < $0.x }) ?? true { stop = (ownLeft, .left, nil) }
+                if stop == nil, step > 0 { stop = (((x + 0.5) / step).rounded(.down) * step + step, .left, nil) }
+                guard let stop else { continue }
+                // What follows, up to the next tab or the line's end.
+                var end = t + 1
+                while end < units.count, units[end] != 0x09, units[end] != 0x0A, units[end] != 0x2028 { end += 1 }
+                let following = max(0, edge(end) - after)
+                var extra = stop.x - x - own
+                switch stop.alignment {
+                case .left: break
+                case .center: extra -= following / 2
+                case .right: extra -= following
+                case .decimal:
+                    if let dot = (t + 1 ..< end).first(where: { units[$0] == 0x2E }) { extra -= edge(dot) - after } else { extra -= following }
+                }
+                extra = max(0, extra)
+                tabs[t] = extra
+                shift += extra
+                if let fill = stop.leader, fill != "none" {
+                    let ch = ["dot": ".", "hyphen": "-", "underscore": "_", "middleDot": "\u{B7}", "heavy": "_"][fill] ?? "."
+                    _leaders[i].append((t, ch))
+                }
+            }
+            probe.dispose()
+        }
+        let (span, inline) = _span(for: p, document, textWidth: textWidth, lead: lead, adjust: tabs)
         // A right-to-left paragraph runs from the right, and its "left"
         // (Word's start) is the right edge.
         var align = Self._textAlign(style.alignment)
@@ -1709,8 +1776,7 @@ public final class RichLayout {
         // off one of its punctuation marks. The engine breaks lines by
         // width alone, so the marks are narrowed by what each line
         // needs and the paragraph laid out again.
-        let fit = _fitEastAsianLines(p, document, span: span, dimensions: inline.map { $0.dimensions }, width: textWidth,
-                                     first: painter, leadCount: lead != 0 ? 1 : 0)
+        let fit = tabs.isEmpty ? _fitEastAsianLines(p, document, textWidth: textWidth, first: painter, leadWidth: lead) : [:]
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, document, textWidth: textWidth, lead: lead, adjust: fit).0)
@@ -1902,7 +1968,7 @@ public final class RichLayout {
                 // line fitting asked of this one.
                 var extra = adjust[offset] ?? 0
                 if let following {
-                    if theme.wordRules, Self._autoSpaced(ch, following, p.style) {
+                    if theme.wordRules, document.usesEastAsianLayout, Self._autoSpaced(ch, following, p.style) {
                         let latin = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
                         extra += (0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) / 4 * em
                     } else if ea, closes, Self.closesUp(ch, following) {
@@ -2018,11 +2084,22 @@ public final class RichLayout {
 
     /// The sheet's entry for a paragraph: its style's, and for a plain
     /// paragraph Normal's — the face and size a document's body text is
-    /// set in when its runs name none. (A heading with no entry keeps the
-    /// theme's look.)
+    /// set in when its runs name none, and what its own style leaves
+    /// unsaid. (A heading with no entry keeps the theme's look.)
     private func _named(_ p: RichParagraph, _ document: RichDocument) -> RichNamedStyle? {
-        document.styles.resolve(p.style)
-            ?? (theme.wordRules && p.style.heading == nil ? document.styles[RichNamedStyle.normalId] : nil)
+        guard theme.wordRules else { return document.styles.resolve(p.style) }
+        let normal = document.styles[RichNamedStyle.normalId]
+        guard var entry = document.styles.resolve(p.style) else { return p.style.heading == nil ? normal : nil }
+        // What a style leaves unsaid is Normal's: a sheet read from a
+        // file states a style's face and size only where they differ.
+        if entry.id != RichNamedStyle.normalId, let n = normal?.char {
+            if entry.char.fontSize == nil { entry.char.fontSize = n.fontSize }
+            if entry.char.fontFamily == nil { entry.char.fontFamily = n.fontFamily }
+            if entry.char.eastAsiaFontFamily == nil { entry.char.eastAsiaFontFamily = n.eastAsiaFontFamily }
+            if entry.char.hAnsiFontFamily == nil { entry.char.hAnsiFontFamily = n.hAnsiFontFamily }
+            if entry.char.kerningFrom == nil { entry.char.kerningFrom = n.kerningFrom }
+        }
+        return entry
     }
 
     /// A paragraph's left and right indents in points: Word's
@@ -2092,22 +2169,24 @@ public final class RichLayout {
     /// hangs unless the paragraph says `w:overflowPunct` off; a line
     /// gives up to half an em, off its punctuation, where the document's
     /// `w:characterSpacingControl` compresses punctuation.
-    private func _fitEastAsianLines(_ p: RichParagraph, _ document: RichDocument, span: TextSpan,
-                                    dimensions: [PlaceholderDimensions], width: Double, first: TextPainter,
-                                    leadCount: Int) -> [Int: Double] {
+    private func _fitEastAsianLines(_ p: RichParagraph, _ document: RichDocument, textWidth width: Double,
+                                    first: TextPainter, leadWidth: Double) -> [Int: Double] {
         // (Only a justified paragraph's lines are fitted: set left or
         // centred, a mark neither hangs nor gives.)
         guard theme.wordRules, document.usesEastAsianLayout, p.style.alignment == .justify, !p.style.rightToLeft,
               p.text.utf16.count > 2 else { return [:] }
-        let lead = leadCount
+        // (The probe is the text alone: the box before it — the first
+        // line's indent — is where the first line starts from instead.)
+        let lead = 0
         let hangs = p.style.eastAsian["w:overflowPunct"] != "0"
         let squeezes = document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false
         guard hangs || squeezes else { return [:] }
         let units = Array(p.text.utf16)
         guard units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) }),
               first.computeLineMetrics().count > 1 else { return [:] }
+        let (span, inline) = _span(for: p, document, textWidth: width, lead: 0)
         let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
-        if !dimensions.isEmpty { probe.setPlaceholderDimensions(dimensions) }
+        if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
         probe.layout(minWidth: 0, maxWidth: 1)
         defer { probe.dispose() }
         // The size (pixels) of the run at each offset: a mark's em.
@@ -2164,15 +2243,16 @@ public final class RichLayout {
             }
         }
         var adjust: [Int: Double] = [:]
-        var x = 0.0
+        var x = leadWidth
         var marks: [Int] = []   // this line's marks that still have their whole em
+        var opening = true      // nothing on the line yet
         for piece in pieces {
             let a = piece.a, last = piece.last, w = piece.w
             let own = (a ..< last).filter { (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0])) && !closesUp($0) }
             let em = a < ems.count ? ems[a] : 0
             let hair = em * 0.01   // (a stand-in's half em is a hair over half)
             var fits = x + w <= width + hair
-            if !fits, x > 0, last > a {
+            if !fits, !opening, last > a {
                 let over = x + w - width
                 let tail = last - 1
                 // A closing mark at the end of what comes next may hang
@@ -2204,7 +2284,7 @@ public final class RichLayout {
                     // The line is full: whatever comes next starts another.
                     x = width
                     marks = []
-                    if piece.hard { x = 0 }
+                    if piece.hard { x = 0; opening = true }
                     continue
                 }
             }
@@ -2213,10 +2293,12 @@ public final class RichLayout {
                 marks = []
             }
             x += w + piece.trail
+            opening = false
             marks.append(contentsOf: own)
             if piece.hard {
                 x = 0
                 marks = []
+                opening = true
             }
         }
         return adjust
@@ -2265,7 +2347,9 @@ public final class RichLayout {
     /// Whether Word's automatic spacing falls between `a` and `b`: one
     /// an ideograph, kana or hangul, the other a Latin letter (unless
     /// the paragraph turns `w:autoSpaceDE` off) or a digit
-    /// (`w:autoSpaceDN`). Punctuation of either script takes none.
+    /// (`w:autoSpaceDN`). Punctuation of either script takes none —
+    /// and nor does anything in a document not set by the East Asian
+    /// rules, which the caller checks.
     private static func _autoSpaced(_ a: Character, _ b: Character, _ style: RichParagraphStyle) -> Bool {
         func ideograph(_ c: Character) -> Bool {
             guard let u = c.unicodeScalars.first?.value else { return false }
@@ -2814,6 +2898,33 @@ public final class RichLayout {
             }
         }
         g.painter.paint(canvas, Offset(g.textLeft, g.inkTop))
+        if i < _leaders.count, !_leaders[i].isEmpty {
+            // A leader fills its tab: the character over and over, up to
+            // the text the tab leads to.
+            let p = document.paragraphs[i]
+            let named = _named(p, document)
+            let shiftBy = _lead(i)
+            for leader in _leaders[i] {
+                guard let box = g.painter.getBoxesForSelection(
+                    TextSelection(baseOffset: leader.offset + shiftBy, extentOffset: leader.offset + 1 + shiftBy), boxHeightStyle: .max).first,
+                      box.right - box.left > 1 else { continue }
+                var at = 0
+                var run = p.runs[0].style
+                for r in p.runs { if leader.offset < at + r.length { run = r.style; break }; at += r.length }
+                let style = theme.textStyle(for: run, in: p.style, named: named, scale: scale,
+                                            gridPitch: p.style.eastAsian["w:snapToGrid"] == "0" ? nil : document.lineGridPitch)
+                let one = TextPainter(text: TextSpan(text: leader.fill, style: style), textDirection: .ltr)
+                one.layout(minWidth: 0, maxWidth: 10_000)
+                let n = Int(((box.right - box.left) / max(0.5, one.width)).rounded(.down))
+                one.dispose()
+                guard n > 0 else { continue }
+                let fill = TextPainter(text: TextSpan(text: String(repeating: leader.fill, count: n), style: style),
+                                       textDirection: .ltr, strutStyle: g.painter.strutStyle)
+                fill.layout(minWidth: 0, maxWidth: 10_000_000)
+                fill.paint(canvas, Offset(g.textLeft + box.right - fill.width, g.inkTop + box.top))
+                fill.dispose()
+            }
+        }
         if i < _inline.count, !_inline[i].isEmpty, let all = g.painter.inlinePlaceholderBoxes {
             let boxes = all.dropFirst(_lead(i))
             for (k, box) in boxes.enumerated() where k < _inline[i].count {
@@ -2903,9 +3014,10 @@ public final class RichLayout {
         let type = document.titlePage && p == 0 ? "first" : document.evenAndOddHeaders && number % 2 == 0 ? "even" : "default"
         guard let source = document.headerFooters.first(where: { $0.kind == kind && $0.type == type }) else { return nil }
         if type == "default" {
+            // (One an earlier section named has no line of the editor's.)
             let own = kind == .header ? document.header : document.footer
             let kept = document.keptHeaderFooters.first { $0.kind == kind && $0.type == type }?.text
-            if kept != own || own.contains("\t" as Character) { return nil }
+            if (kept ?? "") != own || own.contains("\t" as Character) { return nil }
         }
         let setup = pageSetup(forPage: p)
         let shown = _pageNumber(number, document)

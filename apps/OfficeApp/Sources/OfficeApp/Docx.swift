@@ -1048,7 +1048,30 @@ enum DocxFormat {
         var headerFooters: [RichHeaderFooter] = []
         do {
             let bodyParagraphs = paragraphs, bodyRels = rels, bodyInfo = notes.rels
-            for hf in keptHeaderFooters {
+            // The last section's own, and for a kind it names none of,
+            // the nearest earlier section's: a section that names no
+            // header or footer goes on with the one before it.
+            var shown = keptHeaderFooters.map { (kind: $0.kind, type: $0.type, part: $0.part) }
+            var earlier: [XNode] = []
+            func sections(_ n: XNode) {
+                for c in n.children {
+                    if c.name == "w:p", let sp = c.first("w:pPr")?.first("w:sectPr") { earlier.append(sp) }
+                    else if c.name != "w:p", c.name != "w:sectPr" { sections(c) }
+                }
+            }
+            sections(body)
+            for sect in earlier.reversed() {
+                for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
+                    let kind: KeptHeaderFooter.Kind = ref.name == "w:headerReference" ? .header : .footer
+                    let type = ref["w:type"] ?? "default"
+                    guard ["default", "first", "even"].contains(type), !shown.contains(where: { $0.kind == kind }),
+                          let rid = ref["r:id"], let target = relInfo[rid]?.target, !(relInfo[rid]?.external ?? false) else { continue }
+                    shown.append((kind, type + "+", _resolvePath("word", target)))
+                }
+                // (Every type of a kind from the one section that names it.)
+                shown = shown.map { ($0.kind, $0.type.hasSuffix("+") ? String($0.type.dropLast()) : $0.type, $0.part) }
+            }
+            for hf in shown {
                 guard let data = part(hf.part), let node = XNode.parse(data) else { continue }
                 var comps = hf.part.split(separator: "/").map(String.init)
                 let file = comps.popLast() ?? ""
