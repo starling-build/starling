@@ -2965,8 +2965,17 @@ enum DocxFormat {
             // importer leaves: bug59058 printed "Top of Form" over a rule
             // above each of its tables).
             if entry.char.hidden { out += "<w:vanish/>" }
+            if entry.char.underline { out += "<w:u w:val=\"single\"/>" }
+            if entry.char.strikethrough { out += "<w:strike/>" }
             if let c = entry.char.color { out += "<w:color w:val=\"\(_hex(c))\"/>" }
+            // The rest of a style's look that its runs lean on: a title
+            // style's letter spacing (a Taiwanese impeachment text's
+            // heading came back 60pt narrower), kerning, and the kept
+            // properties.
+            if let ls = entry.char.letterSpacing, ls != 0 { out += "<w:spacing w:val=\"\(Int((ls * 20).rounded()))\"/>" }
+            if let k = entry.char.kerningFrom { out += "<w:kern w:val=\"\(Int((k * 2).rounded()))\"/>" }
             if let size = entry.char.fontSize { out += "<w:sz w:val=\"\(Int(size * 2))\"/><w:szCs w:val=\"\(Int(size * 2))\"/>" }
+            if let kept = entry.char.keptXML { out += kept }
             out += "</w:rPr></w:style>"
         }
         out += "<w:style w:type=\"paragraph\" w:styleId=\"ListParagraph\"><w:name w:val=\"List Paragraph\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:ind w:left=\"720\"/><w:contextualSpacing/></w:pPr></w:style>"
