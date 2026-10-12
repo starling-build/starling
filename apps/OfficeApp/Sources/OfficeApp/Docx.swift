@@ -489,7 +489,15 @@ enum DocxFormat {
                 // The level's indents (65099's "1.1.1" hangs 0.5in at the
                 // margin; the editor's default put it 1.5in in).
                 if formats[ilvl] != nil {
-                    if let rPr = lvl.first("w:rPr"), !rPr.children.isEmpty { formats[ilvl]!.numberRPrXML = PptxXML.serialize(rPr) }
+                    // Kept as written, in the namespaces the numbering part
+                    // declares (a number's w14 text effects — ten Chinese
+                    // government files in a first sample of 179 — made the
+                    // saved part ill-formed while it declared w alone).
+                    if let rPr = lvl.first("w:rPr"), !rPr.children.isEmpty {
+                        let kept = XNode(name: rPr.name, attrs: rPr.attrs)
+                        kept.children = rPr.children.filter { c in ["w:", "w14:", "w15:"].contains { c.name.hasPrefix($0) } }
+                        if !kept.children.isEmpty { formats[ilvl]!.numberRPrXML = PptxXML.serialize(kept) }
+                    }
                     if let suff = lvl.first("w:suff")?["w:val"] { formats[ilvl]!.suffix = suff }
                 }
                 if let ind = lvl.first("w:pPr")?.first("w:ind"), formats[ilvl] != nil {
@@ -2848,6 +2856,6 @@ enum DocxFormat {
             extraAbstract += "<w:abstractNum w:abstractNumId=\"\(abstractId)\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(levels)</w:abstractNum>"
             extraNums += "<w:num w:numId=\"\(numId)\"><w:abstractNumId w:val=\"\(abstractId)\"/></w:num>"
         }
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(bulletLevels)</w:abstractNum><w:abstractNum w:abstractNumId=\"1\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(decimalLevels)</w:abstractNum>\(extraAbstract)<w:num w:numId=\"\(bulletId)\"><w:abstractNumId w:val=\"0\"/></w:num><w:num w:numId=\"\(decimalId)\"><w:abstractNumId w:val=\"1\"/></w:num>\(extraNums)</w:numbering>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15\"><w:abstractNum w:abstractNumId=\"0\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(bulletLevels)</w:abstractNum><w:abstractNum w:abstractNumId=\"1\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(decimalLevels)</w:abstractNum>\(extraAbstract)<w:num w:numId=\"\(bulletId)\"><w:abstractNumId w:val=\"0\"/></w:num><w:num w:numId=\"\(decimalId)\"><w:abstractNumId w:val=\"1\"/></w:num>\(extraNums)</w:numbering>"
     }
 }

@@ -1858,6 +1858,31 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(again.components(separatedBy: "<w:u w:val=\"none\"/>").count, 2, again)
     }
 
+    func testListNumbersWord2010EffectsLeaveTheNumberingPartWellFormed() throws {
+        // A level's w:rPr is kept as written; with a w14 text effect in
+        // it the saved numbering part named a prefix it never declared.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "item", style: RichParagraphStyle(list: .numbered))]), pageSetup: .letter))
+        let ni = try XCTUnwrap(entries.firstIndex { $0.name == "word/numbering.xml" })
+        let numbering = "<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:x9=\"urn:x\">"
+            + "<w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"%1.\"/><w:lvlJc w:val=\"left\"/>"
+            + "<w:rPr><w:b/><w14:shadow w14:blurRad=\"0\"><w14:srgbClr w14:val=\"000000\"/></w14:shadow><x9:odd/></w:rPr></w:lvl></w:abstractNum>"
+            + "<w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+        entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:pPr><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr><w:r><w:t>a</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let again = try part("word/numbering.xml", of: back)
+        XCTAssertTrue(again.contains("<w14:shadow w14:blurRad=\"0\">"), again)
+        XCTAssertFalse(again.contains("x9:"), again)
+        XCTAssertNotNil(XNode.parse(Data(again.utf8)))
+        let parser = XMLParser(data: Data(again.utf8))
+        parser.shouldProcessNamespaces = true
+        XCTAssertTrue(parser.parse(), "\(String(describing: parser.parserError))")
+    }
+
     func testDefaultTabStopKept() throws {
         // bug65649: 708 twips, not our 720 — its typed numbers are
         // followed by a tab, and every first line moved.
