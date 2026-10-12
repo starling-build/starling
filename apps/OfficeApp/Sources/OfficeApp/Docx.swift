@@ -1033,6 +1033,10 @@ enum DocxFormat {
         if let sect = body.first("w:sectPr") {
             if let grid = sect.first("w:docGrid") { document.docGridXML = PptxXML.serialize(grid) }
             document.sectionTypeXML = sect.first("w:type").map { PptxXML.serialize($0) }
+            if let cols = sect.first("w:cols") {
+                document.columnsXML = PptxXML.serialize(cols)
+                document.columnsKeptUnder = max(1, Int(cols["w:num"] ?? "1") ?? 1)
+            }
             document.gutterTwips = sect.first("w:pgMar")?["w:gutter"].flatMap { Int($0) }.flatMap { $0 > 0 ? $0 : nil }
             let lead = ["w:lnNumType", "w:pgNumType"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
             let tail = ["w:vAlign", "w:textDirection", "w:bidi", "w:rtlGutter"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
@@ -1044,6 +1048,9 @@ enum DocxFormat {
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
             let margins = ["w:mirrorMargins", "w:gutterAtTop"].compactMap { settings.first($0) }.map { PptxXML.serialize($0) }.joined()
             document.marginSettingsXML = margins.isEmpty ? nil : margins
+            for name in _keptSettingNames.flatMap({ $0 }) {
+                if let n = settings.first(name) { document.keptSettings[name] = PptxXML.serialize(n) }
+            }
         }
         if let styles = part("word/styles.xml").flatMap(XNode.parse) {
             // The defaults' language, or Normal's over it.
@@ -1154,6 +1161,16 @@ enum DocxFormat {
     /// East Asian paragraph markup carried in `RichParagraphStyle.eastAsian`
     /// (schema order): the switches, and the character- and line-unit
     /// measures of `w:ind` and `w:spacing`.
+    /// Settings kept as written (`RichDocument.keptSettings`), in four
+    /// groups by where the schema puts them.
+    static let _keptSettingNames: [[String]] = [
+        ["w:embedTrueTypeFonts", "w:embedSystemFonts", "w:saveSubsetFonts",
+         "w:alignBordersAndEdges", "w:bordersDoNotSurroundHeader", "w:bordersDoNotSurroundFooter"],
+        ["w:autoHyphenation", "w:consecutiveHyphenLimit", "w:hyphenationZone", "w:doNotHyphenateCaps"],
+        ["w:noPunctuationKerning"],
+        ["w:strictFirstAndLastChars", "w:noLineBreaksAfter", "w:noLineBreaksBefore"],
+    ]
+
     static let _eastAsianSwitches = ["w:suppressLineNumbers", "w:suppressAutoHyphens", "w:kinsoku", "w:wordWrap", "w:overflowPunct", "w:topLinePunct", "w:autoSpaceDE", "w:autoSpaceDN", "w:adjustRightInd", "w:snapToGrid", "w:mirrorIndents"]
     static let _eastAsianIndents = ["w:leftChars", "w:startChars", "w:rightChars", "w:endChars", "w:hangingChars", "w:firstLineChars"]
     static let _eastAsianSpacing = ["w:beforeLines", "w:afterLines"]
@@ -1277,7 +1294,10 @@ enum DocxFormat {
             func on(_ v: String?) -> Bool? { v.map { ["1", "true", "on"].contains($0) } }
             if let a = on(sp["w:beforeAutospacing"]) { style.spaceBeforeAuto = a }
             if let a = on(sp["w:afterAutospacing"]) { style.spaceAfterAuto = a }
-            if let v = Double(sp["w:line"] ?? ""), v > 0 {
+            // ("At least 0" is a statement too — the line's natural height,
+            // which a document on a line grid then does not snap; as single
+            // spacing every paragraph of one sat 2.4pt lower.)
+            if let v = Double(sp["w:line"] ?? ""), v > 0 || (v == 0 && sp["w:lineRule"] == "atLeast") {
                 switch sp["w:lineRule"] ?? "auto" {
                 case "exact":
                     style.lineHeightPoints = v / 20
@@ -1488,7 +1508,10 @@ enum DocxFormat {
            part("word/document.xml").map({ String(decoding: $0, as: UTF8.self).containsSubstring("<w:divId") }) == true {
             kept["word/webSettings.xml"] = web
         }
-        for name in ["footnotes", "endnotes"] {
+        // (And the font table: what Word substitutes for a face the machine
+        // lacks is chosen by the family, pitch and alternate name stated
+        // there, and a Chinese document names faces few machines have.)
+        for name in ["footnotes", "endnotes", "fontTable"] {
             guard let data = part("word/\(name).xml"), _wellFormed(data) else { continue }
             kept["word/\(name).xml"] = data
             guard let rels = part("word/_rels/\(name).xml.rels") else { continue }
@@ -1913,8 +1936,8 @@ enum DocxFormat {
         walkInline(p, link: nil)
         if leadingBreak {
             if built.isEmpty, text.isEmpty, inlineImages.isEmpty { flush(pageBreakAfter: true) }
-            else if built.isEmpty { style.pageBreakBefore = true }
-            else { built[0].paragraph.style.pageBreakBefore = true }
+            else if built.isEmpty { style.pageBreakBefore = true; style.pageBreakInline = true }
+            else { built[0].paragraph.style.pageBreakBefore = true; built[0].paragraph.style.pageBreakInline = true }
         }
         if text.isEmpty, inlineImages.isEmpty, let last = built.last, last.pageBreakAfter {
             // The paragraph ended with its page break: Word shows nothing
@@ -2354,7 +2377,8 @@ enum DocxFormat {
                       let sect = prev.style.sectionXML else { return false }
                 return prev.style.sectionBreaksPage ?? !sect.containsSubstring("w:val=\"continuous\"")
             }()
-            if p.style.pageBreakBefore && !afterSectionBreak { pPr += "<w:pageBreakBefore/>" }
+            let inlineBreak = p.style.pageBreakBefore && p.style.pageBreakInline && !afterSectionBreak && p.cell == nil
+            if p.style.pageBreakBefore && !afterSectionBreak && !inlineBreak { pPr += "<w:pageBreakBefore/>" }
             if let frame = p.style.frameXML { pPr += frame }
             if !p.style.widowControl { pPr += "<w:widowControl w:val=\"0\"/>" }
             if p.style.list != nil {
@@ -2430,6 +2454,7 @@ enum DocxFormat {
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(sect, p.style.sectionRels) }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
+            if inlineBreak { body += "<w:r><w:br w:type=\"page\"/></w:r>" }
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
                 let unresized = image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height)
@@ -2766,6 +2791,11 @@ enum DocxFormat {
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(doc.gutterTwips ?? 0)\"/>"
         if let pb = doc.pageBordersXML { body += pb }
         if let lead = doc.sectionLeadXML { body += lead }
+        if let cols = doc.columnsXML, doc.columnsKeptUnder == max(1, pageSetup.columns) {
+            // The file's own columns (an exam paper's two unequal ones, 0.3in
+            // apart: at our half inch every line of it broke 7pt early).
+            body += cols
+        } else
         if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
         // A title page with no first-page part referenced is a page with
         // an EMPTY header and footer (Bug51170's cover shows no logo).
@@ -2832,6 +2862,9 @@ enum DocxFormat {
             case "word/commentsExtensible.xml":
                 relsXML += "<Relationship Id=\"rIdCommentsExtensible\" Type=\"http://schemas.microsoft.com/office/2018/08/relationships/commentsExtensible\" Target=\"commentsExtensible.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/commentsExtensible.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtensible+xml\"/>"
+            case "word/fontTable.xml":
+                relsXML += "<Relationship Id=\"rIdFontTable\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable\" Target=\"fontTable.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/fontTable.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml\"/>"
             case "word/webSettings.xml":
                 relsXML += "<Relationship Id=\"rIdWebSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings\" Target=\"webSettings.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/webSettings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml\"/>"
@@ -2851,6 +2884,14 @@ enum DocxFormat {
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
         var settings = doc.evenAndOddHeaders && keptHF.contains(where: { $0.element.type == "even" })
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
+        // The rest of what Word lays out by, each group at its place in the
+        // schema: before the tab stop, after it, and round the character
+        // spacing control. (A county notice printed 18 pages to the
+        // original's 14 without its w:noPunctuationKerning.)
+        func keptSettings(_ group: Int) -> String { _keptSettingNames[group].compactMap { doc.keptSettings[$0] }.joined() }
+        settings = settings.replacingAll("<w:defaultTabStop w:val=\"720\"/>", with: keptSettings(0) + "<w:defaultTabStop w:val=\"720\"/>" + keptSettings(1))
+        settings = settings.replacingAll("<w:characterSpacingControl w:val=\"doNotCompress\"/>",
+                                         with: keptSettings(2) + "<w:characterSpacingControl w:val=\"doNotCompress\"/>" + keptSettings(3))
         if let csc = doc.characterSpacingControl {
             settings = settings.replacingAll("<w:characterSpacingControl w:val=\"doNotCompress\"/>", with: "<w:characterSpacingControl w:val=\"\(_esc(csc))\"/>")
         }

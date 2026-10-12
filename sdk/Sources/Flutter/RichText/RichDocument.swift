@@ -329,6 +329,11 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// sheet, under any direct formatting.
     public var named: String? = nil
     public var pageBreakBefore = false
+    /// The page break is a break character at the paragraph's start
+    /// (Word's `w:br w:type="page"` in its first run), not the paragraph
+    /// property: laid out the same here, written back as it was — Word
+    /// places the text after one differently by the paragraph's spacing.
+    public var pageBreakInline = false
     /// Word's pagination hints, kept through a save (the layout paginates
     /// its own way): keep with next, keep lines together, widow control.
     public var keepNext = false
@@ -1544,11 +1549,22 @@ public struct RichDocument: Hashable, Sendable {
     /// The last section's `w:type` (how it starts: "continuous" after
     /// the section before it, or on a new page).
     public var sectionTypeXML: String? = nil
+    /// The last section's `w:cols` as written (unequal columns, their
+    /// gaps, a line between), and the column count it was read with: it
+    /// goes back while the page still has that many columns.
+    public var columnsXML: String? = nil
+    public var columnsKeptUnder: Int? = nil
     /// The last section's binding gutter in twips (`w:pgMar w:gutter`)
     /// and the settings' `w:mirrorMargins`/`w:gutterAtTop`: the page the
     /// editor shows has neither, the saved file keeps both.
     public var gutterTwips: Int? = nil
     public var marginSettingsXML: String? = nil
+    /// More settings Word lays out by, kept as written, by name:
+    /// hyphenation (`w:autoHyphenation`, `w:hyphenationZone`, …),
+    /// `w:noPunctuationKerning`, the line-breaking character lists
+    /// (`w:noLineBreaksAfter`/`Before`, `w:strictFirstAndLastChars`) and
+    /// how page borders meet the header and footer.
+    public var keptSettings: [String: String] = [:]
     public var sectionTailXML: String? = nil
     /// The document's languages: the defaults' `w:lang` and the
     /// settings' `w:themeFontLang`. Word chooses the East Asian face and
