@@ -345,6 +345,12 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// columns, numbering. The layout shows one page size for the whole
     /// document; the saved file keeps every section's.
     public var sectionXML: String? = nil
+    /// The header and footer parts that section names, kept with it: the
+    /// sections after it that name none show the same ones.
+    public var sectionRels: [KeptRel] = []
+    /// Whether the section AFTER this one starts a page — which is the
+    /// next section's `w:type` to say, not this one's.
+    public var sectionBreaksPage: Bool? = nil
     /// Right-to-left paragraph direction (Word's w:bidi): the lines run
     /// from the right and "left" alignment means the start edge.
     public var rightToLeft = false
@@ -651,6 +657,10 @@ public struct CellRef: Hashable, Sendable {
     public var keptPropertiesXML: String? = nil
     public var widthKeptUnder: Int? = nil
     public var continuationBordersXML: [String?] = []
+    /// What each continuation row's cell holds, as written, when it is
+    /// only paragraphs: their marks' sizes and spacing are the height the
+    /// merged cell asks of that row, which a bare empty paragraph is not.
+    public var continuationContentXML: [String?] = []
     /// The table's border switch when `bordersXML` was read: once the
     /// editor toggles the table's borders, the summary is written instead.
     public var bordersKeptUnder: Bool? = nil
@@ -912,6 +922,14 @@ public struct ListLevelFormat: Hashable, Sendable {
     /// U+F094 boxes, and came back as round bullets a little shorter.
     public var rawText: String? = nil
     public var rawTextGlyph: String? = nil
+    /// Word's own name for the number format when `format` only stands
+    /// in for it ("chineseCounting", "taiwaneseCountingThousand",
+    /// "decimalEnclosedCircle", …: shown as 1, 2, 3 here, written back by
+    /// name), and the level's first number and alignment when the file
+    /// states other than 1 and left.
+    public var rawFormat: String? = nil
+    public var start: Int? = nil
+    public var justification: String? = nil
 
     public init(text: String, format: ListNumberFormat = .decimal) {
         self.text = text
@@ -1515,6 +1533,9 @@ public struct RichDocument: Hashable, Sendable {
     /// after them (`w:vAlign`, `w:textDirection`, `w:bidi`,
     /// `w:rtlGutter` — the grid comes last, above).
     public var sectionLeadXML: String? = nil
+    /// The last section's `w:type` (how it starts: "continuous" after
+    /// the section before it, or on a new page).
+    public var sectionTypeXML: String? = nil
     public var sectionTailXML: String? = nil
     /// The document's languages: the defaults' `w:lang` and the
     /// settings' `w:themeFontLang`. Word chooses the East Asian face and

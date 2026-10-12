@@ -135,6 +135,18 @@ enum DocxFormat {
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
         // A document with several bodies: Word shows them all, one after
         // the other (MultipleBodyBug came back with the first alone).
+        // Each section break in the text, told how the section after it
+        // starts (see `_paragraphs`).
+        do {
+            var sects: [XNode] = []
+            var stack = Array(body.children.reversed())
+            while let n = stack.popLast() {
+                if n.name == "w:sectPr" { sects.append(n) } else if n.name != "w:tbl" { stack.append(contentsOf: n.children.reversed()) }
+            }
+            for (i, sect) in sects.enumerated().dropLast() {
+                sect.attrs["x-next-breaks"] = (sects[i + 1].first("w:type")?["w:val"] ?? "nextPage") != "continuous" ? "1" : "0"
+            }
+        }
         for extra in root.all("w:body").dropFirst() {
             let at = body.children.lastIndex { $0.name == "w:sectPr" } ?? body.children.count
             body.children.insert(contentsOf: extra.children.filter { $0.name != "w:sectPr" }, at: at)
@@ -250,6 +262,14 @@ enum DocxFormat {
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             _resolveThemeFonts(styles, theme)
             _normaliseStyleIds(styles)
+            // A styles part with NO w:pPrDefault at all (WPS writes them
+            // so: six of a sample of 68 Chinese government documents, every
+            // one 6-37% off) is spaced by Word's own Normal — 8pt after,
+            // lines of 278/240, the same as a package with no styles part.
+            // An EMPTY w:pPrDefault is a statement, and means none.
+            if styles.first("w:docDefaults")?.first("w:pPrDefault") == nil {
+                base = RichParagraphStyle(spaceAfter: 8, lineSpacing: 278.0 / 240)
+            }
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
                 _paragraphProps(defaults, into: &base)
             }
@@ -485,6 +505,8 @@ enum DocxFormat {
                     }
                     formats[ilvl] = ListLevelFormat(text: lvl.first("w:lvlText")?["w:val"] ?? "%\(ilvl + 1).",
                                                     format: number)
+                    // "一、二、三": a format the editor counts in digits.
+                    if !["decimal", "lowerLetter", "upperLetter", "lowerRoman", "upperRoman"].contains(fmt) { formats[ilvl]!.rawFormat = fmt }
                 }
                 // The level's indents (65099's "1.1.1" hangs 0.5in at the
                 // margin; the editor's default put it 1.5in in).
@@ -493,6 +515,8 @@ enum DocxFormat {
                     // declares (a number's w14 text effects — ten Chinese
                     // government files in a first sample of 179 — made the
                     // saved part ill-formed while it declared w alone).
+                    if let v = Int(lvl.first("w:start")?["w:val"] ?? ""), v != 1 { formats[ilvl]!.start = v }
+                    if let v = lvl.first("w:lvlJc")?["w:val"], v != "left", v != "start" { formats[ilvl]!.justification = v }
                     if let rPr = lvl.first("w:rPr"), !rPr.children.isEmpty {
                         let kept = XNode(name: rPr.name, attrs: rPr.attrs)
                         kept.children = rPr.children.filter { c in ["w:", "w14:", "w15:"].contains { c.name.hasPrefix($0) } }
@@ -821,10 +845,19 @@ enum DocxFormat {
                                 var contEdges = _edges(tcPr, "w:tcBorders")
                                 contEdges?.insideH = nil; contEdges?.insideV = nil
                                 let contXML = tcPr?.first("w:tcBorders").map { PptxXML.serialize($0) }
+                                // Its own (empty) paragraphs, as written — when
+                                // that is all it holds and they name no part.
+                                let blocks = tc.children.filter { $0.name != "w:tcPr" }
+                                var contContent: String? = nil
+                                if !blocks.isEmpty, blocks.allSatisfy({ $0.name == "w:p" }) {
+                                    let xml = blocks.map { PptxXML.serialize($0) }.joined()
+                                    if !xml.containsSubstring(" r:") && !xml.containsSubstring("<w:drawing") && !xml.containsSubstring("<w:pict") { contContent = xml }
+                                }
                                 for k in range {
                                     paragraphs[k].cell?.rowSpan += 1
                                     paragraphs[k].cell?.continuationEdges.append(contEdges)
                                     paragraphs[k].cell?.continuationBordersXML.append(contXML)
+                                    paragraphs[k].cell?.continuationContentXML.append(contContent)
                                 }
                                 column += span
                                 continue
@@ -949,6 +982,7 @@ enum DocxFormat {
         if let pb = body.first("w:sectPr")?.first("w:pgBorders") { document.pageBordersXML = PptxXML.serialize(pb) }
         if let sect = body.first("w:sectPr") {
             if let grid = sect.first("w:docGrid") { document.docGridXML = PptxXML.serialize(grid) }
+            document.sectionTypeXML = sect.first("w:type").map { PptxXML.serialize($0) }
             let lead = ["w:lnNumType", "w:pgNumType"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
             let tail = ["w:vAlign", "w:textDirection", "w:bidi", "w:rtlGutter"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
             document.sectionLeadXML = lead.isEmpty ? nil : lead
@@ -958,8 +992,12 @@ enum DocxFormat {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
         }
-        if let lang = part("word/styles.xml").flatMap(XNode.parse)?.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang") {
-            document.defaultLangXML = PptxXML.serialize(lang)
+        if let styles = part("word/styles.xml").flatMap(XNode.parse) {
+            // The defaults' language, or Normal's over it.
+            let normal = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }
+            if let lang = normal?.first("w:rPr")?.first("w:lang") ?? styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang") {
+                document.defaultLangXML = PptxXML.serialize(lang)
+            }
         }
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
@@ -1512,12 +1550,35 @@ enum DocxFormat {
             // the section's own headers and page size are not kept, the
             // break is — Headers.docx had come back as one page of three.
             if let sect = pPr.first("w:sectPr") {
-                if (sect.first("w:type")?["w:val"] ?? "nextPage") != "continuous" { sectionBreakAfter = true }
+                // Whether a page breaks here is the NEXT section's type to
+                // say (noted on the node by `read`): a section's w:type is
+                // how that section starts. Read off this one's own, a
+                // cover section before a "continuous" body pushed the
+                // body to page two (a Lin'an draft, 22% over 17 pages).
+                let breaks = sect.attrs.removeValue(forKey: "x-next-breaks").map { $0 == "1" }
+                    ?? ((sect.first("w:type")?["w:val"] ?? "nextPage") != "continuous")
+                if breaks { sectionBreakAfter = true }
+                style.sectionBreaksPage = breaks
                 // The section's own page size, margins and columns, kept
                 // for the file (bug65649: 15 sections, some landscape);
-                // its header/footer references name parts not kept.
-                sect.children.removeAll { $0.name == "w:headerReference" || $0.name == "w:footerReference" }
-                style.sectionXML = PptxXML.serialize(sect)
+                // with the header and footer parts it names — the sections
+                // after it that name none inherit them (a Yunnan county
+                // notice whose last section states no header lost the
+                // letterhead line on all 18 pages).
+                // (A reference to a part the package does not hold goes.)
+                sect.children.removeAll { ref in
+                    guard ref.name == "w:headerReference" || ref.name == "w:footerReference" else { return false }
+                    guard let rel = ref["r:id"].flatMap({ notes.rels[$0] }), !rel.external else { return true }
+                    return notes.part(_resolvePath("word", rel.target)) == nil
+                }
+                let named = sect.children.contains { $0.name == "w:headerReference" || $0.name == "w:footerReference" }
+                if named, let frag = _keptFragment(sect, notes) {
+                    style.sectionXML = frag.xml
+                    style.sectionRels = frag.rels
+                } else {
+                    sect.children.removeAll { $0.name == "w:headerReference" || $0.name == "w:footerReference" }
+                    style.sectionXML = PptxXML.serialize(sect)
+                }
             }
         }
 
@@ -1525,6 +1586,7 @@ enum DocxFormat {
         var text = ""
         var runs: [Run] = []
         var inlineImages: [String: ImageAttachment] = [:]
+        var leadingBreak = false   // the paragraph opens with a page break
         func flush(pageBreakAfter: Bool) {
             var para: RichParagraph
             if inlineImages.count == 1, text == RichParagraph.inlineImageCharacter, let only = inlineImages.values.first {
@@ -1688,7 +1750,17 @@ enum DocxFormat {
                     // A page break ends the paragraph; a line break stays
                     // inside it, as Shift+Return's does — splitting it added a
                     // paragraph (and its spacing) on every soft break.
-                    if child["w:type"] == "page" { flush(pageBreakAfter: true) } else { addText("\n", cs) }
+                    if child["w:type"] == "page" {
+                        // A break that OPENS its paragraph is the paragraph
+                        // starting a page: split off, it left an empty
+                        // paragraph before the break, and where the page was
+                        // full that paragraph took a page of its own (a
+                        // blank page three in a Fujian plan of four pages).
+                        // (Decided at the paragraph's end: a paragraph that is
+                        // ONLY the break keeps its line on the page before.)
+                        if text.isEmpty, inlineImages.isEmpty, built.isEmpty, !leadingBreak { leadingBreak = true }
+                        else { flush(pageBreakAfter: true) }
+                    } else { addText("\n", cs) }
                 case "w:noBreakHyphen": addText("\u{2011}", cs)
                 case "w:softHyphen": addText("\u{00AD}", cs)
                 case "w:sym":
@@ -1749,6 +1821,11 @@ enum DocxFormat {
             }
         }
         walkInline(p, link: nil)
+        if leadingBreak {
+            if built.isEmpty, text.isEmpty, inlineImages.isEmpty { flush(pageBreakAfter: true) }
+            else if built.isEmpty { style.pageBreakBefore = true }
+            else { built[0].paragraph.style.pageBreakBefore = true }
+        }
         if text.isEmpty, inlineImages.isEmpty, let last = built.last, last.pageBreakAfter {
             // The paragraph ended with its page break: Word shows nothing
             // for its mark on the new page (SampleDoc's page two began
@@ -1770,6 +1847,7 @@ enum DocxFormat {
         let latin = s.fontFamily.map { fileFonts.contains($0) ? $0 : OfficeFonts.exportName($0) }
         var attrs = ""
         if let latin { attrs += " w:ascii=\"\(_esc(latin))\" w:hAnsi=\"\(_esc(s.hAnsiFontFamily ?? latin))\"" }
+        else if let h = s.hAnsiFontFamily { attrs += " w:hAnsi=\"\(_esc(h))\"" }
         if let hint = s.fontHint { attrs += " w:hint=\"\(_esc(hint))\"" }
         if let cs = s.complexFontFamily ?? latin { attrs += " w:cs=\"\(_esc(cs))\"" }
         if let ea = s.eastAsiaFontFamily ?? (eastAsiaDefault ? latin : nil) { attrs += " w:eastAsia=\"\(_esc(ea))\"" }
@@ -1986,9 +2064,16 @@ enum DocxFormat {
             case "w:rFonts":
                 // A slot the element leaves out is inherited, not cleared
                 // (a style's lone w:cs must not drop its Latin face).
-                if let f = _family(child["w:ascii"] ?? child["w:hAnsi"] ?? "") { cs.fontFamily = f }
+                // The Latin face is w:ascii's. A run that names only w:hAnsi
+                // (Chinese text usually does, beside w:eastAsia) keeps its
+                // inherited ascii face: its digits and letters stay in
+                // Times, and came back in the East Asian face otherwise.
+                if let f = _family(child["w:ascii"] ?? "") { cs.fontFamily = f }
                 if let f = _family(child["w:cs"] ?? "") { cs.complexFontFamily = f }
-                if let a = _family(child["w:ascii"] ?? ""), let h = _family(child["w:hAnsi"] ?? "") { cs.hAnsiFontFamily = h == a ? nil : h }
+                if let h = _family(child["w:hAnsi"] ?? "") { cs.hAnsiFontFamily = h == cs.fontFamily ? nil : h }
+                else if child["w:ascii"] != nil, child["w:hAnsi"] == nil, base.hAnsiFontFamily == nil, base.fontFamily != nil, base.fontFamily != cs.fontFamily {
+                    cs.hAnsiFontFamily = base.fontFamily   // ascii alone: hAnsi stays the inherited face
+                }
                 if let h = child["w:hint"] { cs.fontHint = h }
                 if let f = _family(child["w:eastAsia"] ?? "") { cs.eastAsiaFontFamily = f }
             case "w:vertAlign":
@@ -2177,7 +2262,7 @@ enum DocxFormat {
             let afterSectionBreak: Bool = {
                 guard index > 0, let prev = Optional(doc.paragraphs[index - 1]), prev.cell == nil,
                       let sect = prev.style.sectionXML else { return false }
-                return !sect.containsSubstring("w:val=\"continuous\"")
+                return prev.style.sectionBreaksPage ?? !sect.containsSubstring("w:val=\"continuous\"")
             }()
             if p.style.pageBreakBefore && !afterSectionBreak { pPr += "<w:pageBreakBefore/>" }
             if let frame = p.style.frameXML { pPr += frame }
@@ -2255,7 +2340,7 @@ enum DocxFormat {
                 markRPr += "<w:vanish/>"
             }
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
-            if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += sect }
+            if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(sect, p.style.sectionRels) }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
@@ -2495,7 +2580,8 @@ enum DocxFormat {
                         let contKept = offset < above.continuationBordersXML.count ? above.continuationBordersXML[offset] : nil
                         xml += "<w:vMerge/>" + cellBordersXML(contEdges, width: above.borderWidth, kept: contKept, under: above.bordersKeptUnder)
                         if let v = above.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
-                        xml += "</w:tcPr><w:p/></w:tc>"
+                        let contContent = offset < above.continuationContentXML.count ? above.continuationContentXML[offset] : nil
+                        xml += "</w:tcPr>" + (contContent ?? "<w:p/>") + "</w:tc>"
                         c += span
                         continue
                     }
@@ -2587,6 +2673,7 @@ enum DocxFormat {
         for (i, k) in keptHF {
             body += "<w:\(k.kind == .header ? "headerReference" : "footerReference") w:type=\"\(k.type)\" r:id=\"rIdKeptHF\(i)\"/>"
         }
+        if let type = doc.sectionTypeXML { body += type }
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"0\"/>"
         if let pb = doc.pageBordersXML { body += pb }
@@ -2946,7 +3033,7 @@ enum DocxFormat {
                     case .upperRoman: fmt = "upperRoman"
                     case .bullet: fmt = "bullet"
                     }
-                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"\(fmt)\"/>\(suff)<w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"left\"/><w:pPr>\(ind)</w:pPr>\(numRPr)</w:lvl>"
+                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"\(f.start ?? 1)\"/><w:numFmt w:val=\"\(_esc(f.rawFormat ?? fmt))\"/>\(suff)<w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"\(_esc(f.justification ?? "left"))\"/><w:pPr>\(ind)</w:pPr>\(numRPr)</w:lvl>"
                 }
             }
             extraAbstract += "<w:abstractNum w:abstractNumId=\"\(abstractId)\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(levels)</w:abstractNum>"

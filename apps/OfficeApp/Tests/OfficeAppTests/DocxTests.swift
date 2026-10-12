@@ -1883,6 +1883,24 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(parser.parse(), "\(String(describing: parser.parserError))")
     }
 
+    func testStylesPartWithNoParagraphDefaultsIsSpacedByWordsNormal() throws {
+        // WPS-written Chinese documents: w:docDefaults holds the fonts and
+        // no w:pPrDefault, and Word then spaces by its own Normal (8pt
+        // after, lines of 278/240). An empty w:pPrDefault means none.
+        func after(_ defaults: String) throws -> (Double, Double) {
+            let back = try DocxFormat.read(try patched(RichDocument(paragraphs: [RichParagraph(text: "a")]), part: "word/styles.xml",
+                                                       from: "<w:docDefaults>", through: "</w:docDefaults>", with: defaults)).document
+            // (The writer spells spacing out on its own paragraph; read the document's Normal.)
+            let n = try XCTUnwrap(back.styles[RichNamedStyle.normalId]?.paragraph)
+            return (n.spaceAfter, n.lineSpacing)
+        }
+        let fonts = "<w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Times New Roman\"/></w:rPr></w:rPrDefault>"
+        let absent = try after("<w:docDefaults>\(fonts)</w:docDefaults>")
+        XCTAssertEqual(absent.0, 8); XCTAssertEqual(absent.1, 278.0 / 240, accuracy: 0.001)
+        let empty = try after("<w:docDefaults>\(fonts)<w:pPrDefault/></w:docDefaults>")
+        XCTAssertEqual(empty.0, 0); XCTAssertEqual(empty.1, 1.0, accuracy: 0.001)
+    }
+
     func testDefaultTabStopKept() throws {
         // bug65649: 708 twips, not our 720 — its typed numbers are
         // followed by a tab, and every first line moved.
@@ -1897,7 +1915,7 @@ final class DocxTests: XCTestCase {
     func testStyleWithNoParentStartsFromTheDocumentDefaults() throws {
         // Bug54771b: No Spacing names no w:basedOn, so it never takes
         // Normal's 10pt after and 1.15 lines.
-        let styles = "<w:docDefaults/><w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"200\" w:line=\"276\" w:lineRule=\"auto\"/></w:pPr></w:style>"
+        let styles = "<w:docDefaults><w:pPrDefault/></w:docDefaults><w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"200\" w:line=\"276\" w:lineRule=\"auto\"/></w:pPr></w:style>"
             + "<w:style w:type=\"paragraph\" w:styleId=\"Bare\"><w:name w:val=\"Bare\"/><w:rPr><w:sz w:val=\"22\"/></w:rPr></w:style>"
             + "<w:style w:type=\"paragraph\" w:styleId=\"Hid\"><w:name w:val=\"Hid\"/><w:basedOn w:val=\"Normal\"/><w:rPr><w:vanish/></w:rPr></w:style>"
             + "<w:style w:type=\"paragraph\" w:styleId=\"Child\"><w:name w:val=\"Child\"/><w:basedOn w:val=\"Normal\"/></w:style></w:styles>"
