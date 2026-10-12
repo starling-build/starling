@@ -254,9 +254,13 @@ enum DocxFormat {
         // A table style's conditional parts: the first row's fill and run
         // look, the body rows' bands.
         var tableConds: [String: _Cond] = [:]
+        // Table styles (and the default one) that fix the layout: a table
+        // that says nothing itself is then not autofitted.
+        var fixedTableStyles = Set<String>()
+        var defaultTableFixed = false
         // Numbering a paragraph style carries itself (a numbered heading
         // style): the paragraphs of that style number without a numPr.
-        var styleNums: [String: (numId: String, ilvl: Int)] = [:]
+        var styleNums: [String: (numId: String, ilvl: Int, left: Double?, first: Double?)] = [:]
         var paragraphStyles: [String: XNode] = [:]
         var styleAliases: [String: String] = [:]
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
@@ -305,6 +309,10 @@ enum DocxFormat {
                 tableRootBases[id] = rootPs
                 tableNodes[id] = style
                 tableEdges[id] = _edges(style.first("w:tblPr"), "w:tblBorders")
+                if style.first("w:tblPr")?.first("w:tblLayout")?["w:type"] == "fixed" {
+                    fixedTableStyles.insert(id)
+                    if style["w:default"] == "1" { defaultTableFixed = true }
+                }
                 if style["w:default"] == "1" {
                     defaultMargins = _cellMargins(style.first("w:tblPr"))
                     defaultBorders = _borders(style.first("w:tblPr"), "w:tblBorders")
@@ -372,18 +380,43 @@ enum DocxFormat {
                 }
                 notes.charStyleChains[id] = chain
             }
+            // The level a numbering definition ties a style to (w:lvl's
+            // w:pStyle): a style that names a list and no level is that one.
+            var linkedLevel: [String: Int] = [:]
+            if let numbering = part("word/numbering.xml").flatMap(XNode.parse) {
+                for a in numbering.all("w:abstractNum") {
+                    for lvl in a.all("w:lvl") {
+                        if let sid = lvl.first("w:pStyle")?["w:val"], let n = Int(lvl["w:ilvl"] ?? "") { linkedLevel[sid] = n }
+                    }
+                }
+            }
             for id in paragraphStyles.keys {
                 var seen = Set<String>(), cur: String? = id
+                // The list and the level are inherited apart: "heading 3"
+                // says level 2 and takes the list from "heading 1" under it
+                // (a Taiwanese handbook's 一、 and (一) were gone from every
+                // heading). And the indent the chain states from this style
+                // down to the one that names the list: a numbered style's
+                // own w:ind stands over its level's (another's "heading 5"
+                // items sat 61pt right of where their style puts them).
+                var left: Double? = nil, first: Double? = nil
+                var numId: String? = nil, ilvl: Int? = nil
                 while let c = cur, !seen.contains(c), let node = paragraphStyles[c] {
                     seen.insert(c)
-                    if let numPr = node.first("w:pPr")?.first("w:numPr") {
-                        if let numId = numPr.first("w:numId")?["w:val"], numId != "0" {
-                            styleNums[id] = (numId, Int(numPr.first("w:ilvl")?["w:val"] ?? "0") ?? 0)
+                    if let ind = node.first("w:pPr")?.first("w:ind") {
+                        if left == nil, let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { left = v / 20 }
+                        if first == nil {
+                            if let v = Double(ind["w:hanging"] ?? "") { first = -v / 20 }
+                            else if let v = Double(ind["w:firstLine"] ?? "") { first = v / 20 }
                         }
-                        break
+                    }
+                    if let numPr = node.first("w:pPr")?.first("w:numPr") {
+                        if ilvl == nil, let v = Int(numPr.first("w:ilvl")?["w:val"] ?? "") { ilvl = v }
+                        if let v = numPr.first("w:numId")?["w:val"] { numId = v; break }
                     }
                     cur = node.first("w:basedOn")?["w:val"]
                 }
+                if let numId, numId != "0" { styleNums[id] = (numId, ilvl ?? linkedLevel[id] ?? 0, left, first) }
             }
             var resolved: [String: (paragraph: RichParagraphStyle, char: CharStyle)] = [:]
             func resolve(_ id: String, _ seen: Set<String> = []) -> (paragraph: RichParagraphStyle, char: CharStyle) {
@@ -409,6 +442,15 @@ enum DocxFormat {
             collect(root)
             for (name, data) in notes.kept where name.hasSuffix(".xml") {
                 if let n = XNode.parse(data) { collect(n) }
+            }
+            // And by every header and footer part the document relates to:
+            // a section break in the text keeps the ones it names only
+            // later, when its paragraph is read, and their styles were
+            // not written (footers of a "footer" style at 9pt came back
+            // at the body's size, a line lower).
+            for rel in relInfo.values where !rel.external && (rel.type.hasSuffix("/header") || rel.type.hasSuffix("/footer")) {
+                let path = _resolvePath("word", rel.target)
+                if notes.kept[path] == nil, let data = part(path), let n = XNode.parse(data) { collect(n) }
             }
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 guard let id = style["w:styleId"] else { continue }
@@ -781,7 +823,11 @@ enum DocxFormat {
                    let w = Double(ind["w:w"] ?? "") {
                     style.indent = w / 20
                 }
-                if node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] == "fixed" { style.fixedLayout = true }
+                if let own = node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] {
+                    if own == "fixed" { style.fixedLayout = true }
+                } else if node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].map({ fixedTableStyles.contains($0) }) ?? defaultTableFixed {
+                    style.fixedLayout = true
+                }
                 // A floating table's anchor (Bug54771b's title block sits at
                 // the right margin, a set distance down the page).
                 if let pos = node.first("w:tblPr")?.first("w:tblpPr") {
@@ -809,6 +855,10 @@ enum DocxFormat {
                 for (r, tr) in unwrapped(node, "w:tr").enumerated() {
                     if let h = tr.first("w:trPr")?.first("w:trHeight"), let v = Double(h["w:val"] ?? ""), v > 0 {
                         style.rowHeights[r] = v / 20
+                        // An exact height stays exact: a comparison table of
+                        // exact rows clips its cells, and at "at least" the
+                        // copy ran 12 pages to the original's 9.
+                        if h["w:hRule"] == "exact" { style.rowsExactHeight.insert(r) }
                     }
                     if let c = tr.first("w:trPr")?.first("w:cantSplit"), !_isOff(c) { style.rowsCantSplit.insert(r) }
                     // Its borders and its cell margins (the table's own
@@ -1117,17 +1167,41 @@ enum DocxFormat {
         return xml.replacingAll("<\(element)", with: "<\(element)\(extra)")
     }
 
+    /// `w:tabs` for a paragraph (or a style) whose stops are `stops`, over
+    /// the style under it: its own stops, and a "clear" for each of the
+    /// style's it does not have.
+    private static func _tabsXML(_ stops: [TabStop], under: [TabStop]) -> String {
+        var out = ""
+        for u in under where !stops.contains(where: { abs($0.position - u.position) < 0.026 }) {
+            out += "<w:tab w:val=\"clear\" w:pos=\"\(Int((u.position * 20).rounded()))\"/>"
+        }
+        for t in stops {
+            let val = t.rawKind ?? ["left", "center", "right", "decimal"][t.alignment.rawValue]
+            out += "<w:tab w:val=\"\(_esc(val))\"\(t.leader.map { " w:leader=\"\(_esc($0))\"" } ?? "") w:pos=\"\(Int((t.position * 20).rounded()))\"/>"
+        }
+        return out.isEmpty ? "" : "<w:tabs>\(out)</w:tabs>"
+    }
+
     private static func _eastAsianSwitchesXML(_ style: RichParagraphStyle) -> String {
         _eastAsianSwitches.compactMap { tag in style.eastAsian[tag].map { "<\(tag) w:val=\"\($0)\"/>" } }.joined()
     }
 
     private static func _paragraphProps(_ pPr: XNode, into style: inout RichParagraphStyle) {
-        switch pPr.first("w:jc")?["w:val"] {
-        case "center": style.alignment = .center
-        case "right", "end": style.alignment = .right
-        case "both", "distribute": style.alignment = .justify
-        case "left", "start": style.alignment = .left
-        default: break
+        // (A kind of justified the editor has one of — "distribute" spreads
+        // the last line too, the Thai and kashida ones stretch otherwise —
+        // is kept by name beside it.)
+        if let jc = pPr.first("w:jc")?["w:val"] {
+            style.eastAsian["w:jc"] = nil
+            switch jc {
+            case "center": style.alignment = .center
+            case "right", "end": style.alignment = .right
+            case "both": style.alignment = .justify
+            case "left", "start": style.alignment = .left
+            case "distribute", "thaiDistribute", "lowKashida", "mediumKashida", "highKashida":
+                style.alignment = .justify
+                style.eastAsian["w:jc"] = jc
+            default: break
+            }
         }
         if let ind = pPr.first("w:ind") {
             if let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { style.indentLeft = v / 20 }
@@ -1152,20 +1226,29 @@ enum DocxFormat {
         if let k = pPr.first("w:keepLines") { style.keepLines = !_isOff(k) }
         if let w = pPr.first("w:widowControl") { style.widowControl = !_isOff(w) }
         if let tabs = pPr.first("w:tabs") {
-            var stops: [TabStop] = []
+            // Tab stops ADD to the ones inherited (a style's, under a
+            // paragraph's): a stop at a position replaces the one there,
+            // and "clear" takes one away.
+            var stops = style.tabStops
             for t in tabs.all("w:tab") {
                 guard let pos = Double(t["w:pos"] ?? ""), pos >= 0 else { continue }
+                stops.removeAll { abs($0.position - pos / 20) < 0.026 }
                 let a: TabStop.Alignment
+                var raw: String? = nil
                 switch t["w:val"] ?? "left" {
                 case "center": a = .center
-                case "right": a = .right
+                case "right", "end": a = .right
                 case "decimal": a = .decimal
-                case "left", "start", "num": a = .left
-                default: continue   // clear, bar
+                case "left", "start": a = .left
+                case "num", "bar": a = .left; raw = t["w:val"]
+                default: continue   // clear
                 }
-                stops.append(TabStop(position: pos / 20, alignment: a))
+                var stop = TabStop(position: pos / 20, alignment: a)
+                stop.rawKind = raw
+                if let l = t["w:leader"], l != "none" { stop.leader = l }
+                stops.append(stop)
             }
-            if !stops.isEmpty { style.tabStops = stops }
+            style.tabStops = stops.sorted { $0.position < $1.position }
         }
         if let bdr = pPr.first("w:pBdr") {
             // Each edge: sz in eighths of a point, space in points, colour
@@ -1484,7 +1567,7 @@ enum DocxFormat {
     ]
 
     private static func _paragraphs(_ p: XNode, _ base: RichParagraphStyle,
-                                    _ styleIds: [String: String], _ styleNums: [String: (numId: String, ilvl: Int)],
+                                    _ styleIds: [String: String], _ styleNums: [String: (numId: String, ilvl: Int, left: Double?, first: Double?)],
                                     _ sheet: RichStyleSheet,
                                     _ nums: [String: [Int: ListKind]],
                                     _ rels: [String: String], _ media: (String) -> Data?,
@@ -1522,10 +1605,12 @@ enum DocxFormat {
             // The paragraph's own numbering, else its style's (a numbered
             // heading style: 65099's "1.1.1 Acronyms").
             var num: (numId: String, ilvl: Int)? = nil
+            var styleLeft: Double? = nil, styleFirst: Double? = nil
             if let numPr = pPr.first("w:numPr") {
                 num = (numPr.first("w:numId")?["w:val"] ?? "", Int(numPr.first("w:ilvl")?["w:val"] ?? "0") ?? 0)
             } else if let id = pPr.first("w:pStyle")?["w:val"], let n = styleNums[id] {
-                num = n
+                num = (n.numId, n.ilvl)
+                styleLeft = n.left; styleFirst = n.first
             }
             if let (numId, ilvl) = num {
                 if numId != "0" {
@@ -1536,6 +1621,8 @@ enum DocxFormat {
                     // the paragraph states a left of its own, which Word
                     // puts above the level's.
                     style.indentLeft = indent
+                    style.listIndentLeft = styleLeft
+                    style.listFirstLine = styleFirst
                     if let ind = pPr.first("w:ind"), let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") {
                         style.listIndentLeft = v / 20
                     }
@@ -2273,18 +2360,16 @@ enum DocxFormat {
             if p.style.list != nil {
                 pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
             }
+            // (A paragraph that has neither under a style that has one says
+            // so: its style writes its own now.)
+            let ownStyle = (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph
             if let b = p.style.borders { pPr += _bordersXML(b) }
+            else if ownStyle?.borders != nil { pPr += "<w:pBdr><w:top w:val=\"nil\"/><w:left w:val=\"nil\"/><w:bottom w:val=\"nil\"/><w:right w:val=\"nil\"/></w:pBdr>" }
+            if p.style.fill == nil, ownStyle?.fill != nil { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"auto\"/>" }
             if let fill = p.style.fill { pPr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
             if p.style.rightToLeft { pPr += "<w:bidi/>" }
             else if p.style.named.flatMap({ doc.styles[$0] })?.paragraph.rightToLeft ?? false { pPr += "<w:bidi w:val=\"0\"/>" }
-            if !p.style.tabStops.isEmpty {
-                pPr += "<w:tabs>"
-                for t in p.style.tabStops {
-                    let val = ["left", "center", "right", "decimal"][t.alignment.rawValue]
-                    pPr += "<w:tab w:val=\"\(val)\" w:pos=\"\(Int((t.position * 20).rounded()))\"/>"
-                }
-                pPr += "</w:tabs>"
-            }
+            pPr += _tabsXML(p.style.tabStops, under: ownStyle?.tabStops ?? [])
             // Spacing spelled out on every paragraph, so that Word and we
             // lay the file out alike whatever its defaults say.
             pPr += _eastAsianSwitchesXML(p.style)
@@ -2317,7 +2402,7 @@ enum DocxFormat {
                 if let a = sheetEntry?.paragraph.alignment, a != .left { pPr += "<w:jc w:val=\"left\"/>" }
             case .center: pPr += "<w:jc w:val=\"center\"/>"
             case .right: pPr += "<w:jc w:val=\"right\"/>"
-            case .justify: pPr += "<w:jc w:val=\"both\"/>"
+            case .justify: pPr += "<w:jc w:val=\"\(_esc(p.style.eastAsian["w:jc"] ?? "both"))\"/>"
             }
             if let v = p.style.eastAsian["w:textAlignment"] { pPr += "<w:textAlignment w:val=\"\(_esc(v))\"/>" }
             if let div = p.style.divId, doc.keptParts["word/webSettings.xml"] != nil { pPr += "<w:divId w:val=\"\(_esc(div))\"/>" }
@@ -2561,7 +2646,7 @@ enum DocxFormat {
             for r in 0 ..< rows {
                 var trPr = ""
                 if style.rowsCantSplit.contains(r) { trPr += "<w:cantSplit/>" }
-                if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"/>" }
+                if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"\(style.rowsExactHeight.contains(r) ? " w:hRule=\"exact\"" : "")/>" }
                 if style.headerRow && r < style.headerRowCount { trPr += "<w:tblHeader/>" }
                 xml += "<w:tr>" + (style.rowExceptions[r] ?? "") + (trPr.isEmpty ? "" : "<w:trPr>\(trPr)</w:trPr>")
                 // A row ends where its last cell does: Word allows a row
@@ -2934,31 +3019,32 @@ enum DocxFormat {
             if let next = entry.next { out += "<w:next w:val=\"\(_esc(next))\"/>" }
             out += "<w:qFormat/><w:pPr>"
             if entry.paragraph.heading != nil { out += "<w:keepNext/>" }
+            // A style's own rule (the line under a "header" style: the
+            // kept header part's paragraphs draw it by their style).
+            if let b = entry.paragraph.borders { out += _bordersXML(b) }
+            if let fill = entry.paragraph.fill { out += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
             if entry.paragraph.rightToLeft { out += "<w:bidi/>" }
             // The style's tab stops: a header style's centre and right
             // tabs place what the kept header part lays out with them
             // (issue_51265_3's header pictures, 4.2% -> 0.00).
-            if !entry.paragraph.tabStops.isEmpty {
-                out += "<w:tabs>"
-                for t in entry.paragraph.tabStops {
-                    let val = ["left", "center", "right", "decimal"][t.alignment.rawValue]
-                    out += "<w:tab w:val=\"\(val)\" w:pos=\"\(Int((t.position * 20).rounded()))\"/>"
-                }
-                out += "</w:tabs>"
-            }
-            out += _spacingXML(entry.paragraph)
+            out += _tabsXML(entry.paragraph.tabStops, under: normalParagraph.tabStops)
+            out += _eastAsianSwitchesXML(entry.paragraph)
+            out += _withEastAsian(_spacingXML(entry.paragraph), "w:spacing", _eastAsianSpacing, entry.paragraph)
             var ind = ""
             if entry.paragraph.indentLeft != 0 { ind += " w:left=\"\(Int(entry.paragraph.indentLeft * 20))\"" }
             if entry.paragraph.indentRight != 0 { ind += " w:right=\"\(Int(entry.paragraph.indentRight * 20))\"" }
             if entry.paragraph.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(entry.paragraph.firstLineIndent * 20))\"" }
             if entry.paragraph.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-entry.paragraph.firstLineIndent * 20))\"" }
-            if !ind.isEmpty { out += "<w:ind\(ind)/>" }
+            out += _withEastAsian(ind.isEmpty ? "" : "<w:ind\(ind)/>", "w:ind", _eastAsianIndents, entry.paragraph)
             switch entry.paragraph.alignment {
-            case .left: break
+            // (Said, where Normal is not left: a kept footer's paragraphs
+            // have only their style to tell them.)
+            case .left: if normalParagraph.alignment != .left { out += "<w:jc w:val=\"left\"/>" }
             case .center: out += "<w:jc w:val=\"center\"/>"
             case .right: out += "<w:jc w:val=\"right\"/>"
-            case .justify: out += "<w:jc w:val=\"both\"/>"
+            case .justify: out += "<w:jc w:val=\"\(_esc(entry.paragraph.eastAsian["w:jc"] ?? "both"))\"/>"
             }
+            if let v = entry.paragraph.eastAsian["w:textAlignment"] { out += "<w:textAlignment w:val=\"\(_esc(v))\"/>" }
             if let h = entry.paragraph.heading { out += "<w:outlineLvl w:val=\"\(h - 1)\"/>" }
             out += "</w:pPr><w:rPr>"
             out += _rFontsXML(entry.char, fileFonts: fileFonts)

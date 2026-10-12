@@ -221,6 +221,11 @@ public struct TabStop: Hashable, Sendable {
     public enum Alignment: Int, Hashable, Sendable { case left, center, right, decimal }
     public var position: Double
     public var alignment: Alignment
+    /// The fill before the tab ("dot" in a table of contents) and Word's
+    /// own kind where `alignment` only stands in for it ("num", "bar"):
+    /// not drawn here, written back.
+    public var leader: String? = nil
+    public var rawKind: String? = nil
     public init(position: Double, alignment: Alignment = .left) {
         self.position = position
         self.alignment = alignment
@@ -843,6 +848,9 @@ public struct TableStyle: Hashable, Sendable {
     /// the last one's 2.25pt box that row fitted a page Word breaks before.
     public var rowExceptions: [Int: String] = [:]
     public var rowHeights: [Int: Double] = [:]
+    /// Rows whose height is exact, not a minimum (Word's `w:hRule`
+    /// "exact": the row clips what does not fit), by index.
+    public var rowsExactHeight: Set<Int> = []
     /// Cell margins in points (Word's `w:tblCellMar`: 0 above and below,
     /// 5.4 at the sides by default); nil takes the layout's own padding.
     public var cellMarginTop: Double? = nil
