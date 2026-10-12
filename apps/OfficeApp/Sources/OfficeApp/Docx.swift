@@ -983,6 +983,7 @@ enum DocxFormat {
         if let sect = body.first("w:sectPr") {
             if let grid = sect.first("w:docGrid") { document.docGridXML = PptxXML.serialize(grid) }
             document.sectionTypeXML = sect.first("w:type").map { PptxXML.serialize($0) }
+            document.gutterTwips = sect.first("w:pgMar")?["w:gutter"].flatMap { Int($0) }.flatMap { $0 > 0 ? $0 : nil }
             let lead = ["w:lnNumType", "w:pgNumType"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
             let tail = ["w:vAlign", "w:textDirection", "w:bidi", "w:rtlGutter"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
             document.sectionLeadXML = lead.isEmpty ? nil : lead
@@ -991,6 +992,8 @@ enum DocxFormat {
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
+            let margins = ["w:mirrorMargins", "w:gutterAtTop"].compactMap { settings.first($0) }.map { PptxXML.serialize($0) }.joined()
+            document.marginSettingsXML = margins.isEmpty ? nil : margins
         }
         if let styles = part("word/styles.xml").flatMap(XNode.parse) {
             // The defaults' language, or Normal's over it.
@@ -2675,7 +2678,7 @@ enum DocxFormat {
         }
         if let type = doc.sectionTypeXML { body += type }
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
-        body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"0\"/>"
+        body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"\(doc.gutterTwips ?? 0)\"/>"
         if let pb = doc.pageBordersXML { body += pb }
         if let lead = doc.sectionLeadXML { body += lead }
         if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
@@ -2767,6 +2770,8 @@ enum DocxFormat {
             settings = settings.replacingAll("<w:characterSpacingControl w:val=\"doNotCompress\"/>", with: "<w:characterSpacingControl w:val=\"\(_esc(csc))\"/>")
         }
         if let lang = doc.themeFontLangXML { settings = settings.replacingAll("</w:settings>", with: lang + "</w:settings>") }
+        // (Schema order: both stand before the default tab stop.)
+        if let margins = doc.marginSettingsXML { settings = settings.replacingAll("<w:defaultTabStop", with: margins + "<w:defaultTabStop") }
         if let tab = doc.defaultTabStop {
             settings = settings.replacingAll("<w:defaultTabStop w:val=\"720\"/>", with: "<w:defaultTabStop w:val=\"\(Int((tab * 20).rounded()))\"/>")
         }

@@ -72,4 +72,14 @@ for n in 1...max(pages, 1) {
         try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: name))
     }
 }
-print(String(format: "summary pages=%d worst=%.2f%% mean=%.2f%%", pages, worst, pages > 0 ? total / Double(pages) : 0))
+// Page one's paper on each side. Word's print dialog keeps a paper for the
+// session and can change it under a pass (A4 as 595x842, then as
+// 595.28x841.89): a kept print of the original is then on other paper
+// than the fresh print of the copy, every pixel half a point off, and the
+// score is the paper's. The caller reprints the original on "paper=differs".
+var paper = ""
+if let pa = a.page(at: 1), let pb = b.page(at: 1) {
+    let x = pa.getBoxRect(.mediaBox).size, y = pb.getBoxRect(.mediaBox).size
+    if abs(x.width - y.width) > 0.01 || abs(x.height - y.height) > 0.01 { paper = " paper=differs" }
+}
+print(String(format: "summary pages=%d worst=%.2f%% mean=%.2f%%", pages, worst, pages > 0 ? total / Double(pages) : 0) + paper)

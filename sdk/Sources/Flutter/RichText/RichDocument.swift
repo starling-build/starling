@@ -1536,6 +1536,11 @@ public struct RichDocument: Hashable, Sendable {
     /// The last section's `w:type` (how it starts: "continuous" after
     /// the section before it, or on a new page).
     public var sectionTypeXML: String? = nil
+    /// The last section's binding gutter in twips (`w:pgMar w:gutter`)
+    /// and the settings' `w:mirrorMargins`/`w:gutterAtTop`: the page the
+    /// editor shows has neither, the saved file keeps both.
+    public var gutterTwips: Int? = nil
+    public var marginSettingsXML: String? = nil
     public var sectionTailXML: String? = nil
     /// The document's languages: the defaults' `w:lang` and the
     /// settings' `w:themeFontLang`. Word chooses the East Asian face and

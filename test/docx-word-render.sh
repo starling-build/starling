@@ -61,5 +61,13 @@ for n in "${names[@]}"; do
     printf '%s\tERROR\t%s / %s\n' "$n" "$r1" "$r2" | tee -a "$WORK/render.tsv"; continue
   fi
   s=$("$DIFF" "$WORK/pdf/$base-orig.pdf" "$WORK/pdf/$base-ours.pdf" "$WORK/pairs" 1 | tail -1)
+  # The two prints on different paper: a kept original from before Word's
+  # print dialog changed its paper (see pdf-diff.swift). Print it again,
+  # once, and score against that.
+  case "$s" in *"paper=differs"*)
+    rm -f "$WORK/pairs/pair-"*"-$base-ours-p"*.png
+    r1=$(osascript "$HERE/docx-word-pdf.applescript" "$IN/$n" "$o" 2>&1)
+    [ "$r1" = pdf ] && s=$("$DIFF" "$WORK/pdf/$base-orig.pdf" "$WORK/pdf/$base-ours.pdf" "$WORK/pairs" 1 | tail -1) ;;
+  esac
   printf '%s\t%s\n' "$n" "$s" | tee -a "$WORK/render.tsv"
 done
