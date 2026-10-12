@@ -662,7 +662,9 @@ enum DocxFormat {
                 if cellBorders != nil, node.first("w:tblPr")?.first("w:tblBorders") == nil, styledBorders == nil {
                     style.bordersFromCells = true
                 }
-                style.borderColor = borders?.color
+                // (The table's own colour when its cells decided the switch
+                // and named none: bug57031's grey frames came back black.)
+                style.borderColor = borders?.color ?? _borders(node.first("w:tblPr"), "w:tblBorders")?.color
                 style.borderWidth = borders?.width.flatMap { $0 == 0.5 ? nil : $0 }   // nil is Word's 0.5pt
                 // The line style: the cells' when they decided, else the
                 // table's own (a table ruled by its cells' nil sides still
