@@ -77,6 +77,99 @@ enum OfficeFonts {
         }
     }
 
+    /// Whether a family name is an East Asian face: written in its own
+    /// script (宋体, 標楷體, ＭＳ 明朝), or one of the Latin names those
+    /// faces also go by.
+    static func isEastAsianFace(_ family: String) -> Bool {
+        if family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return true }
+        let n = family.trimmingWhitespace().lowercased()
+        for key in ["simsun", "simhei", "kaiti", "fangsong", "yahei", "dengxian", "mingliu", "dfkai", "jhenghei",
+                    "stsong", "stkaiti", "stfangsong", "stzhongsong", "stxihei", "stheiti", "songti", "heiti",
+                    "pingfang", "hiragino", "mincho", "ms gothic", "yu gothic", "meiryo", "malgun", "batang", "gulim", "dotum",
+                    "cjk", "source han", "wenquanyi", "arial unicode", "fzs", "fzf", "fzk", "fzh", "fzx"] where n.containsSubstring(key) {
+            return true
+        }
+        return false
+    }
+
+    /// How Word sets an East Asian face, measured from Word 16's prints
+    /// (2026-10-12): its line height as a multiple of the size — Word
+    /// sets these faces at 1.3 times their ascent and descent, which is
+    /// 1.3 for the square ones (宋体, 黑体, 楷体, 仿宋, 細明體) and more
+    /// for the tall ones — and what its Latin letters and digits are
+    /// like: half an em each in the square faces, proportional in the
+    /// rest, given here as the shipped face nearest in shape and the
+    /// scale that brings its widths to the original's.
+    private struct EastAsianFace {
+        var height: Double
+        var latin: String
+        var latinScale: Double
+        /// Word emboldens a face that has no bold of its own, and sets
+        /// each character 1/57 em wider.
+        var fakeBold: Bool
+    }
+
+    private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 5.0 / 6.0, fakeBold: true)
+    private static let yaHei = EastAsianFace(height: 1.72, latin: sans, latinScale: 1.07, fakeBold: false)
+
+    private static func eastAsianFace(_ family: String) -> EastAsianFace {
+        let n = family.trimmingWhitespace().lowercased()
+        func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
+        if has("yahei ui") { return EastAsianFace(height: 1.67, latin: sans, latinScale: 1.07, fakeBold: false) }
+        if has("yahei", "微软雅黑") { return yaHei }
+        if has("jhenghei", "微軟正黑") { return EastAsianFace(height: 1.74, latin: sans, latinScale: 1.05, fakeBold: false) }
+        if has("dengxian", "等线") { return EastAsianFace(height: 1.36, latin: sans, latinScale: 0.955, fakeBold: false) }
+        if has("pmingliu", "新細明體") { return EastAsianFace(height: 1.3, latin: serif, latinScale: 0.94, fakeBold: true) }
+        if has("stzhongsong", "华文中宋") { return EastAsianFace(height: 1.74, latin: serif, latinScale: 1.16, fakeBold: true) }
+        if has("stfangsong", "华文仿宋") { return EastAsianFace(height: 1.71, latin: serif, latinScale: 1.0, fakeBold: false) }
+        if has("stkaiti", "华文楷体") { return EastAsianFace(height: 1.7, latin: serif, latinScale: 1.04, fakeBold: true) }
+        if has("stsong", "华文宋体") { return EastAsianFace(height: 1.31, latin: serif, latinScale: 1.0, fakeBold: true) }
+        if has("arial unicode") { return EastAsianFace(height: 1.75, latin: sans, latinScale: 1.0, fakeBold: true) }
+        // Word on a Mac has 宋体, 黑体, 楷体, 仿宋 and the 明體 pair, and
+        // sets every other Chinese name — 仿宋_GB2312, the 方正 faces,
+        // 標楷體 — in Microsoft YaHei, which is taller and wider than
+        // any of them. `OFFICE_WORD_FONTS=mac` does the same, so that a
+        // print can be compared with that Word's; without it such a
+        // name is taken for the square face its author had.
+        if wordOnMac, !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
+                           "幼圆", "全真楷書") || has("仿宋_gb2312", "方正", "小标宋", "標楷") {
+            return yaHei
+        }
+        return square
+    }
+
+    private static let wordOnMac = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "mac"
+
+    /// The theme's `faceResolver`: the shipped face for a name, and for
+    /// an East Asian face Word's measure of it — see `EastAsianFace`.
+    /// East Asian text in a Latin face is set in the face Word falls
+    /// back to, 宋体. The ideographs themselves are drawn by whatever
+    /// the platform falls back to; they are an em wide in every face.
+    static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
+        guard let family else { return nil }
+        let own = isEastAsianFace(family)
+        guard own || eastAsian else { return nil }
+        let ea = own ? eastAsianFace(family) : square
+        if eastAsian {
+            return RichResolvedFace(family: substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? 1.0 / 57 : 0)
+        }
+        return RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
+                                boldSpread: ea.fakeBold ? 1.0 / 57 : 0)
+    }
+
+    /// The theme's `averageCharWidth`: the OS/2 average character width
+    /// of the face Word sets a Latin name in, in ems.
+    static func averageCharWidth(_ family: String?) -> Double {
+        guard let family, !isEastAsianFace(family) else { return 0.5 }
+        switch substitute(family) {
+        case serif: return 0.401
+        case mono: return 0.6
+        case calibri: return 0.52
+        case cambria: return 0.55
+        default: return 0.441
+        }
+    }
+
     /// Families the font menu offers. On macOS CoreText resolves any
     /// installed family by name, so a few system faces join the list.
     /// The names Word users know, which the document keeps; each draws

@@ -4423,6 +4423,10 @@ public class NativeParagraphBuilder: ParagraphBuilder {
         bitmask |= UInt8(leadingDistribution.rawValue << 3)
         strutData[0] = bitmask
       }
+      // The paragraph style's own bit for "there is a strut": without
+      // it the native side never looks at the strut's bytes, and every
+      // strut was silently dropped.
+      if !strutData.isEmpty { encodedStyle[0] |= (1 << 10) }
     }
 
     // Create the C++ bridge with extracted parameters

@@ -89,6 +89,9 @@ final class OfficeSession {
         // The document keeps Word's font names; this picks the shipped
         // clone each is drawn with (OfficeFonts, Resources/fonts/README.md).
         theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
         return theme
     }()
 

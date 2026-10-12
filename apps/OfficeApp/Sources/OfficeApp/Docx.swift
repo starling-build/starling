@@ -1064,7 +1064,12 @@ enum DocxFormat {
         document.defaultTabStop = defaultTabStop
         if let pb = body.first("w:sectPr")?.first("w:pgBorders") { document.pageBordersXML = PptxXML.serialize(pb) }
         if let sect = body.first("w:sectPr") {
-            if let grid = sect.first("w:docGrid") { document.docGridXML = PptxXML.serialize(grid) }
+            if let grid = sect.first("w:docGrid") {
+                document.docGridXML = PptxXML.serialize(grid)
+                if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
+                    document.lineGridPitch = pitch / 20
+                }
+            }
             document.sectionTypeXML = sect.first("w:type").map { PptxXML.serialize($0) }
             if let cols = sect.first("w:cols") {
                 document.columnsXML = PptxXML.serialize(cols)
@@ -1076,9 +1081,14 @@ enum DocxFormat {
             document.sectionLeadXML = lead.isEmpty ? nil : lead
             document.sectionTailXML = tail.isEmpty ? nil : tail
         }
+        // (A file with no settings at all, or no styles, is set by the
+        // East Asian rules: Word reads it as one of its older documents.)
+        if part("word/settings.xml") == nil { document.usesEastAsianLayout = true }
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
+            document.usesEastAsianLayout = settings.first("w:compat")?.first("w:useFELayout").map { !_isOff($0) }
+                ?? (part("word/styles.xml") == nil)
             let margins = ["w:mirrorMargins", "w:gutterAtTop"].compactMap { settings.first($0) }.map { PptxXML.serialize($0) }.joined()
             document.marginSettingsXML = margins.isEmpty ? nil : margins
             for name in _keptSettingNames.flatMap({ $0 }) {

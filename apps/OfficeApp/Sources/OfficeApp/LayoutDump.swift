@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import Foundation
 
 /// The document's lines and pages as text, laid out the way the window
 /// lays it out (100%, the session's theme and font substitution). The
@@ -12,10 +13,15 @@ enum OfficeLayoutDump {
     static func text(_ document: RichDocument, pageSetup: PageSetup) -> String {
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
         let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
-        layout.scale = 1.0
+        // (LAYOUT_SCALE=15 dumps the layout a PDF is written from.)
+        let zoom = Double(ProcessInfo.processInfo.environment["LAYOUT_SCALE"] ?? "") ?? 1.0
+        layout.scale = zoom
         layout.pageSetup = pageSetup
-        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint
+        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * zoom
         return layout.lineDump(document)
     }
 }

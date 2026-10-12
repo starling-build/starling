@@ -411,6 +411,9 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
         if dst.pathExtension.lowercased() == "pdf" {
             let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
             theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
             guard PdfExport.write(opened.document, pageSetup: opened.pageSetup ?? .letter, theme: theme,
                                   to: dst, title: src.lastPathComponent) else {
                 FileHandle.standardError.write("convert failed: could not write PDF\n".data(using: .utf8)!)

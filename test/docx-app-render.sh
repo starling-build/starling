@@ -66,7 +66,7 @@ for n in "${names[@]}"; do
   n=$(basename "$n"); base=${n%.docx}
   [ -f "$WD/$base-orig.pdf" ] || continue
   awk -F'\t' -v n="$n" '$1 == n { f = 1 } END { exit !f }' "$WORK/render.tsv" && continue
-  if ! out=$("$APP" --convert "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
+  if ! out=$(OFFICE_WORD_FONTS=mac "$APP" --convert "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
     printf '%s\tERROR\t%s\n' "$n" "$(echo "$out" | tail -1 | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue
   fi
   s=$("${DIFF[@]}" "$WD/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)

@@ -1569,6 +1569,12 @@ public struct RichDocument: Hashable, Sendable {
     /// and its character pitch. Without it Word sets every line of the
     /// copy at its natural height and the pages run short.
     public var docGridXML: String? = nil
+    /// That grid's line pitch in points, when lines snap to it (the
+    /// grid's type is `lines` or `linesAndChars`): each line of a
+    /// paragraph that does not opt out (`w:snapToGrid` off) is then a
+    /// whole number of pitches tall. nil lays lines out at their own
+    /// height.
+    public var lineGridPitch: Double? = nil
     /// More of the last section kept as written, in schema order: what
     /// stands before the columns (`w:lnNumType`, `w:pgNumType`) and
     /// after them (`w:vAlign`, `w:textDirection`, `w:bidi`,
@@ -1603,6 +1609,13 @@ public struct RichDocument: Hashable, Sendable {
     /// states one ("compressPunctuation" in Chinese documents: Word then
     /// squeezes adjacent full-width punctuation, and lines break later).
     public var characterSpacingControl: String? = nil
+    /// Whether lines are set by Word's East Asian rules (the settings'
+    /// `w:useFELayout`, which every Chinese, Japanese or Korean Word
+    /// writes): a closing mark may hang past the margin rather than
+    /// start a line, a line gives up to half an em off its punctuation
+    /// where `characterSpacingControl` compresses it, and two marks that
+    /// stand together close up where the text kerns.
+    public var usesEastAsianLayout = false
     /// The document background (`w:background`, with its VML fill), kept
     /// as written with the parts it names. Word lays a document with one
     /// out differently — bib-chernigovka's title page sits 18pt lower and

@@ -7,7 +7,7 @@ them the PDF that Microsoft Word itself prints. The counterpart of
     docs/           the documents, as downloaded
     SHA256SUMS      of docs/, to tell a changed document from a changed painter
     word/           NAME-orig.pdf — Word's print of docs/NAME.docx
-    baseline.tsv    each document's score at the first painter sweep (2026-10-12, a Mac)
+    baseline.tsv    each document's score at the last recorded painter sweep (2, 2026-10-12, a Mac)
     matched.txt, others.txt   the two groups of that baseline
     roundtrip.tsv   the round-trip gate's score for each document (2026-10-12)
     zh-manifest.tsv where each `zh-*` document was downloaded from
@@ -29,21 +29,40 @@ it. `baseline.tsv`, swept by `test/docx-app-render.sh`:
 It needs a release build (`OFFICE_APP` names another binary) and takes
 about two minutes; `OfficeApp --convert NAME.docx NAME.pdf` is this
 app's side. `WORK/render.tsv` gets a row per document and `WORK/pairs/`
-a side-by-side PNG of every page that differs. Sweep 1, 2026-10-12, by
+a side-by-side PNG of every page that differs. Sweep 2, 2026-10-12, by
 `test/pdf-diff.swift` (CoreGraphics; a sweep by MuPDF off a Mac would be
 `baseline-mupdf.tsv` and its own numbers, as in the .pptx corpus):
 
 | | documents | pages | mean | median | ≤ 2% | 2–20% | > 20% | exact |
 |---|---|---|---|---|---|---|---|---|
-| all | 179 | 1,712 | 12.6% | 7.0% | 72 | 58 | 49 | 3 |
-| POI | 111 | 437 | 4.7% | 0.9% | 72 | 32 | 7 | 3 |
-| `zh-*` | 68 | 1,275 | 25.6% | 22.8% | 0 | 26 | 42 | 0 |
+| all | 179 | 1,757 | 10.6% | 6.0% | 75 | 70 | 34 | 3 |
+| POI | 111 | 435 | 4.3% | 0.9% | 75 | 30 | 6 | 3 |
+| `zh-*` | 68 | 1,322 | 20.9% | 18.6% | 0 | 40 | 28 | 0 |
 
-Fifty documents have at least one page that is 100% — a page Word has
-and this app does not, or the other way — and 43 of them are Chinese:
-this app makes 1,275 pages of the 68 where Word makes 1,239. One line
-broken elsewhere moves everything after it, so where the lines and pages
-break is the first thing to look at there, ahead of anything drawn.
+(Sweep 1, the same day and before any of the work it started: 12.6%
+over all, POI 4.7%, `zh-*` 25.6%.)
+
+A page diff says little about a document that is one line late from its
+second page on, so there is a second reading of the same sweep:
+
+    test/docx-line-match.py WORK             # the share of Word's lines set in the same place
+    test/docx-line-match.py WORK zh-3550     # where one document first parts from Word
+
+At sweep 2 a POI document has half of Word's lines where Word has them
+(mean 50%, 38 of 111 at 95% or more) and a Chinese one a sixth (16%,
+none at 95%); at sweep 1 it was 42% and 5%. A document's score falls at
+the first paragraph that breaks differently, and that paragraph is what
+the second form prints.
+
+**The Chinese documents are compared with Word on a Mac, which has few
+Chinese fonts.** That Word has 宋体, 黑体, 楷体, 仿宋 and the 明體 pair,
+and sets every other name — 仿宋_GB2312, the 方正 faces, 標楷體, which
+is most of what government documents are written in — in Microsoft
+YaHei, a taller and wider face than any of them. The sweep sets
+`OFFICE_WORD_FONTS=mac`, which makes this app measure those names as
+that Word does (`OfficeFonts.swift`); without it they are measured as
+the square faces their authors had, which is what a reader of the
+document should see and is not what these PDFs show.
 
 **The round trip** — Word printing the original and Word printing the
 copy this app saves, where the expected score is 0.00 and every

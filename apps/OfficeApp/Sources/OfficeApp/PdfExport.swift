@@ -13,9 +13,14 @@ enum PdfExport {
     static func write(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme,
                       to path: String, title: String) -> Bool {
         let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
-        layout.scale = 1.0
+        // Laid out fifteen times finer than the screen's pixel — twenty
+        // steps to the point, Word's own twip: the engine rounds every
+        // line's height to a whole pixel, which at 96 to the inch is
+        // three quarters of a point a line and a line or two a page.
+        let zoom = Double(ProcessInfo.processInfo.environment["OFFICE_PDF_SCALE"] ?? "") ?? 15.0
+        layout.scale = zoom
         layout.pageSetup = pageSetup
-        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint
+        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * zoom
         layout.ensureLaidOut(document)
 
         var pages: [PdfDocument.Page] = []
@@ -24,7 +29,7 @@ enum PdfExport {
             let recorder = NativePictureRecorder()
             let canvas = NativeCanvas(recorder: recorder,
                                       cullRect: Rect.fromLTWH(0, 0, pageSetup.width, pageSetup.height))
-            canvas.scale(1 / theme.pixelsPerPoint, 1 / theme.pixelsPerPoint)
+            canvas.scale(1 / (theme.pixelsPerPoint * zoom), 1 / (theme.pixelsPerPoint * zoom))
             canvas.translate(0, -rect.top)
             layout.paint(canvas, visible: rect, document: document, selection: nil, caret: nil,
                          pageBackground: nil)
