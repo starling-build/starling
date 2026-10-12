@@ -407,6 +407,9 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   host.timezone_offset = seconds => new Date(seconds * 1000).getTimezoneOffset() * 60;
 
   let fontLoader;
+  // Families still downloading: a script that exports or measures waits
+  // for 0, since a line is laid out again when its face arrives.
+  let fontsPending = 0;
   host.request_font = (pointer, length) => {
     const family = utf8.decode(appBytes().subarray(pointer, pointer + length));
     fontLoader.request(family);
@@ -474,7 +477,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   fontLoader = createFontLoader(manifest, {
     register: registerFont,
     changed: () => swift.starling_fonts_changed(),
-    status: onFontStatus,
+    status: state => { fontsPending = state.pending.length; onFontStatus?.(state); },
   });
 
   const transfer = (bytes, callback) => {
@@ -612,5 +615,5 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     return text;
   };
 
-  return { skwasm, swift, debug, loadFonts: families => Promise.all(families.map(fontLoader.load)), retryFonts: fontLoader.retry };
+  return { skwasm, swift, debug, fontsPending: () => fontsPending, loadFonts: families => Promise.all(families.map(fontLoader.load)), retryFonts: fontLoader.retry };
 }

@@ -13,6 +13,7 @@
 # skipped, so a sweep resumes. OFFICE_APP picks the binary.
 #   test/pptx-app-render.sh                  # the corpus in the repo, into ~/starling-ppt-check/app
 #   test/pptx-app-render.sh WORK             # … into WORK
+#   OFFICE_WEB=1 test/pptx-app-render.sh WORK   # … drawn by the browser build
 #   test/pptx-app-render.sh test/corpus/pptx/decks test/corpus/pptx/powerpoint WORK [names…]
 # The decks and PowerPoint's PDFs of them are checked in under
 # test/corpus/pptx (its README says where they come from and how the PDFs
@@ -62,11 +63,34 @@ if [ ${#names[@]} -eq 0 ] && [ -n "$CORPUS_GROUP" ]; then
 fi
 [ ${#names[@]} -gt 0 ] || names=($(cd "$IN" && ls *.pptx | grep -v '^~\$'))
 touch "$WORK/render.tsv"
+# OFFICE_WEB=1 sweeps the BROWSER build instead: every deck opened in
+# headless Chrome and exported there (build/tools/web-drive.mjs pdfs — one
+# page for the whole sweep), then scored as the native PDFs are, so the
+# rows compare with the same baseline. Needs the web build staged with the
+# skwasm that writes PDFs (docs/BUILDING.md §1.7), Chrome (CHROME) and node.
+if [ -n "$OFFICE_WEB" ]; then
+  STAGE="$ROOT/.stage-web-OfficeApp"
+  [ -s "$STAGE/app.wasm" ] || { echo "no web build staged: build/web-app.sh OfficeApp --package apps/OfficeApp" >&2; exit 2; }
+  : > "$WORK/web-list.txt"
+  for n in "${names[@]}"; do
+    n=$(basename "$n")
+    [ -f "$PPT/${n%.pptx}-orig.pdf" ] && ! grep -q "^$n	" "$WORK/render.tsv" && echo "$IN/$n" >> "$WORK/web-list.txt"
+  done
+  python3 "$ROOT/build/tools/web-serve.py" "$STAGE" "${WEB_PORT:-8143}" >/dev/null 2>&1 & SERVER=$!
+  trap 'kill $SERVER 2>/dev/null' EXIT
+  sleep 1
+  URL="http://127.0.0.1:${WEB_PORT:-8143}/" PORT="${DEVTOOLS:-9343}" CHROME_PROFILE="$WORK/chrome-profile" \
+    node "$ROOT/build/tools/web-drive.mjs" pdfs "$WORK/web-list.txt" "$WORK/pdf" > "$WORK/web-drive.log" 2>&1
+  kill $SERVER 2>/dev/null
+fi
 for n in "${names[@]}"; do
   n=$(basename "$n"); base=${n%.pptx}
   [ -f "$PPT/$base-orig.pdf" ] || continue
   grep -q "^$n	" "$WORK/render.tsv" && continue
-  if ! out=$("$APP" --deck-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
+  if [ -n "$OFFICE_WEB" ]; then
+    [ -s "$WORK/pdf/$base.pdf" ] || {
+      printf '%s\tERROR\t%s\n' "$n" "$(grep "^$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue; }
+  elif ! out=$("$APP" --deck-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
     printf '%s\tERROR\t%s\n' "$n" "$(echo "$out" | tail -1 | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue
   fi
   s=$("${DIFF[@]}" "$PPT/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)

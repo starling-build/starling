@@ -86,9 +86,13 @@ final class SheetsShellState: State<StatefulWidget> {
         // `OfficeApp --sheet-layout` natively (test/sheets-layout.sh).
         hostDebugQuery = { [weak self] kind in
             // `starling.debug('pdf')`: File → Export → PDF without the clicks —
-            // the download is what a script then compares.
+            // the download is what a script then compares. 'name' and
+            // 'status' are how that script knows where it is: the open
+            // document's name, and the status bar's message.
             #if os(WASI)
             if kind == "pdf" { self?._export("pdf"); return "exporting" }
+            if kind == "name" { return self?.session.title }
+            if kind == "status" { return self?._status ?? "" }
             #endif
             guard let self, kind == "sheet" else { return nil }
             _ = self._grid?.commitEdit()

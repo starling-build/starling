@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import XCTest
+#if canImport(FoundationXML)
+import FoundationXML   // XMLParser, off Darwin
+#endif
 import Flutter
 import FlutterSwiftBridge
 @testable import OfficeApp

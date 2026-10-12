@@ -187,6 +187,18 @@ final class SlideTextCache {
         }
     }
 
+    /// Another deck is being loaded: nothing kept here is about it. The
+    /// entries are keyed by object identity, and a new deck's text bodies
+    /// are allocated where the old one's were freed — so without this a
+    /// body can find the previous deck's layout under its own address
+    /// (same revision 0, same width) and be drawn with those line breaks.
+    func reset() {
+        _entries.removeAll()
+        _metafiles.removeAll()
+        _images.removeAll()
+        _decoding.removeAll()
+    }
+
     func forget(_ shapes: [SlideShape]) {
         for s in shapes { if let t = s.text { _entries[ObjectIdentifier(t)] = nil } }
     }

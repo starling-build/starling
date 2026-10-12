@@ -93,6 +93,22 @@ been generated since PDF export went in: an out directory whose `args.gn`
 still says `skia_enable_pdf = false` writes an empty file, and every deck
 reports `could not write`. Set it to `true`, `gn gen`, rebuild.
 
+## Sweeping the browser build
+
+    OFFICE_WEB=1 test/pptx-app-render.sh WORK
+
+draws every deck with the BROWSER build — opened in headless Chrome and
+exported there (`build/tools/web-drive.mjs pdfs`, one page for the whole
+sweep, about three seconds a deck) — and scores the PDFs exactly as the
+native ones, so the rows compare with `baseline-mupdf.tsv`. It needs the
+web build staged with the skwasm that writes PDFs (`docs/BUILDING.md`
+§1.7). 2026-10-11, on Linux: all 553 decks drawn, mean 2.70% as native,
+551 within 0.15 of the baseline. Because the page is not reloaded between
+decks, this sweep is also the only one that opens a deck AFTER another —
+which is how it found text refitted against the previous deck's frames.
+Word's counterpart is `test/docx-web-render.sh`, which has no Word PDFs to
+score against and compares the browser's export with the native one.
+
 ## PowerPoint's side
 
 `powerpoint/` was exported on 2026-10-08 by PowerPoint for Mac 16.113 on

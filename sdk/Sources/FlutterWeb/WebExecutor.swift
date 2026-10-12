@@ -25,8 +25,49 @@ final class WebExecutor: SerialExecutor, @unchecked Sendable {
     func enqueue(_ job: UnownedJob) {
         WebTimers.schedule(afterMilliseconds: 0) {
             job.runSynchronously(on: self.asUnownedSerialExecutor())
+            WebExecutor.drainRuntimeQueue()
         }
     }
+
+    #if compiler(>=6.4) || (swift(>=6.3) && arch(wasm32))
+    static func drainRuntimeQueue() {}
+    #else
+    private nonisolated(unsafe) static var draining = false
+    private nonisolated(unsafe) static var drainScheduled = false
+
+    /// The 6.2 runtime keeps one queue this executor cannot stand in for:
+    /// `Task.sleep` parks its job on the DEFAULT executor's timer queue —
+    /// the runtime's cooperative one, since the protocol that would let
+    /// this class take it (`SchedulableExecutor`) is internal there — and
+    /// only a thread donated to that executor runs it. So after every job
+    /// the thread is donated for one pass: due sleepers and ready jobs
+    /// run, and the pass returns instead of sleeping until the next
+    /// deadline (the page answers poll_oneoff with ENOSYS at once, and the
+    /// condition, asked again, says stop). A second ask means sleepers are
+    /// still waiting, and the next pass is a timer away. Without this a
+    /// task that sleeps never wakes: Slides' PDF export waited for ever on
+    /// a picture the browser could not decode.
+    static func drainRuntimeQueue() {
+        guard !draining else { return }
+        draining = true
+        var asked = 0
+        withUnsafeMutablePointer(to: &asked) { count in
+            swift_task_donateThreadToGlobalExecutorUntil({ context in
+                let count = context.assumingMemoryBound(to: Int.self)
+                count.pointee += 1
+                return count.pointee > 1
+            }, count)
+        }
+        draining = false
+        if asked > 1 && !drainScheduled {
+            drainScheduled = true
+            WebTimers.schedule(afterMilliseconds: 8) {
+                drainScheduled = false
+                drainRuntimeQueue()
+            }
+        }
+    }
+    #endif
 
     func asUnownedSerialExecutor() -> UnownedSerialExecutor {
         UnownedSerialExecutor(ordinary: self)
@@ -90,6 +131,7 @@ private func enqueueGlobalWithDelay(
 ) {
     WebTimers.schedule(afterMilliseconds: Double(nanoseconds) / 1_000_000) {
         job.runSynchronously(on: WebExecutor.shared.asUnownedSerialExecutor())
+        WebExecutor.drainRuntimeQueue()
     }
 }
 
@@ -109,6 +151,7 @@ private func enqueueGlobalWithDeadline(
     let nowMs = starling_host_now()
     WebTimers.schedule(afterMilliseconds: max(0, deadlineMs - nowMs)) {
         job.runSynchronously(on: WebExecutor.shared.asUnownedSerialExecutor())
+        WebExecutor.drainRuntimeQueue()
     }
 }
 
@@ -133,6 +176,13 @@ private var swift_task_enqueueGlobalWithDeadline_hook: UnsafeMutableRawPointer?
 private var swift_task_enqueueMainExecutor_hook: UnsafeMutableRawPointer?
 @_silgen_name("swift_task_getMainExecutor_hook")
 private var swift_task_getMainExecutor_hook: UnsafeMutableRawPointer?
+
+#if !(compiler(>=6.4) || (swift(>=6.3) && arch(wasm32)))
+@_silgen_name("swift_task_donateThreadToGlobalExecutorUntil")
+private func swift_task_donateThreadToGlobalExecutorUntil(
+    _ condition: @convention(c) (UnsafeMutableRawPointer) -> CBool,
+    _ context: UnsafeMutableRawPointer)
+#endif
 
 #if compiler(>=6.4) || (swift(>=6.3) && arch(wasm32))
 // New runtimes obtain the main/global executors from a factory instead of

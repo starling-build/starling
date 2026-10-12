@@ -82,9 +82,13 @@ final class OfficeShellState: State<StatefulWidget> {
         // `OfficeApp --layout` natively.
         hostDebugQuery = { [weak self] kind in
             // `starling.debug('pdf')`: File → Export → PDF without the clicks —
-            // the download is what a script then compares.
+            // the download is what a script then compares. 'name' and
+            // 'status' are how that script knows where it is: the open
+            // document's name, and the status bar's message.
             #if os(WASI)
             if kind == "pdf" { self?._export("pdf"); return "exporting" }
+            if kind == "name" { return self?.session.title }
+            if kind == "status" { return self?._status ?? "" }
             #endif
             guard let self, kind == "layout" else { return nil }
             return OfficeLayoutDump.text(self.controller.document, pageSetup: self.session.pageSetup)
@@ -401,7 +405,9 @@ final class OfficeShellState: State<StatefulWidget> {
             _savedRevision = recovery == nil ? controller.revision : controller.revision - 1
             _remember(path)
             setState {
-                if let setup = opened.pageSetup { session.pageSetup = setup }
+                // A document that declares no page is on the default one — not on
+                // the page of whatever was open before it.
+                session.pageSetup = opened.pageSetup ?? .letter
                 session.dirty = recovery != nil
                 session.summary = session.summarize()
                 _backstage = nil
@@ -439,7 +445,9 @@ final class OfficeShellState: State<StatefulWidget> {
         _savedRevision = controller.revision
         _remember(path)
         setState {
-            if let setup = opened.pageSetup { session.pageSetup = setup }
+            // A document that declares no page is on the default one — not on
+            // the page of whatever was open before it.
+            session.pageSetup = opened.pageSetup ?? .letter
             session.dirty = false
             session.summary = session.summarize()
             _backstage = nil

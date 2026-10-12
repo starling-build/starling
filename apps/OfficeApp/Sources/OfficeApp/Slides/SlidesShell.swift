@@ -175,9 +175,13 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onExport = { [weak self] ext in self?._export(ext) }
         hostDebugQuery = { [weak self] kind in
             // `starling.debug('pdf')`: File → Export → PDF without the clicks —
-            // the download is what a script then compares.
+            // the download is what a script then compares. 'name' and
+            // 'status' are how that script knows where it is: the open
+            // document's name, and the status bar's message.
             #if os(WASI)
             if kind == "pdf" { self?._export("pdf"); return "exporting" }
+            if kind == "name" { return self?.session.title }
+            if kind == "status" { return self?._status ?? "" }
             #endif
             return nil
         }
@@ -610,6 +614,11 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _load(_ read: (DeckState, DeckTheme, PptxPackage), as path: String, recovered: Bool) throws {
         let (state, theme, package) = read
         _endEditing()
+        // What was measured of the last deck says nothing of this one: shape
+        // ids repeat from deck to deck, and a shape found "changed" against
+        // the last deck's frame was refitted by us, over the file's scale.
+        _cache.reset()
+        _fitSeen.removeAll()
         deck.load(state, theme: theme, package: package)
         session.path = path
         _recovered = recovered

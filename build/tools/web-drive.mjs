@@ -16,6 +16,13 @@
 //   dump KIND FILE       write starling.debug(KIND) to FILE (Office:
 //                        'layout' — the same text `OfficeApp --layout`
 //                        prints natively)
+//   pdfs LIST OUTDIR     Office: every file named in LIST (one absolute
+//                        path a line) opened and exported to PDF —
+//                        OUTDIR/NAME.pdf, and a line per file in
+//                        OUTDIR/web.tsv (ok, OPEN-FAIL, EXPORT-FAIL with
+//                        the status bar's words). One page for all of
+//                        them, reloaded after a failure; a file whose PDF
+//                        is already there is skipped, so a sweep resumes.
 //   wait MS              sleep
 //   shot FILE            screenshot to FILE (PNG)
 //   canvas FILE          save the rendered app canvas to FILE (PNG)
@@ -35,9 +42,9 @@
 //
 // Node 22+ (the global WebSocket); no dependencies.
 import { spawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 const args = process.argv.slice(2);
 const W = +(process.env.W || 1400), H = +(process.env.H || 900);
@@ -133,6 +140,57 @@ try {
       const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#starling-file' });
       await send('DOM.setFileInputFiles', { files: [path], nodeId });
       await sleep(300);
+    } else if (op === 'pdfs') {
+      const list = readFileSync(args.shift(), 'utf8').split('\n').map((l) => l.trim()).filter(Boolean);
+      const out = args.shift();
+      mkdirSync(out, { recursive: true });
+      await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: out, eventsEnabled: true });
+      const debug = (kind) => evaluate(`window.starling && window.starling.debug ? window.starling.debug(${JSON.stringify(kind)}) : null`).catch(() => null);
+      const until = async (ms, test) => {
+        for (const end = Date.now() + ms; Date.now() < end; await sleep(100)) { const v = await test(); if (v) return v; }
+        return null;
+      };
+      const reload = async () => {
+        await send('Page.navigate', { url: process.env.URL || 'http://127.0.0.1:8137/' });
+        await until(60000, async () => (await debug('name')) != null);
+        await sleep(500);
+      };
+      await until(60000, async () => (await debug('name')) != null);
+      for (const path of list) {
+        const name = basename(path), pdf = join(out, name.replace(/\.[^.]+$/, '') + '.pdf');
+        if (existsSync(pdf)) continue;
+        let verdict = 'ok';
+        const key = (type, extra) => send('Input.dispatchKeyEvent', { type, ...extra });
+        await key('keyDown', { key: 'Control', code: 'ControlLeft', modifiers: 2 });
+        await key('keyDown', { key: 'o', code: 'KeyO', modifiers: 2 });
+        await key('keyUp', { key: 'o', code: 'KeyO', modifiers: 2 });
+        await key('keyUp', { key: 'Control', code: 'ControlLeft' });
+        await sleep(300);
+        const { root } = await send('DOM.getDocument');
+        const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: '#starling-file' });
+        await send('DOM.setFileInputFiles', { files: [path], nodeId });
+        if (!await until(+(process.env.OPEN_MS || 30000), async () => (await debug('name')) === name)) {
+          verdict = 'OPEN-FAIL\t' + ((await debug('status')) || 'did not open');
+        } else {
+          // Lazy fonts arrive after the open and re-lay the lines they set;
+          // pictures decode after it too. Quiet for SETTLE_MS, then export.
+          let quiet = Date.now();
+          await until(30000, async () => {
+            if (await evaluate('window.starling.fontsPending ? window.starling.fontsPending() : 0').catch(() => 0)) quiet = Date.now();
+            return Date.now() - quiet >= +(process.env.SETTLE_MS || 800);
+          });
+          await debug('pdf');
+          const done = await until(+(process.env.EXPORT_MS || 120000), async () => {
+            if (existsSync(pdf)) return 'ok';
+            const status = (await debug('status')) || '';
+            return /^(Could not|Nothing)/.test(status) ? status : null;
+          });
+          if (done !== 'ok') verdict = 'EXPORT-FAIL\t' + (done || 'timed out');
+        }
+        appendFileSync(join(out, 'web.tsv'), `${name}\t${verdict}\n`);
+        console.log(`${name}\t${verdict}`);
+        if (verdict !== 'ok') await reload();
+      }
     } else if (op === 'downloads') {
       await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: args.shift(), eventsEnabled: true });
     } else if (op === 'wait') {
