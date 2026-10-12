@@ -116,7 +116,10 @@ enum OfficeFonts {
         // requested by the paragraph builder when used and trigger relayout
         // once registered (build/web-app.sh writes fonts/manifest.json).
         return true
-        #endif
+        #else
+        // (#else, not an early return: the body below names FileHandle,
+        // which the web link does not have, and whether dead code after a
+        // return reaches the linker depends on what got inlined where.)
         // The ribbon's glyphs and its face: the Fluent System Icons font and
         // Selawik ship in the SDK and are registered by whoever draws them
         // (the shell does the same).
@@ -126,7 +129,7 @@ enum OfficeFonts {
         // build lists DejaVu Sans as its glyph fallback and macOS has the
         // system's; Linux and Windows have neither, so the same face is
         // loaded here and every document style falls back to it.
-        #if !os(macOS) && !os(iOS) && !os(WASI)
+        #if !os(macOS) && !os(iOS)
         if let symbols = TerminalFontLoader.registerSymbolFallback() {
             RichTextTheme.glyphFallback = [symbols]
         }
@@ -147,5 +150,6 @@ enum OfficeFonts {
             }
         }
         return ok
+        #endif
     }
 }

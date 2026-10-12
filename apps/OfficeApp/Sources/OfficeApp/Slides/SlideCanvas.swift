@@ -389,9 +389,13 @@ final class SlideCanvasState: State<StatefulWidget> {
 
     private static let _debug = ProcessInfo.processInfo.environment["STARLING_SLIDES_DEBUG"] != nil
     private static func _log(_ m: String) {
+        // Not in the browser: the web link has no FileHandle, and whether
+        // this body reaches the linker there depends on what calls it.
+        #if !os(WASI)
         guard _debug else { return }
         let line = m + "\n"
         FileHandle.standardError.write(Data(line.utf8))
+        #endif
     }
 
     private func _pointerMove(_ e: PointerMoveEvent) {
