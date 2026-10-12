@@ -757,18 +757,54 @@ the originals sat half a point off the fresh copies and forty
 documents "regressed" by up to 10%. `pdf-diff` reports `paper=differs`
 now and the gate prints that original again.
 
-Left in the sample, each its own cause, first differing line found
-with `test/pdf-lines.swift` for most: e37f8d40 30% (14 pages against
-18; a constant 2pt under the header and half-width parentheses a hair
-wide), 6600d539 30% (9 against 12; a two-column comparison table),
-64044a1d 20% (103 against 114), 90e0cea8 16% (a standards cover built
-of `w:framePr` frames in STYLES), 457a8d62 13% (a paragraph indent
-61pt off on page 4, once the gutter was right), then eleven at 5-12%.
-Not yet looked at: `w:tblStyle` (dropped — 16 of the remaining files
-name one), frames in styles, text boxes. The census script that ranked
-the losses (which property elements the copy lacks, by files
-affected) was the fastest tool of the round and lives only in this
-session's scratch; rebuild it from the description if needed.
+**The sample again, 2026-10-12 (commits after 51f49e83, to the "List
+Paragraph" one).** Two more batches, worked the same way — a census of
+what the copy lacks (now by attribute as well as element), then the
+first differing line. 68 scored: 22 identical, 58 within 1%, 4 at
+1-5%, 6 at 5-15%, none above. (42 within 1% and 16 above 5% a day
+earlier.) The POI set was printed whole again afterwards: 111 scored,
+77 identical, 110 within 1% — it gained five identical documents from
+rules found in Chinese ones. What the batches were:
+
+- **Numbered styles.** A style's list and its level are inherited
+  apart ("heading 3" states the level, the list comes from "heading
+  1" under it: every 一、 and (一) had gone); a style naming a list and
+  no level is the level the numbering ties to it (`w:lvl`'s
+  `w:pStyle`); and a numbered style's own indent stands over its
+  level's.
+- **Header and footer styles.** The styles of every header and footer
+  part the document relates to are written, and a style now carries
+  its border, shading, East Asian switches, an explicit "left" where
+  Normal is justified, letter spacing and kerning — a kept part's
+  paragraphs have only their style to tell them (page numbers came
+  back at the body's size, a line low).
+- **Rows and columns.** `w:trHeight w:hRule="exact"` stays exact (12
+  pages to the original's 9 without it); a fixed layout stated by the
+  table's style; the last section's `w:cols` as written.
+- **Tabs.** Stops ADD to the inherited ones, "clear" removes one and
+  is written back, leaders and the num/bar kinds are kept.
+- **Breaks and lines.** A page break that opens a paragraph is written
+  back as the `w:br` it was (Word places the text after one by other
+  rules than after `w:pageBreakBefore`); `w:line="0"` with "atLeast"
+  is a statement; "distribute" by name.
+- **Settings and fonts.** `w:noPunctuationKerning`, hyphenation, the
+  line-break character lists, the embedded-font switches; and
+  `word/fontTable.xml` with the fonts it embeds — a county notice set
+  in embedded faces went from 30% to 1.2.
+- **One of ours.** The writer added its own "List Paragraph" beside a
+  file's style of that name under another id, and Word took ours.
+
+Left: 33aa9899 10% (13 pages against 12), 64044a1d 10% (103 against
+107), 457a8d62 9% (53 against 54; a line on page 9 breaks at another
+character), 454e2e29 6.4% and 6cd1befe 5.1% (one justified line a
+character out, then drift), 1a3c7aa0 5.5% (a footer 8pt low from page
+2), 06c46ba9 4%, 90e0cea8 3% (frames in styles), a0e932c2 2% (a table
+on page 2), e37f8d40 1.2%. Most of what is left is Word breaking a
+line one character away from where it breaks ours — the same markup
+on both sides as far as the censuses can tell — which is the place to
+look next: run boundaries (`w:lang` per run survives, but runs of one
+look are merged, and Word may measure across a boundary differently),
+and `w:rPr` on the paragraph mark.
 
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
