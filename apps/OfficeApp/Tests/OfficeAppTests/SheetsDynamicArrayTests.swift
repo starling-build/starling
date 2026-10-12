@@ -26,7 +26,7 @@ final class SheetsDynamicArrayTests: XCTestCase {
         // Other formulas read spilled cells, and the spill as a whole.
         c.setInputs([(CellAddress("G1")!, "=E3*2"), (CellAddress("G2")!, "=SUM(D1#)"), (CellAddress("G3")!, "=ROWS(D1#)")])
         XCTAssertEqual(v(c, "G1"), .number(70))
-        XCTAssertEqual(v(c, "G2"), .number(10 + 15 + 20 + 25 + 30 + 35))
+        XCTAssertEqual(v(c, "G2"), .number(135))  // 10 + 15 + 20 + 25 + 30 + 35
         XCTAssertEqual(v(c, "G3"), .number(3))
         // The spill grows: the readers follow.
         c.setInputs([(CellAddress("D1")!, "=SEQUENCE(4,2,10,5)")])

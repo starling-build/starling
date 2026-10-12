@@ -46,6 +46,12 @@ With the same native toolchain and engine variables:
 swift test -c release --package-path apps/OfficeApp
 ```
 
+On Linux, run them as `test/run.sh --office` instead: the bare command above
+does not compile on Ubuntu 26.04 (the `<cmath>` clash `sdk/tools/run-tests.sh`
+exists for), a release build of the tests crashes the 6.2.4 optimizer, and an
+inherited `LD_LIBRARY_PATH` can swap in another engine. The step's comment in
+`test/run.sh` has the detail.
+
 `RibbonCompositingTests` covers the local painting bounds of ribbon dropdowns
 inside a scrolling toolbar. Browser controls can be exercised using
 `build/tools/web-drive.mjs`; see its header for screenshot, typing, file, and

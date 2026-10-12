@@ -4,6 +4,7 @@
 #   test/run.sh              static checks + unit tests   (~2s, no GPU)
 #   test/run.sh --build      also compile every package and the .deb
 #   test/run.sh --sdk        also run sdk/ tests (see the caveat below)
+#   test/run.sh --office     also run apps/OfficeApp's unit tests (minutes cold)
 #   test/run.sh --functional also run the live-desktop checks
 #                            (needs root and a free GPU — stop the display
 #                            manager first; delegates to test/functional.sh)
@@ -20,11 +21,13 @@ set -uo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD=0
 SDK=0
+OFFICE=0
 FUNCTIONAL=0
 for arg in "$@"; do
     case "$arg" in
         --build)      BUILD=1 ;;
         --sdk)        SDK=1 ;;
+        --office)     OFFICE=1 ;;
         --functional) FUNCTIONAL=1 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
     esac
@@ -349,6 +352,32 @@ if [ "$SDK" = 1 ]; then
 else
     step "unit tests: sdk — SKIPPED"
     echo "  run with --sdk (needs a one-off swift-testing module prebuild on 26.04)."
+fi
+
+# Office's unit tests — the file formats, the sheet engine, the painters.
+# Opt-in for the cold build (it compiles the framework into the package's own
+# .build). Three things a bare `swift test -c release` gets wrong on Linux:
+#   - it needs the same swift-testing prebuild as sdk/, so it goes through
+#     sdk/tools/run-tests.sh;
+#   - debug, not release: the 6.2.4 optimizer dies deserializing
+#     FlutterSwiftBridge's SIL into the test module ("reference to type
+#     'flutter' broken by a context change", signal 6);
+#   - LD_LIBRARY_PATH is scrubbed. It outranks the test binary's RUNPATH, and
+#     the packaged terminal exports its own (/usr/lib/starling-terminal) to
+#     every shell started in it — so the tests loaded THAT engine, an older
+#     one, and died in the first paragraph with "Invalid text provided to
+#     addText", which reads as missing ICU data and is not.
+if [ "$OFFICE" = 1 ]; then
+    step "unit tests: office"
+    out="$(as_user env -u LD_LIBRARY_PATH SWIFT="$SWIFT" \
+        "$REPO/sdk/tools/run-tests.sh" --package-path "$REPO/apps/OfficeApp" 2>&1)" \
+        || fails=$((fails + 1))
+    echo "$out" | grep -vE "libxml2.so.2: no version information" \
+        | grep -E ": error: |Fatal error|unexpected signal" | sort -u | head -8
+    echo "$out" | grep -E "Executed [0-9]+ tests" | tail -1
+else
+    step "unit tests: office — SKIPPED"
+    echo "  run with --office (minutes from cold)."
 fi
 
 # An app that vendors a prebuilt native library built for another architecture

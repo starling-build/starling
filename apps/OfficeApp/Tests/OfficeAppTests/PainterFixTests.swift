@@ -335,6 +335,7 @@ final class TableCellTests: XCTestCase {
 /// share taken off its line spacing.
 final class LineHeightTests: XCTestCase {
     func testSingleSpacingIsTheFacesNaturalHeight() {
+        _ = OfficeFonts.register()
         let theme = RichTextTheme(fontFamily: "Carlito", fontSize: 18)
         var p = RichParagraph(text: "x")
         p.style.lineSpacing = 1.0
@@ -349,7 +350,10 @@ final class LineHeightTests: XCTestCase {
         reduced.ensureLaidOut(RichDocument(paragraphs: [p]))
         // (The engine rounds a line to whole pixels: ±0.75 pt.)
         XCTAssertEqual(reduced.geometry(0).painter.height / theme.pixelsPerPoint, 18 * 1.22 * 0.8, accuracy: 0.75)
-        XCTAssertEqual(theme.naturalLineHeight(family: "Arial", bold: false, italic: false), 1.15, accuracy: 0.01)
+        // The face Arial is drawn in, not the name: only macOS has an Arial
+        // to find by name; elsewhere the bare name lands on the engine's
+        // fallback face (1.12), which is not what a document gets either.
+        XCTAssertEqual(theme.naturalLineHeight(family: OfficeFonts.substitute("Arial"), bold: false, italic: false), 1.15, accuracy: 0.01)
     }
 
     func testAFittedBodysLineReductionRoundTrips() throws {

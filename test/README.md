@@ -4,6 +4,7 @@
 test/run.sh                  static checks + unit tests   ~0.4s, no GPU
 test/run.sh --build          + every package and the .deb  ~4min
 test/run.sh --sdk            + sdk/ tests (see "Known gaps")
+test/run.sh --office         + apps/OfficeApp's unit tests   minutes cold
 sudo test/run.sh --functional   + live-desktop checks       ~15s, needs a GPU
 sudo test/functional.sh      the live-desktop checks on their own
 test/vm.sh                   T3 release gate: .deb on a clean VM, GDM login
