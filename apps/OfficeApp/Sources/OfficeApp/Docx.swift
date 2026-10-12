@@ -834,6 +834,9 @@ enum DocxFormat {
                 style.cellMarginLeft = margins.left
                 style.cellMarginBottom = margins.bottom
                 style.cellMarginRight = margins.right
+                if _cellMargins(node.first("w:tblPr")).left == nil {
+                    style.textOutdent = styled.under(defaultMargins).under(_Margins.word).left ?? 5.4
+                }
                 // The table's own margins, for the save: the cells keep
                 // their w:tcMar, and the cells that state none take these
                 // (drawing.docx zeroes its banner row's and leaves 5.25pt
@@ -1040,7 +1043,42 @@ enum DocxFormat {
         for child in body.children { walkBlock(child, indent: 0) }
         // The caret must be able to leave a table that ends the document.
         if paragraphs.isEmpty || paragraphs.last?.cell != nil { paragraphs.append(RichParagraph()) }
+        // The kept headers and footers again as paragraphs, read like the
+        // body (each part by its own relationships), for the layout.
+        var headerFooters: [RichHeaderFooter] = []
+        do {
+            let bodyParagraphs = paragraphs, bodyRels = rels, bodyInfo = notes.rels
+            for hf in keptHeaderFooters {
+                guard let data = part(hf.part), let node = XNode.parse(data) else { continue }
+                var comps = hf.part.split(separator: "/").map(String.init)
+                let file = comps.popLast() ?? ""
+                let dir = comps.joined(separator: "/")
+                rels = [:]
+                var info: [String: KeptRel] = [:]
+                if let relsData = part(dir + "/_rels/" + file + ".rels"), let relsNode = XNode.parse(relsData) {
+                    for r in relsNode.all("Relationship") {
+                        guard let id = r["Id"], let target = r["Target"] else { continue }
+                        rels[id] = target
+                        info[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
+                    }
+                }
+                notes.rels = info
+                notes.inHeaderFooter = true
+                paragraphs = []
+                currentCell = nil
+                pendingPageBreak = false
+                for child in node.children { walkBlock(child, indent: 0) }
+                notes.inHeaderFooter = false
+                if !paragraphs.isEmpty { headerFooters.append(RichHeaderFooter(kind: hf.kind, type: hf.type, paragraphs: paragraphs)) }
+            }
+            paragraphs = bodyParagraphs
+            rels = bodyRels
+            notes.rels = bodyInfo
+            currentCell = nil
+            pendingPageBreak = false
+        }
         var document = RichDocument(paragraphs: paragraphs)
+        document.headerFooters = headerFooters
         document.tableColumns = tableColumns
         document.tableStyles = tableStyles
         document.styles = sheet
@@ -1079,6 +1117,10 @@ enum DocxFormat {
             let lead = ["w:lnNumType", "w:pgNumType"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
             let tail = ["w:vAlign", "w:textDirection", "w:bidi", "w:rtlGutter"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
             document.sectionLeadXML = lead.isEmpty ? nil : lead
+            if let num = sect.first("w:pgNumType") {
+                document.pageNumberStart = Int(num["w:start"] ?? "")
+                document.pageNumberFormat = num["w:fmt"]
+            }
             document.sectionTailXML = tail.isEmpty ? nil : tail
         }
         // (A file with no settings at all, or no styles, is set by the
@@ -1125,6 +1167,12 @@ enum DocxFormat {
 
     /// A header/footer part's text with PAGE and NUMPAGES fields (simple or
     /// complex) turned into placeholders; paragraphs joined with spaces.
+    /// Whether a field instruction is a page number or a page count.
+    static func _isPageField(_ instr: String) -> Bool {
+        let word = instr.trimmingWhitespace(newlines: true).uppercased().split(separator: " ").first.map(String.init) ?? ""
+        return word == "PAGE" || word == "NUMPAGES" || word == "SECTIONPAGES"
+    }
+
     private static func _fieldText(_ root: XNode) -> String {
         var out: [String] = []
         var skipping = false   // between a field's separate and end
@@ -1328,6 +1376,19 @@ enum DocxFormat {
                 let merged = XNode(name: "w:framePr", attrs: inherited.attrs.filter { !$0.key.hasPrefix("xmlns") }.merging(frame.attrs) { _, own in own })
                 style.frameXML = PptxXML.serialize(merged)
             } else { style.frameXML = PptxXML.serialize(frame) }
+            // Its place, for the layout (a drop cap's frame is not placed).
+            if let xml = style.frameXML, frame["w:dropCap"] == nil,
+               let node = XNode.parse(Data(xml.replacingAll("<w:framePr ", with: "<w:framePr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" ").utf8)) {
+                var f = ParagraphFrame()
+                if let v = Double(node["w:x"] ?? "") { f.x = v / 20 }
+                if let v = Double(node["w:y"] ?? "") { f.y = v / 20 }
+                if let v = Double(node["w:w"] ?? ""), v > 0 { f.width = v / 20 }
+                f.horizontalAnchor = node["w:hAnchor"] ?? "text"
+                f.verticalAnchor = node["w:vAnchor"] ?? "text"
+                f.horizontalAlign = node["w:xAlign"]
+                f.verticalAlign = node["w:yAlign"]
+                style.frame = f
+            }
         }
         if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }
         if let d = pPr.first("w:divId")?["w:val"] { style.divId = d }
@@ -1435,6 +1496,9 @@ enum DocxFormat {
             setup.marginTop = Double(mar["w:top"] ?? "1440").map { abs($0) / 20 } ?? 72
             setup.marginBottom = Double(mar["w:bottom"] ?? "1440").map { abs($0) / 20 } ?? 72
             setup.marginLeft = Double(mar["w:left"] ?? mar["w:start"] ?? "1440").map { $0 / 20 } ?? 72
+            // (The gutter, kept clear beside the left margin unless the
+            // settings put it at the top.)
+            if let g = Double(mar["w:gutter"] ?? ""), g > 0 { setup.gutter = g / 20 }
             setup.marginRight = Double(mar["w:right"] ?? mar["w:end"] ?? "1440").map { $0 / 20 } ?? 72
             // The header/footer distances: writing 0.49in into a file whose
             // top margin is 0.1in made Word warn that the margins were small.
@@ -1466,7 +1530,11 @@ enum DocxFormat {
     final class _Shared {
         let footnotes: Bool, endnotes: Bool
         private var seenFootnotes = 0, seenEndnotes = 0
-        let rels: [String: KeptRel]
+        var rels: [String: KeptRel]
+        /// Reading a header or footer part: its page fields stay fields
+        /// (the layout fills them for each page).
+        var inHeaderFooter = false
+        var fieldShown = false   // the innermost field's result has text
         let rootNS: [String: String]
         let part: (String) -> Data?
         let contentType: (String) -> String?
@@ -1802,6 +1870,7 @@ enum DocxFormat {
                     guard let rel = ref["r:id"].flatMap({ notes.rels[$0] }), !rel.external else { return true }
                     return notes.part(_resolvePath("word", rel.target)) == nil
                 }
+                style.sectionPage = _pageSetup(sect)
                 let named = sect.children.contains { $0.name == "w:headerReference" || $0.name == "w:footerReference" }
                 if named, let frag = _keptFragment(sect, notes) {
                     style.sectionXML = frag.xml
@@ -1944,6 +2013,7 @@ enum DocxFormat {
             if let f = notes.fields.last, f.result {
                 let instr = f.instr.trimmingWhitespace(newlines: true)
                 if instr.uppercased().hasPrefix("PAGEREF ") { cs.field = instr }
+                else if notes.inHeaderFooter, DocxFormat._isPageField(instr) { cs.field = instr; notes.fieldShown = true }
             }
             // (Its style reference would name an id the save may rename.)
             runPropertiesXML = r.first("w:rPr").flatMap { $0.first("w:rStyle") == nil && !$0.children.isEmpty ? PptxXML.serialize($0) : nil }
@@ -1969,9 +2039,20 @@ enum DocxFormat {
                 case "w:t": addText(_runText(child), cs)
                 case "w:fldChar":
                     switch child["w:fldCharType"] {
-                    case "begin": notes.fields.append((instr: "", result: false))
+                    case "begin": notes.fields.append((instr: "", result: false)); notes.fieldShown = false
                     case "separate": if !notes.fields.isEmpty { notes.fields[notes.fields.count - 1].result = true }
-                    case "end": if !notes.fields.isEmpty { notes.fields.removeLast() }
+                    case "end":
+                        // (A page field with no result yet shows a number
+                        // all the same.)
+                        if notes.inHeaderFooter, !notes.fieldShown, let f = notes.fields.last {
+                            let instr = f.instr.trimmingWhitespace(newlines: true)
+                            if DocxFormat._isPageField(instr) {
+                                var shown = cs
+                                shown.field = instr
+                                addText("1", shown)
+                            }
+                        }
+                        if !notes.fields.isEmpty { notes.fields.removeLast() }
                     default: break
                     }
                     // A form checkbox has no result text: it is the box
@@ -2069,6 +2150,10 @@ enum DocxFormat {
                     let mark = RevisionMark(kind: child.name == "w:ins" ? .inserted : .deleted,
                                             author: child["w:author"] ?? "", date: child["w:date"] ?? "")
                     walkInline(child, link: link, revision: mark)
+                case "w:fldSimple" where notes.inHeaderFooter && DocxFormat._isPageField(child["w:instr"] ?? ""):
+                    notes.fields.append((instr: child["w:instr"] ?? "", result: true))
+                    walkInline(child, link: link, revision: revision)
+                    notes.fields.removeLast()
                 case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
                     walkInline(child, link: link, revision: revision)
                 case "w:commentRangeStart":
@@ -2803,7 +2888,7 @@ enum DocxFormat {
             let cols = members.compactMap { $0.cell.map { $0.column + $0.span } }.max() ?? 1
             var widths = doc.tableColumns[id] ?? []
             if widths.count != cols {
-                let content = pageSetup.width - pageSetup.marginLeft - pageSetup.marginRight
+                let content = pageSetup.contentWidth
                 widths = Array(repeating: content / Double(cols), count: cols)
             }
             let twips = widths.map { Int(($0 * 20).rounded()) }

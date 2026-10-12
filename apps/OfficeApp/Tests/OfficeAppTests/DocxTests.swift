@@ -1623,13 +1623,18 @@ final class DocxTests: XCTestCase {
         let id = try XCTUnwrap(back.document.paragraphs[0].cell?.table)
         // Every table reads back with its cell margins stated — Word's own
         // (0 above and below, 5.4pt at the sides) when the file said nothing.
-        let word = TableStyle(borders: false, headerRow: true, cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4)
+        // (And set out by that left margin, as Word sets a table that
+        // states none of its own.)
+        var word = TableStyle(borders: false, headerRow: true, cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4)
+        word.textOutdent = 5.4
         XCTAssertEqual(back.document.tableStyles[id], word)
         // The default writes bordered, no header.
         doc.tableStyles = [:]
         let plain = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter))
         let plainId = try XCTUnwrap(plain.document.paragraphs[0].cell?.table)
-        XCTAssertEqual(plain.document.tableStyles[plainId], TableStyle(cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4))
+        var plainStyle = TableStyle(cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4)
+        plainStyle.textOutdent = 5.4
+        XCTAssertEqual(plain.document.tableStyles[plainId], plainStyle)
     }
 
     func testDocxBulletGlyphsRoundTrip() throws {

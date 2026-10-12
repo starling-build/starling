@@ -223,6 +223,34 @@ public struct ImageFloat: Hashable, Sendable {
     public init() {}
 }
 
+/// Where a framed paragraph (`w:framePr`) is set: its offsets in points
+/// from what it is anchored to ("text", "margin" or "page"), or an
+/// alignment in place of one ("center", "right"; "top", "bottom"), and
+/// its width where it states one.
+public struct ParagraphFrame: Hashable, Sendable {
+    public var x: Double = 0
+    public var y: Double = 0
+    public var width: Double? = nil
+    public var horizontalAnchor = "text"
+    public var verticalAnchor = "text"
+    public var horizontalAlign: String? = nil
+    public var verticalAlign: String? = nil
+    public init() {}
+}
+
+/// A header or footer as the paragraphs the file wrote (with the
+/// tables and pictures among them), for the layout to set on each page:
+/// `kind` and `type` as `KeptHeaderFooter`'s. A run whose `field` is
+/// PAGE or NUMPAGES shows that page's number, or the count.
+public struct RichHeaderFooter: Hashable, Sendable {
+    public var kind: KeptHeaderFooter.Kind
+    public var type: String
+    public var paragraphs: [RichParagraph]
+    public init(kind: KeptHeaderFooter.Kind, type: String, paragraphs: [RichParagraph]) {
+        self.kind = kind; self.type = type; self.paragraphs = paragraphs
+    }
+}
+
 /// A table nested in a cell, kept as the file wrote it (see
 /// `RichDocument.keptTables`): the editor shows its text flattened into
 /// the cell; the save writes this markup back while that text stands.
@@ -379,6 +407,8 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// Word's frame (w:framePr: a paragraph positioned on the page), kept
     /// as written for the save; the layout flows it like any other.
     public var frameXML: String? = nil
+    /// That frame's place, read off it: see `ParagraphFrame`.
+    public var frame: ParagraphFrame? = nil
     /// Word's "don't add space between paragraphs of the same style"
     /// (w:contextualSpacing): the space before/after is dropped where the
     /// neighbour has the same named style.
@@ -388,6 +418,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// columns, numbering. The layout shows one page size for the whole
     /// document; the saved file keeps every section's.
     public var sectionXML: String? = nil
+    /// That section's page — size, margins, gutter — where it states
+    /// one: the pages its paragraphs are laid out on. (The document's
+    /// last section's is the layout's own page setup.)
+    public var sectionPage: PageSetup? = nil
     /// The header and footer parts that section names, kept with it: the
     /// sections after it that name none show the same ones.
     public var sectionRels: [KeptRel] = []
@@ -847,6 +881,11 @@ public struct TableStyle: Hashable, Sendable {
     /// cellspacing); nil when the file says nothing. Zero is kept apart
     /// from nil: Word draws a table that states it with separate borders.
     public var cellSpacing: Double? = nil
+    /// How far left of its place the table's edge stands so that its
+    /// first column's text lines up with the paragraphs' (points): Word
+    /// sets a table out by its style's left cell margin — unless the
+    /// table states cell margins of its own, and then not at all.
+    public var textOutdent: Double = 0
     /// The header row's fill (nil: a faint tint of the text colour).
     public var headerFill: Color? = nil
     /// Banded rows: every other body row filled with this, the rest with
@@ -989,6 +1028,53 @@ public struct ListLevelFormat: Hashable, Sendable {
 
     public static func plain(_ level: Int) -> ListLevelFormat { ListLevelFormat(text: "%\(level + 1).") }
 
+    /// The `n`th number of this level as it is written: by the file's
+    /// own format where that is one of the East Asian ones `format`
+    /// has no case for (`rawFormat`: 一二三, 壹貳參, 甲乙丙, ①②③…),
+    /// else by `format`.
+    public func number(_ n: Int) -> String {
+        guard let raw = rawFormat, n >= 1 else { return format.string(n) }
+        func counting(_ digits: [Character], ten: String, hundred: String, thousand: String) -> String {
+            guard n < 10000 else { return String(n) }
+            var out = ""
+            let parts = [(n / 1000, thousand), (n / 100 % 10, hundred), (n / 10 % 10, ten), (n % 10, "")]
+            var pendingZero = false
+            for (k, (d, unit)) in parts.enumerated() {
+                if d == 0 {
+                    if !out.isEmpty { pendingZero = true }
+                    continue
+                }
+                if pendingZero { out.append(digits[0]); pendingZero = false }
+                // (十, not 一十, for ten to nineteen.)
+                if !(k == 2 && d == 1 && out.isEmpty) { out.append(digits[d]) }
+                out += unit
+            }
+            return out
+        }
+        func cycle(_ glyphs: String) -> String {
+            let g = Array(glyphs)
+            return n <= g.count ? String(g[n - 1]) : String(n)
+        }
+        switch raw {
+        case "taiwaneseCountingThousand", "taiwaneseCounting", "chineseCountingThousand", "chineseCounting",
+             "japaneseCounting", "ideographDigital", "taiwaneseDigital", "japaneseDigitalTenThousand":
+            return counting(Array("〇一二三四五六七八九"), ten: "十", hundred: "百", thousand: "千")
+        case "ideographLegalTraditional", "japaneseLegal":
+            return counting(Array("零壹貳參肆伍陸柒捌玖"), ten: "拾", hundred: "佰", thousand: "仟")
+        case "chineseLegalSimplified":
+            return counting(Array("零壹贰叁肆伍陆柒捌玖"), ten: "拾", hundred: "佰", thousand: "仟")
+        case "ideographTraditional": return cycle("甲乙丙丁戊己庚辛壬癸")
+        case "ideographZodiac": return cycle("子丑寅卯辰巳午未申酉戌亥")
+        case "decimalEnclosedCircle", "decimalEnclosedCircleChinese": return cycle("①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳")
+        case "decimalEnclosedParen": return cycle("⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇")
+        case "decimalEnclosedFullstop": return cycle("⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛")
+        case "decimalFullWidth", "decimalFullWidth2":
+            return String(String(n).unicodeScalars.map { Character(UnicodeScalar($0.value - 0x30 + 0xFF10)!) })
+        case "decimalZero": return n < 10 ? "0\(n)" : String(n)
+        default: return format.string(n)
+        }
+    }
+
     /// The bullet a level shows when its list names none.
     public static func defaultBullet(_ level: Int) -> String { level % 2 == 0 ? "\u{2022}" : "\u{25E6}" }
 
@@ -1067,7 +1153,7 @@ public enum RichListNumbering {
             while let ch = chars.next() {
                 if ch == "%", let d = chars.next(), let k = Int(String(d)), k >= 1, k <= 9 {
                     let n = max(1, c[k - 1])
-                    label += (formats[k - 1] ?? .plain(k - 1)).format.string(n)
+                    label += (formats[k - 1] ?? .plain(k - 1)).number(n)
                 } else {
                     label.append(ch)
                 }
@@ -1674,6 +1760,15 @@ public struct RichDocument: Hashable, Sendable {
     public var readFromFile = false
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
+    /// The kept headers and footers as paragraphs: what the layout draws
+    /// on each page while the editor's one-line text for them
+    /// (`header`, `footer`) is still the file's.
+    public var headerFooters: [RichHeaderFooter] = []
+    /// The number of the first page where the last section says one
+    /// (`w:pgNumType w:start`), and how page numbers are written where it
+    /// says that (`w:fmt`: "lowerRoman", "numberInDash"…).
+    public var pageNumberStart: Int? = nil
+    public var pageNumberFormat: String? = nil
     /// Word's w:evenAndOddHeaders: even pages use the "even" ones.
     public var evenAndOddHeaders = false
     /// Content types of `keptParts`, by package path, as the file declared

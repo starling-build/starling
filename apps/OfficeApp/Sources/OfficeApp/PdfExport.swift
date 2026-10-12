@@ -26,6 +26,8 @@ enum PdfExport {
         var pages: [PdfDocument.Page] = []
         for p in 0 ..< layout.pageCount {
             let rect = layout.pageRect(p)
+            // (Each page at its own section's size.)
+            let pageSetup = layout.pageSetup(forPage: p)
             let recorder = NativePictureRecorder()
             let canvas = NativeCanvas(recorder: recorder,
                                       cullRect: Rect.fromLTWH(0, 0, pageSetup.width, pageSetup.height))
