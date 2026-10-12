@@ -636,16 +636,59 @@ ended at 103 within 1% and eight above.
   margins as the table's, so the cells stating none lost the table's
   own 5.25pt. Cell, row-exception and table margins go back as read.
 
-Left, all under 1%: drawing 0.88 (page 15 alone), bug59058 0.85 (a
-point's shift after an inline picture on eleven pages),
-form_footnotes 0.64, Bug66263-paragraph 0.60, MultipleBodyBug 0.55.
-Not modelled by our own layout, only kept for Word: the `w:cs` face,
-the default tab distance, a floating table's position, per-cell
+**The same day, the documents left under 1% (commits ae8e7db1,
+138bd1fc, 2e8a2190 and the one after).** Each again a rule, most of
+them about files no word processor wrote. 111 scored: 72 at 0.00%,
+110 within 1%, nine above 0.1%.
+
+- **drawing 0.88% → 0.04.** A paragraph's `w:divId` names a block of
+  `word/webSettings.xml`, and Word spaces the paragraph by that
+  block's margins (4.5pt under the last banner). The reference and the
+  part are kept — the part only for a document that names a block.
+- **form_footnotes 0.64% → 0.15.** A list's own `w:lvlOverride` with a
+  whole `w:lvl` replaces the definition's level; its three
+  instructions had come back starred and deeper.
+- **MultipleBodyBug 0.55% → 0.00.** Every `w:body` is read.
+- **Bug66263-paragraph 0.60% → 0.00.** A `w:t` without
+  `xml:space="preserve"` loses the XML whitespace at its ends (a
+  no-break space stays). And a package with NO styles part is laid out
+  by Word's Normal of the day — 12pt, kerned, 8pt after, lines of
+  278/240 — measured off the print's line boxes to a hundredth of a
+  point (`pdflines`, below). That is the template's word, not the
+  file's, so it is this Word's answer.
+- **bug59058 0.84% → 0.22.** A link whose run names no Hyperlink style
+  is not underlined (the save names the style, so the run says "none"
+  over it, and the editor draws it plain); and an inline picture kept
+  as written keeps its run's `w:rPr` — a character border and a size
+  that set the line it stands on.
+- **HeaderFooterUnicode 0.30% → 0.00, headerFooter 0.22% → 0.00.**
+  The generated one-line footer is centred; the file's sat at the
+  left. Every header and footer part is kept now and written back
+  while the editor's text for it is still the file's, which retires
+  the "is it rich" test altogether.
+- **bug57031 0.31% → 0.01.** A table ruled by its cells takes the
+  colour its own `w:tblBorders` names.
+
+Left: delins 4.65 (Word's own drift between prints of its original),
+55966 0.46 (Word hides the second of two content controls marked
+`w:showingPlcHdr`; we show its text — a quirk of a hand-made file, not
+copied), bug59058 0.22, Tika-792 0.21 and WordWithAttachments 0.18
+(change balloons), then nothing above 0.15. Not modelled by our own
+layout, only kept for Word: the `w:cs` face, the default tab
+distance, a floating table's position, per-cell margins, HTML block
 margins. Eight originals state `w:autoHyphenation`, which is dropped;
-none of them shows it in the score. Gates: 309 unit tests, the corpus
-at 122 converted and the 8 expected read failures, `ooxml-check`
-clean. (`test/run.sh` fails one step on the Mac, termd's remote
-sessions, a broken pipe in `termd/test-termd.py` — not Office's.)
+none of them shows it in the score. An edited header or footer leaves
+its kept part in the package unreferenced (as before). Gates: 313
+unit tests, the corpus at 122 converted and the 8 expected read
+failures, `ooxml-check` clean. (`test/run.sh` fails one step on the
+Mac, termd's remote sessions, a broken pipe in `termd/test-termd.py`
+— not Office's.)
+
+Two small tools did the measuring once pages differed by a pixel:
+PDFKit scripts that print each line's box on both prints and only the
+lines that differ, and the fonts with their sizes. They are thirty
+lines each and were rebuilt in the scratch directory; if a sixth round
+comes, put them under `test/`.
 
 Method note: this round printed far less than the fourth. Diffing the
 original's and the copy's XML for the first differing paragraph on
