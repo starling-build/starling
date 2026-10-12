@@ -1777,6 +1777,12 @@ enum DocxFormat {
     /// `node` serialized as a self-contained fragment: its relationships
     /// collected (and their parts kept), every prefix it uses declared on
     /// it. Nil when a part it names is missing from the package.
+    /// The attributes that name a relationship of the part they stand in.
+    /// The last four are a SmartArt diagram's (`dgm:relIds`: data, layout,
+    /// quick style, colours) — left out, a kept diagram named ids the save
+    /// never wrote and its parts stayed behind.
+    static let _relationshipAttributes = ["r:embed", "r:id", "r:link", "r:pict", "r:href", "r:dm", "r:lo", "r:qs", "r:cs"]
+
     static func _keptFragment(_ node: XNode, _ notes: _Shared) -> (xml: String, rels: [KeptRel])? {
         var found: [KeptRel] = []
         var prefixes = Set<String>()
@@ -1786,7 +1792,7 @@ enum DocxFormat {
             for (k, v) in n.attrs {
                 if let i = k.firstIndex(of: ":"), !k.hasPrefix("xmlns:") { prefixes.insert(String(k[..<i])) }
                 if k == "Requires" || k == "mc:Ignorable" { for t in v.split(separator: " ") { prefixes.insert(String(t)) } }
-                guard ["r:embed", "r:id", "r:link", "r:pict", "r:href"].contains(k), let rel = notes.rels[v],
+                guard _relationshipAttributes.contains(k), let rel = notes.rels[v],
                       !found.contains(where: { $0.id == v }) else { continue }
                 found.append(rel)
                 if !rel.external { notes.keep(_resolvePath("word", rel.target)) }
@@ -2076,7 +2082,7 @@ enum DocxFormat {
             for rel in rels {
                 keptRelCount += 1
                 let nid = "rIdKept\(keptRelCount)"
-                for attr in ["r:embed", "r:id", "r:link", "r:pict", "r:href"] {
+                for attr in _relationshipAttributes {
                     frag = frag.replacingAll("\(attr)=\"\(rel.id)\"", with: "\(attr)=\"\(nid)\"")
                 }
                 keptRels += "<Relationship Id=\"\(nid)\" Type=\"\(_esc(rel.type))\" Target=\"\(_esc(rel.target))\"\(rel.external ? " TargetMode=\"External\"" : "")/>"
