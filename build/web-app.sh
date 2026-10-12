@@ -208,14 +208,31 @@ fi
     echo "]"
 } > "$STAGE/fonts/manifest.json"
 
-# Keyed by revision, so changing SKWASM_REV refetches and nothing else does.
-CACHE="$REPO/web/.skwasm/$SKWASM_REV"
-if [ ! -s "$CACHE/skwasm.wasm" ] || [ ! -s "$CACHE/skwasm.js" ]; then
-    mkdir -p "$CACHE"
-    for f in skwasm.js skwasm.wasm; do
-        curl -fsSL -o "$CACHE/$f" \
-            "https://www.gstatic.com/flutter-canvaskit/$SKWASM_REV/$f"
-    done
+# A skwasm built from our engine, when there is one: it carries Starling's
+# additions (PDF export — lib/web_ui/skwasm/pdf.cpp), which Google's does
+# not, and the page turns those features off without it. Build it with
+#     cd engine/src && ./flutter/tools/gn --wasm --runtime-mode release
+#     ./flutter/third_party/gn/gn --root=. gen out/wasm_release
+#     ninja -C out/wasm_release flutter_web_sdk/canvaskit/skwasm.{js,wasm}
+# (docs/BUILDING.md has the Emscripten half). STARLING_SKWASM_DIR names
+# another directory holding the pair; STARLING_SKWASM_DIR=published insists
+# on Google's.
+OWN="${STARLING_SKWASM_DIR:-$REPO/engine/src/out/wasm_release/flutter_web_sdk/canvaskit}"
+if [ "$OWN" != published ] && [ -s "$OWN/skwasm.wasm" ] && [ -s "$OWN/skwasm.js" ]; then
+    CACHE="$OWN"
+    SKWASM_LABEL="skwasm built here, with PDF"
+else
+    [ -z "${STARLING_SKWASM_DIR:-}" ] || [ "$OWN" = published ] || { echo "no skwasm.js/.wasm in $OWN" >&2; exit 1; }
+    # Keyed by revision, so changing SKWASM_REV refetches and nothing else does.
+    CACHE="$REPO/web/.skwasm/$SKWASM_REV"
+    if [ ! -s "$CACHE/skwasm.wasm" ] || [ ! -s "$CACHE/skwasm.js" ]; then
+        mkdir -p "$CACHE"
+        for f in skwasm.js skwasm.wasm; do
+            curl -fsSL -o "$CACHE/$f" \
+                "https://www.gstatic.com/flutter-canvaskit/$SKWASM_REV/$f"
+        done
+    fi
+    SKWASM_LABEL="skwasm ${SKWASM_REV:0:11}, published: no PDF export"
 fi
 install -m 644 "$CACHE/skwasm.js" "$CACHE/skwasm.wasm" "$STAGE/skwasm/"
 
@@ -228,7 +245,7 @@ for f in "$STAGE/app.wasm" "$STAGE/skwasm/skwasm.wasm"; do
     gzip -9 -k -f "$f"
 done
 
-echo "staged  $STAGE  ($CONFIG, $SWIFT_SDK; skwasm ${SKWASM_REV:0:11})"
+echo "staged  $STAGE  ($CONFIG, $SWIFT_SDK; $SKWASM_LABEL)"
 if [ "$CHECK" = 1 ]; then
     # A --check without a build has no fresh why-extract; say so rather
     # than pass on a stale one.

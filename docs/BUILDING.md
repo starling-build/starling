@@ -231,6 +231,31 @@ only at link time. `sdk/tools/sync-vendored-headers.sh` refreshes them and
 
 ---
 
+### 1.7 The browser's renderer (optional: PDF export in a tab)
+
+The browser build draws with skwasm, and `build/web-app.sh` fetches the
+one Google publishes. That one cannot write a PDF — stock Flutter builds
+Skia without its PDF backend — so Export → PDF in a tab needs the skwasm
+built from this engine, which has it (`lib/web_ui/skwasm/pdf.cpp`). It
+is Emscripten's build, with the SDK the engine pins:
+
+    cd engine/src/flutter/prebuilts
+    git clone https://skia.googlesource.com/external/github.com/emscripten-core/emsdk.git
+    git -C emsdk checkout "$(sed -n "s/.*emsdk.git' + '@' + '\([0-9a-f]*\)'.*/\1/p" ../../../../DEPS)"
+    python3 ../tools/activate_emsdk.py          # installs and activates 3.1.70
+
+    cd ../..                                    # engine/src
+    ./flutter/tools/gn --wasm --runtime-mode release
+    ./flutter/third_party/gn/gn --root=. gen out/wasm_release      # the regen trap, §1.6
+    ninja -C out/wasm_release flutter_web_sdk/canvaskit/skwasm.wasm flutter_web_sdk/canvaskit/skwasm.js
+
+About fifteen minutes and 1352 steps from cold. `build/web-app.sh` stages
+that pair whenever it exists and says so on its `staged` line ("skwasm
+built here, with PDF", against "published: no PDF export");
+`STARLING_SKWASM_DIR=published` insists on Google's. With Google's the app
+still starts, and Export → PDF says it could not write. Ours is 3.81 MB
+where the published one is 3.55.
+
 ## 2. The desktop
 
 ### 2.1 Host packages

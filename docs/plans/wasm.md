@@ -244,7 +244,14 @@ through `StringHelpers`, which gained `replacingSubrange`):
   Writer's, because `OfficeRecovery.untitled` makes its directory.
   And `OfficeRecent.remember` is a no-op there — Backstage had listed
   the picked deck as "recent", which a tab cannot reopen.
-- Not in the browser: PDF export (Writer's limit too), AutoSave, Save
+- PDF export is in the browser when the staged skwasm is the one built
+  from our engine (docs/BUILDING.md §1.7): the same pages through the
+  same Skia PDF backend, as a download — Writer, Sheets and Slides, each
+  pixel-identical to the native export where compared (2026-10-11: the
+  25-page Word fixture, four corpus decks). `starling.debug('pdf')`
+  exports without the clicks. A decoded picture is a texture there, so
+  skwasm copies it back for the PDF; one inside a shader is left out.
+- Not in the browser: AutoSave, Save
   As by name (save *is* the download), the second-display presenter
   view (none natively either).
 - Leaving the tab with unsaved work asks first (`beforeunload`): the

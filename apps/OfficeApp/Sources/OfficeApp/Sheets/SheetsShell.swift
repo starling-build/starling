@@ -85,6 +85,11 @@ final class SheetsShellState: State<StatefulWidget> {
         // the active sheet as laid out, to diff against
         // `OfficeApp --sheet-layout` natively (test/sheets-layout.sh).
         hostDebugQuery = { [weak self] kind in
+            // `starling.debug('pdf')`: File → Export → PDF without the clicks —
+            // the download is what a script then compares.
+            #if os(WASI)
+            if kind == "pdf" { self?._export("pdf"); return "exporting" }
+            #endif
             guard let self, kind == "sheet" else { return nil }
             _ = self._grid?.commitEdit()
             return SheetLayoutDump.text(self.wb)
@@ -308,14 +313,19 @@ final class SheetsShellState: State<StatefulWidget> {
     private func _export(_ ext: String) {
         _ = _grid?.commitEdit()
         #if os(WASI)
-        // CSV is a download, like a save; PDF needs the page renderer the
-        // browser build does not carry yet (Writer's limit too).
+        // Both are downloads, like a save.
         setState { _backstage = nil }
         if ext == "csv" {
             WebFiles.download(Data(Csv.write(wb.sheet, book: wb.book).utf8), as: session.title.deletingPathExtension + ".csv")
             _flash("Exported \(session.title.deletingPathExtension).csv")
         } else {
-            _flash("PDF export is not available in the browser yet")
+            let name = session.title.deletingPathExtension + ".pdf"
+            _flash("Exporting \(name)…")
+            Task { @MainActor [weak self] in
+                guard let self, let grid = self._grid else { return }
+                let ok = await grid.writePdf(to: name, title: self.session.title, filePath: self.session.path)
+                self._flash(ok ? "Exported \(name)" : "Nothing to export on this sheet")
+            }
         }
         return
         #else

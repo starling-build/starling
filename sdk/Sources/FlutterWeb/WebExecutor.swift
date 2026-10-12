@@ -32,6 +32,11 @@ final class WebExecutor: SerialExecutor, @unchecked Sendable {
         UnownedSerialExecutor(ordinary: self)
     }
 
+    #if !(compiler(>=6.4) || (swift(>=6.3) && arch(wasm32)))
+    // The page calls in from outside any job, on the one thread there is.
+    func checkIsolated() {}
+    #endif
+
     /// Installs the hooks. Once, before the first `Task`.
     static func install() {
         #if compiler(>=6.4) || (swift(>=6.3) && arch(wasm32))
@@ -47,6 +52,13 @@ final class WebExecutor: SerialExecutor, @unchecked Sendable {
             to: UnsafeMutableRawPointer?.self)
         swift_task_enqueueMainExecutor_hook = unsafeBitCast(
             enqueueMain as EnqueueMainHook, to: UnsafeMutableRawPointer?.self)
+        // The 6.2 runtime has the executor objects of 6.3 and no way to
+        // supply one: the main actor's executor is its own cooperative
+        // queue, a task for the main actor is enqueued on that object
+        // directly — past every hook above — and nothing here drains it.
+        // This hook is what the runtime asks for that object.
+        swift_task_getMainExecutor_hook = unsafeBitCast(
+            getMainExecutor as GetMainExecutorHook, to: UnsafeMutableRawPointer?.self)
         #endif
     }
 }
@@ -65,6 +77,8 @@ private typealias EnqueueGlobalWithDeadlineHook =
     ) -> Void
 private typealias EnqueueMainHook =
     @convention(thin) (UnownedJob, @convention(thin) (UnownedJob) -> Void) -> Void
+private typealias GetMainExecutorHook =
+    @convention(thin) (@convention(thin) () -> UnownedSerialExecutor) -> UnownedSerialExecutor
 
 private func enqueueGlobal(_ job: UnownedJob, _ original: @convention(thin) (UnownedJob) -> Void) {
     WebExecutor.shared.enqueue(job)
@@ -102,6 +116,12 @@ private func enqueueMain(_ job: UnownedJob, _ original: @convention(thin) (Unown
     WebExecutor.shared.enqueue(job)
 }
 
+private func getMainExecutor(
+    _ original: @convention(thin) () -> UnownedSerialExecutor
+) -> UnownedSerialExecutor {
+    WebExecutor.shared.asUnownedSerialExecutor()
+}
+
 // The runtime's hook variables.
 @_silgen_name("swift_task_enqueueGlobal_hook")
 private var swift_task_enqueueGlobal_hook: UnsafeMutableRawPointer?
@@ -111,6 +131,8 @@ private var swift_task_enqueueGlobalWithDelay_hook: UnsafeMutableRawPointer?
 private var swift_task_enqueueGlobalWithDeadline_hook: UnsafeMutableRawPointer?
 @_silgen_name("swift_task_enqueueMainExecutor_hook")
 private var swift_task_enqueueMainExecutor_hook: UnsafeMutableRawPointer?
+@_silgen_name("swift_task_getMainExecutor_hook")
+private var swift_task_getMainExecutor_hook: UnsafeMutableRawPointer?
 
 #if compiler(>=6.4) || (swift(>=6.3) && arch(wasm32))
 // New runtimes obtain the main/global executors from a factory instead of

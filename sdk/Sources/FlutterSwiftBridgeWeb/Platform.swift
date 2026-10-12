@@ -86,11 +86,46 @@ extension flutter.swift_bridge {
     /// browser does the segmenting (starling_host_segment).
     public static func InitializeICU(_ path: String) -> Bool { true }
 
-    // WEB-TODO: PDF. skwasm has no PDF backend; the browser's print-to-PDF
-    // over a rendered page, or a PDF writer in Swift, would be the way.
+    /// PDF through skwasm's own Skia PDF backend (pdf_write — a Starling
+    /// addition to lib/web_ui/skwasm, so it needs the skwasm built from our
+    /// engine, not Google's published one; build/web-app.sh says which it
+    /// staged). A tab has no file to write: the document is handed to the
+    /// browser as a download named by `path`'s last component.
+    // WEB-TODO: a picture is a texture here, which skwasm copies back for
+    // the PDF — except one inside a shader (a tiled fill), which is left out.
     public static func WritePdf(
         _ path: String, _ displayLists: UnsafePointer<UnsafeRawPointer?>?,
         _ count: Int32, _ widths: UnsafePointer<Double>?, _ heights: UnsafePointer<Double>?,
         _ title: String?, _ author: String?
-    ) -> Bool { false }
+    ) -> Bool {
+        guard let displayLists, let widths, let heights, count > 0 else { return false }
+        let n = Int(count)
+        let handles = (0 ..< n).map { skHandle(from: displayLists[$0]) }
+        var sizes: [Float] = []
+        for i in 0 ..< n {
+            sizes.append(Float(widths[i]))
+            sizes.append(Float(heights[i]))
+        }
+        let skTitle = title.map(makeSkString) ?? 0
+        let skAuthor = author.map(makeSkString) ?? 0
+        defer {
+            if skTitle != 0 { skString_free(skTitle) }
+            if skAuthor != 0 { skString_free(skAuthor) }
+        }
+        let data = withSkStack { stack in
+            pdf_write(WebSurface.handle, stack.pointers(handles), count, stack.floats(sizes), skTitle, skAuthor)
+        }
+        guard data != 0 else { return false }
+        defer { skData_dispose(data) }
+        let bytes: [UInt8] = skRead(skData_getConstPointer(data), count: Int(skData_getSize(data)))
+        guard !bytes.isEmpty else { return false }
+        var name = String(path.split(separator: "/").last ?? "document.pdf")
+        name.withUTF8 { nameBytes in
+            bytes.withUnsafeBufferPointer { b in
+                starling_host_download(nameBytes.baseAddress, UInt32(nameBytes.count),
+                                       b.baseAddress, UInt32(b.count))
+            }
+        }
+        return true
+    }
 }

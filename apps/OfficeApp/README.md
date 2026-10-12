@@ -20,7 +20,9 @@ python3 build/tools/web-serve.py .stage-web-OfficeApp 8137
 Ensure that toolchain's `usr/bin` is first on `PATH`. `STARLING_WASM_SDK` can be
 omitted when the script's compiler-derived name matches the installed SDK name.
 The build fetches zlib and the prebuilt skwasm renderer, stages fonts, and produces
-`.stage-web-OfficeApp`. No native engine build is needed for the browser.
+`.stage-web-OfficeApp`. No native engine build is needed for the browser — except for
+Export → PDF, which needs the skwasm built from our engine (`docs/BUILDING.md` §1.7);
+the script stages that one when it exists.
 
 ## macOS
 

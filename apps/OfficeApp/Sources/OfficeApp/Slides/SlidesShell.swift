@@ -173,6 +173,14 @@ final class SlidesShellState: State<StatefulWidget> {
             #endif
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
+        hostDebugQuery = { [weak self] kind in
+            // `starling.debug('pdf')`: File → Export → PDF without the clicks —
+            // the download is what a script then compares.
+            #if os(WASI)
+            if kind == "pdf" { self?._export("pdf"); return "exporting" }
+            #endif
+            return nil
+        }
         session.onStatus = { [weak self] m in self?._flash(m) }
         session.onPaste = { [weak self] plain in
             guard let self else { return }
@@ -696,10 +704,6 @@ final class SlidesShellState: State<StatefulWidget> {
             return
         }
         setState { _backstage = nil }
-        #if os(WASI)
-        _flash("PDF export is not available in the browser yet")
-        return
-        #endif
         _flash("Exporting \(target.lastPathComponent)…")
         Task { @MainActor [weak self] in
             guard let self else { return }

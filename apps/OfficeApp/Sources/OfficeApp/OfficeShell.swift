@@ -81,6 +81,11 @@ final class OfficeShellState: State<StatefulWidget> {
         // the open document's lines and pages, to diff against
         // `OfficeApp --layout` natively.
         hostDebugQuery = { [weak self] kind in
+            // `starling.debug('pdf')`: File → Export → PDF without the clicks —
+            // the download is what a script then compares.
+            #if os(WASI)
+            if kind == "pdf" { self?._export("pdf"); return "exporting" }
+            #endif
             guard let self, kind == "layout" else { return nil }
             return OfficeLayoutDump.text(self.controller.document, pageSetup: self.session.pageSetup)
         }
@@ -502,7 +507,14 @@ final class OfficeShellState: State<StatefulWidget> {
         let target = base + "." + ext
         #if os(WASI)
         do {
-            guard ext != "pdf" else { _flash("PDF export is not available in the browser yet"); return }
+            // A PDF is a download too: the renderer writes it (PdfDocument).
+            if ext == "pdf" {
+                let ok = PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,
+                                         to: target, title: session.title)
+                setState { _backstage = nil }
+                _flash(ok ? "Exported \(target.lastPathComponent)" : "Could not write the PDF")
+                return
+            }
             let data = try OfficeFormats.encode(controller.document, as: ext, pageSetup: session.pageSetup)
             WebFiles.download(data, as: target.lastPathComponent)
             setState { _backstage = nil }

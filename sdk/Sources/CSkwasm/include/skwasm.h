@@ -92,6 +92,14 @@ void fontCollection_registerTypeface(sk_ptr collection, sk_ptr typeface,
                                      sk_ptr fontName);
 SKWASM(skData_dispose) void skData_dispose(sk_ptr data);
 
+// --- pdf.cpp (Starling's; absent from Google's published skwasm) ------------
+// `surface` is the one the pages' images are textures of (0: they are left
+// out); `sizes` is count (width, height) pairs in PDF points; title and
+// author are SkStrings or 0. Returns an SkData (skData_dispose) or 0.
+SKWASM(pdf_write)
+sk_ptr pdf_write(sk_ptr surface, sk_ptr pictures, int32_t count, sk_ptr sizes,
+                 sk_ptr title, sk_ptr author);
+
 // --- text/ ------------------------------------------------------------------
 SKWASM(paragraphStyle_create) sk_ptr paragraphStyle_create(void);
 SKWASM(paragraphStyle_dispose) void paragraphStyle_dispose(sk_ptr style);
