@@ -1034,7 +1034,7 @@ public final class RichLayout {
                     if Self.debugPagination {
                         let m = g.painter.computeLineMetrics()
                         let desc = "para \(i) top \(g.top) textTop \(g.textTop) bottom \(g.bottom) painterH \(g.painter.height) lines \(m.count) heights \(m.map { $0.height }) asc/desc \(m.first.map { "\($0.ascent)/\($0.descent)" } ?? "-") cursor \(cursor) y \(y) available \(available)\n"
-                        _ = desc.withCString { write(2, $0, strlen($0)) }
+                        FileHandle.standardError.write(Data(desc.utf8))
                     }
                 }
                 // The lowest cut that still fits.

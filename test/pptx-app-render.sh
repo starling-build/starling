@@ -28,9 +28,18 @@ fi
 APP="${OFFICE_APP:-$ROOT/apps/OfficeApp/.build/release/OfficeApp}"
 [ -d "$IN" ] && [ -d "$PPT" ] || { echo "usage: $0 IN_DIR PPT_DIR WORK [names]" >&2; exit 2; }
 mkdir -p "$WORK/pdf" "$WORK/pairs"
-DIFF="$WORK/pdf-diff"
-if [ ! -x "$DIFF" ]; then
-  swiftc -O -o "$DIFF" "$HERE/pdf-diff.swift" 2>&1 | grep -E 'error:' && exit 1
+# The page diff is CoreGraphics on a Mac and MuPDF anywhere else
+# (test/pdf-diff.py: the same lines and threshold, another rasteriser — so
+# a sweep is comparable with sweeps from the same kind of machine). Under
+# Git Bash the app is SwiftPM's Windows build, or OFFICE_APP.
+if [ "$(uname)" = Darwin ]; then
+  DIFF=("$WORK/pdf-diff")
+  if [ ! -x "$DIFF" ]; then
+    swiftc -O -o "$DIFF" "$HERE/pdf-diff.swift" 2>&1 | grep -E 'error:' && exit 1
+  fi
+else
+  DIFF=(python "$HERE/pdf-diff.py")
+  [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/apps/OfficeApp/.build/x86_64-unknown-windows-msvc/release/OfficeApp.exe"
 fi
 names=("$@"); [ ${#names[@]} -gt 0 ] || names=($(cd "$IN" && ls *.pptx | grep -v '^~\$'))
 touch "$WORK/render.tsv"
@@ -41,6 +50,6 @@ for n in "${names[@]}"; do
   if ! out=$("$APP" --deck-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
     printf '%s\tERROR\t%s\n' "$n" "$(echo "$out" | tail -1 | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue
   fi
-  s=$("$DIFF" "$PPT/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)
+  s=$("${DIFF[@]}" "$PPT/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)
   printf '%s\t%s\n' "$n" "$s" | tee -a "$WORK/render.tsv"
 done

@@ -80,6 +80,13 @@ $trims = @{
     # dead bytes but capability -- sockets, process creation, dart:ffi and an
     # RWX page allocator inside the binary that IS the Windows shell.
     'flutter_enable_dart'               = 'false'
+
+    # Not a trim: Skia's PDF backend, which Office's export and its headless
+    # `--deck-pdf` draw through (lib/ui/swift's pdf_bridge). flutter/tools/gn
+    # turns it on since 63ec018c62c, but an out directory configured before
+    # that still says false, and the bridge then links SkDocument_PDF_None --
+    # every export "succeeds" and writes nothing.
+    'skia_enable_pdf'                   = 'true'
 }
 
 $text = Get-Content $argsFile -Raw

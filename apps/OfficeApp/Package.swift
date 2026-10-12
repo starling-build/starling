@@ -186,13 +186,22 @@ let appTarget: Target = {
 // no system zlib; the same CZlib module name, so Zip.swift does not know.
 let wasmBuild = !env("STARLING_WASM", default: "").isEmpty
 
-let zlibTarget: Target = wasmBuild
+// Windows has no system zlib either, so it compiles the same fetched sources
+// (run build/tools/fetch-zlib.sh from Git Bash first) — without the unistd
+// define, which MSVC's headers cannot honour.
+#if os(Windows)
+let vendoredZlib = true
+#else
+let vendoredZlib = wasmBuild
+#endif
+
+let zlibTarget: Target = vendoredZlib
     ? .target(
         name: "CZlib",
         path: "Vendor/zlib",
         exclude: ["LICENSE", "VERSION"],
         publicHeadersPath: "include",
-        cSettings: [.define("HAVE_UNISTD_H"), .define("Z_HAVE_STDARG_H")]
+        cSettings: wasmBuild ? [.define("HAVE_UNISTD_H"), .define("Z_HAVE_STDARG_H")] : []
     )
     : .systemLibrary(name: "CZlib", path: "Sources/CZlib")
 

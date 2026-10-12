@@ -391,7 +391,7 @@ final class SlideCanvasState: State<StatefulWidget> {
     private static func _log(_ m: String) {
         guard _debug else { return }
         let line = m + "\n"
-        _ = line.withCString { write(2, $0, strlen($0)) }
+        FileHandle.standardError.write(Data(line.utf8))
     }
 
     private func _pointerMove(_ e: PointerMoveEvent) {

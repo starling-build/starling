@@ -164,7 +164,7 @@ public final class RichEditableState: State<StatefulWidget> {
 
     private static func _log(_ line: String) {
         let s = line + "\n"
-        _ = s.withCString { write(2, $0, strlen($0)) }
+        FileHandle.standardError.write(Data(s.utf8))
     }
 
     /// Current scroll offset in logical pixels; settable for a ruler or a
