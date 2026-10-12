@@ -59,4 +59,8 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     DIRECTORY = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 8137
+    # A page asks for its module, its renderer and every eager font at
+    # once; the default backlog of 5 drops some of those connections on
+    # macOS, and the page dies on "Failed to fetch" one start in four.
+    ThreadingHTTPServer.request_queue_size = 128
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
