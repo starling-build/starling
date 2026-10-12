@@ -59,9 +59,10 @@ LISTS="$ROOT/test/corpus/xlsx"; SUFFIX=-mupdf; [ "$(uname)" = Darwin ] && SUFFIX
 names=("$@")
 if [ ${#names[@]} -eq 0 ] && [ -n "$CORPUS_GROUP" ]; then
   [ -f "$LISTS/$CORPUS_GROUP$SUFFIX.txt" ] || { echo "no list $LISTS/$CORPUS_GROUP$SUFFIX.txt" >&2; exit 2; }
-  names=($(tr -d '\015' < "$LISTS/$CORPUS_GROUP$SUFFIX.txt"))
+  mapfile -t names < <(tr -d '\015' < "$LISTS/$CORPUS_GROUP$SUFFIX.txt")
 fi
-[ ${#names[@]} -gt 0 ] || names=($(cd "$IN" && ls *.xlsx | grep -v '^~\$'))
+# (By line: a workbook's name may have spaces in it.)
+[ ${#names[@]} -gt 0 ] || mapfile -t names < <(cd "$IN" && ls *.xlsx | grep -v '^~\$')
 touch "$WORK/render.tsv"
 for n in "${names[@]}"; do
   n=$(basename "$n"); base=${n%.xlsx}

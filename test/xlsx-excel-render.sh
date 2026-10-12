@@ -23,7 +23,9 @@ case "$(uname)" in
   Darwin|Linux) echo "Excel's PDFs are made on Windows (see the header of $0)" >&2; exit 2 ;;
 esac
 mkdir -p "$OUT"
-names=("$@"); [ ${#names[@]} -gt 0 ] || names=($(cd "$IN" && ls *.xlsx | grep -v '^~\$'))
+# (Read by line: a workbook's name may have spaces in it, "54084 - Greek -
+# beyond BMP.xlsx", and word-splitting made five workbooks of that one.)
+names=("$@"); [ ${#names[@]} -gt 0 ] || mapfile -t names < <(cd "$IN" && ls *.xlsx | grep -v '^~\$')
 touch "$OUT/export.tsv"
 for n in "${names[@]}"; do
   n=$(basename "$n"); base=${n%.xlsx}
