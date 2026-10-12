@@ -695,6 +695,81 @@ the first differing page found six of the seven causes before Word
 was asked anything; Word was the check, and the probe only where two
 candidates had to be told apart.
 
+**Chinese government documents, 2026-10-11/12 (commits a1e9fcb6 to
+6998ec5a).** A second corpus, because POI's is Western: 679 .docx
+tagged government + Chinese on docxcorp.us (520 of type "policies";
+113 of the first 179 simplified, the rest Taiwan's traditional), in
+`~/.cache/starling/docx-zh-gov/{in,out}` with a `manifest.tsv`, never
+in the repo. `test/docx-corpus.py --dir IN FILES…` round-trips them
+(name the files: without them the script fetches POI into the
+directory). Round trip: 679 of 679 after two fixes it found — a kept
+list number's `w14` text effect in a numbering part that declared `w`
+alone (10 files ill-formed), and a SmartArt's `dgm:relIds` (`r:dm`,
+`r:lo`, `r:qs`, `r:cs`) not treated as relationships (3 files).
+
+Then Word's prints of a seeded random tenth (68 documents,
+`~/starling-word-check/zh`). The first pass was sobering: of the first
+nine scored, eight were 15-46% off. Standing after two batches: 15
+identical, 42 within 1%, 10 at 1-5%, 12 at 5-15%, 4 above — against
+33 within 1% and 27 above 5% after the first batch. What a Chinese
+document is set by, none of which the Western corpus exercised:
+
+- **The line grid.** The last section's `w:docGrid` (kept sections had
+  theirs) and the paragraph switches that go with it: `w:snapToGrid`,
+  `w:kinsoku`, `w:wordWrap`, `w:overflowPunct`, `w:topLinePunct`,
+  `w:autoSpaceDE/DN`, `w:adjustRightInd`, `w:textAlignment`, and the
+  measures in character and line units that override the point ones
+  (`w:firstLineChars`, `w:beforeLines`…). Resolved down the style
+  chain into `RichParagraphStyle.eastAsian` and written on every
+  paragraph.
+- **Word's own paragraph defaults.** A styles part whose
+  `w:docDefaults` has NO `w:pPrDefault` (WPS writes them so) is spaced
+  by Word's Normal — 8pt after, lines of 278/240, measured off line
+  boxes — where an EMPTY `w:pPrDefault` means none. Six of the 68,
+  every one 6-37% off, to 0.0-3.2.
+- **Sections.** A section's `w:type` is how THAT section starts, so the
+  break after a section is the next one's to say (a "continuous" body
+  after a cover section had been pushed to page two); the last section
+  keeps its type, `w:pgNumType`, gutter; and a section break in the
+  text keeps the header and footer parts it names, which the sections
+  after it inherit (a letterhead line lost on all 18 pages).
+- **Fonts.** `w:rFonts w:hint`, a separate `w:hAnsi`, and the Latin
+  face read from `w:ascii` alone — a run naming only `w:hAnsi` beside
+  `w:eastAsia` had its digits come back in the East Asian face. Per-run
+  `w:lang`, `w:w`, `w:position`, `w:bdr`, `w:fitText` kept; the
+  defaults' `w:lang`, `w:themeFontLang`, `w:characterSpacingControl`.
+- **Tables.** Each cell's own `w:tcW` (percentages mixed with "auto"
+  are neither all-auto nor the grid), `w:noWrap`, a merged cell's
+  continuation paragraphs, a table centred by its rows' `w:jc`.
+- **Lists and breaks.** Number formats by Word's name
+  (`chineseCounting`, `taiwaneseCountingThousand`: "壹、" had come back
+  "1、"), start and alignment; a page break that OPENS a paragraph is
+  the paragraph starting a page, not an empty paragraph and a break (a
+  blank page where the page was full); a paragraph border's line style
+  (`thinThickSmallGap`, the red rule under a letterhead); a style's
+  letter spacing and kerning.
+
+None of it is laid out by the editor; it is kept for Word. The POI set
+is where it was (111 scored, 110 within 1%) — after a scare: Word's
+print dialog holds a paper for the session and changed it under the
+regression pass (A4 as 595x842, then 595.28x841.89), so kept prints of
+the originals sat half a point off the fresh copies and forty
+documents "regressed" by up to 10%. `pdf-diff` reports `paper=differs`
+now and the gate prints that original again.
+
+Left in the sample, each its own cause, first differing line found
+with `test/pdf-lines.swift` for most: e37f8d40 30% (14 pages against
+18; a constant 2pt under the header and half-width parentheses a hair
+wide), 6600d539 30% (9 against 12; a two-column comparison table),
+64044a1d 20% (103 against 114), 90e0cea8 16% (a standards cover built
+of `w:framePr` frames in STYLES), 457a8d62 13% (a paragraph indent
+61pt off on page 4, once the gutter was right), then eleven at 5-12%.
+Not yet looked at: `w:tblStyle` (dropped — 16 of the remaining files
+name one), frames in styles, text boxes. The census script that ranked
+the losses (which property elements the copy lacks, by files
+affected) was the fastest tool of the round and lives only in this
+session's scratch; rebuild it from the description if needed.
+
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
 in the document is fine), so the gallery menu caps its previews at 13.
