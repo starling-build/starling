@@ -169,7 +169,14 @@ final class SheetGridState: State<StatefulWidget> {
     private static var _clip: WorkbookController.Clip? = nil
 
     private var _w: SheetGrid { widget as! SheetGrid }
-    var controller: WorkbookController { _w.controller }
+    /// The workbook of a grid that is in no tree: `--sheet-pdf` prints
+    /// through the grid's own painter without a window.
+    private var _headless: WorkbookController? = nil
+    convenience init(headless controller: WorkbookController) {
+        self.init()
+        _headless = controller
+    }
+    var controller: WorkbookController { _headless ?? _w.controller }
 
     /// Logical pixels per point at the current zoom (Excel's 96 dpi).
     var scale: Double { 96.0 / 72.0 * zoom }
@@ -422,7 +429,7 @@ final class SheetGridState: State<StatefulWidget> {
                 decoded = (try? await codec.getNextFrame())?.image
                 codec.dispose()
             }
-            guard let self, self.mounted else { decoded?.dispose(); return }
+            guard let self, self.mounted || self._headless != nil else { decoded?.dispose(); return }
             self._decoding.remove(key)
             if let decoded {
                 self._images[key] = decoded

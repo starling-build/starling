@@ -336,6 +336,40 @@ if let i = CommandLine.arguments.firstIndex(of: "--xlsx-check"), i + 1 < Command
     exit(SheetsCheck.run(Array(CommandLine.arguments[(i + 1)...])))
 }
 
+// `--sheet-pdf <in.xlsx> <out.pdf>`: what printing the entire workbook to
+// PDF would write, without a window — every visible sheet through the
+// grid's own painter, for comparing against Excel's
+// (test/xlsx-app-render.sh). `SHEET_PDF_MAX_PAGES` caps the job (200).
+if let i = CommandLine.arguments.firstIndex(of: "--sheet-pdf"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let src = CommandLine.arguments[i + 1], dst = CommandLine.arguments[i + 2]
+        let data = try Data(contentsOf: URL(fileURLWithPath: src))
+        let c = WorkbookController()
+        c.load(try Xlsx.read(data))
+        let grid = SheetGridState(headless: c)
+        let cap = Int(ProcessInfo.processInfo.environment["SHEET_PDF_MAX_PAGES"] ?? "") ?? 200
+        var done: Bool? = nil
+        Task { @MainActor in
+            done = await grid.writePdf(to: dst, title: src.lastPathComponent.deletingPathExtension, filePath: src,
+                                       wholeBook: true, maxPages: cap)
+        }
+        let deadline = Date().addingTimeInterval(120)
+        while done == nil && Date() < deadline {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
+        }
+        guard done == true else {
+            FileHandle.standardError.write("sheet pdf failed: \(done == nil ? "timed out" : "nothing to print, or could not write")\n".data(using: .utf8)!)
+            exit(1)
+        }
+        print("\(src) -> \(dst)")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("sheet pdf failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--xlsx-roundtrip <in> <out>`: read a workbook and write it back, for
 // checking our .xlsx against Excel's importers (qlmanage) and its parts.
 if let i = CommandLine.arguments.firstIndex(of: "--xlsx-roundtrip"), i + 2 < CommandLine.arguments.count {

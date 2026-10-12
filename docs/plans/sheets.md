@@ -150,6 +150,24 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**A rendering gate against Excel, half built (2026-10-11).** The corpus
+is in the repository — `test/corpus/xlsx/books`, 810 workbooks (POI's 352
+of the oracle rounds below, LibreOffice's `sc` and `chart2` regression
+files) — and `OfficeApp --sheet-pdf` prints an entire workbook without a
+window (every visible sheet in tab order, pages numbered across them;
+`SheetGridState(headless:)`), 736 of the 810. `test/xlsx-app-render.sh`
+scores those pages against Excel's as `test/pptx-app-render.sh` does for
+Slides. What is missing is Excel's side: Excel for Mac without a licence
+neither prints nor saves (File → Print… is disabled; the scripted save
+and print answer without error and write nothing), so the references are
+to be made on Windows with `test/xlsx-excel-render.sh` (COM,
+`ExportAsFixedFormat`), which is written and has never run. Until then
+there are no scores. Known before any score: 56 workbooks print nothing
+here (to be checked against what Excel prints for them — form controls,
+sheets holding only a header or footer, drawings at absolute anchors),
+and this app's print stops at the used cells where Excel may also count
+shapes.
+
 **Excel as the formula oracle (2026-10-07).** Every formula cell in an
 .xlsx carries the value Excel last computed for it, so a real workbook is
 a test of the engine: `OfficeApp --xlsx-check file.xlsx…` reads each

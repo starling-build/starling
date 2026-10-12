@@ -182,27 +182,75 @@ enum SheetPrintLayout {
 }
 
 extension SheetGridState {
-    /// The active sheet as PDF pages; false when there is nothing to print
-    /// or the file could not be written.
-    func writePdf(to path: String, title: String, filePath: String? = nil) async -> Bool {
+    /// The active sheet as PDF pages — or, with `wholeBook`, every visible
+    /// sheet in tab order, as Excel's "Entire Workbook" prints: one job,
+    /// its pages numbered and counted across the sheets. False when there
+    /// is nothing to print or the file could not be written. `maxPages`
+    /// stops a runaway sheet (the rendering gate's cap).
+    func writePdf(to path: String, title: String, filePath: String? = nil,
+                  wholeBook: Bool = false, maxPages: Int? = nil) async -> Bool {
         let c = controller
-        let ws = c.sheet, book = c.book
-        guard let used = SheetPrintLayout.usedArea(ws, book: book) else { return false }
-        let names = SheetPrintLayout.printNames(book, sheet: c.activeSheet)
-        // A print area prints instead of the used one (each of several on
-        // its own pages); a whole-column or whole-row area stops where the
-        // sheet does.
-        let areas = names.areas.isEmpty ? [used] : names.areas.map { a in
-            CellRange(top: a.top, left: a.left, bottom: min(a.bottom, max(a.top, used.bottom)), right: min(a.right, max(a.left, used.right)))
-        }
-        await _preloadPictures(ws)
-        let setup = SheetPrintSetup.read(ws)
+        let book = c.book
+        let savedSheet = c.activeSheet
         let savedX = scrollX, savedY = scrollY
         printing = true
         defer {
             printing = false
+            if c.activeSheet != savedSheet { c.activeSheet = savedSheet }
             scrollX = savedX; scrollY = savedY
         }
+        /// One sheet's part of the job: what it prints and how it is cut.
+        struct Part {
+            var sheet: Int
+            var setup: SheetPrintSetup
+            var names: (areas: [CellRange], titleRows: ClosedRange<Int>?, titleCols: ClosedRange<Int>?)
+            var jobs: [(pages: [SheetPage], scale: Double)]
+        }
+        var parts: [Part] = []
+        let indices = wholeBook ? book.sheets.indices.filter { !book.sheets[$0].hidden } : [savedSheet]
+        for si in indices {
+            if c.activeSheet != si { c.activeSheet = si }
+            let ws = c.sheet
+            guard let used = SheetPrintLayout.usedArea(ws, book: book) else { continue }
+            let names = SheetPrintLayout.printNames(book, sheet: si)
+            // A print area prints instead of the used one (each of several on
+            // its own pages); a whole-column or whole-row area stops where the
+            // sheet does.
+            let areas = names.areas.isEmpty ? [used] : names.areas.map { a in
+                CellRange(top: a.top, left: a.left, bottom: min(a.bottom, max(a.top, used.bottom)), right: min(a.right, max(a.left, used.right)))
+            }
+            await _preloadPictures(ws)
+            let setup = SheetPrintSetup.read(ws)
+            let ca = cols, ra = rows   // in points while printing
+            let titleH = names.titleRows.map { $0.reduce(0) { $0 + ra.size($1) } } ?? 0
+            let titleW = names.titleCols.map { $0.reduce(0) { $0 + ca.size($1) } } ?? 0
+            // Every area's pages first: page numbers and the count run across
+            // all of them.
+            let jobs = areas.map { area in
+                SheetPrintLayout.pages(area: area, setup: setup, titleWidth: titleW, titleHeight: titleH,
+                                       width: { ca.size($0) }, height: { ra.size($0) })
+            }
+            parts.append(Part(sheet: si, setup: setup, names: names, jobs: jobs))
+        }
+        let pageCount = parts.reduce(0) { $0 + $1.jobs.reduce(0) { $0 + $1.pages.count } }
+        guard pageCount > 0 else { return false }
+        var out: [PdfDocument.Page] = []
+        for part in parts {
+            if let maxPages, out.count >= maxPages { break }
+            if c.activeSheet != part.sheet { c.activeSheet = part.sheet }
+            _paintPart(sheet: part.sheet, setup: part.setup, names: part.names, jobs: part.jobs, pageCount: pageCount,
+                       title: title, filePath: filePath, maxPages: maxPages, into: &out)
+        }
+        return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName())
+    }
+
+    /// The active sheet's pages, appended to `out`.
+    private func _paintPart(sheet: Int, setup: SheetPrintSetup,
+                            names: (areas: [CellRange], titleRows: ClosedRange<Int>?, titleCols: ClosedRange<Int>?),
+                            jobs: [(pages: [SheetPage], scale: Double)], pageCount: Int,
+                            title: String, filePath: String?, maxPages: Int?, into out: inout [PdfDocument.Page]) {
+        let c = controller
+        let ws = c.sheet, book = c.book
         let ca = cols, ra = rows   // in points while printing
         let titleRows = names.titleRows.map { Array($0).filter { ra.size($0) > 0 } } ?? []
         let titleCols = names.titleCols.map { Array($0).filter { ca.size($0) > 0 } } ?? []
@@ -213,14 +261,6 @@ extension SheetGridState {
             if case .chart(let sc) = d.kind { return c.liveChart(sc) }
             return nil
         }
-        var out: [PdfDocument.Page] = []
-        // Every area's pages first: page numbers and the count run across
-        // all of them.
-        let jobs = areas.map { area in
-            SheetPrintLayout.pages(area: area, setup: setup, titleWidth: titleW, titleHeight: titleH,
-                                   width: { ca.size($0) }, height: { ra.size($0) })
-        }
-        let pageCount = jobs.reduce(0) { $0 + $1.pages.count }
         var fields = HeaderFooterText.Fields(pages: pageCount, file: title, sheet: ws.name,
                                              path: filePath.map { $0.deletingLastPathComponent } ?? "")
         let hfStyle = book.style(0)
@@ -228,6 +268,7 @@ extension SheetGridState {
                                    size: hfStyle.fontSize ?? 11, color: Int64(0xFF000000))
         for (pages, s) in jobs {
             for page in pages {
+                if let maxPages, out.count >= maxPages { return }
                 guard let c0 = page.cols.first, let c1 = page.cols.last, let r0 = page.rows.first, let r1 = page.rows.last else { continue }
                 // Titles repeat on pages that do not already show them.
                 let tRows = titleRows.last.map { r0 > $0 } ?? false ? titleRows : []
@@ -279,7 +320,6 @@ extension SheetGridState {
                 out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
             }
         }
-        return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName())
     }
 
     /// The page's header along the top margin and footer along the bottom:

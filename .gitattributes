@@ -53,3 +53,6 @@ build/session/starling-session   text eol=lf
 test/corpus/**/*.pptx   binary
 test/corpus/**/*.pdf    binary
 test/corpus/**/*.tsv    text eol=lf
+
+# The .xlsx corpus (test/corpus/xlsx), on the same terms.
+test/corpus/**/*.xlsx   binary
