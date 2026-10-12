@@ -18,7 +18,9 @@ neither list. test/pptx-app-render.sh sweeps one group with
 CORPUS_GROUP=matched or CORPUS_GROUP=others.
 
 `test/pptx-corpus-groups.py xlsx` does the same for test/corpus/xlsx —
-workbooks against Excel's PDFs, swept by test/xlsx-app-render.sh.
+workbooks against Excel's PDFs, swept by test/xlsx-app-render.sh — and
+`… docx` for test/corpus/docx, documents against Word's PDFs, swept by
+test/docx-app-render.sh.
 """
 import os
 import re

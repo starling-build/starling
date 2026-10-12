@@ -1296,3 +1296,17 @@ memory recipe.
    to Office once Phase 2 lands (plan), or fold it in.
 4. Name. `Office` is the placeholder for the suite; Writer/Sheets/Slides
    for the kinds.
+
+### The corpus in the repository, 2026-10-12
+
+The documents and Word's prints of them are now checked in as
+`test/corpus/docx`, laid out like the .pptx and .xlsx corpora: the 130
+POI documents and the 68 Chinese ones of the sample (`zh-*`), Word's PDF
+of 179 of them, and two score files. `roundtrip.tsv` is the gate this
+plan has been about (176 of 179 within 1%). `baseline.tsv` is new: the
+first sweep of this app's own drawing against Word's print
+(`test/docx-app-render.sh`), which nothing had measured before — mean
+12.6% over the 179, POI 4.7% (median 0.9%), the Chinese sample 25.6%
+with no document under 2%, because lines and pages break elsewhere
+(1,275 pages against Word's 1,239). That is the painter's work list, and
+a different one from the writer's.
