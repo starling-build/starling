@@ -580,11 +580,21 @@ final class SlidePainter: CustomPainter {
                                     matrix4: [1, 0, 0, 0, 0, 1 / sy, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
             } else {
                 let a = fill.angle * .pi / 180
-                let c = r.center
-                let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
-                let d = Offset(cos(a) * half, sin(a) * half)
-                p.shader = Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
-                                    colors: colors, colorStops: positions)
+                if fill.scaled, r.width > 0, r.height > 0 {
+                    // Laid out in the unit square and stretched onto the
+                    // area with it.
+                    let half = (abs(cos(a)) + abs(sin(a))) / 2
+                    let d = Offset(cos(a) * half, sin(a) * half)
+                    p.shader = Gradient(linear: Offset(0.5 - d.dx, 0.5 - d.dy), to: Offset(0.5 + d.dx, 0.5 + d.dy),
+                                        colors: colors, colorStops: positions,
+                                        matrix4: [r.width, 0, 0, 0, 0, r.height, 0, 0, 0, 0, 1, 0, r.left, r.top, 0, 1])
+                } else {
+                    let c = r.center
+                    let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
+                    let d = Offset(cos(a) * half, sin(a) * half)
+                    p.shader = Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
+                                        colors: colors, colorStops: positions)
+                }
             }
             // The paint's own alpha scales the shader: a first stop that is
             // transparent must not make the whole gradient so.

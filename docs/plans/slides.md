@@ -354,9 +354,46 @@ vertical-box-list (the box taller than PowerPoint's), children (rows
 share height unlike PowerPoint's 3:4), cycle-matrix, and org-chart's
 packing.
 
+**The worst single pages, 2026-10-11** (sweep 32, Windows and MuPDF:
+2.80 → 2.70%, ≤2% 381 → 386; 12 decks down, two up by under 0.2; all
+59 matched decks still match). From a sheet of the twelve worst
+one-page decks that are not 3D or fonts:
+
+- **A turned or mirrored group was kept and never drawn** — a show and
+  an export had nothing where it stood, since the editor's box is not
+  shown there. It is drawn as its members now, each placed by the
+  group's child space, mirrored about the group's middle when the group
+  is, then turned about it and by its angle (`OpaqueObject.rendering`,
+  as a diagram's shapes are; the file's element is still what is
+  written). tdf100065 12.2 → 0.04, group-rot 2.4 → 0.1,
+  forum-mso-de-138303 4.7 → 0.6, 54542_cropped_bitmap 5.4 → 1.8.
+- **`mc:AlternateContent` was an object box**: drawn as its fallback's
+  shapes, or its choice's where the fallback holds nothing this app
+  reads (a diagram in each: tdf131553, 10.7 → 0.4).
+- **A chart's legend goes where `c:legendPos` puts it** — beside the
+  plot (r, l, tr) as a column, or above — where it was always below;
+  absent, the schema's default is the right. `Chart.legendPosition`,
+  written back. pie-chart 10.6 → 4.7.
+- **A built-in table style's first column, last column and last row**
+  are dressed like the header when the table's flags ask (the deck does
+  not define these styles; this is Medium Style 2's way). tdf149785
+  9.1 → 4.7.
+- **A picture fill with neither `a:stretch` nor `a:tile` is tiled**, on
+  a shape as on a background, and a shape's `a:tile` is read at all (it
+  was always stretched). tdf128596 9.1 → 3.0.
+- **`a:lin scaled="1"`**: the angle is of the unit square and stretches
+  with the area (`SlideFill.scaled`). tdf105739 moved little — the
+  direction is right now, PowerPoint's ramp still holds its end colours
+  longer.
+
+Seen and left: a chart's own series colours, bold title and data labels
+(tdf149985); justified text and picture bullets (pptx2svg); an empty
+table row's height (tdf144092-emptyShapeTextProps); hList1's item
+heights and shadows (fill-color-list).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
-0.00%: 59 of 553 by MuPDF at sweep 31) and `others*.txt` the rest;
+0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
 `test/pptx-corpus-groups.py` writes them from the baselines, and
 `CORPUS_GROUP=matched test/pptx-app-render.sh WORK` sweeps the first in
 under a minute and fails if one of them no longer matches. Lists, not

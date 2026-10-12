@@ -269,6 +269,10 @@ struct SlideFill: Equatable {
     /// clockwise from left-to-right.
     var stops: [GradientStop] = []
     var angle = 0.0
+    /// `a:lin scaled="1"`: the angle is of the fill's unit square, so it
+    /// stretches with the area — 45° runs corner to corner of a wide
+    /// slide, its bands of colour lying along the other diagonal.
+    var scaled = false
     /// `a:path`: the gradient radiates from `fillTo` (a rectangle in
     /// fractions of the area, usually a point) out to the edges — circles
     /// for `circle`, the area's own proportions for `rect` and `shape` —

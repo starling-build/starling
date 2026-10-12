@@ -65,6 +65,9 @@ struct Chart: Equatable {
     var categories: [String]
     var series: [ChartSeries]
     var legend = true
+    /// `c:legendPos`: "b" below the plot (what a new chart gets), "t" above,
+    /// "r", "l" or "tr" beside it, one entry to a line.
+    var legendPosition = "b"
     var dataLabels = false
     /// `c:grouping`: clustered/standard, stacked or percentStacked.
     var stacked = false
@@ -200,6 +203,8 @@ enum ChartXML {
         }
         var c = Chart(type: type, title: title, categories: categories, series: series)
         c.legend = chart.first("c:legend") != nil
+        // (Absent, the schema's default is the right.)
+        if let l = chart.first("c:legend") { c.legendPosition = l.first("c:legendPos")?["val"] ?? "r" }
         c.stacked = grouping == "stacked" || grouping == "percentStacked"
         c.percent = grouping == "percentStacked"
         func shows(_ d: XNode?) -> Bool { d?.first("c:showVal")?["val"] == "1" || d?.first("c:showPercent")?["val"] == "1" }
@@ -384,7 +389,7 @@ enum ChartXML {
             plot += valAx
         }
         let title = c.title.map { _rich($0, size: 1862) } ?? ""
-        let legend = c.legend ? "<c:legend><c:legendPos val=\"b\"/><c:overlay val=\"0\"/></c:legend>" : ""
+        let legend = c.legend ? "<c:legend><c:legendPos val=\"\(c.legendPosition)\"/><c:overlay val=\"0\"/></c:legend>" : ""
         let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1200\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -457,20 +462,39 @@ enum ChartPainter {
             let names = pie ? c.categories : c.series.map(\.name)
             let entries = names.enumerated().map { (i: $0.offset, tp: text($0.element, 12)) }
             let key = 7 * k, gap = 4 * k, spacing = 12 * k
+            // Beside the plot (`legendPos` r, l, tr): a column, an entry to
+            // a line, in the middle of the side; above or below: rows.
+            let beside = ["r", "l", "tr"].contains(c.legendPosition)
             var lines: [[(i: Int, tp: TextPainter)]] = [[]]
             var lineW = 0.0
             for e in entries {
                 let w = key + gap + e.tp.width
-                if lineW > 0, lineW + spacing + w > area.width { lines.append([]); lineW = 0 }
+                if lineW > 0, beside || lineW + spacing + w > area.width { lines.append([]); lineW = 0 }
                 lineW += (lineW > 0 ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
             }
-            let lineH = (entries.map(\.tp.height).max() ?? 12 * k)
-            var y = area.bottom - lineH * Double(lines.count)
-            area = Rect.fromLTRB(area.left, area.top, area.right, y - 6 * k)
+            let lineH = (entries.map(\.tp.height).max() ?? 12 * k) * (beside ? 1.35 : 1)
+            let columnW = (entries.map(\.tp.width).max() ?? 0) + key + gap
+            var y: Double, columnX = 0.0
+            if beside {
+                y = c.legendPosition == "tr" ? area.top : area.center.dy - lineH * Double(lines.count) / 2
+                if c.legendPosition == "l" {
+                    columnX = area.left
+                    area = Rect.fromLTRB(area.left + columnW + 12 * k, area.top, area.right, area.bottom)
+                } else {
+                    columnX = area.right - columnW
+                    area = Rect.fromLTRB(area.left, area.top, columnX - 12 * k, area.bottom)
+                }
+            } else if c.legendPosition == "t" {
+                y = area.top
+                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k, area.right, area.bottom)
+            } else {
+                y = area.bottom - lineH * Double(lines.count)
+                area = Rect.fromLTRB(area.left, area.top, area.right, y - 6 * k)
+            }
             for line in lines {
                 let w = line.reduce(0.0) { $0 + key + gap + $1.tp.width } + spacing * Double(max(0, line.count - 1))
-                var x = area.center.dx - w / 2
+                var x = beside ? columnX : area.center.dx - w / 2
                 for e in line {
                     let p = Paint()
                     p.style = .fill
@@ -485,7 +509,7 @@ enum ChartPainter {
                     } else {
                         canvas.drawRect(Rect.fromLTWH(x, y + (lineH - key) / 2, key, key), p)
                     }
-                    e.tp.paint(canvas, Offset(x + key + gap, y))
+                    e.tp.paint(canvas, Offset(x + key + gap, y + (lineH - e.tp.height) / 2))
                     x += key + gap + e.tp.width + spacing
                 }
                 y += lineH

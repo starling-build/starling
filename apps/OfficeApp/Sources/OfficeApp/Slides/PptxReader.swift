@@ -590,7 +590,11 @@ struct PptxReader {
            package.parts[rel.target] != nil {
             var f = SlideFill(image: images.attachment(rel.target, package))
             (f.imageAlpha, f.duotone) = Self.blipEffects(blip, colors: colors)
-            if let tile = b.first("a:tile") {
+            // Tiled when it says so — and when it says neither that nor
+            // `a:stretch`: a bare `a:blip` repeats at its own size
+            // (tdf128596's sheet of ticks, which was one tick stretched).
+            let tileNode = b.first("a:tile") ?? (b.first("a:stretch") == nil ? XNode(name: "a:tile", attrs: [:]) : nil)
+            if let tile = tileNode {
                 f.tiled = true
                 // At the picture's own resolution (its declared dpi) times
                 // `sx`. One that declares none comes out at 144 dpi — as
@@ -653,6 +657,7 @@ struct PptxReader {
         if stops.count == 1 { return SlideFill(color: stops[0].color) }
         var f = SlideFill(color: stops[0].color, stops: stops,
                           angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
+        f.scaled = ["1", "true"].contains(g.first("a:lin")?["scaled"] ?? "")
         if let path = g.first("a:path") {
             f.path = path["path"].flatMap(SlideFill.GradientPath.init(rawValue:)) ?? .shape
             if let to = path.first("a:fillToRect") {
@@ -877,7 +882,48 @@ private struct SlideContext {
                 // its members but cannot turn them with it.
                 if let gx = el.first("p:grpSpPr")?.first("a:xfrm"),
                    (gx["rot"].flatMap(Double.init) ?? 0) != 0 || gx["flipH"] == "1" || gx["flipV"] == "1" {
-                    add(_opaque(el, label: "Group", transform, id: id), el)
+                    // Drawn, though, as its members placed and turned the way
+                    // the group turns them: each about the group's middle,
+                    // mirrored first when the group is (a show and an export
+                    // had nothing where a turned group stood — tdf100065).
+                    var o = _opaque(el, label: "Group", transform, id: id)
+                    if case .opaque(var obj)? = o?.kind, let gf = _xfrmRect(gx),
+                       let chOff = gx.first("a:chOff"), let chExt = gx.first("a:chExt"),
+                       let cox = chOff["x"].flatMap(Double.init), let coy = chOff["y"].flatMap(Double.init),
+                       let ccx = chExt["cx"].flatMap(Double.init), let ccy = chExt["cy"].flatMap(Double.init),
+                       ccx > 0, ccy > 0 {
+                        let sx = gf.width / (ccx / Pptx.emu), sy = gf.height / (ccy / Pptx.emu)
+                        let map: (Rect) -> Rect = { r in
+                            let mapped = Rect.fromLTWH(gf.left + (r.left - cox / Pptx.emu) * sx,
+                                                       gf.top + (r.top - coy / Pptx.emu) * sy, r.width * sx, r.height * sy)
+                            return transform?(mapped) ?? mapped
+                        }
+                        var members: [ShapeState] = []
+                        shapes(in: el, transform: map, into: &members, id: id, group: nil, groupFill: ownFill(el))
+                        let frame = transform?(gf) ?? gf
+                        let centre = frame.center
+                        let degrees = (gx["rot"].flatMap(Double.init) ?? 0) / 60000
+                        let rad = degrees * .pi / 180
+                        let flipH = gx["flipH"] == "1", flipV = gx["flipV"] == "1"
+                        obj.rendering = members.flatMap { m -> [ShapeState] in
+                            // A member that is itself drawn through others
+                            // (a nested turned group) hands those on.
+                            if case .opaque(let inner) = m.kind { return inner.rendering }
+                            return [m]
+                        }.map { m in
+                            var m = m
+                            var c = m.frame.center
+                            if flipH { c = Offset(2 * centre.dx - c.dx, c.dy); m.flipH.toggle(); m.rotation = -m.rotation }
+                            if flipV { c = Offset(c.dx, 2 * centre.dy - c.dy); m.flipV.toggle(); m.rotation = -m.rotation }
+                            let dx = c.dx - centre.dx, dy = c.dy - centre.dy
+                            c = Offset(centre.dx + dx * cos(rad) - dy * sin(rad), centre.dy + dx * sin(rad) + dy * cos(rad))
+                            m.frame = Rect.fromCenter(center: c, width: m.frame.width, height: m.frame.height)
+                            m.rotation += degrees
+                            return m
+                        }
+                        o?.kind = .opaque(obj)
+                    }
+                    add(o, el)
                     continue
                 }
                 // Groups are flattened: each member drawn where the group's
@@ -903,8 +949,23 @@ private struct SlideContext {
                 shapes(in: el, transform: map, into: &out, id: id, group: groupOf(el), groupFill: ownFill(el))
             case "mc:AlternateContent":
                 // The fallback is what an older reader would draw: keep the
-                // whole thing, show it as an object.
-                add(_opaque(el, label: "Object", transform, id: id), el)
+                // whole thing — and draw it as that fallback's shapes (or the
+                // choice's, where the fallback holds nothing this app reads:
+                // tdf131553's diagram sits in one of each).
+                var o = _opaque(el, label: "Object", transform, id: id)
+                if case .opaque(var obj)? = o?.kind {
+                    for branch in ["mc:Fallback", "mc:Choice"] where obj.rendering.isEmpty {
+                        guard let b = el.first(branch) else { continue }
+                        var inner: [ShapeState] = []
+                        shapes(in: b, transform: transform, into: &inner, id: id, group: nil, groupFill: groupFill)
+                        obj.rendering = inner.flatMap { m -> [ShapeState] in
+                            if case .opaque(let x) = m.kind { return x.rendering }
+                            return [m]
+                        }
+                    }
+                    o?.kind = .opaque(obj)
+                }
+                add(o, el)
             default: continue
             }
         }
@@ -984,10 +1045,18 @@ private struct SlideContext {
         } else if let b = spPr?.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
                   let rel = package.rels(part).first(where: { $0.id == rid }), !rel.external,
                   package.parts[rel.target] != nil {
-            // A picture fill: drawn stretched within the outline.
+            // A picture fill: drawn within the outline, stretched — or
+            // tiled, as a background's is: when it says `a:tile`, and when
+            // it says neither that nor `a:stretch` (tdf128596's sheet of
+            // ticks, which was one tick stretched).
             var f = SlideFill(image: images.attachment(rel.target, package))
             (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
             f.imageInset = PptxReader.stretchInset(b)
+            if b.first("a:tile") != nil || b.first("a:stretch") == nil {
+                f.tiled = true
+                let dpi = package.parts[rel.target].flatMap(PptxReader.imageDPI) ?? 144
+                f.tileScale = (b.first("a:tile")?["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
+            }
             fillStyle = f
         } else if spPr?.has("a:grpFill") == true {
             // The group's fill, which the group it is read from supplies.
@@ -1347,6 +1416,15 @@ private struct SlideContext {
                 if r == rowCount - 1, r > 0, let p = lastRowPart { regional.append(p) }
                 if r == 0, let p = firstRowPart { regional.append(p) }
                 if let f = regional.compactMap(\.fill).last, r > 0 || firstRowPart == nil { cell.fill = f }
+                // A built-in style the deck does not define (the guess: the
+                // first accent, white bold header) dresses its first and
+                // last column and its last row like the header when the
+                // table's flags ask — Medium Style 2's own way (tdf149785's
+                // first column was a plain band).
+                let emphasised = style == nil && !plain
+                    && ((pr?["firstCol"] == "1" && c == 0) || (pr?["lastCol"] == "1" && c == columnCount - 1)
+                        || (pr?["lastRow"] == "1" && r == rowCount - 1 && r > 0))
+                if emphasised, !(r == 0 && firstRow) { cell.fill = theme.colors["accent1"] ?? Color(0xFF4472C4) }
                 // The cell's margins: PowerPoint's 0.1" sides and 0.05" top
                 // and bottom unless the cell says otherwise. Its own fill
                 // and edge lines (`a:tcPr`) go over the style's.
@@ -1398,7 +1476,7 @@ private struct SlideContext {
                         if let b = p.bold { look.bold = b }
                         if let c = p.textColor { look.color = c }
                     }
-                } else if r == 0 && firstRow && !plain {
+                } else if (r == 0 && firstRow && !plain) || emphasised {
                     look.bold = look.bold ?? true
                     look.color = colors.scheme("lt1") ?? Color(0xFFFFFFFF)
                 }

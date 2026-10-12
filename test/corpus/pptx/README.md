@@ -49,7 +49,7 @@ PowerPoint's at the baseline — exact, not "small" — and `others.txt` the
 other decks that have a PowerPoint PDF (the eight without one are in
 neither). `matched-mupdf.txt` and `others-mupdf.txt` are the same split
 of `baseline-mupdf.tsv`: 59 matched and 494 others by MuPDF at sweep
-31, 48 and 505 by the Mac's baseline of sweep 27. The files are
+32, 48 and 505 by the Mac's baseline of sweep 27. The files are
 generated, never edited:
 
     python3 test/pptx-corpus-groups.py      # after writing a sweep over a baseline
@@ -74,7 +74,7 @@ text-heavy decks score about a point lower. So `baseline.tsv` is the Mac's, and
 `baseline-mupdf.tsv` is MuPDF's, from Windows, against the same
 PowerPoint PDFs. The same sweep 27 scored both ways, 2026-10-11: mean
 2.95% by MuPDF where the Mac has 3.01%, 418 of 553 decks within 0.15 of
-each other. (The file holds sweep 31, 2.80%, which has no Mac run yet.)
+each other. (The file holds sweep 32, 2.70%, which has no Mac run yet.)
 Compare a sweep with the baseline of its own rasteriser. The decks furthest apart are
 pictures drawn much larger than their pixels (`lo-tdf146223`, a 2×2 JPEG
 over a slide, +6.3; `lo-tdf93830`'s icons, +3.1) and photographs whose
