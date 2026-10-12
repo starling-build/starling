@@ -104,21 +104,27 @@ enum OfficeFonts {
         var height: Double
         var latin: String
         var latinScale: Double
+        /// The stand-in's scale for digits, capitals, small letters and
+        /// the rest, over `latinScale`, where one scale does not do.
+        var latinClasses: [Double]? = nil
         /// Word emboldens a face that has no bold of its own, and sets
         /// each character 1/57 em wider.
         var fakeBold: Bool
+        /// The baseline below the top of a single line, in ems: the
+        /// face's ascent and half of what Word adds to its height.
+        var baseline: Double? = nil
     }
 
-    private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 5.0 / 6.0, fakeBold: true)
-    private static let yaHei = EastAsianFace(height: 1.72, latin: sans, latinScale: 1.07, fakeBold: false)
+    private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 5.0 / 6.0, fakeBold: true, baseline: 1.005)
+    private static let yaHei = EastAsianFace(height: 1.72, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96], fakeBold: false, baseline: 1.26)
 
     private static func eastAsianFace(_ family: String) -> EastAsianFace {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
         if has("yahei ui") { return EastAsianFace(height: 1.67, latin: sans, latinScale: 1.07, fakeBold: false) }
         if has("yahei", "微软雅黑") { return yaHei }
-        if has("jhenghei", "微軟正黑") { return EastAsianFace(height: 1.74, latin: sans, latinScale: 1.05, fakeBold: false) }
-        if has("dengxian", "等线") { return EastAsianFace(height: 1.36, latin: sans, latinScale: 0.955, fakeBold: false) }
+        if has("jhenghei", "微軟正黑") { return EastAsianFace(height: 1.74, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95], fakeBold: false) }
+        if has("dengxian", "等线") { return EastAsianFace(height: 1.36, latin: sans, latinScale: 0.955, latinClasses: [0.992, 0.927, 1.021, 0.91], fakeBold: false, baseline: 1.01) }
         if has("pmingliu", "新細明體") { return EastAsianFace(height: 1.3, latin: serif, latinScale: 0.94, fakeBold: true) }
         if has("stzhongsong", "华文中宋") { return EastAsianFace(height: 1.74, latin: serif, latinScale: 1.16, fakeBold: true) }
         if has("stfangsong", "华文仿宋") { return EastAsianFace(height: 1.71, latin: serif, latinScale: 1.0, fakeBold: false) }
@@ -148,13 +154,30 @@ enum OfficeFonts {
     static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         guard let family else { return nil }
         let own = isEastAsianFace(family)
-        guard own || eastAsian else { return nil }
+        guard own || eastAsian else {
+            // A Latin face: its clone, and where Word sets the baseline
+            // of the face it is the clone of — its ascent under its line
+            // gap (Arial .905 + .033, Times .891 + .042, Calibri .75 +
+            // .22, Cambria .95, Courier .833).
+            let clone = substitute(family)
+            let baseline: Double
+            switch clone {
+            case serif: baseline = 0.933
+            case mono: baseline = 0.833
+            case calibri: baseline = 0.9625
+            case cambria: baseline = 0.95
+            default: baseline = 0.938
+            }
+            return RichResolvedFace(family: clone, baseline: baseline)
+        }
         let ea = own ? eastAsianFace(family) : square
         if eastAsian {
-            return RichResolvedFace(family: substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? 1.0 / 57 : 0)
+            return RichResolvedFace(family: substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? 1.0 / 57 : 0,
+                                    baseline: ea.baseline)
         }
         return RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
-                                boldSpread: ea.fakeBold ? 1.0 / 57 : 0)
+                                boldSpread: ea.fakeBold ? 1.0 / 57 : 0, classScales: ea.latinClasses, baseline: ea.baseline,
+                                isEastAsian: true)
     }
 
     /// The theme's `averageCharWidth`: the OS/2 average character width

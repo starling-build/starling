@@ -1087,6 +1087,8 @@ enum DocxFormat {
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
+            document.kernsPunctuation = settings.first("w:noPunctuationKerning").map { _isOff($0) } ?? true
+            document.htmlAutoSpacing = !(settings.first("w:compat")?.first("w:doNotUseHTMLParagraphAutoSpacing").map { !_isOff($0) } ?? false)
             document.usesEastAsianLayout = settings.first("w:compat")?.first("w:useFELayout").map { !_isOff($0) }
                 ?? (part("word/styles.xml") == nil)
             let margins = ["w:mirrorMargins", "w:gutterAtTop"].compactMap { settings.first($0) }.map { PptxXML.serialize($0) }.joined()
@@ -1213,6 +1215,49 @@ enum DocxFormat {
         ["w:noPunctuationKerning"],
         ["w:strictFirstAndLastChars", "w:noLineBreaksAfter", "w:noLineBreaksBefore"],
     ]
+
+    /// Where an anchored drawing floats (`wp:anchor`: its two positions
+    /// and its wrapping), or nil for one in the line. A VML shape floats
+    /// when its style positions it absolutely.
+    static func _float(_ node: XNode) -> ImageFloat? {
+        if let anchor = node.name == "wp:anchor" ? node : node.descendant("wp:anchor") {
+            var f = ImageFloat()
+            if let h = anchor.first("wp:positionH") {
+                f.horizontalFrom = h["relativeFrom"] ?? "column"
+                if let v = Double(h.first("wp:posOffset")?.text ?? "") { f.x = v / 12700 }
+                f.horizontalAlign = h.first("wp:align")?.text
+            }
+            if let v = anchor.first("wp:positionV") {
+                f.verticalFrom = v["relativeFrom"] ?? "paragraph"
+                if let o = Double(v.first("wp:posOffset")?.text ?? "") { f.y = o / 12700 }
+                f.verticalAlign = v.first("wp:align")?.text
+            }
+            f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
+            return f
+        }
+        if let shape = ["v:shape", "v:rect", "v:group", "v:line", "v:oval", "v:roundrect"].contains(node.name) ? node
+            : (node.descendant("v:shape") ?? node.descendant("v:group") ?? node.descendant("v:rect") ?? node.descendant("v:line")),
+           let st = shape["style"], st.containsSubstring("position:absolute") {
+            var f = ImageFloat()
+            for pair in st.split(separator: ";") {
+                let kv = pair.split(separator: ":", maxSplits: 1)
+                guard kv.count == 2 else { continue }
+                let key = kv[0].trimmingWhitespace(), value = String(kv[1]).trimmingWhitespace()
+                switch key {
+                case "margin-left": if let v = _length(value) { f.x = v }
+                case "margin-top": if let v = _length(value) { f.y = v }
+                case "mso-position-horizontal-relative": f.horizontalFrom = value == "text" ? "column" : value
+                case "mso-position-vertical-relative": f.verticalFrom = value == "text" ? "paragraph" : value
+                case "mso-position-horizontal": if value != "absolute" { f.horizontalAlign = value }
+                case "mso-position-vertical": if value != "absolute" { f.verticalAlign = value }
+                default: break
+                }
+            }
+            f.takesRoom = shape.first("w10:wrap")?["type"] == "topAndBottom"
+            return f
+        }
+        return nil
+    }
 
     static let _eastAsianSwitches = ["w:suppressLineNumbers", "w:suppressAutoHyphens", "w:kinsoku", "w:wordWrap", "w:overflowPunct", "w:topLinePunct", "w:autoSpaceDE", "w:autoSpaceDN", "w:adjustRightInd", "w:snapToGrid", "w:mirrorIndents"]
     static let _eastAsianIndents = ["w:leftChars", "w:startChars", "w:rightChars", "w:endChars", "w:hangingChars", "w:firstLineChars"]
@@ -1843,6 +1888,7 @@ enum DocxFormat {
             var att = ImageAttachment(data: Data(), width: w, height: h, name: node.name)
             att.sourceXML = frag.xml
             att.sourceRels = frag.rels
+            att.float = _float(node)
             return att
         }
         func addImage(_ drawing: XNode) {

@@ -207,6 +207,22 @@ public struct KeptHeaderFooter: Hashable, Sendable {
     }
 }
 
+/// Where an anchored object floats (`ImageAttachment.float`): its
+/// offsets in points from what Word measures them from ("column",
+/// "margin", "page", "paragraph", "line"…), or an alignment in place of
+/// an offset ("left", "center", "right"; "top", "bottom"), and whether
+/// the text keeps clear above and below it (`wp:wrapTopAndBottom`).
+public struct ImageFloat: Hashable, Sendable {
+    public var x: Double = 0
+    public var y: Double = 0
+    public var horizontalFrom = "column"
+    public var verticalFrom = "paragraph"
+    public var horizontalAlign: String? = nil
+    public var verticalAlign: String? = nil
+    public var takesRoom = false
+    public init() {}
+}
+
 /// A table nested in a cell, kept as the file wrote it (see
 /// `RichDocument.keptTables`): the editor shows its text flattened into
 /// the cell; the save writes this markup back while that text stands.
@@ -582,6 +598,11 @@ public struct ImageAttachment: Hashable, Sendable {
     /// file wrote them: a character border round a thumbnail, the size
     /// that sets the line it stands on. Written back with `sourceXML`.
     public var sourceRunPropertiesXML: String? = nil
+    /// For an object anchored to its paragraph rather than standing in
+    /// the line (Word's `wp:anchor`): where it floats. The text makes no
+    /// room for it in the line, and none above and below unless it
+    /// `takesRoom`. nil for an object in the line.
+    public var float: ImageFloat? = nil
 
     public init(data: Data, width: Double, height: Double, name: String = "image.png",
                 naturalWidth: Double? = nil, naturalHeight: Double? = nil) {
@@ -1616,6 +1637,17 @@ public struct RichDocument: Hashable, Sendable {
     /// where `characterSpacingControl` compresses it, and two marks that
     /// stand together close up where the text kerns.
     public var usesEastAsianLayout = false
+    /// Whether punctuation kerns (the settings lack
+    /// `w:noPunctuationKerning`): two marks that stand together close up
+    /// only where it does.
+    public var kernsPunctuation = true
+    /// Whether "automatic" paragraph spacing is the web's: 14 points,
+    /// and between two paragraphs the larger of the one's space after
+    /// and the other's before rather than both, with none before the
+    /// document's first. Off (the settings' compatibility switch
+    /// `w:doNotUseHTMLParagraphAutoSpacing`), a paragraph marked
+    /// automatic has the spacing its own numbers say.
+    public var htmlAutoSpacing = true
     /// The document background (`w:background`, with its VML fill), kept
     /// as written with the parts it names. Word lays a document with one
     /// out differently — bib-chernigovka's title page sits 18pt lower and

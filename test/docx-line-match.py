@@ -9,7 +9,7 @@ every line is one line late scores like one that is all wrong. This reads
 the text instead: every line of Word's print (test/corpus/docx/word) and of
 ours (WORK/pdf, from a sweep) as page, height on the page and text, and a
 line of Word's is matched when ours has one on the same page, within 3pt
-of its height, that starts with the same four characters. So the score is
+of its height, that starts or ends with the same four characters. So the score is
 the share of the document that breaks into the same lines and pages, and
 it drops at the first paragraph that does not — which is what to fix next.
 
@@ -38,7 +38,8 @@ def lines(tool, pdf):
         p = l.split("\t")
         if len(p) < 4:
             continue
-        t = unicodedata.normalize("NFKC", p[3]).strip()
+        # (Without the object character a print may carry for an inline box.)
+        t = unicodedata.normalize("NFKC", p[3]).replace("\ufffc", "").strip()
         if t:
             rows.append((int(p[0][1:]), float(p[1]), float(p[2]), t))
     # PDFKit cuts a line where its fonts change: the pieces of one line
@@ -51,6 +52,22 @@ def lines(tool, pdf):
         else:
             merged.append(r)
     return merged
+
+
+def same_start(a, b):
+    """Whether two lines begin (or end) with the same four characters. A PDF's text
+    names a glyph by the first character its font maps to it, and for 民,
+    長 or 青 that is the radical (⺠, ⻑, ⻘) in some faces: a radical
+    stands for whatever is opposite it."""
+    if len(a) < 4 or len(b) < 4:
+        return a[:4] == b[:4]
+
+    def alike(p, q):
+        return all(x == y or "\u2e80" <= x <= "\u2fdf" or "\u2e80" <= y <= "\u2fdf" for x, y in zip(p, q))
+    # (Or end with the same four: a glyph a print's font gives no
+    # character for is missing from its text, and a line that lost its
+    # first character is still the same line.)
+    return alike(a[:4], b[:4]) or alike(a[-4:], b[-4:])
 
 
 def main():
@@ -74,7 +91,7 @@ def main():
         by_page = {}
         for r in b:
             by_page.setdefault(r[0], []).append(r)
-        missed = [r for r in a if not any(abs(o[1] - r[1]) <= 3 and o[3][:4] == r[3][:4] for o in by_page.get(r[0], []))]
+        missed = [r for r in a if not any(abs(o[1] - r[1]) <= 3 and same_start(o[3], r[3]) for o in by_page.get(r[0], []))]
         pages = (max((r[0] for r in a), default=0), max((r[0] for r in b), default=0))
         results.append(((len(a) - len(missed)) / max(1, len(a)), f[:-4], len(a), len(b), pages))
         if key:

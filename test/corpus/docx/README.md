@@ -7,7 +7,7 @@ them the PDF that Microsoft Word itself prints. The counterpart of
     docs/           the documents, as downloaded
     SHA256SUMS      of docs/, to tell a changed document from a changed painter
     word/           NAME-orig.pdf — Word's print of docs/NAME.docx
-    baseline.tsv    each document's score at the last recorded painter sweep (2, 2026-10-12, a Mac)
+    baseline.tsv    each document's score at the last recorded painter sweep (3, 2026-10-12, a Mac)
     matched.txt, others.txt   the two groups of that baseline
     roundtrip.tsv   the round-trip gate's score for each document (2026-10-12)
     zh-manifest.tsv where each `zh-*` document was downloaded from
@@ -29,15 +29,15 @@ it. `baseline.tsv`, swept by `test/docx-app-render.sh`:
 It needs a release build (`OFFICE_APP` names another binary) and takes
 about two minutes; `OfficeApp --convert NAME.docx NAME.pdf` is this
 app's side. `WORK/render.tsv` gets a row per document and `WORK/pairs/`
-a side-by-side PNG of every page that differs. Sweep 2, 2026-10-12, by
+a side-by-side PNG of every page that differs. Sweep 3, 2026-10-12, by
 `test/pdf-diff.swift` (CoreGraphics; a sweep by MuPDF off a Mac would be
 `baseline-mupdf.tsv` and its own numbers, as in the .pptx corpus):
 
 | | documents | pages | mean | median | ≤ 2% | 2–20% | > 20% | exact |
 |---|---|---|---|---|---|---|---|---|
-| all | 179 | 1,757 | 10.6% | 6.0% | 75 | 70 | 34 | 3 |
-| POI | 111 | 435 | 4.3% | 0.9% | 75 | 30 | 6 | 3 |
-| `zh-*` | 68 | 1,322 | 20.9% | 18.6% | 0 | 40 | 28 | 0 |
+| all | 179 | 1,737 | 10.0% | 5.4% | 75 | 70 | 34 | 3 |
+| POI | 111 | 429 | 3.9% | 0.9% | 75 | 31 | 5 | 3 |
+| `zh-*` | 68 | 1,308 | 20.0% | 18.1% | 0 | 39 | 29 | 0 |
 
 (Sweep 1, the same day and before any of the work it started: 12.6%
 over all, POI 4.7%, `zh-*` 25.6%.)
@@ -48,11 +48,11 @@ second page on, so there is a second reading of the same sweep:
     test/docx-line-match.py WORK             # the share of Word's lines set in the same place
     test/docx-line-match.py WORK zh-3550     # where one document first parts from Word
 
-At sweep 2 a POI document has half of Word's lines where Word has them
-(mean 50%, 38 of 111 at 95% or more) and a Chinese one a sixth (16%,
-none at 95%); at sweep 1 it was 42% and 5%. A document's score falls at
-the first paragraph that breaks differently, and that paragraph is what
-the second form prints.
+At sweep 3 a POI document has over half of Word's lines where Word
+has them (mean 55%, 45 of 111 at 95% or more) and a Chinese one a
+quarter (24%, none at 95%); at sweep 1 it was 42% and 5%. A document's
+score falls at the first paragraph that breaks differently, and that
+paragraph is what the second form prints.
 
 **The Chinese documents are compared with Word on a Mac, which has few
 Chinese fonts.** That Word has 宋体, 黑体, 楷体, 仿宋 and the 明體 pair,
