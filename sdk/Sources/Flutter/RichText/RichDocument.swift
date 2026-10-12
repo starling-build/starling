@@ -134,6 +134,10 @@ public struct CharStyle: Hashable, Sendable {
     /// Ids of the comments whose ranges cover this run (the comments
     /// themselves live in the kept `word/comments.xml`).
     public var comments: [String] = []
+    /// The instruction of the field this text is the shown result of
+    /// (`PAGEREF _Toc123 \h`): written back as the field, so Word can
+    /// still bring a contents page's numbers up to date.
+    public var field: String? = nil
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,
@@ -334,6 +338,19 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// property: laid out the same here, written back as it was — Word
     /// places the text after one differently by the paragraph's spacing.
     public var pageBreakInline = false
+    /// That break character is a COLUMN break (`w:br w:type="column"`):
+    /// a new page here, where a page is one column, and written back as
+    /// the column break it was.
+    public var columnBreak = false
+    /// The run properties that break character was written with, as the
+    /// file had them: Word measures an indent counted in characters by
+    /// the paragraph's first run, and the break is it.
+    public var breakRunPropertiesXML: String? = nil
+    /// The page break is a break character ENDING the paragraph before
+    /// (a paragraph that is only the break, most often): written back
+    /// there — Word drops the space before a paragraph that follows a
+    /// break character, and keeps it under "page break before".
+    public var breakEndsPrevious = false
     /// Word's pagination hints, kept through a save (the layout paginates
     /// its own way): keep with next, keep lines together, widow control.
     public var keepNext = false
@@ -1073,6 +1090,9 @@ public struct RichParagraph: Hashable, Sendable {
     /// Set on the paragraphs flattened out of a nested table: the key of
     /// the entry in `RichDocument.keptTables`.
     public var keptTable: String? = nil
+    /// Names of the bookmarks that start in this paragraph (what a
+    /// contents page's page references point at).
+    public var bookmarks: [String] = []
 
     public static let inlineImageCharacter = "\u{FFFC}"
 
@@ -1516,6 +1536,14 @@ public struct RichDocument: Hashable, Sendable {
     /// reach — by package path. The body refers into them (`NoteReference`);
     /// the format writer copies them back verbatim.
     public var keptParts: [String: Data] = [:]
+    /// The file's character styles, as written, by id: the editor's runs
+    /// carry their look themselves, but kept markup (a footnote's mark, a
+    /// header's text box) names these and has nothing else to go by.
+    public var keptCharacterStyles: [String: String] = [:]
+    /// Those styles' ids by lower-cased name ("hyperlink", "footnote
+    /// reference"): where the file has its own, the writer names that one
+    /// instead of adding a second style of the same name.
+    public var keptCharacterStyleIds: [String: String] = [:]
     /// Header and footer parts kept verbatim (in `keptParts`): those with
     /// pictures, tables or text boxes the editor cannot show, and the
     /// first-page and even-page ones. `text` is what the part read as, so

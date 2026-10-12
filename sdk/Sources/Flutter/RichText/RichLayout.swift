@@ -1836,21 +1836,21 @@ public final class RichLayout {
                 p.color = l.color ?? theme.textColor
                 return p
             }
-            if let l = b.top {
+            if let l = b.top, l.style != "none" {
                 let y = (g.textTop - _px(l.space) - _px(l.width) / 2).rounded() + 0.5
                 canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
             }
-            if let l = b.bottom {
+            if let l = b.bottom, l.style != "none" {
                 let y = (textBottom + _px(l.space) + _px(l.width) / 2).rounded() - 0.5
                 canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
             }
             let y0 = b.top.map { g.textTop - _px($0.space + $0.width) } ?? g.textTop
             let y1 = b.bottom.map { textBottom + _px($0.space + $0.width) } ?? textBottom
-            if let l = b.left {
+            if let l = b.left, l.style != "none" {
                 let x = (g.textLeft - _px(l.space) - _px(l.width) / 2).rounded() + 0.5
                 canvas.drawLine(Offset(x, y0), Offset(x, y1), stroke(l))
             }
-            if let l = b.right {
+            if let l = b.right, l.style != "none" {
                 let x = (g.textLeft + g.textWidth + _px(l.space) + _px(l.width) / 2).rounded() - 0.5
                 canvas.drawLine(Offset(x, y0), Offset(x, y1), stroke(l))
             }

@@ -1951,6 +1951,118 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(stylesAgain[hid.upperBound...].prefix(while: { _ in true }).components(separatedBy: "</w:style>")[0].contains("<w:vanish/>"), stylesAgain)
     }
 
+    func testHeadingsFieldsBreaksAndFramesOfAFileStayAsWordReadsThem() throws {
+        // The Chinese government sample's sixth batch (2026-10-12), one
+        // document each.
+        let styles = "<w:docDefaults><w:pPrDefault/></w:docDefaults><w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:rPr><w:kern w:val=\"2\"/></w:rPr></w:style>"
+            // A numbered "heading" every paragraph wears, with no keep.
+            + "<w:style w:type=\"paragraph\" w:styleId=\"5\"><w:name w:val=\"heading 5\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:outlineLvl w:val=\"4\"/></w:pPr></w:style>"
+            + "<w:style w:type=\"paragraph\" w:styleId=\"Kept\"><w:name w:val=\"Kept\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:keepNext/></w:pPr></w:style>"
+            // A style of its own: no kerning, whatever Normal says.
+            + "<w:style w:type=\"paragraph\" w:styleId=\"Own\"><w:name w:val=\"Own\"/><w:rPr><w:sz w:val=\"24\"/></w:rPr></w:style>"
+            + "<w:style w:type=\"paragraph\" w:styleId=\"Framed\"><w:name w:val=\"Framed\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:framePr w:w=\"9639\" w:vAnchor=\"page\" w:hAnchor=\"page\" w:y=\"6408\"/></w:pPr></w:style></w:styles>"
+        var entries = try Zip.read(try patched(RichDocument(paragraphs: [RichParagraph(text: "a")]), part: "word/styles.xml",
+                                               from: "<w:docDefaults>", through: "</w:styles>", with: styles))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:pPr><w:pStyle w:val=\"5\"/></w:pPr><w:r><w:t>one</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:pStyle w:val=\"Kept\"/><w:keepNext w:val=\"0\"/></w:pPr><w:r><w:t>loose</w:t></w:r></w:p>"
+            // A contents line: the page number is a field Word refreshes.
+            + "<w:p><w:r><w:t>Chapter</w:t></w:r><w:r><w:tab/></w:r><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> PAGEREF _Toc1 \\h </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>6</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>"
+            + "<w:p><w:bookmarkStart w:id=\"0\" w:name=\"_Toc1\"/><w:r><w:t>Chapter</w:t></w:r><w:bookmarkEnd w:id=\"0\"/></w:p>"
+            // A column break opening a paragraph, in a run of its own size.
+            + "<w:p><w:pPr><w:ind w:firstLineChars=\"800\" w:firstLine=\"1920\"/></w:pPr><w:r><w:rPr><w:sz w:val=\"32\"/></w:rPr><w:br w:type=\"column\"/></w:r><w:r><w:t>Outline</w:t></w:r></w:p>"
+            // A frame the paragraph only part states, and two lines in one.
+            + "<w:p><w:pPr><w:pStyle w:val=\"Framed\"/><w:framePr w:h=\"6974\" w:x=\"1419\"/></w:pPr><w:r><w:rPr><w:eastAsianLayout w:id=\"1\" w:combine=\"1\"/></w:rPr><w:t>Title</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:pStyle w:val=\"Own\"/></w:pPr><w:r><w:t>body</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["one", "loose", "Chapter\t6", "Chapter", "Outline", "Title", "body"])
+        XCTAssertEqual(back.paragraphs[2].runs.last?.style.field, "PAGEREF _Toc1 \\h")
+        XCTAssertEqual(back.paragraphs[3].bookmarks, ["_Toc1"])
+        XCTAssertTrue(back.paragraphs[4].style.pageBreakBefore && back.paragraphs[4].style.columnBreak)
+        let again = try part("word/document.xml", of: back)
+        XCTAssertTrue(again.contains("<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> PAGEREF _Toc1 \\h </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t xml:space=\"preserve\">6</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r>"), again)
+        XCTAssertTrue(again.contains("w:name=\"_Toc1\"/><w:bookmarkEnd"), again)
+        XCTAssertTrue(again.contains("<w:r><w:rPr><w:sz w:val=\"32\"/></w:rPr><w:br w:type=\"column\"/></w:r>"), again)
+        XCTAssertFalse(again.contains("<w:pageBreakBefore/>"), again)
+        XCTAssertTrue(again.contains("<w:framePr w:h=\"6974\" w:hAnchor=\"page\" w:vAnchor=\"page\" w:w=\"9639\" w:x=\"1419\" w:y=\"6408\"/>"), again)
+        XCTAssertTrue(again.contains("<w:eastAsianLayout w:combine=\"1\" w:id=\"1\"/>"), again)
+        XCTAssertTrue(again.contains("<w:pStyle w:val=\"Kept\"/><w:keepNext w:val=\"0\"/>"), again)
+        let stylesAgain = try part("word/styles.xml", of: back)
+        func style(_ id: String) throws -> String {
+            let at = try XCTUnwrap(stylesAgain.range(of: "w:styleId=\"\(id)\""))
+            return String(stylesAgain[at.upperBound...]).components(separatedBy: "</w:style>")[0]
+        }
+        XCTAssertFalse(try style("Heading5").contains("<w:keepNext/>"), stylesAgain)
+        XCTAssertTrue(try style("Kept").contains("<w:keepNext/>"), stylesAgain)
+        XCTAssertTrue(try style("Own").contains("<w:kern w:val=\"0\"/>"), stylesAgain)
+        XCTAssertFalse(try style("Kept").contains("<w:kern w:val=\"0\"/>"), stylesAgain)
+        // Our own headings still keep with what follows.
+        var heading = RichParagraph(text: "h"); heading.style.heading = 1
+        XCTAssertTrue(try part("word/styles.xml", of: RichDocument(paragraphs: [heading])).contains("<w:keepNext/>"))
+    }
+
+    func testBreakCharacterEndingAParagraphGoesBackThere() throws {
+        // A paragraph that is only a page break, then a title with space
+        // before: Word drops that space after a break character and
+        // keeps it under "page break before" (6pt on every chapter page
+        // of a training handbook). A column break alone likewise.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t>end</w:t></w:r></w:p><w:p><w:r><w:rPr><w:sz w:val=\"32\"/></w:rPr><w:br w:type=\"page\"/></w:r></w:p>"
+            + "<w:p><w:pPr><w:spacing w:before=\"120\"/></w:pPr><w:r><w:t>Title</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:t>tail</w:t></w:r><w:r><w:br w:type=\"page\"/></w:r></w:p><w:p><w:r><w:t>next</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:br w:type=\"column\"/></w:r></w:p><w:p><w:r><w:t>column two</w:t></w:r></w:p>")
+        // (And an edge that is no line still holds its space: Word stands
+        // the text off a "none" border by it.)
+        xml = xml.replacingOccurrences(of: "<w:p><w:r><w:t>end</w:t>", with: "<w:p><w:pPr><w:pBdr><w:top w:val=\"none\" w:color=\"auto\" w:sz=\"0\" w:space=\"1\"/><w:bottom w:val=\"none\" w:sz=\"0\" w:space=\"0\"/></w:pBdr></w:pPr><w:r><w:t>end</w:t>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].style.borders?.top?.space, 1)
+        XCTAssertNil(back.paragraphs[0].style.borders?.bottom)
+        XCTAssertTrue(try part("word/document.xml", of: back).contains("<w:pBdr><w:top w:val=\"none\" w:sz=\"0\" w:space=\"1\" w:color=\"auto\"/></w:pBdr>"))
+        XCTAssertEqual(back.paragraphs.map(\.text), ["end", "", "Title", "tail", "next", "", "column two"])
+        XCTAssertEqual(back.paragraphs.map(\.style.pageBreakBefore), [false, false, true, false, true, false, true])
+        let again = try part("word/document.xml", of: back)
+        XCTAssertFalse(again.contains("<w:pageBreakBefore/>"), again)
+        XCTAssertTrue(again.contains("<w:r><w:rPr><w:sz w:val=\"32\"/></w:rPr><w:br w:type=\"page\"/></w:r></w:p>"), again)
+        XCTAssertTrue(again.contains("tail</w:t></w:r><w:r><w:br w:type=\"page\"/></w:r></w:p>"), again)
+        XCTAssertTrue(again.contains("<w:r><w:br w:type=\"column\"/></w:r></w:p>"), again)
+        // A page break the editor makes is still the paragraph's own.
+        var fresh = RichParagraph(text: "b"); fresh.style.pageBreakBefore = true
+        XCTAssertTrue(try part("word/document.xml", of: RichDocument(paragraphs: [RichParagraph(text: "a"), fresh])).contains("<w:pageBreakBefore/>"))
+    }
+
+    func testCharacterStylesOfTheFileAreKeptForItsKeptMarkup() throws {
+        // A kept footnote names the file's "footnote reference" by the
+        // file's id; without the style its mark was full size and each
+        // note of a training handbook broke a character early.
+        let styles = "<w:docDefaults><w:pPrDefault/></w:docDefaults><w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"a\"><w:name w:val=\"Normal\"/></w:style>"
+            + "<w:style w:type=\"character\" w:default=\"1\" w:styleId=\"a0\"><w:name w:val=\"Default Paragraph Font\"/></w:style>"
+            + "<w:style w:type=\"character\" w:styleId=\"a5\"><w:name w:val=\"Hyperlink\"/><w:basedOn w:val=\"a0\"/><w:rPr><w:color w:val=\"0000FF\" w:themeColor=\"hyperlink\"/><w:u w:val=\"single\"/></w:rPr></w:style>"
+            + "<w:style w:type=\"character\" w:styleId=\"ae\"><w:name w:val=\"footnote reference\"/><w:link w:val=\"zz\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style></w:styles>"
+        var entries = try Zip.read(try patched(RichDocument(paragraphs: [RichParagraph(text: "a")]), part: "word/styles.xml",
+                                               from: "<w:docDefaults>", through: "</w:styles>", with: styles))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:hyperlink w:anchor=\"there\"><w:r><w:rPr><w:rStyle w:val=\"a5\"/></w:rPr><w:t>link</w:t></w:r></w:hyperlink></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.keptCharacterStyleIds["footnote reference"], "ae")
+        let stylesAgain = try part("word/styles.xml", of: back)
+        XCTAssertTrue(stylesAgain.contains("<w:style w:styleId=\"ae\" w:type=\"character\"><w:name w:val=\"footnote reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style>"), stylesAgain)
+        XCTAssertTrue(stylesAgain.contains("<w:color w:val=\"0000FF\"/>"), stylesAgain)
+        XCTAssertFalse(stylesAgain.contains("w:styleId=\"Hyperlink\""), stylesAgain)
+        XCTAssertTrue(try part("word/document.xml", of: back).contains("<w:rStyle w:val=\"a5\"/>"))
+        // A document of our own still gets ours.
+        XCTAssertTrue(try part("word/styles.xml", of: RichDocument(paragraphs: [RichParagraph(text: "a")])).contains("w:styleId=\"Hyperlink\""))
+    }
+
     func testFooterThePlainFormCannotSayIsKept() throws {
         // FancyFoot: one line of text, but ruled above, in the heading
         // face, with an alignment tab and an empty paragraph under it.

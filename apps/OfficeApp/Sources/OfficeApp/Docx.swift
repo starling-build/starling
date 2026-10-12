@@ -263,6 +263,8 @@ enum DocxFormat {
         var styleNums: [String: (numId: String, ilvl: Int, left: Double?, first: Double?)] = [:]
         var paragraphStyles: [String: XNode] = [:]
         var styleAliases: [String: String] = [:]
+        var keptCharacterStyles: [String: String] = [:]
+        var keptCharacterStyleIds: [String: String] = [:]
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
             _resolveThemeFonts(styles, theme)
             _normaliseStyleIds(styles)
@@ -294,6 +296,11 @@ enum DocxFormat {
             var rootChar = CharStyle()
             if docChar.fontSize != normalChar.fontSize { rootChar.fontSize = docChar.fontSize }
             if docChar.fontFamily != normalChar.fontFamily { rootChar.fontFamily = docChar.fontFamily }
+            // Kerning too, said as none where only Normal kerns: Word
+            // closes up 》《 only where it kerns, and a Zhejiang plan's
+            // body, in a style that is not Normal's child, took a
+            // character more a line under Normal's.
+            if docChar.kerningFrom != normalChar.kerningFrom { rootChar.kerningFrom = docChar.kerningFrom ?? 0 }
             for style in styles.all("w:style") where style["w:type"] == "paragraph"
                 && (style["w:default"] == "1" || style["w:styleId"] == "Normal") {
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &base) }
@@ -370,6 +377,19 @@ enum DocxFormat {
             var charNodes: [String: XNode] = [:]
             for style in styles.all("w:style") where style["w:type"] == "character" {
                 if let id = style["w:styleId"] { charNodes[id] = style }
+            }
+            // Kept as written, less what would not stand alone in the
+            // saved styles part: other namespaces, theme references (the
+            // faces were resolved above) and the link to a paragraph style.
+            func standalone(_ node: XNode) -> XNode {
+                let copy = XNode(name: node.name, attrs: node.attrs.filter { $0.key.hasPrefix("w:") && !$0.key.lowercased().containsSubstring("theme") })
+                copy.text = node.text
+                copy.children = node.children.filter { $0.name.hasPrefix("w:") && $0.name != "w:link" && $0.name != "w:rsid" }.map(standalone)
+                return copy
+            }
+            for (id, node) in charNodes {
+                keptCharacterStyles[id] = PptxXML.serialize(standalone(node))
+                if let name = node.first("w:name")?["w:val"] { keptCharacterStyleIds[name.lowercased()] = id }
             }
             for id in charNodes.keys {
                 var chain: [XNode] = [], seen = Set<String>(), cur: String? = id
@@ -602,6 +622,9 @@ enum DocxFormat {
         var paragraphs: [RichParagraph] = []
         var pageSetup: PageSetup? = nil
         var pendingPageBreak = false
+        var pendingBreakCharacter = false   // ... made by a break character, in a run with these properties
+        var pendingBreakRPr: String? = nil
+        var pendingBreakColumn = false
         var tableColumns: [String: [Double]] = [:]
         var tableStyles: [String: TableStyle] = [:]
         var tableCount = 0
@@ -632,7 +655,13 @@ enum DocxFormat {
 
         func emit(_ p: RichParagraph) {
             var p = p
-            if pendingPageBreak { p.style.pageBreakBefore = true; pendingPageBreak = false }
+            if pendingPageBreak {
+                p.style.pageBreakBefore = true; pendingPageBreak = false
+                if pendingBreakCharacter, !p.style.pageBreakInline {
+                    p.style.breakEndsPrevious = true; p.style.breakRunPropertiesXML = pendingBreakRPr; p.style.columnBreak = pendingBreakColumn
+                }
+                pendingBreakCharacter = false; pendingBreakRPr = nil; pendingBreakColumn = false
+            }
             if p.cell == nil { p.cell = currentCell }
             paragraphs.append(p)
         }
@@ -666,7 +695,7 @@ enum DocxFormat {
             case "w:p":
                 for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
                                      currentCell != nil ? { id in chainOver(id, cellBase, cellRootBase) } : nil) {
-                    if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
+                    if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
             case "w:tbl" where currentCell != nil:
                 // A nested table flattens into its cell, indented — and,
@@ -994,6 +1023,8 @@ enum DocxFormat {
                 if let content = node.first("w:sdtContent") {
                     for child in content.children { walkBlock(child, indent: indent) }
                 }
+            case "w:bookmarkStart":
+                if let name = node["w:name"], name != "_GoBack" { notes.pendingBookmarks.append(name) }
             case "w:commentRangeStart":
                 // A range may open or close between paragraphs
                 // (WordWithAttachments), not only inside one.
@@ -1014,6 +1045,8 @@ enum DocxFormat {
         document.tableStyles = tableStyles
         document.styles = sheet
         document.styleAliases = styleAliases
+        document.keptCharacterStyles = keptCharacterStyles
+        document.keptCharacterStyleIds = keptCharacterStyleIds
         document.readFromFile = true
         document.fileFonts = _declaredFonts(docData).union(_declaredFonts(part("word/styles.xml")))
         document.listFormats = listFormats
@@ -1231,7 +1264,16 @@ enum DocxFormat {
             style.fill = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
         }
         if let c = pPr.first("w:contextualSpacing") { style.contextualSpacing = !_isOff(c) }
-        if let frame = pPr.first("w:framePr") { style.frameXML = PptxXML.serialize(frame) }
+        if let frame = pPr.first("w:framePr") {
+            // Over the style's frame, attribute by attribute: a standard's
+            // cover title says only its height and x, and its style says
+            // the page anchor, the width and the y — without those the
+            // title sat at the top of the page, not in its box.
+            if let under = style.frameXML, let inherited = XNode.parse(Data(under.replacingAll("<w:framePr ", with: "<w:framePr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" ").utf8)) {
+                let merged = XNode(name: "w:framePr", attrs: inherited.attrs.filter { !$0.key.hasPrefix("xmlns") }.merging(frame.attrs) { _, own in own })
+                style.frameXML = PptxXML.serialize(merged)
+            } else { style.frameXML = PptxXML.serialize(frame) }
+        }
         if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }
         if let d = pPr.first("w:divId")?["w:val"] { style.divId = d }
         for tag in _eastAsianSwitches { if let n = pPr.first(tag) { style.eastAsian[tag] = _isOff(n) ? "0" : "1" } }
@@ -1273,7 +1315,16 @@ enum DocxFormat {
             func line(_ name: String) -> BorderLine? {
                 guard let e = bdr.first(name) else { return nil }
                 switch e["w:val"] ?? "nil" {
-                case "nil", "none": return nil
+                case "none":
+                    // No line, but Word still stands the text its `space`
+                    // off: a header style with four "none" edges a point
+                    // away put its text a point lower, and a footer of two
+                    // such paragraphs four points higher.
+                    guard let space = Double(e["w:space"] ?? ""), space > 0 else { return nil }
+                    var gap = BorderLine(width: 0, color: nil, space: space)
+                    gap.style = "none"
+                    return gap
+                case "nil": return nil
                 default: break
                 }
                 let sz = Double(e["w:sz"] ?? "4") ?? 4
@@ -1345,6 +1396,11 @@ enum DocxFormat {
     private struct _Built {
         var paragraph: RichParagraph
         var pageBreakAfter: Bool
+        /// That break is a `w:br` character (not a section's), in a run
+        /// with these properties.
+        var breakCharacter = false
+        var breakRPr: String? = nil
+        var breakColumn = false   // ... and a column break
     }
 
     /// One w:p can become several paragraphs (a page break inside it).
@@ -1364,6 +1420,13 @@ enum DocxFormat {
         /// Comment ranges open at this point of the walk (they cross
         /// paragraphs).
         var openComments: [String] = []
+        /// Bookmarks started since the last paragraph was built: they go
+        /// to the next one.
+        var pendingBookmarks: [String] = []
+        /// The fields open at this point of the walk, innermost last (a
+        /// contents field spans paragraphs and holds a page reference per
+        /// line): each one's instruction, and whether its result has begun.
+        var fields: [(instr: String, result: Bool)] = []
         /// Every comment id whose range has been opened (a reference run
         /// for one of these ends a range; any other is a point comment).
         var seenComments = Set<String>()
@@ -1700,6 +1763,8 @@ enum DocxFormat {
         var runs: [Run] = []
         var inlineImages: [String: ImageAttachment] = [:]
         var leadingBreak = false   // the paragraph opens with a page break
+        var leadingColumnBreak = false   // ... and that break is a column break
+        var leadingBreakRPr: String? = nil   // ... in a run with these properties
         func flush(pageBreakAfter: Bool) {
             var para: RichParagraph
             if inlineImages.count == 1, text == RichParagraph.inlineImageCharacter, let only = inlineImages.values.first {
@@ -1725,6 +1790,8 @@ enum DocxFormat {
                 para.inlineImages = inlineImages
             }
             para.normalize()
+            para.bookmarks = notes.pendingBookmarks
+            notes.pendingBookmarks = []
             built.append(_Built(paragraph: para, pageBreakAfter: pageBreakAfter))
             text = ""
             runs = []
@@ -1813,6 +1880,15 @@ enum DocxFormat {
             cs.link = link
             cs.revision = revision
             cs.comments = notes.openComments
+            // Text that is a page reference's result stays one: Word
+            // brings these up to date when it prints, and a contents page
+            // of plain numbers kept the ones the file was saved with (a
+            // Kinmen emergency plan listed its chapters 5 to 46 pages
+            // early). Other fields stay the text they show.
+            if let f = notes.fields.last, f.result {
+                let instr = f.instr.trimmingWhitespace(newlines: true)
+                if instr.uppercased().hasPrefix("PAGEREF ") { cs.field = instr }
+            }
             // (Its style reference would name an id the save may rename.)
             runPropertiesXML = r.first("w:rPr").flatMap { $0.first("w:rStyle") == nil && !$0.children.isEmpty ? PptxXML.serialize($0) : nil }
             defer { runPropertiesXML = nil }
@@ -1836,6 +1912,12 @@ enum DocxFormat {
                 switch child.name {
                 case "w:t": addText(_runText(child), cs)
                 case "w:fldChar":
+                    switch child["w:fldCharType"] {
+                    case "begin": notes.fields.append((instr: "", result: false))
+                    case "separate": if !notes.fields.isEmpty { notes.fields[notes.fields.count - 1].result = true }
+                    case "end": if !notes.fields.isEmpty { notes.fields.removeLast() }
+                    default: break
+                    }
                     // A form checkbox has no result text: it is the box
                     // itself, shown as a glyph (form_footnotes' 29 boxes).
                     if child["w:fldCharType"] == "begin", let box = child.first("w:ffData")?.first("w:checkBox") {
@@ -1843,6 +1925,7 @@ enum DocxFormat {
                         pendingCheckbox = on
                     }
                 case "w:instrText":
+                    if let f = notes.fields.last, !f.result { notes.fields[notes.fields.count - 1].instr += child.text }
                     if let on = pendingCheckbox, child.text.uppercased().containsSubstring("FORMCHECKBOX") {
                         addText(on ? "\u{2612}" : "\u{2610}", cs)
                         pendingCheckbox = nil
@@ -1863,7 +1946,13 @@ enum DocxFormat {
                     // A page break ends the paragraph; a line break stays
                     // inside it, as Shift+Return's does — splitting it added a
                     // paragraph (and its spacing) on every soft break.
-                    if child["w:type"] == "page" {
+                    // (A column break opening a paragraph is the same on a
+                    // page of one column: read as a line break, a Changhua
+                    // grant notice's outline began on the page before.)
+                    let opensWithColumnBreak = child["w:type"] == "column" && text.isEmpty && inlineImages.isEmpty && built.isEmpty && !leadingBreak
+                    if opensWithColumnBreak { leadingColumnBreak = true }
+                    if text.isEmpty, inlineImages.isEmpty, built.isEmpty, !leadingBreak { leadingBreakRPr = runPropertiesXML }
+                    if child["w:type"] == "page" || opensWithColumnBreak {
                         // A break that OPENS its paragraph is the paragraph
                         // starting a page: split off, it left an empty
                         // paragraph before the break, and where the page was
@@ -1872,7 +1961,10 @@ enum DocxFormat {
                         // (Decided at the paragraph's end: a paragraph that is
                         // ONLY the break keeps its line on the page before.)
                         if text.isEmpty, inlineImages.isEmpty, built.isEmpty, !leadingBreak { leadingBreak = true }
-                        else { flush(pageBreakAfter: true) }
+                        else {
+                            flush(pageBreakAfter: true)
+                            built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = runPropertiesXML
+                        }
                     } else { addText("\n", cs) }
                 case "w:noBreakHyphen": addText("\u{2011}", cs)
                 case "w:softHyphen": addText("\u{00AD}", cs)
@@ -1927,7 +2019,9 @@ enum DocxFormat {
                     if notes.kept["word/comments.xml"] != nil, let id = child["w:id"] { notes.openComments.append(id); notes.seenComments.insert(id) }
                 case "w:commentRangeEnd":
                     if let id = child["w:id"] { notes.openComments.removeAll { $0 == id } }
-                case "w:pPr", "w:proofErr", "w:bookmarkStart", "w:bookmarkEnd":
+                case "w:bookmarkStart":
+                    if let name = child["w:name"], name != "_GoBack" { notes.pendingBookmarks.append(name) }
+                case "w:pPr", "w:proofErr", "w:bookmarkEnd":
                     break
                 default: break
                 }
@@ -1935,9 +2029,16 @@ enum DocxFormat {
         }
         walkInline(p, link: nil)
         if leadingBreak {
-            if built.isEmpty, text.isEmpty, inlineImages.isEmpty { flush(pageBreakAfter: true) }
-            else if built.isEmpty { style.pageBreakBefore = true; style.pageBreakInline = true }
-            else { built[0].paragraph.style.pageBreakBefore = true; built[0].paragraph.style.pageBreakInline = true }
+            if built.isEmpty, text.isEmpty, inlineImages.isEmpty {
+                flush(pageBreakAfter: true)
+                built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = leadingBreakRPr
+                built[built.count - 1].breakColumn = leadingColumnBreak
+            }
+            else if built.isEmpty { style.pageBreakBefore = true; style.pageBreakInline = true; style.columnBreak = leadingColumnBreak; style.breakRunPropertiesXML = leadingBreakRPr }
+            else {
+                built[0].paragraph.style.pageBreakBefore = true; built[0].paragraph.style.pageBreakInline = true
+                built[0].paragraph.style.columnBreak = leadingColumnBreak; built[0].paragraph.style.breakRunPropertiesXML = leadingBreakRPr
+            }
         }
         if text.isEmpty, inlineImages.isEmpty, let last = built.last, last.pageBreakAfter {
             // The paragraph ended with its page break: Word shows nothing
@@ -2156,7 +2257,7 @@ enum DocxFormat {
             case "w:spacing": if let v = Double(child["w:val"] ?? "") { cs.letterSpacing = v / 20 }
             case "w:rtl": cs.rightToLeft = !_isOff(child)
             case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }
-            case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid":
+            case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid", "w:eastAsianLayout":
                 keptRun[child.name] = PptxXML.serialize(child)
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }
             case "w:sz": sawSz = true; if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
@@ -2201,7 +2302,7 @@ enum DocxFormat {
         if !keptRun.isEmpty {
             var all = _keptRunProperties(base.keptXML)
             for (k, v) in keptRun { all[k] = v }
-            cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:em", "w:lang", "w:snapToGrid"].compactMap { all[$0] }.joined()
+            cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
         }
         if complexText ?? cs.rightToLeft {
             if !sawB, let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
@@ -2359,6 +2460,21 @@ enum DocxFormat {
             }
             return frag
         }
+        var writtenBookmarks = Set<String>()   // a name is written once (a split paragraph carries its twice)
+        /// Whether paragraph `i`'s page break goes back as the break
+        /// character that ended the paragraph before it, as the file had
+        /// it: Word drops the space before a paragraph that follows one
+        /// (a training handbook's chapter titles, 6pt before, sat 6pt low
+        /// on each of their pages under "page break before"). Also where
+        /// the paragraph before ends a section: a break character there
+        /// is a page of its own (a chemicals list's blank page 12).
+        func breakRidesOnPrevious(_ i: Int) -> Bool {
+            guard i > 0, i < doc.paragraphs.count else { return false }
+            let p = doc.paragraphs[i], prev = doc.paragraphs[i - 1]
+            let sameCell = p.cell?.table == prev.cell?.table && p.cell?.row == prev.cell?.row && p.cell?.column == prev.cell?.column
+            return p.style.pageBreakBefore && p.style.breakEndsPrevious && !p.style.pageBreakInline && sameCell
+                && prev.image == nil && prev.keptTable == nil && p.keptTable == nil
+        }
         func paragraphXML(_ index: Int) -> String {
             let p = doc.paragraphs[index]
             var body = ""
@@ -2366,8 +2482,10 @@ enum DocxFormat {
             if let h = p.style.heading { pPr += "<w:pStyle w:val=\"Heading\(min(h, 6))\"/>" }
             else if let n = p.style.named, doc.styles[n] != nil { pPr += "<w:pStyle w:val=\"\(_esc(n))\"/>" }
             else if p.style.list != nil, !doc.readFromFile { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
-            if p.style.keepNext { pPr += "<w:keepNext/>" }
-            if p.style.keepLines { pPr += "<w:keepLines/>" }
+            // (Said as off where the file's style keeps and this one does not.)
+            let styled = doc.readFromFile ? (p.style.heading.map { "Heading\(min($0, 6))" } ?? p.style.named).flatMap { doc.styles[$0]?.paragraph } : nil
+            if p.style.keepNext { pPr += "<w:keepNext/>" } else if styled?.keepNext == true { pPr += "<w:keepNext w:val=\"0\"/>" }
+            if p.style.keepLines { pPr += "<w:keepLines/>" } else if styled?.keepLines == true { pPr += "<w:keepLines w:val=\"0\"/>" }
             // A section break written on the paragraph before already
             // starts this one on a new page; saying it again here, with the
             // paragraph first in a table, gave Word an empty page per
@@ -2377,8 +2495,12 @@ enum DocxFormat {
                       let sect = prev.style.sectionXML else { return false }
                 return prev.style.sectionBreaksPage ?? !sect.containsSubstring("w:val=\"continuous\"")
             }()
-            let inlineBreak = p.style.pageBreakBefore && p.style.pageBreakInline && !afterSectionBreak && p.cell == nil
-            if p.style.pageBreakBefore && !afterSectionBreak && !inlineBreak { pPr += "<w:pageBreakBefore/>" }
+            let columnBreak = p.style.pageBreakBefore && p.style.pageBreakInline && p.style.columnBreak
+            // (In a table cell too: Word ignores a break character there,
+            // and honours "page break before" by moving the row — a
+            // handbook's last table row went to the next page.)
+            let inlineBreak = p.style.pageBreakBefore && p.style.pageBreakInline && (!afterSectionBreak || columnBreak)
+            if p.style.pageBreakBefore && !afterSectionBreak && !inlineBreak && !breakRidesOnPrevious(index) { pPr += "<w:pageBreakBefore/>" }
             if let frame = p.style.frameXML { pPr += frame }
             if !p.style.widowControl { pPr += "<w:widowControl w:val=\"0\"/>" }
             if p.style.list != nil {
@@ -2454,7 +2576,19 @@ enum DocxFormat {
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(sect, p.style.sectionRels) }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
-            if inlineBreak { body += "<w:r><w:br w:type=\"page\"/></w:r>" }
+            for name in p.bookmarks where writtenBookmarks.insert(name).inserted {
+                // (Numbered clear of any a kept table's own XML carries.)
+                let id = 100_000 + writtenBookmarks.count
+                body += "<w:bookmarkStart w:id=\"\(id)\" w:name=\"\(_esc(name))\"/><w:bookmarkEnd w:id=\"\(id)\"/>"
+            }
+            var fieldBefore: String? = nil   // the field the run before this one was the result of
+            if inlineBreak {
+                // In its own run's look: an indent counted in characters
+                // is measured by the paragraph's first run, which the
+                // break is (a 1.5-character indent under a 16pt title came
+                // back 6pt short behind a bare break).
+                body += "<w:r>\(p.style.breakRunPropertiesXML ?? "")<w:br w:type=\"\(columnBreak ? "column" : "page")\"/></w:r>"
+            }
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
                 let unresized = image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height)
@@ -2506,14 +2640,15 @@ enum DocxFormat {
                     // with its own look — size and font decide where the
                     // line wraps.
                     let tag = note.kind == .footnote ? "w:footnoteReference" : "w:endnoteReference"
-                    let st = note.kind == .footnote ? "FootnoteReference" : "EndnoteReference"
+                    let st = doc.keptCharacterStyleIds[note.kind == .footnote ? "footnote reference" : "endnote reference"]
+                        ?? (note.kind == .footnote ? "FootnoteReference" : "EndnoteReference")
                     let custom = piece.filter { $0 != "\u{200B}" && !$0.isNumber }
                     body += "<w:r><w:rPr><w:rStyle w:val=\"\(st)\"/>\(rPr)</w:rPr>"
                     body += custom.isEmpty ? "<\(tag) w:id=\"\(note.id)\"/>" : "<\(tag) w:customMarkFollows=\"1\" w:id=\"\(note.id)\"/>\(_text(custom))"
                     body += "</w:r>"
                     continue
                 }
-                if s.link != nil { rPr = "<w:rStyle w:val=\"Hyperlink\"/>" + rPr }
+                if s.link != nil { rPr = "<w:rStyle w:val=\"\(_esc(doc.keptCharacterStyleIds["hyperlink"] ?? "Hyperlink"))\"/>" + rPr }
                 let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
                 var runXML = ""
                 let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }
@@ -2552,6 +2687,13 @@ enum DocxFormat {
                 } else {
                     runXML = "<w:r>\(rPrXML)\(_text(piece))</w:r>"
                 }
+                if let instr = s.field {
+                    // One field per result: a result in two looks is still
+                    // one number, and Word writes all of it afresh.
+                    if fieldBefore == instr { continue }
+                    runXML = "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> \(_esc(instr)) </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"separate\"/></w:r>\(runXML)<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>"
+                }
+                fieldBefore = s.field
                 if let rev = s.revision {
                     revisionCount += 1
                     let tag = rev.kind == .inserted ? "w:ins" : "w:del"
@@ -2577,6 +2719,10 @@ enum DocxFormat {
                     body += runXML
                 }
                 if commentsKept { body += closeComments(except: commentsAfter(index, runIndex)) }
+            }
+            if breakRidesOnPrevious(index + 1) {
+                let next = doc.paragraphs[index + 1].style
+                body += "<w:r>\(next.breakRunPropertiesXML ?? "")<w:br w:type=\"\(next.columnBreak ? "column" : "page")\"/></w:r>"
             }
             if commentsKept, index == doc.paragraphs.count - 1 { body += closeComments(except: []) }
             body += "</w:p>"
@@ -2882,7 +3028,12 @@ enum DocxFormat {
             }
         }
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
-        var settings = doc.evenAndOddHeaders && keptHF.contains(where: { $0.element.type == "even" })
+        // (An even-page part may belong to an earlier section only, kept
+        // with that section's own XML: a chemicals list of three sections
+        // lost the setting and showed its odd footer on every page.)
+        let evenReferenced = keptHF.contains(where: { $0.element.type == "even" })
+            || document.containsSubstring("Reference r:id=") && document.range(of: "<w:(header|footer)Reference [^>]*w:type=\"even\"", options: .regularExpression) != nil
+        var settings = doc.evenAndOddHeaders && evenReferenced
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
         // The rest of what Word lays out by, each group at its place in the
         // schema: before the tab stop, after it, and round the character
@@ -2921,7 +3072,8 @@ enum DocxFormat {
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
-            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases, fileFonts: doc.fileFonts)
+            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
+                                                                         characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds)
                 .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>").utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId).utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
@@ -3034,7 +3186,8 @@ enum DocxFormat {
 
     /// styles.xml from the document's sheet: Normal as the default, every
     /// other entry with its look, plus List Paragraph and Hyperlink.
-    private static func _stylesPart(_ sheet: RichStyleSheet, notes: Bool = false, aliases: [String: String] = [:], fileFonts: Set<String> = []) -> String {
+    private static func _stylesPart(_ sheet: RichStyleSheet, notes: Bool = false, aliases: [String: String] = [:], fileFonts: Set<String> = [], fromFile: Bool = false,
+                                    characterStyles: [String: String] = [:], characterStyleIds: [String: String] = [:]) -> String {
         func exportName(_ family: String) -> String { fileFonts.contains(family) ? family : OfficeFonts.exportName(family) }
         var out = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
         // The document defaults are Normal's look (the file's, when it was
@@ -3059,7 +3212,12 @@ enum DocxFormat {
             out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(entry.id))\"><w:name w:val=\"\(_esc(name))\"/><w:basedOn w:val=\"Normal\"/>"
             if let next = entry.next { out += "<w:next w:val=\"\(_esc(next))\"/>" }
             out += "<w:qFormat/><w:pPr>"
-            if entry.paragraph.heading != nil { out += "<w:keepNext/>" }
+            // Our own headings keep with the next paragraph; a file's say
+            // for themselves. (A Taiwanese impeachment text numbers every
+            // paragraph as a "heading": kept with the next, Word carried
+            // each one's last line over the page, 53 pages for 54.)
+            if fromFile ? entry.paragraph.keepNext : entry.paragraph.heading != nil { out += "<w:keepNext/>" }
+            if fromFile, entry.paragraph.keepLines { out += "<w:keepLines/>" }
             // A style's own rule (the line under a "header" style: the
             // kept header part's paragraphs draw it by their style).
             if let b = entry.paragraph.borders { out += _bordersXML(b) }
@@ -3116,7 +3274,14 @@ enum DocxFormat {
         if !sheet.styles.contains(where: { $0.id != "ListParagraph" && $0.name.lowercased() == "list paragraph" }) {
         out += "<w:style w:type=\"paragraph\" w:styleId=\"ListParagraph\"><w:name w:val=\"List Paragraph\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:ind w:left=\"720\"/><w:contextualSpacing/></w:pPr></w:style>"
         }
+        // The file's character styles, for the kept markup that names
+        // them: a footnote's own mark was full size without its "footnote
+        // reference" (a training handbook's notes each broke a character
+        // early), and ours of a name the file has is not added beside it.
+        for id in characterStyles.keys.sorted() { out += characterStyles[id]! }
+        if characterStyleIds["hyperlink"] == nil, characterStyles["Hyperlink"] == nil {
         out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>"
+        }
         // Word's default table style, as Word writes it. Without it Word
         // (in its legacy layout mode) set form_footnotes' tables 5pt to
         // the right of the original's: 12.3% -> 9.9% with it.
@@ -3129,8 +3294,10 @@ enum DocxFormat {
             // The marks and the notes' own paragraphs, Word's defaults;
             // a file that defined its own note text style keeps it above.
             for kind in ["Footnote", "Endnote"] {
+                if characterStyleIds["\(kind.lowercased()) reference"] == nil, characterStyles["\(kind)Reference"] == nil {
                 out += "<w:style w:type=\"character\" w:styleId=\"\(kind)Reference\"><w:name w:val=\"\(kind.lowercased()) reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style>"
-                if sheet["\(kind)Text"] == nil {
+                }
+                if sheet["\(kind)Text"] == nil, !sheet.styles.contains(where: { $0.name.lowercased() == "\(kind.lowercased()) text" }) {
                     out += "<w:style w:type=\"paragraph\" w:styleId=\"\(kind)Text\"><w:name w:val=\"\(kind.lowercased()) text\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:rPr><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:style>"
                 }
             }

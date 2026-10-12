@@ -806,6 +806,66 @@ look next: run boundaries (`w:lang` per run survives, but runs of one
 look are merged, and Word may measure across a boundary differently),
 and `w:rPr` on the paragraph mark.
 
+**The ten left over, 2026-10-12 (the commit after the plan update
+282ff399).** The guess above was wrong: none of the ten was a run
+boundary. Each had a cause the census had already listed and that had
+been read as harmless, and `test/pdf-text.swift` (every line of both
+prints as page, y, x, text — `diff` then names the first line that
+moved) found each in a minute. 68 scored: 39 identical, 66 within 1%, two above (2.6 and 1.2), none above 5%. The POI set printed whole afterwards: 111 scored, 81 identical, 110 within 1%, nothing moved by more than 0.05. What they were:
+
+- **Headings that keep.** The writer gave every heading style
+  `w:keepNext`; a file's headings say for themselves. An impeachment
+  text numbers every paragraph as "heading 5", and kept with the next
+  each carried its last line over the page (8.9% to 0.01).
+- **Page references.** Word brings `PAGEREF` fields up to date when it
+  prints, so a contents page flattened to text kept the numbers the
+  file was saved with while the original's moved (two documents, 4 and
+  10%). The field's result text carries its instruction
+  (`CharStyle.field`) and goes back as the field; a paragraph carries
+  the names of the bookmarks that start in it. Only `PAGEREF`: a `REF`
+  shows its bookmark's CONTENT, and a bookmark is written back at its
+  paragraph's start with no extent.
+- **Break characters.** A column break that opens a paragraph is a new
+  page on a page of one column (read as a line break, an outline began
+  a page early). A paragraph that is only a page break, or ends with
+  one, gets the break back as that character at its end
+  (`breakEndsPrevious` on the paragraph after): Word drops the space
+  before a paragraph that follows a break character and keeps it under
+  `w:pageBreakBefore`, 6pt on every chapter page of a handbook — and
+  with the section's last paragraph it is a blank page of its own. The
+  break keeps its run's properties: an indent counted in characters is
+  measured by the paragraph's FIRST run, which the break is.
+- **Kerning decides punctuation.** Word closes up 》《 only where the
+  text kerns. A style that is not Normal's child has no kerning unless
+  it says so, and we write Normal's kerning as the document default:
+  such a style now says `w:kern` 0 (a plan's body lines each held a
+  character more than the original's).
+- **Frames.** A paragraph's `w:framePr` is merged over its style's,
+  attribute by attribute (a standard's cover title states its height
+  and x; the style states the anchors, the width and the y).
+- **Character styles.** All of the file's are written back as they
+  were: kept markup names them (a footnote's own mark was full size
+  without "footnote reference", and each note broke a character
+  early). Where the file has a "Hyperlink" or a note reference style
+  of its own, our runs name it and ours is not added beside it — the
+  "List Paragraph" bug again, and "footnote text" had it too.
+- **In a table cell** Word ignores a break character and honours
+  `w:pageBreakBefore` by moving the row: a cell's leading break goes
+  back as the character too.
+- **A border that is no line still has its space.** Word stands text
+  off a `w:val="none"` edge by the edge's `w:space` (found by
+  printing a hand-patched copy: 1.19% to 0.11). Kept as a line of no
+  width that the painter does not draw.
+- **Smaller.** `w:eastAsianLayout` (two lines in one) is kept on a
+  run; `w:evenAndOddHeaders` is written when an even-page part belongs
+  to an earlier section only.
+
+Left: 90e0cea8 2.6% (a standard: its cover is right now, a table on
+page 8 sits 1-2pt off) and 06c46ba9 1.2% (a handbook: a caption 5pt to
+the side on page 47, then small drift). Everything else is under
+0.7%. Bookmarks are written at their paragraph's start with no
+extent, and only `PAGEREF` among the fields is kept.
+
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3
 in the document is fine), so the gallery menu caps its previews at 13.
