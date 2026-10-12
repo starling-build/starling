@@ -432,11 +432,24 @@ final class SheetGridState: State<StatefulWidget> {
             guard let self, self.mounted || self._headless != nil else { decoded?.dispose(); return }
             self._decoding.remove(key)
             if let decoded {
-                self._images[key] = decoded
+                if self._images[key] == nil { self._images[key] = decoded } else { decoded.dispose() }
                 self._repaint.notifyListeners()
             }
         }
         return nil
+    }
+
+    /// The picture decoded and waited for (an export's way in).
+    @MainActor
+    func _decodeNow(_ key: String, _ data: Data) async {
+        guard _images[key] == nil else { return }
+        var decoded: Image? = nil
+        if let codec = try? await instantiateImageCodec([UInt8](data)) {
+            decoded = (try? await codec.getNextFrame())?.image
+            codec.dispose()
+        }
+        guard let decoded else { return }
+        if _images[key] == nil { _images[key] = decoded } else { decoded.dispose() }
     }
 
     /// A cell's top-right corner in global coordinates (where a note opens).

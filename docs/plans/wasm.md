@@ -251,6 +251,23 @@ through `StringHelpers`, which gained `replacingSubrange`):
   25-page Word fixture, four corpus decks). `starling.debug('pdf')`
   exports without the clicks. A decoded picture is a texture there, so
   skwasm copies it back for the PDF; one inside a shader is left out.
+- **The painter gate through the browser, on the Mac (2026-10-12).** The
+  sweeps are `OFFICE_WEB=1 test/pptx-app-render.sh` and
+  `test/docx-web-render.sh` (test/corpus/pptx/README.md has the Linux
+  figures). On the Mac, same commit both sides: the 553 corpus decks score
+  2.76% against PowerPoint natively and 2.76% in the browser, 522 of them
+  identical to the native pages pixel for pixel and 540 within half a
+  percent; the 111 Word documents that have a Word PDF score 4.65% both
+  ways as a PAINTER (this app's pages against Word's of the original — not
+  the writer gate's number), 50 identical and 94 within half a percent.
+  What differs is fonts — a face the Mac has by name and the tab does not
+  (Arabic, Japanese, symbol bullets) — and a few lines that break a word
+  apart where the tab measures text a hair differently (sample.docx;
+  bug65649 is 186 pages in the tab and 187 natively). Besides what the
+  Linux sweep found, a picture nothing can decode (a TIFF, a JPEG XR in
+  the tab) was decoded again on every paint and waited for by every
+  export; it is asked for once now, and an export awaits each decode
+  (`decodeNow`) instead of polling for it.
 - Not in the browser: AutoSave, Save
   As by name (save *is* the download), the second-display presenter
   view (none natively either).

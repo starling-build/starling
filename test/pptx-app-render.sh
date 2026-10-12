@@ -71,10 +71,11 @@ touch "$WORK/render.tsv"
 if [ -n "$OFFICE_WEB" ]; then
   STAGE="$ROOT/.stage-web-OfficeApp"
   [ -s "$STAGE/app.wasm" ] || { echo "no web build staged: build/web-app.sh OfficeApp --package apps/OfficeApp" >&2; exit 2; }
+  IN_ABS=$(cd "$IN" && pwd)   # Chrome reads a file only by its full path
   : > "$WORK/web-list.txt"
   for n in "${names[@]}"; do
     n=$(basename "$n")
-    [ -f "$PPT/${n%.pptx}-orig.pdf" ] && ! grep -q "^$n	" "$WORK/render.tsv" && echo "$IN/$n" >> "$WORK/web-list.txt"
+    [ -f "$PPT/${n%.pptx}-orig.pdf" ] && ! grep -q "^$n	" "$WORK/render.tsv" && echo "$IN_ABS/$n" >> "$WORK/web-list.txt"
   done
   python3 "$ROOT/build/tools/web-serve.py" "$STAGE" "${WEB_PORT:-8143}" >/dev/null 2>&1 & SERVER=$!
   trap 'kill $SERVER 2>/dev/null' EXIT

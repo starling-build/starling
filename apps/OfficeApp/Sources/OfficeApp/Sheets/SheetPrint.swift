@@ -187,6 +187,7 @@ extension SheetGridState {
     /// its pages numbered and counted across the sheets. False when there
     /// is nothing to print or the file could not be written. `maxPages`
     /// stops a runaway sheet (the rendering gate's cap).
+    @MainActor
     func writePdf(to path: String, title: String, filePath: String? = nil,
                   wholeBook: Bool = false, maxPages: Int? = nil) async -> Bool {
         let c = controller
@@ -360,13 +361,13 @@ extension SheetGridState {
     }
 
     /// Decode every picture first: a page records what is decoded now.
+    /// Awaited, not started and polled for: an export waits exactly as
+    /// long as the decode takes, and not at all for one that failed.
+    @MainActor
     private func _preloadPictures(_ ws: Worksheet) async {
         for d in ws.drawings {
-            guard case .picture(let key, let data) = d.kind, _image(key, data) == nil else { continue }
-            for _ in 0 ..< 200 {
-                try? await Task.sleep(nanoseconds: 10_000_000)
-                if _image(key, data) != nil { break }
-            }
+            guard case .picture(let key, let data) = d.kind else { continue }
+            await _decodeNow(key, data)
         }
     }
 }

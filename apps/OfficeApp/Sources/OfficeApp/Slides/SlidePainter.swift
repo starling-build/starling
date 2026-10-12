@@ -43,7 +43,7 @@ final class SlideTextCache {
         } else if Metafile.isMetafile(attachment.data) {
             return nil
         }
-        if _decoding.contains(attachment.id) { return nil }
+        if _decoding.contains(attachment.id) || _undecodable.contains(attachment.id) { return nil }
         _decoding.insert(attachment.id)
         let bytes = [UInt8](attachment.data)
         let id = attachment.id
@@ -56,11 +56,43 @@ final class SlideTextCache {
             guard let self else { decoded?.dispose(); return }
             self._decoding.remove(id)
             if let decoded {
-                self._images[id] = decoded
+                if self._images[id] == nil { self._images[id] = decoded } else { decoded.dispose() }
                 self.onImageDecoded?()
+            } else if self._images[id] == nil {
+                // Asked once: a picture nothing here can decode (a TIFF or
+                // a JPEG XR in the browser) would otherwise be decoded
+                // again on every paint, and waited for by every export.
+                self._undecodable.insert(id)
             }
         }
         return nil
+    }
+
+    /// Decode a picture and come back when it is there (or cannot be) —
+    /// an export's way in. It awaits the decode itself rather than
+    /// starting one and polling for it, so the wait is the decode's own
+    /// length and a picture that cannot be decoded costs nothing twice.
+    @MainActor
+    func decodeNow(_ attachment: ImageAttachment) async {
+        if let source = imageSource { await source.decodeNow(attachment); return }
+        let id = attachment.id
+        guard _images[id] == nil, !_undecodable.contains(id), !Metafile.isMetafile(attachment.data) else { return }
+        var decoded: Image? = nil
+        if let codec = try? await instantiateImageCodec([UInt8](attachment.data)) {
+            decoded = (try? await codec.getNextFrame())?.image
+            codec.dispose()
+        }
+        if let decoded {
+            if _images[id] == nil { _images[id] = decoded; onImageDecoded?() } else { decoded.dispose() }
+        } else if _images[id] == nil {
+            _undecodable.insert(id)
+        }
+    }
+
+    /// Pictures whose decode failed.
+    private var _undecodable: Set<String> = []
+    func isUndecodable(_ attachment: ImageAttachment) -> Bool {
+        imageSource?.isUndecodable(attachment) ?? _undecodable.contains(attachment.id)
     }
 
     private var _metafiles: [String: Metafile?] = [:]
@@ -197,6 +229,7 @@ final class SlideTextCache {
         _metafiles.removeAll()
         _images.removeAll()
         _decoding.removeAll()
+        _undecodable.removeAll()
     }
 
     func forget(_ shapes: [SlideShape]) {
