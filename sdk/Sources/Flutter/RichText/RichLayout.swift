@@ -1650,7 +1650,28 @@ public final class RichLayout {
                 fill.color = color
                 let width = (_columnWidths[c.table] ?? []).reduce(0, +)
                 let left = c.colLeft - (_columnWidths[c.table] ?? []).prefix(c.column).reduce(0, +)
-                canvas.drawRect(Rect.fromLTWH(left.rounded(), c.rowTop.rounded(), width.rounded(), c.ownRowHeight.rounded()), fill)
+                // A cell whose own fill is fully transparent says "no fill"
+                // (PowerPoint's `a:noFill` on a cell of a banded table): the
+                // row's shading stops at its edges rather than showing through.
+                var holes: [(Double, Double)] = []
+                var j = i
+                while j < count, j < document.paragraphs.count, let cj = _cells[j], cj.table == c.table, cj.row == c.row {
+                    if let own = document.paragraphs[j].cell?.fill, own.alpha == 0 {
+                        holes.append((cj.colLeft, cj.colLeft + cj.colWidth))
+                    }
+                    j += 1
+                }
+                if holes.isEmpty {
+                    canvas.drawRect(Rect.fromLTWH(left.rounded(), c.rowTop.rounded(), width.rounded(), c.ownRowHeight.rounded()), fill)
+                }
+                var from = left
+                for (l, r) in holes.isEmpty ? [] : holes + [(left + width, left + width)] {
+                    if l > from {
+                        canvas.drawRect(Rect.fromLTRB(from.rounded(), c.rowTop.rounded(), l.rounded(),
+                                                      (c.rowTop + c.ownRowHeight).rounded()), fill)
+                    }
+                    from = max(from, r)
+                }
             }
         }
         // The cell's own shading, over the row's; every paragraph of the

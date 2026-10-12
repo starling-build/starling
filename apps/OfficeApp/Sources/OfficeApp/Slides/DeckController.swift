@@ -53,6 +53,7 @@ struct ShapeState: Equatable {
     var autofit = false
     var fontScale = 1.0
     var insetsFollowFont = false
+    var noWrap = false
     var lineReduction = 0.0
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
@@ -1117,6 +1118,7 @@ final class DeckController: ChangeNotifier {
                    keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
+        st.noWrap = s.noWrap
         return st
     }
 
@@ -1181,6 +1183,7 @@ final class DeckController: ChangeNotifier {
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont
+        shape.noWrap = st.noWrap
         shape.lineReduction = st.lineReduction
         shape.textTheme?.lineSpacingScale = 1 - st.lineReduction
         shape.keptLook = st.keptLook

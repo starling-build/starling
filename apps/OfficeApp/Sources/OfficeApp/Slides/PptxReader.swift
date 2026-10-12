@@ -1010,7 +1010,15 @@ private struct SlideContext {
         if let ln = spPr?.first("a:ln") {
             outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? outlineWidth
             if ln.has("a:noFill") { outline = nil } else if let f = ln.first("a:solidFill") { outline = colors.color(in: f) }
+            else if let gs = ln.first("a:gradFill")?.first("a:gsLst")?.all("a:gs"), !gs.isEmpty {
+                // A gradient line by its first stop that shows — or no line,
+                // when every stop is fully transparent (tdf149588's curve).
+                let stops = gs.compactMap { colors.color(in: $0) }
+                outline = stops.first { $0.alpha > 0 }
+            }
             else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" { outline = colors.color(in: ref) }
+            // A line at alpha 0 is no line.
+            if let o = outline, o.alpha == 0 { outline = nil }
         } else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" {
             outline = colors.color(in: ref)
         }
@@ -1055,6 +1063,7 @@ private struct SlideContext {
         st.fontScale = text.fontScale
         st.lineReduction = text.lineReduction
         st.insetsFollowFont = text.insetsFollowFont
+        st.noWrap = text.noWrap
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
@@ -1355,12 +1364,21 @@ private struct SlideContext {
                     } else if let g = tcPr.first("a:gradFill") {
                         let stops = g.first("a:gsLst")?.all("a:gs").compactMap { colors.color(in: $0) } ?? []
                         if !stops.isEmpty { cell.fill = stops[stops.count / 2] }
+                    } else if tcPr.has("a:noFill") {
+                        // The cell says "no fill" over the style's band or
+                        // header (tdf164936's empty box).
+                        cell.fill = Color(0x00000000)
                     }
                     func line(_ tag: String) -> CellRef.CellLine? {
                         guard let ln = tcPr.first(tag) else { return nil }
                         if ln.has("a:noFill") { return CellRef.CellLine.hidden }
                         let width = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 1
-                        if let f = ln.first("a:solidFill") { return CellRef.CellLine(width: width, color: colors.color(in: f)) }
+                        if let f = ln.first("a:solidFill") {
+                            // Fully transparent is hidden, not the style's rule.
+                            let c = colors.color(in: f)
+                            if let c, c.alpha == 0 { return CellRef.CellLine.hidden }
+                            return CellRef.CellLine(width: width, color: c)
+                        }
                         if let g = ln.first("a:gradFill"), let gs = g.first("a:gsLst")?.all("a:gs").first {
                             return CellRef.CellLine(width: width, color: colors.color(in: gs))
                         }
@@ -1697,6 +1715,8 @@ private struct SlideContext {
         /// The insets are fractions of the font size (a diagram's margins)
         /// and shrink with it.
         var insetsFollowFont = false
+        /// `bodyPr wrap="none"`.
+        var noWrap = false
     }
 
     /// The master text style a placeholder (or plain shape) draws from.
@@ -1728,6 +1748,12 @@ private struct SlideContext {
         if ph == nil {
             layers = [shapeList?.first(tag), defaults?.first(tag),
                       master?.first("p:txStyles")?.first("p:otherStyle")?.first(tag)]
+        } else if ["title", "ctrTitle", "body", "subTitle", "obj"].contains(ph?["type"] ?? "obj") {
+            // And the reverse: a title or body draws from the master's title
+            // and body styles alone. The presentation's default is for the
+            // other objects — alterman_security's says i="1" at every level,
+            // and PowerPoint shows its bodies upright.
+            layers.removeLast()
         }
         var s = LevelStyle()
         for layer in layers { s = s.filled(from: LevelStyle.paragraph(layer, colors)) }
@@ -1896,7 +1922,8 @@ private struct SlideContext {
                         listIndent: shapeIndent,
                         autofit: fitRule == "a:normAutofit", fontScale: fitRule == "a:normAutofit" ? scale : 1,
                         lineReduction: fitRule == "a:normAutofit" ? min(1, max(0, reduction)) : 0,
-                        insetsFollowFont: body?.first("a:bodyPr")?["starling:insScale"] == "1")
+                        insetsFollowFont: body?.first("a:bodyPr")?["starling:insScale"] == "1",
+                        noWrap: bodies.compactMap { $0?["wrap"] }.first == "none")
     }
 
     // MARK: Notes

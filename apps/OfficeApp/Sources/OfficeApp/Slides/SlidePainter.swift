@@ -125,10 +125,29 @@ final class SlideTextCache {
            e.theme == ObjectIdentifier(theme) {
             return e.layout
         }
-        let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
-        layout.scale = scale
-        layout.width = width
-        layout.ensureLaidOut(text.document)
+        func laidOut(_ w: Double) -> RichLayout {
+            let l = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
+            l.scale = scale
+            l.width = w
+            l.ensureLaidOut(text.document)
+            return l
+        }
+        var layout = laidOut(width)
+        if shape.noWrap {
+            // Unwrapped text is as wide as its longest line: the narrowest
+            // width at which it has no more lines than at no limit at all
+            // (found by widening — the layout says how many lines, not how
+            // wide), so paragraphs still align with one another across it.
+            func lines(_ l: RichLayout) -> Int {
+                (0 ..< l.count).reduce(0) { $0 + l.geometry($1).painter.computeLineMetrics().count }
+            }
+            let free = lines(laidOut(1_000_000))
+            var w = width
+            while lines(layout) > free, w < 1_000_000 {
+                w *= 1.15
+                layout = laidOut(w)
+            }
+        }
         _entries[key] = Entry(revision: text.revision, width: width, scale: scale, theme: ObjectIdentifier(theme),
                               layout: layout)
         return layout
@@ -148,6 +167,23 @@ final class SlideTextCache {
         case .top: return top
         case .middle: return top + spare / 2
         case .bottom: return top + spare
+        }
+    }
+
+    /// Where the text's column starts right of the shape's left edge, in
+    /// pixels: the left inset — less what unwrapped text wider than its box
+    /// hangs out on that side (none of it for text aligned left, half
+    /// centred, all of it aligned right).
+    func textLeft(_ shape: SlideShape, pxPerPt: Double) -> Double {
+        let left = shape.drawInsets.left * pxPerPt
+        guard shape.noWrap, let layout = layout(shape, pxPerPt: pxPerPt), let doc = shape.text?.document else { return left }
+        let room = (shape.frame.width - shape.drawInsets.left - shape.drawInsets.right) * pxPerPt
+        let over = layout.width - room
+        guard over > 0 else { return left }
+        switch doc.paragraphs.first?.style.alignment {
+        case .center?: return left - over / 2
+        case .right?: return left - over
+        default: return left
         }
     }
 
@@ -488,7 +524,7 @@ final class SlidePainter: CustomPainter {
         if mirrored { canvas.restore() }
         // (An empty table still has its rows' fills and borders to draw.)
         if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
-            let ox = r.left + shape.drawInsets.left * px, oy = r.top + cache.textTop(shape, pxPerPt: px)
+            let ox = r.left + cache.textLeft(shape, pxPerPt: px), oy = r.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
             if let paragraphs, !paragraphs.isEmpty {

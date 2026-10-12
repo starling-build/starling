@@ -242,6 +242,49 @@ Left on those decks: a gear's text is turned with its shape where
 PowerPoint keeps it upright, and tdf141058's elbow connectors are
 straight lines.
 
+**The 2–20% band, sampled, 2026-10-11** (sweep 29, Windows and MuPDF:
+2.94 → 2.90%, ≤2% 372 → 377, 2–20% 173 → 168; 15 decks down, two up by
+under 0.1). Every seventh deck of the band by rank, 25 of them, a cause
+put on each from its worst page:
+
+| cause | decks |
+|---|---|
+| a diagram laid out here, sized or placed unlike PowerPoint's | 5 |
+| `a:scene3d` (extrusion, camera) | 5 |
+| a face this app does not have, so the text wraps elsewhere | 4 |
+| one small thing wrong, visible in the picture | 7 |
+| hairlines, anti-aliasing, a texture's resampling | 4 |
+
+So about a fifth of the band is the diagram engine and another fifth
+single causes; fonts and 3D are a third and stay. Fixed from the
+"one small thing" pile:
+
+- **Text that does not wrap** (`bodyPr wrap="none"`, 986 shapes in 62
+  decks) was wrapped at its box. `SlideShape.noWrap`: the painter lays
+  it out as wide as its longest line (the narrowest width with no more
+  lines than at no limit) and hangs the excess off the side its first
+  paragraph is not aligned to (`SlideTextCache.textLeft`). tdf104722's
+  title, one letter per line in a 94 pt box, 3.1 → 1.1. The editor
+  still wraps: its column is the box.
+- **A table cell's `a:noFill`** left the row's band or header showing.
+  It is a fully transparent `CellRef.fill` now, and the layout stops
+  the row's shading at such a cell's edges (tdf164936 7.4 → 0.3,
+  tdf135843_insideH 8.7 → 4.4, table-shadow 3.9 → 0.8).
+- **A line at alpha 0 is no line**, on a shape or a cell's edge; a
+  shape's gradient line is its first stop that shows, where it had
+  fallen through to the style's colour (tdf149588 3.5 → 0.5).
+- **A title or body does not take the presentation's default text
+  style** — only the master's title and body styles; the default is for
+  the other objects. alterman_security's says `i="1"` at every level
+  and its bodies drew italic.
+
+Seen and left: an untyped `<p:ph/>` with no `idx` on a layout whose
+content placeholder is `idx="1"` reads as that body (bullet, 28 pt)
+where PowerPoint gives it no master styling (formatting-bullet-indent),
+and that deck's `indent="900000"` on a plain paragraph is not drawn;
+text in an ellipse wraps a word early (shape-text-glow-effect, whose
+glow is not drawn either); a path gradient's focus (tdf94238).
+
 The branch: this work is on `office` (fast-forwarded from `sheets`,
 which is kept level with it), rebased over the Writer session's
 commits. Where the two met, Writer's model won and Slides reads into

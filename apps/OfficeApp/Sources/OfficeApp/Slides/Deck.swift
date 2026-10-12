@@ -320,6 +320,10 @@ final class SlideShape {
     /// A diagram's margins are fractions of its font size: they shrink
     /// with the text when it is fitted.
     var insetsFollowFont = false
+    /// `bodyPr wrap="none"`: lines break only where the text says, however
+    /// narrow the box — the text runs past its edges, from the side its
+    /// first paragraph is aligned to. (Drawn so; the editor still wraps.)
+    var noWrap = false
     /// `normAutofit lnSpcReduction`: the share PowerPoint took off the
     /// line spacing to fit (0.2 = lines at 80%); the theme carries it.
     var lineReduction = 0.0
