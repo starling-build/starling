@@ -11,7 +11,7 @@
 61515.pptx	summary pages=1 worst=0.00% mean=0.00%
 63200.pptx	summary pages=1 worst=0.50% mean=0.50%
 ArtisticEffectSample.pptx	summary pages=2 worst=50.51% mean=26.06%
-Divino_Revelado.pptx	summary pages=12 worst=21.04% mean=14.47%
+Divino_Revelado.pptx	summary pages=12 worst=21.05% mean=14.48%
 EmbeddedAudio.pptx	summary pages=1 worst=0.00% mean=0.00%
 EmbeddedVideo.pptx	summary pages=1 worst=0.00% mean=0.00%
 KEY02.pptx	summary pages=1 worst=4.74% mean=4.74%
@@ -98,8 +98,8 @@ lo-bnc887230.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-bnc904423.pptx	summary pages=1 worst=3.87% mean=3.87%
 lo-bnc910045.pptx	summary pages=1 worst=0.73% mean=0.73%
 lo-bullet-indent.pptx	summary pages=1 worst=1.64% mean=1.64%
-lo-bulletColor.pptx	summary pages=1 worst=0.21% mean=0.21%
-lo-bulletMarginAndIndent.pptx	summary pages=1 worst=0.14% mean=0.14%
+lo-bulletColor.pptx	summary pages=1 worst=0.24% mean=0.24%
+lo-bulletMarginAndIndent.pptx	summary pages=1 worst=0.17% mean=0.17%
 lo-chart_pt_color_bg1.pptx	summary pages=1 worst=3.00% mean=3.00%
 lo-connector-shape-animations.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-connectors.pptx	summary pages=1 worst=1.36% mean=1.36%
@@ -170,7 +170,7 @@ lo-predefined-table-style.pptx	summary pages=1 worst=4.29% mean=4.29%
 lo-pres-with-notes.pptx	summary pages=2 worst=0.00% mean=0.00%
 lo-presLeftAlign.pptx	summary pages=1 worst=0.18% mean=0.18%
 lo-presetDashDot.pptx	summary pages=1 worst=3.40% mean=3.40%
-lo-rightToLeftParagraph.pptx	summary pages=1 worst=0.28% mean=0.28%
+lo-rightToLeftParagraph.pptx	summary pages=1 worst=0.29% mean=0.29%
 lo-shape-blur-effect.pptx	summary pages=1 worst=1.25% mean=1.25%
 lo-shape-glow-effect.pptx	summary pages=1 worst=0.64% mean=0.64%
 lo-shape-soft-edges.pptx	summary pages=1 worst=3.71% mean=3.71%
@@ -179,11 +179,11 @@ lo-shape-text-rotate.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-slide-section-test.pptx	summary pages=13 worst=0.82% mean=0.14%
 lo-slide-sections.pptx	summary pages=7 worst=1.77% mean=1.68%
 lo-slidenum_field.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-smartart-accent-process.pptx	summary pages=1 worst=9.82% mean=9.82%
+lo-smartart-accent-process.pptx	summary pages=1 worst=6.05% mean=6.05%
 lo-smartart-autoTxRot.pptx	summary pages=3 worst=3.22% mean=3.22%
 lo-smartart-autofit-sync.pptx	summary pages=1 worst=4.25% mean=4.25%
-lo-smartart-background-drawingml-fallback.pptx	summary pages=1 worst=7.54% mean=7.54%
-lo-smartart-background.pptx	summary pages=1 worst=8.25% mean=8.25%
+lo-smartart-background-drawingml-fallback.pptx	summary pages=1 worst=0.55% mean=0.55%
+lo-smartart-background.pptx	summary pages=1 worst=1.25% mean=1.25%
 lo-smartart-bullet-list.pptx	summary pages=1 worst=0.90% mean=0.90%
 lo-smartart-center-cycle.pptx	summary pages=1 worst=0.55% mean=0.55%
 lo-smartart-chevron.pptx	summary pages=1 worst=0.19% mean=0.19%
@@ -211,7 +211,7 @@ lo-smartart-recursion.pptx	summary pages=1 worst=2.83% mean=2.83%
 lo-smartart-rightoleftblockdiagram.pptx	summary pages=1 worst=4.55% mean=4.55%
 lo-smartart-rotation.pptx	summary pages=1 worst=6.25% mean=6.25%
 lo-smartart-rotation2.pptx	summary pages=1 worst=0.86% mean=0.86%
-lo-smartart-snake-rows.pptx	summary pages=1 worst=13.76% mean=13.76%
+lo-smartart-snake-rows.pptx	summary pages=1 worst=1.55% mean=1.55%
 lo-smartart-tdf134221.pptx	summary pages=1 worst=0.21% mean=0.21%
 lo-smartart-text.pptx	summary pages=1 worst=0.39% mean=0.39%
 lo-smartart-vertical-block-list.pptx	summary pages=1 worst=1.28% mean=1.28%
@@ -453,7 +453,7 @@ lo-tdf94238.pptx	summary pages=1 worst=2.27% mean=2.27%
 lo-tdf95932.pptx	summary pages=1 worst=0.29% mean=0.29%
 lo-tdf96061.pptx	summary pages=1 worst=0.24% mean=0.24%
 lo-tdf98477grow.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-tdf98603.pptx	summary pages=1 worst=6.73% mean=6.73%
+lo-tdf98603.pptx	summary pages=1 worst=6.55% mean=6.55%
 lo-tdf99030.pptx	summary pages=1 worst=1.70% mean=1.70%
 lo-tdfpictureplaceholder.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdt142291.pptx	summary pages=1 worst=0.53% mean=0.53%
@@ -498,7 +498,7 @@ oox-shape-text-alignment.pptx	summary pages=1 worst=0.55% mean=0.55%
 oox-smartart-groupshape.pptx	summary pages=1 worst=0.14% mean=0.14%
 oox-table-shadow.pptx	summary pages=1 worst=0.81% mean=0.81%
 oox-tdf113187_arcTo_withoutReferences.pptx	summary pages=1 worst=0.02% mean=0.02%
-oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=3.64% mean=3.64%
+oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=3.61% mean=3.61%
 oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=2.37% mean=2.37%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=3.23% mean=3.23%
 oox-tdf131082.pptx	summary pages=1 worst=1.70% mean=1.70%

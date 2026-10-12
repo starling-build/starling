@@ -325,13 +325,34 @@ The band's largest single cause, taken deck by deck:
   diagram's laid-out shapes by their nominal size. Eight decks by a
   little.
 
-Left, from the same sheets: snake-rows and accent-process (the
-composite inside each item is laid out wrong — accent-process loses its
-parent boxes altogether), linear-rule (the arrow's text and
-proportions), missing-bullet and background (a `bgShp` behind the
-nodes is not drawn or is drawn pale), vertical-box-list (the box is
-taller than PowerPoint's), children (rows share height unlike
-PowerPoint's 3:4), cycle-matrix.
+Second pass, same day (sweep 31: 2.85 → 2.80%, ≤2% 378 → 381):
+
+- **The diagram's own background and outline** (`dgm:bg`, `dgm:whole`
+  in the data part) are a rectangle the size of the frame behind
+  everything, for a drawn diagram and one laid out here alike.
+  smartart-background 8.3 → 1.3, its drawing-part twin 7.5 → 0.6.
+- **A factor of a thousand is not a proportion.** `h` = 1000 `w` is how
+  a layout says "as tall as it needs"; kept in step with it, a step as
+  tall as the frame was a third of a point wide, and accent-process had
+  no boxes. Such a composite has no height to hand out either: its
+  children keep the heights their constraints gave them, where an
+  `INF` rule had stretched them to the frame's foot. A shape moved by
+  `zOrderOff` onto another's place goes past it (the label was behind
+  its own box). accent-process 9.8 → 6.1; its boxes are still a fifth
+  larger than PowerPoint's and its child boxes shorter.
+- **A snake's item is sized by its own proportions**, applied before
+  the grid is chosen (`h` = 1.06 `w`), and the grid is the column count
+  that comes out largest in the frame, not the one nearest the frame's
+  shape. And **a size of 1 is a unit**, not a point: `w` = 1 taken as a
+  width collapsed each item to a line down its middle, and its
+  contents were laid out from there, half an item low.
+  snake-rows 13.8 → 1.6.
+
+Left: linear-rule (the arrow's text and proportions), missing-bullet
+(a `bgShp` drawn pale, and the text sized unlike PowerPoint's),
+vertical-box-list (the box taller than PowerPoint's), children (rows
+share height unlike PowerPoint's 3:4), cycle-matrix, and org-chart's
+packing.
 
 The branch: this work is on `office` (fast-forwarded from `sheets`,
 which is kept level with it), rebased over the Writer session's

@@ -509,7 +509,12 @@ struct DiagramLayout {
                     set(t, type, base * fact, op)
                     if t === node, op == "equ" { t.selfSet.insert(type) }
                     if ref !== t, op == "equ" { t.sizeRef[type] = ref.name }
-                    if ref === t, ["w", "h"].contains(type), ["w", "h"].contains(refType), type != refType, op == "equ" {
+                    // (A factor of a thousand is not a proportion: `h` = 1000 `w`
+                    // is how a layout says "as tall as it needs", and kept in
+                    // step with it, a step as tall as the frame was a third
+                    // of a point wide — accent-process's boxes, gone.)
+                    if ref === t, ["w", "h"].contains(type), ["w", "h"].contains(refType), type != refType, op == "equ",
+                       fact < 100, fact > 0.01 {
                         t.derived[type] = (refType, fact)
                     }
                 }
@@ -570,8 +575,12 @@ struct DiagramLayout {
             // The node's own caps (h at most 0.4 w) can only make the slot
             // its parent gave it smaller.
             var w = min(node.rect.width, node.caps["w"] ?? .infinity), h = min(node.rect.height, node.caps["h"] ?? .infinity)
-            if node.selfSet.contains("w"), let v = node.vals["w"] { w = min(w, v) }
-            if node.selfSet.contains("h"), let v = node.vals["h"] { h = min(h, v) }
+            // (A size of 1 is a unit for the node's proportions, `w` = 1
+            // and `h` = 1.06 `w`, not a point: taken as a width, a snake's
+            // item collapsed to a line down its middle and its contents were
+            // laid out from there, half an item too low.)
+            if node.selfSet.contains("w"), let v = node.vals["w"], v > 1.5 { w = min(w, v) }
+            if node.selfSet.contains("h"), let v = node.vals["h"], v > 1.5, (node.vals["w"] ?? 2) > 1.5 { h = min(h, v) }
             if w < node.rect.width - 0.01 || h < node.rect.height - 0.01 {
                 node.rect = Rect.fromLTWH(node.rect.left, node.rect.top, w, h)
             }
@@ -620,7 +629,11 @@ struct DiagramLayout {
             // A rule letting a size grow without bound (`val="INF"`) lets it
             // take what is left of the composite, within its own cap.
             func unbounded(_ type: String) -> Bool { c.rules.contains { $0["type"] == type && $0["val"] == "INF" } }
-            if unbounded("h") { h = max(h, min(c.caps["h"] ?? .infinity, node.rect.height - y)) }
+            // (A composite that is itself only "as tall as it needs" — `h`
+            // a thousand `w` — has no height to hand out: its children keep
+            // the ones their constraints gave them.)
+            let nominalH = node.vals["h"].map { $0 > 50 * max(1, node.rect.width) } ?? false
+            if unbounded("h"), !nominalH { h = max(h, min(c.caps["h"] ?? .infinity, node.rect.height - y)) }
             if unbounded("w") { w = max(w, min(c.caps["w"] ?? .infinity, node.rect.width - x)) }
             c.rect = Rect.fromLTWH(node.rect.left + x, node.rect.top + y, w, h)
             layoutNode(c)
@@ -787,19 +800,27 @@ struct DiagramLayout {
         guard let first = items.first else { return }
         let spaces = node.children.filter { $0.isSpace || $0.isConnector }
         let W = node.rect.width, H = node.rect.height
+        // The item's own constraints first, for its proportions (`h` = 1.06
+        // `w` under a `w` of 1: a shape, not a size) — the width this grid
+        // gave it stands.
+        let given = first.vals["w"]
+        applyConstraints(first, selfOnly: true)
+        if let given { first.vals["w"] = given }
         var w = first.value("w") ?? W, h = first.value("h") ?? H
         if let d = first.derived["h"], d.ref == "w" { h = w * d.fact } else if let d = first.derived["w"], d.ref == "h" { w = h * d.fact }
         let hs = spaces.first?.vals["w"] ?? 0
         let vs = node.vals["sp"] ?? hs
         let n = items.count
         let byRow = (node.params["flowDir"] ?? "row") == "row"
-        // The column count whose grid is closest to the frame's proportions.
+        // The column count whose grid is largest in the frame.
         var best = 1, bestScore = Double.infinity
         for c in 1 ... n {
             let r = (n + c - 1) / c
             let gw = Double(c) * w + Double(c - 1) * hs, gh = Double(r) * h + Double(r - 1) * vs
-            let aspect = byRow ? gw / gh : gh / gw
-            let score = abs(log(aspect) - log(W / H))
+            // The grid that comes out largest when scaled into the frame
+            // (six tall boxes: three across, not four and two — snake-rows).
+            let fit = byRow ? min(W / gw, H / gh) : min(W / gh, H / gw)
+            let score = -fit
             if score < bestScore - 1e-9 { best = c; bestScore = score }
         }
         let cols = best, rows = (n + cols - 1) / cols
@@ -1116,7 +1137,7 @@ struct DiagramLayout {
         var counts: [String: Int] = [:]
         for (_, lbl) in labelled { counts[lbl, default: 0] += 1 }
         var seen: [String: Int] = [:]
-        var shapes: [(Int, Int, XNode)] = []
+        var shapes: [(Int, Int, Int, XNode)] = []
         var id = 100
         for (i, (n, lbl)) in labelled.enumerated() {
             let idx = model.pres[n.point.id + "|" + n.name]?["presStyleIdx"].flatMap(Int.init) ?? seen[lbl, default: 0]
@@ -1126,9 +1147,12 @@ struct DiagramLayout {
             id += 1
             // `zOrderOff` moves a shape that many places in the stack (-1:
             // behind the shape before it; -99999: behind everything).
-            shapes.append((i + n.zOrderOff, i, sp))
+            // A shape moved onto another's place goes past it, the way it
+            // was heading: +1 lands above the next shape, not still under it
+            // (accent-process's label, which was behind its own box).
+            shapes.append((i + n.zOrderOff, n.zOrderOff.signum(), i, sp))
         }
-        for (_, _, sp) in shapes.sorted(by: { ($0.0, $0.1) < ($1.0, $1.1) }) { tree.children.append(sp) }
+        for (_, _, _, sp) in shapes.sorted(by: { ($0.0, $0.1, $0.2) < ($1.0, $1.1, $1.2) }) { tree.children.append(sp) }
         return tree
     }
 

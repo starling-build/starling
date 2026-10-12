@@ -1598,6 +1598,30 @@ private struct SlideContext {
                                         frame: Rect.fromLTWH(0, 0, frame.width, frame.height))
         }
         guard let tree else { return [] }
+        // The diagram's own background and outline (`dgm:bg`, `dgm:whole`
+        // in the data): a rectangle the size of the frame, behind everything
+        // — smartart-background's green between its boxes.
+        let fillNames: Set<String> = ["a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill"]
+        let bgFill = data.first("dgm:bg")?.children.first { fillNames.contains($0.name) }
+        let wholeLine = data.first("dgm:whole")?.first("a:ln")
+        if bgFill != nil || wholeLine != nil {
+            let sp = XNode(name: "p:sp", attrs: [:])
+            let nv = XNode(name: "p:nvSpPr", attrs: [:])
+            nv.children = [XNode(name: "p:cNvPr", attrs: ["id": "0", "name": "diagram background"]),
+                           XNode(name: "p:cNvSpPr", attrs: [:]), XNode(name: "p:nvPr", attrs: [:])]
+            let spPr = XNode(name: "p:spPr", attrs: [:])
+            let xfrm = XNode(name: "a:xfrm", attrs: [:])
+            xfrm.children = [XNode(name: "a:off", attrs: ["x": "0", "y": "0"]),
+                             XNode(name: "a:ext", attrs: ["cx": String(Int(frame.width * Pptx.emu)),
+                                                          "cy": String(Int(frame.height * Pptx.emu))])]
+            let geom = XNode(name: "a:prstGeom", attrs: ["prst": "rect"])
+            geom.children = [XNode(name: "a:avLst", attrs: [:])]
+            let line = wholeLine ?? XNode(name: "a:ln", attrs: [:])
+            if wholeLine == nil { line.children = [XNode(name: "a:noFill", attrs: [:])] }
+            spPr.children = [xfrm, geom, bgFill ?? XNode(name: "a:noFill", attrs: [:]), line]
+            sp.children = [nv, spPr]
+            tree.children.insert(sp, at: 0)
+        }
         let ctx = SlideContext(package: package, part: drawingPart, slide: slide, layout: layout, master: master,
                                colors: colors, theme: theme, defaults: defaults, slideSize: slideSize, images: images)
         var out: [ShapeState] = []

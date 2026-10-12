@@ -111,11 +111,14 @@ final class DiagramTests: XCTestCase {
         let plates = b.filter { $0.prst == "homePlate" }
         XCTAssertEqual(plates.map(\.text), ["One|detail", "Two", "Three"])
         guard plates.count == 3, b.count == 6 else { return }
-        XCTAssertEqual(plates[0].x, b[0].x + b[0].w * 0.5, accuracy: 0.5, "the plate starts halfway into the circle")
+        // `zOrderOff="-1"` on the plate: behind the circle that precedes it.
+        XCTAssertEqual(b.prefix(2).map(\.prst), ["homePlate", "ellipse"], "the plate is behind its circle")
+        let circle = b.first { $0.prst == "ellipse" }!
+        XCTAssertEqual(plates[0].x, circle.x + circle.w * 0.5, accuracy: 0.5, "the plate starts halfway into the circle")
         XCTAssertLessThan(plates[0].y, plates[1].y)
         XCTAssertLessThan(plates[1].y, plates[2].y)
         XCTAssertLessThanOrEqual(plates[2].y + plates[2].h, 300.5, "fitted into the frame")
-        XCTAssertEqual(b[0].w, b[0].h, accuracy: 0.01, "the circle is round")
+        XCTAssertEqual(circle.w, circle.h, accuracy: 0.01, "the circle is round")
         // The second-level text is a bulleted paragraph at level 1.
         let sp = try XCTUnwrap(tree?.all("p:sp").first { $0.descendant("a:t")?.text == "One" })
         let paras = sp.first("p:txBody")!.all("a:p")
