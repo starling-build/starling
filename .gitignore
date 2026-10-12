@@ -42,3 +42,8 @@ apps/OfficeApp/Vendor/
 
 # Desktop presentation browser runtime
 ui/desktop/runtime/
+
+# Static landing-page packages
+.stage-landings/
+# Generated local Office editors (build/office-web-preview.sh).
+ui/openoffice/apps/
