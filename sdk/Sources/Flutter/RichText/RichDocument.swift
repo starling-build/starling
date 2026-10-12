@@ -521,6 +521,10 @@ public struct ImageAttachment: Hashable, Sendable {
     /// when regenerated, and the row of them wrapped elsewhere.
     public var sourceWidth: Double? = nil
     public var sourceHeight: Double? = nil
+    /// The properties of the run the picture sat in (`w:rPr`), as the
+    /// file wrote them: a character border round a thumbnail, the size
+    /// that sets the line it stands on. Written back with `sourceXML`.
+    public var sourceRunPropertiesXML: String? = nil
 
     public init(data: Data, width: Double, height: Double, name: String = "image.png",
                 naturalWidth: Double? = nil, naturalHeight: Double? = nil) {

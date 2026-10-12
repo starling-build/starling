@@ -117,7 +117,7 @@ public final class RichTextTheme {
         }
         if style.link != nil && style.color == nil { color = linkColor }
         var decorations: [TextDecoration] = []
-        if style.underline || style.link != nil || ((named?.char.underline ?? false) && !style.off.contains(.underline)) { decorations.append(.underline) }
+        if style.underline || ((style.link != nil || (named?.char.underline ?? false)) && !style.off.contains(.underline)) { decorations.append(.underline) }
         if style.strikethrough || ((named?.char.strikethrough ?? false) && !style.off.contains(.strikethrough)) { decorations.append(.lineThrough) }
         if let revision = style.revision {
             // Tracked changes as Word marks them: insertions underlined,

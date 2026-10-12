@@ -1838,6 +1838,26 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(again.contains("<w:lvlText w:val=\"*\"/>"), again)
     }
 
+    func testLinkTheFileDoesNotUnderlineStaysPlain() throws {
+        // bug59058: reference links whose runs name no Hyperlink style.
+        // The save names the style, so the run says "none" over it.
+        var p = RichParagraph(text: "see 39 and 40")
+        p.applyStyle(4 ..< 6) { $0.link = "https://example.com/a" }
+        p.applyStyle(11 ..< 13) { $0.link = "https://example.com/b" }
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [p]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let first = try XCTUnwrap(xml.range(of: "<w:rStyle w:val=\"Hyperlink\"/>"))
+        xml.replaceSubrange(first, with: "")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let links = back.paragraphs[0].runs.filter { $0.style.link != nil }
+        XCTAssertEqual(links.map { $0.style.off.contains(.underline) }, [true, false])
+        XCTAssertEqual(links.map(\.style.underline), [false, true])
+        let again = try part("word/document.xml", of: back)
+        XCTAssertEqual(again.components(separatedBy: "<w:u w:val=\"none\"/>").count, 2, again)
+    }
+
     func testDefaultTabStopKept() throws {
         // bug65649: 708 twips, not our 720 — its typed numbers are
         // followed by a tab, and every first line moved.
@@ -1891,10 +1911,15 @@ final class DocxTests: XCTestCase {
         var doc = RichDocument(paragraphs: [RichParagraph(text: "a")])
         doc.footer = "x"
         let footer = "<w:p><w:pPr><w:pStyle w:val=\"Footer\"/><w:pBdr><w:top w:val=\"thinThickSmallGap\" w:sz=\"24\" w:space=\"1\" w:color=\"622423\"/></w:pBdr></w:pPr><w:r><w:t>Left</w:t></w:r><w:r><w:ptab w:relativeTo=\"margin\" w:alignment=\"right\" w:leader=\"none\"/></w:r><w:r><w:t>Right</w:t></w:r></w:p>"
-        for (variant, kept) in [(footer, true), ("<w:p><w:r><w:t>Left</w:t></w:r></w:p><w:p/>", true), ("<w:p><w:pPr><w:pStyle w:val=\"Footer\"/></w:pPr><w:r><w:t>Left</w:t></w:r></w:p>", false)] {
-            let back = try DocxFormat.read(try patched(doc, part: "word/footer1.xml", from: "<w:p>", through: "</w:p>", with: variant)).document
-            XCTAssertEqual(back.keptHeaderFooters.count, kept ? 1 : 0, variant)
-            if kept { XCTAssertTrue(try part(back.keptHeaderFooters[0].part, of: back).contains(variant), variant) }
+        // (The last: a footer set at the left margin — headerFooter's.)
+        for variant in [footer, "<w:p><w:r><w:t>Left</w:t></w:r></w:p><w:p/>", "<w:p><w:pPr><w:pStyle w:val=\"Footer\"/></w:pPr><w:r><w:t>Left</w:t></w:r></w:p>"] {
+            var back = try DocxFormat.read(try patched(doc, part: "word/footer1.xml", from: "<w:p>", through: "</w:p>", with: variant)).document
+            XCTAssertEqual(back.keptHeaderFooters.count, 1, variant)
+            XCTAssertTrue(try part(back.keptHeaderFooters[0].part, of: back).contains(variant), variant)
+            // Edited in the app, the kept part steps aside for the text.
+            back.footer = "edited"
+            let again = try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document
+            XCTAssertEqual(again.footer, "edited", variant)
         }
     }
 

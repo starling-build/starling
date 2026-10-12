@@ -179,49 +179,14 @@ enum DocxFormat {
                 let type = ref["w:type"] ?? "default"
                 guard ["default", "first", "even"].contains(type), let rid = ref["r:id"], let target = relInfo[rid]?.target,
                       let data = media(target), _wellFormed(data), let node = XNode.parse(data) else { continue }
-                let xml = String(decoding: data, as: UTF8.self)
-                // Rich: pictures, tables, text boxes, frames — or more than
-                // one line of text (WordWithAttachments' three-line header
-                // in a frame came back as one line).
-                var rich = ["<w:drawing", "<w:pict", "<w:tbl>", "<w:tbl ", "<mc:AlternateContent", "<w:object", "<w:framePr"].contains { xml.containsSubstring($0) }
-                if !rich {
-                    var lines = 0
-                    func count(_ n: XNode) {
-                        for c in n.children {
-                            if c.name == "w:p" {
-                                let wrap = XNode(name: "x", attrs: [:])
-                                wrap.children = [c]
-                                if !_fieldText(wrap).isEmpty { lines += 1 }
-                            } else { count(c) }
-                        }
-                    }
-                    count(node)
-                    // An EMPTY part is kept too: a footer of one blank
-                    // paragraph still reserves its height, and the editor
-                    // has nothing to show for it, so dropping it moved the
-                    // body's bottom edge 6pt down and form_footnotes' last
-                    // box onto the wrong page.
-                    rich = lines > 1 || lines == 0
-                    // And a line the plain form cannot say: a border, a
-                    // font, an alignment tab — or a second, empty paragraph
-                    // under it, which is height the body loses (FancyFoot's
-                    // ruled Cambria footer came back bare, a line lower;
-                    // SimpleHeadThreeColFoot's w:ptab columns moved).
-                    if !rich {
-                        let plainNames: Set<String> = ["w:hdr", "w:ftr", "w:p", "w:pPr", "w:pStyle", "w:r", "w:rPr", "w:noProof", "w:lang",
-                                                       "w:t", "w:tab", "w:fldSimple", "w:fldChar", "w:instrText", "w:proofErr",
-                                                       "w:bookmarkStart", "w:bookmarkEnd", "w:lastRenderedPageBreak"]
-                        var paragraphCount = 0, plain = true
-                        var stack = [node]
-                        while let n = stack.popLast(), plain {
-                            if n.name == "w:p" { paragraphCount += 1 }
-                            if !plainNames.contains(n.name) { plain = false }
-                            stack.append(contentsOf: n.children)
-                        }
-                        rich = !plain || paragraphCount > 1
-                    }
-                }
-                guard rich || type != "default" else { continue }
+                // Every part is kept, the plainest included, and written back
+                // while the editor's text for it is still the file's: the
+                // generated form is one line, centred or tabbed into thirds,
+                // and says none of a part's border, font, alignment tab,
+                // second paragraph or left-set footer (WordWithAttachments'
+                // three-line header, form_footnotes' blank footer that still
+                // reserves its height, FancyFoot's ruled Cambria line,
+                // headerFooter's footer at the left margin).
                 let path = _resolvePath("word", target)
                 notes.keep(path)
                 guard notes.kept[path] != nil else { continue }
@@ -1531,7 +1496,10 @@ enum DocxFormat {
             style.pageBreakBefore = false
         }
         /// A picture or object in the line, where the text has it.
+        var runPropertiesXML: String? = nil   // of the run being walked, for a picture in it
         func addInline(_ att: ImageAttachment) {
+            var att = att
+            att.sourceRunPropertiesXML = runPropertiesXML
             inlineImages[att.id] = att
             var cs = CharStyle()
             cs.inlineImage = att.id
@@ -1609,6 +1577,9 @@ enum DocxFormat {
             cs.link = link
             cs.revision = revision
             cs.comments = notes.openComments
+            // (Its style reference would name an id the save may rename.)
+            runPropertiesXML = r.first("w:rPr").flatMap { $0.first("w:rStyle") == nil && !$0.children.isEmpty ? PptxXML.serialize($0) : nil }
+            defer { runPropertiesXML = nil }
             if let rPr = r.first("w:rPr") {
                 // The run's character style first, then its own properties.
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
@@ -1620,6 +1591,11 @@ enum DocxFormat {
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex)
             }
+            // A link the file does not underline (no Hyperlink character
+            // style on its run, or one that says so): the save names the
+            // style again, so the run has to say "none" over it —
+            // bug59058's green reference numbers came back underlined.
+            if link != nil, !cs.underline { cs.off.insert(.underline) }
             for child in r.children {
                 switch child.name {
                 case "w:t": addText(_runText(child), cs)
@@ -2195,7 +2171,9 @@ enum DocxFormat {
             func drawingXML(_ image: ImageAttachment) -> String {
                 let unresized = image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height)
                 if let xml = image.sourceXML, unresized {
-                    return "<w:r>\(keptFragmentXML(xml, image.sourceRels))</w:r>"
+                    // With the run's own properties: bug59058's thumbnails
+                    // stand in a bordered 13pt run, a point taller each.
+                    return "<w:r>\(image.sourceRunPropertiesXML ?? "")\(keptFragmentXML(xml, image.sourceRels))</w:r>"
                 }
                 // A name no kept part and no earlier picture uses: a kept
                 // header's media/image1.png was being dropped for the body's
