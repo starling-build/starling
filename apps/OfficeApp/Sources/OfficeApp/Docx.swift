@@ -720,7 +720,10 @@ enum DocxFormat {
                 let bandsOn = !(look?["w:noHBand"].map { $0 != "0" } ?? (lookVal & 0x0200 != 0))
                 let firstColOn = look?["w:firstColumn"].map { $0 != "0" } ?? (lookVal & 0x0080 != 0)
                 // Where the table sits in the column (w:jc on the table).
-                switch node.first("w:tblPr")?.first("w:jc")?["w:val"] {
+                // (Or on its rows, every one of them, when the table says
+                // nothing: a centred form came back at the left margin.)
+                let rowJc = Set(unwrapped(node, "w:tr").map { $0.first("w:trPr")?.first("w:jc")?["w:val"] ?? "" })
+                switch node.first("w:tblPr")?.first("w:jc")?["w:val"] ?? (rowJc.count == 1 ? rowJc.first! : "") {
                 case "center": style.alignment = .center
                 case "right", "end": style.alignment = .right
                 default: break
@@ -878,6 +881,12 @@ enum DocxFormat {
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         currentCell?.bordersXML = tcPr?.first("w:tcBorders").map { PptxXML.serialize($0) }
                         currentCell?.marginsXML = tcPr?.first("w:tcMar").map { PptxXML.serialize($0) }
+                        let keptCell = ["w:noWrap", "w:tcFitText", "w:hideMark"].compactMap { tcPr?.first($0) }.map { PptxXML.serialize($0) }.joined()
+                        currentCell?.keptPropertiesXML = keptCell.isEmpty ? nil : keptCell
+                        if let grid = tableColumns[id], column + span <= grid.count {
+                            currentCell?.widthXML = tcPr?.first("w:tcW").map { PptxXML.serialize($0) }
+                            currentCell?.widthKeptUnder = grid[column ..< column + span].map { Int(($0 * 20).rounded()) }.reduce(0, +)
+                        }
                         currentCell?.bordersKeptUnder = style.borders
                         // The cell's own line width, over the table's.
                         if let w = _borders(tcPr, "w:tcBorders")?.width, w != (style.borderWidth ?? 0.5) { currentCell?.borderWidth = w }
@@ -938,6 +947,20 @@ enum DocxFormat {
         document.keptCompat = keptCompat
         document.defaultTabStop = defaultTabStop
         if let pb = body.first("w:sectPr")?.first("w:pgBorders") { document.pageBordersXML = PptxXML.serialize(pb) }
+        if let sect = body.first("w:sectPr") {
+            if let grid = sect.first("w:docGrid") { document.docGridXML = PptxXML.serialize(grid) }
+            let lead = ["w:lnNumType", "w:pgNumType"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
+            let tail = ["w:vAlign", "w:textDirection", "w:bidi", "w:rtlGutter"].compactMap { sect.first($0) }.map { PptxXML.serialize($0) }.joined()
+            document.sectionLeadXML = lead.isEmpty ? nil : lead
+            document.sectionTailXML = tail.isEmpty ? nil : tail
+        }
+        if let settings = part("word/settings.xml").flatMap(XNode.parse) {
+            document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
+            document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
+        }
+        if let lang = part("word/styles.xml").flatMap(XNode.parse)?.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang") {
+            document.defaultLangXML = PptxXML.serialize(lang)
+        }
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
         if let sect = body.first("w:sectPr") {
@@ -1037,6 +1060,26 @@ enum DocxFormat {
     }
 
     /// Alignment, indents and spacing from a w:pPr, onto `style`.
+    /// East Asian paragraph markup carried in `RichParagraphStyle.eastAsian`
+    /// (schema order): the switches, and the character- and line-unit
+    /// measures of `w:ind` and `w:spacing`.
+    static let _eastAsianSwitches = ["w:suppressLineNumbers", "w:suppressAutoHyphens", "w:kinsoku", "w:wordWrap", "w:overflowPunct", "w:topLinePunct", "w:autoSpaceDE", "w:autoSpaceDN", "w:adjustRightInd", "w:snapToGrid", "w:mirrorIndents"]
+    static let _eastAsianIndents = ["w:leftChars", "w:startChars", "w:rightChars", "w:endChars", "w:hangingChars", "w:firstLineChars"]
+    static let _eastAsianSpacing = ["w:beforeLines", "w:afterLines"]
+
+    /// `w:spacing`/`w:ind` markup with the kept line- and character-unit
+    /// attributes added (an element is made for them when there is none).
+    private static func _withEastAsian(_ xml: String, _ element: String, _ attrs: [String], _ style: RichParagraphStyle) -> String {
+        let extra = attrs.compactMap { a in style.eastAsian[a].map { " \(a)=\"\(_esc($0))\"" } }.joined()
+        if extra.isEmpty { return xml }
+        if xml.isEmpty { return "<\(element)\(extra)/>" }
+        return xml.replacingAll("<\(element)", with: "<\(element)\(extra)")
+    }
+
+    private static func _eastAsianSwitchesXML(_ style: RichParagraphStyle) -> String {
+        _eastAsianSwitches.compactMap { tag in style.eastAsian[tag].map { "<\(tag) w:val=\"\($0)\"/>" } }.joined()
+    }
+
     private static func _paragraphProps(_ pPr: XNode, into style: inout RichParagraphStyle) {
         switch pPr.first("w:jc")?["w:val"] {
         case "center": style.alignment = .center
@@ -1059,6 +1102,12 @@ enum DocxFormat {
         if let frame = pPr.first("w:framePr") { style.frameXML = PptxXML.serialize(frame) }
         if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }
         if let d = pPr.first("w:divId")?["w:val"] { style.divId = d }
+        for tag in _eastAsianSwitches { if let n = pPr.first(tag) { style.eastAsian[tag] = _isOff(n) ? "0" : "1" } }
+        if let v = pPr.first("w:textAlignment")?["w:val"] { style.eastAsian["w:textAlignment"] = v }
+        for (element, attrs) in [("w:ind", _eastAsianIndents), ("w:spacing", _eastAsianSpacing)] {
+            guard let n = pPr.first(element) else { continue }
+            for a in attrs { if let v = n[a], Int(v) != nil { style.eastAsian[a] = v } }
+        }
         if let k = pPr.first("w:keepLines") { style.keepLines = !_isOff(k) }
         if let w = pPr.first("w:widowControl") { style.widowControl = !_isOff(w) }
         if let tabs = pPr.first("w:tabs") {
@@ -1091,7 +1140,9 @@ enum DocxFormat {
                 if let hex = e["w:color"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
                     color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
                 }
-                return BorderLine(width: max(0.25, sz / 8), color: color, space: Double(e["w:space"] ?? "0") ?? 0)
+                var l = BorderLine(width: max(0.25, sz / 8), color: color, space: Double(e["w:space"] ?? "0") ?? 0)
+                if let v = e["w:val"], v != "single" { l.style = v }
+                return l
             }
             let b = ParagraphBorders(top: line("w:top"), bottom: line("w:bottom"), left: line("w:left"), right: line("w:right"))
             style.borders = b.isEmpty ? nil : b
@@ -1718,7 +1769,8 @@ enum DocxFormat {
     private static func _rFontsXML(_ s: CharStyle, fileFonts: Set<String>, eastAsiaDefault: Bool = false) -> String {
         let latin = s.fontFamily.map { fileFonts.contains($0) ? $0 : OfficeFonts.exportName($0) }
         var attrs = ""
-        if let latin { attrs += " w:ascii=\"\(_esc(latin))\" w:hAnsi=\"\(_esc(latin))\"" }
+        if let latin { attrs += " w:ascii=\"\(_esc(latin))\" w:hAnsi=\"\(_esc(s.hAnsiFontFamily ?? latin))\"" }
+        if let hint = s.fontHint { attrs += " w:hint=\"\(_esc(hint))\"" }
         if let cs = s.complexFontFamily ?? latin { attrs += " w:cs=\"\(_esc(cs))\"" }
         if let ea = s.eastAsiaFontFamily ?? (eastAsiaDefault ? latin : nil) { attrs += " w:eastAsia=\"\(_esc(ea))\"" }
         return attrs.isEmpty ? "" : "<w:rFonts\(attrs)/>"
@@ -1757,6 +1809,7 @@ enum DocxFormat {
         rPr += "<w:rPrChange w:id=\"\(id)\" w:author=\"\(_esc(fc.author.isEmpty ? "Author" : fc.author))\"\(fc.date.isEmpty ? "" : " w:date=\"\(_esc(fc.date))\"")>\(fc.oldRPrXML)</w:rPrChange>"
     }
     if s.rightToLeft { rPr += "<w:rtl/>" }
+    if let kept = s.keptXML { rPr += kept }
         return rPr
     }
 
@@ -1833,7 +1886,7 @@ enum DocxFormat {
         func edge(_ name: String, _ l: BorderLine?) -> String {
             guard let l else { return "" }
             let color = l.color.map { _hex($0) } ?? "auto"
-            return "<w:\(name) w:val=\"single\" w:sz=\"\(Int((l.width * 8).rounded()))\" w:space=\"\(Int(l.space.rounded()))\" w:color=\"\(color)\"/>"
+            return "<w:\(name) w:val=\"\(_esc(l.style ?? "single"))\" w:sz=\"\(Int((l.width * 8).rounded()))\" w:space=\"\(Int(l.space.rounded()))\" w:color=\"\(color)\"/>"
         }
         return "<w:pBdr>" + edge("top", b.top) + edge("left", b.left) + edge("bottom", b.bottom) + edge("right", b.right) + "</w:pBdr>"
     }
@@ -1892,6 +1945,8 @@ enum DocxFormat {
         // what a right-to-left run is set in; rtl.docx's Arabic headings
         // say bCs alone and came back plain.
         var sawB = false, sawI = false, sawSz = false
+        // Kept properties by name, so a run's own replaces its style's.
+        var keptRun: [String: String] = [:]
         var bCs: Bool? = nil, iCs: Bool? = nil, szCs: Double? = nil
         for child in rPr.children {
             switch child.name {
@@ -1910,6 +1965,8 @@ enum DocxFormat {
             case "w:spacing": if let v = Double(child["w:val"] ?? "") { cs.letterSpacing = v / 20 }
             case "w:rtl": cs.rightToLeft = !_isOff(child)
             case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }
+            case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid":
+                keptRun[child.name] = PptxXML.serialize(child)
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }
             case "w:sz": sawSz = true; if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }
             case "w:color":
@@ -1931,6 +1988,8 @@ enum DocxFormat {
                 // (a style's lone w:cs must not drop its Latin face).
                 if let f = _family(child["w:ascii"] ?? child["w:hAnsi"] ?? "") { cs.fontFamily = f }
                 if let f = _family(child["w:cs"] ?? "") { cs.complexFontFamily = f }
+                if let a = _family(child["w:ascii"] ?? ""), let h = _family(child["w:hAnsi"] ?? "") { cs.hAnsiFontFamily = h == a ? nil : h }
+                if let h = child["w:hint"] { cs.fontHint = h }
                 if let f = _family(child["w:eastAsia"] ?? "") { cs.eastAsiaFontFamily = f }
             case "w:vertAlign":
                 switch child["w:val"] {
@@ -1941,12 +2000,25 @@ enum DocxFormat {
             default: break
             }
         }
+        if !keptRun.isEmpty {
+            var all = _keptRunProperties(base.keptXML)
+            for (k, v) in keptRun { all[k] = v }
+            cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:em", "w:lang", "w:snapToGrid"].compactMap { all[$0] }.joined()
+        }
         if complexText ?? cs.rightToLeft {
             if !sawB, let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
             if !sawSz, let z = szCs { cs.fontSize = z }
         }
         return cs
+    }
+
+    /// A `CharStyle.keptXML` taken apart again, by element name.
+    private static func _keptRunProperties(_ xml: String?) -> [String: String] {
+        guard let xml, let node = XNode.parse(Data(("<x xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" + xml + "</x>").utf8)) else { return [:] }
+        var out: [String: String] = [:]
+        for c in node.children { out[c.name] = PptxXML.serialize(c) }
+        return out
     }
 
     static let highlightNames: [(String, Color)] = [
@@ -2127,7 +2199,8 @@ enum DocxFormat {
             }
             // Spacing spelled out on every paragraph, so that Word and we
             // lay the file out alike whatever its defaults say.
-            pPr += _spacingXML(p.style, under: (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph)
+            pPr += _eastAsianSwitchesXML(p.style)
+            pPr += _withEastAsian(_spacingXML(p.style, under: (p.style.heading.flatMap { doc.styles["Heading\(min($0, 6))"] } ?? p.style.named.flatMap { doc.styles[$0] })?.paragraph), "w:spacing", _eastAsianSpacing, p.style)
             // Indents the style sets and the paragraph unsets are written
             // as zero: IllustrativeCases' Body Text Indent hangs 0.75in
             // into the margin and every paragraph of it says left 0.
@@ -2148,7 +2221,7 @@ enum DocxFormat {
             } else if p.style.firstLineIndent > 0 { ind += " w:firstLine=\"\(Int(p.style.firstLineIndent * 20))\"" }
             else if p.style.firstLineIndent < 0 { ind += " w:hanging=\"\(Int(-p.style.firstLineIndent * 20))\"" }
             else if (sp?.firstLineIndent ?? 0) != 0 { ind += " w:firstLine=\"0\" w:hanging=\"0\"" }
-            if !ind.isEmpty { pPr += "<w:ind\(ind)/>" }
+            pPr += _withEastAsian(ind.isEmpty ? "" : "<w:ind\(ind)/>", "w:ind", _eastAsianIndents, p.style)
             if p.style.contextualSpacing { pPr += "<w:contextualSpacing/>" }
             switch p.style.alignment {
             case .left:
@@ -2158,6 +2231,7 @@ enum DocxFormat {
             case .right: pPr += "<w:jc w:val=\"right\"/>"
             case .justify: pPr += "<w:jc w:val=\"both\"/>"
             }
+            if let v = p.style.eastAsian["w:textAlignment"] { pPr += "<w:textAlignment w:val=\"\(_esc(v))\"/>" }
             if let div = p.style.divId, doc.keptParts["word/webSettings.xml"] != nil { pPr += "<w:divId w:val=\"\(_esc(div))\"/>" }
             // The paragraph mark's own run properties: a tracked change to
             // the mark, and — for an empty paragraph — its look, which is
@@ -2371,8 +2445,14 @@ enum DocxFormat {
             xml += "<w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
             // A cell's preferred width: the grid's, or none at all when the
             // file's cells stated none and Word autofits them.
-            func tcW(_ w: Int) -> String {
-                style.autoCellWidths ? "<w:tcW w:w=\"0\" w:type=\"auto\"/>" : "<w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
+            // The file's own word for a cell, while the columns are the
+            // ones it was read with: a table whose cells mix percentages
+            // with "auto" is neither all-auto nor the grid (a Taiwanese
+            // performance-indicator table came back with every column at
+            // another width, 27% over 17 pages).
+            func tcW(_ w: Int, kept: String? = nil, under: Int? = nil) -> String {
+                if let kept, under == w { return kept }
+                return style.autoCellWidths ? "<w:tcW w:w=\"0\" w:type=\"auto\"/>" : "<w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
             }
             // A cell's own sides, over the table's, at its own width.
             func cellBordersXML(_ own: BorderEdges?, width: Double? = nil, kept: String? = nil, under: Bool? = nil) -> String {
@@ -2423,7 +2503,7 @@ enum DocxFormat {
                     let ref = cell.first.flatMap { doc.paragraphs[$0].cell }
                     let span = min(cols - c, max(1, ref?.span ?? 1))
                     let w = twips[c ..< c + span].reduce(0, +)
-                    xml += "<w:tc><w:tcPr>" + tcW(w)
+                    xml += "<w:tc><w:tcPr>" + tcW(w, kept: ref?.widthXML, under: ref?.widthKeptUnder)
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML, under: ref?.bordersKeptUnder)   // schema order: borders, then shading
@@ -2436,6 +2516,7 @@ enum DocxFormat {
                     default: break
                     }
                     if let v = ref?.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
+                    if let kept = ref?.keptPropertiesXML { xml += kept }
                     xml += "</w:tcPr>"
                     if cell.isEmpty { xml += "<w:p/>" }
                     // A nested table kept verbatim stands in for its
@@ -2509,10 +2590,14 @@ enum DocxFormat {
         body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape && pageSetup.orientStated ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"\(Int((pageSetup.headerDistance * 20).rounded()))\" w:footer=\"\(Int((pageSetup.footerDistance * 20).rounded()))\" w:gutter=\"0\"/>"
         if let pb = doc.pageBordersXML { body += pb }
+        if let lead = doc.sectionLeadXML { body += lead }
         if pageSetup.columns > 1 { body += "<w:cols w:num=\"\(pageSetup.columns)\" w:space=\"\(Int(pageSetup.columnGap * 20))\"/>" }
         // A title page with no first-page part referenced is a page with
         // an EMPTY header and footer (Bug51170's cover shows no logo).
+        if let tail = doc.sectionTailXML, tail.containsSubstring("<w:vAlign") { body += tail } // (vAlign precedes titlePg… and the rest follow it)
         if doc.titlePage { body += "<w:titlePg/>" }
+        if let tail = doc.sectionTailXML, !tail.containsSubstring("<w:vAlign") { body += tail }
+        if let grid = doc.docGridXML { body += grid }
         body += "</w:sectPr>"
 
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:wp14=\"http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15 wp14\""
@@ -2591,6 +2676,10 @@ enum DocxFormat {
         relsXML += "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
         var settings = doc.evenAndOddHeaders && keptHF.contains(where: { $0.element.type == "even" })
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
+        if let csc = doc.characterSpacingControl {
+            settings = settings.replacingAll("<w:characterSpacingControl w:val=\"doNotCompress\"/>", with: "<w:characterSpacingControl w:val=\"\(_esc(csc))\"/>")
+        }
+        if let lang = doc.themeFontLangXML { settings = settings.replacingAll("</w:settings>", with: lang + "</w:settings>") }
         if let tab = doc.defaultTabStop {
             settings = settings.replacingAll("<w:defaultTabStop w:val=\"720\"/>", with: "<w:defaultTabStop w:val=\"\(Int((tab * 20).rounded()))\"/>")
         }
@@ -2614,7 +2703,8 @@ enum DocxFormat {
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
-            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases, fileFonts: doc.fileFonts).utf8)),
+            ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases, fileFonts: doc.fileFonts)
+                .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>").utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId).utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts

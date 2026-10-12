@@ -121,6 +121,16 @@ public struct CharStyle: Hashable, Sendable {
     /// w:eastAsia font slots); nil means `fontFamily` serves them too.
     public var complexFontFamily: String? = nil
     public var eastAsiaFontFamily: String? = nil
+    /// The face for the rest of the Latin range (`w:hAnsi`) when the file
+    /// names another than `fontFamily` (its `w:ascii`), and `w:hint`:
+    /// which face Word sets the characters both scripts claim — the
+    /// curly quotes, dashes and ellipses of Chinese text — in.
+    public var hAnsiFontFamily: String? = nil
+    public var fontHint: String? = nil
+    /// Run properties the editor does not draw by, as the file wrote
+    /// them (`w:w` character scale, `w:position`, `w:bdr`, `w:lang`,
+    /// `w:em`, `w:fitText`, `w:snapToGrid`): written back with the run.
+    public var keptXML: String? = nil
     /// Ids of the comments whose ranges cover this run (the comments
     /// themselves live in the kept `word/comments.xml`).
     public var comments: [String] = []
@@ -166,6 +176,10 @@ public struct BorderLine: Hashable, Sendable {
     public var width: Double
     public var color: Color?
     public var space: Double
+    /// Word's line style when it is not a single line ("double",
+    /// "thinThickSmallGap", …): drawn as a single line here, written back
+    /// by name — the thick-and-thin red rule under an official letterhead.
+    public var style: String? = nil
     public init(width: Double = 0.75, color: Color? = nil, space: Double = 1) {
         self.width = width
         self.color = color
@@ -281,6 +295,16 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// entry of the kept web settings part): Word spaces the paragraph by
     /// that block's margins, so the reference goes back with the part.
     public var divId: String? = nil
+    /// East Asian typography the editor does not lay out by, as the file
+    /// (and the styles under the paragraph) stated it, by Word's name:
+    /// the switches `w:snapToGrid`, `w:kinsoku`, `w:wordWrap`,
+    /// `w:overflowPunct`, `w:topLinePunct`, `w:autoSpaceDE`,
+    /// `w:autoSpaceDN`, `w:adjustRightInd` ("1"/"0"), `w:textAlignment`,
+    /// and the measures in character and line units that override the
+    /// point ones (`w:firstLineChars`, `w:leftChars`, `w:beforeLines`, …).
+    /// A Chinese document is set on a line grid with these; written back
+    /// on every paragraph so Word sets the copy the same way.
+    public var eastAsian: [String: String] = [:]
     /// The paragraph mark's own run properties as the file had them
     /// (w:pPr/w:rPr), written back on every paragraph that had any: Word
     /// formats a list paragraph's NUMBER with them (bug65649's bold "1."
@@ -617,6 +641,15 @@ public struct CellRef: Hashable, Sendable {
     /// editor lays every cell out with the table's; a save restates the
     /// cell's so Word spaces it as it did.
     public var marginsXML: String? = nil
+    /// The cell's preferred width (`w:tcW`) as the file wrote it — a
+    /// percentage, a measure, or "auto" — written back while the columns
+    /// it spans still add up to `widthKeptUnder` twips, as when read. The
+    /// grid alone says none of it, and Word autofits by the cells' word.
+    public var widthXML: String? = nil
+    /// Cell properties kept as written (`w:noWrap`, `w:tcFitText`,
+    /// `w:hideMark`): no-wrap decides how Word autofits the column.
+    public var keptPropertiesXML: String? = nil
+    public var widthKeptUnder: Int? = nil
     public var continuationBordersXML: [String?] = []
     /// The table's border switch when `bordersXML` was read: once the
     /// editor toggles the table's borders, the summary is written instead.
@@ -1472,6 +1505,26 @@ public struct RichDocument: Hashable, Sendable {
     /// art border is nothing the editor can draw, and bib-chernigovka's
     /// maple-muffins frame on all 16 pages was lost without it.
     public var pageBordersXML: String? = nil
+    /// The last section's document grid (`w:docGrid`) as written: the
+    /// line pitch a Chinese, Japanese or Korean document's lines snap to,
+    /// and its character pitch. Without it Word sets every line of the
+    /// copy at its natural height and the pages run short.
+    public var docGridXML: String? = nil
+    /// More of the last section kept as written, in schema order: what
+    /// stands before the columns (`w:lnNumType`, `w:pgNumType`) and
+    /// after them (`w:vAlign`, `w:textDirection`, `w:bidi`,
+    /// `w:rtlGutter` — the grid comes last, above).
+    public var sectionLeadXML: String? = nil
+    public var sectionTailXML: String? = nil
+    /// The document's languages: the defaults' `w:lang` and the
+    /// settings' `w:themeFontLang`. Word chooses the East Asian face and
+    /// its line-breaking rules by them.
+    public var defaultLangXML: String? = nil
+    public var themeFontLangXML: String? = nil
+    /// The settings' `w:characterSpacingControl` value when the file
+    /// states one ("compressPunctuation" in Chinese documents: Word then
+    /// squeezes adjacent full-width punctuation, and lines break later).
+    public var characterSpacingControl: String? = nil
     /// The document background (`w:background`, with its VML fill), kept
     /// as written with the parts it names. Word lays a document with one
     /// out differently — bib-chernigovka's title page sits 18pt lower and
