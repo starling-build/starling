@@ -354,6 +354,14 @@ vertical-box-list (the box taller than PowerPoint's), children (rows
 share height unlike PowerPoint's 3:4), cycle-matrix, and org-chart's
 packing.
 
+**The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
+lists the decks this app draws exactly as PowerPoint does (every page
+0.00%: 59 of 553 by MuPDF at sweep 31) and `others*.txt` the rest;
+`test/pptx-corpus-groups.py` writes them from the baselines, and
+`CORPUS_GROUP=matched test/pptx-app-render.sh WORK` sweeps the first in
+under a minute and fails if one of them no longer matches. Lists, not
+folders: a deck changes group without a file moving.
+
 The branch: this work is on `office` (fast-forwarded from `sheets`,
 which is kept level with it), rebased over the Writer session's
 commits. Where the two met, Writer's model won and Slides reads into

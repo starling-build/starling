@@ -49,7 +49,18 @@ else
   DIFF=(python "$HERE/pdf-diff.py")
   [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/apps/OfficeApp/.build/x86_64-unknown-windows-msvc/release/OfficeApp.exe"
 fi
-names=("$@"); [ ${#names[@]} -gt 0 ] || names=($(cd "$IN" && ls *.pptx | grep -v '^~\$'))
+# CORPUS_GROUP=matched or =others sweeps one of the corpus's two groups
+# (test/pptx-corpus-groups.py writes the lists from the baselines: every
+# page 0.00% different from PowerPoint's, and the rest), by the list of
+# this machine's page diff. A matched deck that no longer scores 0.00 has
+# regressed: the sweep says which and exits 1.
+LISTS="$ROOT/test/corpus/pptx"; SUFFIX=-mupdf; [ "$(uname)" = Darwin ] && SUFFIX=
+names=("$@")
+if [ ${#names[@]} -eq 0 ] && [ -n "$CORPUS_GROUP" ]; then
+  [ -f "$LISTS/$CORPUS_GROUP$SUFFIX.txt" ] || { echo "no list $LISTS/$CORPUS_GROUP$SUFFIX.txt" >&2; exit 2; }
+  names=($(tr -d '' < "$LISTS/$CORPUS_GROUP$SUFFIX.txt"))
+fi
+[ ${#names[@]} -gt 0 ] || names=($(cd "$IN" && ls *.pptx | grep -v '^~\$'))
 touch "$WORK/render.tsv"
 for n in "${names[@]}"; do
   n=$(basename "$n"); base=${n%.pptx}
@@ -61,3 +72,7 @@ for n in "${names[@]}"; do
   s=$("${DIFF[@]}" "$PPT/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)
   printf '%s\t%s\n' "$n" "$s" | tee -a "$WORK/render.tsv"
 done
+if [ "$CORPUS_GROUP" = matched ]; then
+  lost=$(for n in "${names[@]}"; do grep "^$n	" "$WORK/render.tsv"; done | grep -v 'worst=0.00%')
+  [ -z "$lost" ] || { echo "no longer matching PowerPoint exactly:"; echo "$lost"; exit 1; }
+fi

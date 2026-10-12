@@ -9,6 +9,8 @@ PowerPoint's page; the scores in `docs/plans/slides.md` are those.
     powerpoint/    NAME-orig.pdf — PowerPoint's export of decks/NAME.pptx
     baseline.tsv   each deck's score at the last recorded sweep (27, 2026-10-11)
     SHA256SUMS     of decks/, to tell a changed deck from a changed painter
+    matched.txt    the decks this app draws exactly as PowerPoint does
+    others.txt     the rest of the decks that have a PowerPoint PDF
 
 They are in the repository because the second half cannot be downloaded.
 The decks could be fetched again (`test/pptx-corpus.py` does), but
@@ -39,6 +41,28 @@ hairline lands cost a deck one to three points on their own, so the
 number says where to look and the pair image says what is wrong. When a
 change is deliberate, write the new sweep over `baseline.tsv` in the same
 commit, with the sweep's number in the plan.
+
+## Two groups: matched exactly, and the rest
+
+`matched.txt` lists the decks whose every page is 0.00% different from
+PowerPoint's at the baseline — exact, not "small" — and `others.txt` the
+other decks that have a PowerPoint PDF (the eight without one are in
+neither). `matched-mupdf.txt` and `others-mupdf.txt` are the same split
+of `baseline-mupdf.tsv`: 59 matched and 494 others by MuPDF at sweep
+31, 48 and 505 by the Mac's baseline of sweep 27. The files are
+generated, never edited:
+
+    python3 test/pptx-corpus-groups.py      # after writing a sweep over a baseline
+
+and committed with the baseline they come from. Nothing moves on disk
+when a deck changes group; `decks/` and `powerpoint/` stay whole.
+
+    CORPUS_GROUP=matched test/pptx-app-render.sh WORK   # under a minute; exits 1 if one no longer matches
+    CORPUS_GROUP=others  test/pptx-app-render.sh WORK
+
+The matched group is the quick regression check: every deck in it must
+still score 0.00, and the sweep names any that does not. The others are
+where the work is.
 
 ## Sweeping off a Mac
 
