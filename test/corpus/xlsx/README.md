@@ -8,7 +8,7 @@ baseline of how far this app's printing is from it.
     books/         the workbooks, as downloaded
     SHA256SUMS     of books/, to tell a changed workbook from a changed painter
     excel/         NAME-orig.pdf — Excel's print of books/NAME.xlsx, and export.tsv
-    baseline-mupdf.tsv   each workbook's score at the first sweep (2026-10-11, Windows, MuPDF's page diff)
+    baseline-mupdf.tsv   each workbook's score at sweep 2 (2026-10-12, Windows, MuPDF's page diff)
     matched-mupdf.txt, others-mupdf.txt   the two groups of that baseline
 
 ## What works today
@@ -55,14 +55,32 @@ again, since rows already there are skipped.
 Excel cuts pages by the active printer's metrics, so references made
 with another printer, or another Excel, are another set: regenerate all
 of them or none, record the version and printer here, and sweep for a
-new baseline.
+new baseline. Two more things about the machine are in these pages:
+
+- **The paper is the workbook's.** Excel's "Scale content for A4 or
+  8.5 x 11" paper sizes" (on by default) prints a workbook set up for A4
+  on Letter where Letter is the region's paper — the first run did that to
+  252 workbooks. The script turns the option off for the export and puts
+  it back (`MapPaperSize`); those 252 were made again on 2026-10-12.
+- **The display was at 200%.** Excel sizes a printed sheet by the
+  printer's font metrics, not the screen's, but two things still come from
+  the screen: the default column (taken up to a multiple of 8 screen
+  pixels) and the scale of a row height someone set (the printer's line
+  over the screen's). At 200% the default column of a Calibri 11 workbook
+  prints 51.1 pt wide and a 20 pt row 20.3 pt high; at 100% they would be
+  about 51.6 and 19.4. `Sheets/SheetPrintMetrics.swift` holds the measured
+  numbers and says how they were measured.
+
+A PDF with no pages is Excel's answer for a workbook with nothing to
+print (36 of them); the sweep scores that as a match when this app also
+finds nothing.
 
 ## The first sweep
 
     test/xlsx-app-render.sh                  # every workbook, into ~/starling-xls-check/app
     python3 test/pptx-corpus-groups.py xlsx  # matched / others from the baseline
 
-`baseline-mupdf.tsv` is sweep 1, 2026-10-11, the Windows build scored by
+Sweep 1 was 2026-10-11, the Windows build scored by
 `test/pdf-diff.py` (MuPDF; a Mac's sweep would be `baseline.tsv`, by
 CoreGraphics, and its own numbers — see the .pptx corpus's README). It
 takes about eleven minutes. Of the 757 workbooks Excel printed:
@@ -79,6 +97,23 @@ exactly on every page. The mean is carried by page counts: 144
 workbooks have at least one page that is 100% — a page Excel has and
 this app does not, or the other way — so where the pages are cut is the
 first thing to look at, ahead of anything drawn on them.
+
+## Sweep 2
+
+2026-10-12, after 252 references were made again on their own paper and
+the app learned how Excel sizes a sheet for the printer
+(`docs/plans/sheets.md` has the list). Of the 757:
+
+| | workbooks |
+|---|---|
+| scored | 743 |
+| not read by this app, or nothing found to print where Excel printed | 14 |
+
+Over the 743: mean 3.45% of pixels differing, median 0.42%; 568 at or
+under 2%, 143 between 2 and 20, 32 over 20; 39 have a page only one side
+has. 43 match exactly, 36 of them workbooks neither side prints a page
+of. This is `baseline-mupdf.tsv`; the first sweep's figures above are
+kept for the comparison.
 
 ## Where the workbooks come from, and their licences
 

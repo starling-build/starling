@@ -60,6 +60,11 @@ enum Xlsx {
         // `s` is its index in the book's table.
         if let st = xml("xl/styles.xml") {
             book.styles = _styles(st, theme: theme)
+            // The default font: the first, which the Normal style names.
+            if let f = st.child("fonts")?.kids("font").first {
+                if let n = f.child("name")?["val"], !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
+                if let z = f.child("sz").flatMap({ Double($0["val"] ?? "") }), z > 0, z != 11 { book.defaultFontSize = z }
+            }
             for i in book.styles.indices { book.styles[i].baseXf = i }
             book.styleSource = parts["xl/styles.xml"].map(_styleSource)
             if book.styles.isEmpty { book.styles = [.plain] }
@@ -159,12 +164,26 @@ enum Xlsx {
             if view["showGridLines"] == "0" { ws.showGridlines = false }
             ws.viewAttrs = view.attrs.filter { !["tabSelected", "showGridLines", "workbookViewId"].contains($0.key) }
         }
-        if let f = root.child("sheetFormatPr") {
+        // Column widths are in characters of the default font's widest
+        // digit (7 px for Calibri 11) plus 5 px of padding. A sheet's own
+        // default is `defaultColWidth` in those characters, or else
+        // `baseColWidth` (8) digits and the padding, taken up to a multiple
+        // of 8 px: 64 px for Calibri 11, 72 for a face whose digit is 8.
+        let digit = book.digitWidth
+        ws.digitWidth = digit
+        let format = root.child("sheetFormatPr")
+        if let f = format {
             if let h = Double(f["defaultRowHeight"] ?? "") { ws.defaultRowHeightPt = h }
+            ws.customDefaultRowHeight = f["customHeight"] == "1" || f["customHeight"] == "true"
             ws.formatPrAttrs = f.attrs.filter { $0.key != "defaultRowHeight" }
         }
-        // Column widths are in characters of the default font's widest
-        // digit (7 px for Calibri 11) plus 5 px of padding.
+        if let w = Double(format?["defaultColWidth"] ?? ""), w > 0 {
+            ws.defaultColWidthPt = _charsToPoints(w, digit: digit)
+            ws.defaultColWidthChars = w
+        } else {
+            let base = Double(format?["baseColWidth"] ?? "") ?? 8
+            ws.defaultColWidthPt = ((base * digit + 5) / 8).rounded(.up) * 8 * 0.75
+        }
         for col in root.child("cols")?.kids("col") ?? [] {
             guard let lo = Int(col["min"] ?? ""), let hi = Int(col["max"] ?? "") else { continue }
             let extra = col.attrs.filter { !["min", "max", "width", "customWidth", "hidden"].contains($0.key) }
@@ -175,11 +194,11 @@ enum Xlsx {
                 for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols { ws.hiddenCols.insert(c - 1) }
             }
             guard let w = Double(col["width"] ?? "") else { continue }
-            let pt = w == 0 ? 0 : _charsToPoints(w)
+            let pt = w == 0 ? 0 : _charsToPoints(w, digit: digit)
             // A run over the whole sheet (a default width) is not 16k entries.
             if hi - lo > 2000 { if !hidden && w > 0 { ws.defaultColWidthPt = pt; ws.defaultColWidthChars = w }; continue }
             for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols {
-                if abs(pt - Worksheet.defaultColWidth) > 0.01 { ws.colWidths[c - 1] = pt; if w > 0 { ws.colWidthChars[c - 1] = w } }
+                if abs(pt - ws.defaultColWidthPt) > 0.01 { ws.colWidths[c - 1] = pt; if w > 0 { ws.colWidthChars[c - 1] = w } }
             }
         }
         // Cells.
@@ -191,6 +210,7 @@ enum Xlsx {
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
             if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }
+            if row["ht"] != nil, row["customHeight"] != "1", row["customHeight"] != "true" { ws.fittedRows.insert(rowIndex) }
             // `ht` is the row's height whether or not it is marked custom (a
             // larger font makes a taller row without the flag).
             // A row a filter hid keeps its height; one hidden by hand is height 0.
@@ -293,20 +313,21 @@ enum Xlsx {
     }
 
     /// A stored column width (characters of the default font's widest
-    /// digit, 7 px for Calibri 11, padding included) as points, and back —
-    /// ECMA-376 18.3.1.13's formulas, which round-trip to the pixel.
-    static func _charsToPoints(_ w: Double) -> Double {
-        ((256 * w + (128.0 / 7).rounded(.down)) / 256 * 7).rounded(.down) * 0.75
+    /// digit — `digit` pixels, 7 for Calibri 11 — padding included) as
+    /// points, and back: ECMA-376 18.3.1.13's formulas, which round-trip to
+    /// the pixel.
+    static func _charsToPoints(_ w: Double, digit: Double = 7) -> Double {
+        ((256 * w + (128.0 / digit).rounded(.down)) / 256 * digit).rounded(.down) * 0.75
     }
     /// A column's width for the file: as the file had it while unchanged.
     static func _widthChars(_ ws: Worksheet, _ col: Int, _ pt: Double) -> Double {
-        if let w = ws.colWidthChars[col], _charsToPoints(w) == pt { return w }
-        return _pointsToChars(pt)
+        if let w = ws.colWidthChars[col], _charsToPoints(w, digit: ws.digitWidth) == pt { return w }
+        return _pointsToChars(pt, digit: ws.digitWidth)
     }
 
-    static func _pointsToChars(_ pt: Double) -> Double {
+    static func _pointsToChars(_ pt: Double, digit: Double = 7) -> Double {
         let px = (pt / 0.75).rounded()
-        return (px / 7 * 256).rounded(.down) / 256
+        return (px / digit * 256).rounded(.down) / 256
     }
 
     /// Strip the _xlfn. prefixes newer functions carry in files.
@@ -903,7 +924,8 @@ enum Xlsx {
                 if let w = ws.colWidths[start] {
                     key += " width=\"\(_num(_widthChars(ws, start, w)))\"" + (w == 0 || hidden ? " hidden=\"1\"" : "") + " customWidth=\"1\""
                 } else if !attrs.isEmpty || hidden {
-                    let d = ws.defaultColWidthChars.flatMap { _charsToPoints($0) == ws.defaultColWidthPt ? $0 : nil } ?? _pointsToChars(ws.defaultColWidthPt)
+                    let d = ws.defaultColWidthChars.flatMap { _charsToPoints($0, digit: ws.digitWidth) == ws.defaultColWidthPt ? $0 : nil }
+                        ?? _pointsToChars(ws.defaultColWidthPt, digit: ws.digitWidth)
                     key += " width=\"\(_num(d))\"" + (hidden ? " hidden=\"1\"" : "")
                 }
                 for (name, v) in attrs.sorted(by: { $0.key < $1.key }) { key += " \(name)=\"\(_esc(v))\"" }
@@ -1199,10 +1221,10 @@ enum Xlsx {
             if st.italic { font += "<i/>" }
             if st.strike { font += "<strike/>" }
             if st.underline { font += "<u/>" }
-            font += "<sz val=\"\(_num(st.fontSize ?? 11))\"/>"
+            font += "<sz val=\"\(_num(book.fontSize(st)))\"/>"
             font += st.color.map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color theme=\"1\"/>"
-            font += "<name val=\"\(_esc(st.fontName ?? "Calibri"))\"/><family val=\"2\"/>"
-            if st.fontName == nil { font += "<scheme val=\"minor\"/>" }
+            font += "<name val=\"\(_esc(book.fontName(st)))\"/><family val=\"2\"/>"
+            if st.fontName == nil && book.defaultFontName == nil { font += "<scheme val=\"minor\"/>" }
             font += "</font>"
             func same(_ a: CellStyle, _ b: CellStyle, _ keys: [PartialKeyPath<CellStyle>]) -> Bool {
                 keys.allSatisfy { k in String(describing: a[keyPath: k]) == String(describing: b[keyPath: k]) }

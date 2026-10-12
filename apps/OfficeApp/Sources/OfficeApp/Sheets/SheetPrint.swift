@@ -25,6 +25,9 @@ struct SheetPrintSetup: Equatable {
     var fitWidth: Int? = nil
     var fitHeight: Int? = nil
     var gridlines = false
+    /// `printOptions@headings`: the column letters and row numbers print
+    /// too, along the top and left of every page.
+    var headings = false
     var centerHorizontally = false
     var centerVertically = false
     /// `pageMargins@header`/`@footer`: the header's top and the footer's
@@ -56,8 +59,12 @@ struct SheetPrintSetup: Equatable {
         }
         let fit = node("sheetPr")?.child("pageSetUpPr")?["fitToPage"] == "1"
         if let p = node("pageSetup") {
-            let papers: [Int: Size] = [1: Size(612, 792), 5: Size(612, 1008), 8: Size(841.89, 1190.55),
-                                       9: Size(595.28, 841.89), 11: Size(419.53, 595.28)]
+            // Windows' paper numbers (DMPAPER_*): Letter, Tabloid, Legal,
+            // Executive, A3, A4 (and A4 Small), A5, B4 and B5 (JIS), A6.
+            let papers: [Int: Size] = [1: Size(612, 792), 2: Size(612, 792), 3: Size(792, 1224), 5: Size(612, 1008),
+                                       7: Size(522, 756), 8: Size(841.89, 1190.55), 9: Size(595.28, 841.89),
+                                       10: Size(595.28, 841.89), 11: Size(419.53, 595.28), 12: Size(728.5, 1031.81),
+                                       13: Size(515.91, 728.5), 70: Size(297.64, 419.53)]
             if let n = Int(p["paperSize"] ?? ""), let size = papers[n] { s.paper = size }
             s.landscape = p["orientation"] == "landscape"
             if let v = Double(p["scale"] ?? ""), v >= 10, v <= 400 { s.scale = v }
@@ -73,6 +80,7 @@ struct SheetPrintSetup: Equatable {
         }
         if let o = node("printOptions") {
             s.gridlines = o["gridLines"] == "1" || o["gridLines"] == "true"
+            s.headings = o["headings"] == "1" || o["headings"] == "true"
             s.centerHorizontally = o["horizontalCentered"] == "1"
             s.centerVertically = o["verticalCentered"] == "1"
         }
@@ -92,8 +100,9 @@ struct SheetPage: Equatable {
 }
 
 enum SheetPrintLayout {
-    /// What prints: from the first to the last cell holding a value or a
-    /// visible format (fill or border), widened to take in drawings.
+    /// What prints: from A1 — Excel's pages start there however far in
+    /// the first cell is — to the last cell holding a value or a visible
+    /// format (fill or border), widened to take in drawings.
     static func usedArea(_ ws: Worksheet, book: Workbook) -> CellRange? {
         var top = Int.max, left = Int.max, bottom = -1, right = -1
         func take(_ row: Int, _ col: Int) {
@@ -104,15 +113,23 @@ enum SheetPrintLayout {
             let st = book.style(c.style)
             if st.fill != nil || st.borders != CellStyle.Borders() { take(a.row, a.col) }
         }
-        for d in ws.drawings {
-            switch d.anchor {
-            case .twoCell(let from, let to): take(from.row, from.col); take(to.row, to.col)
-            case .oneCell(let from, _, _): take(from.row, from.col)
-            case .absolute: break
-            }
+        // A drawing prints whole, however it is anchored: every cell its
+        // frame touches (and not the one it only reaches the edge of).
+        for d in ws.drawings where !d.hidden {
+            let f = ws.frame(d.anchor)
+            guard f.width > 0, f.height > 0 else { continue }
+            let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width - 0.01, y: f.y + f.height - 0.01)
+            take(a.row, a.col); take(b.row, b.col)
+        }
+        // A row formatted as a whole (a fill or borders on the row itself)
+        // prints across the columns in use, cells or no cells.
+        for r in ws.rowAttrs.keys {
+            guard let s = ws.rowStyle(r) else { continue }
+            let st = book.style(s)
+            if st.fill != nil || st.borders != CellStyle.Borders() { top = min(top, r); bottom = max(bottom, r) }
         }
         guard bottom >= 0 else { return nil }
-        return CellRange(top: top, left: left, bottom: bottom, right: right)
+        return CellRange(top: 0, left: 0, bottom: bottom, right: max(0, right))
     }
 
     /// The sheet's print areas and repeated titles, from the file's
@@ -212,7 +229,13 @@ extension SheetGridState {
         for si in indices {
             if c.activeSheet != si { c.activeSheet = si }
             let ws = c.sheet
-            guard let used = SheetPrintLayout.usedArea(ws, book: book) else { continue }
+            guard var used = SheetPrintLayout.usedArea(ws, book: book) else { continue }
+            // Text running over empty cells prints to its end, as Excel's does:
+            // the columns it crosses are part of what prints.
+            for (a, cell) in ws.cells where cell.value.isText {
+                guard let reach = textReach(a, cell, ws: ws, book: book) else { continue }
+                used.left = min(used.left, reach.lowerBound); used.right = max(used.right, reach.upperBound)
+            }
             let names = SheetPrintLayout.printNames(book, sheet: si)
             // A print area prints instead of the used one (each of several on
             // its own pages); a whole-column or whole-row area stops where the
@@ -223,8 +246,9 @@ extension SheetGridState {
             await _preloadPictures(ws)
             let setup = SheetPrintSetup.read(ws)
             let ca = cols, ra = rows   // in points while printing
-            let titleH = names.titleRows.map { $0.reduce(0) { $0 + ra.size($1) } } ?? 0
-            let titleW = names.titleCols.map { $0.reduce(0) { $0 + ca.size($1) } } ?? 0
+            let head = _headingSize(setup, lastRow: areas.map(\.bottom).max() ?? 0)
+            let titleH = (names.titleRows.map { $0.reduce(0) { $0 + ra.size($1) } } ?? 0) + head.height
+            let titleW = (names.titleCols.map { $0.reduce(0) { $0 + ca.size($1) } } ?? 0) + head.width
             // Every area's pages first: page numbers and the count run across
             // all of them.
             let jobs = areas.map { area in
@@ -245,6 +269,17 @@ extension SheetGridState {
         return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName())
     }
 
+    /// The room printed headings take: a default row's height above the
+    /// cells, and to their left the row numbers' digits (three at least)
+    /// and a cell's padding, in the default font's — Excel's own strip,
+    /// 23.4 pt wide in Verdana 10. Nothing when the sheet prints none.
+    private func _headingSize(_ setup: SheetPrintSetup, lastRow: Int) -> Size {
+        guard setup.headings else { return Size(0, 0) }
+        let book = controller.book
+        let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11)
+        return Size((Double(max(3, String(lastRow + 1).count)) + 0.65) * m.digit, m.defaultRow)
+    }
+
     /// The active sheet's pages, appended to `out`.
     private func _paintPart(sheet: Int, setup: SheetPrintSetup,
                             names: (areas: [CellRange], titleRows: ClosedRange<Int>?, titleCols: ClosedRange<Int>?),
@@ -256,6 +291,7 @@ extension SheetGridState {
         let titleRows = names.titleRows.map { Array($0).filter { ra.size($0) > 0 } } ?? []
         let titleCols = names.titleCols.map { Array($0).filter { ca.size($0) > 0 } } ?? []
         let titleH = titleRows.reduce(0) { $0 + ra.size($1) }, titleW = titleCols.reduce(0) { $0 + ca.size($1) }
+        let head = _headingSize(setup, lastRow: jobs.flatMap { $0.pages }.compactMap { $0.rows.last }.max() ?? 0)
         let size = setup.pageSize
         let colors = _Colors(ink: Color(0xFF000000), paper: Color(0xFFFFFFFF), grid: Color(0xFFBFBFBF), showGrid: setup.gridlines)
         let charts = ws.drawings.map { d -> Chart? in
@@ -265,8 +301,8 @@ extension SheetGridState {
         var fields = HeaderFooterText.Fields(pages: pageCount, file: title, sheet: ws.name,
                                              path: filePath.map { $0.deletingLastPathComponent } ?? "")
         let hfStyle = book.style(0)
-        let hfFont = GridTextStyle(family: OfficeFonts.substitute(hfStyle.fontName ?? OfficeFonts.defaultFamily),
-                                   size: hfStyle.fontSize ?? 11, color: Int64(0xFF000000))
+        let hfFont = GridTextStyle(family: OfficeFonts.substitute(book.fontName(hfStyle)),
+                                   size: book.fontSize(hfStyle), color: Int64(0xFF000000))
         for (pages, s) in jobs {
             for page in pages {
                 if let maxPages, out.count >= maxPages { return }
@@ -274,7 +310,7 @@ extension SheetGridState {
                 // Titles repeat on pages that do not already show them.
                 let tRows = titleRows.last.map { r0 > $0 } ?? false ? titleRows : []
                 let tCols = titleCols.last.map { c0 > $0 } ?? false ? titleCols : []
-                let tx = tCols.isEmpty ? 0 : titleW, ty = tRows.isEmpty ? 0 : titleH
+                let tx = (tCols.isEmpty ? 0 : titleW) + head.width, ty = (tRows.isEmpty ? 0 : titleH) + head.height
                 let bandW = ca.start(c1) + ca.size(c1) - ca.start(c0) + tx
                 let bandH = ra.start(r1) + ra.size(r1) - ra.start(r0) + ty
                 let recorder = NativePictureRecorder()
@@ -306,15 +342,44 @@ extension SheetGridState {
                     _paintRegion(canvas, rows: rs, cols: cs, clip: clip, ws: ws, book: book, merges: merges, covered: covered, colors: colors)
                     for (i, d) in ws.drawings.enumerated() {
                         let r = drawingRect(d.anchor)
-                        guard r.overlaps(clip) else { continue }
+                        guard r.overlaps(clip), !d.hidden else { continue }
                         _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
                     }
                     canvas.restore()
                 }
-                band(tRows, tCols, 0, 0)
-                band(tRows, page.cols, tx, 0)
-                band(page.rows, tCols, 0, ty)
+                band(tRows, tCols, head.width, head.height)
+                band(tRows, page.cols, tx, head.height)
+                band(page.rows, tCols, head.width, ty)
                 band(page.rows, page.cols, tx, ty)
+                if setup.headings {
+                    // The strips: a ruled cell per column and per row, its
+                    // letter or number centred, in the default font.
+                    let rule = Paint()
+                    rule.style = .stroke
+                    rule.strokeWidth = 0.75
+                    rule.color = Color(0xFF000000)
+                    func label(_ text: String, in r: Rect) {
+                        canvas.drawRect(r, rule)
+                        let tp = TextPainter(text: TextSpan(text: text, style: hfFont.flutter), textAlign: .center, textDirection: .ltr)
+                        tp.layout(minWidth: 0, maxWidth: .infinity)
+                        canvas.save()
+                        canvas.clipRect(r)
+                        tp.paint(canvas, Offset(r.left + (r.width - tp.width) / 2, r.top + (r.height - tp.height) / 2))
+                        canvas.restore()
+                        tp.dispose()
+                    }
+                    canvas.drawRect(Rect.fromLTWH(0, 0, head.width, head.height), rule)
+                    var x = head.width
+                    for col in tCols + page.cols {
+                        label(CellAddress.columnName(col), in: Rect.fromLTWH(x, 0, ca.size(col), head.height))
+                        x += ca.size(col)
+                    }
+                    var y = head.height
+                    for row in tRows + page.rows {
+                        label(String(row + 1), in: Rect.fromLTWH(0, y, head.width, ra.size(row)))
+                        y += ra.size(row)
+                    }
+                }
                 canvas.restore()
                 fields.page = setup.firstPageNumber + out.count
                 _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size)

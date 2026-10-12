@@ -234,15 +234,31 @@ final class SheetGridState: State<StatefulWidget> {
     var cols: GridAxis { _axes().cols }
     var rows: GridAxis { _axes().rows }
     /// The axes, rebuilt only when the sheet's sizes, hidden rows or the zoom change.
-    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, cols: GridAxis, rows: GridAxis)? = nil
+    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, cols: GridAxis, rows: GridAxis)? = nil
 
     private func _axes() -> (cols: GridAxis, rows: GridAxis) {
         let ws = controller.sheet
         let id = ObjectIdentifier(ws)
-        if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale { return (c.cols, c.rows) }
-        let cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
-        let rows = GridAxis(def: ws.defaultRowHeightPt, overrides: ws.rowHeights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
-        _axisCache = (id, ws.layoutVersion, scale, cols, rows)
+        if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale, c.printing == printing { return (c.cols, c.rows) }
+        let cols: GridAxis, rows: GridAxis
+        if printing {
+            // On paper the sheet has the printer's sizes, not the screen's: a
+            // column is its characters in the printer's digits, a row the
+            // printer's line or a set height scaled by it (SheetPrintMetrics).
+            let book = controller.book
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11,
+                                         baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
+            let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : Xlsx._widthChars(ws, $0.key, $0.value) * m.digit) })
+            let fitted = ws.customDefaultRowHeight || ws.defaultRowHeightPt <= 0 ? m.rowScale : m.defaultRow / ws.defaultRowHeightPt
+            let heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.map { ($0.key, $0.value * (ws.fittedRows.contains($0.key) ? fitted : m.rowScale)) })
+            cols = GridAxis(def: (ws.defaultColWidthChars ?? m.defaultChars) * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
+            rows = GridAxis(def: ws.customDefaultRowHeight ? ws.defaultRowHeightPt * m.rowScale : m.defaultRow, overrides: heights,
+                            hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
+        } else {
+            cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
+            rows = GridAxis(def: ws.defaultRowHeightPt, overrides: ws.rowHeights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
+        }
+        _axisCache = (id, ws.layoutVersion, scale, printing, cols, rows)
         return (cols, rows)
     }
 
@@ -374,7 +390,15 @@ final class SheetGridState: State<StatefulWidget> {
 
     /// Where a drawing's anchor puts it on screen.
     func drawingRect(_ anchor: SheetAnchor) -> Rect {
-        func at(_ m: SheetMarker) -> Offset { Offset(colX(m.col) + m.colOff * scale, rowY(m.row) + m.rowOff * scale) }
+        // An offset is a share of its cell — never past it (Excel holds a
+        // corner inside the cell it names), and on paper, where the cell has
+        // the printer's size, the same share of that.
+        let ws = controller.sheet, ca = cols, ra = rows
+        func at(_ m: SheetMarker) -> Offset {
+            let w = ws.colWidth(m.col), h = ws.rowHeight(m.row)
+            return Offset(colX(m.col) + (w > 0 ? min(1, m.colOff / w) : 0) * ca.size(m.col),
+                          rowY(m.row) + (h > 0 ? min(1, m.rowOff / h) : 0) * ra.size(m.row))
+        }
         switch anchor {
         case .twoCell(let from, let to):
             let a = at(from), b = at(to)
@@ -420,14 +444,20 @@ final class SheetGridState: State<StatefulWidget> {
     /// workbook has an `xl/media/image1.png`.
     private var _imagesBook: ObjectIdentifier? = nil
 
-    /// A picture, decoded once; nil (and a repaint later) while it decodes.
-    func _image(_ key: String, _ data: Data) -> Image? {
+    /// The open workbook, with the cache emptied of any other's pictures.
+    private func _imagesOfThisBook() -> ObjectIdentifier {
         let book = ObjectIdentifier(controller.book)
         if _imagesBook != book {
             for image in _images.values { image.dispose() }
             _images.removeAll(); _decoding.removeAll()
             _imagesBook = book
         }
+        return book
+    }
+
+    /// A picture, decoded once; nil (and a repaint later) while it decodes.
+    func _image(_ key: String, _ data: Data) -> Image? {
+        let book = _imagesOfThisBook()
         if let image = _images[key] { return image }
         guard !_decoding.contains(key) else { return nil }
         _decoding.insert(key)
@@ -451,6 +481,9 @@ final class SheetGridState: State<StatefulWidget> {
     /// The picture decoded and waited for (an export's way in).
     @MainActor
     func _decodeNow(_ key: String, _ data: Data) async {
+        // (The cache is this workbook's from here on: left unclaimed, the
+        // first page painted would empty it of what was decoded for it.)
+        _ = _imagesOfThisBook()
         guard _images[key] == nil else { return }
         var decoded: Image? = nil
         if let codec = try? await instantiateImageCodec([UInt8](data)) {
@@ -1073,7 +1106,7 @@ final class SheetGridState: State<StatefulWidget> {
             if merged.contains(where: { $0.contains(a) }) { continue }
             let st = c.book.style(cell.style)
             let tstyle = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
-            let size = st.fontSize ?? 11
+            let size = c.book.fontSize(st)
             if axis == .cols {
                 if st.wrap && cell.value.isText { continue }
                 // The full text: autofit is how long numbers stop being ####.
@@ -1445,7 +1478,7 @@ final class SheetGridState: State<StatefulWidget> {
                 canvas.clipRect(clip)
                 for (i, d) in ws.drawings.enumerated() {
                     let r = drawingRect(d.anchor)
-                    guard r.overlaps(clip) else { continue }
+                    guard r.overlaps(clip), !d.hidden else { continue }
                     _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
                 }
                 canvas.restore()
@@ -1900,8 +1933,9 @@ final class SheetGridState: State<StatefulWidget> {
     /// The text style a cell draws with.
     private func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
-        return GridTextStyle(family: OfficeFonts.substitute(st.fontName ?? OfficeFonts.defaultFamily),
-                             size: (st.fontSize ?? 11) * scale * Self.excelTextScale, bold: st.bold, italic: st.italic,
+        let book = controller.book
+        return GridTextStyle(family: OfficeFonts.substitute(book.fontName(st)),
+                             size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c)
     }
 
@@ -1949,7 +1983,7 @@ final class SheetGridState: State<StatefulWidget> {
             if align == .left || align == .general {
                 var col = a.col + 1
                 while col < CellAddress.maxCols, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
-                      clipRight - left < tp.width + pad * 2, col <= a.col + 30 {
+                      clipRight - left < tp.width + pad * 2, col <= a.col + (printing ? 255 : 30) {
                     clipRight += ca.size(col); col += 1
                 }
             } else if align == .right {
@@ -1976,6 +2010,34 @@ final class SheetGridState: State<StatefulWidget> {
         canvas.clipRect(Rect.fromLTRB(clipLeft + 1, top, clipRight - 1, bottom))
         tp.paint(canvas, Offset(tx.rounded(), ty.rounded()))
         canvas.restore()
+    }
+
+    /// The columns a text too long for its cell runs over, as `_paintCell`
+    /// lets it: empty neighbours to the right of left-aligned text, to the
+    /// left of right-aligned. Nil when it stays in its own cell.
+    func textReach(_ a: CellAddress, _ cell: Cell, ws: Worksheet, book: Workbook) -> ClosedRange<Int>? {
+        guard case .text(let raw) = cell.value else { return nil }
+        let st = book.style(cell.style)
+        let ca = cols
+        let width = ca.size(a.col)
+        // (Cheaply first: no glyph is under a fifth of its size wide.)
+        guard width > 0, !st.wrap, st.hAlign != .center, Double(raw.count) * book.fontSize(st) * scale * 0.2 > width else { return nil }
+        if ws.merges.contains(where: { $0.contains(a) }) { return nil }
+        let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+        let need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
+        guard need > width else { return nil }
+        var have = width, lo = a.col, hi = a.col
+        if st.hAlign == .right {
+            while lo > 0, have < need, ws.cells[CellAddress(row: a.row, col: lo - 1)]?.value.isEmpty ?? true {
+                lo -= 1; have += ca.size(lo)
+            }
+        } else {
+            while hi < CellAddress.maxCols - 1, hi < a.col + 255, have < need,
+                  ws.cells[CellAddress(row: a.row, col: hi + 1)]?.value.isEmpty ?? true {
+                hi += 1; have += ca.size(hi)
+            }
+        }
+        return lo == hi ? nil : lo ... hi
     }
 
     private func _paintEditor(_ canvas: any Canvas, _ e: CellEdit, ink: Color, paper: Color, accent: Color, size: Size) {

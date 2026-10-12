@@ -92,6 +92,12 @@ for n in "${names[@]}"; do
     [ -s "$WORK/pdf/$base.pdf" ] || {
       printf '%s\tERROR\t%s\n' "$n" "$(grep -F "$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue; }
   elif ! out=$(SHEET_PDF_MAX_PAGES="${XLSX_MAX_PAGES:-20}" "$APP" --sheet-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
+    # Nothing to print is the right answer where Excel printed nothing
+    # either: its PDF of such a workbook is one with no pages.
+    if echo "$out" | grep -q 'nothing to print' && grep -a -q '/Count 0\b' "$XL/$base-orig.pdf" \
+        && ! grep -a -q '/Type */Page\b' "$XL/$base-orig.pdf"; then
+      printf '%s\tsummary pages=0 worst=0.00%% mean=0.00%%\n' "$n" | tee -a "$WORK/render.tsv"; continue
+    fi
     printf '%s\tERROR\t%s\n' "$n" "$(echo "$out" | tail -1 | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue
   fi
   s=$("${DIFF[@]}" "$XL/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)

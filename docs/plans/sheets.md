@@ -150,6 +150,63 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**The rendering gate runs, and what the first two sweeps found
+(2026-10-12).** Excel's side is made (`test/corpus/xlsx/excel`: 757 PDFs
+from Excel 16.0 on Windows; 50 workbooks Excel will not open, 3 that hang
+it — `test/corpus/xlsx/README.md`), and `test/xlsx-app-render.sh` scores
+the Windows build against it. Sweep 1 was mean 11.08% of pixels differing
+(705 scored; 144 workbooks with a page one side has and the other does
+not; 1 exact match). Sweep 2 is **mean 3.45%, median 0.42%** over
+743 scored, 39 with such a page, 43 exact — `baseline-mupdf.tsv`.
+What moved it, largest first:
+
+- *The references were on the wrong paper.* Excel prints an A4 workbook
+  on Letter when Letter is the region's paper ("Scale content for A4 or
+  8.5 x 11" paper sizes", on by default). 252 references were made again
+  with the option off; the export script now turns it off and puts it
+  back.
+- *Excel sizes a printed sheet by the printer's font, not the screen's*
+  (`Sheets/SheetPrintMetrics.swift`). A column's width is a count of the
+  default font's digits, and on paper a digit is its advance at 600 dpi:
+  5.64 pt for Calibri 11 where the screen's 7 px is 5.25 pt, so columns
+  print about 7% wider than they show and a page holds fewer of them. Rows
+  go by the printer's line height — 14.52 pt for a default Calibri 11 row,
+  not 15 — and a height someone set is scaled by printer line over screen
+  line. None of this is in the file format's documentation; it was
+  measured by having Excel print a ruled grid in 30 faces at 9 sizes and
+  reading the rules back from the PDFs. The table is that Excel's, on a
+  display at 200% (the default column and the row scale depend on the
+  display). Printing now lays the sheet out with these sizes, draws text
+  at its true size (the screen draws it 6% small so a digit is 7 px), and
+  keeps a drawing's corners at the same share of their cells.
+- *The workbook's default font was dropped.* A style with the default
+  font kept no name or size, and everything drew — and every column was
+  counted — in Calibri 11. POI's files are mostly Arial 10, the Japanese
+  and Chinese ones MS PGothic and SimSun 11, whose digit is 8 px. The
+  workbook now carries its default font (`Workbook.defaultFontName`/
+  `Size`); a column width is read in that font's digit
+  (`Workbook.digitWidth`), and a sheet's default width from
+  `defaultColWidth` or `baseColWidth`, which were not read at all.
+- *Where the printed area ends, and starts.* It starts at A1, however far
+  in the first cell is. It takes in every cell a drawing covers (a
+  one-cell or absolute anchor counted for nothing, or for its corner),
+  the columns a long text runs over, and rows formatted as a whole.
+- *Smaller:* a workbook with nothing to print is a match when Excel's PDF
+  has no pages either (36); printed row and column headings
+  (`printOptions@headings`); A4 Small, A6, B4, B5, Executive and Tabloid
+  paper; an anchor offset past its cell stops at the cell's edge; and the
+  picture cache no longer empties itself of what a print had just decoded
+  (pictures were missing from printed pages since afc6afb8); a drawing
+  marked hidden is not drawn and does not count.
+
+What is left, by what the pictures show: form controls and OLE objects
+(legacy drawings — most of the 14 workbooks that print nothing here),
+charts with no series (Excel draws the frame), East Asian text drawn in a
+narrower face than Excel's so long lines end early, a border on an empty
+cell that is not drawn (61034), `lo-xf_default_values` (Excel halves its
+set row heights; not understood), and the fonts this app has no clone
+for. The Mac's `baseline.tsv` for Sheets does not exist yet.
+
 **A rendering gate against Excel, half built (2026-10-11).** The corpus
 is in the repository — `test/corpus/xlsx/books`, 810 workbooks (POI's 352
 of the oracle rounds below, LibreOffice's `sc` and `chart2` regression

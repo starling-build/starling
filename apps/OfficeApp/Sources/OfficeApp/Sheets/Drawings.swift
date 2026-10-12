@@ -76,6 +76,8 @@ struct SheetDrawing: Equatable {
     var rawAnchor: SheetAnchor? = nil
     /// The drawing part's relationship to its picture or chart.
     var relId: String? = nil
+    /// `cNvPr@hidden`: in the file, and neither drawn nor printed.
+    var hidden = false
 
     var isChart: Bool { if case .chart = kind { return true } else { return false } }
 }
@@ -136,6 +138,9 @@ enum SheetDrawingsXML {
             } else if raw == nil {
                 continue
             }
+            let named = (el.child("pic")?.child("nvPicPr") ?? el.child("graphicFrame")?.child("nvGraphicFramePr")
+                ?? el.child("sp")?.child("nvSpPr") ?? el.child("cxnSp")?.child("nvCxnSpPr") ?? el.child("grpSp")?.child("nvGrpSpPr"))?.child("cNvPr")
+            d.hidden = named?["hidden"] == "1" || named?["hidden"] == "true"
             out.append(d)
         }
         return (out, drawingPath, split.rootStart)
@@ -478,7 +483,9 @@ extension Worksheet {
 
     /// Where a marker is, in points from A1's corner.
     func point(_ m: SheetMarker) -> (x: Double, y: Double) {
-        var x = m.colOff, y = m.rowOff
+        // (An offset past its cell's far edge stops there, as Excel's does.)
+        var x = isColHidden(m.col) ? 0 : min(m.colOff, colWidth(m.col))
+        var y = isRowHidden(m.row) ? 0 : min(m.rowOff, rowHeight(m.row))
         for c in 0 ..< m.col where !isColHidden(c) { x += colWidth(c) }
         for r in 0 ..< m.row where !isRowHidden(r) { y += rowHeight(r) }
         return (x, y)

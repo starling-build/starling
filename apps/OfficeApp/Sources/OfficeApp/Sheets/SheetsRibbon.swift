@@ -39,8 +39,8 @@ extension Ribbon {
     private func _sheetsHome(_ wb: WorkbookController, _ fluent: FluentThemeData) -> [Widget] {
         let st = wb.style(at: wb.active)
         let sizes: [Double] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
-        let family = st.fontName ?? OfficeFonts.defaultFamily
-        let size = st.fontSize ?? 11
+        let family = wb.book.fontName(st)
+        let size = wb.book.fontSize(st)
         let clipboard = Chrome.group("Clipboard", fluent, [
             Chrome.big(FluentSystemIcons.paste, "Paste", fluent) { wb.onCommand?(.paste) },
             Chrome.rows([
