@@ -269,6 +269,7 @@ private struct LevelStyle {
     var beforePoints: Double?
     var beforePercent: Double?
     var afterPoints: Double?
+    var afterPercent: Double?
     var bullet: Bullet?
     /// `a:buChar`'s glyph and `a:buFont`'s face (a symbol face's code
     /// mapped to the glyph it shows).
@@ -300,7 +301,7 @@ private struct LevelStyle {
         s.indent = s.indent ?? lower.indent
         if s.lineMultiple == nil && s.linePoints == nil { s.lineMultiple = lower.lineMultiple; s.linePoints = lower.linePoints }
         if s.beforePoints == nil && s.beforePercent == nil { s.beforePoints = lower.beforePoints; s.beforePercent = lower.beforePercent }
-        s.afterPoints = s.afterPoints ?? lower.afterPoints
+        if s.afterPoints == nil && s.afterPercent == nil { s.afterPoints = lower.afterPoints; s.afterPercent = lower.afterPercent }
         s.bullet = s.bullet ?? lower.bullet
         if s.bulletChar == nil { s.bulletChar = lower.bulletChar; s.bulletFont = s.bulletFont ?? lower.bulletFont }
         if s.bulletColor == nil, !s.bulletColorFollows { s.bulletColor = lower.bulletColor; s.bulletColorFollows = lower.bulletColorFollows }
@@ -333,7 +334,10 @@ private struct LevelStyle {
             if let v = b.first("a:spcPts")?["val"].flatMap(Double.init) { s.beforePoints = v / 100 }
             if let v = b.first("a:spcPct")?["val"].flatMap(Double.init) { s.beforePercent = v / 100000 }
         }
-        if let v = p.first("a:spcAft")?.first("a:spcPts")?["val"].flatMap(Double.init) { s.afterPoints = v / 100 }
+        if let a = p.first("a:spcAft") {
+            if let v = a.first("a:spcPts")?["val"].flatMap(Double.init) { s.afterPoints = v / 100 }
+            if let v = a.first("a:spcPct")?["val"].flatMap(Double.init) { s.afterPercent = v / 100000 }
+        }
         if p.has("a:buNone") { s.bullet = Bullet.none }
         if let bu = p.first("a:buChar") { s.bullet = .char; s.bulletChar = bu["char"] }
         if let f = p.first("a:buFont")?["typeface"] { s.bulletFont = f }
@@ -368,7 +372,9 @@ private struct LevelStyle {
             return map[code]
         }
         if face.hasPrefix("webdings") { return nil }
-        return ch
+        // A bullet is one character: PowerPoint shows the first of "••"
+        // (a SmartArt drawing's spelling, tdf93830) and no more.
+        return String(ch[ch.startIndex])
     }
 
     /// A `a:rPr` / `a:defRPr` / `a:endParaRPr` element.
@@ -1544,6 +1550,29 @@ private struct SlideContext {
             // the part with nothing in it; that counts as none.)
             tree = renamed(t)
             drawingPart = dp
+            // The drawing's `fontRef` is the quick style's, whatever the
+            // colour scheme says: a white node of an outlined scheme
+            // (accent3_1) still carries `lt1` there, and PowerPoint, which
+            // lays the diagram out afresh, shows its text in the scheme's
+            // own text colour (`txFillClrLst` of the node's style label) —
+            // dark. Across the corpus the two disagree only where that list
+            // names a colour, and an empty list leaves the fontRef to rule;
+            // so a named one replaces it (tdf93830's text was white on white).
+            if let scheme = related("r:cs")?.1 {
+                var labels: [String: String] = [:]
+                for pt in data.first("dgm:ptLst")?.all("dgm:pt") ?? [] {
+                    if let id = pt["modelId"], let l = pt.first("dgm:prSet")?["presStyleLbl"] { labels[id] = l }
+                }
+                var textColors: [String: XNode] = [:]
+                for l in scheme.all("dgm:styleLbl") {
+                    if let name = l["name"], let c = l.first("dgm:txFillClrLst")?.children.first { textColors[name] = c }
+                }
+                for sp in tree?.all("p:sp") ?? [] {
+                    guard let id = sp["modelId"], let label = labels[id], let color = textColors[label],
+                          let font = sp.first("p:style")?.first("a:fontRef") else { continue }
+                    font.children = [color]
+                }
+            }
         } else if let (_, layoutDef) = related("r:lo") {
             // No drawing (a deck LibreOffice saved): laid out here from the
             // data and the layout definition.
@@ -1772,11 +1801,16 @@ private struct SlideContext {
         }
         let shapeIndent = listIndent ?? 18
         var paragraphs: [RichParagraph] = []
-        for p in body?.all("a:p") ?? [] {
+        let allParagraphs = body?.all("a:p") ?? []
+        for p in allParagraphs {
             let pPr = p.first("a:pPr")
             let lvl = pPr?["lvl"].flatMap(Int.init) ?? 0
             let level = styled(LevelStyle.paragraph(pPr, colors).filled(from: _level(lvl, shapeList: list, ph: ph, inherited: inherited)), lvl, pPr)
-            let size = level.size ?? 18
+            // What a percentage of spacing is a percentage of: the size the
+            // paragraph's runs are actually set in (a SmartArt label is 31 pt
+            // by its runs under a level that says nothing), else the level's.
+            let runSizes = p.all("a:r").compactMap { $0.first("a:rPr")?["sz"].flatMap(Double.init).map { $0 / 100 } }
+            let size = runSizes.max() ?? level.size ?? 18
             var style = RichParagraphStyle(spaceAfter: level.afterPoints ?? 0, lineSpacing: 1.0)
             switch level.algn {
             case "ctr": style.alignment = .center
@@ -1789,6 +1823,13 @@ private struct SlideContext {
                 style.lineHeightPoints = pts
             }
             style.spaceBefore = level.beforePoints ?? (level.beforePercent.map { $0 * size * 1.2 } ?? 0)
+            // A percentage after, as before: of the line, taken as 1.2 of the
+            // size — but not under the last paragraph, where PowerPoint adds
+            // nothing: counted there, a one-line SmartArt label (35% after,
+            // every one) measured taller than its box and was shrunk to fit.
+            if level.afterPoints == nil, let pct = level.afterPercent, p !== allParagraphs.last {
+                style.spaceAfter = pct * size * 1.2
+            }
             switch level.bullet {
             case .char?, .number?:
                 style.list = level.bullet == .char ? .bullet : .numbered

@@ -40,6 +40,27 @@ number says where to look and the pair image says what is wrong. When a
 change is deliberate, write the new sweep over `baseline.tsv` in the same
 commit, with the sweep's number in the plan.
 
+## Sweeping off a Mac
+
+The page diff is CoreGraphics on a Mac (`test/pdf-diff.swift`) and MuPDF
+anywhere else (`test/pdf-diff.py`; `pip install pymupdf numpy pillow`),
+and the two do not draw the same PDF alike: MuPDF leaves an enlarged
+picture unsmoothed where CoreGraphics seems to interpolate it, and
+text-heavy decks score about a point lower. So `baseline.tsv` is the Mac's, and
+`baseline-mupdf.tsv` is MuPDF's, from Windows, against the same
+PowerPoint PDFs. The same sweep 27 scored both ways, 2026-10-11: mean
+2.95% by MuPDF where the Mac has 3.01%, 418 of 553 decks within 0.15 of
+each other. (The file holds sweep 28, 2.94%, which has no Mac run yet.)
+Compare a sweep with the baseline of its own rasteriser. The decks furthest apart are
+pictures drawn much larger than their pixels (`lo-tdf146223`, a 2×2 JPEG
+over a slide, +6.3; `lo-tdf93830`'s icons, +3.1) and photographs whose
+edges resample differently (`lo-tdf157793`, 0 → 2.5).
+
+On Windows the scripts run under Git Bash, with a release build from
+`sdk\tools\build-windows.ps1 -PackagePath apps\OfficeApp -Product
+OfficeApp -Configuration release`, the engine's out directory on `PATH`
+(for `flutter_engine.dll`) and `STARLING_ICU` naming its `icudtl.dat`.
+
 ## PowerPoint's side
 
 `powerpoint/` was exported on 2026-10-08 by PowerPoint for Mac 16.113 on

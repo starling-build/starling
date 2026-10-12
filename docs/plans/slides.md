@@ -197,6 +197,51 @@ reading is kept and the cost written down (an `ExtTextOut` opaque box,
 +3.5 on activex_textbox; the editor's placeholder box no longer shown
 in an export, +6.6 on the 45541 deck until its WMF preview drew).
 
+**On Windows, 2026-10-11.** The gate runs there too: OfficeApp builds
+for Windows (zlib from the fetched sources, as the web build has it;
+the engine rebuilt with Skia's PDF backend, which
+`build/win/engine-args.ps1` now turns on), `test/pdf-diff.py` scores
+pages with MuPDF, and `test/pptx-powerpoint-pdf.ps1` drives PowerPoint
+for Windows over COM — from a shell that is not elevated, or it cannot
+reach a PowerPoint the desktop user has open. Sweep 27 again, by the
+Windows build against the same Mac PowerPoint PDFs: mean 2.95% (the
+Mac's 3.01), bands 370 / 175 / 8, every deck the same page count, no
+errors; 418 of 553 within 0.15 of the Mac's score. Nothing found that
+this platform draws differently — what moved is the rasteriser
+(`test/corpus/pptx/README.md`, "Sweeping off a Mac";
+`baseline-mupdf.tsv`). One measure of the oracle itself: PowerPoint for
+Windows against PowerPoint for Mac on 60810 is 3.8% (worst page 8.3),
+so a few points of a text-heavy deck's score are the two PowerPoints.
+
+**A drawn diagram's text, 2026-10-11** (sweep 28, Windows and MuPDF
+only: 2.95 → 2.94%, ≤2% 370 → 372; 13 decks down, three up — two by
+0.06 and the gear deck by 0.3, its text now visible and turned).
+Found through `lo-tdf93830`, whose SmartArt text was white on white:
+
+- **The colour scheme's text colour beats the drawing's `fontRef`.** A
+  drawing part's `fontRef` is the quick style's (`lt1`), whatever the
+  colour scheme says; PowerPoint lays the diagram out afresh and takes
+  the node's style label's `txFillClrLst` (dk1 on an outlined scheme).
+  Surveyed over every drawn diagram in the corpus: the two disagree
+  only where that list names a colour (six decks), and an empty list
+  leaves the fontRef to rule. The reader now puts a named one in the
+  fontRef's place, by the shape's `modelId` → presentation point →
+  `presStyleLbl`. Scores rose at first on those decks: text that was
+  invisible had cost nothing, and now showed where it sat wrong.
+- **Space after as a percentage (`spcAft spcPct`) was dropped** — only
+  points were read, though space before had both. Read like it, and not
+  applied under a body's last paragraph, where PowerPoint adds nothing:
+  counted there, every one-line SmartArt label (35% after) measured
+  taller than its box and was shrunk to fit (17 decks worse until then).
+- **A percentage of spacing is of the size the runs are set in**, not
+  the level's default: a SmartArt label is 31 pt by its runs under a
+  level that says nothing (alterman_security 10.5 → 9.5, 60810 −0.2).
+- **A bullet is one character**: `buChar char="••"` drew two.
+
+Left on those decks: a gear's text is turned with its shape where
+PowerPoint keeps it upright, and tdf141058's elbow connectors are
+straight lines.
+
 The branch: this work is on `office` (fast-forwarded from `sheets`,
 which is kept level with it), rebased over the Writer session's
 commits. Where the two met, Writer's model won and Slides reads into
