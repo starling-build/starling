@@ -686,9 +686,8 @@ Mac, termd's remote sessions, a broken pipe in `termd/test-termd.py`
 
 Two small tools did the measuring once pages differed by a pixel:
 PDFKit scripts that print each line's box on both prints and only the
-lines that differ, and the fonts with their sizes. They are thirty
-lines each and were rebuilt in the scratch directory; if a sixth round
-comes, put them under `test/`.
+lines that differ, and the fonts with their sizes:
+`test/pdf-lines.swift` and `test/pdf-fonts.swift`.
 
 Method note: this round printed far less than the fourth. Diffing the
 original's and the copy's XML for the first differing paragraph on
