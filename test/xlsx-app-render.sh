@@ -59,8 +59,7 @@ LISTS="$ROOT/test/corpus/xlsx"; SUFFIX=-mupdf; [ "$(uname)" = Darwin ] && SUFFIX
 names=("$@")
 if [ ${#names[@]} -eq 0 ] && [ -n "$CORPUS_GROUP" ]; then
   [ -f "$LISTS/$CORPUS_GROUP$SUFFIX.txt" ] || { echo "no list $LISTS/$CORPUS_GROUP$SUFFIX.txt" >&2; exit 2; }
-  names=($(tr -d '
-' < "$LISTS/$CORPUS_GROUP$SUFFIX.txt"))
+  names=($(tr -d '\015' < "$LISTS/$CORPUS_GROUP$SUFFIX.txt"))
 fi
 [ ${#names[@]} -gt 0 ] || names=($(cd "$IN" && ls *.xlsx | grep -v '^~\$'))
 touch "$WORK/render.tsv"
