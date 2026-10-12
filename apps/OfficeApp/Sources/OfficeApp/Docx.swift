@@ -59,8 +59,13 @@ final class XNode {
         let parser = XMLParser(data: data)
         parser.delegate = builder
         parser.shouldProcessNamespaces = false
-        guard parser.parse() else { return nil }
-        return builder.root
+        if parser.parse() { return builder.root }
+        #if canImport(FoundationXML)
+        // libxml2 off a Mac gives up on a part past 10 MB (a 12 MB
+        // document.xml: bug65649), where the Mac's reads it.
+        if data.count > 10_000_000 { return MiniXML.parse([UInt8](data)) }
+        #endif
+        return nil
         #endif
     }
 
