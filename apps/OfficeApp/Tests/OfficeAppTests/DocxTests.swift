@@ -1772,6 +1772,71 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[0].text, "Техни\u{00AD}ческому a\u{2011}b")
     }
 
+    func testHandWrittenPackagesReadAsWordReadsThem() throws {
+        // Three of Word's rules for files no word processor wrote:
+        // every w:body counts (MultipleBodyBug), a w:t without
+        // xml:space="preserve" loses the XML whitespace at its ends
+        // (Bug66263-paragraph's runs join) while a no-break space stays,
+        // and with no styles part the paragraphs take 10pt after and 1.15
+        // lines.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).lowerBound ..< (try XCTUnwrap(xml.range(of: "</w:body>"))).upperBound
+        xml.replaceSubrange(body, with: "<w:body><w:p><w:r><w:t>Before </w:t></w:r><w:r><w:t>\n  After\u{00A0}</w:t></w:r><w:r><w:t xml:space=\"preserve\"> kept </w:t></w:r></w:p></w:body>"
+            + "<w:body><w:p><w:r><w:t>Second body</w:t></w:r></w:p></w:body>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        entries.removeAll { $0.name == "word/styles.xml" }
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["BeforeAfter\u{00A0} kept ", "Second body"])
+        XCTAssertEqual(back.paragraphs[0].style.spaceAfter, 10)
+        XCTAssertEqual(back.paragraphs[0].style.lineSpacing, 1.15, accuracy: 0.001)
+    }
+
+    func testHtmlBlockReferenceKeptWithTheWebSettings() throws {
+        // drawing.docx: a paragraph's w:divId names a block of
+        // word/webSettings.xml whose margins Word spaces it by.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        let xml = String(decoding: entries[di].data, as: UTF8.self).replacingAll("<w:p><w:pPr>", with: "<w:p><w:pPr><w:divId w:val=\"77\"/>")
+        XCTAssertTrue(xml.contains("w:divId"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let web = "<w:webSettings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:divs><w:div w:id=\"77\"><w:marTop w:val=\"15\"/><w:marBottom w:val=\"75\"/></w:div></w:divs></w:webSettings>"
+        // Without the part the reference would dangle, and is dropped.
+        let bare = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertFalse(try part("word/document.xml", of: bare).contains("w:divId"))
+        entries.append(ZipEntry(name: "word/webSettings.xml", data: Data(web.utf8)))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].style.divId, "77")
+        XCTAssertTrue(try part("word/document.xml", of: back).contains("<w:divId w:val=\"77\"/>"))
+        XCTAssertEqual(try part("word/webSettings.xml", of: back), web)
+        XCTAssertTrue(try part("word/_rels/document.xml.rels", of: back).contains("relationships/webSettings\" Target=\"webSettings.xml\""))
+    }
+
+    func testListLevelOverrideReplacesTheDefinitionsLevel() throws {
+        // form_footnotes: the list's own w:lvlOverride carries a whole
+        // level (a Symbol bullet at 0.25in) over a definition that says
+        // only "*"; its three instructions came back starred and deeper.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "item", style: RichParagraphStyle(list: .bullet))]), pageSetup: .letter))
+        let ni = try XCTUnwrap(entries.firstIndex { $0.name == "word/numbering.xml" })
+        let numbering = "<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+            + "<w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:numFmt w:val=\"decimal\"/><w:lvlText w:val=\"*\"/><w:lvlJc w:val=\"left\"/></w:lvl></w:abstractNum>"
+            + "<w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/><w:lvlOverride w:ilvl=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\u{2022}\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"360\" w:hanging=\"360\"/></w:pPr></w:lvl></w:lvlOverride></w:num>"
+            + "<w:num w:numId=\"2\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+        entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:pPr><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"1\"/></w:numPr></w:pPr><w:r><w:t>a</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"2\"/></w:numPr></w:pPr><w:r><w:t>b</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs.map(\.style.list), [.bullet, .numbered])
+        let again = try part("word/numbering.xml", of: back)
+        XCTAssertTrue(again.contains("<w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\u{2022}\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"360\" w:hanging=\"360\"/>"), again)
+        XCTAssertTrue(again.contains("<w:lvlText w:val=\"*\"/>"), again)
+    }
+
     func testDefaultTabStopKept() throws {
         // bug65649: 708 twips, not our 720 — its typed numbers are
         // followed by a tab, and every first line moved.

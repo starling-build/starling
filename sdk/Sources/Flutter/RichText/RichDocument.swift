@@ -277,6 +277,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// included; without the mark's flag the line stays, empty, with its
     /// rules (bug59058's "Bottom of Form" paragraphs).
     public var markHidden = false
+    /// The HTML block this paragraph came from (Word's `w:divId`, an
+    /// entry of the kept web settings part): Word spaces the paragraph by
+    /// that block's margins, so the reference goes back with the part.
+    public var divId: String? = nil
     /// The paragraph mark's own run properties as the file had them
     /// (w:pPr/w:rPr), written back on every paragraph that had any: Word
     /// formats a list paragraph's NUMBER with them (bug65649's bold "1."

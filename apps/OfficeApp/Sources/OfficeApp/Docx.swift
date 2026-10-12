@@ -133,6 +133,12 @@ enum DocxFormat {
             return part(name)
         }
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
+        // A document with several bodies: Word shows them all, one after
+        // the other (MultipleBodyBug came back with the first alone).
+        for extra in root.all("w:body").dropFirst() {
+            let at = body.children.lastIndex { $0.name == "w:sectPr" } ?? body.children.count
+            body.children.insert(contentsOf: extra.children.filter { $0.name != "w:sectPr" }, at: at)
+        }
         let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
 
         // Kept header and footer parts, before the styles are read: the
@@ -248,6 +254,10 @@ enum DocxFormat {
         var styleByDocx: [String: String] = [:]
         var sheet = RichStyleSheet.word
         var base = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
+        // A package with no styles part at all is laid out by Word's own
+        // Normal of the day, 10pt after and 1.15 lines — not by the bare
+        // defaults a styles part that says nothing leaves.
+        if part("word/styles.xml") == nil { base = RichParagraphStyle(spaceAfter: 10, lineSpacing: 1.15) }
         var tableBases: [String: RichParagraphStyle] = [:]
         // The same over the document defaults alone, for a cell paragraph
         // whose style chain does not reach Normal.
@@ -472,63 +482,76 @@ enum DocxFormat {
         if let numData = part("word/numbering.xml"), let numbering = XNode.parse(numData) {
             var abstract: [String: [Int: ListKind]] = [:]
             var abstractFormats: [String: [Int: ListLevelFormat]] = [:]
+            func readLevel(_ lvl: XNode, _ levels: inout [Int: ListKind], _ formats: inout [Int: ListLevelFormat]) {
+                let ilvl = Int(lvl["w:ilvl"] ?? "0") ?? 0
+                let fmt = lvl.first("w:numFmt")?["w:val"] ?? "decimal"
+                levels[ilvl] = fmt == "bullet" ? .bullet : .numbered
+                if fmt == "bullet" {
+                    // Word's stock bullets are Symbol/Wingdings private-use
+                    // glyphs; map the common ones, else a plain bullet.
+                    if let raw = lvl.first("w:lvlText")?["w:val"], let ch = raw.unicodeScalars.first {
+                        let glyph: String
+                        switch ch.value {
+                        case 0xF0B7, 0x2022: glyph = "\u{2022}"
+                        case 0xF06F, 0x006F: glyph = "\u{25E6}"
+                        case 0xF0A7, 0x25AA: glyph = "\u{25AA}"
+                        case 0xF0D8, 0x27A2: glyph = "\u{27A2}"
+                        case 0xF0FC, 0x2713: glyph = "\u{2713}"
+                        case 0xF076, 0x2756: glyph = "\u{2756}"
+                        case 0xE000 ... 0xF8FF: glyph = ListLevelFormat.defaultBullet(ilvl)
+                        default: glyph = raw
+                        }
+                        formats[ilvl] = ListLevelFormat(text: glyph, format: .bullet)
+                        if glyph != raw { formats[ilvl]!.rawText = raw; formats[ilvl]!.rawTextGlyph = glyph }
+                    }
+                } else {
+                    let number: ListNumberFormat
+                    switch fmt {
+                    case "lowerLetter": number = .lowerLetter
+                    case "upperLetter": number = .upperLetter
+                    case "lowerRoman": number = .lowerRoman
+                    case "upperRoman": number = .upperRoman
+                    default: number = .decimal
+                    }
+                    formats[ilvl] = ListLevelFormat(text: lvl.first("w:lvlText")?["w:val"] ?? "%\(ilvl + 1).",
+                                                    format: number)
+                }
+                // The level's indents (65099's "1.1.1" hangs 0.5in at the
+                // margin; the editor's default put it 1.5in in).
+                if formats[ilvl] != nil {
+                    if let rPr = lvl.first("w:rPr"), !rPr.children.isEmpty { formats[ilvl]!.numberRPrXML = PptxXML.serialize(rPr) }
+                    if let suff = lvl.first("w:suff")?["w:val"] { formats[ilvl]!.suffix = suff }
+                }
+                if let ind = lvl.first("w:pPr")?.first("w:ind"), formats[ilvl] != nil {
+                    if let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { formats[ilvl]!.indentLeft = v / 20 }
+                    if let v = Double(ind["w:hanging"] ?? "") { formats[ilvl]!.hanging = v / 20 }
+                    else if let v = Double(ind["w:firstLine"] ?? "") { formats[ilvl]!.hanging = -v / 20 }
+                }
+            }
             for a in numbering.all("w:abstractNum") {
                 guard let id = a["w:abstractNumId"] else { continue }
                 var levels: [Int: ListKind] = [:]
                 var formats: [Int: ListLevelFormat] = [:]
-                for lvl in a.all("w:lvl") {
-                    let ilvl = Int(lvl["w:ilvl"] ?? "0") ?? 0
-                    let fmt = lvl.first("w:numFmt")?["w:val"] ?? "decimal"
-                    levels[ilvl] = fmt == "bullet" ? .bullet : .numbered
-                    if fmt == "bullet" {
-                        // Word's stock bullets are Symbol/Wingdings private-use
-                        // glyphs; map the common ones, else a plain bullet.
-                        if let raw = lvl.first("w:lvlText")?["w:val"], let ch = raw.unicodeScalars.first {
-                            let glyph: String
-                            switch ch.value {
-                            case 0xF0B7, 0x2022: glyph = "\u{2022}"
-                            case 0xF06F, 0x006F: glyph = "\u{25E6}"
-                            case 0xF0A7, 0x25AA: glyph = "\u{25AA}"
-                            case 0xF0D8, 0x27A2: glyph = "\u{27A2}"
-                            case 0xF0FC, 0x2713: glyph = "\u{2713}"
-                            case 0xF076, 0x2756: glyph = "\u{2756}"
-                            case 0xE000 ... 0xF8FF: glyph = ListLevelFormat.defaultBullet(ilvl)
-                            default: glyph = raw
-                            }
-                            formats[ilvl] = ListLevelFormat(text: glyph, format: .bullet)
-                            if glyph != raw { formats[ilvl]!.rawText = raw; formats[ilvl]!.rawTextGlyph = glyph }
-                        }
-                    } else {
-                        let number: ListNumberFormat
-                        switch fmt {
-                        case "lowerLetter": number = .lowerLetter
-                        case "upperLetter": number = .upperLetter
-                        case "lowerRoman": number = .lowerRoman
-                        case "upperRoman": number = .upperRoman
-                        default: number = .decimal
-                        }
-                        formats[ilvl] = ListLevelFormat(text: lvl.first("w:lvlText")?["w:val"] ?? "%\(ilvl + 1).",
-                                                        format: number)
-                    }
-                    // The level's indents (65099's "1.1.1" hangs 0.5in at the
-                    // margin; the editor's default put it 1.5in in).
-                    if formats[ilvl] != nil {
-                        if let rPr = lvl.first("w:rPr"), !rPr.children.isEmpty { formats[ilvl]!.numberRPrXML = PptxXML.serialize(rPr) }
-                        if let suff = lvl.first("w:suff")?["w:val"] { formats[ilvl]!.suffix = suff }
-                    }
-                    if let ind = lvl.first("w:pPr")?.first("w:ind"), formats[ilvl] != nil {
-                        if let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { formats[ilvl]!.indentLeft = v / 20 }
-                        if let v = Double(ind["w:hanging"] ?? "") { formats[ilvl]!.hanging = v / 20 }
-                        else if let v = Double(ind["w:firstLine"] ?? "") { formats[ilvl]!.hanging = -v / 20 }
-                    }
-                }
+                for lvl in a.all("w:lvl") { readLevel(lvl, &levels, &formats) }
                 abstract[id] = levels
                 abstractFormats[id] = formats
             }
             for n in numbering.all("w:num") {
                 guard let id = n["w:numId"], let aid = n.first("w:abstractNumId")?["w:val"] else { continue }
-                kindByNum[id] = abstract[aid] ?? [:]
-                listFormats[id] = abstractFormats[aid] ?? [:]
+                var levels = abstract[aid] ?? [:]
+                var formats = abstractFormats[aid] ?? [:]
+                // A level the list itself redefines (w:lvlOverride with a
+                // whole w:lvl) replaces the definition's: form_footnotes'
+                // instructions are bullets at 0.25in over a definition
+                // that says "*" and nothing else.
+                for ov in n.all("w:lvlOverride") {
+                    guard let lvl = ov.first("w:lvl") else { continue }
+                    let ilvl = Int(lvl["w:ilvl"] ?? ov["w:ilvl"] ?? "0") ?? 0
+                    formats[ilvl] = nil
+                    readLevel(lvl, &levels, &formats)
+                }
+                kindByNum[id] = levels
+                listFormats[id] = formats
             }
         }
 
@@ -967,7 +990,7 @@ enum DocxFormat {
                     // One rendering of the two (a text box's Choice and its
                     // VML Fallback hold the same text), not both.
                     if let pick = child.first("mc:Choice") ?? child.first("mc:Fallback") { walk(pick, into: &line) }
-                case "w:t": if !skipping { line += child.text }
+                case "w:t": if !skipping { line += _runText(child) }
                 case "w:tab": if !skipping { line += "\t" }
                 case "w:ptab":
                     // A positional tab: Word's header/footer convention
@@ -1055,6 +1078,7 @@ enum DocxFormat {
         if let c = pPr.first("w:contextualSpacing") { style.contextualSpacing = !_isOff(c) }
         if let frame = pPr.first("w:framePr") { style.frameXML = PptxXML.serialize(frame) }
         if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }
+        if let d = pPr.first("w:divId")?["w:val"] { style.divId = d }
         if let k = pPr.first("w:keepLines") { style.keepLines = !_isOff(k) }
         if let w = pPr.first("w:widowControl") { style.widowControl = !_isOff(w) }
         if let tabs = pPr.first("w:tabs") {
@@ -1300,6 +1324,14 @@ enum DocxFormat {
         // saved file as unopenable as the original.
         for e in entries where e.name.hasPrefix("word/theme/") && e.name.hasSuffix(".xml") && _wellFormed(e.data) {
             kept[e.name] = e.data
+        }
+        // The web settings: the margins of the HTML blocks paragraphs name
+        // by w:divId (drawing.docx's last banner sits 4.5pt lower for one).
+        // Kept only for a document that names one: the part says nothing
+        // else a page shows.
+        if let web = part("word/webSettings.xml"), _wellFormed(web),
+           part("word/document.xml").map({ String(decoding: $0, as: UTF8.self).containsSubstring("<w:divId") }) == true {
+            kept["word/webSettings.xml"] = web
         }
         for name in ["footnotes", "endnotes"] {
             guard let data = part("word/\(name).xml"), _wellFormed(data) else { continue }
@@ -1585,7 +1617,7 @@ enum DocxFormat {
             }
             for child in r.children {
                 switch child.name {
-                case "w:t": addText(child.text, cs)
+                case "w:t": addText(_runText(child), cs)
                 case "w:fldChar":
                     // A form checkbox has no result text: it is the box
                     // itself, shown as a glyph (form_footnotes' 29 boxes).
@@ -1831,6 +1863,19 @@ enum DocxFormat {
             spacing += " w:line=\"\(Int((s.lineSpacing * 240).rounded()))\" w:lineRule=\"auto\""
         }
         return "<w:spacing\(spacing)/>"
+    }
+
+    /// A `w:t`'s text as Word reads it: without xml:space="preserve" the
+    /// XML whitespace at either end is not text. A hand-written file's
+    /// "<w:t>Before </w:t>" joins the run after it (Bug66263-paragraph);
+    /// no-break and typographic spaces are characters and stay.
+    private static func _runText(_ t: XNode) -> String {
+        if t["xml:space"] == "preserve" { return t.text }
+        let ws: Set<Character> = [" ", "\t", "\n", "\r", "\r\n"]
+        var text = Substring(t.text)
+        while let f = text.first, ws.contains(f) { text.removeFirst() }
+        while let l = text.last, ws.contains(l) { text.removeLast() }
+        return String(text)
     }
 
     private static func _isOff(_ node: XNode) -> Bool {
@@ -2116,6 +2161,7 @@ enum DocxFormat {
             case .right: pPr += "<w:jc w:val=\"right\"/>"
             case .justify: pPr += "<w:jc w:val=\"both\"/>"
             }
+            if let div = p.style.divId, doc.keptParts["word/webSettings.xml"] != nil { pPr += "<w:divId w:val=\"\(_esc(div))\"/>" }
             // The paragraph mark's own run properties: a tracked change to
             // the mark, and — for an empty paragraph — its look, which is
             // what gives the empty line its height (Word honours it in
@@ -2527,6 +2573,9 @@ enum DocxFormat {
             case "word/commentsExtensible.xml":
                 relsXML += "<Relationship Id=\"rIdCommentsExtensible\" Type=\"http://schemas.microsoft.com/office/2018/08/relationships/commentsExtensible\" Target=\"commentsExtensible.xml\"/>"
                 extraOverrides += "<Override PartName=\"/word/commentsExtensible.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtensible+xml\"/>"
+            case "word/webSettings.xml":
+                relsXML += "<Relationship Id=\"rIdWebSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings\" Target=\"webSettings.xml\"/>"
+                extraOverrides += "<Override PartName=\"/word/webSettings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml\"/>"
             case _ where name.hasPrefix("word/theme/"):
                 relsXML += "<Relationship Id=\"rIdTheme\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"\(_esc(String(name.dropFirst(5))))\"/>"
                 extraOverrides += "<Override PartName=\"/\(_esc(name))\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>"
