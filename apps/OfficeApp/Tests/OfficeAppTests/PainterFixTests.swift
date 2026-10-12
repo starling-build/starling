@@ -344,7 +344,7 @@ final class LineHeightTests: XCTestCase {
         layout.ensureLaidOut(RichDocument(paragraphs: [p]))
         let line = layout.geometry(0).painter.height / theme.pixelsPerPoint
         XCTAssertEqual(line, 18 * 1.22, accuracy: 0.3, "Carlito (Calibri) is 1.22 of its size, as PowerPoint draws it")
-        theme.lineSpacingScale = 0.8
+        theme.lineSpacingReduction = 0.2
         let reduced = RichLayout(theme: theme, paragraphCount: 1)
         reduced.width = 400
         reduced.ensureLaidOut(RichDocument(paragraphs: [p]))
@@ -371,7 +371,7 @@ final class LineHeightTests: XCTestCase {
         let controller = DeckController()
         controller.load(state, theme: theme, package: pkg)
         let live = try XCTUnwrap(controller.slides[1].shapes.first { $0.fontScale < 1 })
-        XCTAssertEqual(live.textTheme?.lineSpacingScale ?? 1, 0.8, accuracy: 0.0001, "the theme carries it to the layout")
+        XCTAssertEqual(live.textTheme?.lineSpacingReduction ?? 0, 0.2, accuracy: 0.0001, "the theme carries it to the layout")
         let out = try XCTUnwrap(String(data: try XCTUnwrap(PptxPackage(try Zip.read(try PptxWriter.write(controller.snapshot(), theme: theme, package: pkg)))
             .parts[part]), encoding: .utf8))
         XCTAssertTrue(out.contains("lnSpcReduction=\"20000\""), out)

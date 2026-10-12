@@ -54,6 +54,8 @@ struct ShapeState: Equatable {
     var fontScale = 1.0
     var insetsFollowFont = false
     var noWrap = false
+    var columns = 1
+    var columnGap = 0.0
     var lineReduction = 0.0
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
@@ -1119,6 +1121,8 @@ final class DeckController: ChangeNotifier {
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
         st.noWrap = s.noWrap
+        st.columns = s.columns
+        st.columnGap = s.columnGap
         return st
     }
 
@@ -1195,8 +1199,10 @@ final class DeckController: ChangeNotifier {
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont
         shape.noWrap = st.noWrap
+        shape.columns = st.columns
+        shape.columnGap = st.columnGap
         shape.lineReduction = st.lineReduction
-        shape.textTheme?.lineSpacingScale = 1 - st.lineReduction
+        shape.textTheme?.lineSpacingReduction = st.lineReduction
         shape.keptLook = st.keptLook
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
     }
@@ -1279,6 +1285,8 @@ final class DeckController: ChangeNotifier {
         theme.fontFamilyResolver = OfficeFonts.substitute
         theme.marksEmptyListItems = false   // PowerPoint shows no bullet on an empty paragraph
         theme.markersAtHang = true          // and puts the bullet at marL + indent
+        theme.singleLineHeight = 1.2        // spaces lines by the size, not the face
+        theme.omitsLeadingSpace = true      // and leaves out the space before a body's first paragraph
         return theme
     }
 

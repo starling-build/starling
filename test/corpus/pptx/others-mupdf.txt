@@ -156,6 +156,7 @@ lo-shape-text-glow-effect.pptx
 lo-shape-text-rotate.pptx
 lo-slide-section-test.pptx
 lo-slide-sections.pptx
+lo-slidenum_field.pptx
 lo-smartart-accent-process.pptx
 lo-smartart-autoTxRot.pptx
 lo-smartart-autofit-sync.pptx
@@ -270,7 +271,6 @@ lo-tdf128596.pptx
 lo-tdf128684.pptx
 lo-tdf129372.pptx
 lo-tdf129686.pptx
-lo-tdf130058.pptx
 lo-tdf131390.pptx
 lo-tdf131553.pptx
 lo-tdf131554.pptx
@@ -340,7 +340,6 @@ lo-tdf151767.pptx
 lo-tdf152070.pptx
 lo-tdf152186.pptx
 lo-tdf152335.pptx
-lo-tdf152434.pptx
 lo-tdf152606.pptx
 lo-tdf153008-srcRect-smallNegBound.pptx
 lo-tdf153036_resizedConnectorL.pptx

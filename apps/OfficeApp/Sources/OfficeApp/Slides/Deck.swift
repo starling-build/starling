@@ -328,6 +328,11 @@ final class SlideShape {
     /// narrow the box — the text runs past its edges, from the side its
     /// first paragraph is aligned to. (Drawn so; the editor still wraps.)
     var noWrap = false
+    /// `bodyPr numCol`: the text runs down this many columns of the box,
+    /// filling each to the box's height before the next, `columnGap`
+    /// points (`spcCol`) apart. (Drawn so; the editor edits one column.)
+    var columns = 1
+    var columnGap = 0.0
     /// `normAutofit lnSpcReduction`: the share PowerPoint took off the
     /// line spacing to fit (0.2 = lines at 80%); the theme carries it.
     var lineReduction = 0.0

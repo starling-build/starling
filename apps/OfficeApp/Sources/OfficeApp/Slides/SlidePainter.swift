@@ -161,6 +161,20 @@ final class SlideTextCache {
             let l = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
             l.scale = scale
             l.width = w
+            if shape.columns > 1, !shape.noWrap {
+                // Columns are the layout's pages: one "page" the size of
+                // the text's room, cut into columns, each filled to the
+                // bottom before the next. (A page is in points of the
+                // layout's own scale, which the fitted size is part of.)
+                let k = pxPerPt / (theme.pixelsPerPoint * scale)
+                let room = max(1, shape.frame.height - shape.drawInsets.top - shape.drawInsets.bottom)
+                var page = PageSetup(width: w / pxPerPt * k, height: room * k, marginTop: 0, marginBottom: 0,
+                                     marginLeft: 0, marginRight: 0, gap: 0)
+                page.columns = shape.columns
+                page.columnGap = shape.columnGap * k
+                l.pageSetup = page
+                l.width = max(1, (w - shape.columnGap * pxPerPt * Double(shape.columns - 1)) / Double(shape.columns))
+            }
             l.ensureLaidOut(text.document)
             return l
         }
@@ -194,7 +208,10 @@ final class SlideTextCache {
         let top = shape.drawInsets.top * pxPerPt
         guard let layout = layout(shape, pxPerPt: pxPerPt) else { return top }
         let room = (shape.frame.height - shape.drawInsets.top - shape.drawInsets.bottom) * pxPerPt
-        let spare = room - layout.totalHeight
+        // In columns the text is as tall as its tallest column.
+        let height = layout.isPaged
+            ? layout.pieces.map { $0.reduce(0) { $0 + $1.height } }.max() ?? 0 : layout.totalHeight
+        let spare = room - height
         switch shape.anchor {
         case .top: return top
         case .middle: return top + spare / 2
