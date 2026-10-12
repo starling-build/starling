@@ -3110,7 +3110,12 @@ enum DocxFormat {
             if let kept = entry.char.keptXML { out += kept }
             out += "</w:rPr></w:style>"
         }
+        // Unless the file brought a "List Paragraph" of its own under
+        // another id: two styles of one name, and Word took ours — half an
+        // inch of left indent on every paragraph of a Ningbo regulation.
+        if !sheet.styles.contains(where: { $0.id != "ListParagraph" && $0.name.lowercased() == "list paragraph" }) {
         out += "<w:style w:type=\"paragraph\" w:styleId=\"ListParagraph\"><w:name w:val=\"List Paragraph\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:ind w:left=\"720\"/><w:contextualSpacing/></w:pPr></w:style>"
+        }
         out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>"
         // Word's default table style, as Word writes it. Without it Word
         // (in its legacy layout mode) set form_footnotes' tables 5pt to
