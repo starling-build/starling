@@ -1777,8 +1777,8 @@ final class DocxTests: XCTestCase {
         // every w:body counts (MultipleBodyBug), a w:t without
         // xml:space="preserve" loses the XML whitespace at its ends
         // (Bug66263-paragraph's runs join) while a no-break space stays,
-        // and with no styles part the paragraphs take 10pt after and 1.15
-        // lines.
+        // and with no styles part the paragraphs take Word's Normal of the
+        // day: 12pt, 8pt after, lines of 1.16.
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
         let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
         var xml = String(decoding: entries[di].data, as: UTF8.self)
@@ -1789,8 +1789,9 @@ final class DocxTests: XCTestCase {
         entries.removeAll { $0.name == "word/styles.xml" }
         let back = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertEqual(back.paragraphs.map(\.text), ["BeforeAfter\u{00A0} kept ", "Second body"])
-        XCTAssertEqual(back.paragraphs[0].style.spaceAfter, 10)
-        XCTAssertEqual(back.paragraphs[0].style.lineSpacing, 1.15, accuracy: 0.001)
+        XCTAssertEqual(back.paragraphs[0].style.spaceAfter, 8)
+        XCTAssertEqual(back.paragraphs[0].style.lineSpacing, 278.0 / 240, accuracy: 0.001)
+        XCTAssertEqual(back.styles[RichNamedStyle.normalId]?.char.fontSize, 12)
     }
 
     func testHtmlBlockReferenceKeptWithTheWebSettings() throws {

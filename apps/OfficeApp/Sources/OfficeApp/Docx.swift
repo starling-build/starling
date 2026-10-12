@@ -255,9 +255,11 @@ enum DocxFormat {
         var sheet = RichStyleSheet.word
         var base = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
         // A package with no styles part at all is laid out by Word's own
-        // Normal of the day, 10pt after and 1.15 lines — not by the bare
+        // Normal of the day — 12pt, 8pt after, lines of 1.16 (measured off
+        // Word 16's print of Bug66263-paragraph) — not by the bare
         // defaults a styles part that says nothing leaves.
-        if part("word/styles.xml") == nil { base = RichParagraphStyle(spaceAfter: 10, lineSpacing: 1.15) }
+        let noStyles = part("word/styles.xml") == nil
+        if noStyles { base = RichParagraphStyle(spaceAfter: 8, lineSpacing: 278.0 / 240) }
         var tableBases: [String: RichParagraphStyle] = [:]
         // The same over the document defaults alone, for a cell paragraph
         // whose style chain does not reach Normal.
@@ -471,6 +473,9 @@ enum DocxFormat {
                 // 2003-era default), not the 11pt of a fresh document.
                 if cs.fontSize == nil { cs.fontSize = 10 }
                 normal.char = cs
+            } else if noStyles {
+                normal.char.fontSize = 12
+                normal.char.kerningFrom = 1   // that Normal kerns, and the lines are half a percent shorter for it
             }
             sheet[RichNamedStyle.normalId] = normal
         }
