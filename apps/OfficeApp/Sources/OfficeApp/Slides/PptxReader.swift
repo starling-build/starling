@@ -1135,6 +1135,9 @@ private struct SlideContext {
         st.noWrap = text.noWrap
         st.columns = text.columns
         st.columnGap = text.columnGap
+        st.warp = text.warp
+        st.runLooks = text.runLooks
+        st.scene3d = Extrusion.read(spPr, colors: colors)
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
@@ -1824,6 +1827,8 @@ private struct SlideContext {
         /// `bodyPr numCol` and `spcCol` (points).
         var columns = 1
         var columnGap = 0.0
+        var warp: TextWarp? = nil
+        var runLooks: [[RunLook?]] = []
     }
 
     /// The master text style a placeholder (or plain shape) draws from.
@@ -1933,6 +1938,7 @@ private struct SlideContext {
             }
         }
         let shapeIndent = listIndent ?? 18
+        var runLooks: [[RunLook?]] = []
         var paragraphs: [RichParagraph] = []
         let allParagraphs = body?.all("a:p") ?? []
         for p in allParagraphs {
@@ -1985,8 +1991,10 @@ private struct SlideContext {
 
             var text = ""
             var runs: [Run] = []
-            func add(_ t: String, _ r: LevelStyle) {
+            var looks: [RunLook?] = []
+            func add(_ t: String, _ r: LevelStyle, _ rPr: XNode? = nil) {
                 guard !t.isEmpty else { return }
+                looks.append(_runLook(rPr))
                 let s = r.filled(from: level)
                 var cs = CharStyle(bold: s.bold ?? false, italic: s.italic ?? false,
                                    underline: s.underline ?? false, strikethrough: s.strike ?? false,
@@ -2000,9 +2008,9 @@ private struct SlideContext {
             }
             for child in p.children {
                 switch child.name {
-                case "a:r": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
+                case "a:r": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
                 case "a:br": add("\n", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
-                case "a:fld": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
+                case "a:fld": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
                 default: continue
                 }
             }
@@ -2016,6 +2024,17 @@ private struct SlideContext {
             } else {
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
             }
+            runLooks.append(text.isEmpty ? [nil] : looks)
+        }
+        // Looks matter only where some run has one.
+        if !runLooks.contains(where: { $0.contains { $0 != nil } }) { runLooks = [] }
+        let warp: TextWarp? = (body?.first("a:bodyPr")?.first("a:prstTxWarp")).flatMap { w in
+            guard let preset = w["prst"], preset != "textNoShape" else { return nil }
+            let adjust = (w.first("a:avLst")?.all("a:gd") ?? []).compactMap { gd -> Double? in
+                guard let f = gd["fmla"], f.hasPrefix("val ") else { return nil }
+                return Double(f.dropFirst(4))
+            }
+            return TextWarp(preset: preset, adjust: adjust, xml: PptxXML.serialize(w))
         }
         if paragraphs.isEmpty {
             var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: level0.lineMultiple ?? 1.0)
@@ -2032,7 +2051,37 @@ private struct SlideContext {
                         insetsFollowFont: body?.first("a:bodyPr")?["starling:insScale"] == "1",
                         noWrap: bodies.compactMap { $0?["wrap"] }.first == "none",
                         columns: max(1, min(16, attr("numCol").flatMap(Int.init) ?? 1)),
-                        columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0)
+                        columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0,
+                        warp: warp, runLooks: runLooks)
+    }
+
+    /// A run's WordArt look: a gradient or picture fill, no fill, an
+    /// outline. Nil for a run that is plain coloured text.
+    private func _runLook(_ rPr: XNode?) -> RunLook? {
+        guard let rPr else { return nil }
+        var look = RunLook()
+        var any = false
+        if rPr.has("a:noFill") { look.noFill = true; any = true }
+        if let g = rPr.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors), f.stops.count >= 2 {
+            look.fill = f; any = true
+        } else if let b = rPr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
+                  let rel = package.rels(part).first(where: { $0.id == rid }), !rel.external,
+                  package.parts[rel.target] != nil {
+            var f = SlideFill(image: images.attachment(rel.target, package))
+            (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
+            if b.first("a:tile") != nil || b.first("a:stretch") == nil {
+                f.tiled = true
+                let dpi = package.parts[rel.target].flatMap(PptxReader.imageDPI) ?? 144
+                f.tileScale = (b.first("a:tile")?["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
+            }
+            look.fill = f; any = true
+        }
+        if let ln = rPr.first("a:ln"), !ln.has("a:noFill"), let c = ln.first("a:solidFill").flatMap(colors.color(in:)), c.alpha > 0 {
+            look.outline = c
+            look.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
+            any = true
+        }
+        return any ? look : nil
     }
 
     // MARK: Notes

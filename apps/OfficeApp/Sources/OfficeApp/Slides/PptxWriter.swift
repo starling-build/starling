@@ -800,7 +800,7 @@ private struct SlideXML {
                 }
                 let cols = s.columns > 1 ? " numCol=\"\(s.columns)\" spcCol=\"\(Self._emu(s.columnGap))\"" : ""
                 xml += "<p:txBody><a:bodyPr wrap=\"square\"\(cols) lIns=\"\(Self._emu(ins.left))\" tIns=\"\(Self._emu(ins.top))\" "
-                    + "rIns=\"\(Self._emu(ins.right))\" bIns=\"\(Self._emu(ins.bottom))\" anchor=\"\(anchor)\" rtlCol=\"0\">\(fit)</a:bodyPr>"
+                    + "rIns=\"\(Self._emu(ins.right))\" bIns=\"\(Self._emu(ins.bottom))\" anchor=\"\(anchor)\" rtlCol=\"0\">\(s.warp?.xml ?? "")\(fit)</a:bodyPr>"
                     + "<a:lstStyle/>" + PptxText.paragraphs(doc, defaults: s, field: s.field) + "</p:txBody>"
             }
             return xml + "</p:sp>"

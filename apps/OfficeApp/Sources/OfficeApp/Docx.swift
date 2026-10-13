@@ -3037,7 +3037,20 @@ enum DocxFormat {
         // with that section's own XML: a chemicals list of three sections
         // lost the setting and showed its odd footer on every page.)
         let evenReferenced = keptHF.contains(where: { $0.element.type == "even" })
-            || document.containsSubstring("Reference r:id=") && document.range(of: "<w:(header|footer)Reference [^>]*w:type=\"even\"", options: .regularExpression) != nil
+            || document.containsSubstring("Reference r:id=") && {
+                // A header or footer reference of type "even", found by hand:
+                // a regular expression is the legacy Foundation layer, which
+                // the web build does not link.
+                for tag in ["<w:headerReference ", "<w:footerReference "] {
+                    var rest = Substring(document)
+                    while let at = rest.firstRange(of: tag) {
+                        rest = rest[at.upperBound...]
+                        let end = rest.firstIndex(of: ">") ?? rest.endIndex
+                        if String(rest[..<end]).containsSubstring("w:type=\"even\"") { return true }
+                    }
+                }
+                return false
+            }()
         var settings = doc.evenAndOddHeaders && evenReferenced
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
         // The rest of what Word lays out by, each group at its place in the

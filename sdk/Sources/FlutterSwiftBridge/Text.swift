@@ -4642,6 +4642,14 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     let decorationThickness = style.decorationThickness ?? 0.0
     let locale = NativeParagraphBuilder.encodeLocale(style.locale)
 
+    // Starling: a foreground that is more than a colour — a shader, a
+    // stroke — goes across whole, for the PushStyle below to take.
+    if let fg = style.foreground, fg.shader != nil || fg.style == .stroke {
+      fg.withDataPointer { paintData in
+        bridge.SetForegroundPaint(paintData, fg.shaderBridgePtr, fg.colorFilterBridgePtr, fg.imageFilterBridgePtr)
+      }
+    }
+
     // Call C++ bridge with encoded parameters
     fontFamilies.withCStringArray { familyPtrs in
       encodedStyle.withUnsafeBufferPointer { encodedPtr in

@@ -56,6 +56,9 @@ struct ShapeState: Equatable {
     var noWrap = false
     var columns = 1
     var columnGap = 0.0
+    var warp: TextWarp? = nil
+    var runLooks: [[RunLook?]] = []
+    var scene3d: Scene3D? = nil
     var lineReduction = 0.0
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
@@ -1123,6 +1126,9 @@ final class DeckController: ChangeNotifier {
         st.noWrap = s.noWrap
         st.columns = s.columns
         st.columnGap = s.columnGap
+        st.warp = s.warp
+        st.runLooks = s.runLooks
+        st.scene3d = s.scene3d
         return st
     }
 
@@ -1201,6 +1207,9 @@ final class DeckController: ChangeNotifier {
         shape.noWrap = st.noWrap
         shape.columns = st.columns
         shape.columnGap = st.columnGap
+        shape.warp = st.warp
+        shape.runLooks = st.runLooks
+        shape.scene3d = st.scene3d
         shape.lineReduction = st.lineReduction
         shape.textTheme?.lineSpacingReduction = st.lineReduction
         shape.keptLook = st.keptLook

@@ -409,6 +409,13 @@ final class SlidePainter: CustomPainter {
             canvas.rotate(shape.rotation * .pi / 180)
             canvas.translate(-c.dx, -c.dy)
         }
+        if let scene = shape.scene3d, scene.isFlatTurn, scene.rev != 0 {
+            // A camera that only revolves: the shape turned the other way.
+            let c = r.center
+            canvas.translate(c.dx, c.dy)
+            canvas.rotate(-scene.rev * .pi / 180)
+            canvas.translate(-c.dx, -c.dy)
+        }
         if let image = shape.picture {
             if let metafile = cache.metafile(image) {
                 // A WMF or EMF, as vectors: the whole picture placed so that
@@ -500,7 +507,19 @@ final class SlidePainter: CustomPainter {
         // (`customPath`): drawn contour by contour, each filled and stroked
         // as the definition says.
         let freeform = shape.opaque?.freeform ?? (shape.picture == nil && shape.chart == nil ? shape.customPath : nil)
-        if let freeform {
+        // A shape with depth: its solid, in place of the flat outline.
+        var solid = false
+        if shape.scene3d != nil, shape.picture == nil, shape.chart == nil, shape.opaque == nil {
+            let outline: Path
+            if let freeform { outline = Self.combinedPath(freeform, r) }
+            else if let p = shape.preset ?? shape.inheritedPreset, !p.isLine { outline = geometryPath(p, r) }
+            else { outline = Path(); outline.addRect(r) }
+            if mirrored { mirror() }
+            solid = Extrusion.paint(shape, outline: outline, r, canvas, pxPerPt: px)
+            if mirrored { canvas.restore() }
+        }
+        if solid {
+        } else if let freeform {
             if mirrored { mirror() }
             // A freeform along its own path, in the shape's fill and line.
             if let style = shape.fillStyle {
@@ -554,7 +573,7 @@ final class SlidePainter: CustomPainter {
         }
         let preset = shape.preset ?? shape.inheritedPreset
         let path: Path? = preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
-        let drawnAlready = freeform != nil
+        let drawnAlready = freeform != nil || solid
         if mirrored { mirror() }
         if let style = shape.fillStyle, !drawnAlready, shape.chart == nil, shape.picture == nil {
             // A gradient or picture fill, within the shape's outline.
@@ -585,7 +604,9 @@ final class SlidePainter: CustomPainter {
         }
         if mirrored { canvas.restore() }
         // (An empty table still has its rows' fills and borders to draw.)
-        if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
+        if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, r, canvas, pxPerPt: px, cache: cache) {
+            // WordArt: fitted to the box and bent, not laid out in it.
+        } else if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
             let ox = r.left + cache.textLeft(shape, pxPerPt: px), oy = r.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
@@ -615,49 +636,67 @@ final class SlidePainter: CustomPainter {
         canvas.restore()
     }
 
+    /// The shader of a gradient fill over `r` — under `pre` when it is
+    /// drawn through a transform of its own (a WordArt glyph's), so the
+    /// gradient stays the area's. Column-major 4×4s.
+    static func gradientShader(_ fill: SlideFill, _ r: Rect, pre: [Double]? = nil) -> Shader? {
+        guard fill.stops.count >= 2 else { return nil }
+        func mul(_ a: [Double]?, _ b: [Double]) -> [Double] {
+            guard let a else { return b }
+            var m = [Double](repeating: 0, count: 16)
+            for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { m[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k] } } }
+            return m
+        }
+        let (colors, positions) = Self.linearLight(fill.stops)
+        if let path = fill.path, r.width > 0, r.height > 0 {
+            // From the fill-to point out to the farthest corner: circles,
+            // or (rect, shape) rings in the area's own proportions — the
+            // ellipse that stands in for PowerPoint's concentric boxes.
+            // PowerPoint stretches even a "circle" to the area's
+            // proportions (themes.pptx's radial slide is lit to all four
+            // edges alike), so every kind is a circle in a space squeezed
+            // to the area's aspect — y scaled by width/height — and its
+            // rings are ellipses.
+            _ = path
+            let f = fill.fillTo
+            let c = Offset(r.left + (f.left + f.right) / 2 * r.width, r.top + (f.top + f.bottom) / 2 * r.height)
+            let corners = [Offset(r.left, r.top), Offset(r.right, r.top), Offset(r.left, r.bottom), Offset(r.right, r.bottom)]
+            let sy = r.width / r.height
+            let radius = corners.map { hypot($0.dx - c.dx, ($0.dy - c.dy) * sy) }.max() ?? 1
+            return Gradient(radial: Offset(c.dx, c.dy * sy), radius: max(1, radius), colors: colors,
+                            colorStops: positions,
+                            matrix4: mul(pre, [1, 0, 0, 0, 0, 1 / sy, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]))
+        } else {
+            let a = fill.angle * .pi / 180
+            if fill.scaled, r.width > 0, r.height > 0 {
+                // Laid out in the unit square and stretched onto the
+                // area with it.
+                let half = (abs(cos(a)) + abs(sin(a))) / 2
+                let d = Offset(cos(a) * half, sin(a) * half)
+                return Gradient(linear: Offset(0.5 - d.dx, 0.5 - d.dy), to: Offset(0.5 + d.dx, 0.5 + d.dy),
+                                colors: colors, colorStops: positions,
+                                matrix4: mul(pre, [r.width, 0, 0, 0, 0, r.height, 0, 0, 0, 0, 1, 0, r.left, r.top, 0, 1]))
+            } else {
+                let c = r.center
+                let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
+                let d = Offset(cos(a) * half, sin(a) * half)
+                if let pre {
+                    return Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
+                                    colors: colors, colorStops: positions, matrix4: pre)
+                }
+                return Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
+                                colors: colors, colorStops: positions)
+            }
+        }
+    }
+
     /// A colour, gradient or picture filling `r`.
     static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache, pxPerPt: Double = 1) {
         let p = Paint()
         p.style = .fill
         p.color = fill.color ?? Color(0xFFFFFFFF)
-        if fill.stops.count >= 2 {
-            let (colors, positions) = Self.linearLight(fill.stops)
-            if let path = fill.path, r.width > 0, r.height > 0 {
-                // From the fill-to point out to the farthest corner: circles,
-                // or (rect, shape) rings in the area's own proportions — the
-                // ellipse that stands in for PowerPoint's concentric boxes.
-                // PowerPoint stretches even a "circle" to the area's
-                // proportions (themes.pptx's radial slide is lit to all four
-                // edges alike), so every kind is a circle in a space squeezed
-                // to the area's aspect — y scaled by width/height — and its
-                // rings are ellipses.
-                _ = path
-                let f = fill.fillTo
-                let c = Offset(r.left + (f.left + f.right) / 2 * r.width, r.top + (f.top + f.bottom) / 2 * r.height)
-                let corners = [Offset(r.left, r.top), Offset(r.right, r.top), Offset(r.left, r.bottom), Offset(r.right, r.bottom)]
-                let sy = r.width / r.height
-                let radius = corners.map { hypot($0.dx - c.dx, ($0.dy - c.dy) * sy) }.max() ?? 1
-                p.shader = Gradient(radial: Offset(c.dx, c.dy * sy), radius: max(1, radius), colors: colors,
-                                    colorStops: positions,
-                                    matrix4: [1, 0, 0, 0, 0, 1 / sy, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
-            } else {
-                let a = fill.angle * .pi / 180
-                if fill.scaled, r.width > 0, r.height > 0 {
-                    // Laid out in the unit square and stretched onto the
-                    // area with it.
-                    let half = (abs(cos(a)) + abs(sin(a))) / 2
-                    let d = Offset(cos(a) * half, sin(a) * half)
-                    p.shader = Gradient(linear: Offset(0.5 - d.dx, 0.5 - d.dy), to: Offset(0.5 + d.dx, 0.5 + d.dy),
-                                        colors: colors, colorStops: positions,
-                                        matrix4: [r.width, 0, 0, 0, 0, r.height, 0, 0, 0, 0, 1, 0, r.left, r.top, 0, 1])
-                } else {
-                    let c = r.center
-                    let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
-                    let d = Offset(cos(a) * half, sin(a) * half)
-                    p.shader = Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
-                                        colors: colors, colorStops: positions)
-                }
-            }
+        if let shader = Self.gradientShader(fill, r) {
+            p.shader = shader
             // The paint's own alpha scales the shader: a first stop that is
             // transparent must not make the whole gradient so.
             p.color = Color(0xFFFFFFFF)

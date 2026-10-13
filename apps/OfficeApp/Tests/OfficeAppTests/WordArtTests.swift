@@ -1,0 +1,85 @@
+import XCTest
+import Flutter
+import FlutterSwiftBridge
+@testable import OfficeApp
+
+/// WordArt (`prstTxWarp`, a run's gradient and outline) and shapes with
+/// depth (`scene3d`, `sp3d`): what is read of them, and what goes back.
+final class WordArtTests: XCTestCase {
+    private let ns = "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
+    private var colors: ColorContext {
+        var t = PptxTheme(nil)
+        t.colors = ["dk1": Color(0xFF000000), "lt1": Color(0xFFFFFFFF), "accent1": Color(0xFF4472C4)]
+        return ColorContext(theme: t)
+    }
+
+    /// The sample deck with its second slide's first body rewritten by `edit`.
+    private func deck(_ edit: (inout String) throws -> Void) throws -> (DeckState, DeckTheme, PptxPackage) {
+        var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        let part = "ppt/slides/slide2.xml"
+        var slide = try XCTUnwrap(String(data: try XCTUnwrap(package.parts[part]), encoding: .utf8))
+        try edit(&slide)
+        package.parts[part] = Data(slide.utf8)
+        return try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+    }
+
+    func testABodysWarpIsReadAndWrittenBack() throws {
+        let warp = "<a:prstTxWarp prst=\"textInflate\"><a:avLst><a:gd name=\"adj\" fmla=\"val 20000\"/></a:avLst></a:prstTxWarp>"
+        let (state, theme, pkg) = try deck { slide in
+            let fit = try XCTUnwrap(slide.range(of: "<a:normAutofit"))
+            slide.insert(contentsOf: warp, at: fit.lowerBound)
+        }
+        let shape = try XCTUnwrap(state.slides[1].shapes.first { $0.warp != nil })
+        XCTAssertEqual(shape.warp?.preset, "textInflate")
+        XCTAssertEqual(shape.warp?.adjust ?? [], [20000])
+        let out = try PptxWriter.write(state, theme: theme, package: pkg)
+        let again = try Pptx.read(out).0
+        XCTAssertEqual(again.slides[1].shapes.first { $0.warp != nil }?.warp?.preset, "textInflate")
+    }
+
+    func testNoShapeIsNoWarp() throws {
+        let (state, _, _) = try deck { slide in
+            let fit = try XCTUnwrap(slide.range(of: "<a:normAutofit"))
+            slide.insert(contentsOf: "<a:prstTxWarp prst=\"textNoShape\"><a:avLst/></a:prstTxWarp>", at: fit.lowerBound)
+        }
+        XCTAssertNil(state.slides[1].shapes.first { $0.warp != nil })
+    }
+
+    func testTheBendsKeepTheirEdges() throws {
+        // Inflate: its ends drawn in by the adjust, its middle the whole height.
+        let inflate = try XCTUnwrap(WordArt.envelope(TextWarp(preset: "textInflate", adjust: [20000], xml: "")))
+        XCTAssertEqual(inflate(0).top, 0.2, accuracy: 1e-9)
+        XCTAssertEqual(inflate(0.5).top, 0, accuracy: 1e-9)
+        XCTAssertEqual(inflate(0.5).bottom, 1, accuracy: 1e-9)
+        // A wave is as tall everywhere, and ends where it began.
+        let wave = try XCTUnwrap(WordArt.envelope(TextWarp(preset: "textWave1", adjust: [], xml: "")))
+        for u in [0.0, 0.25, 0.6, 1.0] { XCTAssertEqual(wave(u).bottom - wave(u).top, 0.75, accuracy: 1e-9) }
+        XCTAssertEqual(wave(0).top, wave(1).top, accuracy: 1e-9)
+        XCTAssertNil(WordArt.envelope(TextWarp(preset: "textRingInside", adjust: [], xml: "")))
+        XCTAssertTrue(WordArt.draws(TextWarp(preset: "textArchUp", adjust: [], xml: "")))
+    }
+
+    func testADepthAndACameraAreRead() throws {
+        func scene(_ inner: String) -> Scene3D? {
+            Extrusion.read(XNode.parse(Data("<p:spPr xmlns:p=\"p\" \(ns)>\(inner)</p:spPr>".utf8)), colors: colors)
+        }
+        let iso = try XCTUnwrap(scene("<a:scene3d><a:camera prst=\"isometricRightUp\"/></a:scene3d><a:sp3d extrusionH=\"457200\"/>"))
+        XCTAssertEqual(iso.depth, 36, accuracy: 1e-9)
+        XCTAssertEqual(iso.lon, 315, accuracy: 1e-9)
+        XCTAssertNil(iso.oblique)
+        // The file's own rotation beats the preset's.
+        let turned = try XCTUnwrap(scene("<a:scene3d><a:camera prst=\"isometricRightUp\"><a:rot lat=\"0\" lon=\"600000\" rev=\"0\"/></a:camera></a:scene3d><a:sp3d extrusionH=\"457200\"/>"))
+        XCTAssertEqual(turned.lon, 10, accuracy: 1e-9)
+        XCTAssertEqual(turned.lat, 0, accuracy: 1e-9)
+        // An oblique camera slides the back toward the side it is named for.
+        let oblique = try XCTUnwrap(scene("<a:scene3d><a:camera prst=\"obliqueTopLeft\"/></a:scene3d><a:sp3d extrusionH=\"914400\" prstMaterial=\"legacyWireframe\"/>"))
+        XCTAssertLessThan(try XCTUnwrap(oblique.oblique).dx, 0)
+        XCTAssertLessThan(try XCTUnwrap(oblique.oblique).dy, 0)
+        XCTAssertTrue(oblique.wireframe)
+        // Square on, a solid is its own front; a camera that only revolves
+        // a flat shape turns it in its plane.
+        XCTAssertNil(scene("<a:scene3d><a:camera prst=\"orthographicFront\"/></a:scene3d><a:sp3d extrusionH=\"457200\"/>"))
+        XCTAssertEqual(scene("<a:scene3d><a:camera prst=\"orthographicFront\"><a:rot lat=\"0\" lon=\"0\" rev=\"5400000\"/></a:camera></a:scene3d>")?.isFlatTurn, true)
+        XCTAssertNil(scene("<a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill>"))
+    }
+}

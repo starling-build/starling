@@ -21,6 +21,7 @@ enum SlidesPdf {
             for s in slide.shapes {
                 if let i = s.picture { images.append(i) }
                 if let i = s.fillStyle?.image { images.append(i) }
+                for look in s.runLooks.joined() { if let i = look?.fill?.image { images.append(i) } }
                 for sub in s.rendered {
                     if let i = sub.picture { images.append(i) }
                     if let i = sub.fillStyle?.image { images.append(i) }

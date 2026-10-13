@@ -424,6 +424,57 @@ layout's page geometry and were not looked at on screen; autofit does not
 know about columns; lo-tdf169524 (+0.3) spaces its lines at 1.08 of the
 size by something not found.
 
+**WordArt and shapes with depth, 2026-10-12** (sweep 34, Linux and MuPDF:
+2.57 → 2.41%, ≤2% 396 → 400, over 20% 8 → 6; 20 decks down, six up by
+0.1 to 2.2).
+
+- **WordArt** (`Slides/WordArt.swift`): a body with a `prstTxWarp` is
+  fitted to its box and bent, where it was laid out flat at its own
+  size. The envelope bends (plain and its slant, inflate, deflate and
+  their halves, the waves, can, triangle, chevron, slant,
+  deflate-inflate) stretch every line across the box between two
+  curves; arch, circle and button set each line along the box's ellipse
+  at its own size. There are no glyph outlines to bend, so a character
+  is drawn through the affine map of its own cell — exact along a path,
+  and for the bends a letter leans and rides the curve without itself
+  curving. Not drawn (laid out as before): ring, the curves, fade,
+  stop, cascade and the rest.
+- **A run's gradient or picture fill and its outline** (`a:rPr`'s
+  `gradFill`, `blipFill`, `ln`) are read (`RunLook`, by run position)
+  and drawn in WordArt, the fill as one across the whole word. This
+  needed the engine: a text style's foreground crossed the bridge as a
+  colour only. `ParagraphBuilderBridge::SetForegroundPaint` hands the
+  next `PushStyle` a whole paint — shader, stroke — on the native
+  bridge and the web one; and an `ImageShader` takes a raster image,
+  which a headless export's decoded pictures are (it took only
+  "UI-thread-safe" ones, so never one of those).
+- **Shapes with depth** (`Slides/Extrusion.swift`): `a:sp3d
+  extrusionH` under `a:scene3d`'s camera is drawn as the solid — the
+  outline swept back, turned by the camera's latitude, longitude and
+  revolution (the preset's, or the file's `a:rot`), its sides drawn far
+  to near in the extrusion colour, else the outline's, else the
+  fill's, lit by how they face. Oblique cameras slide the back aside
+  instead (a fifth of the depth, measured), the legacy perspective
+  ones draw it in toward a point as well, `legacyWireframe` is edges
+  only, and a camera that only revolves a flat shape turns it in its
+  plane. The outlines land on PowerPoint's (isometricRightUp 10.7 →
+  4.1, wireframe 25.7 → 0.7, orthographicFront 12.7 → 0.7, the
+  highlight rings 29.8 → 14.0). What it is not: bevels, materials,
+  light rigs — one fixed light — or true perspective for the modern
+  perspective cameras, which are drawn parallel.
+
+The pixel score is a poor judge of WordArt: large letters a few pixels
+from PowerPoint's cost more than small flat ones nowhere near
+(WordArtDefaultColor 6.3 → 8.5 with the slant now drawn, Arial Black
+standing in as Liberation Sans). Those six are up for that.
+
+Left: the bends above not drawn; the text of a 3D shape is drawn flat
+over the solid; a deck's saved copy keeps the warp but not a run's
+gradient or outline (they were never written); none of this was looked at in the
+editor, on screen; lo-tdf146223's 2×2
+JPEG backgrounds, which PowerPoint prints as one flat grey and this app
+as four pixels — the file is a LibreOffice regression case, left alone.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
