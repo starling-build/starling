@@ -98,6 +98,14 @@ public enum Win32WindowedHost {
         // scheduleFrame on this embedder; the embedder-API redraw (the same
         // call a resize makes) does. See hostScheduleEngineFrame.
         hostScheduleEngineFrame = { Win32WindowedHost.host?.requestRedraw() }
+        // The caption follows the app (a document's name, its unsaved mark),
+        // as on the Cocoa and web hosts.
+        hostSetWindowTitle = { title in
+            guard let handle = Win32WindowedHost.host?.windowHandle, handle != 0 else { return }
+            title.withCString(encodedAs: UTF16.self) { text in
+                _ = SetWindowTextW(HWND(bitPattern: UInt(handle)), text)
+            }
+        }
         hostPeriodicTimerInstall = { seconds, tick in
             // The Win32 host drains GCD's main queue from its message loop
             // (see flwin32_host.c), so unlike the GTK path a plain
