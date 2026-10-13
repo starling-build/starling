@@ -2067,6 +2067,18 @@ public final class RichLayout {
                 }
             }
         }
+        // The space two paragraphs share is the upper one's to give up:
+        // where contextual spacing takes its space after away, what of
+        // this one's space before lay over it goes with it (a title with
+        // contextual spacing, then an empty paragraph with 14pt before:
+        // nothing between them in Word's print, 2026-10-13).
+        if theme.wordRules, theme.collapsesParagraphSpacing, !document.addsParagraphSpacing, i > 0, p.cell == nil,
+           i - 1 < document.paragraphs.count, document.paragraphs[i - 1].cell == nil {
+            let a = document.paragraphs[i - 1].style
+            if a.contextualSpacing, a.named == style.named, a.heading == style.heading, a.list == style.list {
+                spaceBefore = max(0, spaceBefore - spaceAfter(a))
+            }
+        }
         return (skipBefore ? 0 : _px(spaceBefore), skipAfter ? 0 : _px(spaceAfter(style)))
     }
 
@@ -2568,6 +2580,27 @@ public final class RichLayout {
         /// A run's text as spans, East Asian stretches apart from the
         /// rest: each is set in its own face of the run (Word's
         /// `w:eastAsia` and `w:ascii`) at that face's line height.
+        // The size that sets the lines' height, as Word has it: the
+        // tallest character that is not a space — a run of 20pt spaces
+        // in 18pt text adds nothing — and the paragraph mark's where
+        // there are only spaces (prints of 2026-10-13: three 20pt spaces
+        // under an 18pt mark are a line of 30.9pt, under a 14pt mark of
+        // 23.9, and 18pt spaces under a 20pt mark of 34.2).
+        let lineSize: (size: Double, blank: Bool)? = {
+            guard theme.wordRules, p.text.utf16.contains(0x20) else { return nil }
+            let normal = _normalChar(document)
+            func size(_ c: CharStyle?) -> Double { c?.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? theme.fontSize }
+            var best: Double? = nil
+            var at = p.text.utf16.startIndex
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+                if run.style.inlineImage != nil { return nil }
+                if p.text.utf16[at ..< end].contains(where: { $0 != 0x20 }) { best = max(best ?? 0, size(run.style)) }
+                at = end
+            }
+            if let best { return (best, false) }
+            return (size(p.style.mark), true)
+        }()
         func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil) -> [TextSpan] {
             let latinFace = theme.wordRules ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, false) : nil
             let hinted = (run.fontHint ?? named?.char.fontHint) == "eastAsia" || (latinFace?.isEastAsian ?? false)
@@ -2595,6 +2628,18 @@ public final class RichLayout {
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
+                // (A run of spaces alone takes the line's height, not its own.)
+                if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " }), let px = s.fontSize, px > 0.5, s.height != nil {
+                    let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01) {
+                        var sized = run
+                        sized.fontSize = lineSize.size
+                        let r = theme.textStyle(for: sized, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                                eastAsian: kind < 0, gridPitch: pitch, characterClass: classed && kind >= 0 ? kind : nil,
+                                                characterGrid: grid, scriptHidden: true)
+                        if let rs = r.fontSize, let rh = r.height { s = s.copyWith(height: rs * rh / px) }
+                    }
+                }
                 styles[kind] = s
                 return s
             }

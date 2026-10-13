@@ -1509,6 +1509,16 @@ fitter dropped the paragraph's tail).
   empty paragraph and a heading, all with automatic spacing, stand
   20pt further apart than in Word.
 
+- **Spaces set no line's height.** A line is as tall as its tallest
+  character that is not a space, and a line of nothing but spaces as
+  tall as the paragraph mark: three 20pt spaces under an 18pt mark
+  are a line of 30.9pt, under a 14pt mark 23.9, and 18pt spaces under
+  a 20pt mark 34.2. A run of spaces alone is laid out at the line's
+  height here now. And the space two paragraphs share is the upper
+  one's to give up: where contextual spacing drops its space after,
+  what of the next one's space before lay over it goes too.
+  zh-33aa9899 32% -> 82%, zh-ae655121 84% -> 94%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
