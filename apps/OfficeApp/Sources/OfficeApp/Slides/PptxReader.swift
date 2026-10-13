@@ -40,7 +40,7 @@ struct PptxPackage: Equatable {
         var parts: [String: Data] = [:]
         for e in entries { parts[e.name] = e.data }
         self.parts = parts
-        if let ct = parts["[Content_Types].xml"].flatMap(XNode.parseFast) {
+        if let ct = parts["[Content_Types].xml"].flatMap(XNode.parse) {
             for o in ct.all("Override") {
                 if let name = o["PartName"], let type = o["ContentType"] {
                     overrides[String(name.drop { $0 == "/" })] = type
@@ -52,7 +52,7 @@ struct PptxPackage: Equatable {
         }
     }
 
-    func xml(_ part: String) -> XNode? { parts[part].flatMap(XNode.parseFast) }
+    func xml(_ part: String) -> XNode? { parts[part].flatMap(XNode.parse) }
 
     func contentType(_ part: String) -> String? {
         overrides[part] ?? defaults[(part.split(separator: ".").last.map(String.init) ?? "").lowercased()]

@@ -5,11 +5,11 @@ import XCTest
 @testable import OfficeApp
 
 /// This app's own XML reader against the system's: Slides reads every
-/// part through it (XNode.parseFast), and the browser build has no other.
+/// part through it (XNode.parse), and the browser build has no other.
 final class XmlReaderTests: XCTestCase {
     private func same(_ xml: String, file: StaticString = #filePath, line: UInt = #line) {
         let data = Data(xml.utf8)
-        guard let system = XNode.parse(data), let own = MiniXML.parse([UInt8](data)) else {
+        guard let system = XNode.parseSystem(data), let own = MiniXML.parse([UInt8](data)) else {
             return XCTFail("did not parse", file: file, line: line)
         }
         XCTAssertEqual(PptxXML.serialize(own), PptxXML.serialize(system), file: file, line: line)
@@ -48,14 +48,23 @@ final class XmlReaderTests: XCTestCase {
         for u in "<?xml version=\"1.0\" encoding=\"UTF-16\"?><a v=\"é\"><t>日本</t></a>".utf16 {
             utf16.append(UInt8(u & 0xFF)); utf16.append(UInt8(u >> 8))
         }
-        let root = XNode.parseFast(utf16)
+        let root = XNode.parse(utf16)
         XCTAssertEqual(root?["v"], "é")
         XCTAssertEqual(root?.first("t")?.text, "日本")
         // And a declared single-byte encoding.
         var latin = Data("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><a v=\"".utf8)
         latin.append(0xE9)
         latin.append(contentsOf: Data("\"/>".utf8))
-        XCTAssertEqual(XNode.parseFast(latin)?["v"], "é")
+        XCTAssertEqual(XNode.parse(latin)?["v"], "é")
+    }
+
+    func testAPartWithADocumentTypeGoesToTheSystemsParser() {
+        // An entity the part defines is the system's business — it drops
+        // the reference, where this app's reader would leave "&who;" in
+        // the text — so such a part reads as it always did.
+        let data = Data("<?xml version=\"1.0\"?>\n<!DOCTYPE a [ <!ENTITY who \"world\"> ]>\n<a><t>hello &who;</t></a>".utf8)
+        XCTAssertEqual(XNode.parse(data)?.first("t")?.text, XNode.parseSystem(data)?.first("t")?.text)
+        XCTAssertNotEqual(MiniXML.parse([UInt8](data))?.first("t")?.text, XNode.parseSystem(data)?.first("t")?.text)
     }
 
     func testSerializingIsWhatItWas() {
