@@ -280,10 +280,10 @@ final class SlideShowState: State<StatefulWidget>, TickerProvider {
         }
         let nextIndex = _at + 1 < _order.count ? _order[_at + 1] : nil
         let next: Widget = nextIndex.map { i in
-            AspectRatio(aspectRatio: deck.slideSize.width / deck.slideSize.height, child: CustomPaint(
+            AspectRatio(aspectRatio: deck.slideSize.width / deck.slideSize.height, child: ClipRect(child: CustomPaint(
                 painter: SlidePainter(slide: deck.slides[i], theme: deck.theme, slideSize: deck.slideSize,
                                       revision: deck.revision, cache: _cache, placeholders: false),
-                child: SizedBox(expand: ())))
+                child: SizedBox(expand: ()))))
         } ?? label("End of slide show", 16, dim)
         let remaining = _at < _order.count ? max(0, _plan.groups.count - _played) : 0
         let notes = _at < _order.count ? deck.slides[_order[_at]].notes.document.plainText() : ""

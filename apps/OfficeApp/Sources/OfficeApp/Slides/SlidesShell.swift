@@ -77,6 +77,14 @@ final class SlidesShellState: State<StatefulWidget> {
     /// pointer's start, and where it would land.
     private var _thumbDrag: (from: Int, startY: Double, startX: Double, to: Int, moved: Bool)? = nil
     private let _thumbMenu = FlyoutController()
+    /// The thumbnail pane's scroll, and the slide it was last brought to:
+    /// the pane follows the current slide when that changes (arrow keys, a
+    /// show that ended elsewhere, Find), and is left alone otherwise so the
+    /// wheel can look around.
+    private let _thumbScroll = ScrollController()
+    private var _thumbShown = -1
+    private var _thumbRetries = 0
+    private var _thumbPosition: ObjectIdentifier? = nil
     /// Double-click in the sorter, detected by hand: registering
     /// onDoubleTap kills taps on the DRM embedder (CLAUDE.md).
     private var _lastSorterTap: (index: Int, at: Date)? = nil
@@ -139,6 +147,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _deckFocus.dispose()
         _notesFocus.dispose()
         _search.dispose()
+        _thumbScroll.dispose()
         super.dispose()
     }
 
@@ -1076,6 +1085,9 @@ final class SlidesShellState: State<StatefulWidget> {
         let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
         let thumbW = 168.0
         let thumbH = (thumbW * deck.slideSize.height / deck.slideSize.width).rounded()
+        // A row: the frame (5 for its border and padding), an insertion
+        // line above and below (3 each), 3 of padding each side.
+        _revealThumbnail(itemHeight: thumbH + 17)
         var items: [Widget] = []
         for (i, slide) in deck.slides.enumerated() {
             let current = i == deck.current
@@ -1087,10 +1099,13 @@ final class SlidesShellState: State<StatefulWidget> {
                     width: current ? 2.5 : 1)),
                 child: Padding(padding: EdgeInsets(all: current ? 1 : 2.5), child: SizedBox(
                     width: thumbW, height: thumbH,
-                    child: Opacity(opacity: slide.hidden ? 0.45 : 1, child: CustomPaint(
+                    // Clipped to the thumbnail: a picture reaching past the
+                    // slide's edge was painted over the next thumbnail and
+                    // out of the pane.
+                    child: ClipRect(child: Opacity(opacity: slide.hidden ? 0.45 : 1, child: CustomPaint(
                         painter: SlidePainter(slide: slide, theme: deck.theme, slideSize: deck.slideSize,
                                               revision: deck.revision, cache: _cache),
-                        child: SizedBox(expand: ()))))))
+                        child: SizedBox(expand: ())))))))
             // The insertion line while a thumbnail is dragged over this slot.
             let dropHere = _thumbDrag.map { $0.moved && $0.to == i && $0.to != $0.from } ?? false
             let dropAbove = dropHere && (_thumbDrag!.to < _thumbDrag!.from)
@@ -1123,9 +1138,46 @@ final class SlidesShellState: State<StatefulWidget> {
             decoration: BoxDecoration(
                 color: fluent.resources.solidBackgroundFillColorBase,
                 border: Border(right: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
-            child: SingleChildScrollView(child: Padding(
+            child: SingleChildScrollView(controller: _thumbScroll, child: Padding(
                 padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 12),
                 child: Column(crossAxisAlignment: .start, children: items)))))
+    }
+
+    /// Scroll the thumbnail pane so the current slide's thumbnail is in
+    /// view — after the frame that laid the pane out, when its extent is
+    /// known. `itemHeight` is one thumbnail's row.
+    private func _revealThumbnail(itemHeight: Double) {
+        let current = deck.current
+        FrameCallbackScheduler.shared.addPostFrameCallback { [weak self] _ in
+            guard let self, self._thumbScroll.hasClients else { return }
+            let pos = self._thumbScroll.position
+            // A pane mounted afresh starts at the top whatever was shown
+            // before, and that happens whenever something is laid over the
+            // window (a show, Backstage, a dialog: the window moves into a
+            // Stack and its subtree remounts). So the scroll position's
+            // identity counts as well as the slide's index.
+            let mounted = ObjectIdentifier(pos)
+            guard current != self._thumbShown || mounted != self._thumbPosition else { return }
+            let top = 6 + Double(current) * itemHeight
+            let bottom = top + itemHeight
+            var target = pos.pixels
+            if top < target { target = top - 6 }
+            else if bottom > target + pos.viewportDimension { target = bottom - pos.viewportDimension + 6 }
+            // Should a pane just mounted not have its extent yet, scrolling
+            // would clamp to the top and count as done: look again next
+            // frame rather than settle for that.
+            let content = 18 + Double(self.deck.slides.count) * itemHeight
+            if pos.maxScrollExtent <= 0, content > pos.viewportDimension, self._thumbRetries < 5 {
+                self._thumbRetries += 1
+                self.setState {}
+                return
+            }
+            self._thumbRetries = 0
+            self._thumbShown = current
+            self._thumbPosition = mounted
+            target = min(max(0, target), pos.maxScrollExtent)
+            if abs(target - pos.pixels) > 0.5 { self._thumbScroll.jumpTo(target) }
+        }
     }
 
     private func _thumbDown(_ index: Int, _ e: PointerDownEvent, context: any BuildContext) {
@@ -1214,10 +1266,10 @@ final class SlidesShellState: State<StatefulWidget> {
                             width: current ? 3 : 1)),
                         child: Padding(padding: EdgeInsets(all: current ? 1 : 3), child: SizedBox(
                             width: w, height: h,
-                            child: Opacity(opacity: slide.hidden ? 0.45 : 1, child: CustomPaint(
+                            child: ClipRect(child: Opacity(opacity: slide.hidden ? 0.45 : 1, child: CustomPaint(
                                 painter: SlidePainter(slide: slide, theme: deck.theme, slideSize: deck.slideSize,
                                                       revision: deck.revision, cache: _cache),
-                                child: SizedBox(expand: ())))))),
+                                child: SizedBox(expand: ()))))))),
                     Chrome.vgap(4),
                     Text("\(i + 1)\(slide.hidden ? "  (hidden)" : "")", style: fluent.typography.caption),
                 ]))))
