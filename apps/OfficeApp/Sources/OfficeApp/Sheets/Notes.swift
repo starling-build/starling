@@ -360,7 +360,7 @@ final class NoteEditorState: State<StatefulWidget> {
         return FlyoutContent(child: SizedBox(width: 260, height: nil, child: Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: [
             Text("Note", style: fluent.typography.bodyStrong),
             Chrome.gap(6),
-            SizedBox(width: nil, height: 110, child: FluentTextBox(controller: _text, placeholderText: "Type a note", maxLines: 6)),
+            SizedBox(width: nil, height: 110, child: FluentTextBox(controller: _text, placeholderText: "Type a note", maxLines: 6, autofocus: true)),
             Chrome.gap(8),
             Row(mainAxisAlignment: .end, children: [
                 FilledButton(onPressed: { save(text.text) }, child: Text("Save")),

@@ -291,7 +291,26 @@ final class SheetGridState: State<StatefulWidget> {
                             hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
             cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
-            rows = GridAxis(def: ws.defaultRowHeightPt, overrides: ws.rowHeights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
+            // A row nobody sized is as tall as its wrapped text, as Excel
+            // fits it when Wrap Text goes on or the text changes. It was
+            // fitted on paper only: on screen a wrapped cell kept its one
+            // line's height and showed the last line of its text alone
+            // (seen 2026-10-13).
+            var heights = ws.rowHeights
+            let book = controller.book
+            let wrapping = Set(book.styles.indices.filter { book.styles[$0].wrap })
+            if !wrapping.isEmpty {
+                for (a, cell) in ws.cells where wrapping.contains(cell.style) && ws.rowHeights[a.row] == nil && cell.value.isText {
+                    if ws.merges.contains(where: { $0.contains(a) }) { continue }
+                    let st = book.style(cell.style)
+                    let width = cols.size(a.col) - 4 * zoom
+                    guard width > 4 else { continue }
+                    let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+                    let tall = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000)), maxWidth: width).height / scale + 1.5
+                    if tall > ws.defaultRowHeightPt, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
+                }
+            }
+            rows = GridAxis(def: ws.defaultRowHeightPt, overrides: heights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         }
         _axisCache = (id, ws.layoutVersion, scale, printing, cols, rows)
         return (cols, rows)
@@ -327,6 +346,9 @@ final class SheetGridState: State<StatefulWidget> {
             scrollX = 0; scrollY = 0
             if edit != nil { cancelEdit() }
         }
+        // (Rows fitted to wrapped text follow the text: a cell's value or
+        // its style changing is no change of the sheet's sizes.)
+        if controller.book.styles.contains(where: { $0.wrap }) { _axisCache = nil }
         _repaint.notifyListeners()
     }
 
