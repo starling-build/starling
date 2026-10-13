@@ -224,7 +224,14 @@ public final class RichEditableState: State<StatefulWidget> {
         _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         _layout.spellChecker = _w.spellChecker
         _painter = _RichEditablePainter(state: self, repaint: _repaint)
-        _controller.addListener(_onControllerChanged)
+        // Under an owner, not bare: a bare removeListener takes the most
+        // recently added one, and when this editor is remounted (its
+        // ancestor moved into a Stack — Office's Backstage opening and
+        // closing) the new state subscribes BEFORE the old one is disposed.
+        // The old state's dispose then took the new state's listener, and
+        // the page stopped following the document: typing changed the text
+        // and the word count, and nothing was redrawn.
+        _controller.addListener({ [weak self] in self?._onControllerChanged() }, owner: self)
         SystemFontsNotifier.shared.addListener({ [weak self] in
             guard let self else { return }
             self._layout.invalidateAll()
@@ -241,9 +248,9 @@ public final class RichEditableState: State<StatefulWidget> {
         super.didUpdateWidget(oldWidget)
         let old = oldWidget as! RichEditable
         if old.controller !== _w.controller {
-            old.controller.removeListener(_onControllerChanged)
+            old.controller.removeListeners(owner: self)
             _controller = _w.controller
-            _controller.addListener(_onControllerChanged)
+            _controller.addListener({ [weak self] in self?._onControllerChanged() }, owner: self)
             _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
             _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         } else if old.theme !== _w.theme {
@@ -259,7 +266,7 @@ public final class RichEditableState: State<StatefulWidget> {
     public override func dispose() {
         _blinkGeneration += 1
         SystemFontsNotifier.shared.removeListeners(owner: self)
-        _controller.removeListener(_onControllerChanged)
+        _controller.removeListeners(owner: self)
         _textInput?.detach()
         _ownedFocus?.dispose()
         super.dispose()
