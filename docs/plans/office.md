@@ -1457,6 +1457,17 @@ fitter dropped the paragraph's tail).
   ended a line early on every page. zh-8e8d4c40 27.5% -> 87.6% with
   the two.
 
+- **A table as wide as it says.** A table wider than its column was
+  scaled down to it. Word keeps the width the table states
+  (`w:tblW` in twips or per cent — 107% is 107%), out past the
+  margin, and its indent sets it left: forms 482pt wide in a 439pt
+  column lost a character a line in every cell. Sample: mean 60.6%
+  -> 64.6%, median 76.3%; zh-a7728bc9 11 -> 98, zh-06f6a036 19 ->
+  97, zh-3a2eba04 31 -> 96. Two fell (zh-0aac9d1a, zh-abe7e063):
+  autofit tables Word re-fits by what is in the cells — a first
+  column two characters wide where the file says 67pt — which
+  neither width is; that fitting is the next thing tables need.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

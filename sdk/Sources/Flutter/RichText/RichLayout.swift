@@ -968,8 +968,12 @@ public final class RichLayout {
                 let sum = pts.reduce(0, +)
                 var scale = sum > 0 && _px(sum) > width ? width / _px(sum) : 1
                 if sum > 0, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table] {
-                    if let pct = ts.widthPercent { scale = min(width, width * pct / 100) / _px(sum) }
-                    else if let w = ts.width { scale = min(width, _px(w)) / _px(sum) }
+                    // (A width the table states is its width, past the
+                    // margin too where Word's rules are followed: a form
+                    // 482pt wide in a 439pt column, set out to the left by
+                    // its indent, keeps its columns.)
+                    if let pct = ts.widthPercent { scale = (theme.wordRules ? width * pct / 100 : min(width, width * pct / 100)) / _px(sum) }
+                    else if let w = ts.width { scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum) }
                 }
                 widths[c.table] = pts.map { (_px($0) * scale).rounded(.down) }
             } else {
