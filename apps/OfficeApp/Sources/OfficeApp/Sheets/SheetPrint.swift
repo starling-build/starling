@@ -126,8 +126,16 @@ enum SheetPrintLayout {
         // frame touches — the one its far corner only reaches the edge of
         // too, which is the cell Excel's anchor names for that corner.
         for d in ws.drawings where !d.hidden {
-            let f = ws.frame(d.anchor)
+            var f = ws.frame(d.anchor)
             guard f.width > 0, f.height > 0 else { continue }
+            // A turned shape covers what its turned outline covers, which is
+            // not what its anchor spans.
+            if case .shape(let shape) = d.kind, shape.rotation != 0 {
+                let r = shape.unturned(Rect.fromLTWH(f.x, f.y, f.width, f.height))
+                let a = shape.rotation * .pi / 180
+                let w = abs(r.width * cos(a)) + abs(r.height * sin(a)), h = abs(r.width * sin(a)) + abs(r.height * cos(a))
+                f = (max(0, r.center.dx - w / 2), max(0, r.center.dy - h / 2), w, h)
+            }
             let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
             take(a.row, a.col); take(b.row, b.col)
         }
