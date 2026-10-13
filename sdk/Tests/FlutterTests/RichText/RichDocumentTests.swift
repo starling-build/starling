@@ -901,6 +901,18 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs.map(\.text), ["intro"])
     }
 
+    func testFindWrapsWithoutRunningOffTheParagraph() {
+        // The caret at the end of the last paragraph, a query longer than
+        // what is left of it: the wrap-around pass used to index past the
+        // end ("String index range is out of bounds").
+        let c = controller("alpha beta")
+        c.moveToDocumentEnd(extend: false)
+        XCTAssertNil(c.find("nowhere to be found"))
+        let hit = c.find("alpha")
+        XCTAssertEqual(hit?.start, RichPosition(paragraph: 0, offset: 0))
+        XCTAssertEqual(hit?.end, RichPosition(paragraph: 0, offset: 5))
+    }
+
     func testSelectAllDeleteTakesATableWithIt() {
         // Both ends in body text: the table between them goes whole, not
         // emptied cell by cell and left standing.

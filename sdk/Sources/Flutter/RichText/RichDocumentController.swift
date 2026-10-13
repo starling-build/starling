@@ -1775,8 +1775,12 @@ public final class RichDocumentController: ChangeNotifier {
         let n = document.paragraphs.count
                 func search(_ i: Int, lo: Int?, hi: Int?) -> RichSelection? {
             let text = document.paragraphs[i].text
-            let a = lo.map { String.Index(utf16Offset: $0, in: text) } ?? text.startIndex
-            let b = hi.map { String.Index(utf16Offset: $0, in: text) } ?? text.endIndex
+            // Clamped: the wrap-around pass asks for the caret's offset
+            // plus the query's length, which runs past the end of a
+            // paragraph the caret sits near the end of.
+            let length = text.utf16.count
+            let a = lo.map { String.Index(utf16Offset: min(max($0, 0), length), in: text) } ?? text.startIndex
+            let b = hi.map { String.Index(utf16Offset: min(max($0, 0), length), in: text) } ?? text.endIndex
             guard a <= b else { return nil }
             guard let r = text.findRange(of: query, caseSensitive: caseSensitive,
                                          backwards: backwards, in: a ..< b) else { return nil }
