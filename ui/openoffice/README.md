@@ -49,6 +49,18 @@ the local editor links to `writer.starling.build`, `slides.starling.build`, and
 in the landing package. Publish updated app builds as well as the landing to
 make the same opening experience available on the public domains.
 
+Verify the actual app startup after publishing, not only the landing links:
+
+```sh
+python3 test/office-examples-web.py
+```
+
+This drives Chrome, checks each example's name, saves through the editor, and
+checks that the resulting presentation has four slides and a chart, and that
+the budget retains its values, formulas, and chart. Use `--slides-url` and
+`--sheets-url` to check staged sites first. The test uses temporary browser
+profiles and downloads; it does not touch user documents.
+
 Publish the `office/` package to `starling-build/openoffice` (`main`, GitHub Pages),
 keeping `openoffice.starling.build`. `ui/deploy.sh` publishes the main Starling
 site, not Office. Packaging does not deploy anything.

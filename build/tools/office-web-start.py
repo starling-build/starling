@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Configure a staged Office page to open its bundled, editable example."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -25,6 +26,18 @@ def configure(site: Path, app: str) -> None:
     html, count = re.subn(r'args: \[[^\n]*\],', lambda _: config, html)
     if count != 1:
         raise ValueError('Expected exactly one args array in the staged index.html')
+    # A cached pre-example host or WASM cannot receive the startup file. Tie
+    # both URLs to the bytes being published so a new page loads a matching pair.
+    def version(match):
+        asset = match['asset']
+        digest = hashlib.sha256((site / asset).read_bytes()).hexdigest()[:16]
+        return match['prefix'] + asset + '?v=' + digest + match['quote']
+    html = re.sub(
+        r"(?P<prefix>app:\s*['\"])(?P<asset>app\.wasm(?:\.gz)?)(?:\?[^'\"]*)?(?P<quote>['\"])",
+        version, html)
+    html = re.sub(
+        r"(?P<prefix>from\s*['\"]\./)(?P<asset>starling\.js)(?:\?[^'\"]*)?(?P<quote>['\"])",
+        version, html)
     (site / 'examples').mkdir(exist_ok=True)
     shutil.copy2(ROOT / 'web/office/examples' / name, site / 'examples' / name)
     page.write_text(html)

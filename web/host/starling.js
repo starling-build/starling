@@ -175,7 +175,7 @@ const HARD_LINE_BREAK = 100;
 async function fetchWithProgress(url, onProgress) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
-  const gzipped = String(url).endsWith('.gz');
+  const gzipped = new URL(url, location.href).pathname.endsWith('.gz');
   if ((!onProgress && !gzipped) || !response.body) return response;
   // fetch exposes decoded bytes for HTTP compression, but Content-Length is
   // the compressed length. Do not report a fictitious percentage above 100%.
