@@ -1468,6 +1468,16 @@ fitter dropped the paragraph's tail).
   column two characters wide where the file says 67pt — which
   neither width is; that fitting is the next thing tables need.
 
+- **Tabs and the line fitting.** A paragraph with a tab in it was
+  not fitted at all; it is now, its tabs as wide as they came out —
+  a contents line typed with its own dots takes its page number by
+  what its two commas give (zh-9e08ed28, zh-84702a67 56 -> 65). And
+  a tab at a paragraph's end whose next stop is past the text's
+  right edge takes a line of its own (zh-ae3d78ee's minutes, a tab
+  after every full stop): without that the fitting, which now put
+  the sentence on one line as Word does, left the paragraph a line
+  short.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

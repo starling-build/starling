@@ -2152,7 +2152,10 @@ public final class RichLayout {
         // off one of its punctuation marks. The engine breaks lines by
         // width alone, so the marks are narrowed by what each line
         // needs and the paragraph laid out again.
-        let fit = tabs.isEmpty ? _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead) : [:]
+        // (A line with a tab in it is fitted like any other, its tabs
+        // as wide as they came out: a contents line typed with its own
+        // dots takes its page number by what its commas give.)
+        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs)
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit).0)
@@ -2278,6 +2281,25 @@ public final class RichLayout {
         if i < _floatPush.count { _floatPush[i] = push }
         _spaceBefore[i] = before + push
         var bodyHeight = painter.height
+        // A tab at the paragraph's end whose stop lies past the right
+        // edge of the text goes to a line of its own, as Word sets it —
+        // minutes typed with a tab after each full stop are a line
+        // longer wherever the sentence filled its line. The engine
+        // hangs a tab at a line's end like a space.
+        if theme.wordRules, p.image == nil, p.text.utf16.count > 1, p.text.utf16.last == 0x09,
+           let lastLine = painter.computeLineMetrics().last {
+            let units = Array(p.text.utf16)
+            var k = units.count - 1
+            while k > 0, units[k] == 0x09 || units[k] == 0x20 { k -= 1 }
+            let at = _map(i).painter(k)
+            if let box = painter.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + 1)).last {
+                let x = ownLeft + box.right
+                let step = _px(document.defaultTabStop ?? 36)
+                let stop = style.tabStops.map { _px($0.position) }.sorted().first(where: { $0 > x + 0.5 })
+                    ?? (step > 0 ? ((x + 0.5) / step).rounded(.down) * step + step : x)
+                if stop > ownLeft + textWidth + 0.5 { bodyHeight += lastLine.height }
+            }
+        }
         // (No lines at all: `RichParagraphStyle.lineCollapsed`.)
         if theme.wordRules, style.lineCollapsed, p.image == nil { bodyHeight = 0 }
         if let image = p.image {
@@ -2976,7 +2998,7 @@ public final class RichLayout {
     /// In a table's cell no mark hangs; the marks inside a line give
     /// there as anywhere.
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth width: Double,
-                                    first: TextPainter, leadWidth: Double) -> [Int: Double] {
+                                    first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:]) -> [Int: Double] {
         // (From Word 2013's layout on, only a justified paragraph's
         // lines are fitted — set left or centred, a mark neither hangs
         // nor gives. Before it, and that is most documents written
@@ -3003,7 +3025,7 @@ public final class RichLayout {
               first.computeLineMetrics().count > 1 else { return [:] }
         // What each character's automatic space after it is.
         var gaps: [Int: Double] = [:]
-        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: width, lead: 0, autoSpaces: { gaps[$0] = $1 })
+        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: width, lead: 0, adjust: tabs, autoSpaces: { gaps[$0] = $1 })
         guard marked || !gaps.isEmpty else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
@@ -3211,6 +3233,9 @@ public final class RichLayout {
                 opening = true
             }
         }
+        // (With the tabs' widths, which the paragraph is laid out by.)
+        guard !adjust.isEmpty else { return [:] }
+        for (k, v) in tabs { adjust[k, default: 0] += v }
         return adjust
     }
 
