@@ -1610,9 +1610,37 @@ private struct SlideContext {
     private func _chart(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
         guard let ref = el.descendant("c:chart")?["r:id"],
               let rel = package.rels(part).first(where: { $0.id == ref && !$0.external }),
-              let space = package.xml(rel.target),
-              let chart = ChartXML.read(space, color: { colors.color(in: $0) }),
+              let space = package.xml(rel.target) else { return nil }
+        // A chart pasted from another file brings that file's colours with
+        // it: a theme override part, whose scheme stands in for the deck's
+        // wherever the chart says `schemeClr` (tdf149985's greens, where
+        // the deck's own accents are Office's blue and orange).
+        var colors = colors
+        var overridden = false
+        if let over = package.rels(rel.target).first(where: { $0.kind == "themeOverride" && !$0.external }),
+           let scheme = package.xml(over.target)?.descendant("a:clrScheme") {
+            overridden = true
+            for child in scheme.children {
+                let name = String(child.name.drop { $0 != ":" }.dropFirst())
+                if let c = child.first("a:srgbClr")?["val"].flatMap(PptxTheme.hex)
+                    ?? child.first("a:sysClr")?["lastClr"].flatMap(PptxTheme.hex) {
+                    colors.theme.colors[name] = c
+                }
+            }
+        }
+        guard var chart = ChartXML.read(space, color: { colors.color(in: $0) }),
               var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
+        if overridden {
+            // A series that names a theme slot, or leaves its colour to the
+            // cycle, is drawn against the deck's theme — which is not this
+            // chart's. Each gets the colour it has in the chart's own.
+            let accents = (1 ... 6).compactMap { colors.scheme("accent\($0)") }
+            for i in chart.series.indices where chart.series[i].color == nil {
+                if let slot = chart.series[i].scheme { chart.series[i].color = colors.scheme(slot) }
+                else if accents.count == 6 { chart.series[i].color = Chart.cycle(i, accents) }
+                if chart.series[i].color != nil { chart.series[i].scheme = nil }
+            }
+        }
         if let t = transform { frame = t(frame) }
         var st = ShapeState(id: id(), name: el.descendant("p:cNvPr")?["name"] ?? "Chart", kind: .chart(chart), frame: frame,
                             rotation: 0, fill: nil, outline: nil, outlineWidth: 0, anchor: .top,

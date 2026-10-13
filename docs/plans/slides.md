@@ -627,6 +627,23 @@ With it: a CDATA section's text is kept by the system XML reader on
 Linux (`foundCDATA`; FoundationXML drops it where the Mac hands it to
 `foundCharacters`), which a new test of the two readers found.
 
+**One deck at a time: tdf149985, its chart's colours, 2026-10-13** (10.44
+→ 6.31; sweep 42: two decks down — oox-chart-theme-override 1.1 → 0.5 —
+none up). **A chart's theme override is its theme.** A chart pasted from
+another file has a `themeOverride` part beside it, whose colour scheme
+stands in for the deck's wherever the chart says `schemeClr`; the bars
+were Office's gold, orange, green and blue where the chart's own accents
+are a navy and three greens. The reader resolves the chart's colours
+against the override, and a series that names a slot or leaves its
+colour to the cycle — which are drawn against the deck's theme, later —
+gets the colour it has in the chart's own. (The file's XML is what is
+written back while the chart is untouched.)
+
+Left in that chart, each its own task: the title's own run properties
+(bold, centred, dark blue); the value axis's major unit and number
+format; data labels; the legend's order and size; the user shape drawn
+over the plot (`chartUserShapes`).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
