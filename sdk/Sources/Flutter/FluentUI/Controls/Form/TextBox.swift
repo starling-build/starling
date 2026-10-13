@@ -85,6 +85,15 @@ public class FluentTextBox: StatefulWidget {
     /// perfectly normal and swallowed every keystroke.
     public let autofocus: Bool
 
+    /// Fields that Tab moves between: those on screen with the same
+    /// group name, in `tabOrder` (Shift+Tab backwards, round the ends).
+    /// There is no focus traversal in this port, and a bar of two fields
+    /// — find, replace with — had Tab do nothing at all: both words
+    /// were typed into the first (seen on screen 2026-10-13). A field
+    /// with no group leaves Tab to whoever is above it, as before.
+    public let tabGroup: String?
+    public let tabOrder: Int
+
     /// Focus gained/lost, as the field's own focus node sees it. The hook a
     /// transient editor needs: Escape inside a field UNFOCUSES it (the key
     /// is consumed here, so an ancestor's shortcut handler never sees it),
@@ -114,7 +123,9 @@ public class FluentTextBox: StatefulWidget {
         prefix: Widget? = nil,
         suffix: Widget? = nil,
         autofocus: Bool = false,
-        onFocusChanged: ((Bool) -> Void)? = nil
+        onFocusChanged: ((Bool) -> Void)? = nil,
+        tabGroup: String? = nil,
+        tabOrder: Int = 0
     ) {
         self.controller = controller
         self.placeholder = placeholder
@@ -135,6 +146,8 @@ public class FluentTextBox: StatefulWidget {
         self.suffix = suffix
         self.autofocus = autofocus
         self.onFocusChanged = onFocusChanged
+        self.tabGroup = tabGroup
+        self.tabOrder = tabOrder
         super.init(key: key)
     }
 
@@ -168,6 +181,11 @@ class _TextBoxState: State<StatefulWidget> {
     /// here rather than with RichText's KeyChordTracker, which the web
     /// build does not compile.
     private var _commandDown = false
+    private var _shiftDown = false
+
+    /// The fields on screen that belong to a tab group.
+    private struct _Peer { weak var state: _TextBoxState? }
+    private static var _tabPeers: [_Peer] = []
 
     /// Caret blink state. A deadline timer, NOT a Ticker: a Ticker holds the
     /// engine's frame loop hot for as long as it runs, which for a caret
@@ -208,7 +226,7 @@ class _TextBoxState: State<StatefulWidget> {
             }
             self.textBox.onFocusChanged?(focused)
             // The key-ups of modifiers held as focus left go elsewhere.
-            if !focused { self._commandDown = false }
+            if !focused { self._commandDown = false; self._shiftDown = false }
             if focused {
                 self._startCaretBlink()
                 // A focused field on a touch device has to ask for the keys.
@@ -228,10 +246,15 @@ class _TextBoxState: State<StatefulWidget> {
             return self?._handleKey(keyData) ?? false
         }
         if textBox.autofocus { _focusNode.requestFocus() }
+        if textBox.tabGroup != nil {
+            Self._tabPeers.removeAll { $0.state == nil }
+            Self._tabPeers.append(_Peer(state: self))
+        }
     }
 
     override func dispose() {
         _stopCaretBlink()
+        Self._tabPeers.removeAll { $0.state == nil || $0.state === self }
         _focusNode.dispose()
         if let listener = _boundListener {
             _effectiveController.removeListener(listener)
@@ -305,6 +328,11 @@ class _TextBoxState: State<StatefulWidget> {
             _commandDown = keyData.type != .up
             return false
         }
+        // (Shift: X11's keysyms and Flutter's logical keys, left and right.)
+        if [0xFFE1, 0xFFE2, 0x2_0000_0102, 0x2_0000_0103].contains(keyData.logical) {
+            _shiftDown = keyData.type != .up
+            return false
+        }
         guard keyData.type == .down || keyData.type == .repeat else {
             return false
         }
@@ -331,7 +359,12 @@ class _TextBoxState: State<StatefulWidget> {
             _focusNode.unfocus()
             return true
         case _Keysym.tab, _FlutterKey.tab:
-            return false
+            guard let group = textBox.tabGroup else { return false }
+            let peers = Self._tabPeers.compactMap(\.state).filter { $0.mounted && $0.textBox.tabGroup == group }
+                .sorted { $0.textBox.tabOrder < $1.textBox.tabOrder }
+            guard peers.count > 1, let at = peers.firstIndex(where: { $0 === self }) else { return true }
+            peers[(at + (_shiftDown ? peers.count - 1 : 1)) % peers.count]._focusNode.requestFocus()
+            return true
         case _Keysym.backspace, _FlutterKey.backspace:
             if !textBox.readOnly { controller.deleteBackward() }
             return true

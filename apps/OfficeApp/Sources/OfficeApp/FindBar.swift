@@ -48,7 +48,8 @@ final class FindBar: StatelessWidget {
             SizedBox(width: 260, height: 30, child: FluentTextBox(
                 controller: query,
                 placeholderText: session.kind == .presentation ? "Search presentation" : "Search document",
-                onSubmitted: { [onNext] _ in onNext(false) }, autofocus: true, onFocusChanged: blurred)),
+                onSubmitted: { [onNext] _ in onNext(false) }, autofocus: true, onFocusChanged: blurred,
+                tabGroup: "find", tabOrder: 0)),
             Chrome.gap(6),
             Chrome.icon(FluentSystemIcons.chevronUp, "Previous", fluent) { [onNext] in onNext(true) },
             Chrome.icon(FluentSystemIcons.chevronDown, "Next", fluent) { [onNext] in onNext(false) },
@@ -60,7 +61,8 @@ final class FindBar: StatelessWidget {
             items.append(SizedBox(width: 70, height: nil, child: Text("Replace", style: fluent.typography.body)))
             items.append(SizedBox(width: 220, height: 30, child: FluentTextBox(
                 controller: replacement, placeholderText: "Replace with",
-                onSubmitted: { [onReplace] _ in onReplace() }, onFocusChanged: blurred)))
+                onSubmitted: { [onReplace] _ in onReplace() }, onFocusChanged: blurred,
+                tabGroup: "find", tabOrder: 1)))
             items.append(Chrome.gap(6))
             items.append(Button(onPressed: onReplace, child: Text("Replace")))
             items.append(Chrome.gap(4))

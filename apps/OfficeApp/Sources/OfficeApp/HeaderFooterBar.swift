@@ -35,11 +35,13 @@ final class HeaderFooterBar: StatelessWidget {
             // does: Insert → Header and a typed line used to go into the
             // document's text — seen on screen 2026-10-13.)
             SizedBox(width: 300, height: 30, child: FluentTextBox(
-                controller: header, placeholderText: "Header text", onSubmitted: { [onApply] _ in onApply() }, autofocus: true)),
+                controller: header, placeholderText: "Header text", onSubmitted: { [onApply] _ in onApply() }, autofocus: true,
+                tabGroup: "header-footer", tabOrder: 0)),
             Chrome.gap(16),
             SizedBox(width: 60, height: nil, child: Text("Footer", style: fluent.typography.body)),
             SizedBox(width: 300, height: 30, child: FluentTextBox(
-                controller: footer, placeholderText: "Footer text", onSubmitted: { [onApply] _ in onApply() })),
+                controller: footer, placeholderText: "Footer text", onSubmitted: { [onApply] _ in onApply() },
+                tabGroup: "header-footer", tabOrder: 1)),
             Chrome.gap(8),
             Button(onPressed: { [footer] in footer.text += RichDocument.pageField }, child: Text("Page")),
             Chrome.gap(4),
