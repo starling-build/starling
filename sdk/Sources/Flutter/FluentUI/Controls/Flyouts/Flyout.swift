@@ -65,6 +65,7 @@ public class FlyoutController {
         // can dismiss; take both entries down with it.
         _flyoutEntry?.remove(); _flyoutEntry?.dispose()
         _barrierEntry?.remove(); _barrierEntry?.dispose()
+        if let token = _escapeToken { FocusManager.instance.removeKeyInterceptor(token) }
     }
 
 
@@ -99,6 +100,23 @@ public class FlyoutController {
 
     private var _barrierEntry: OverlayEntry?
     private var _flyoutEntry: OverlayEntry?
+
+    /// While open, Escape closes the flyout. It is taken ahead of the
+    /// focused node rather than by moving focus: a menu opened over text
+    /// being edited must leave that text its selection, and with focus
+    /// where it was Escape never reached the flyout at all — the menu
+    /// stayed up until a click, which the barrier then swallowed.
+    private var _escapeToken: Int?
+
+    private func _watchEscape() {
+        guard _escapeToken == nil else { return }
+        _escapeToken = FocusManager.instance.addKeyInterceptor { [weak self] data in
+            // Escape as either embedder spells it (keysym, Flutter key).
+            guard let self, self.isOpen, data.logical == 0xFF1B || data.logical == 0x1_0000_001B else { return false }
+            if data.type == .down { self.closeFlyout() }
+            return true
+        }
+    }
 
     // MARK: - Show Flyout
 
@@ -162,6 +180,7 @@ public class FlyoutController {
 
         overlayState.insert(barrierEntry)
         overlayState.insert(flyoutEntry)
+        _watchEscape()
     }
 
     /// A flyout at a point in `context`'s overlay — a context menu at the
@@ -187,12 +206,17 @@ public class FlyoutController {
         _flyoutEntry = flyoutEntry
         overlayState.insert(barrierEntry)
         overlayState.insert(flyoutEntry)
+        _watchEscape()
     }
 
     // MARK: - Close Flyout
 
     /// Closes the currently open flyout.
     public func closeFlyout() {
+        if let token = _escapeToken {
+            FocusManager.instance.removeKeyInterceptor(token)
+            _escapeToken = nil
+        }
         _barrierEntry?.remove()
         _barrierEntry?.dispose()
         _barrierEntry = nil

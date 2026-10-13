@@ -86,8 +86,28 @@ public class FocusManager {
         node?.onFocusChange?(true)
     }
 
+    /// Handlers that see a key before the focused node does, newest first:
+    /// for something that is open OVER the focused thing without taking
+    /// its focus — a menu, which must close on Escape while the text it
+    /// was opened from keeps its selection and caret.
+    private var _keyInterceptors: [(id: Int, handler: (KeyData) -> Bool)] = []
+    private var _nextInterceptor = 0
+
+    /// Puts `handler` ahead of the focused node; it returns `true` for a
+    /// key it consumed. The returned token takes it out again.
+    public func addKeyInterceptor(_ handler: @escaping (KeyData) -> Bool) -> Int {
+        _nextInterceptor += 1
+        _keyInterceptors.append((id: _nextInterceptor, handler: handler))
+        return _nextInterceptor
+    }
+
+    public func removeKeyInterceptor(_ token: Int) {
+        _keyInterceptors.removeAll { $0.id == token }
+    }
+
     /// Routes a key event to the focused node. Returns `true` if consumed.
     public func dispatchKeyData(_ data: KeyData) -> Bool {
+        for interceptor in _keyInterceptors.reversed() where interceptor.handler(data) { return true }
         guard let node = focusedNode, let handler = node.onKeyData else {
             return false
         }
