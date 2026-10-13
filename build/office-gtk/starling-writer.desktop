@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Starling Writer
+Comment=Write and edit Word documents
+Exec=starling-office %f
+Icon=starling-writer
+Terminal=false
+Categories=Office;WordProcessor;
+MimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document;
+StartupWMClass=starling-office

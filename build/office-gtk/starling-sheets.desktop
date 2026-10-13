@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Starling Sheets
+Comment=Work on Excel spreadsheets
+Exec=starling-office --sheets %f
+Icon=starling-sheets
+Terminal=false
+Categories=Office;Spreadsheet;
+MimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;text/csv;text/tab-separated-values;
+StartupWMClass=starling-office

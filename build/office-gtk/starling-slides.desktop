@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Starling Slides
+Comment=Build and show PowerPoint presentations
+Exec=starling-office --slides %f
+Icon=starling-slides
+Terminal=false
+Categories=Office;Presentation;
+MimeType=application/vnd.openxmlformats-officedocument.presentationml.presentation;
+StartupWMClass=starling-office

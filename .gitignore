@@ -5,6 +5,7 @@
 .build/
 .build-starling/
 .build-gtk/
+.build-office-gtk/
 # The scratch a Windows unit-test run builds into (swift test --scratch-path).
 .build-test/
 .DS_Store

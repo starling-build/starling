@@ -1,0 +1,14 @@
+#!/bin/sh
+# Starling Office launcher: Writer, Sheets and Slides are one binary.
+# `--sheets` / `--slides` start a blank workbook or deck; a file path picks
+# the app by its extension. STARLING_APP_GTK picks the windowed GTK host;
+# LD_LIBRARY_PATH covers the bundled engine + Swift runtime for every
+# library in the process, not just those the binary's own RUNPATH reaches.
+# STARLING_OFFICE_HOME moves the tree (a Flatpak installs it under /app).
+D="${STARLING_OFFICE_HOME:-/usr/lib/starling-office}"
+export STARLING_APP_GTK=1
+export LD_LIBRARY_PATH="$D${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# A menu entry runs `--sheets <file>`; the binary reads a file only as its
+# first argument, and the file's extension picks the app anyway.
+case "${1:-}" in --sheets|--slides) [ -n "${2:-}" ] && shift ;; esac
+exec "$D/starling-office" "$@"

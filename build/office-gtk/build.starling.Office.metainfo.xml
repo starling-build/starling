@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>build.starling.Office</id>
+  <name>Starling Office</name>
+  <summary>Writer, Sheets and Slides for Word, Excel and PowerPoint files</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <developer id="build.starling"><name>Starling</name></developer>
+  <description>
+    <p>Starling Office opens and saves Word documents, Excel spreadsheets
+    and PowerPoint presentations in their own formats (.docx, .xlsx,
+    .pptx). Writer, Sheets and Slides are one app, GPU-rendered, and it
+    carries the fonts it lays documents out with.</p>
+  </description>
+  <launchable type="desktop-id">build.starling.Office.desktop</launchable>
+  <url type="homepage">https://starling.build</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="@VER@" date="@DATE@"/>
+  </releases>
+</component>
