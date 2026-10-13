@@ -1608,6 +1608,54 @@ fitter dropped the paragraph's tail).
   documents closer, none further. POI 66.7 -> 66.6 (bug65649 8.6 ->
   7.7).
 
+- **Cambria's clone was not one (2026-10-13).** zh-4b8e0abc sets
+  Indonesian beside its Chinese in the theme's Cambria, justified,
+  and every line of ours took a word more than Word's. The bundled
+  Caladea was the build on github.com/huertatipografica/Caladea
+  (1.001, 1000 units to the em — what Google Fonts serves): the name
+  and the drawing, without the widths. "awal dari setiap tahapan
+  yang ada." at 14pt is 204.9pt in Cambria and in Word's print, and
+  197.0 in that Caladea; over a line of mixed text it runs 3 to 6
+  percent short in all four styles. The 2013 ChromeOS release
+  (`crosextrafonts-20130214`, 1.002, Apache 2.0) is the clone:
+  523.73 against Cambria's 523.71 over an 84-character line, and
+  within 0.3 in bold and italic. It is bundled now; Carlito was
+  checked the same way and is exact. zh-4b8e0abc 20% -> 31%.
+  A deck or a sheet set in Cambria moves with it.
+
+- **Space before at a page's top (2026-10-13).** Labs `sb-a/b`
+  (the paragraph pushed over by a spacer, `tools/body25.py`),
+  `sc-a/b` (the other ways a page starts, `body26.py`), `sd-a/b`
+  (break characters, `body27.py`), `se` (line and keep settings,
+  `body28.py`), in two source packages (mode 14 and 15) and each
+  with its mode swapped. A paragraph that heads a page because the
+  page before filled up leaves its space before behind — 18pt of it
+  gone, the line where a paragraph with none has it. So does one
+  after a break character that ended the paragraph above, and an
+  empty paragraph (its line stays). The space still counts toward
+  whether the paragraph fits where it is: a line with room for
+  itself and not for its space goes over, and stands there without
+  it. Kept: the document's first paragraph's; a new section's; that
+  of a paragraph which itself BEGINS with the break character
+  (seven of the Taiwanese plans, which open 貳 that way, fell from
+  98% to 20–88% until this was told apart); and under
+  `w:pageBreakBefore` it is kept in mode 14 and left behind in mode
+  15 — the one case where the two differ. `RichLayout`'s paging
+  starts such a paragraph's first piece under its space.
+  zh-4b8e0abc 31% -> 52%, zh-e37f8d40 62 -> 68, zh-e6d54ae4 54 ->
+  56, zh-1563bd74 86 -> 88; POI's heading123 91 -> 100.
+
+  Not found: zh-6d1afa56's headings begin with the break and Word
+  sets them at three heights — the table under them starts 55.2,
+  63.5 or 71.4pt below the page's top, as if none, half or all of
+  the style's 17pt were kept. The heading alone in a lab (`se`)
+  keeps all of it, whatever its line rule or keeps. What is before
+  the break does not sort them (a blank page before: none, half,
+  none; a table ending mid-page: half or all). Ours keeps all.
+
+  The two together: Chinese sample 70.8% -> 71.4% (median 88.7 ->
+  88.9), POI 66.6 -> 66.7.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

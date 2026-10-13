@@ -565,6 +565,35 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(split.paragraphs[2].style.pageBreakBefore)
     }
 
+    /// Word leaves a paragraph's space before behind where the paragraph
+    /// heads a page after a break that ended the paragraph above; it
+    /// keeps it where the paragraph itself begins with the break, and —
+    /// before its 2013 layout only — under `w:pageBreakBefore`.
+    func testSpaceBeforeAtAPageTop() {
+        func top(mode: Int, _ set: (inout RichParagraphStyle) -> Void) -> Double {
+            var x = RichParagraph(text: "two")
+            x.style.pageBreakBefore = true
+            set(&x.style)
+            var doc = RichDocument(paragraphs: [RichParagraph(text: "one"), x])
+            doc.compatibilityMode = mode
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: 2)
+            layout.pageSetup = .letter
+            layout.width = 612 * 96.0 / 72.0
+            layout.ensureLaidOut(doc)
+            XCTAssertEqual(layout.pageCount, 2)
+            // (On the canvas, from its page's top.)
+            let caret = layout.canvasRects(layout.caretRect(RichPosition(paragraph: 1, offset: 0), doc))[0]
+            return (caret.top - layout.pageRect(1).top) / theme.pixelsPerPoint
+        }
+        let bare = top(mode: 15) { _ in }
+        XCTAssertEqual(top(mode: 15) { $0.spaceBefore = 18; $0.breakEndsPrevious = true }, bare, accuracy: 0.01, "left behind after a break above")
+        XCTAssertEqual(top(mode: 15) { $0.spaceBefore = 18; $0.pageBreakInline = true }, bare + 18, accuracy: 0.01, "kept under its own break character")
+        XCTAssertEqual(top(mode: 15) { $0.spaceBefore = 18 }, bare, accuracy: 0.01, "page break before, the 2013 layout")
+        XCTAssertEqual(top(mode: 14) { $0.spaceBefore = 18 }, bare + 18, accuracy: 0.01, "page break before, the layout before it")
+    }
+
     func testHiddenTextRoundTrip() throws {
         var doc = RichDocument(paragraphs: [RichParagraph(text: "shown hidden")])
         doc.paragraphs[0].runs = [Run(length: 6), Run(length: 6, style: { var c = CharStyle(); c.hidden = true; return c }())]

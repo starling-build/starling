@@ -2006,7 +2006,28 @@ public final class RichLayout {
             var cursor = resumeCursor ?? top
             resumeCursor = nil
             var cuts: [Double]? = nil   // lazily computed line bottoms
+            // A paragraph that heads a page leaves its space before
+            // behind, as Word sets it (prints of 2026-10-13, modes 14 and
+            // 15): where the page before filled up, and after a break
+            // character — an empty paragraph's space as well, though its
+            // line stays. The space counts toward whether the paragraph
+            // fits the page it would not head: a line with room for
+            // itself and not for its space goes over, and stands there
+            // without it. Kept: the document's first paragraph's, a new
+            // section's, that of a paragraph which itself begins with
+            // the break character (one that ends the paragraph above
+            // leaves it behind), and — before the 2013 layout only —
+            // that of a paragraph with `w:pageBreakBefore`.
+            let lead = i < _floatPush.count ? max(0, _spaceBefore[i] - _floatPush[i]) : 0
+            var leavesLead = false
+            if theme.wordRules, lead > 0.01, cursor <= top + 0.01 {
+                let st = document.paragraphs[i].style
+                let newSection = i > 0 && document.paragraphs[i - 1].style.sectionXML != nil
+                let ownBreak = _pageBreak[i] && !st.pageBreakInline && !st.breakEndsPrevious
+                leavesLead = !newSection && !st.pageBreakInline && !(ownBreak && (document.compatibilityMode ?? 12) < 15)
+            }
             while cursor < bottom - 0.01 {
+                if leavesLead, y < 0.01, page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
                 let available = contentH - y
                 let rest = bottom - cursor
                 if rest <= available + 0.01 {
