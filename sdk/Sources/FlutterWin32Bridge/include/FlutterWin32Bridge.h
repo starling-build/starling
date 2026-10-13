@@ -921,6 +921,13 @@ void flwin32_host_close_window(FlWin32Host* host);
 void flwin32_host_on_toggle(FlWin32Host* host,
                             void (*callback)(void* user),
                             void* user);
+// Called when the user closes an ordinary app window (the caption's X,
+// Alt+F4, the taskbar): return 0 to keep the window open, nonzero to let it
+// close. flwin32_host_close_window is never asked -- it is how the app
+// closes once it has decided. Runs on the UI thread.
+void flwin32_host_on_close_request(FlWin32Host* host,
+                                   int32_t (*callback)(void* user),
+                                   void* user);
 // Called when the system's light/dark theme flips (WM_SETTINGCHANGE with
 // "ImmersiveColorSet"), on the UI thread. The new value is already in the
 // registry -- re-read it with flwin32_apps_use_light_theme.

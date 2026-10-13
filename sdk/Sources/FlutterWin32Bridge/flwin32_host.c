@@ -284,6 +284,8 @@ struct FlWin32Host {
   int custom_titlebar;
   void (*toggle_callback)(void* user);
   void* toggle_user;
+  int32_t (*close_request_callback)(void* user);
+  void* close_request_user;
   void (*theme_callback)(void* user);
   void* theme_user;
   // The one-view shell: the dock's tree hosts the launcher as a LAYER, so
@@ -757,6 +759,14 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
                   (unsigned long long)wparam,
                   (unsigned long)foreground_pid());
           fflush(stderr);
+          return 0;
+        }
+        // An ordinary app window: the app is asked first, and may keep the
+        // window (a document with unsaved changes, while it asks about
+        // them). Its own closeWindow() is the deliberate close above and
+        // is never asked.
+        if (host->close_request_callback != NULL
+            && host->close_request_callback(host->close_request_user) == 0) {
           return 0;
         }
       }
@@ -2598,6 +2608,14 @@ void flwin32_host_on_toggle(FlWin32Host* host,
   if (host == NULL) return;
   host->toggle_callback = callback;
   host->toggle_user = user;
+}
+
+void flwin32_host_on_close_request(FlWin32Host* host,
+                                   int32_t (*callback)(void* user),
+                                   void* user) {
+  if (host == NULL) return;
+  host->close_request_callback = callback;
+  host->close_request_user = user;
 }
 
 void flwin32_host_on_deactivate(FlWin32Host* host,

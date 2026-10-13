@@ -89,6 +89,9 @@ public enum Win32WindowedHost {
                              transparent: placement.transparent,
                              passive: placement.passive)
             }
+            // The app's say over a close, and its way to close for real.
+            h.onCloseRequest { appShouldCloseWindow?() ?? true }
+            hostCloseWindow = { Win32WindowedHost.host?.closeWindow() }
             flwin32_trace("mountWidget: begin")
             h.mountWidget(root)
             flwin32_trace("mountWidget: done")

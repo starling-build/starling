@@ -50,6 +50,17 @@ public nonisolated(unsafe) var hostScheduleEngineFrame: (() -> Void)? = nil
 /// title channel over the DMA-BUF socket is the plan's Phase 3 item).
 public nonisolated(unsafe) var hostSetWindowTitle: ((String) -> Void)? = nil
 
+/// Asked when the user closes the host window — its X, Alt+F4. The APP
+/// installs it: false keeps the window open, for a document with unsaved
+/// changes while the app asks about them. Hosts that can intercept a close
+/// (Win32) consult it; under the others a close is not asked about.
+public nonisolated(unsafe) var appShouldCloseWindow: (() -> Bool)? = nil
+
+/// Closes the host window for real, without asking `appShouldCloseWindow`
+/// — what the app calls once the question is answered. Installed by hosts
+/// that consult the hook above; nil elsewhere.
+public nonisolated(unsafe) var hostCloseWindow: (() -> Void)? = nil
+
 /// Puts the host window into full screen (true) or back (false) — a slide
 /// show. Installed by hosts whose window can (Cocoa); nil elsewhere, and
 /// the app shows its full-screen content inside the window instead.

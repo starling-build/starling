@@ -178,6 +178,15 @@ public final class Win32Host {
         return (Double(width), Double(height))
     }
 
+    /// Asked when the user closes the window: false keeps it open. The
+    /// host's own `closeWindow()` is not asked. Runs on the UI thread.
+    public func onCloseRequest(_ handler: @escaping () -> Bool) {
+        Win32Host.closeRequestHandler = handler
+        flwin32_host_on_close_request(host, { _ in (Win32Host.closeRequestHandler?() ?? true) ? 1 : 0 }, nil)
+    }
+
+    nonisolated(unsafe) private static var closeRequestHandler: (() -> Bool)?
+
     /// Called when any Starling surface broadcasts a toggle. Runs on the UI
     /// thread, inside the message loop.
     public func onToggle(_ handler: @escaping () -> Void) {
