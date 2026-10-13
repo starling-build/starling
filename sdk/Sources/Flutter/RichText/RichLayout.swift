@@ -1999,8 +1999,10 @@ public final class RichLayout {
     /// The paragraph's runs as a span tree. An empty paragraph lays out a
     /// single space so it has a line height; offsets are clamped to 0 by
     /// every caller.
+    /// `autoSpaces` is told each character set wider by Word's automatic
+    /// space after it (paragraph offset, pixels), for the line fitting.
     private func _span(for p: RichParagraph, at index: Int?, _ document: RichDocument, textWidth: Double, lead: Double = 0, adjust: [Int: Double] = [:],
-                       held: Set<Int> = [])
+                       held: Set<Int> = [], autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         let named = _named(p, document)
         let pitch = p.style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(index, document).pitch
@@ -2196,11 +2198,11 @@ public final class RichLayout {
                         // flat quarter of the two where the widths are
                         // balanced — measured 4.0pt at 16pt, and 3.6 in
                         // Times without.)
-                        if document.balancesSpaceWidth {
-                            extra += (em + 2 * spacing) / 4
-                        } else {
-                            extra += ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
-                        }
+                        let gap = document.balancesSpaceWidth
+                            ? (em + 2 * spacing) / 4
+                            : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
+                        extra += gap
+                        autoSpaces?(offset, gap)
                     } else if ea, closes, Self.closesUp(ch, following) {
                         extra -= em / 2
                     }
@@ -2620,24 +2622,44 @@ public final class RichLayout {
     /// hangs unless the paragraph says `w:overflowPunct` off; a line
     /// gives up to half an em, off its punctuation, where the document's
     /// `w:characterSpacingControl` compresses punctuation.
+    ///
+    /// The automatic space between an ideograph and a letter or digit
+    /// (see `_span`) is between two characters of a line: after a
+    /// line's last character there is none, in any paragraph (a line of
+    /// 25 ideographs and "C" is taken at 414.7pt, the letter's own
+    /// 10.7 and the 4 before it, not the 4 after). And where punctuation
+    /// is compressed, before Word 2013's layout, each such space on the
+    /// line gives up to half of itself like a mark does: one "C" among
+    /// twenty ideographs takes the next one 4pt over, two take it 8 —
+    /// the half em that is the most a line takes — and the space before
+    /// a last "C" 2 (measured 2026-10-12; with `doNotCompress` none
+    /// gives). From 2013's layout on they give in a justified paragraph
+    /// only and by another rule, not found: one space gave 4pt, two
+    /// under 4, four under 5.
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth width: Double,
                                     first: TextPainter, leadWidth: Double) -> [Int: Double] {
         // (From Word 2013's layout on, only a justified paragraph's
         // lines are fitted — set left or centred, a mark neither hangs
         // nor gives. Before it, and that is most documents written
         // elsewhere, every paragraph's are.)
-        guard theme.wordRules, document.usesEastAsianLayout, !p.style.rightToLeft, p.text.utf16.count > 2,
-              p.style.alignment == .justify || (document.compatibilityMode ?? 12) < 15 else { return [:] }
+        guard theme.wordRules, document.usesEastAsianLayout, !p.style.rightToLeft, p.text.utf16.count > 2 else { return [:] }
+        let legacy = (document.compatibilityMode ?? 12) < 15
+        let fitted = p.style.alignment == .justify || legacy
         // (The probe is the text alone: the box before it — the first
         // line's indent — is where the first line starts from instead.)
         let lead = 0
-        let hangs = p.style.eastAsian["w:overflowPunct"] != "0"
-        let squeezes = document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false
-        guard hangs || squeezes else { return [:] }
+        let hangs = fitted && p.style.eastAsian["w:overflowPunct"] != "0"
+        let squeezes = fitted && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
         let units = Array(p.text.utf16)
-        guard units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) }),
+        // (Marks to hang or squeeze, or a letter or digit an automatic
+        // space may stand beside.)
+        let marked = (hangs || squeezes) && units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) })
+        guard marked || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) }),
               first.computeLineMetrics().count > 1 else { return [:] }
-        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: width, lead: 0)
+        // What each character's automatic space after it is.
+        var gaps: [Int: Double] = [:]
+        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: width, lead: 0, autoSpaces: { gaps[$0] = $1 })
+        guard marked || !gaps.isEmpty else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
         // the other thing `_span` puts in, does the opposite).
@@ -2739,15 +2761,20 @@ public final class RichLayout {
         var adjust: [Int: Double] = [:]
         var x = leadWidth
         var marks: [Int] = []   // this line's marks that still have their whole em
+        var spaces: [Int] = []  // this line's characters with an automatic space after them
         var opening = true      // nothing on the line yet
         for piece in pieces {
             let a = piece.a, last = piece.last, w = piece.w
+            // (The automatic space after this stretch, which is no part
+            // of a line that ends with it.)
+            let after = last > a ? gaps[last - 1] ?? 0 : 0
+            let ownSpaces = last > a ? (a ..< last - 1).filter { gaps[$0] != nil } : []
             let own = (a ..< last).filter {
                 (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0)) && !closesUp($0)
             }
             let em = a < ems.count ? ems[a] : 0
             let hair = em * 0.01   // (a stand-in's half em is a hair over half)
-            var fits = x + w <= width + hair
+            var fits = x + w - after <= width + hair
             // (Fitting by that hair is fitting: the engine allows none,
             // so the last character gives it up.)
             if fits, x + w > width, last > a { adjust[last - 1, default: 0] -= x + w - width + 0.02 }
@@ -2776,11 +2803,13 @@ public final class RichLayout {
                     // word), as long as the line's marks can give that
                     // much: half an em each, shared evenly.
                     let all = (marks + own).filter { hang == 0 || $0 != tail }
+                    let given = legacy ? spaces + ownSpaces : []
                     // (A curly quote in a Latin face is as wide as it is.)
                     let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
-                        ? em * (closesUp(a) ? 0.5 : 1) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w
-                    let room = all.reduce(0.0) { $0 + ems[$1] / 2 }
-                    let need = over - hang
+                        ? em * (closesUp(a) ? 0.5 : 1) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
+                    let markRoom = all.reduce(0.0) { $0 + ems[$1] / 2 }
+                    let room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
+                    let need = over - hang - after
                     // From Word 2013's layout on the test is another:
                     // what each mark must give is no more than the
                     // line would have to stretch by without the
@@ -2791,11 +2820,13 @@ public final class RichLayout {
                     let taken = modern
                         ? need / Double(max(1, all.count)) <= width - x + hair
                         : x + min(lead, w) - width <= em / 2 + hair
-                    if !all.isEmpty, taken, need <= room + hair {
+                    if room > 0, taken, need <= room + hair {
                         let share = min(1, (need + 0.02) / room)
                         for mark in all { adjust[mark, default: 0] -= ems[mark] / 2 * share }
+                        for k in given { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * share }
                         if need > room { adjust[last - 1, default: 0] -= need - room + 0.02 }
                         if hang > 0 { adjust[tail, default: 0] -= hang }
+                        if after > 0 { adjust[tail, default: 0] -= after }
                         fits = true
                     }
                 }
@@ -2803,6 +2834,7 @@ public final class RichLayout {
                     // The line is full: whatever comes next starts another.
                     x = width
                     marks = []
+                    spaces = []
                     if piece.hard { x = 0; opening = true }
                     continue
                 }
@@ -2810,13 +2842,17 @@ public final class RichLayout {
             if !fits {
                 x = 0
                 marks = []
+                spaces = []
             }
             x += w + piece.trail
             opening = false
             marks.append(contentsOf: own)
+            spaces.append(contentsOf: ownSpaces)
+            if after > 0 { spaces.append(last - 1) }
             if piece.hard {
                 x = 0
                 marks = []
+                spaces = []
                 opening = true
             }
         }

@@ -1363,6 +1363,15 @@ line that does it):
   gives no more than the line would otherwise stretch by. A Latin
   word with no space in it moves whole, unless it is longer than a
   line or the paragraph says `w:wordWrap` off.
+- **The automatic space** between an ideograph and a letter or digit
+  is between two characters of a line: after a line's last character
+  there is none, in any paragraph and any mode. Where punctuation is
+  compressed and the mode is under 15, each such space on a line
+  gives up to half of itself to take one more character, as a mark
+  gives half an em, and under the same most of half an em a line
+  (lab: 25 ideographs and "C" fit in 412.75pt, 2pt under their
+  width; one "C" among twenty ideographs takes the next 4pt over,
+  two take it 8). With `doNotCompress` none gives.
 - **Pages.** Each section has its page setup, its header and footer —
   what it does not name it has from the section before, type by type —
   and its first page's own where it says `w:titlePg`. A header or
@@ -1381,6 +1390,14 @@ indent's placeholder (pages were cut a point into a line), and a
 character count of lines at no width is not the count of break
 opportunities where a space is set wider than its glyph (the line
 fitter dropped the paragraph's tail).
+
+Still open from the automatic space's lab: from mode 15 on the
+spaces give in a justified paragraph only, and by a rule not found
+(one space gave its whole 4pt, two under 4 between them, four under
+5); and the letters of a Chinese face Word on a Mac does not have
+are YaHei's own like its ideographs — "C" 10.7pt at 16pt, a pair of
+them kerned to 10.25 — where this app's stand-in, a sans scaled by
+class, sets it 11.4 wide.
 
 Left, in the order the line match names them: tables (cell widths,
 vertical alignment, rows that split), cover pages and frames in the
