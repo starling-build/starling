@@ -680,6 +680,18 @@ With them, for the web build, which upstream's new code had stopped
 linking: `RichLayout._cellSide`'s `range(of:)` is `firstRange(of:)`, and
 `OfficeFonts`' lock is nothing where there is one thread.
 
+**One deck at a time: tdf149985, its labels from cells, 2026-10-13**
+(5.65 → 5.70, for now). The percentages on the top series' bars are
+"Value From Cells" labels: the series' `c:dLbls` shows a
+`c15:datalabelsRange`, whose cache has each point's text as the file
+last had it. `ChartSeries.cellLabels`, with the series' label size,
+weight and colour (`c:dLbls/c:txPr`); drawn inside the end of each bar
+(`dLblPos inEnd`) for a column or bar chart. Present now, in white bold
+12 pt, at PowerPoint's height to a point — and 11 to 20 pt left of
+PowerPoint's, because the bars are: the legend is drawn at 12 pt where
+the file's is 9, and takes that much of the plot. The legend is next,
+and the score waits on it.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

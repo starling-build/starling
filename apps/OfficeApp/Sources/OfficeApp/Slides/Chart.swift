@@ -57,6 +57,13 @@ struct ChartSeries: Equatable {
     /// A scatter series whose points are joined by its line (the file gave
     /// the series a line, or the chart's style is one with lines).
     var joined = false
+    /// Labels whose text is another row of the sheet's ("Value From
+    /// Cells": `c15:datalabelsRange`), by point, as the file last had
+    /// them; and the size, weight and colour the series' labels are set in.
+    var cellLabels: [Int: String] = [:]
+    var labelSize: Double? = nil
+    var labelBold = false
+    var labelColor: Color? = nil
 }
 
 struct Chart: Equatable {
@@ -200,6 +207,19 @@ enum ChartXML {
             let fill = type == .line ? pr?.first("a:ln")?.first("a:solidFill")
                 : type == .scatter ? ser.first("c:marker")?.first("c:spPr")?.first("a:solidFill") ?? pr?.first("a:ln")?.first("a:solidFill") ?? pr?.first("a:solidFill")
                 : pr?.first("a:solidFill")
+            // Labels from cells: shown where the series' labels say so, with
+            // the text the file cached for each point.
+            if let d = ser.first("c:dLbls"), d.descendant("c15:showDataLabelsRange")?["val"] == "1",
+               let cache = ser.descendant("c15:dlblRangeCache") {
+                for pt in cache.all("c:pt") {
+                    if let i = pt["idx"].flatMap(Int.init), let v = pt.first("c:v")?.text, !v.isEmpty { s.cellLabels[i] = v }
+                }
+                if let run = d.first("c:txPr")?.descendant("a:defRPr") {
+                    s.labelSize = run["sz"].flatMap(Double.init).map { $0 / 100 }
+                    s.labelBold = ["1", "true"].contains(run["b"] ?? "")
+                    if let f = run.first("a:solidFill") { s.labelColor = color(f) }
+                }
+            }
             if let fill {
                 let index = series.count
                 if let scheme = fill.first("a:schemeClr"), _isCycle(scheme, index) {
@@ -778,6 +798,8 @@ enum ChartPainter {
         for t in valueLabels + catLabels { t.dispose() }
 
         var labels: [(String, Offset)] = []
+        // Labels from cells, each with the bar it stands in the end of.
+        var cellLabels: [(text: String, bar: Rect, series: ChartSeries)] = []
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
@@ -826,6 +848,7 @@ enum ChartPainter {
                         labels.append((label(raw, percent: false), Offset(rect.center.dx, c.stacked ? rect.center.dy : min(p0, p1) - 8 * k)))
                     }
                     canvas.drawRect(rect, fill)
+                    if let t = c.series[j].cellLabels[i] { cellLabels.append((t, rect, c.series[j])) }
                 }
             }
         case .line, .area:
@@ -908,6 +931,19 @@ enum ChartPainter {
             }
         case .pie, .doughnut:
             break
+        }
+        for l in cellLabels {
+            // Inside the end of its bar (`dLblPos inEnd`), in the series'
+            // own label look.
+            let tp = TextPainter(text: TextSpan(text: l.text, style: Flutter.TextStyle(
+                color: l.series.labelColor ?? theme.text, fontSize: max(3, (l.series.labelSize ?? 12) * k),
+                fontWeight: l.series.labelBold ? .bold : .normal, fontFamily: OfficeFonts.substitute(theme.bodyFont))),
+                textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: .infinity)
+            let at = horizontal ? Offset(l.bar.right - tp.width - 3 * k, l.bar.center.dy - tp.height / 2)
+                : Offset(l.bar.center.dx - tp.width / 2, l.bar.top + 3.4 * k)
+            tp.paint(canvas, at)
+            tp.dispose()
         }
         if c.dataLabels {
             for (s, at) in labels {
