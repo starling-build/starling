@@ -1586,6 +1586,23 @@ fitter dropped the paragraph's tail).
   zh-91e44bcb 76 -> 94. POI 66.6, bug65649 7.7 -> 4.5 (179 pages
   to Word's 178, from 176).
 
+- **A row is not begun where its stated height has no room.** With
+  36.5pt left on the page a row of 49.65 "at least" goes over whole,
+  though a line of each cell would fit; one of 25 at least parts, as
+  one with no height does — whatever its cells' vertical alignment
+  (lab `np`, body 24). A cell merged down into such a row keeps on
+  the page before only the lines over the last row placed there, and
+  takes the rest with the row; the row on its new page is then as
+  tall as what it was handed asks, which can be MORE than the flow
+  gave it (one line left behind, four taken over: 76pt for the
+  flow's 61). A row shown taller than the flow has it draws its
+  rules in stretches (`PagePiece.inner`). And a row that starts a
+  page under cells merged from the page before has a line over it.
+  Sample 69.6% -> 70.8%, 53 documents with Word's page count;
+  zh-15728c84 44% -> 81% and its ten pages, zh-e6d54ae4 18 -> 54.
+  Two a point down (zh-abe7e063 33.8 -> 32.8, zh-e6d54ae4 by 0.3)
+  from the merged cell's cut, not looked into.
+
   The three together: Chinese sample 67.0% -> 68.8% of Word's lines
   (median 82.2 -> 86.7), 51 documents with Word's page count; ten
   documents closer, none further. POI 66.7 -> 66.6 (bug65649 8.6 ->
