@@ -35,6 +35,18 @@ struct SheetPrintMetrics {
     var defaultRow: Double
     /// What a set row height is multiplied by.
     var rowScale: Double
+    /// The digit on that Excel's screen, in its pixels.
+    var screenDigit: Double
+
+    /// A column `chars` wide, in points. Excel holds a width in whole
+    /// screen pixels, so the characters that print are the pixels' worth —
+    /// 0.855 characters is 13 px of a 15 px digit, 0.867 — and a run of
+    /// narrow columns is a few percent wider than its numbers say.
+    func column(_ chars: Double) -> Double {
+        guard chars > 0 else { return 0 }
+        let px = ((256 * chars + (128 / screenDigit).rounded(.down)) / 256 * screenDigit).rounded(.down)
+        return px / screenDigit * digit
+    }
 
     private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double] }
     private static let sizes: [Double] = [8, 9, 10, 10.5, 11, 12, 14, 16, 18]
@@ -174,6 +186,6 @@ struct SheetPrintMetrics {
         let pad = 2 * (screenDigit / 4).rounded(.up) + 1
         let px = ((baseColWidth * screenDigit + pad) / 8).rounded(.up) * 8
         return SheetPrintMetrics(digit: digit * 72 / 600, defaultChars: px / screenDigit,
-                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192))
+                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192), screenDigit: screenDigit)
     }
 }

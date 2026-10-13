@@ -248,7 +248,7 @@ final class SheetGridState: State<StatefulWidget> {
             let book = controller.book
             let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold,
                                          baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
-            let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : Xlsx._widthChars(ws, $0.key, $0.value) * m.digit) })
+            let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : m.column(Xlsx._widthChars(ws, $0.key, $0.value))) })
             let fitted = ws.customDefaultRowHeight || ws.defaultRowHeightPt <= 0 ? m.rowScale : m.defaultRow / ws.defaultRowHeightPt
             var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.map { ($0.key, $0.value * (ws.fittedRows.contains($0.key) ? fitted : m.rowScale)) })
             if !ws.customDefaultRowHeight {
@@ -266,7 +266,7 @@ final class SheetGridState: State<StatefulWidget> {
                     if line > m.defaultRow, line > heights[a.row] ?? 0 { heights[a.row] = line }
                 }
             }
-            cols = GridAxis(def: (ws.defaultColWidthChars ?? m.defaultChars) * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
+            cols = GridAxis(def: ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
             if !ws.customDefaultRowHeight, ws.fittedRows.isEmpty {
                 // And as tall as its wrapped text's lines, in the column's width —
                 // where the file's writer left fitting to the reader (one that
