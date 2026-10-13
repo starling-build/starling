@@ -305,9 +305,12 @@ extension SheetGridState {
             let titleW = (names.titleCols.map { $0.reduce(0) { $0 + ca.size($1) } } ?? 0) + head.width
             // Every area's pages first: page numbers and the count run across
             // all of them.
-            let jobs = areas.map { area in
-                SheetPrintLayout.pages(area: area, setup: setup, titleWidth: titleW, titleHeight: titleH,
-                                       width: { ca.size($0) }, height: { ra.size($0) })
+            let jobs = areas.map { area -> (pages: [SheetPage], scale: Double) in
+                let job = SheetPrintLayout.pages(area: area, setup: setup, titleWidth: titleW, titleHeight: titleH,
+                                                 width: { ca.size($0) }, height: { ra.size($0) })
+                // (With titles repeating, no page is blank: Excel prints them all.)
+                if names.titleRows != nil || names.titleCols != nil { return job }
+                return (_withoutTrailingBlanks(job.pages, ws: ws, book: book, overThenDown: setup.overThenDown), job.scale)
             }
             parts.append(Part(sheet: si, setup: setup, names: names, jobs: jobs))
         }
@@ -321,6 +324,63 @@ extension SheetGridState {
                        title: title, filePath: filePath, maxPages: maxPages, into: &out)
         }
         return PdfDocument.write(to: path, pages: out, title: title, author: PdfExport.authorName())
+    }
+
+    /// The pages without the blank ones Excel leaves out: those after the
+    /// last page that has anything on it — a value, a fill or border, a
+    /// merged area, a drawing, text running in from a neighbour. A blank
+    /// page between printed ones stays, and the first always does.
+    private func _withoutTrailingBlanks(_ pages: [SheetPage], ws: Worksheet, book: Workbook, overThenDown: Bool) -> [SheetPage] {
+        guard pages.count > 1 else { return pages }
+        // Each row and column to the band it prints in.
+        var rowBands: [[Int]] = [], colBands: [[Int]] = []
+        for p in pages {
+            if !rowBands.contains(p.rows) { rowBands.append(p.rows) }
+            if !colBands.contains(p.cols) { colBands.append(p.cols) }
+        }
+        var rowBand: [Int: Int] = [:], colBand: [Int: Int] = [:]
+        for (i, b) in rowBands.enumerated() { for r in b { rowBand[r] = i } }
+        for (i, b) in colBands.enumerated() { for c in b { colBand[c] = i } }
+        var filled: Set<[Int]> = []   // [row band, column band]
+        func fill(_ range: CellRange) {
+            let rs = Set((range.top ... range.bottom).compactMap { rowBand[$0] }), cs = Set((range.left ... range.right).compactMap { colBand[$0] })
+            for r in rs { for c in cs { filled.insert([r, c]) } }
+        }
+        for (a, cell) in ws.cells {
+            guard let r = rowBand[a.row], let c = colBand[a.col] else { continue }
+            if !cell.value.isEmpty {
+                filled.insert([r, c])
+                if cell.value.isText, let reach = textReach(a, cell, ws: ws, book: book) {
+                    fill(CellRange(top: a.row, left: reach.lowerBound, bottom: a.row, right: reach.upperBound))
+                }
+            } else if cell.style != 0 {
+                let st = book.style(cell.style)
+                if st.fill != nil || st.borders != CellStyle.Borders() { filled.insert([r, c]) }
+            }
+        }
+        for (a, v) in ws.spilled where !v.isEmpty { fill(CellRange(top: a.row, left: a.col, bottom: a.row, right: a.col)) }
+        // (A row formatted as a whole is on every page across it.)
+        for row in ws.rowAttrs.keys {
+            guard let r = rowBand[row], let style = ws.rowStyle(row) else { continue }
+            let st = book.style(style)
+            if st.fill != nil || st.borders != CellStyle.Borders() { for c in colBands.indices { filled.insert([r, c]) } }
+        }
+        for m in ws.merges where m.rows * m.cols <= 100_000 { fill(m) }
+        func cover(_ anchor: SheetAnchor) {
+            let f = ws.frame(anchor)
+            guard f.width > 0, f.height > 0 else { return }
+            let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
+            fill(CellRange(top: a.row, left: a.col, bottom: b.row, right: b.col))
+        }
+        for d in ws.drawings where !d.hidden { cover(d.anchor) }
+        for o in ws.objects where !o.screenOnly { cover(o.anchor) }
+        // Only from the end: a blank page with a printed one after it stays.
+        var kept = pages
+        while kept.count > 1, let last = kept.last,
+              let r = rowBands.firstIndex(of: last.rows), let c = colBands.firstIndex(of: last.cols), !filled.contains([r, c]) {
+            kept.removeLast()
+        }
+        return kept
     }
 
     /// The room printed headings take: a default row's height above the
