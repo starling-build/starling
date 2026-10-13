@@ -116,6 +116,9 @@ enum SheetPrintLayout {
             let st = book.style(c.style)
             if st.fill != nil || st.borders != CellStyle.Borders() { take(a.row, a.col) }
         }
+        // A row someone gave a height is part of the sheet in use, cells or
+        // none: an empty one below the last cell still takes its room on paper.
+        for (r, h) in ws.rowHeights where h > 0 && !ws.fittedRows.contains(r) && !ws.cells.isEmpty { top = min(top, r); bottom = max(bottom, r) }
         // A merged area is something to print though its cells are empty:
         // Excel gives a sheet of nothing but merges its page.
         for m in ws.merges { take(m.top, m.left); take(m.bottom, m.right) }
