@@ -153,17 +153,22 @@ public final class RichTextTheme {
 
     /// Resolve a run's style inside a paragraph to an engine TextStyle, at
     /// `scale` (zoom, 1.0 = 100%).
+    /// `normal` is the sheet's Normal look — the size, face and colour of
+    /// every run that states none and whose style states none either: a
+    /// 12-point Aptos document's plain paragraphs are in 12-point Aptos,
+    /// not the theme's Calibri 11.
     public func textStyle(for style: CharStyle, in paragraph: RichParagraphStyle,
-                          named: RichNamedStyle? = nil, scale: Double, fontScale: Double = 1,
+                          named: RichNamedStyle? = nil, normal: CharStyle? = nil,
+                          scale: Double, fontScale: Double = 1,
                           scriptHidden: Bool = false) -> TextStyle {
-        var size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        var size = style.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? fontSize
         // A fitted size is a whole number of points: PowerPoint sets 32 pt
         // at 85% in 27, not 27.2.
         if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
         var bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
-        var color = style.color ?? named?.char.color ?? textColor
-        let family = (style.fontFamily ?? named?.char.fontFamily ?? fontFamily)
+        var color = style.color ?? named?.char.color ?? normal?.color ?? textColor
+        let family = (style.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? fontFamily)
             .map { fontFamilyResolver?($0) ?? $0 }
         if named == nil, let h = paragraph.heading, h >= 1 {
             // A heading the sheet has no entry for: the theme's look.
@@ -1388,8 +1393,9 @@ public final class RichLayout {
     private func _span(for p: RichParagraph, _ document: RichDocument, textWidth: Double)
         -> (TextSpan, [(image: ImageAttachment, dimensions: PlaceholderDimensions)]) {
         let named = document.styles.resolve(p.style)
+        let normal = document.styles[RichNamedStyle.normalId]?.char
         if p.text.isEmpty {
-            return (TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale, fontScale: fontScale)), [])
+            return (TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, normal: normal, scale: scale, fontScale: fontScale)), [])
         }
         /// A run's text as shown: capitals for Word's All caps and Small
         /// caps (the latter with the lowercase letters' capitals at 80%),
@@ -1419,7 +1425,7 @@ public final class RichLayout {
             return spans
         }
         if p.runs.count == 1, p.runs[0].style.inlineImage == nil {
-            let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale, fontScale: fontScale, scriptHidden: true)
+            let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, normal: normal, scale: scale, fontScale: fontScale, scriptHidden: true)
             let spans = capped(p.text[...], p.runs[0].style, style)
             if spans.count == 1 { return (spans[0], []) }
             return (TextSpan(children: spans), [])
@@ -1433,7 +1439,7 @@ public final class RichLayout {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
             pos += run.length
-            let style = theme.textStyle(for: run.style, in: p.style, named: named, scale: scale, fontScale: fontScale, scriptHidden: true)
+            let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: normal, scale: scale, fontScale: fontScale, scriptHidden: true)
             if let id = run.style.inlineImage, let image = p.inlineImages[id] {
                 // A picture in the line, sitting on the baseline as Word
                 // sets it; shrunk to the column when wider.
@@ -1762,7 +1768,8 @@ public final class RichLayout {
         guard let run = p.runs.first else { return 0 }
         let k = theme.baselineShift(for: run.style, in: p.style)
         guard k != 0 else { return 0 }
-        var size = run.style.fontSize ?? theme.fontSize
+        var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
+            ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
         if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
         return k * _px(size)
     }
@@ -1825,7 +1832,7 @@ public final class RichLayout {
             let from = pos, to = min(units.count, pos + run.length)
             pos += run.length
             guard run.style.script != .normal, to > from else { continue }
-            let style = theme.textStyle(for: run.style, in: p.style, named: named, scale: scale, fontScale: fontScale)
+            let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale)
             // The size it was shrunk from (the style's is 65% of it).
             let full = (style.fontSize ?? 0) / 0.65
             // (Measured on PowerPoint's page: 7.0 pt up and 5.0 down at 24 pt.)
@@ -2030,9 +2037,9 @@ public final class RichLayout {
             if let c = p.style.bulletColor { markerChar.color = c }
             if let f = p.style.bulletFontFamily { markerChar.fontFamily = f }
             if let k = p.style.bulletScale {
-                markerChar.fontSize = (markerChar.fontSize ?? document.styles.resolve(p.style)?.char.fontSize ?? theme.fontSize) * k
+                markerChar.fontSize = (markerChar.fontSize ?? document.styles.resolve(p.style)?.char.fontSize ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize) * k
             }
-            let markerStyle = theme.textStyle(for: markerChar, in: p.style, scale: scale, fontScale: fontScale)
+            let markerStyle = theme.textStyle(for: markerChar, in: p.style, normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale)
             let marker = TextPainter(text: TextSpan(text: label, style: markerStyle),
                                      textAlign: .right, textDirection: .ltr)
             let slot = _px(theme.listIndent)
