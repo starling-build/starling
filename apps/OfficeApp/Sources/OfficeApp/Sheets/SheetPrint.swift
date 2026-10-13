@@ -123,7 +123,12 @@ enum SheetPrintLayout {
         for (a, v) in ws.spilled where !v.isEmpty { take(a.row, a.col) }
         // A merged area is something to print though its cells are empty:
         // Excel gives a sheet of nothing but merges its page.
-        for m in ws.merges { take(m.top, m.left); take(m.bottom, m.right) }
+        for m in ws.merges where m.rows * m.cols <= 100_000 {
+            // (Not one that is wholly in hidden rows or columns.)
+            guard (m.top ... m.bottom).contains(where: { !ws.isRowHidden($0) }),
+                  (m.left ... m.right).contains(where: { !ws.isColHidden($0) }) else { continue }
+            take(m.top, m.left); take(m.bottom, m.right)
+        }
         // A drawing prints whole, however it is anchored: every cell its
         // frame touches — the one its far corner only reaches the edge of
         // too, which is the cell Excel's anchor names for that corner.

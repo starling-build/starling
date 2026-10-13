@@ -250,7 +250,13 @@ final class SheetGridState: State<StatefulWidget> {
                                          baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
             let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : m.column(Xlsx._widthChars(ws, $0.key, $0.value))) })
             let fitted = ws.customDefaultRowHeight || ws.defaultRowHeightPt <= 0 ? m.rowScale : m.defaultRow / ws.defaultRowHeightPt
-            var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.map { ($0.key, $0.value * (ws.fittedRows.contains($0.key) ? fitted : m.rowScale)) })
+            // (Where the sheet sets its default height, a row whose height is
+            // only a fit — not set — takes that default: Excel fits it again.)
+            var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.compactMap { (r, h) -> (Int, Double)? in
+                let fit = ws.fittedRows.contains(r)
+                if fit, h > 0, ws.customDefaultRowHeight { return nil }
+                return (r, h * (fit ? fitted : m.rowScale))
+            })
             if !ws.customDefaultRowHeight {
                 // A row nobody sized is as tall as its tallest font's line: the
                 // file gives no height for it when Excel did not write the file.
