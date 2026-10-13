@@ -102,6 +102,13 @@ public class FluentTextBox: StatefulWidget {
     /// its resting face back.
     public let onFocusChanged: ((Bool) -> Void)?
 
+    /// A command chord (⌘/Ctrl + key) typed in a text box that the box has
+    /// no use for, with whether Shift is held. An app sets this to keep its
+    /// own shortcuts alive while a field has the keyboard: with focus in a
+    /// field the key never reaches the document's handler, so Ctrl+S in a
+    /// find box or a data cell did nothing. Return `true` when handled.
+    nonisolated(unsafe) public static var unhandledCommandChord: ((KeyData, Bool) -> Bool)? = nil
+
     /// Creates a Fluent UI text box.
     public init(
         key: (any Key)? = nil,
@@ -341,13 +348,15 @@ class _TextBoxState: State<StatefulWidget> {
         let controller = _effectiveController
 
         // A chord with the platform's command key (⌘, Ctrl elsewhere) is a
-        // command, never text: Select All here, anything else left alone.
+        // command, never text: Select All here; anything else is offered to
+        // the app, which may have a command for it (Save, Find), and is
+        // otherwise left alone.
         if _commandDown {
             if keyData.logical == 0x61 || keyData.logical == 0x41 || keyData.character?.lowercased() == "a" {
                 controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.count)
                 return true
             }
-            return false
+            return FluentTextBox.unhandledCommandChord?(keyData, _shiftDown) ?? false
         }
 
         switch keyData.logical {

@@ -140,6 +140,7 @@ final class SheetsShellState: State<StatefulWidget> {
         session.onBackstage = { [weak self] open in self?.setState { self?._backstage = open ? .home : nil } }
         session.onNew = { [weak self] in self?._newWorkbook() }
         session.guardWindowClose()
+        session.routeFieldChords()
         session.onNewKind = { [weak self] kind in
             guard let self else { return }
             if kind == .workbook { self._newWorkbook() } else { self._w.onSwitch(kind, nil) }

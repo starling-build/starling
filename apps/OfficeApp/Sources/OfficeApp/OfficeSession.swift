@@ -166,6 +166,26 @@ final class OfficeSession {
         #endif
     }
 
+    /// The app's own chords from inside a text field — the find box, a
+    /// chart's data cell, the name box: Save, Open, New, Print, Find and
+    /// Replace go where they go from the document. Only those: a field's
+    /// editing chords (copy, paste, undo) are its own business.
+    func routeFieldChords() {
+        FluentTextBox.unhandledCommandChord = { [weak self] key, shift in
+            guard let self, let letter = KeyChordTracker.letter(key.logical) else { return false }
+            switch letter {
+            case "s": if shift { self.onSaveAs?() } else { self.onSave?() }
+            case "o": self.onOpen?()
+            case "n": self.replacing { [weak self] in self?.onNew?() }
+            case "p": self.onPrint?()
+            case "f": self.onFind?(false)
+            case "h": self.onFind?(true)
+            default: return false
+            }
+            return true
+        }
+    }
+
     /// The window's own close asks too, where the host lets the app answer
     /// one: a modified document keeps the window and puts the question.
     func guardWindowClose() {

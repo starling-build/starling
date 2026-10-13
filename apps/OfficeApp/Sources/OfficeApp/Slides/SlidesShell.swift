@@ -159,6 +159,8 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onBackstage = { [weak self] open in self?.setState { self?._backstage = open ? .home : nil } }
         session.onNew = { [weak self] in self?._newDeck() }
         session.guardWindowClose()
+        session.routeFieldChords()
+        session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         session.onNewKind = { [weak self] kind in
             guard let self else { return }
             if kind == .presentation { self._newDeck() } else { self._w.onSwitch(kind, nil) }
