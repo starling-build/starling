@@ -275,7 +275,7 @@ extension SheetGridState {
                 // A chart sheet is one page, its chart filling it.
                 guard ws.drawings.contains(where: { $0.isChart && !$0.hidden }) else { continue }
                 var setup = SheetPrintSetup.read(ws)
-                if !ws.keptElements.contains(where: { $0.name == "pageSetup" && $0.text.contains("orientation=") }) { setup.landscape = true }
+                if !ws.keptElements.contains(where: { $0.name == "pageSetup" && $0.text.containsSubstring("orientation=") }) { setup.landscape = true }
                 parts.append(Part(sheet: si, setup: setup, names: ([], nil, nil), jobs: [([SheetPage(cols: [], rows: [])], 1)]))
                 continue
             }

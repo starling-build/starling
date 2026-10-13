@@ -1757,8 +1757,55 @@ public final class RichLayout {
         return k * _px(size)
     }
 
-    private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
+    /// The lines of paragraph `piece.paragraph` that `piece` holds, as a
+    /// painter of their own, where they stand below the paragraph's first
+    /// line, and whether they begin it — or nil when the piece is the
+    /// whole paragraph (or the paragraph is one this does not take
+    /// apart: a table cell's, one with a picture in it).
+    ///
+    /// For PowerPoint's columns. A piece is otherwise the whole paragraph
+    /// seen through a window, which is exact while lines keep to their
+    /// boxes; at a spacing under single they do not — the next line's
+    /// ascenders stand in the last line's box, and showed as a row of
+    /// specks under the foot of a column.
+    private func _linesPainter(_ piece: PagePiece, _ document: RichDocument) -> (painter: TextPainter, top: Double, first: Bool)? {
+        let i = piece.paragraph
+        guard theme.singleLineHeight != nil, _cells[i] == nil, i >= _inline.count || _inline[i].isEmpty else { return nil }
         let g = geometry(i)
+        let p = document.paragraphs[i]
+        let from = piece.flowTop - g.textTop, to = piece.flowBottom - g.textTop
+        let whole = g.painter.height
+        guard from > 0.5 || to < whole - 0.5, !p.text.isEmpty else { return nil }
+        let start = from <= 0.5 ? 0 : g.painter.getLineBoundary(g.painter.getPositionForOffset(Offset(1, from + 1))).start
+        let end = to >= whole - 0.5 ? p.length : g.painter.getLineBoundary(g.painter.getPositionForOffset(Offset(1, to - 1))).end
+        guard end > start else { return nil }
+        var head = p
+        _ = head.split(at: min(end, p.length))
+        let lines = start > 0 ? head.split(at: start) : head
+        let (span, inline) = _span(for: lines, document, textWidth: g.textWidth)
+        guard inline.isEmpty else { return nil }
+        var align = Self._textAlign(p.style.alignment)
+        if p.style.rightToLeft {
+            switch p.style.alignment {
+            case .left: align = .right
+            case .right: align = .left
+            default: break
+            }
+        }
+        let painter = TextPainter(text: span, textAlign: align, textDirection: p.style.rightToLeft ? .rtl : .ltr)
+        painter.layout(minWidth: g.textWidth, maxWidth: g.textWidth)
+        let top = start == 0 ? 0 : g.painter.getOffsetForCaret(TextPosition(offset: start), Rect.zero).dy
+        return (painter, top, start == 0)
+    }
+
+    private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument,
+                                 lines: (painter: TextPainter, top: Double, first: Bool)? = nil) {
+        let g = geometry(i)
+        if let lines, !lines.first {
+            // Lines from inside the paragraph: no marker, no rules — the text alone.
+            lines.painter.paint(canvas, Offset(g.textLeft, g.textTop + lines.top + _baselineShift(i, document)))
+            return
+        }
         if let c = _cells[i], c.firstInRow {
             // The table's switch, refined by its own sides and by each
             // cell's: a side a cell states wins, then the table's side
@@ -1948,7 +1995,7 @@ public final class RichLayout {
             }
             marker.dispose()
         }
-        g.painter.paint(canvas, Offset(g.textLeft, g.textTop + _baselineShift(i, document)))
+        (lines?.painter ?? g.painter).paint(canvas, Offset(g.textLeft, g.textTop + _baselineShift(i, document)))
         if i < _inline.count, !_inline[i].isEmpty, let boxes = g.painter.inlinePlaceholderBoxes {
             for (k, box) in boxes.enumerated() where k < _inline[i].count {
                 let image = _inline[i][k]
@@ -2073,11 +2120,22 @@ public final class RichLayout {
                         let bottom = top + piece.height
                         if bottom < visible.top || top > visible.bottom { continue }
                         canvas.save()
-                        canvas.clipRect(Rect.fromLTRB(clipL, top, clipR, bottom))
+                        let lines = shading ? nil : _linesPainter(piece, document)
+                        if lines != nil {
+                            // Its own lines and no others: nothing to cut off above or below.
+                            canvas.clipRect(Rect.fromLTRB(clipL, top - 10_000, clipR, bottom + 10_000))
+                        } else {
+                            // The window moves with the text: a paragraph drawn
+                            // above its line box (`baselineShift`) would
+                            // otherwise show the tops of its next line here.
+                            let dy = shading ? 0 : _baselineShift(piece.paragraph, document)
+                            canvas.clipRect(Rect.fromLTRB(clipL, top + dy, clipR, bottom + dy))
+                        }
                         canvas.translate(left, top - piece.flowTop)
                         if shading { _paintShading(piece.paragraph, canvas, document) } else {
-                            _paintParagraph(piece.paragraph, canvas, document)
+                            _paintParagraph(piece.paragraph, canvas, document, lines: lines)
                         }
+                        lines?.painter.dispose()
                         canvas.restore()
                     }
                 }

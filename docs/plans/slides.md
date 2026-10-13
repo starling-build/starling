@@ -532,6 +532,24 @@ Left in it: the gap between paragraphs is 32.5 pt where PowerPoint's is
 one deck does not give away (not the fitted scale: that would be 5.45).
 The editor still lays fitted text out the old way (`SlideCanvas`'s zoom).
 
+**One deck at a time: lo-3columns, 2026-10-12** (8.26 → 6.62; sweep 37:
+2.39 → 2.38%, 19 decks down, ten up by at most 0.34). A body in three
+columns under `fontScale="62500" lnSpcReduction="20000"`:
+
+- **The export lays out at twenty pixels a point**, where it was four:
+  the engine sets a line on whole pixels, so 12.6 pt was 12.5 and the
+  sixteenth line of a column stood 1.6 pt high. 12.6 now, as PowerPoint's.
+- **A column draws its own lines of a paragraph that runs on** into the
+  next (`RichLayout._linesPainter`), where it showed the whole paragraph
+  through a window: at a spacing under single a line's ascenders stand
+  in the box of the line above, and the next column's first line showed
+  as a row of specks under this one's last. Only where
+  `singleLineHeight` is set; Word's pages keep the window.
+
+Left in it: the first baseline is 0.5 pt above PowerPoint's, inside what
+PowerPoint's own page rounds by in this deck (its pitches go 12.0, 12.9,
+13.0).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
