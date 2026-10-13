@@ -290,6 +290,15 @@ public struct RichResolvedFace: Sendable {
     /// letters, the rest — where the stand-in's proportions are not the
     /// original's (nil: one scale for all).
     public var classScales: [Double]?
+    /// The widths, in ems, of the characters U+0020 to U+007E in the
+    /// face this one stands in for, and in that face's bold: each is
+    /// then set exactly as wide as the original's, whatever the
+    /// stand-in draws it (nil: as wide as the scales make it). A line
+    /// of Word's breaks by these, and a scale by kind is a per cent or
+    /// six off for a single letter — YaHei's "C" is .669 of an em and
+    /// a scaled sans's .711.
+    public var advances: [Double]? = nil
+    public var boldAdvances: [Double]? = nil
     /// How far below the top of its single line the face's baseline
     /// sits, in ems, as Word sets it (a Latin face's line gap goes above
     /// the ascent; an East Asian face's extra three tenths go half
@@ -2095,6 +2104,9 @@ public final class RichLayout {
                 var s = theme.textStyle(for: run, in: p.style, named: named, scale: scale, eastAsian: kind < 0, gridPitch: pitch,
                                         characterClass: classed && kind >= 0 ? kind : nil, characterGrid: grid)
                 if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
+                // (Set to the original's widths, the stand-in's own
+                // kerning is no part of them: Arial's pair of ones.)
+                if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
                 styles[kind] = s
                 return s
             }
@@ -2189,6 +2201,17 @@ public final class RichLayout {
                     // as Word measures it: 8.31pt at 16pt spaced 0.15.)
                     let s = style(kind)
                     extra += em / 2 - _spaceWidth(s) + (s.letterSpacing ?? 0)
+                } else if !ea, let face = latinFace, face.advances != nil, ch.unicodeScalars.count == 1,
+                          let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E {
+                    // The width the original face gives this character
+                    // (`RichResolvedFace.advances`), at the size the
+                    // style sets it less the stand-in's scales.
+                    let s = style(kind)
+                    let k = Int(u) - 0x20
+                    if let table = s.fontWeight == .bold ? face.boldAdvances : face.advances, k < table.count, let px = s.fontSize, px > 0.5 {
+                        let classScale = classed ? face.classScales.flatMap { kind < $0.count ? $0[kind] : nil } ?? 1 : 1
+                        extra += table[k] * px / (face.sizeScale * classScale) - _glyphWidth(s, ch)
+                    }
                 }
                 if let following {
                     if theme.wordRules, document.usesEastAsianLayout, Self._autoSpaced(ch, following, p.style) {
@@ -2432,6 +2455,7 @@ public final class RichLayout {
     /// How wide a face sets a character, in pixels, at a style's size.
     private func _glyphWidth(_ style: TextStyle, _ ch: Character) -> Double {
         let key = "\(ch)|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
+            + (style.fontFeatures?.isEmpty ?? true ? "" : "|f")
         if let w = _spaceWidths[key] { return w }
         func width(_ text: String) -> Double {
             let t = TextPainter(text: TextSpan(text: text, style: style.copyWith(letterSpacing: 0)), textDirection: .ltr)

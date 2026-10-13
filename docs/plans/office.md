@@ -1346,6 +1346,15 @@ line that does it):
   scale (`w:w`) is a true narrowing — drawn from a second painter at
   full size under a narrower canvas — and takes the face's OS/2 line
   metrics, which for 华文中宋 are not its hhea ones.
+- **A stand-in's widths.** The Latin of 微软雅黑, 微軟正黑體 and
+  等线 is drawn by a shipped sans, and was as wide as a scale for
+  each kind of character made it: right on average and up to six per
+  cent off for one letter ("C" 11.4pt for YaHei's 10.7 at 16pt), a
+  character of a line in a paragraph with a few words of Latin. Each
+  of U+0020 to U+007E is now set exactly as wide as the face's own
+  table has it, regular and bold, with the stand-in's kerning off
+  (Arial closes up a pair of ones). The letters of a Chinese face
+  Word on a Mac does not have are YaHei's too, like its ideographs.
 - **`w:balanceSingleByteDoubleByteWidth`** (two thirds of the sample):
   a space is half an em unless it stands between two Latin
   characters; character spacing counts twice on a full-width
@@ -1394,10 +1403,8 @@ fitter dropped the paragraph's tail).
 Still open from the automatic space's lab: from mode 15 on the
 spaces give in a justified paragraph only, and by a rule not found
 (one space gave its whole 4pt, two under 4 between them, four under
-5); and the letters of a Chinese face Word on a Mac does not have
-are YaHei's own like its ideographs — "C" 10.7pt at 16pt, a pair of
-them kerned to 10.25 — where this app's stand-in, a sans scaled by
-class, sets it 11.4 wide.
+5); and Word kerns YaHei's letters (a pair of "C" 10.25pt apart at
+16pt, where one is 10.7 wide), which this app does not.
 
 Left, in the order the line match names them: tables (cell widths,
 vertical alignment, rows that split), cover pages and frames in the
