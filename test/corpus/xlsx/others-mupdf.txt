@@ -62,6 +62,7 @@
 54399.xlsx
 54436.xlsx
 54524.xlsx
+54607.xlsx
 55406_Conditional_formatting_sample.xlsx
 55640.xlsx
 55745.xlsx
@@ -109,7 +110,6 @@
 57828.xlsx
 57838.xlsx
 57890.xlsx
-57893-many-merges.xlsx
 57914.xlsx
 58106.xlsx
 58315.xlsx
@@ -660,8 +660,8 @@ lo-tdf95640.xlsx
 lo-tdf97598_scenarios.xlsx
 lo-tdf98481.xlsx
 lo-testDeleteCircles.xlsx
+lo-testDrawCircleInMergeCells.xlsx
 lo-testShapeAutofit.xlsx
-lo-testShapeDisplacementOnRotationImport.xlsx
 lo-testShapeRotationImport.xlsx
 lo-test_115192.xlsx
 lo-textLengthDataValidity.xlsx

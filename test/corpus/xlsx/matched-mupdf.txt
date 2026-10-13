@@ -3,9 +3,9 @@
 51470.xlsx
 51998.xlsx
 52425.xlsx
-54607.xlsx
 55924.xlsx
 56017.xlsx
+57893-many-merges.xlsx
 58760.xlsx
 60825.xlsx
 AmpersandHeader.xlsx
@@ -36,7 +36,7 @@ lo-tdf134817_HeaderFooterTextWith2Section.xlsx
 lo-tdf134826.xlsx
 lo-tdf166712.xlsx
 lo-tdf90104.xlsx
-lo-testDrawCircleInMergeCells.xlsx
+lo-testShapeDisplacementOnRotationImport.xlsx
 lo-threadedComment.xlsx
 sheetProtection_allLocked.xlsx
 workbookProtection_workbook_revision_protected.xlsx

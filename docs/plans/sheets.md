@@ -150,8 +150,46 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**Sweep 4 (2026-10-12): mean 1.93%, median 0.40%**, 751 scored, 10 with a
+page only one side has, 42 exact (`baseline-mupdf.tsv`). One workbook and
+one cause at a time from here, each checked on its own file and the
+whole corpus swept now and then from a frozen copy of the build — which
+caught two rules that were right for their file and wrong for others
+(below).
+
+- *What counts as there to print.* A merged area, though its cells are
+  empty (61034). An inline string with nothing in it: a value (52348).
+  What an array formula spills (lo-tdf137543). The cell a drawing's far
+  corner stands on, edge or not (chart-tdf128634). A turned shape's
+  turned outline, not its anchor's cells (lo-testShapeRotationImport).
+  Not a cell, or a merge, in a hidden row or column
+  (lo-cool14390_chart_external_ref).
+- *Blank pages at the end of a sheet's print are left out* (56644,
+  MatrixFormulaEvalTestData), but not one between printed pages, and
+  none where titles repeat.
+- *Sizes.* A printed column is its screen pixels' worth of characters —
+  Excel holds a width in whole pixels, so 0.855 characters print as 0.867
+  (lo-tdf118668, 167 such columns). A bold default font has its own line
+  and digit (lo-tdf100034). A row whose height is a fit, not set, takes
+  the sheet's default where the sheet sets one.
+- *Drawing.* No gridline through text that runs over its neighbours;
+  nothing snapped to pixels on paper; a print area named twice prints
+  once.
+- *Wrong, and taken back.* "A row someone gave a height is in use" put a
+  thousand empty sized rows on paper in five workbooks (the row in 52348
+  was its inline strings). "A cell that is only formatted widens what
+  prints" explained FormatConditionTests' fourth page and tripled three
+  other workbooks'. Neither showed in a one-in-seven sample; both showed
+  in a full sweep.
+
+Not understood yet: why Excel prints FormatConditionTests across to a
+formatted, empty H7 and not down to formatted, empty D55–D342; what
+makes a row holding Lucida Sans Typewriter 10 in a Verdana 10 workbook
+13.32 pt (neither face's own line); 52348's rows at 15.94 pt for a set
+15 (a workbook with no cell styles part).
+
 **Sweep 3 (2026-10-12): mean 2.81%, median 0.40%**, 750 scored, 27 with a
-page only one side has, 42 exact (`baseline-mupdf.tsv`). What the pictures of sweep 2's worst
+page only one side has, 42 exact. What the pictures of sweep 2's worst
 showed, and what was done about each:
 
 - *Chart sheets* print as Excel prints them: one page, landscape unless
