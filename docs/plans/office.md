@@ -1738,6 +1738,36 @@ fitter dropped the paragraph's tail).
   Latin full stop before an opening mark, and ours does not).
   Chinese sample 72.4%, 54 with Word's page count; POI unchanged.
 
+- **The 2013 layout's squeeze, measured to a tenth (2026-10-13).**
+  Labs `mm`, `mm2`, `mm3` (`body39.py`–`body41.py`, read by
+  `read39.py`–`read41.py`): a justified line of full-width
+  characters with k marks on it, the next ideograph over by d.
+  Every kind of mark gives alike (，、。：；（）). With 26
+  characters of 16pt on the line the next is taken up to: one mark
+  8.0 (8.1 left); two 11.5 (11.6 left); three 12.6; four 13.3; five
+  13.8; six 14.1; seven 14.3. With 16 on the line, two marks take
+  12.9 and three 13.8; with 20, two take 12.3; with 10, two take
+  14.0; at 14pt with 26, two take 10.0. One rule gives all thirteen:
+  **the line is squeezed where that asks less of it than stretching
+  would** — need / (half an em per mark) is no more than (what the
+  line would stretch by without the character) / (a sixty-fourth of
+  an em at each of its gaps) — and no mark gives more than its half.
+  The test built on 2026-10-12 (need per mark no more than the
+  stretch: 1/2, 2/3, 3/4 of an em) is that rule at 33 characters a
+  line. It is right as it was for one case, lab `mh` (`body42.py`):
+  where the character has a comma after it that hangs, one mark
+  takes it 8.0 over, two 10.4 (10.8 left), three 11.6 (12.0 left).
+  An ASCII bracket is no mark (lab `am`, `body38.py`), in an East
+  Asian face or in Times.
+  The rule is built for lines without spaces (those stretch at the
+  spaces first: zh-33aa9899's line with a "3" in it is not squeezed
+  for a character 8.4 over, Word widening the two automatic spaces
+  from 3.5 to 6.3 instead — which the older test also gets wrong and
+  this leaves as it was). Digits and brackets on the line count as
+  characters. zh-457a8d62 25% -> 95%: its lines of 23 characters and
+  two marks take a character 11.4 over. Chinese sample 73.4%
+  (median 90.4), POI unchanged.
+
   A lab's "ours" must be converted with `OFFICE_WORD_FONTS=mac`, as
   the sweeps are: without it 標楷體 and 仿宋_GB2312 are the square
   faces their authors had, not the YaHei this Word falls back to.

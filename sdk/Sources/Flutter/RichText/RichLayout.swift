@@ -3628,8 +3628,12 @@ public final class RichLayout {
         var marks: [Int] = []   // this line's marks that still have their whole em
         var spaces: [Int] = []  // this line's characters with an automatic space after them
         var opening = true      // nothing on the line yet
+        var lineWide = 0        // this line's characters, and whether it has spaces among them
+        var lineOther = false
+        var lineSpaced = false  // … or ends, so far, with one
         for piece in pieces {
             let a = piece.a, last = piece.last, w = piece.w
+            if lineSpaced, last > a { lineOther = true }
             // (The automatic space after this stretch, which is no part
             // of a line that ends with it.)
             let after = last > a ? gaps[last - 1] ?? 0 : 0
@@ -3721,6 +3725,31 @@ public final class RichLayout {
                     // stretch — one mark takes a character half an em
                     // over, two take one two thirds over, three one
                     // three quarters over (measured 2026-10-12).
+                    // Measured again 2026-10-13, to a tenth of a point
+                    // (labs `mm`, `mm2`, `mm3`): the line is squeezed
+                    // where that asks less of it than stretching would
+                    // — what the marks must give, as a share of the half
+                    // each can give, is no more than what the line
+                    // would otherwise stretch by as a share of what it
+                    // can stretch: a sixty-fourth of an em at each of
+                    // its gaps. So it turns on how many characters the
+                    // line holds: with 26 of 16pt, two commas take a
+                    // character 11.5 over and not 11.6, seven 14.3 and
+                    // not 14.4; with 16 on the line two take 12.9, with
+                    // 10, 14.0; at 14pt, 10.0. One mark never gives
+                    // more than its half, and every kind of mark gives
+                    // alike. Measured on lines of full-width characters
+                    // alone; digits and brackets among them are counted
+                    // as characters like any (zh-457a8d62 takes a 同
+                    // 11.4 over with two marks and 23 characters, which
+                    // this allows and a gap fewer would not), and a
+                    // line with spaces in it, which stretches at those
+                    // first, keeps the older test. So does a character
+                    // with a mark after it that hangs: there the marks
+                    // may each give no more than the line would stretch
+                    // by — one takes it 8.0 over, two 10.4 and not
+                    // 10.8, three 11.6 and not 12.0 (lab `mh`), which
+                    // is what was first measured.
                     let modern = (document.compatibilityMode ?? 12) >= 15
                     // (Half an em of the character as it is set, its
                     // run's spacing with it: 16pt text spaced -0.4 sets
@@ -3732,7 +3761,12 @@ public final class RichLayout {
                     // no part of the character.)
                     let set = wide && !closesUp(a) ? boxes(a, a + 1) - (gaps[a] ?? 0) : em
                     let taken = modern
-                        ? need / Double(max(1, all.count)) <= width - x + hair
+                        ? (!lineOther && lineWide > 1 && room > 0 && hang == 0
+                            ? need * Double(lineWide - 1) * em / 64 <= room * (width - x + hair)
+                            // (To the limit with one mark — 8.0 over is
+                            // taken — and short of it with more: three
+                            // leave a character 12.0 over.)
+                            : need / Double(max(1, all.count)) <= width - x + (all.count > 1 ? -_px(0.02) : hair))
                         : x + min(lead, w) - width <= set / 2 + edge
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
@@ -3758,7 +3792,7 @@ public final class RichLayout {
                     x = width
                     marks = []
                     spaces = []
-                    if piece.hard { x = 0; opening = true }
+                    if piece.hard { x = 0; opening = true; lineWide = 0; lineOther = false; lineSpaced = false }
                     continue
                 }
             }
@@ -3766,7 +3800,16 @@ public final class RichLayout {
                 x = 0
                 marks = []
                 spaces = []
+                lineWide = 0
+                lineOther = false
+                lineSpaced = false
             }
+            // (Spaces a line opens with are no characters of it, and
+            // those it ends with stretch nothing.)
+            for k in a ..< last {
+                if isSpace(units[k]) { if lineWide > 0 { lineOther = true } } else { lineWide += 1 }
+            }
+            if last < piece.b, lineWide > 0 { lineSpaced = true }
             x += w + piece.trail
             opening = false
             marks.append(contentsOf: own)
@@ -3777,6 +3820,9 @@ public final class RichLayout {
                 marks = []
                 spaces = []
                 opening = true
+                lineWide = 0
+                lineOther = false
+                lineSpaced = false
             }
         }
         // (With the tabs' widths, which the paragraph is laid out by.)
