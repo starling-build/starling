@@ -86,3 +86,17 @@ func homeDirectory() -> String {
     return NSHomeDirectory().portablePath
     #endif
 }
+
+/// Why a file could not be written, as a person would say it. Foundation's
+/// own description of the error is a dump of its userInfo.
+func plainFailure(_ error: Error) -> String {
+    #if !os(WASI)
+    if let cocoa = error as? CocoaError {
+        if let posix = cocoa.underlying as? POSIXError {
+            return String(cString: strerror(posix.code.rawValue))
+        }
+        return cocoa.localizedDescription
+    }
+    #endif
+    return "\(error)"
+}

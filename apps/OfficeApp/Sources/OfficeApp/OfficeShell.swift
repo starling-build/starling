@@ -485,7 +485,7 @@ final class OfficeShellState: State<StatefulWidget> {
             }
             _flash("Saved \(name)")
         } catch {
-            _flash("Could not save: \(error)")
+            _flash("Could not save: \(plainFailure(error))")
         }
         #else
         guard let path = session.path else {
@@ -518,7 +518,7 @@ final class OfficeShellState: State<StatefulWidget> {
                    ? "Saved as plain text — formatting is not kept in .txt"
                    : "Saved \(path.lastPathComponent)")
         } catch {
-            _flash("Could not save: \(error)")
+            _flash("Could not save: \(plainFailure(error))")
         }
     }
 
@@ -928,7 +928,7 @@ final class OfficeShellState: State<StatefulWidget> {
         return Stack(children: [
             window,
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Backstage(
-                session: session, page: page, recent: _recent,
+                session: session, page: page, recent: _recent, notice: _status,
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
                 onOpenPath: { [weak self] path in self?._open(path) },

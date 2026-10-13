@@ -50,19 +50,23 @@ final class Backstage: StatelessWidget {
     let session: OfficeSession
     let page: BackstagePage
     let recent: [String]
+    /// What the window's status bar is saying. The backstage covers that
+    /// bar, so a save that failed from here said nothing at all.
+    let notice: String?
     let onPage: (BackstagePage) -> Void
     let onClose: () -> Void
     let onOpenPath: (String) -> Void
     let onSavePath: (String) -> Void
     let onPicturePath: (String) -> Void
 
-    init(session: OfficeSession, page: BackstagePage, recent: [String],
+    init(session: OfficeSession, page: BackstagePage, recent: [String], notice: String? = nil,
          onPage: @escaping (BackstagePage) -> Void, onClose: @escaping () -> Void,
          onOpenPath: @escaping (String) -> Void, onSavePath: @escaping (String) -> Void,
          onPicturePath: @escaping (String) -> Void) {
         self.session = session
         self.page = page
         self.recent = recent
+        self.notice = notice
         self.onPage = onPage
         self.onClose = onClose
         self.onOpenPath = onOpenPath
@@ -237,8 +241,12 @@ final class Backstage: StatelessWidget {
         let start = FileManager.default.fileExists(atPath: dir) ? dir : homeDirectory()
         let suggested = session.path.map { $0.lastPathComponent }
             ?? (session.kind == .presentation ? "Presentation1.pptx" : session.kind == .workbook ? "Book1.xlsx" : "Document1.docx")
-        return Column(crossAxisAlignment: .stretch, children: [
-            _heading(mode == .open ? "Open" : "Save As", fluent),
+        var rows: [Widget] = [_heading(mode == .open ? "Open" : "Save As", fluent)]
+        if let notice {
+            rows.append(Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12),
+                                child: Text(notice, style: fluent.typography.body)))
+        }
+        return Column(crossAxisAlignment: .stretch, children: rows + [
             Expanded(child: FluentFilePanel(
                 mode: mode, initialDirectory: start, suggestedName: suggested,
                 extensions: mode == .open ? OfficeFormats.readable + ["pptx", "xlsx", "csv", "tsv"]

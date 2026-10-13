@@ -2318,8 +2318,14 @@ public final class RichLayout {
             let o = document.paragraphs[j].style
             return o.named == style.named && o.heading == style.heading && o.list == style.list
         }
-        let skipBefore = style.contextualSpacing && sameStyle(i - 1) || theme.omitsLeadingSpace && i == 0
-        let skipAfter = style.contextualSpacing && sameStyle(i + 1)
+        // A list made here, in a document that was not read from a file,
+        // is saved in Word's List Paragraph — whose spacing is contextual.
+        // It is laid out so from the start: it used to sit loose until
+        // saved, and come back tight.
+        let contextual = style.contextualSpacing
+            || theme.wordRules && style.list != nil && style.named == nil && !document.readFromFile
+        let skipBefore = contextual && sameStyle(i - 1) || theme.omitsLeadingSpace && i == 0
+        let skipAfter = contextual && sameStyle(i + 1)
         // Automatic spacing is the web's, unless the document says its
         // own numbers stand: see `RichDocument.htmlAutoSpacing`.
         let web = !theme.wordRules || document.htmlAutoSpacing
@@ -4692,6 +4698,12 @@ public final class RichLayout {
                 marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
                 let hang = g.textLeft - slot + _px(p.style.firstLineIndent)
                 marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4), g.inkTop))
+            } else if theme.wordRules, !document.readFromFile {
+                // No level of its own yet: where the file it is saved to
+                // will hang it, half the indent back from the text.
+                marker.textAlign = .left
+                marker.layout(minWidth: 0, maxWidth: max(1, slot * 8))
+                marker.paint(canvas, Offset(min(g.textLeft - slot / 2, g.textLeft - marker.width), top()))
             } else {
                 marker.layout(minWidth: slot - 8, maxWidth: slot - 8)
                 marker.paint(canvas, Offset(g.textLeft - slot, g.inkTop))

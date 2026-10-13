@@ -321,7 +321,7 @@ final class SheetsShellState: State<StatefulWidget> {
                    ? "Saved \(path.lastPathComponent) — CSV keeps only the active sheet"
                    : "Saved \(path.lastPathComponent)")
         } catch {
-            _flash("Could not save \(path.lastPathComponent): \(error)")
+            _flash("Could not save \(path.lastPathComponent): \(plainFailure(error))")
         }
     }
 
@@ -641,7 +641,7 @@ final class SheetsShellState: State<StatefulWidget> {
         return Stack(children: [
             window,
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Backstage(
-                session: session, page: page, recent: _recent,
+                session: session, page: page, recent: _recent, notice: _status,
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
                 onClose: { [weak self] in
                     self?.setState { self?._backstage = nil }
