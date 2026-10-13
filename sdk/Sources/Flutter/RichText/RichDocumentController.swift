@@ -272,8 +272,18 @@ public final class RichDocumentController: ChangeNotifier {
     /// mixed selection shows bold as off, and toggling turns it on for all).
     public func selectionAll(_ predicate: (CharStyle) -> Bool) -> Bool {
         if selection.isCollapsed { return predicate(currentCharStyle) }
+        var any = false
         for run in document.fragment(selection).flatMap(\.runs) where run.length > 0 {
             if !predicate(run.style) { return false }
+            any = true
+        }
+        // A selection of no characters — a paragraph mark alone, from
+        // the end of one paragraph to the start of the next — is not
+        // bold and italic and struck through because nothing in it says
+        // otherwise: it is as the text before the mark is.
+        if !any {
+            let p = document.clamped(selection.start)
+            return predicate(document.paragraphs[p.paragraph].style(at: p.offset))
         }
         return true
     }

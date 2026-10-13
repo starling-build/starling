@@ -157,6 +157,19 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document, before)
     }
 
+    /// A selection of a paragraph mark alone has no characters to be
+    /// bold: the toolbar shows the text before the mark, not every
+    /// toggle lit (seen on screen, 2026-10-13).
+    func testASelectionOfAParagraphMarkAloneIsNotEverything() {
+        let c = controller("plain\nnext")
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: true)
+        XCTAssertFalse(c.selection.isCollapsed)
+        XCTAssertFalse(c.selectionAll { $0.bold })
+        XCTAssertFalse(c.selectionAll { $0.italic })
+        XCTAssertTrue(c.selectionAll { !$0.bold })
+    }
+
     func testToggleBoldOverSelectionAndPendingStyle() {
         let c = controller("bold me")
         c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)

@@ -221,18 +221,18 @@ def run(d, only):
     d.shot("welcome", "The welcome document: Title, Subtitle, headings, list, link, table, code line; I-beam cursor over the page", cursor=True)
 
     if step("pointer"):
-        d.click(700, 372, "move"); d.shot("cursor-text", "Pointer over the title is an I-beam", cursor=True)
-        d.click(400, 126, "move"); d.shot("cursor-ribbon", "Pointer over the ribbon is an arrow", cursor=True)
-        d.click(720, 405); d.shot("click-caret", "Caret in the intro paragraph where clicked")
-        d.click(720, 405, "double"); d.shot("double-click", "The word under the pointer is selected")
-        d.click(720, 405, "triple"); d.shot("triple-click", "The whole intro paragraph is selected")
-        d.click(560, 405); d.click(900, 437, "click", "shift"); d.shot("shift-click", "Selection from the first click to the shift-click")
-        d.drag(560, 405, 900, 470); d.shot("drag-select", "Selection covers the dragged range")
+        d.click(700, 397, "move"); d.shot("cursor-text", "Pointer over the title is an I-beam", cursor=True)
+        d.click(400, 150, "move"); d.shot("cursor-ribbon", "Pointer over the ribbon is an arrow", cursor=True)
+        d.click(720, 470); d.shot("click-caret", "Caret in the intro paragraph where clicked")
+        d.click(720, 470, "double"); d.shot("double-click", "The word under the pointer is selected")
+        d.click(720, 470, "triple"); d.shot("triple-click", "The whole intro paragraph is selected")
+        d.click(560, 470); d.click(900, 489, "click", "shift"); d.shot("shift-click", "Selection from the first click to the shift-click")
+        d.drag(560, 470, 900, 508); d.shot("drag-select", "Selection covers the dragged range")
         d.scroll(720, 600, -300); d.shot("scroll-down", "Page scrolled down by the wheel")
         d.scroll(720, 600, 600); d.shot("scroll-up", "Back at the top")
 
     if step("keys"):
-        d.click(560, 405)
+        d.click(560, 470)
         d.key(key=KEY["down"]); d.key(key=KEY["down"]); d.shot("arrow-down", "Caret two lines down, same x")
         d.key(key=KEY["right"], mods=("option", "shift")); d.shot("opt-shift-right", "One word selected to the right")
         d.key(key=KEY["left"], mods=("command",)); d.shot("cmd-left", "Caret at the line start")
@@ -244,13 +244,13 @@ def run(d, only):
 
     if step("editing"):
         d.key(key=KEY["up"], mods=("command",))   # PageDown left the view scrolled
-        d.click(560, 441); d.key(key=KEY["end"])
+        d.click(560, 470); d.key(key=KEY["end"])
         d.key(" typed here"); d.shot("typing", "' typed here' appended to the first intro line's end")
         d.key(key=KEY["backspace"], mods=("command",)); d.shot("cmd-backspace", "The line before the caret deleted")
         d.key("z", mods=("command",)); d.shot("undo", "The line is back")
         d.key(key=KEY["enter"], mods=("shift",)); d.key("after a line break"); d.shot("shift-enter", "A line break inside the paragraph, text on the next line")
         d.key("z", mods=("command",)); d.key("z", mods=("command",))
-        d.click(560, 441); d.click(700, 441, "click", "shift"); d.key("b", mods=("command",)); d.shot("cmd-b", "Selection bold")
+        d.click(560, 470); d.click(700, 470, "click", "shift"); d.key("b", mods=("command",)); d.shot("cmd-b", "Selection bold")
         d.key("e", mods=("command",)); d.shot("cmd-e", "Intro paragraph centred")
         d.key("l", mods=("command",))
         d.key("]", mods=("command",)); d.shot("cmd-bracket", "Selection one size larger; the Font size box shows it")
@@ -259,14 +259,14 @@ def run(d, only):
     if step("list"):
         # The list: click the end of the second bullet, Enter twice ends the list.
         d.key(key=KEY["up"], mods=("command",))
-        d.click(600, 710); d.key(key=KEY["end"]); d.key(key=KEY["enter"]); d.shot("list-enter", "A new empty bullet under item 2")
+        d.click(600, 742); d.key(key=KEY["end"]); d.key(key=KEY["enter"]); d.shot("list-enter", "A new empty bullet under item 2")
         d.key(key=KEY["enter"]); d.shot("list-end", "The empty bullet became a plain paragraph")
         d.key("z", mods=("command",)); d.key("z", mods=("command",))
 
     if step("table"):
-        d.key(key=KEY["up"], mods=("command",))   # back to the top: the table is at a known y there
-        d.click(560, 870); d.shot("table-click", "Caret in the table; the Table Layout tab is in the strip")
-        d.click(560, 870, "move"); d.shot("cursor-table", "I-beam inside a cell", cursor=True)
+        d.key(key=KEY["down"], mods=("command",))   # at the document's end the table is at a known y, clear of the status bar
+        d.click(560, 625); d.shot("table-click", "Caret in the table; the Table Layout tab is in the strip")
+        d.click(560, 625, "move"); d.shot("cursor-table", "I-beam inside a cell", cursor=True)
         d.key(key=KEY["tab"]); d.key(key=KEY["tab"]); d.shot("table-tab", "Two Tabs: the third cell is selected")
 
     if step("picture"):
@@ -276,15 +276,15 @@ def run(d, only):
         pass
 
     if step("chrome"):
-        d.click(159, 90); d.shot("insert-tab", "Insert tab with Table menu, Pictures, Link enabled")
-        d.click(97, 90); d.shot("home-tab", "Home tab; Change Case is a menu, Show/Hide ¶ a toggle")
-        d.click(694, 122); d.shot("marks-on", "Formatting marks: a pilcrow at every paragraph end")
-        d.click(694, 122)
-        d.click(1030, 137); d.shot("styles-menu", "The all-styles menu with Update … to Match Selection at the bottom")
+        d.click(155, 113); d.shot("insert-tab", "Insert tab with Table menu, Pictures, Link enabled")
+        d.click(97, 113); d.shot("home-tab", "Home tab; Change Case is a menu, Show/Hide ¶ a toggle")
+        d.click(707, 148); d.shot("marks-on", "Formatting marks: a pilcrow at every paragraph end")
+        d.click(707, 148)
+        d.click(1052, 163); d.shot("styles-menu", "The all-styles menu with Update … to Match Selection at the bottom")
         d.click(720, 650)   # a click outside closes a flyout (Esc does not)
-        d.click(345, 90); d.shot("view-tab", "View tab: Navigation Pane toggle")
-        d.click(353, 123); d.shot("nav-pane", "Navigation pane with the welcome headings")
-        d.click(353, 123)
+        d.click(335, 113); d.shot("view-tab", "View tab: Navigation Pane toggle")
+        d.click(343, 148); d.shot("nav-pane", "Navigation pane with the welcome headings")
+        d.click(343, 148)
 
     d.shot("final", "Still running, no crash dialog")
     with open(os.path.join(d.out, "index.md"), "w") as f:

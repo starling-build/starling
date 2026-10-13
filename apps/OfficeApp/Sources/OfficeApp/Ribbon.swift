@@ -362,11 +362,22 @@ final class Ribbon: StatelessWidget {
                           onAccent: Bool = false) -> Flutter.TextStyle {
         let size = min(cap, (entry.char.fontSize ?? session.theme.fontSize) * 0.85)
         let color = onAccent ? fluent.accentColor.defaultBrushFor(fluent.brightness)
-            : entry.char.color ?? OfficeAppearance.ink(fluent)
+            : Self._legible(entry.char.color, fluent) ?? OfficeAppearance.ink(fluent)
         return Flutter.TextStyle(color: color, fontSize: max(9, size),
                                  fontWeight: entry.char.bold ? .bold : .normal,
                                  fontStyle: entry.char.italic ? .italic : .normal,
                                  fontFamily: (entry.char.fontFamily ?? session.theme.fontFamily).map(OfficeFonts.substitute))
+    }
+
+    /// A style's own colour where it can be read on the chrome. A
+    /// document is dark ink on white paper whatever the theme, and the
+    /// ribbon in the dark theme is dark too: Title's navy and Subtitle's
+    /// grey were all but invisible there (seen 2026-10-13, the gallery
+    /// tile and half of the all-styles menu). Such a colour is lifted
+    /// towards the chrome's ink, keeping its hue.
+    private static func _legible(_ color: Color?, _ fluent: FluentThemeData) -> Color? {
+        guard let color, fluent.brightness == .dark, color.computeLuminance() < 0.3 else { return color }
+        return Color.lerp(color, OfficeAppearance.ink(fluent), 0.65) ?? color
     }
 
     private static func _fmt(_ n: Double) -> String {

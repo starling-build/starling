@@ -305,7 +305,11 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
         if top < _scrollY + margin {
-            _scrollY = max(0, top - margin)
+            // (To the document's start is to the top of its first page,
+            // margin and all, as ⌘↑ leaves a view in Word — not to the
+            // first line with the paper above it cut off.)
+            let atStart = _controller.caret.paragraph == 0 && _controller.caret.offset == 0
+            _scrollY = atStart ? 0 : max(0, top - margin)
         } else if bottom > _scrollY + _viewport.height - margin {
             _scrollY = bottom - _viewport.height + margin
         }
