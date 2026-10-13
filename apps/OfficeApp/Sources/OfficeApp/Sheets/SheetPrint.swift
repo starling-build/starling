@@ -116,6 +116,9 @@ enum SheetPrintLayout {
             let st = book.style(c.style)
             if st.fill != nil || st.borders != CellStyle.Borders() { take(a.row, a.col) }
         }
+        // What an array formula spills into its neighbours is there to print
+        // as much as a cell's own value.
+        for (a, v) in ws.spilled where !v.isEmpty { take(a.row, a.col) }
         // A row someone gave a height is part of the sheet in use, cells or
         // none: an empty one below the last cell still takes its room on paper.
         for (r, h) in ws.rowHeights where h > 0 && !ws.fittedRows.contains(r) && !ws.cells.isEmpty { top = min(top, r); bottom = max(bottom, r) }
