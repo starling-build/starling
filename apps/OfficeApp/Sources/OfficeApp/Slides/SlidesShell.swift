@@ -145,6 +145,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _wire() {
         session.onBackstage = { [weak self] open in self?.setState { self?._backstage = open ? .home : nil } }
         session.onNew = { [weak self] in self?._newDeck() }
+        session.guardWindowClose()
         session.onNewKind = { [weak self] kind in
             guard let self else { return }
             if kind == .presentation { self._newDeck() } else { self._w.onSwitch(kind, nil) }

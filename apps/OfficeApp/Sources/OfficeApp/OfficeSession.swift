@@ -150,6 +150,31 @@ final class OfficeSession {
         unsavedPrompt = action
         onBackstage?(true)
     }
+
+    /// "Don't Save" was the answer: the recovery copy kept beside the
+    /// document (or in the untitled slot) goes with the changes, or the
+    /// next launch would restore what was just let go.
+    func discardRecoveryCopy() {
+        #if !os(WASI)
+        let ext: String
+        switch kind {
+        case .document: ext = "docx"
+        case .presentation: ext = "pptx"
+        case .workbook: return   // Sheets keeps none
+        }
+        try? FileManager.default.removeItem(atPath: path.map { $0 + "~" } ?? OfficeRecovery.untitled(ext))
+        #endif
+    }
+
+    /// The window's own close asks too, where the host lets the app answer
+    /// one: a modified document keeps the window and puts the question.
+    func guardWindowClose() {
+        appShouldCloseWindow = { [weak self] in
+            guard let self, self.dirty, let close = hostCloseWindow else { return true }
+            self.replacing(close)
+            return false
+        }
+    }
     /// Start the other kind (a deck from Writer, a document from Slides).
     var onNewKind: ((DocumentKind) -> Void)?
     /// Open a file of the other kind: the root swaps shells.

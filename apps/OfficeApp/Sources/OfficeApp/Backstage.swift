@@ -340,6 +340,7 @@ final class Backstage: StatelessWidget {
                 Chrome.gap(8),
                 Button(onPressed: { [session] in
                     session.unsavedPrompt = nil
+                    session.discardRecoveryCopy()
                     pending()
                 }, child: Text("Don't Save")),
                 Chrome.gap(8),
