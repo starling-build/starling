@@ -1534,7 +1534,9 @@ public final class RichLayout {
         var i = 0
         // A page is as tall as its section's content: the section of the
         // paragraph that opens it.
+        var pageFresh = true   // no paragraph has been set on this page yet, not even an empty one
         func openPage() {
+            pageFresh = true
             let para = min(i, max(0, count - 1))
             let physical = page / _columns
             if page % _columns == 0 {
@@ -1600,6 +1602,7 @@ public final class RichLayout {
         func add(_ piece: PagePiece) {
             _pages[page].append(piece)
             _allPieces.append(piece)
+            pageFresh = false
         }
         // A table's header row, repeated at the top of each later page it
         // runs on: the row's pieces again, marked, in the page only.
@@ -1982,6 +1985,8 @@ public final class RichLayout {
             defer { i += 1 }
             let top = _tops[i]
             let bottom = top + _heights[i]
+            // (One of no height takes its place on the page all the same.)
+            if bottom - top < 0.01 { pageFresh = false }
             if _pageBreak[i] && (y > 0 || !_pages[page].isEmpty) && resumeCursor == nil {
                 newPage()
             }
@@ -2033,7 +2038,10 @@ public final class RichLayout {
             // section's, that of a paragraph which itself begins with
             // the break character (one that ends the paragraph above
             // leaves it behind), and — before the 2013 layout only —
-            // that of a paragraph with `w:pageBreakBefore`.
+            // that of a paragraph with `w:pageBreakBefore`. And only
+            // the page's first paragraph leaves it: one under
+            // paragraphs of no height — hidden ones, after a section's
+            // break — keeps its space (zh-90e0cea8's appendix heading).
             let lead = i < _floatPush.count ? max(0, _spaceBefore[i] - _floatPush[i]) : 0
             var leavesLead = false
             if theme.wordRules, lead > 0.01, cursor <= top + 0.01 {
@@ -2043,7 +2051,7 @@ public final class RichLayout {
                 leavesLead = !newSection && !st.pageBreakInline && !(ownBreak && (document.compatibilityMode ?? 12) < 15)
             }
             while cursor < bottom - 0.01 {
-                if leavesLead, y < 0.01, page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
+                if leavesLead, pageFresh, y < 0.01, page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
                 let available = contentH - y
                 let rest = bottom - cursor
                 if rest <= available + 0.01 {
