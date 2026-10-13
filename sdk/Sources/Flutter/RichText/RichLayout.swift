@@ -1409,8 +1409,16 @@ public final class RichLayout {
     }
     private func _pxMarginLeft(_ page: Int) -> Double {
         let s = pageSetup(forPage: page)
+        // Mirrored margins (Word's `w:mirrorMargins`): the left margin
+        // and the gutter are the INSIDE ones, on the left of an odd
+        // page and the right of an even one, where the text starts at
+        // the right margin's distance instead (zh-457a8d62, a gutter
+        // of 11.35pt: its even pages begin at 70.9 and its odd ones at
+        // 82.25).
+        if _mirrorsMargins, page % 2 == 1 { return _px(s.marginRight) }
         return _px(s.marginLeft + s.gutter)
     }
+    private var _mirrorsMargins = false
 
     // MARK: Sections
     //
@@ -1492,8 +1500,10 @@ public final class RichLayout {
             let had = _sectionSetups.count > 1
             _sectionSetups = []
             _sectionOf = []
+            _mirrorsMargins = false
             return had
         }
+        _mirrorsMargins = document.marginSettingsXML.map { $0.containsSubstring("<w:mirrorMargins") && !$0.containsSubstring("<w:mirrorMargins w:val=\"0\"") } ?? false
         var setups: [PageSetup] = []
         var of = Array(repeating: 0, count: document.paragraphs.count)
         var start = 0
@@ -2123,6 +2133,11 @@ public final class RichLayout {
 
     /// `STARLING_RICHTEXT_PERF=1` also prints page-break decisions.
     public static let debugPagination = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_PERF"] != nil
+    /// `STARLING_RICHTEXT_FIT=<text>`: the East Asian line fitting of
+    /// every paragraph that contains the text, stretch by stretch, on
+    /// standard error (points) — where a line of ours and of Word's end
+    /// a character apart, this says which rule let it on.
+    static let debugFit = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_FIT"]
 
     public var isPaged: Bool { pageSetup != nil }
     /// `_pages` holds one entry per column slot; a page has `columns` of them.
@@ -2576,7 +2591,7 @@ public final class RichLayout {
             // (A fiftieth of a point over: a line that is exactly the
             // column's width — ten ideographs in ten ems — must fit, and
             // the sum of its advances may come out a hair above.)
-            let slack = theme.wordRules ? _px(0.02) : 0
+            let slack = theme.wordRules ? _px(0.005) : 0
             painter.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
             // One line of stretches of several heights is as tall as
             // its tallest and no more (a 14pt dash either side of a 9pt
@@ -2975,10 +2990,16 @@ public final class RichLayout {
                 // line fitting asked of this one.
                 var extra = led ? 0 : adjust[offset] ?? 0
                 if quote, !led { extra += blank }
-                // (Balanced, two half-width characters share a grid's
-                // addition: half each between a pair of them.)
-                if !ea, document.balancesSpaceWidth, let g = grid, g != 0, ch != " ", let following, following != " ",
-                   !RichLayout.isEastAsian(following, hinted: hinted) {
+                // (Balanced, a half-width character takes half of the
+                // grid's addition, whatever follows it: on a grid of
+                // 1.008pt Word sets a digit 0.504 wider than its face
+                // does, before another and before an ideograph, and a
+                // bracket and a letter the same. Lab `cg3`, 2026-10-13,
+                // glyph by glyph. It was the full addition before an
+                // ideograph here, which the automatic space hid — see
+                // the gap below — and a paragraph with that space off
+                // showed: zh-457a8d62 lost a character a line.)
+                if !ea, document.balancesSpaceWidth, let g = grid, g != 0, ch != " ", let following, following != " " {
                     extra -= _px(g) / 2
                 }
                 if wideSpaces.contains(offset) {
@@ -3013,8 +3034,10 @@ public final class RichLayout {
                         // flat quarter of the two where the widths are
                         // balanced — measured 4.0pt at 16pt, and 3.6 in
                         // Times without.)
+                        // (… and of the grid's: 4.25pt either side of a
+                        // digit at 16pt on that grid of 1.008.)
                         let gap = document.balancesSpaceWidth
-                            ? (em + 2 * spacing) / 4
+                            ? (em + _px(grid ?? 0) + 2 * spacing) / 4
                             : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
                         extra += gap
                         autoSpaces?(offset, gap)
@@ -3418,7 +3441,19 @@ public final class RichLayout {
         // East Asian numbers in the run's East Asian face, as the text.
         let ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
         let markerStyle = theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: ea, gridPitch: pitch)
-        let marker = TextPainter(text: TextSpan(text: label, style: markerStyle), textAlign: .left, textDirection: .ltr, strutStyle: strut)
+        // The number is on the document's character grid like the text
+        // after it — each character wider by the grid's addition, a
+        // half-width one by half of it where widths are balanced: Word
+        // sets "（2）" 43.97pt wide at 16pt on a grid of 1.008, and the
+        // text begins there (zh-457a8d62; it was 41.4 here, and the
+        // line took a character more).
+        var span = TextSpan(text: label, style: markerStyle)
+        if theme.wordRules, let g = _grid(i, document).chars, g != 0, !(markerChar.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false) {
+            let full = markerStyle.copyWith(letterSpacing: (markerStyle.letterSpacing ?? 0) + _px(g))
+            let half = document.balancesSpaceWidth ? markerStyle.copyWith(letterSpacing: (markerStyle.letterSpacing ?? 0) + _px(g) / 2) : full
+            span = TextSpan(children: label.map { TextSpan(text: String($0), style: Self.isEastAsian($0, hinted: true) ? full : half) })
+        }
+        let marker = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: strut)
         marker.layout(minWidth: 0, maxWidth: 100_000)
         return marker
     }
@@ -3603,7 +3638,7 @@ public final class RichLayout {
                 (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0)) && !closesUp($0)
             }
             let em = a < ems.count ? ems[a] : 0
-            let hair = em * 0.01   // (a stand-in's half em is a hair over half)
+            let hair = min(em * 0.01, _px(0.005))   // (a stand-in's half em is a hair over half)
             // (The half em a line takes at most is Word's to a twentieth
             // of a point: 7.12pt over at 14pt is not taken. The widths
             // are the faces' own now, and the hair would take it.)
@@ -3613,8 +3648,14 @@ public final class RichLayout {
             // near to it as may be: with Latin digits on the line the
             // sum here is not Word's to the hundredth, and zh-a4b0f6ea
             // has a "《威" taken that comes out a few hundredths over.)
-            let edge = min(hair, _px(0.045))
+            let edge = min(em * 0.01, _px(0.045))
             var fits = x + w - after <= width + hair
+            let traced = Self.debugFit.map { p.text.contains($0) } ?? false
+            if traced {
+                let pt = theme.pixelsPerPoint * scale
+                let text = String(utf16CodeUnits: Array(units[a ..< piece.b]), count: piece.b - a)
+                FileHandle.standardError.write(Data("fit [\(text)] w \(w / pt) x \(x / pt) of \(width / pt) fits \(fits) marks \(marks.count)+\(own.count)\n".utf8))
+            }
             // (Fitting by that hair is fitting: the engine allows none,
             // so the last character gives it up.)
             if fits, x + w > width, last > a { adjust[last - 1, default: 0] -= x + w - width + 0.02 }
@@ -3660,9 +3701,18 @@ public final class RichLayout {
                     let all = (marks + own).filter { !kept || $0 != tail }
                     let given = legacy ? spaces + ownSpaces : []
                     // (A curly quote in a Latin face is as wide as it is.)
+                    // (… as it is set: spaced wider, an ideograph 16.6
+                    // apart is 8.4 over where its em would be 7.8 over,
+                    // and Word leaves it — lab `sq2`.)
                     let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
-                        ? em * (closesUp(a) ? 0.5 : 1) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
-                    let markRoom = all.reduce(0.0) { $0 + ems[$1] / 2 }
+                        ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
+                    // (Half of a mark as it is set — on a character
+                    // grid half of its em and of the grid's addition:
+                    // two marks on a grid of 1.008 gave 8.5pt each, a
+                    // line 16.9 over at 16pt, zh-457a8d62. A full-width
+                    // quote is its glyph and a blank: half its em.)
+                    func half(_ k: Int) -> Double { wideQuote(k) ? ems[k] / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2 }
+                    let markRoom = all.reduce(0.0) { $0 + half($1) }
                     let room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
                     let need = over - hang - after
                     // From Word 2013's layout on the test is another:
@@ -3678,15 +3728,26 @@ public final class RichLayout {
                     // not 7.65; spaced -1, 6.9 and not 7.1; unspaced,
                     // 7.9 and not 8.1. Lab `sq`, 2026-10-13.)
                     let wide = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
-                    let set = wide && !closesUp(a) ? boxes(a, a + 1) : em
+                    // (Without the automatic space after it, which is
+                    // no part of the character.)
+                    let set = wide && !closesUp(a) ? boxes(a, a + 1) - (gaps[a] ?? 0) : em
                     let taken = modern
                         ? need / Double(max(1, all.count)) <= width - x + hair
                         : x + min(lead, w) - width <= set / 2 + edge
+                    if traced {
+                        let pt = theme.pixelsPerPoint * scale
+                        FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken)\n".utf8))
+                    }
                     if room > 0, taken, need <= room + hair {
                         let share = min(1, (need + 0.02) / room)
-                        for mark in all { adjust[mark, default: 0] -= ems[mark] / 2 * share }
+                        for mark in all { adjust[mark, default: 0] -= half(mark) * share }
                         for k in given { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * share }
-                        if need > room { adjust[last - 1, default: 0] -= need - room + 0.02 }
+                        // (What the marks cannot give of that fiftieth —
+                        // where they give all they have — the last
+                        // character does: the engine allows the line
+                        // nothing over.)
+                        let short = need + 0.02 - room * share
+                        if short > 0.001 { adjust[last - 1, default: 0] -= short }
                         if hang > 0 { adjust[tail, default: 0] -= hang }
                         if after > 0 { adjust[tail, default: 0] -= after }
                         fits = true
@@ -4910,7 +4971,7 @@ public final class RichLayout {
             }
             let top = kind == .header ? rect.top + _px(setup.headerDistance) : rect.bottom - _px(setup.footerDistance) - hf.height
             canvas.save()
-            canvas.translate(rect.left + _px(setup.marginLeft + setup.gutter), top)
+            canvas.translate(rect.left + _pxMarginLeft(p), top)
             hf.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: hf.document,
                             selection: nil, caret: nil)
             canvas.restore()
@@ -4918,7 +4979,7 @@ public final class RichLayout {
         }
         let style = theme.textStyle(for: CharStyle(color: theme.textColor.withOpacity(0.7)),
                                     in: .body, named: document.styles[RichNamedStyle.normalId], scale: scale)
-        let left = _px(setup.marginLeft + setup.gutter)
+        let left = _pxMarginLeft(p)
         let width = _px(setup.contentWidth)
         /// One line at `centerY`: as a whole in `align`, or — with tabs —
         /// Word's header/footer thirds: left, centre and right parts.

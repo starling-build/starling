@@ -1692,6 +1692,56 @@ fitter dropped the paragraph's tail).
   `otherAdvances` for every Latin clone but Carlito.
   zh-6cd1befe 53% -> 86%; Chinese sample 72.3%, POI unchanged.
 
+- **Mirrored margins, and the character grid again (2026-10-13).**
+  All from zh-457a8d62 (`w:mirrorMargins`, a gutter of 227, a grid
+  of `linesAndChars` with `w:charSpace="4127"`, mode 15), read glyph
+  by glyph with the new `tools/glyphs` (PyMuPDF in the lab's venv;
+  PDFKit's character bounds are not to be trusted).
+  (1) **Mirrored margins**: the left margin and the gutter are the
+  inside ones — an even page's text starts at the right margin's
+  distance (70.9pt against an odd page's 82.25). Three documents of
+  the sample have the setting; it moves no line and every pixel.
+  (2) **A half-width character takes half of the grid's addition
+  whatever follows it** (lab `cg3`, `body35.py`): on a grid of
+  1.008pt a digit, a bracket and a letter are each 0.504 wider than
+  the face sets them, before another of their kind and before an
+  ideograph. Here it was the whole addition before an ideograph,
+  which the automatic space had hidden: **that space is a quarter
+  of the em and of the grid's addition** (4.25pt either side of a
+  digit at 16pt), where it was a quarter of the em, and the two
+  errors made the same sum. With `w:autoSpaceDE/DN` off — this
+  document's Normal — every digit before an ideograph was half a
+  point wide. All four lines of the lab now agree to 0.05 a glyph.
+  (3) **A list's number is on the grid too**: "（2）" is 43.97pt
+  wide, each full-width character with the whole addition and the
+  digit with half, and the text begins after it.
+  (4) **A mark gives half of itself as set**, as the character
+  taken is measured as set: on the grid, two marks gave 8.5pt each
+  to a line 16.9 over; spaced wider the threshold moves out with
+  the spacing (lab `sq2`, `body36.py`: +0.3 takes 8.2 over and not
+  8.4, +1 takes 8.8 and not 9.1) — the automatic space after a
+  character is no part of it.
+  (5) **A line that is over by a hundredth does not fit.** The
+  hanging indent here is five grid cells and the 21st cell ends
+  0.009pt past the margin: Word starts a new line. The fitting's
+  hair (a hundredth of an em, from when the Latin widths were a
+  stand-in's) and the layout's slack are now 0.005pt.
+  `STARLING_RICHTEXT_FIT=<text>` prints the fitting of the
+  paragraphs that contain the text.
+  zh-457a8d62 19% -> 25% and its 53 pages; zh-7dc3afad 94.8 ->
+  96.4, zh-91e44bcb 94.2 -> 95.7, zh-d68ac84a 75.4 -> 76.6. Two
+  down, each one line that had been right for a wrong reason:
+  zh-e27cd8bf (97.8 -> 97.0: with 法 now on the line above as Word
+  has it, the next takes a 日 that is 7.99 over a half of 8.3 and
+  Word leaves it — not understood, the lab says it is taken) and
+  zh-a4b0f6ea (61.1 -> 60.8: Word closes "10.《" up by 3.9pt, a
+  Latin full stop before an opening mark, and ours does not).
+  Chinese sample 72.4%, 54 with Word's page count; POI unchanged.
+
+  A lab's "ours" must be converted with `OFFICE_WORD_FONTS=mac`, as
+  the sweeps are: without it 標楷體 and 仿宋_GB2312 are the square
+  faces their authors had, not the YaHei this Word falls back to.
+
   Seen and not built, lab `sh` (`body31.py`): where the character
   that is over is followed by a closing mark, Word's line ends 8.56pt
   past the margin whatever the overhang — the mark is set in its
