@@ -84,6 +84,9 @@ final class SlidesShellState: State<StatefulWidget> {
     private let _thumbScroll = ScrollController()
     private var _thumbShown = -1
     private var _thumbRetries = 0
+    private let _sorterScroll = ScrollController()
+    private var _sorterShown = -1
+    private var _sorterPosition: ObjectIdentifier? = nil
     private var _thumbPosition: ObjectIdentifier? = nil
     /// Double-click in the sorter, detected by hand: registering
     /// onDoubleTap kills taps on the DRM embedder (CLAUDE.md).
@@ -148,6 +151,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _notesFocus.dispose()
         _search.dispose()
         _thumbScroll.dispose()
+        _sorterScroll.dispose()
         super.dispose()
     }
 
@@ -301,6 +305,13 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _activate(_ shape: SlideShape?) {
         _paneFocused = false
         if _active !== shape || _notesActive { deck.endTextSession() }
+        // The text left behind keeps its caret and lets its selection go:
+        // every text shape's editor stays mounted, and one that was left
+        // with a range selected went on painting the highlight with
+        // nothing being edited.
+        if let left = _active, left !== shape, let text = left.text, text.hasSelection {
+            text.selection = RichSelection(caret: text.selection.end)
+        }
         _notesActive = false
         _active = shape
         if shape != nil { deck.beginTextSession() }
@@ -1109,7 +1120,8 @@ final class SlidesShellState: State<StatefulWidget> {
                     // Clipped to the thumbnail: a picture reaching past the
                     // slide's edge was painted over the next thumbnail and
                     // out of the pane.
-                    child: ClipRect(child: Opacity(opacity: slide.hidden ? 0.45 : 1, child: CustomPaint(
+                    child: ClipRect(child: _dimmedIfHidden(slide, wash: fluent.resources.solidBackgroundFillColorBase,
+                                                           child: CustomPaint(
                         painter: SlidePainter(slide: slide, theme: deck.theme, slideSize: deck.slideSize,
                                               revision: deck.revision, cache: _cache),
                         child: SizedBox(expand: ())))))))
@@ -1148,6 +1160,20 @@ final class SlidesShellState: State<StatefulWidget> {
             child: SingleChildScrollView(controller: _thumbScroll, child: Padding(
                 padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 12),
                 child: Column(crossAxisAlignment: .start, children: items)))))
+    }
+
+    /// A hidden slide's thumbnail, faded: the slide as it is with a wash of
+    /// the pane's colour over it. (It was an `Opacity` around the painter,
+    /// and on Windows that drew nothing at all — a hidden slide's thumbnail
+    /// was an empty box. Why the opacity layer comes out empty there is not
+    /// known; the wash needs no layer.)
+    private func _dimmedIfHidden(_ slide: Slide, wash: Color, child: Widget) -> Widget {
+        guard slide.hidden else { return child }
+        return Stack(children: [
+            child,
+            Positioned(left: 0, top: 0, right: 0, bottom: 0,
+                       child: IgnorePointer(child: ColoredBox(color: wash.withOpacity(0.55), child: SizedBox(expand: ())))),
+        ])
     }
 
     /// Scroll the thumbnail pane so the current slide's thumbnail is in
@@ -1273,7 +1299,7 @@ final class SlidesShellState: State<StatefulWidget> {
                             width: current ? 3 : 1)),
                         child: Padding(padding: EdgeInsets(all: current ? 1 : 3), child: SizedBox(
                             width: w, height: h,
-                            child: ClipRect(child: Opacity(opacity: slide.hidden ? 0.45 : 1, child: CustomPaint(
+                            child: ClipRect(child: _dimmedIfHidden(slide, wash: Color(0xFFE6E6E6), child: CustomPaint(
                                 painter: SlidePainter(slide: slide, theme: deck.theme, slideSize: deck.slideSize,
                                                       revision: deck.revision, cache: _cache),
                                 child: SizedBox(expand: ()))))))),
@@ -1282,8 +1308,38 @@ final class SlidesShellState: State<StatefulWidget> {
                 ]))))
         }
         let dark = fluent.brightness == .dark
+        // A tile: the thumbnail, its frame (8), the number under it (4 and
+        // a caption line) and 12 of padding all round.
+        _revealSorterTile(rowHeight: h + 52)
         return ColoredBox(color: dark ? Color(0xFF202020) : Color(0xFFE6E6E6), child: SingleChildScrollView(
+            controller: _sorterScroll,
             child: Padding(padding: EdgeInsets(all: 16), child: Wrap(children: tiles))))
+    }
+
+    /// The sorter's twin of `_revealThumbnail`: the grid comes up, and
+    /// stays, with the current slide's row in view. How many tiles a row
+    /// holds is read back from the laid-out height, which the grid's width
+    /// decided.
+    private func _revealSorterTile(rowHeight: Double) {
+        let current = deck.current
+        FrameCallbackScheduler.shared.addPostFrameCallback { [weak self] _ in
+            guard let self, self._sorterScroll.hasClients else { return }
+            let pos = self._sorterScroll.position
+            let mounted = ObjectIdentifier(pos)
+            guard current != self._sorterShown || mounted != self._sorterPosition else { return }
+            self._sorterShown = current
+            self._sorterPosition = mounted
+            let count = self.deck.slides.count
+            let rows = max(1, Int(((pos.maxScrollExtent + pos.viewportDimension - 32) / rowHeight).rounded()))
+            let perRow = max(1, Int((Double(count) / Double(rows)).rounded(.up)))
+            let top = 16 + Double(current / perRow) * rowHeight
+            let bottom = top + rowHeight
+            var target = pos.pixels
+            if top < target { target = top - 16 }
+            else if bottom > target + pos.viewportDimension { target = bottom - pos.viewportDimension + 16 }
+            target = min(max(0, target), pos.maxScrollExtent)
+            if abs(target - pos.pixels) > 0.5 { self._sorterScroll.jumpTo(target) }
+        }
     }
 
     // MARK: Notes
