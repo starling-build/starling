@@ -1155,6 +1155,13 @@ private struct SlideContext {
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.fillStyle = fillStyle
+        // A gradient that stays put when its shape turns (`rotWithShape`
+        // off — tdf125551's chevrons, turned a quarter, shade top to
+        // bottom still): its angle counted back by the shape's turn.
+        if rotation != 0, let g = spPr?.first("a:gradFill"), ["0", "false"].contains(g["rotWithShape"] ?? ""),
+           g.first("a:lin") != nil, st.fillStyle?.stops.isEmpty == false {
+            st.fillStyle?.angle -= rotation
+        }
         st.invisible = hiddenByLayout
         // A diagram shape's text frame (`txXfrm`, from a SmartArt drawing):
         // the text sits in that box rather than the shape's.
