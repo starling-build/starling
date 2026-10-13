@@ -111,7 +111,9 @@ enum SheetPrintLayout {
         func take(_ row: Int, _ col: Int) {
             top = min(top, row); left = min(left, col); bottom = max(bottom, row); right = max(right, col)
         }
-        for (a, c) in ws.cells {
+        // (A cell in a hidden row or column is not there to print, and does
+        // not stretch the sheet to where it is.)
+        for (a, c) in ws.cells where !ws.isRowHidden(a.row) && !ws.isColHidden(a.col) {
             if !c.value.isEmpty { take(a.row, a.col); continue }
             let st = book.style(c.style)
             if st.fill != nil || st.borders != CellStyle.Borders() { take(a.row, a.col) }
@@ -119,9 +121,6 @@ enum SheetPrintLayout {
         // What an array formula spills into its neighbours is there to print
         // as much as a cell's own value.
         for (a, v) in ws.spilled where !v.isEmpty { take(a.row, a.col) }
-        // A row someone gave a height is part of the sheet in use, cells or
-        // none: an empty one below the last cell still takes its room on paper.
-        for (r, h) in ws.rowHeights where h > 0 && !ws.fittedRows.contains(r) && !ws.cells.isEmpty { top = min(top, r); bottom = max(bottom, r) }
         // A merged area is something to print though its cells are empty:
         // Excel gives a sheet of nothing but merges its page.
         for m in ws.merges { take(m.top, m.left); take(m.bottom, m.right) }

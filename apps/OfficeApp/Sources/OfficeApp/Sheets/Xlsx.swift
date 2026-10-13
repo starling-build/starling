@@ -235,7 +235,9 @@ enum Xlsx {
                 var value: CellValue = .empty
                 switch t {
                 case "s": value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
-                case "inlineStr": value = c.child("is").map { .text(_text($0)) } ?? .empty
+                // (An inline string with nothing in it is still a string, the empty
+                // one: a cell with a value, which Excel prints the sheet as far as.)
+                case "inlineStr": value = .text(c.child("is").map { _text($0) } ?? "")
                 case "str": value = .text(vText ?? "")
                 case "b": value = .bool(vText == "1")
                 case "e": value = .error(ExcelError(rawValue: vText ?? "") ?? .value)

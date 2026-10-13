@@ -111,6 +111,14 @@ struct SheetPrintMetrics {
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
             screenDigit: [10, 11, 13, 13, 14, 15, 17, 20, 23]),
+        "lucida sans typewriter": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [87, 96, 105, 112, 116, 126, 146, 164, 184], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
+            screenDigit: [13, 14, 16, 17, 17, 19, 22, 26, 29]),
+        "arial black": Face(digit: [45, 50, 55, 59, 61, 67, 78, 89, 100], row: [110, 122, 133, 141, 146, 159, 185, 208, 234], screenRow: [33, 36, 42, 44, 45, 49, 57, 65, 74],
+            screenDigit: [14, 16, 18, 19, 19, 21, 25, 29, 32]),
+        "simhei": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [25, 28, 32, 33, 34, 38, 43, 50, 56],
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
+        "mingliu": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         // The bold of a face, where a workbook's default font is bold: its
         // own line, and for some its own digit.
         "calibri bold": Face(digit: [34, 38, 42, 45, 47, 51, 59, 67, 76], row: [90, 99, 109, 116, 121, 130, 150, 171, 191], screenRow: [28, 31, 35, 37, 38, 42, 48, 56, 62],
@@ -139,9 +147,9 @@ struct SheetPrintMetrics {
         "courier": "courier new", "caladea": "cambria", "宋体": "simsun", "nsimsun": "simsun",
         "ｍｓ ｐゴシック": "ms pgothic", "ｍｓ ゴシック": "ms gothic", "ms ui gothic": "ms pgothic",
         "ms mincho": "ms gothic", "ms pmincho": "ms pgothic", "ｍｓ 明朝": "ms gothic", "ｍｓ ｐ明朝": "ms pgothic",
-        "新細明體": "pmingliu", "mingliu": "pmingliu", "맑은 고딕": "malgun gothic", "游ゴシック": "yu gothic",
+        "新細明體": "pmingliu", "맑은 고딕": "malgun gothic", "游ゴシック": "yu gothic",
         "微软雅黑": "microsoft yahei", "メイリオ": "meiryo", "meiryo ui": "meiryo",
-        "ms sans serif": "microsoft sans serif", "lucida sans typewriter": "lucida sans unicode",
+        "ms sans serif": "microsoft sans serif", "黑体": "simhei", "細明體": "mingliu",
         "lucida sans": "lucida sans unicode", "lucida grande": "lucida sans unicode",
         // (Dotum, Gulim and Batang left Windows; Excel prints them as Malgun Gothic.)
         "돋움": "malgun gothic", "dotum": "malgun gothic", "굴림": "malgun gothic", "gulim": "malgun gothic",
