@@ -1164,6 +1164,17 @@ private struct SlideContext {
             st.insets = EdgeInsets(left: st.insets.left + (tr.left - frame.left), top: st.insets.top + (tr.top - frame.top),
                                    right: st.insets.right + (frame.right - tr.right),
                                    bottom: st.insets.bottom + (frame.bottom - tr.bottom))
+            // A shape turned half round whose text frame is turned back
+            // (a callout header pointing down, tdf150789): the text stands
+            // upright in its frame as placed. Half a turn is both mirrors,
+            // and a mirrored shape keeps its text upright.
+            let textTurn = (sp.first("p:txXfrm")?["rot"].flatMap(Double.init) ?? 0) / 60000
+            if abs(abs(st.rotation.truncatingRemainder(dividingBy: 360)) - 180) < 0.01,
+               abs((st.rotation + textTurn).truncatingRemainder(dividingBy: 360)) < 0.01 {
+                st.rotation = 0
+                st.flipH.toggle()
+                st.flipV.toggle()
+            }
         }
         if case .geometry(let preset) = kind, preset.rawValue != "rect", !preset.isLine {
             // A preset from its definition, at the shape's adjust values;
