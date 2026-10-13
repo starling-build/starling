@@ -2629,8 +2629,13 @@ public final class RichLayout {
                 // (A floating object takes no room in the line.)
                 if theme.wordRules, let float = image.float, !float.takesRoom { w = 0; h = 0 }
                 let size = Size(w.rounded(), h.rounded())
-                children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
-                inline.append((image, PlaceholderDimensions(size: size, alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: size.height)))
+                // (Word's `w:textAlignment` "center" sets what is on a
+                // line by its middle: a letterhead's words half way up
+                // the emblem beside them, not on its foot.)
+                let centred = theme.wordRules && p.style.eastAsian["w:textAlignment"] == "center" && image.float == nil
+                let alignment = centred ? PlaceholderAlignment.middle : PlaceholderAlignment.baseline
+                children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
+                inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic, baselineOffset: size.height)))
                 continue
             }
             children.append(contentsOf: styled(p.text[a ..< b], run.style, at: pos - run.length, next: b < utf16.endIndex ? p.text[b] : nil))
@@ -3404,8 +3409,39 @@ public final class RichLayout {
 
     // MARK: Pictures
 
+    /// A kept shape's line or box (`ImageAttachment.outline`), in `rect`.
+    private func _paintOutline(_ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas) {
+        guard theme.wordRules, let outline = image.outline else { return }
+        if outline.kind == .box, let fill = outline.fill {
+            let paint = Paint()
+            paint.style = .fill
+            paint.color = fill
+            canvas.drawRect(rect, paint)
+        }
+        guard let color = outline.color else { return }
+        let stroke = Paint()
+        stroke.style = .stroke
+        stroke.strokeWidth = max(1, _px(outline.width))
+        stroke.color = color
+        switch outline.kind {
+        case .box: canvas.drawRect(rect, stroke)
+        case .line:
+            canvas.drawLine(outline.flipped ? rect.bottomLeft : rect.topLeft, outline.flipped ? rect.topRight : rect.bottomRight, stroke)
+        }
+    }
+
+    /// Whether a picture of the document — the body's, a header's or
+    /// footer's, a text box's — is still being decoded: what is painted
+    /// before that is a grey box in its place. An export waits on this.
+    public var hasPendingImages: Bool {
+        !_decoding.isEmpty || _headerFooterCache.values.contains { $0.layout.hasPendingImages }
+            || _textBoxCache.values.contains { $0.layout.hasPendingImages }
+    }
+
     private func _ensureDecoded(_ image: ImageAttachment) {
-        if _decoded[image.id] != nil || _decoding.contains(image.id) { return }
+        // (An attachment with no picture in it — a drawn shape kept for
+        // the file — is nothing to decode.)
+        if _decoded[image.id] != nil || _decoding.contains(image.id) || image.data.isEmpty { return }
         _decoding.insert(image.id)
         let bytes = [UInt8](image.data)
         let id = image.id
@@ -3417,6 +3453,9 @@ public final class RichLayout {
                 codec.dispose()
                 decoded = frame.image
             } catch {
+                if ProcessInfo.processInfo.environment["STARLING_RICHTEXT_PERF"] != nil {
+                    FileHandle.standardError.write(Data("image \(id): not decoded: \(error) (\(bytes.count) bytes, \(bytes.prefix(8)))\n".utf8))
+                }
                 decoded = nil
             }
             guard let self else { decoded?.dispose(); return }
@@ -3819,6 +3858,7 @@ public final class RichLayout {
         if part == .rules { return }
         if theme.wordRules, i < document.paragraphs.count, document.paragraphs[i].style.lineCollapsed, document.paragraphs[i].image == nil { return }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
+            if _decoded[image.id] == nil { _paintOutline(image, box, canvas) }
             if let decoded = _decoded[image.id] {
                 let paint = Paint()
                 canvas.drawImageRect(decoded,
@@ -3975,6 +4015,7 @@ public final class RichLayout {
                     // be drawn is left out.
                     rect = _floatRect(float, image, g, i)
                     if _decoded[image.id] == nil {
+                        _paintOutline(image, rect, canvas)
                         if let inside = _textBox(image, document), let text = image.textBox {
                             canvas.save()
                             canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))

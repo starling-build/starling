@@ -1478,6 +1478,21 @@ fitter dropped the paragraph's tail).
   the sentence on one line as Word does, left the paragraph a line
   short.
 
+- **A letterhead.** Three things in one header (zh-e37f8d40,
+  zh-1563bd74, zh-9dd9ce6d — the last now 100%): `w:textAlignment`
+  "center" sets a line's text half way up the picture beside it,
+  not on its foot; a kept shape that is a straight line or a plain
+  box is drawn (`ImageAttachment.outline`: the rule under the
+  letterhead, a text box's frame) where every shape was left out;
+  and **no picture was ever drawn in a converted PDF** — they are
+  decoded off to the side and the export did not wait. It paints
+  the pages once to nowhere (a header's own layout asks for its
+  pictures when first painted), turns the main queue until
+  `RichLayout.hasPendingImages` is false, then paints. The pixel
+  baseline was taken with every picture a grey box.
+- **A table whose every row is marked a header** repeats none
+  (zh-e37f8d40: 23 pages -> 17 for Word's 14).
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

@@ -339,7 +339,7 @@ enum DocxFormat {
                     seen.insert(c)
                     for part in node.all("w:tblStylePr") {
                         let fill = part.first("w:tcPr")?.first("w:shd")?["w:fill"].flatMap { hex -> Color? in
-                            guard hex.count == 6, let v = UInt32(hex, radix: 16) else { return nil }
+                            guard hex.count == 6, let v = Int64(hex, radix: 16) else { return nil }
                             return Color(0xFF00_0000 | Int64(v))
                         }
                         switch part["w:type"] {
@@ -2018,7 +2018,8 @@ enum DocxFormat {
         func objectAttachment(_ node: XNode) -> ImageAttachment? {
             var w = 300.0, h = 200.0
             if let extent = node.descendant("wp:extent"),
-               let cx = Double(extent["cx"] ?? ""), let cy = Double(extent["cy"] ?? ""), cx > 0, cy > 0 {
+               let cx = Double(extent["cx"] ?? ""), let cy = Double(extent["cy"] ?? ""), cx >= 0, cy >= 0, cx > 0 || cy > 0 {
+                // (One of them may be nothing: a level line is no height.)
                 w = cx / 12700
                 h = cy / 12700
             } else if let shape = node.name == "v:shape" ? node : node.descendant("v:shape"), let st = shape["style"] {
@@ -2033,6 +2034,22 @@ enum DocxFormat {
             att.sourceXML = frag.xml
             att.sourceRels = frag.rels
             att.float = _float(node)
+            // A straight line or a plain box, drawn by the layout: its
+            // line's width and colour (`a:ln`), and a solid fill.
+            if let sp = node.descendant("wps:spPr"), let geom = sp.first("a:prstGeom")?["prst"],
+               ["line", "straightConnector1", "rect"].contains(geom) {
+                func rgb(_ n: XNode?) -> Color? {
+                    guard let hex = n?.first("a:solidFill")?.first("a:srgbClr")?["val"], let v = Int64(hex, radix: 16) else { return nil }
+                    return Color(0xFF00_0000 | v)
+                }
+                let ln = sp.first("a:ln")
+                var outline = ShapeOutline(kind: geom == "rect" ? .box : .line,
+                                           color: ln?.first("a:noFill") != nil ? nil : (rgb(ln) ?? (ln != nil ? Color(0xFF000000) : nil)),
+                                           width: (Double(ln?["w"] ?? "") ?? 9525) / 12700)
+                outline.fill = rgb(sp)
+                outline.flipped = sp.first("a:xfrm")?["flipV"] == "1"
+                if outline.color != nil || outline.fill != nil { att.outline = outline }
+            }
             // A text box's text, for the layout to set in it: the
             // drawing's (`wps:txbx`), or its VML twin's.
             if !notes.inTextBox, let content = node.descendant("w:txbxContent") {

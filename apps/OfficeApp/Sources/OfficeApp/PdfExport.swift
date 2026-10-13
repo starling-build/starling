@@ -22,6 +22,26 @@ enum PdfExport {
         layout.pageSetup = pageSetup
         layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * zoom
         layout.ensureLaidOut(document)
+        // The pictures are decoded off to the side and painted as grey
+        // boxes until they are: wait for them (the decoding runs on the
+        // main queue, which nothing is turning here), but not for ever.
+        // (A header's or a text box's own layout is made when it is first
+        // painted, and its pictures asked for then: the pages are painted
+        // once to nowhere first.)
+        #if !os(WASI)
+        for p in 0 ..< layout.pageCount {
+            let recorder = NativePictureRecorder()
+            let rect = layout.pageRect(p)
+            let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, rect.width, rect.height))
+            canvas.translate(0, -rect.top)
+            layout.paint(canvas, visible: rect, document: document, selection: nil, caret: nil, pageBackground: nil)
+            _ = recorder.endRecording()
+        }
+        let deadline = Date().addingTimeInterval(8)
+        while layout.hasPendingImages, Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+        }
+        #endif
 
         var pages: [PdfDocument.Page] = []
         for p in 0 ..< layout.pageCount {

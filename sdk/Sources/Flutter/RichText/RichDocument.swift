@@ -631,6 +631,21 @@ public struct KeptRel: Hashable, Sendable {
     }
 }
 
+/// What of a drawn shape the layout draws itself: a straight line, or
+/// a box's outline (and fill), in the line's colour and width (points).
+/// The rule under a letterhead and the frame of a text box are these;
+/// every other shape is kept for the file and not drawn.
+public struct ShapeOutline: Hashable, Sendable {
+    public enum Kind: Sendable { case line, box }
+    public var kind: Kind
+    public var color: Color?
+    public var width: Double
+    public var fill: Color? = nil
+    /// A line that runs from the bottom left to the top right.
+    public var flipped = false
+    public init(kind: Kind, color: Color?, width: Double) { self.kind = kind; self.color = color; self.width = width }
+}
+
 public struct ImageAttachment: Hashable, Sendable {
     public let id: String
     public var data: Data
@@ -649,6 +664,8 @@ public struct ImageAttachment: Hashable, Sendable {
     /// of its size.
     public var sourceXML: String? = nil
     public var sourceRels: [KeptRel] = []
+    /// A kept shape's outline, where it is one the layout draws.
+    public var outline: ShapeOutline? = nil
     /// The size the kept markup was read at, in points: an inline picture
     /// is written from `sourceXML` only while it still has this size, and
     /// regenerated once the editor resized it. (An anchored one is always
