@@ -1616,6 +1616,15 @@ private struct SlideContext {
                             font: _font(base.font), size: base.size ?? 18, color: base.color ?? colors.scheme("tx1") ?? Color(0xFF000000),
                             listIndent: 18)
         st.fillStyle = tableGradient
+        // The table's own fill (a fill in `a:tblPr`), behind every cell:
+        // tdf127237's cells all say no fill, and stand on the table's blue.
+        if let pr = tbl.first("a:tblPr") {
+            if let solid = pr.first("a:solidFill"), let c = colors.color(in: solid) {
+                st.fill = c
+            } else if let g = pr.first("a:gradFill"), let gradient = PptxReader.gradient(g, colors: colors), gradient.stops.count >= 2 {
+                st.fillStyle = gradient
+            }
+        }
         st.sourceXML = PptxXML.serialize(el)
         st.sourceText = doc
         st.sourcePart = part

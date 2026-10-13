@@ -581,18 +581,24 @@ final class SlidePainter: CustomPainter {
         let path: Path? = preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
         let drawnAlready = freeform != nil || solid
         if mirrored { mirror() }
+        // (A table's fill lies under its rows and no further: where the
+        // rows come out shorter than the frame, none of it shows below.)
+        var area = r
+        if shape.kind == .table, shape.fill != nil || shape.fillStyle != nil, let layout = cache.layout(shape, pxPerPt: px) {
+            area = Rect.fromLTWH(r.left, r.top, r.width, min(r.height, layout.totalHeight))
+        }
         if let style = shape.fillStyle, !drawnAlready, shape.chart == nil, shape.picture == nil {
             // A gradient or picture fill, within the shape's outline.
             canvas.save()
-            if let path { canvas.clipPath(path) } else { canvas.clipRect(r) }
-            paintFill(style, r, canvas, cache: cache, pxPerPt: px)
+            if let path { canvas.clipPath(path) } else { canvas.clipRect(area) }
+            paintFill(style, area, canvas, cache: cache, pxPerPt: px)
             canvas.restore()
         } else if let fill = shape.fill, shape.preset?.isOpenPath != true, !drawnAlready {
             let p = Paint()
             p.style = .fill
             p.isAntiAlias = true
             p.color = fill
-            if let path { canvas.drawPath(path, p) } else { canvas.drawRect(r, p) }
+            if let path { canvas.drawPath(path, p) } else { canvas.drawRect(area, p) }
         }
         if let line = shape.outline, !drawnAlready {
             let p = Paint()
