@@ -169,7 +169,8 @@ enum SheetPrintLayout {
                 guard let e = try? Formula.parse("=" + part), case .ref(let r) = e else { continue }
                 let end = r.end ?? r.start
                 if n.name == "_xlnm.Print_Area" {
-                    areas.append(r.range)
+                    // (A file that names the same area twice prints it once.)
+                    if !areas.contains(r.range) { areas.append(r.range) }
                 } else if n.name == "_xlnm.Print_Titles" {
                     if r.start.col == nil, let a = r.start.row, let b = end.row { rows = min(a, b) ... max(a, b) }
                     if r.start.row == nil, let a = r.start.col, let b = end.col { cols = min(a, b) ... max(a, b) }
