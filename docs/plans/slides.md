@@ -571,6 +571,15 @@ Left in the deck, each its own task: its bullets are Wingdings stars
 (drawn as dots); the last line's mixed faces, raised word and spaced
 letters.
 
+**One deck at a time: pptx2svg, its bullets, 2026-10-12** (6.94 → 6.91;
+the corpus unmoved). `buFont typeface="Wingdings"` with `buChar char="✭"`
+— U+272D, a star in its own right, not a Wingdings code — drew the
+level's dot: the symbol-face table had no entry for it. **A character
+that is a symbol by itself is that symbol whatever face is named**;
+only Latin-1 and the private range are a symbol face's codes. Same
+place and size as PowerPoint's (its star is Segoe UI Symbol's, this one
+DejaVu's).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

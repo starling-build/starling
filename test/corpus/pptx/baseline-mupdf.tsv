@@ -155,7 +155,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.29% mean=0.29%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=1.74% mean=1.74%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.14% mean=0.04%
+lo-numfmt.pptx	summary pages=9 worst=0.14% mean=0.05%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.25% mean=0.25%
 lo-ole.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -529,7 +529,7 @@ oox-transparent-text.pptx	summary pages=1 worst=0.04% mean=0.04%
 picture-transparency.pptx	summary pages=4 worst=0.00% mean=0.00%
 pie-chart.pptx	summary pages=1 worst=4.67% mean=4.67%
 placeholder-layout-color.pptx	summary pages=1 worst=1.12% mean=1.12%
-pptx2svg.pptx	summary pages=1 worst=6.94% mean=6.94%
+pptx2svg.pptx	summary pages=1 worst=6.91% mean=6.91%
 prProps.pptx	summary pages=1 worst=0.29% mean=0.29%
 present1.pptx	summary pages=1 worst=0.43% mean=0.43%
 radar-chart.pptx	summary pages=1 worst=1.68% mean=1.68%

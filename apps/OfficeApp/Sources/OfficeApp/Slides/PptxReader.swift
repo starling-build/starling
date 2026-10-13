@@ -358,6 +358,14 @@ private struct LevelStyle {
         // Symbol faces are often spelled in the private range (U+F0xx).
         let code = (0xF000 ... 0xF0FF).contains(scalar.value) ? scalar.value - 0xF000 : scalar.value
         let face = (bulletFont ?? "").lowercased()
+        // A character that is a symbol in its own right (✭, ➢) is that
+        // symbol whatever face is named: a symbol face's codes are Latin-1
+        // or the private range, and PowerPoint finds anything else in
+        // another font (pptx2svg's stars, "Wingdings" with U+272D).
+        if scalar.value > 0xFF, !(0xF000 ... 0xF0FF).contains(scalar.value),
+           face.hasPrefix("wingdings") || face.hasPrefix("symbol") || face.hasPrefix("webdings") {
+            return String(ch[ch.startIndex])
+        }
         if face.hasPrefix("wingdings") {
             let map: [UInt32: String] = [
                 0x6C: "●", 0x6D: "❍", 0x6E: "■", 0x6F: "□", 0x70: "◻", 0x71: "❑", 0x72: "❒", 0x73: "◆",
