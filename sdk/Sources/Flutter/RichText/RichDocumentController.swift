@@ -821,10 +821,14 @@ public final class RichDocumentController: ChangeNotifier {
         guard a != b else { return }
         if a.paragraph == b.paragraph {
             _deleteRange(in: a.paragraph, a.offset ..< b.offset)
-        } else if _crossesCellWall(a, b) {
+        } else if _crossesCellWall(a, b),
+                  document.paragraphs[a.paragraph].cell != nil || document.paragraphs[b.paragraph].cell != nil {
             // A range that leaves a cell (or enters one) clears what it
             // covers and keeps every paragraph: cells never merge into
             // the text around them, and a cell never loses its last one.
+            // (A range with both ends in body text holds any table between
+            // them whole, and takes it away with the rest, below: Select
+            // All and Delete leaves no empty table behind.)
             for i in a.paragraph ... b.paragraph {
                 let len = document.paragraphs[i].length
                 let lo = i == a.paragraph ? a.offset : 0

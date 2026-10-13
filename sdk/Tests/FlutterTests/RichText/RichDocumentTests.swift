@@ -901,6 +901,21 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs.map(\.text), ["intro"])
     }
 
+    func testSelectAllDeleteTakesATableWithIt() {
+        // Both ends in body text: the table between them goes whole, not
+        // emptied cell by cell and left standing.
+        let c = controller("intro")
+        c.moveToDocumentEnd(extend: false)
+        c.insertTable(rows: 2, columns: 2)
+        c.insertText("a")
+        c.selectAll()
+        c.deleteSelection()
+        XCTAssertEqual(cells(c), ["-"])
+        XCTAssertEqual(c.document.paragraphs.map(\.text), [""])
+        c.undo()
+        XCTAssertEqual(cells(c), ["-", "0,0:a", "0,1:", "1,0:", "1,1:", "-"])
+    }
+
     func testTableRowsAndDelete() {
         let c = controller("")
         c.insertTable(rows: 2, columns: 2)
