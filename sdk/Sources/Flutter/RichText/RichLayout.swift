@@ -3681,10 +3681,10 @@ public final class RichLayout {
             // has a "《威" taken that comes out a few hundredths over.)
             let edge = min(em * 0.01, _px(0.045))
             var fits = x + w - after <= width + hair
-            let traced = Self.debugFit.map { p.text.contains($0) } ?? false
+            let traced = Self.debugFit.map { p.text.firstRange(of: $0) != nil } ?? false
             if traced {
                 let pt = theme.pixelsPerPoint * scale
-                let text = String(utf16CodeUnits: Array(units[a ..< piece.b]), count: piece.b - a)
+                let text = String(decoding: units[a ..< piece.b], as: UTF16.self)
                 FileHandle.standardError.write(Data("fit [\(text)] w \(w / pt) x \(x / pt) of \(width / pt) fits \(fits) marks \(marks.count)+\(own.count)\n".utf8))
             }
             // (Fitting by that hair is fitting: the engine allows none,
