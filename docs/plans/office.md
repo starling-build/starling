@@ -1565,10 +1565,26 @@ fitter dropped the paragraph's tail).
   is closed with one: a line with 0.45pt under it goes over where
   the rules are half a point, with 1.05 where they are a point and a
   half, and stays with 0.1 where there are none (labs `ft`, `fu`,
-  body 23). The line itself is still not drawn at the foot, nor the
-  one that opens the row's rest on the next page; and Word gives the
-  rest of a parted row its stated height again (a 28.5pt row's
-  second half is 28.75) — measured in zh-15728c84, not built.
+  body 23).
+
+- **Rows are laid out with what their page holds.** The rest of a
+  parted row is a row again at the head of the next page: opened
+  with a line, and no shorter than the height the file states
+  (zh-15728c84: the second half of a row of 28.5pt at least is 29.4
+  from the page's head with its line). And a row the flow made
+  taller for a cell merged down into it is, on a page that took that
+  cell up again at its head, only as tall as what is left of the cell
+  asks — the room lost at the foot of the page before is not owed
+  again (`_CellGeo.stretched`; the row's pieces are then its text
+  from the top and its rules' last stretch). Both lines of a parted
+  row are drawn now (`_paintPartedRules`), the closing one at the
+  page's foot — Word draws it some points higher, under the last
+  line that fitted and a space not yet understood (94.9 where the
+  foot is at 90.2) — and a row that merely starts a page under a
+  cell merged from the page before still has no line over it.
+  Sample 68.8% -> 69.6% (median 88.7); zh-15728c84 5% -> 44%,
+  zh-91e44bcb 76 -> 94. POI 66.6, bug65649 7.7 -> 4.5 (179 pages
+  to Word's 178, from 176).
 
   The three together: Chinese sample 67.0% -> 68.8% of Word's lines
   (median 82.2 -> 86.7), 51 documents with Word's page count; ten

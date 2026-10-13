@@ -618,6 +618,10 @@ public final class RichLayout {
         /// (every cell of them merged down from above), whose height
         /// `ownRowHeight` takes in: the row's edges are drawn round both.
         var ghostRows = 0
+        /// How much of `ownRowHeight` the row was given for the cells
+        /// merged down into it, whose text was taller than their rows:
+        /// what a page that takes up such a cell part-way can do without.
+        var stretched: Double = 0
         /// The cell's own edge lines (`CellRef.borders`).
         var borders = CellRef.CellBorders()
         var vertical: Bool { direction != .horizontal }
@@ -1267,6 +1271,7 @@ public final class RichLayout {
             // it, over two, had stretched the second — and then stood
             // that much too tall.)
             var spanning: [(first: Int, last: Int, need: Double)] = []
+            var stretched = rows.map { _ in 0.0 }
             for (r, row) in rows.enumerated() {
                 var stackByColumn: [Int: Double] = [:]
                 for k in row.first ..< row.end {
@@ -1282,6 +1287,7 @@ public final class RichLayout {
                 if cell.need > have + 0.01 {
                     let extra = cell.need - have
                     rows[cell.last].height += extra
+                    stretched[cell.last] += extra
                     for (rr, later) in rows.enumerated() where rr > cell.last { rows[rr].top = later.top + extra }
                 }
             }
@@ -1336,10 +1342,11 @@ public final class RichLayout {
                 // The rows after it that hold no paragraph are drawn and
                 // paged as part of this one: every cell of this row runs
                 // on through them.
-                var ghosts = 0.0, ghostCount = 0
+                var ghosts = 0.0, ghostCount = 0, given = stretched[r]
                 while r + ghostCount + 1 < rows.count, rows[r + ghostCount + 1].first == rows[r + ghostCount + 1].end {
                     ghostCount += 1
                     ghosts += rows[r + ghostCount].height
+                    given += stretched[r + ghostCount]
                 }
                 var stack: [Int: Double] = [:]
                 for k in row.first ..< row.end {
@@ -1362,6 +1369,7 @@ public final class RichLayout {
                     _cells[k]!.rowTop = row.top
                     _cells[k]!.ownRowHeight = row.height + ghosts
                     _cells[k]!.ghostRows = ghostCount
+                    _cells[k]!.stretched = given
                     if cell.rowSpan > 1 {
                         _cells[k]!.rowHeight = spanned
                     } else {
@@ -1735,7 +1743,13 @@ public final class RichLayout {
             var first = true
             while true {
                 let avail = contentH - y
-                let rest = first ? c.ownRowHeight : columns.map { max(0, $0.bottom - $0.cut) }.max() ?? 0
+                // (What goes over is a row again, and no shorter than
+                // the file says a row is: the second half of a row of
+                // 28.5pt at least is 28.75 at the head of Word's page.)
+                // (With the line it opens with: 29.4 from the page's head.)
+                let stated = ts.rowsExactHeight.contains(c.row) || ts.rowHeights[c.row] == nil ? 0
+                    : min(c.ownRowHeight, _px(ts.rowHeights[c.row]!) + max(0, c.rules - c.ruleBelow))
+                let rest = first ? c.ownRowHeight : max(stated, columns.map { max(0, $0.bottom - $0.cut) }.max() ?? 0)
                 var fits = rest + ruleUnder(c) <= avail + 0.01
                 var next = columns.map(\.cut)
                 if !fits {
@@ -1835,14 +1849,57 @@ public final class RichLayout {
                 }
                 let atTop = y < 0.01
                 if atTop { goOn() }
-                if theme.wordRules, c.ownRowHeight + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
+                // A row made taller in the flow for a cell merged down
+                // into it need not be so here, where that cell's text
+                // was taken up again at the head of the page: it is as
+                // tall as what is left of the cell asks, and no shorter
+                // than itself. (Word lays the rows of each page out
+                // with what the page holds: the room lost at the foot
+                // of the page before is not owed again under the cell.)
+                var shown = c.ownRowHeight
+                if theme.wordRules, c.stretched > 0.01 {
+                    var need = 0.0, continued = false
+                    for piece in _pages[page] where piece.part != .rules && piece.paragraph < i && !piece.repeated {
+                        let m = piece.paragraph
+                        guard let d = _cells[m], d.table == c.table, d.row < c.row, !d.vertical,
+                              (c.row ... c.row + c.ghostRows).contains(d.row + d.rowSpan - 1) else { continue }
+                        if piece.part == .text { continued = true }
+                        need = max(need, piece.pageY + (min(piece.flowBottom, _tops[m] + _heights[m]) - piece.flowTop) + d.pad.bottom - y)
+                    }
+                    if continued { shown = min(shown, max(c.ownRowHeight - c.stretched, need)) }
+                }
+                if theme.wordRules, shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
                     if y > contentH - 0.01 { newPage() }
                     i = j
                     continue
                 }
-                if !atTop, c.ownRowHeight + ruleUnder(c) > contentH - y + 0.01, y > 0.01 {
+                if !atTop, shown + ruleUnder(c) > contentH - y + 0.01, y > 0.01 {
                     newPage()
                     goOn()
+                    shown = c.ownRowHeight
+                }
+                if shown < c.ownRowHeight - 0.01 {
+                    // Its cells' text from where each stands in the
+                    // shorter row, and its rules' last stretch, with
+                    // the line under it.
+                    let spare = c.ownRowHeight - shown
+                    for k in i ..< j {
+                        let d = _cells[k]!
+                        let down = d.rowSpan > 1 ? 0 : d.verticalAlign == "center" ? spare / 2 : d.verticalAlign == "bottom" ? spare : 0
+                        var text = PagePiece(paragraph: k, flowTop: c.rowTop + down,
+                                             flowBottom: d.rowSpan > 1 ? c.rowTop + d.rowHeight : c.rowTop + down + shown, page: page, pageY: y)
+                        text.part = .text
+                        add(text)
+                        if k == i {
+                            var rules = PagePiece(paragraph: i, flowTop: rowBottom - shown, flowBottom: rowBottom, page: page, pageY: y)
+                            rules.part = .rules
+                            add(rules)
+                        }
+                    }
+                    y += shown
+                    if y > contentH - 0.01 { newPage() }
+                    i = j
+                    continue
                 }
                 for k in i ..< j {
                     // A cell spanning rows paints through every row it covers.
@@ -4830,6 +4887,28 @@ public final class RichLayout {
         }
     }
 
+    /// The lines a table row parted over a page's foot is closed with
+    /// there and opened with on the next page, as Word draws them: the
+    /// table's inside line, across the table, wherever a piece of the
+    /// row's rules stops short of the row's own top or bottom.
+    private func _paintPartedRules(_ piece: PagePiece, _ canvas: any Canvas, _ document: RichDocument) {
+        guard theme.wordRules, !piece.repeated, let c = _cells[piece.paragraph], c.firstInRow else { return }
+        let ts = document.tableStyles[c.table]
+        guard ts?.edges?.insideH ?? ts?.borders ?? true else { return }
+        let opens = piece.flowTop > c.rowTop + 0.5, closes = piece.flowBottom < c.rowTop + c.ownRowHeight - 0.5
+        guard opens || closes else { return }
+        let widths = _columnWidths[c.table] ?? []
+        let left = (c.colLeft - widths.prefix(c.column).reduce(0, +)).rounded()
+        let right = (left + widths.reduce(0, +)).rounded()
+        let stroke = Paint()
+        stroke.style = .stroke
+        stroke.strokeWidth = max(1, _px(ts?.edgeWidths["insideH"] ?? ts?.borderWidth ?? 0.5).rounded())
+        stroke.color = ts?.borderColor ?? theme.textColor.withOpacity(0.6)
+        let half = stroke.strokeWidth / 2
+        if opens { canvas.drawLine(Offset(left, piece.flowTop + half), Offset(right, piece.flowTop + half), stroke) }
+        if closes { canvas.drawLine(Offset(left, piece.flowBottom - half), Offset(right, piece.flowBottom - half), stroke) }
+    }
+
     /// Every visible paragraph, page by page and column by column: its
     /// table row's shading only (`shading`), or everything else.
     private func _paintFlow(_ canvas: any Canvas, visible: Rect, document: RichDocument, shading: Bool) {
@@ -4865,6 +4944,7 @@ public final class RichLayout {
                         canvas.translate(left, top - piece.flowTop)
                         if shading { _paintShading(piece.paragraph, canvas, document, part: piece.part) } else {
                             _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines)
+                            if piece.part == .rules { _paintPartedRules(piece, canvas, document) }
                         }
                         lines?.painter.dispose()
                         canvas.restore()
