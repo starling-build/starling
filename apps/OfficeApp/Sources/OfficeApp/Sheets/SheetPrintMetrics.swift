@@ -99,6 +99,24 @@ struct SheetPrintMetrics {
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
             screenDigit: [10, 11, 13, 13, 14, 15, 17, 20, 23]),
+        // The bold of a face, where a workbook's default font is bold: its
+        // own line, and for some its own digit.
+        "calibri bold": Face(digit: [34, 38, 42, 45, 47, 51, 59, 67, 76], row: [90, 99, 109, 116, 121, 130, 150, 171, 191], screenRow: [28, 31, 35, 37, 38, 42, 48, 56, 62],
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
+        "arial bold": Face(digit: [37, 42, 46, 49, 51, 56, 65, 74, 83], row: [88, 98, 107, 113, 118, 126, 146, 165, 186], screenRow: [27, 31, 35, 36, 37, 40, 47, 55, 60],
+            screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
+        "verdana bold": Face(digit: [48, 53, 59, 63, 65, 71, 83, 95, 107], row: [88, 100, 108, 114, 122, 129, 150, 169, 189], screenRow: [26, 30, 33, 35, 36, 39, 47, 53, 61],
+            screenDigit: [15, 17, 19, 20, 21, 23, 26, 31, 34]),
+        "times new roman bold": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 96, 105, 111, 116, 126, 146, 165, 184], screenRow: [27, 30, 34, 35, 36, 40, 46, 53, 60],
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
+        "tahoma bold": Face(digit: [43, 48, 53, 56, 59, 64, 75, 85, 96], row: [89, 98, 108, 114, 119, 129, 149, 168, 189], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
+            screenDigit: [13, 15, 17, 18, 18, 20, 24, 27, 31]),
+        "courier new bold": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [84, 93, 100, 109, 113, 122, 142, 158, 178], screenRow: [28, 32, 36, 37, 39, 43, 49, 57, 63],
+            screenDigit: [13, 14, 16, 17, 17, 19, 22, 26, 29]),
+        "cambria bold": Face(digit: [40, 44, 49, 52, 54, 59, 69, 79, 89], row: [87, 96, 105, 112, 115, 125, 145, 164, 184], screenRow: [27, 30, 34, 35, 36, 40, 46, 54, 60],
+            screenDigit: [12, 14, 16, 17, 17, 19, 22, 25, 28]),
+        "segoe ui bold": Face(digit: [39, 43, 48, 51, 53, 58, 67, 77, 86], row: [102, 114, 124, 130, 138, 148, 171, 192, 218], screenRow: [34, 35, 41, 42, 44, 50, 54, 64, 70],
+            screenDigit: [12, 14, 16, 16, 17, 18, 21, 25, 28]),
     ]
     /// Other names for the measured faces: the clones this app draws with,
     /// and the East Asian faces' own spellings.
@@ -145,8 +163,9 @@ struct SheetPrintMetrics {
 
     /// The metrics of a workbook whose default font is `family` at `size`;
     /// `baseColWidth` is the sheet's (8 digits unless it says otherwise).
-    static func of(family: String, size: Double, baseColWidth: Double = 8) -> SheetPrintMetrics {
-        let f = face(family)
+    static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8) -> SheetPrintMetrics {
+        let plain = aliases[family.trimmingWhitespace().lowercased()] ?? family.trimmingWhitespace().lowercased()
+        let f = (bold ? faces[plain + " bold"] : nil) ?? face(family)
         let digit = at(f.digit, size).rounded(), row = at(f.row, size).rounded()
         let screenRow = max(1, at(f.screenRow, size).rounded())
         // The default column, as that Excel's screen made it: the digit there

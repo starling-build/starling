@@ -296,6 +296,7 @@ final class Workbook {
     /// draws in it, and column widths are counted in its digits.
     var defaultFontName: String? = nil
     var defaultFontSize: Double? = nil
+    var defaultFontBold = false
     func fontName(_ st: CellStyle) -> String { st.fontName ?? defaultFontName ?? OfficeFonts.defaultFamily }
     func fontSize(_ st: CellStyle) -> Double { st.fontSize ?? defaultFontSize ?? 11 }
     /// The widest digit of the default font, in pixels at 96 dpi — the

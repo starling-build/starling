@@ -63,6 +63,7 @@ enum Xlsx {
             // The default font: the first, which the Normal style names.
             if let f = st.child("fonts")?.kids("font").first {
                 if let n = f.child("name")?["val"], !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
+                book.defaultFontBold = f.child("b").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
                 if let z = f.child("sz").flatMap({ Double($0["val"] ?? "") }), z > 0, z != 11 { book.defaultFontSize = z }
             }
             for i in book.styles.indices { book.styles[i].baseXf = i }
