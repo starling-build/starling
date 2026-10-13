@@ -263,7 +263,10 @@ extension Ribbon {
                 ]),
             ]),
             Chrome.group("Timing", fluent, [Chrome.rows([
-                Chrome.spinner("Duration", t.duration * 100, fluent, step: 25, unit: "cs", minimum: 10) { v in
+                // Stepped in hundredths of a second, shown in seconds like the
+                // Animations tab's ("0.5 s", not "50 cs").
+                Chrome.spinner("Duration", t.duration * 100, fluent, step: 25, minimum: 10,
+                               shown: ChartPainter.label(t.duration, percent: false) + " s") { v in
                     deck.setTransition(duration: v / 100)
                 },
                 Chrome.small(FluentSystemIcons.copy, "Apply To All", fluent) { deck.setTransition(all: true) },

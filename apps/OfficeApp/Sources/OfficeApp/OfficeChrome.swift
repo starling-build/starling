@@ -284,11 +284,14 @@ enum Chrome {
     /// A labelled value with −/+ buttons: NumberBox without typing, which
     /// keeps keyboard focus in the document.
     static func spinner(_ label: String, _ value: Double, _ fluent: FluentThemeData, step: Double,
-                        unit: String = "pt", minimum: Double = 0, onChanged: @escaping (Double) -> Void) -> Widget {
+                        unit: String = "pt", minimum: Double = 0, shown: String? = nil,
+                        onChanged: @escaping (Double) -> Void) -> Widget {
         row([
             SizedBox(width: 84, height: nil, child: Text(label, style: fluent.typography.caption)),
             icon(FluentSystemIcons.chevronDown, "Less", fluent) { onChanged(max(minimum, value - step)) },
-            SizedBox(width: 48, height: nil, child: Text("\(Int(value.rounded())) \(unit)", style: fluent.typography.caption)),
+            // `shown` is the value as the caller writes it, where a whole
+            // number of `unit` is not how it reads (0.75 s).
+            SizedBox(width: 48, height: nil, child: Text(shown ?? "\(Int(value.rounded())) \(unit)", style: fluent.typography.caption)),
             icon(FluentSystemIcons.chevronUp, "More", fluent) { onChanged(value + step) },
         ])
     }
