@@ -1,10 +1,19 @@
 # Starling Office website
 
-The page focuses on Writer, Slides, and Sheets. Each app has a document preview,
-three short capability labels, one suggestion to try, and an Open button. Both
+The page introduces Writer, Slides, and Sheets as a free, open source suite for
+familiar Office files. Each app has a short introduction, capability labels,
+a document preview, one suggestion to try, and an Open button. Both
 the button and the preview open the editor with the pictured example ready to
 edit. There are no PDF or source-file download controls on the landing page.
 The landing itself uses HTML/CSS and needs no JavaScript or WASM runtime.
+
+Product copy follows `docs/plans/office-overview.md` (2026-10-13): current editing
+features, DOCX/PPTX/XLSX support, compatibility testing, and platform status.
+Compatibility is described as ongoing work, not a guarantee of perfect fidelity.
+The browser apps are live; macOS can be built from source; Windows and Linux
+windowed apps are next, and iOS is being tested in the simulator. Keep this
+distinction when updating the page. The sample captions describe the pictured
+files; the capability labels describe the broader apps.
 
 ## Local preview
 
