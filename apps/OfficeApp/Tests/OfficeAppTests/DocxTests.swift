@@ -1512,6 +1512,30 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(pic.height, 80, accuracy: 0.01)
     }
 
+    /// A table made in the editor is as tall after saving and reopening
+    /// as before: its cell padding is the editor's, and the file says so.
+    func testAnEditorsTableKeepsItsRowHeightsThroughAFile() throws {
+        _ = OfficeFonts.register()
+        func cell(_ t: String, _ r: Int, _ c: Int) -> RichParagraph {
+            var p = RichParagraph(text: t)
+            p.cell = CellRef(table: "t", row: r, column: c)
+            return p
+        }
+        var doc = RichDocument(paragraphs: [cell("a1", 0, 0), cell("b1", 0, 1), cell("a2", 1, 0), cell("b2", 1, 1), RichParagraph(text: "after")])
+        doc.tableColumns["t"] = [200, 200]
+        func height(_ d: RichDocument) -> Double {
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: d.paragraphs.count)
+            layout.width = 468 * 96.0 / 72.0
+            layout.ensureLaidOut(d)
+            return layout.totalHeight
+        }
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), doc.paragraphs.map(\.text))
+        XCTAssertEqual(height(back), height(doc), accuracy: 0.5)
+    }
+
     func testDocxTableRoundTrip() throws {
         var doc = RichDocument(plainText: "Before\nAfter")
         func cell(_ text: String, _ r: Int, _ c: Int, bold: Bool = false) -> RichParagraph {

@@ -54,6 +54,13 @@ final class FluentFilePanelState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         _name.text = _w.suggestedName
+        // (The name is ready to be typed over, as in any save panel: the
+        // field has the keys and the name without its extension is
+        // selected. ⌘S on an untitled document used to open the panel
+        // with nothing focused, and a typed name went nowhere.)
+        let name = _w.suggestedName
+        let stem = name.lastIndex(of: ".").map { name[..<$0].utf16.count } ?? name.utf16.count
+        _name.selection = TextSelection(baseOffset: 0, extentOffset: stem > 0 ? stem : name.utf16.count)
         _load(_w.initialDirectory)
     }
 
@@ -171,7 +178,7 @@ final class FluentFilePanelState: State<StatefulWidget> {
         var bottom: [Widget] = []
         if _w.mode == .save {
             bottom.append(SizedBox(width: 140, height: nil, child: Text("File name:", style: fluent.typography.body)))
-            bottom.append(Expanded(child: FluentTextBox(controller: _name, onSubmitted: { [weak self] _ in self?._confirm() })))
+            bottom.append(Expanded(child: FluentTextBox(controller: _name, onSubmitted: { [weak self] _ in self?._confirm() }, autofocus: true)))
         } else {
             bottom.append(Expanded(child: Text(_selected.map { $0.lastPathComponent } ?? "",
                                                style: fluent.typography.body)))

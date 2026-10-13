@@ -1021,8 +1021,15 @@ public final class RichLayout {
 
     private func _cellInsets(_ table: String, _ document: RichDocument) -> (top: Double, left: Double, bottom: Double, right: Double) {
         let s = document.tableStyles[table]
-        return (s?.cellMarginTop.map(_px) ?? cellPadding, s?.cellMarginLeft.map(_px) ?? cellPadding,
-                s?.cellMarginBottom.map(_px) ?? cellPadding, s?.cellMarginRight.map(_px) ?? cellPadding)
+        // A table that states no cell margins — one made in the editor —
+        // has Word's where Word's rules are followed: none above or
+        // below, 5.4pt at the sides. That is what its file will mean
+        // when it is saved saying nothing, to Word and to this app on
+        // reopening: with the editor's own padding its rows came back a
+        // fifth shorter (seen on screen 2026-10-13).
+        let side = theme.wordRules ? _px(5.4) : cellPadding, end = theme.wordRules ? 0 : cellPadding
+        return (s?.cellMarginTop.map(_px) ?? end, s?.cellMarginLeft.map(_px) ?? side,
+                s?.cellMarginBottom.map(_px) ?? end, s?.cellMarginRight.map(_px) ?? side)
     }
 
     private func _tableLeft(_ table: String, _ document: RichDocument) -> Double {
@@ -1030,7 +1037,9 @@ public final class RichLayout {
         let width = _tableFlowWidth[table] ?? self.width
         // (Set out by its style's cell margin, as Word sets it: the first
         // column's text then lines up with the paragraphs'.)
-        let outdent = theme.wordRules ? _px(document.tableStyles[table]?.textOutdent ?? 0) : 0
+        // (… and so is such a table's, by Word's 5.4.)
+        let stated = document.tableStyles[table]?.cellMarginLeft != nil
+        let outdent = theme.wordRules ? _px(stated ? document.tableStyles[table]?.textOutdent ?? 0 : 5.4) : 0
         switch document.tableStyles[table]?.alignment ?? .left {
         case .center: return theme.wordRules ? (width - sum) / 2 - outdent : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + outdent : max(0, (width - sum).rounded(.down))
@@ -2430,7 +2439,11 @@ public final class RichLayout {
             // between every two rows, 31pt apart for rows 30 high.)
             var rules = 0.0
             var ruleBelow = 0.0
-            if theme.wordRules, let ts = document.tableStyles[c.table] {
+            // (A table with no style of its own — one made in the editor
+            // — is ruled like one whose file says nothing more than
+            // that it is ruled.)
+            if theme.wordRules {
+                let ts = document.tableStyles[c.table] ?? TableStyle()
                 let rows = _tableRows[c.table] ?? 0
                 func rule(_ d: CellRef, _ side: String) -> Double {
                     let said = Self._cellSide(d.bordersXML, side)
