@@ -84,6 +84,11 @@ public final class RichTextTheme {
     /// three rows of 17.05pt ruled at half a point are 53pt, not 51 — and
     /// PowerPoint draws its lines over the rows as they are.
     public var tableRulesTakeRoom = true
+    /// Whether the space after a paragraph and the space before the next
+    /// share the room, the larger of the two alone standing between them:
+    /// Word's way (unless the document says `addsParagraphSpacing`).
+    /// PowerPoint sets both.
+    public var collapsesParagraphSpacing = true
 
     /// The share of a face's line that lies below the baseline (Calibri's
     /// 0.22), measured once.
@@ -827,14 +832,18 @@ public final class RichLayout {
         while i < n {
             // Past the last change, a block whose top is unchanged means
             // every block below is too (heights above it are the same).
-            if i > settled, _rowTops[i] == y { return }
             guard let c = _cells[i] else {
-                _tops[i] = y
-                _rowTops[i] = y
-                y += _heights[i]
+                // The space before it lies over the space after the
+                // paragraph above (`theme.collapsesParagraphSpacing`).
+                let top = y - _sharedSpace(i, document)
+                if i > settled, _rowTops[i] == top { return }
+                _tops[i] = top
+                _rowTops[i] = top
+                y = top + _heights[i]
                 i += 1
                 continue
             }
+            if i > settled, _rowTops[i] == y { return }
             // The table: every row of it, placed in turn; a cell spanning
             // rows takes its height from the rows it covers, and stretches
             // the last of them when its own content is taller.
@@ -1102,6 +1111,11 @@ public final class RichLayout {
             if _pageBreak[i] && (y > 0 || !_pages[page].isEmpty) && resumeCursor == nil {
                 newPage()
             }
+            // The space it shares with the paragraph above (`_sharedSpace`)
+            // is on the page once, as it is in the flow.
+            if i > 0, _cells[i - 1] == nil, y > 0.01, resumeCursor == nil {
+                y -= min(y, max(0, _tops[i - 1] + _heights[i - 1] - top))
+            }
             var cursor = resumeCursor ?? top
             resumeCursor = nil
             var cuts: [Double]? = nil   // lazily computed line bottoms
@@ -1306,6 +1320,37 @@ public final class RichLayout {
         _listValid = true
     }
 
+    /// Paragraph `i`'s space before and after, in pixels, without its
+    /// borders: none against a neighbour of the same style under
+    /// contextual spacing, Word's 14pt where it is automatic.
+    private func _spacing(_ i: Int, _ document: RichDocument) -> (before: Double, after: Double) {
+        let style = document.paragraphs[i].style
+        // Word's auto spacing: 14pt, none between items of a list.
+        let autoGap = style.list == nil ? 14.0 : 0.0
+        // Contextual spacing: no space against a neighbour of the same style.
+        func sameStyle(_ j: Int) -> Bool {
+            guard j >= 0, j < document.paragraphs.count else { return false }
+            let o = document.paragraphs[j].style
+            return o.named == style.named && o.heading == style.heading && o.list == style.list
+        }
+        let skipBefore = style.contextualSpacing && sameStyle(i - 1) || theme.omitsLeadingSpace && i == 0
+        let skipAfter = style.contextualSpacing && sameStyle(i + 1)
+        return (skipBefore ? 0 : _px(style.spaceBeforeAuto ? autoGap : style.spaceBefore),
+                skipAfter ? 0 : _px(style.spaceAfterAuto ? autoGap : style.spaceAfter))
+    }
+
+    /// How much of body paragraph `i`'s space before lies over the space
+    /// after the body paragraph above it: the smaller of the two, so the
+    /// larger alone separates them. None across a border, a page break
+    /// or a table's edge.
+    private func _sharedSpace(_ i: Int, _ document: RichDocument) -> Double {
+        guard theme.collapsesParagraphSpacing, !document.addsParagraphSpacing,
+              i > 0, i < document.paragraphs.count, _cells[i] == nil, _cells[i - 1] == nil else { return 0 }
+        let above = document.paragraphs[i - 1].style, style = document.paragraphs[i].style
+        guard above.borders?.bottom == nil, style.borders?.top == nil, !style.pageBreakBefore else { return 0 }
+        return min(_spacing(i - 1, document).after, _spacing(i, document).before).rounded(.down)
+    }
+
     private func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         let style = p.style
         var left = _px(style.indentLeft)
@@ -1365,18 +1410,9 @@ public final class RichLayout {
         // A border's line and its gap lie between the spacing and the text.
         let bTop = style.borders?.top.map { _px($0.space + $0.width) } ?? 0
         let bBottom = style.borders?.bottom.map { _px($0.space + $0.width) } ?? 0
-        // Word's auto spacing: 14pt, none between items of a list.
-        let autoGap = style.list == nil ? 14.0 : 0.0
-        // Contextual spacing: no space against a neighbour of the same style.
-        func sameStyle(_ j: Int) -> Bool {
-            guard j >= 0, j < document.paragraphs.count else { return false }
-            let o = document.paragraphs[j].style
-            return o.named == style.named && o.heading == style.heading && o.list == style.list
-        }
-        let skipBefore = style.contextualSpacing && sameStyle(i - 1) || theme.omitsLeadingSpace && i == 0
-        let skipAfter = style.contextualSpacing && sameStyle(i + 1)
-        let before = ((skipBefore ? 0 : _px(style.spaceBeforeAuto ? autoGap : style.spaceBefore)) + bTop).rounded()
-        let after = (skipAfter ? 0 : _px(style.spaceAfterAuto ? autoGap : style.spaceAfter)) + bBottom
+        let spacing = _spacing(i, document)
+        let before = (spacing.before + bTop).rounded()
+        let after = spacing.after + bBottom
         _painters[i] = painter
         _textLeft[i] = left
         _textWidth[i] = textWidth

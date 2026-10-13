@@ -1133,6 +1133,7 @@ enum DocxFormat {
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
+            document.addsParagraphSpacing = settings.first("w:compat")?.first("w:doNotUseHTMLParagraphAutoSpacing").map { !_isOff($0) } ?? false
             let margins = ["w:mirrorMargins", "w:gutterAtTop"].compactMap { settings.first($0) }.map { PptxXML.serialize($0) }.joined()
             document.marginSettingsXML = margins.isEmpty ? nil : margins
             for name in _keptSettingNames.flatMap({ $0 }) {

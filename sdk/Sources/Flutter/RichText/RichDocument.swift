@@ -1630,6 +1630,11 @@ public struct RichDocument: Hashable, Sendable {
     /// headings are plain paragraphs with contextual spacing, and giving
     /// them a style the next paragraph lacked put 10pt back between them.
     public var readFromFile = false
+    /// The space after a paragraph and the space before the next are both
+    /// there (Word's `w:doNotUseHTMLParagraphAutoSpacing`, in files from
+    /// Word 2003 and before). Without it Word keeps the larger of the two
+    /// alone, as HTML's margins collapse: 9pt after and 9pt before are 9.
+    public var addsParagraphSpacing = false
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
     /// Word's w:evenAndOddHeaders: even pages use the "even" ones.
