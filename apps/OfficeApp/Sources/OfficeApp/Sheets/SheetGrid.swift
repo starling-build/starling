@@ -1408,6 +1408,18 @@ final class SheetGridState: State<StatefulWidget> {
 
     // MARK: Paint
 
+    /// The first screen of the active sheet through the window's own
+    /// painter, with no window (`--read-bench`): at the printing scale,
+    /// since the zoom is the widget's.
+    func paintFirstScreen(_ size: Size) {
+        printing = true
+        defer { printing = false }
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
+        paint(canvas, size, fluent: nil)
+        _ = recorder.endRecording()
+    }
+
     fileprivate func paint(_ canvas: any Canvas, _ size: Size, fluent: FluentThemeData?) {
         let c = controller
         let ws = c.sheet

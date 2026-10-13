@@ -402,6 +402,16 @@ if let i = CommandLine.arguments.firstIndex(of: "--landing-deck"), i + 1 < Comma
 
 // `--convert <in> <out>`: the formats without the window, for scripts and
 // for checking our output against other readers (`textutil`, LibreOffice).
+// `--read-bench file…`: what opening each file costs, step by step
+// (ReadBench.swift); `--read-bench-make <pages> <out.docx>` writes the
+// generated document for it to open.
+if let i = CommandLine.arguments.firstIndex(of: "--read-bench-make"), i + 2 < CommandLine.arguments.count {
+    exit(ReadBench.make(pages: Int(CommandLine.arguments[i + 1]) ?? 200, to: CommandLine.arguments[i + 2]))
+}
+if let i = CommandLine.arguments.firstIndex(of: "--read-bench"), i + 1 < CommandLine.arguments.count {
+    exit(ReadBench.run(Array(CommandLine.arguments[(i + 1)...])))
+}
+
 if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
     let src = CommandLine.arguments[i + 1]
     let dst = CommandLine.arguments[i + 2]
