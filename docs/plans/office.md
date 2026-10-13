@@ -1441,6 +1441,16 @@ fitter dropped the paragraph's tail).
   Not drawn yet: the line Word closes the parted row with at the
   foot of the page.
 
+Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
+the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
+page the indents are as written. On an odd page Word sets the right
+indent to the left one plus the first line's (less a hanging one's)
+and the left indent to the right one (plus a hanging indent's
+depth): `w:firstLine="612"` alone ends every line 30.6pt short of
+the right margin, on pages 1 and 3 and not on 2 and 4. An indent
+that depends on the page the paragraph lands on needs the layout to
+run again after the pages are cut.
+
 Still open from the automatic space's lab: from mode 15 on the
 spaces give in a justified paragraph only, and by a rule not found
 (one space gave its whole 4pt, two under 4 between them, four under

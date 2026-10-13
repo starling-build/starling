@@ -3078,6 +3078,10 @@ public final class RichLayout {
             }
             let em = a < ems.count ? ems[a] : 0
             let hair = em * 0.01   // (a stand-in's half em is a hair over half)
+            // (The half em a line takes at most is Word's to a twentieth
+            // of a point: 7.12pt over at 14pt is not taken. The widths
+            // are the faces' own now, and the hair would take it.)
+            let edge = min(hair, _px(0.05))
             var fits = x + w - after <= width + hair
             // (Fitting by that hair is fitting: the engine allows none,
             // so the last character gives it up.)
@@ -3129,7 +3133,7 @@ public final class RichLayout {
                     let modern = (document.compatibilityMode ?? 12) >= 15
                     let taken = modern
                         ? need / Double(max(1, all.count)) <= width - x + hair
-                        : x + min(lead, w) - width <= em / 2 + hair
+                        : x + min(lead, w) - width <= em / 2 + edge
                     if room > 0, taken, need <= room + hair {
                         let share = min(1, (need + 0.02) / room)
                         for mark in all { adjust[mark, default: 0] -= ems[mark] / 2 * share }
