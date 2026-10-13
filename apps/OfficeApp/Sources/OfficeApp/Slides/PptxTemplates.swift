@@ -225,6 +225,16 @@ struct PptxTemplates {
     static let viewProps = head + "<p:viewPr \(namespaces)><p:normalViewPr><p:restoredLeft sz=\"15620\"/><p:restoredTop sz=\"94660\"/></p:normalViewPr><p:gridSpacing cx=\"76200\" cy=\"76200\"/></p:viewPr>"
     static let tableStyles = head + "<a:tblStyleLst xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" def=\"{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}\"/>"
 
+    /// PowerPoint's own table styles a deck may name without defining:
+    /// PowerPoint writes a style into the deck's part when a table takes
+    /// it, other writers leave the id alone (tdf156718's table is "Light
+    /// Style 1 - Accent 1" in a deck that defines only the default one,
+    /// and was drawn as the default). By style id; only the ones a deck
+    /// has been seen to need, each as PowerPoint draws it.
+    static let builtinTableStyles: [String: String] = [
+        "{3B4B98B0-60AC-42C2-AFA5-B58CD77FA1E5}": "<a:tblStyle xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" styleId=\"{3B4B98B0-60AC-42C2-AFA5-B58CD77FA1E5}\" styleName=\"Light Style 1 - Accent 1\"><a:wholeTbl><a:tcTxStyle><a:fontRef idx=\"minor\"><a:scrgbClr r=\"0\" g=\"0\" b=\"0\"/></a:fontRef><a:schemeClr val=\"tx1\"/></a:tcTxStyle><a:tcStyle><a:tcBdr><a:left><a:ln><a:noFill/></a:ln></a:left><a:right><a:ln><a:noFill/></a:ln></a:right><a:top><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></a:ln></a:top><a:bottom><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></a:ln></a:bottom><a:insideH><a:ln><a:noFill/></a:ln></a:insideH><a:insideV><a:ln><a:noFill/></a:ln></a:insideV></a:tcBdr><a:fill><a:noFill/></a:fill></a:tcStyle></a:wholeTbl><a:band1H><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val=\"accent1\"><a:alpha val=\"20000\"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:band1H><a:band2H><a:tcStyle><a:tcBdr/></a:tcStyle></a:band2H><a:band1V><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val=\"accent1\"><a:alpha val=\"20000\"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:band1V><a:band2V><a:tcStyle><a:tcBdr/></a:tcStyle></a:band2V><a:lastCol><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr/></a:tcStyle></a:lastCol><a:firstCol><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr/></a:tcStyle></a:firstCol><a:lastRow><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr><a:top><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></a:ln></a:top></a:tcBdr><a:fill><a:noFill/></a:fill></a:tcStyle></a:lastRow><a:firstRow><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr><a:bottom><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></a:ln></a:bottom></a:tcBdr><a:fill><a:noFill/></a:fill></a:tcStyle></a:firstRow></a:tblStyle>",
+    ]
+
     static func core() -> String {
         let now = OfficeDates.iso8601(Date())
         return head + """

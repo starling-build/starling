@@ -434,6 +434,9 @@ struct PptxReader {
         if let lst = package.rel(pres, kind: "tableStyles").flatMap({ package.xml($0.target) }) {
             for st in lst.all("a:tblStyle") { if let id = st["styleId"] { tableStyles[id] = st } }
         }
+        for (id, xml) in PptxTemplates.builtinTableStyles where tableStyles[id] == nil {
+            if let st = XNode.parse(Data(xml.utf8)) { tableStyles[id] = st }
+        }
 
         var deckTheme = DeckTheme()
         var slides: [SlideState] = []
@@ -1597,6 +1600,10 @@ private struct SlideContext {
                     under = f.first("a:solidFill").flatMap(colors.color(in:))
                 }
             }
+            // (No fill under the cells is nothing to lay a tint over: a
+            // style whose cells say `a:noFill` and that has no table
+            // background had its 20% band mixed with black.)
+            if let u = under, u.a < 0.002 { under = nil }
             func over(_ fill: Color?) -> Color? {
                 // A translucent band over the table's own fill.
                 guard let fill, let under, (fill.value >> 24) & 0xFF < 0xFF else { return fill ?? under }
