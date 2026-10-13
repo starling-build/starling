@@ -23,11 +23,15 @@ Copyright (c) 2012 Red Hat, Inc. SIL Open Font License 1.1.
 Document faces standing in for Arial, Times New Roman and Courier New.
 Full text: fonts/Liberation-LICENSE.txt.
 
-## Carlito and Caladea
-Copyright (c) 2010-2013 tyPoland Lukasz Dziedzic ("Carlito"), Carrois Type
-Design ("Caladea"). SIL Open Font License 1.1.
-Document faces standing in for Calibri and Cambria.
-Full text: fonts/Carlito-LICENSE.txt, fonts/Caladea-LICENSE.txt.
+## Carlito
+Copyright (c) 2010-2013 tyPoland Lukasz Dziedzic. SIL Open Font License 1.1.
+Document face standing in for Calibri.
+Full text: fonts/Carlito-LICENSE.txt.
+
+## Caladea
+Copyright (c) 2012 Huerta Tipografica. Apache License 2.0.
+Document face standing in for Cambria.
+Full text: fonts/Caladea-LICENSE.txt.
 
 ## zlib
 Copyright (c) 1995-2024 Jean-loup Gailly and Mark Adler. zlib License.
