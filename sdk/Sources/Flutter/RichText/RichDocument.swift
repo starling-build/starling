@@ -795,6 +795,12 @@ public struct CellRef: Hashable, Sendable {
     /// only paragraphs: their marks' sizes and spacing are the height the
     /// merged cell asks of that row, which a bare empty paragraph is not.
     public var continuationContentXML: [String?] = []
+    /// The same paragraphs read (empty where `continuationContentXML`
+    /// is nil), by row offset: Word sizes a row in which no cell stands
+    /// alone — every one merged on into the next row, or down from the
+    /// one above — by what its cells hold, and a continued cell holds
+    /// these.
+    public var continuationParagraphs: [[RichParagraph]] = []
     /// The table's border switch when `bordersXML` was read: once the
     /// editor toggles the table's borders, the summary is written instead.
     public var bordersKeptUnder: Bool? = nil
@@ -1768,6 +1774,12 @@ public struct RichDocument: Hashable, Sendable {
     /// settings' `w:themeFontLang`. Word chooses the East Asian face and
     /// its line-breaking rules by them.
     public var defaultLangXML: String? = nil
+    /// Whether that language's East Asian one is mainland Chinese, whose
+    /// marks sit in the left half of their em: a closing mark at a
+    /// line's end in a table's cell then gives its empty half in every
+    /// compatibility mode, where Taiwan's centred marks keep their em
+    /// before Word 2013's layout.
+    public var marksSitLeft: Bool { defaultLangXML?.containsSubstring("w:eastAsia=\"zh-CN\"") ?? false }
     public var themeFontLangXML: String? = nil
     /// The settings' `w:characterSpacingControl` value when the file
     /// states one ("compressPunctuation" in Chinese documents: Word then

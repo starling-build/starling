@@ -1553,6 +1553,28 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.document.styles["Heading1"]?.char.color, Color(0xFF00AA00))
     }
 
+    func testAContinuedCellsParagraphsAreRead() throws {
+        // Word sizes a row in which every cell is merged on or down by
+        // what the cells hold, and a continued cell holds the (empty)
+        // paragraphs the file wrote in it: their spacing is read.
+        var a = RichParagraph(text: "head"), b = RichParagraph(text: "side"), c = RichParagraph(text: "under"), d = RichParagraph(text: "last")
+        a.cell = CellRef(table: "T", row: 0, column: 0, rowSpan: 2)
+        a.cell!.continuationContentXML = ["<w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"600\" w:lineRule=\"exact\"/></w:pPr></w:p>"]
+        b.cell = CellRef(table: "T", row: 0, column: 1, rowSpan: 2)
+        c.cell = CellRef(table: "T", row: 2, column: 0); d.cell = CellRef(table: "T", row: 2, column: 1)
+        var doc = RichDocument(paragraphs: [a, b, c, d, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [100, 100]
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        let first = try XCTUnwrap(back.paragraphs[0].cell), second = try XCTUnwrap(back.paragraphs[1].cell)
+        XCTAssertEqual(first.continuationParagraphs.count, 1)
+        XCTAssertEqual(first.continuationParagraphs.first?.count, 1)
+        XCTAssertEqual(first.continuationParagraphs.first?.first?.style.lineHeightPoints, 30)
+        XCTAssertEqual(first.continuationParagraphs.first?.first?.style.spaceAfter, 0)
+        XCTAssertNil(first.continuationParagraphs.first?.first?.cell)
+        // (A bare continuation has the one empty paragraph Word requires.)
+        XCTAssertEqual(second.continuationParagraphs.first?.count, 1)
+    }
+
     func testDocxMergedCellsRoundTrip() throws {
         var doc = RichDocument(plainText: "wide\nc\nd\ne\nf\n")
         for (i, ref) in [(0, 0, 2), (0, 2, 1), (1, 0, 1), (1, 1, 1), (1, 2, 1)].enumerated() {

@@ -611,6 +611,13 @@ public final class RichLayout {
         /// rules: a row is that much taller than the height the file
         /// gave it.
         var rules: Double = 0
+        /// … and how much of that is the table's bottom rule, which a
+        /// cell that reaches the last row carries.
+        var ruleBelow: Double = 0
+        /// Rows after this cell's that have no paragraph of their own
+        /// (every cell of them merged down from above), whose height
+        /// `ownRowHeight` takes in: the row's edges are drawn round both.
+        var ghostRows = 0
         /// The cell's own edge lines (`CellRef.borders`).
         var borders = CellRef.CellBorders()
         var vertical: Bool { direction != .horizontal }
@@ -1201,7 +1208,65 @@ public final class RichLayout {
                 y += rowHeight
                 k0 = j
             }
-            // Stretch for spanning cells, in row order; later rows shift.
+            // (… and so are such rows after the last that has one.)
+            while theme.wordRules, !rows.isEmpty, rows.count <= _tableRows[table] ?? 0 {
+                let h = _px(document.tableStyles[table]?.rowHeights[rows.count] ?? 0)
+                rows.append((k0, k0, y, h))
+                rules.append((0, 0))
+                y += h
+            }
+            // A row in which no cell stands alone — each one merged on
+            // into the row below, or down from the row above — Word
+            // sizes by the cells themselves: one that starts there gives
+            // its first line and the space after its first paragraph,
+            // one that continues gives the (empty) paragraphs the file
+            // wrote in it. Beside a cell of the row's own they give
+            // nothing, and a merged cell's text counts where it ends.
+            // (Measured off Word's rules, 2026-10-13: two rows merged
+            // whole, a 14pt line with 8pt after in each cell, are 22 and
+            // 22, not 22 over both; a thin cell beside them and they are
+            // its height. A table of such rows ran a page short.)
+            if theme.wordRules {
+                var alone = rows.map { _ in false }
+                var own = rows.map { _ in 0.0 }
+                var measured: [RichParagraph: Double] = [:]
+                for (r, row) in rows.enumerated() {
+                    var seen: Set<Int> = []
+                    for k in row.first ..< row.end {
+                        let cell = _cells[k]!
+                        guard seen.insert(cell.column).inserted else { continue }
+                        if cell.rowSpan == 1 || cell.vertical { alone[r] = true; continue }
+                        let pads = cell.pad.top + cell.pad.bottom - cell.ruleBelow
+                        let firstLine = _painters[k].flatMap { Self._lineBottoms($0).first }
+                        own[r] = max(own[r], (firstLine.map { $0 + _spacing(k, document).after } ?? _heights[k]) + pads)
+                        let continued = document.paragraphs[k].cell?.continuationParagraphs ?? []
+                        for offset in 1 ..< cell.rowSpan where r + offset < rows.count && offset - 1 < continued.count {
+                            var h = 0.0
+                            for p in continued[offset - 1] {
+                                if measured[p] == nil { measured[p] = _detachedHeight(p, document) }
+                                h += measured[p]!
+                            }
+                            own[r + offset] = max(own[r + offset], h + pads + (offset == cell.rowSpan - 1 ? cell.ruleBelow : 0))
+                        }
+                    }
+                }
+                var shift = 0.0
+                for r in rows.indices {
+                    rows[r].top += shift
+                    guard !alone[r], !(ts?.rowsExactHeight.contains(r) ?? false) else { continue }
+                    let want = (own[r] + rules[r].above + rules[r].below).rounded(.up)
+                    if want > rows[r].height + 0.01 {
+                        shift += want - rows[r].height
+                        rows[r].height = want
+                    }
+                }
+            }
+            // Stretch for spanning cells, in the order of the rows they
+            // end in; later rows shift. (By the rows they start in, a
+            // cell over three rows was measured before the cell beside
+            // it, over two, had stretched the second — and then stood
+            // that much too tall.)
+            var spanning: [(first: Int, last: Int, need: Double)] = []
             for (r, row) in rows.enumerated() {
                 var stackByColumn: [Int: Double] = [:]
                 for k in row.first ..< row.end {
@@ -1209,13 +1274,15 @@ public final class RichLayout {
                     guard cell.rowSpan > 1, !cell.vertical else { continue }
                     stackByColumn[cell.column, default: 0] += _heights[k]
                     let need = stackByColumn[cell.column]! + cell.pad.top + cell.pad.bottom
-                    let last = min(rows.count - 1, r + cell.rowSpan - 1)
-                    let have = rows[r ... last].map(\.height).reduce(0, +)
-                    if need > have + 0.01 {
-                        let extra = need - have
-                        rows[last].height += extra
-                        for (rr, later) in rows.enumerated() where rr > last { rows[rr].top = later.top + extra }
-                    }
+                    spanning.append((r, min(rows.count - 1, r + cell.rowSpan - 1), need))
+                }
+            }
+            for (_, cell) in spanning.enumerated().sorted(by: { ($0.element.last, $0.offset) < ($1.element.last, $1.offset) }) {
+                let have = rows[cell.first ... cell.last].map(\.height).reduce(0, +)
+                if cell.need > have + 0.01 {
+                    let extra = cell.need - have
+                    rows[cell.last].height += extra
+                    for (rr, later) in rows.enumerated() where rr > cell.last { rows[rr].top = later.top + extra }
                 }
             }
             // Turned cells: wrapped at the height the rows now have (as
@@ -1266,6 +1333,14 @@ public final class RichLayout {
                 // row (a turned cell's content width, across the column).
                 var content: [Int: Double] = [:]
                 for k in row.first ..< row.end { content[_cells[k]!.column, default: 0] += _heights[k] }
+                // The rows after it that hold no paragraph are drawn and
+                // paged as part of this one: every cell of this row runs
+                // on through them.
+                var ghosts = 0.0, ghostCount = 0
+                while r + ghostCount + 1 < rows.count, rows[r + ghostCount + 1].first == rows[r + ghostCount + 1].end {
+                    ghostCount += 1
+                    ghosts += rows[r + ghostCount].height
+                }
                 var stack: [Int: Double] = [:]
                 for k in row.first ..< row.end {
                     let cell = _cells[k]!
@@ -1285,7 +1360,8 @@ public final class RichLayout {
                     _rowTops[k] = row.top
                     stack[cell.column] = offset + _heights[k]
                     _cells[k]!.rowTop = row.top
-                    _cells[k]!.ownRowHeight = row.height
+                    _cells[k]!.ownRowHeight = row.height + ghosts
+                    _cells[k]!.ghostRows = ghostCount
                     if cell.rowSpan > 1 {
                         _cells[k]!.rowHeight = spanned
                     } else {
@@ -1363,6 +1439,17 @@ public final class RichLayout {
         }
         let setup = _sectionSetups[_sectionOf[i]]
         return (setup.lineGridPitch, setup.characterGridSpace)
+    }
+
+    /// The height of a paragraph that is not in the flow — one a
+    /// vertically merged cell's continuation holds — with its spacing.
+    private func _detachedHeight(_ p: RichParagraph, _ document: RichDocument) -> Double {
+        let (span, _, _) = _span(for: p, at: nil, document, textWidth: _px(1000))
+        let painter = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: _strut(span))
+        painter.layout()
+        defer { painter.dispose() }
+        let body = p.style.lineCollapsed ? 0 : painter.height
+        return (_px(p.style.spaceBefore) + body + _px(p.style.spaceAfter)).rounded(.up)
     }
 
     /// Where each of a painter's lines ends below its top. The engine's
@@ -1533,6 +1620,17 @@ public final class RichLayout {
         // two lines on each side — a row with room for one line of each
         // cell goes to the next page whole (prints of 2026-10-13, modes
         // 14 and 15).
+        // The rule under a row is the next row's, and wants its room on
+        // the row's page all the same: a row fits a page with the line
+        // below it, and a row parted at the foot is closed there with
+        // one. (Prints of 2026-10-13: a line with 0.45pt under it at
+        // the foot goes over where the rules are half a point, with
+        // 1.05 where they are a point and a half, and stays with 0.1
+        // where there are none.) The table's last row has its own.
+        func ruleUnder(_ c: _CellGeo, parted: Bool = false) -> Double {
+            guard theme.wordRules else { return 0 }
+            return c.ruleBelow > 0 && !parted ? 0 : max(0, c.rules - c.ruleBelow)
+        }
         func cellCuts(_ k: Int) -> [Double] {
             let g = geometry(k)
             var lines = Self._lineBottoms(g.painter).map { g.textTop + $0 }
@@ -1577,7 +1675,7 @@ public final class RichLayout {
                 }
                 guard let ref = found.first.map({ _allPieces[$0] }) else { continue }
                 // That page's foot, in the flow as the cell was set on it.
-                let limit = ref.flowTop + (prevContentH - ref.pageY) + 0.01
+                let limit = ref.flowTop + (prevContentH - ref.pageY) - ruleUnder(c, parted: true) + 0.01
                 let last = members[members.count - 1]
                 guard _tops[last] + _heights[last] > limit else { continue }
                 var cut: Double? = nil
@@ -1638,7 +1736,7 @@ public final class RichLayout {
             while true {
                 let avail = contentH - y
                 let rest = first ? c.ownRowHeight : columns.map { max(0, $0.bottom - $0.cut) }.max() ?? 0
-                var fits = rest <= avail + 0.01
+                var fits = rest + ruleUnder(c) <= avail + 0.01
                 var next = columns.map(\.cut)
                 if !fits {
                     // (Every cell with something left must take some of
@@ -1647,7 +1745,7 @@ public final class RichLayout {
                     // On a page of its own it takes what it can.)
                     var moved = false, stuck = false
                     for (n, column) in columns.enumerated() {
-                        let limit = column.cut + avail + 0.01
+                        let limit = column.cut + avail - ruleUnder(c, parted: true) + 0.01
                         if column.bottom <= limit {
                             // (All that is left of this cell is on this page.)
                             if column.bottom > column.cut + 0.01 { moved = true }
@@ -1737,12 +1835,12 @@ public final class RichLayout {
                 }
                 let atTop = y < 0.01
                 if atTop { goOn() }
-                if theme.wordRules, c.ownRowHeight > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
+                if theme.wordRules, c.ownRowHeight + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
                     if y > contentH - 0.01 { newPage() }
                     i = j
                     continue
                 }
-                if !atTop, c.ownRowHeight > contentH - y + 0.01, y > 0.01 {
+                if !atTop, c.ownRowHeight + ruleUnder(c) > contentH - y + 0.01, y > 0.01 {
                     newPage()
                     goOn()
                 }
@@ -2173,6 +2271,7 @@ public final class RichLayout {
             // cells rule their bottoms and say none above is ruled
             // between every two rows, 31pt apart for rows 30 high.)
             var rules = 0.0
+            var ruleBelow = 0.0
             if theme.wordRules, let ts = document.tableStyles[c.table] {
                 let rows = _tableRows[c.table] ?? 0
                 func rule(_ d: CellRef, _ side: String) -> Double {
@@ -2185,6 +2284,7 @@ public final class RichLayout {
                     let width = said?.width ?? d.borderWidth ?? ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
                     return _px(width * (style == "double" ? 3 : 1))
                 }
+                var below = 0.0
                 var top = rule(c, "top")
                 if c.row > 0 {
                     var k = i - 1
@@ -2199,11 +2299,13 @@ public final class RichLayout {
                     let bottom = rule(c, "bottom")
                     if bottom > 0 { pad = EdgeInsets(left: pad.left, top: pad.top, right: pad.right, bottom: pad.bottom + bottom) }
                     rules += bottom
+                    below = bottom
                 }
+                ruleBelow = below
             }
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
                                  colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges,
-                                 verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, rules: rules, borders: c.borders)
+                                 verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, rules: rules, ruleBelow: ruleBelow, borders: c.borders)
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
             if c.textDirection != .horizontal {
@@ -3396,7 +3498,16 @@ public final class RichLayout {
                     // where it would have hung: there the line's other
                     // marks give and the last keeps its em; from 2013's
                     // on it gives its half like the rest.)
-                    let kept = hang > 0 || (legacy && inCell && Self._hangingUnits.contains(units[tail]))
+                    // (That was a document in Taiwan's Chinese. In the
+                    // mainland's — the language Normal names for East
+                    // Asian text — the last gives its half before 2013's
+                    // layout too: twenty ideographs and a comma are
+                    // taken at 20.5 ems, with a comma among them at 21,
+                    // and under `zh-TW` at 21 and 21.5. Measured
+                    // 2026-10-13, left and justified, with and without
+                    // kerning, cell margins and nine compatibility
+                    // switches, none of which moved it.)
+                    let kept = hang > 0 || (legacy && inCell && !document.marksSitLeft && Self._hangingUnits.contains(units[tail]))
                     let all = (marks + own).filter { !kept || $0 != tail }
                     let given = legacy ? spaces + ownSpaces : []
                     // (A curly quote in a Latin face is as wide as it is.)
@@ -4154,7 +4265,7 @@ public final class RichLayout {
             var lastColumn = -1
             while j < _cells.count, let d = _cells[j], d.table == c.table, d.row == c.row {
                 if d.column != lastColumn {
-                    paintEdges(d, bottomHere: d.rowSpan == 1, ownTop: true)
+                    paintEdges(d, bottomHere: d.rowSpan - 1 <= d.ghostRows, ownTop: true)
                     lastColumn = d.column
                 }
                 j += 1
@@ -4164,7 +4275,7 @@ public final class RichLayout {
             while k >= 0, let d = _cells[k], d.table == c.table {
                 if d.rowSpan > 1, d.row < c.row, d.row + d.rowSpan > c.row, !seen.contains(d.column) {
                     seen.insert(d.column)
-                    paintEdges(d, bottomHere: d.row + d.rowSpan - 1 == c.row, ownTop: false)
+                    paintEdges(d, bottomHere: d.row + d.rowSpan - 1 <= c.row + c.ghostRows, ownTop: false)
                 }
                 k -= 1
             }
@@ -4431,6 +4542,7 @@ public final class RichLayout {
         sub.balancesSpaceWidth = document.balancesSpaceWidth
         sub.compatibilityMode = document.compatibilityMode
         sub.hangsHalf = document.hangsHalf
+        sub.defaultLangXML = document.defaultLangXML
         sub.htmlAutoSpacing = document.htmlAutoSpacing
         sub.defaultTabStop = document.defaultTabStop
         let layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
@@ -4594,6 +4706,7 @@ public final class RichLayout {
         sub.balancesSpaceWidth = document.balancesSpaceWidth
         sub.compatibilityMode = document.compatibilityMode
         sub.hangsHalf = document.hangsHalf
+        sub.defaultLangXML = document.defaultLangXML
         sub.htmlAutoSpacing = document.htmlAutoSpacing
         sub.defaultTabStop = document.defaultTabStop
         let layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)

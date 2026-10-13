@@ -1019,11 +1019,21 @@ enum DocxFormat {
                                     let xml = blocks.map { PptxXML.serialize($0) }.joined()
                                     if !xml.containsSubstring(" r:") && !xml.containsSubstring("<w:drawing") && !xml.containsSubstring("<w:pict") { contContent = xml }
                                 }
+                                // … and read, for the height they ask of a row
+                                // that has no cell of its own (`RichLayout`).
+                                var contParagraphs: [RichParagraph] = []
+                                if contContent != nil {
+                                    for block in blocks where block.first("w:pPr")?.first("w:numPr") == nil {
+                                        contParagraphs += _paragraphs(block, cellBase, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
+                                                                      { id in chainOver(id, cellBase, cellRootBase) }).map(\.paragraph)
+                                    }
+                                }
                                 for k in range {
                                     paragraphs[k].cell?.rowSpan += 1
                                     paragraphs[k].cell?.continuationEdges.append(contEdges)
                                     paragraphs[k].cell?.continuationBordersXML.append(contXML)
                                     paragraphs[k].cell?.continuationContentXML.append(contContent)
+                                    paragraphs[k].cell?.continuationParagraphs.append(contParagraphs)
                                 }
                                 column += span
                                 continue

@@ -1529,6 +1529,52 @@ fitter dropped the paragraph's tail).
   their stated heights add up to 31 — some of a merged cell's text
   is charged to a row in a way not yet measured.
 
+- **A row in which no cell stands alone** (2026-10-13; that table's
+  45pt). A row with a cell of its own is as tall as that cell, and
+  the cells merged through it give nothing: a merged cell's text
+  counts in the row it ends in, less what the rows above took. A row
+  where every cell is merged on into the next row, or down from the
+  one above, is sized by the cells themselves instead: one that
+  starts there gives its first line and the space after its first
+  paragraph (not its space before, nor its second line), one that
+  continues gives the empty paragraphs the file wrote in it — their
+  line height and spacing, 30pt lines make a 38pt row. Two rows
+  merged whole with a 14pt line and Word's 8pt after are 22 and 22;
+  a 2pt cell beside them and they are 2 and 20. The continued cells'
+  paragraphs are read now (`CellRef.continuationParagraphs`); the
+  rows with no paragraph are drawn and paged as part of the row above
+  (`_CellGeo.ghostRows`), whose bottom line had not been drawn where
+  such a row ended the table; and cells are stretched in the order of
+  the rows they END in (a cell over three rows was measured before
+  the one beside it had stretched the second). Labs `vm-a/b/c`,
+  bodies 16-18 in `~/starling-word-check/lab/tools`; `rules.swift`
+  there reads the heights of a page's horizontal rules.
+
+- **The mark at a line's end in a cell, again.** "Nothing hangs in a
+  cell" stands. But the line's last mark keeping its whole em there
+  before mode 15 was Taiwan's Chinese: where Normal (or the document
+  defaults) names `zh-CN` for East Asian text the last mark gives its
+  half in a cell in mode 14 too, left or justified — twenty
+  ideographs and a comma at 20.5 ems, with a comma among them at 21;
+  under `zh-TW`, 21 and 21.5. Kerning, the cell's margins, the face
+  and ten compatibility switches moved nothing (labs `cg`, `ck`,
+  `cf±flag`, `cy-*`). 31 of the sample name `zh-CN`.
+
+- **The rule under a row wants its room.** A row fits a page with
+  the line below it — the next row's — and a row parted at the foot
+  is closed with one: a line with 0.45pt under it goes over where
+  the rules are half a point, with 1.05 where they are a point and a
+  half, and stays with 0.1 where there are none (labs `ft`, `fu`,
+  body 23). The line itself is still not drawn at the foot, nor the
+  one that opens the row's rest on the next page; and Word gives the
+  rest of a parted row its stated height again (a 28.5pt row's
+  second half is 28.75) — measured in zh-15728c84, not built.
+
+  The three together: Chinese sample 67.0% -> 68.8% of Word's lines
+  (median 82.2 -> 86.7), 51 documents with Word's page count; ten
+  documents closer, none further. POI 66.7 -> 66.6 (bug65649 8.6 ->
+  7.7).
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
