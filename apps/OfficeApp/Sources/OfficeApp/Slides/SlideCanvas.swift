@@ -159,7 +159,9 @@ final class SlideCanvasState: State<StatefulWidget> {
         return SizeReporter(onSize: { [weak self] size in
             guard let self, self.mounted, size != self._area else { return }
             self.setState { self._area = size }
-        }, onBox: { [weak self] box in self?._box = box }, child: Stack(children: layers))
+        // (Clipped to the stage: a shape dragged past the slide's top
+        // edge was painted over the ribbon — seen on screen 2026-10-13.)
+        }, onBox: { [weak self] box in self?._box = box }, child: ClipRect(child: Stack(children: layers)))
     }
 
     /// One shape: its painted body, its text editor if it has text, and the

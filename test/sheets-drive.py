@@ -71,7 +71,7 @@ def run(d, only):
 
     if step("select"):
         d.drag(*cell(1, 1), *cell(3, 3))
-        d.shot("range", "B2:D4 tinted with a border, B2 white; status bar: Average 8.9…, Count 9, Sum 80.…")
+        d.shot("range", "B2:D4 tinted with a border, B2 white; status bar: Average 12.86…, Count 9, Sum 113.95 (C2 is 20 by now)")
 
     if step("format"):
         d.drag(*cell(0, 0), *cell(3, 0))
