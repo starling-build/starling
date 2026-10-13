@@ -504,6 +504,34 @@ Left: a bend's adjust values other than the default are read and used
 but were fitted at the default only; Button and the banded bends were
 seen with one line.
 
+**One deck at a time: lo-font-scale, 2026-10-12** (9.67 → 5.88; sweep 36,
+Linux and MuPDF: 2.41 → 2.39%, 23 decks down, 14 up — the most
+lo-3columns by 1.3, not looked into). The way of working from here: one
+deck, one thing in it, measured against PowerPoint's page until it
+matches; the whole corpus once, at the end. In this deck, three bulleted
+paragraphs under `normAutofit fontScale="85000" lnSpcReduction="20000"`:
+
+- **The fitted scale is the letters' alone.** The text began 4 pt left of
+  PowerPoint's: `marL` had been shrunk with the font. `RichLayout.fontScale`
+  scales the sizes; the indents, the spacing and the box stay the file's
+  (81.3 where PowerPoint has 81.4).
+- **A fitted size is a whole number of points**: 32 pt at 85% is set in
+  27, not 27.2 — the lines were 4 pt too wide and one broke elsewhere
+  (674.6 / 674.7).
+- **A spacing under single comes off the space above the line**, the
+  letters keeping their depth below, where the engine shares it out
+  above and below: the first baseline was 1.2 pt low (87.9 / 88.1).
+  `RichTextTheme.baselineShift`, for a multiple only, PowerPoint only.
+- **A bullet is set in its own face** (`buFont`,
+  `RichParagraphStyle.bulletFontFamily`): Arial's dot is two thirds the
+  width of Calibri's. Not for a symbol face, whose codes become the
+  glyphs they show.
+
+Left in it: the gap between paragraphs is 32.5 pt where PowerPoint's is
+31.9 — its space before comes out near 5.9 of the file's 6.41, by a rule
+one deck does not give away (not the fitted scale: that would be 5.45).
+The editor still lays fitted text out the old way (`SlideCanvas`'s zoom).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

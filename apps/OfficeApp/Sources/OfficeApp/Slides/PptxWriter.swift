@@ -1029,7 +1029,7 @@ enum PptxText {
                 if let c = st.bulletColor { inner += "<a:buClr><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:buClr>" }
                 if let k = st.bulletScale { inner += "<a:buSzPct val=\"\(Int((k * 100000).rounded()))\"/>" }
                 inner += st.list == .bullet
-                    ? "<a:buFont typeface=\"Arial\"/><a:buChar char=\"\(PptxXML.escape(st.bulletText ?? "•", attribute: true))\"/>"
+                    ? "<a:buFont typeface=\"\(PptxXML.escape(st.bulletFontFamily ?? "Arial", attribute: true))\"/><a:buChar char=\"\(PptxXML.escape(st.bulletText ?? "•", attribute: true))\"/>"
                     : "<a:buFont typeface=\"+mj-lt\"/><a:buAutoNum type=\"arabicPeriod\"/>"
             case nil: inner += "<a:buNone/>"
             }

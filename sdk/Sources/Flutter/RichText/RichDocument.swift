@@ -285,6 +285,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// (PowerPoint's `buClr`, `buSzPct`); nil follows the text.
     public var bulletColor: Color? = nil
     public var bulletScale: Double? = nil
+    /// The face the marker is set in (PowerPoint's `buFont`); nil is the
+    /// text's. Arial's bullet is two thirds the width of Calibri's.
+    public var bulletFontFamily: String? = nil
     /// Which list this paragraph belongs to, for numbering: Word's numId.
     /// Items of one id number on across other paragraphs; nil items number
     /// as a run, restarting after an interruption.

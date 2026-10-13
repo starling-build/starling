@@ -31,10 +31,12 @@ enum ReadBench {
         return "-"
         #else
         var u = rusage()
-        getrusage(RUSAGE_SELF, &u)
         #if os(Linux)
+        // (glibc's `who` is an enum where Darwin's is an Int32.)
+        getrusage(RUSAGE_SELF.rawValue, &u)
         let bytes = Double(u.ru_maxrss) * 1024      // kilobytes there
         #else
+        getrusage(RUSAGE_SELF, &u)
         let bytes = Double(u.ru_maxrss)
         #endif
         return String(format: "%.0f", bytes / 1_048_576)

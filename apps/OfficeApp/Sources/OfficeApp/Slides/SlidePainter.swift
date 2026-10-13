@@ -19,6 +19,7 @@ final class SlideTextCache {
         let revision: Int
         let width: Double
         let scale: Double
+        let fontScale: Double
         /// The text theme laid out with: a new one (a theme applied) is a miss.
         let theme: ObjectIdentifier
         let layout: RichLayout
@@ -122,7 +123,8 @@ final class SlideTextCache {
             let room = shape.frame.height - (shape.insets.top + shape.insets.bottom) * k
             let width = max(1, shape.frame.width - (shape.insets.left + shape.insets.right) * k)
             let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
-            layout.scale = scale / theme.pixelsPerPoint
+            layout.scale = 1 / theme.pixelsPerPoint
+            layout.fontScale = scale
             layout.width = width
             layout.ensureLaidOut(text.document)
             if layout.totalHeight <= room + 0.5, !wholeWords || widestWord(text.document, theme, scale: scale) <= width + 0.5 {
@@ -151,15 +153,18 @@ final class SlideTextCache {
     func layout(_ shape: SlideShape, pxPerPt: Double) -> RichLayout? {
         guard let text = shape.text, let theme = shape.textTheme else { return nil }
         let width = max(1, (shape.frame.width - shape.drawInsets.left - shape.drawInsets.right) * pxPerPt)
-        let scale = pxPerPt * shape.fontScale / theme.pixelsPerPoint
+        // The fitted size scales the letters alone: the indents and the box
+        // stay the file's.
+        let scale = pxPerPt / theme.pixelsPerPoint
         let key = ObjectIdentifier(text)
-        if let e = _entries[key], e.revision == text.revision, e.width == width, e.scale == scale,
+        if let e = _entries[key], e.revision == text.revision, e.width == width, e.scale == scale, e.fontScale == shape.fontScale,
            e.theme == ObjectIdentifier(theme) {
             return e.layout
         }
         func laidOut(_ w: Double) -> RichLayout {
             let l = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
             l.scale = scale
+            l.fontScale = shape.fontScale
             l.width = w
             if shape.columns > 1, !shape.noWrap {
                 // Columns are the layout's pages: one "page" the size of
@@ -194,7 +199,7 @@ final class SlideTextCache {
                 layout = laidOut(w)
             }
         }
-        _entries[key] = Entry(revision: text.revision, width: width, scale: scale, theme: ObjectIdentifier(theme),
+        _entries[key] = Entry(revision: text.revision, width: width, scale: scale, fontScale: shape.fontScale, theme: ObjectIdentifier(theme),
                               layout: layout)
         return layout
     }

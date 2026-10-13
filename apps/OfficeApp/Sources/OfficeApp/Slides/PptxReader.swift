@@ -1976,6 +1976,13 @@ private struct SlideContext {
                 if level.bullet == .char { style.bulletText = level.bulletGlyph }
                 style.bulletColor = level.bulletColor
                 style.bulletScale = level.bulletScale
+                // The bullet's own face — but not a symbol face, whose codes
+                // were turned into the glyphs they show and are set in the
+                // text's.
+                if level.bullet == .char, let f = level.bulletFont,
+                   !["wingdings", "symbol", "webdings"].contains(where: { f.lowercased().hasPrefix($0) }) {
+                    style.bulletFontFamily = _font(f)
+                }
                 // The file's own text edge (marL) and bullet offset (indent):
                 // the text placed where the file puts it, both written back
                 // as read. The layout indents a list by the shape's list

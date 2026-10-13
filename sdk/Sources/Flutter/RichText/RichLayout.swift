@@ -76,6 +76,37 @@ public final class RichTextTheme {
     /// Sans Unicode (1.47) all at 1.2; Word's is the face's.
     public var singleLineHeight: Double? = nil
 
+    /// The share of a face's line that lies below the baseline (Calibri's
+    /// 0.22), measured once.
+    private var _descentShares: [String: Double] = [:]
+
+    public func descentShare(family: String?, bold: Bool, italic: Bool) -> Double {
+        let key = "\(family ?? "")|\(bold)|\(italic)"
+        if let d = _descentShares[key] { return d }
+        let probe = TextPainter(text: TextSpan(text: "x", style: TextStyle(fontSize: 100, fontWeight: bold ? .bold : .normal,
+                                                                            fontStyle: italic ? .italic : .normal, fontFamily: family)),
+                                textDirection: .ltr)
+        probe.layout(minWidth: 0, maxWidth: 1000)
+        let d = probe.height > 0 ? 1 - probe.computeDistanceToActualBaseline(.alphabetic) / probe.height : 0.22
+        probe.dispose()
+        _descentShares[key] = d
+        return d
+    }
+
+    /// How far the text of a paragraph set in `style` sits above (negative)
+    /// or below where the engine puts it, in points per point of its
+    /// size: PowerPoint takes a line spacing under single off the space
+    /// ABOVE the line and adds one over single there, the letters keeping
+    /// their depth below — where the engine shares the change out above
+    /// and below. Zero for Word, and for a spacing given in points.
+    public func baselineShift(for style: CharStyle, in paragraph: RichParagraphStyle) -> Double {
+        guard let single = singleLineHeight, paragraph.lineHeightPoints == nil else { return 0 }
+        let multiple = max(0.1, paragraph.lineSpacing - lineSpacingReduction)
+        guard multiple != 1 else { return 0 }
+        let family = (style.fontFamily ?? fontFamily).map { fontFamilyResolver?($0) ?? $0 }
+        return (multiple - 1) * single * descentShare(family: family, bold: style.bold, italic: style.italic)
+    }
+
     public func naturalLineHeight(family: String?, bold: Bool, italic: Bool) -> Double {
         if let singleLineHeight { return singleLineHeight }
         let key = "\(family ?? "")|\(bold)|\(italic)"
@@ -119,8 +150,11 @@ public final class RichTextTheme {
     /// Resolve a run's style inside a paragraph to an engine TextStyle, at
     /// `scale` (zoom, 1.0 = 100%).
     public func textStyle(for style: CharStyle, in paragraph: RichParagraphStyle,
-                          named: RichNamedStyle? = nil, scale: Double) -> TextStyle {
+                          named: RichNamedStyle? = nil, scale: Double, fontScale: Double = 1) -> TextStyle {
         var size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        // A fitted size is a whole number of points: PowerPoint sets 32 pt
+        // at 85% in 27, not 27.2.
+        if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
         var bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
         var color = style.color ?? named?.char.color ?? textColor
@@ -273,6 +307,12 @@ public final class RichLayout {
     public let theme: RichTextTheme
 
     /// Zoom. Invalidates every painter.
+    /// The fonts' own scale, over `scale`: PowerPoint's shrink-to-fit
+    /// (`normAutofit fontScale`) makes the letters smaller and leaves the
+    /// indents, the tab stops and the box where they were.
+    public var fontScale: Double = 1.0 {
+        didSet { if fontScale != oldValue { invalidateAll() } }
+    }
     public var scale: Double = 1.0 {
         didSet { if scale != oldValue { invalidateAll() } }
     }
@@ -1339,7 +1379,7 @@ public final class RichLayout {
         -> (TextSpan, [(image: ImageAttachment, dimensions: PlaceholderDimensions)]) {
         let named = document.styles.resolve(p.style)
         if p.text.isEmpty {
-            return (TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale)), [])
+            return (TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale, fontScale: fontScale)), [])
         }
         /// A run's text as shown: capitals for Word's All caps and Small
         /// caps (the latter with the lowercase letters' capitals at 80%),
@@ -1369,7 +1409,7 @@ public final class RichLayout {
             return spans
         }
         if p.runs.count == 1, p.runs[0].style.inlineImage == nil {
-            let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale)
+            let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale, fontScale: fontScale)
             let spans = capped(p.text[...], p.runs[0].style, style)
             if spans.count == 1 { return (spans[0], []) }
             return (TextSpan(children: spans), [])
@@ -1383,7 +1423,7 @@ public final class RichLayout {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
             pos += run.length
-            let style = theme.textStyle(for: run.style, in: p.style, named: named, scale: scale)
+            let style = theme.textStyle(for: run.style, in: p.style, named: named, scale: scale, fontScale: fontScale)
             if let id = run.style.inlineImage, let image = p.inlineImages[id] {
                 // A picture in the line, sitting on the baseline as Word
                 // sets it; shrunk to the column when wider.
@@ -1704,6 +1744,19 @@ public final class RichLayout {
         }
     }
 
+    /// `theme.baselineShift` for paragraph `i`, in pixels of its first
+    /// run's size.
+    private func _baselineShift(_ i: Int, _ document: RichDocument) -> Double {
+        guard theme.singleLineHeight != nil else { return 0 }
+        let p = document.paragraphs[i]
+        guard let run = p.runs.first else { return 0 }
+        let k = theme.baselineShift(for: run.style, in: p.style)
+        guard k != 0 else { return 0 }
+        var size = run.style.fontSize ?? theme.fontSize
+        if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
+        return k * _px(size)
+    }
+
     private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
         let g = geometry(i)
         if let c = _cells[i], c.firstInRow {
@@ -1869,17 +1922,18 @@ public final class RichLayout {
             let p = document.paragraphs[i]
             var markerChar = p.runs[0].style
             if let c = p.style.bulletColor { markerChar.color = c }
+            if let f = p.style.bulletFontFamily { markerChar.fontFamily = f }
             if let k = p.style.bulletScale {
                 markerChar.fontSize = (markerChar.fontSize ?? document.styles.resolve(p.style)?.char.fontSize ?? theme.fontSize) * k
             }
-            let markerStyle = theme.textStyle(for: markerChar, in: p.style, scale: scale)
+            let markerStyle = theme.textStyle(for: markerChar, in: p.style, scale: scale, fontScale: fontScale)
             let marker = TextPainter(text: TextSpan(text: label, style: markerStyle),
                                      textAlign: .right, textDirection: .ltr)
             let slot = _px(theme.listIndent)
             // On the first line's baseline: a marker of another size (a
             // bullet at 80%) has its own, higher or lower than the text's.
             func top() -> Double {
-                g.textTop + g.painter.computeDistanceToActualBaseline(.alphabetic)
+                g.textTop + _baselineShift(i, document) + g.painter.computeDistanceToActualBaseline(.alphabetic)
                     - marker.computeDistanceToActualBaseline(.alphabetic)
             }
             if theme.markersAtHang {
@@ -1894,7 +1948,7 @@ public final class RichLayout {
             }
             marker.dispose()
         }
-        g.painter.paint(canvas, Offset(g.textLeft, g.textTop))
+        g.painter.paint(canvas, Offset(g.textLeft, g.textTop + _baselineShift(i, document)))
         if i < _inline.count, !_inline[i].isEmpty, let boxes = g.painter.inlinePlaceholderBoxes {
             for (k, box) in boxes.enumerated() where k < _inline[i].count {
                 let image = _inline[i][k]
