@@ -224,6 +224,9 @@ public struct ImageFloat: Hashable, Sendable {
     public var horizontalAlign: String? = nil
     public var verticalAlign: String? = nil
     public var takesRoom = false
+    /// Text wraps round it (Word's square, tight and through wrapping):
+    /// the lines beside it are shorter, or start under it.
+    public var wraps = false
     public init() {}
 }
 
@@ -340,6 +343,11 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// With `lineHeightPoints`: a minimum ("at least 20 pt") rather than
     /// an exact height — a taller font still gets its own line.
     public var lineHeightIsMinimum = false
+    /// Word's line spacing of no lines (`w:line="0"`, a multiple): the
+    /// paragraph takes its spacing before and after and no line, and
+    /// what text it has is not shown — a footer's last empty paragraph,
+    /// written so by converters to take no room.
+    public var lineCollapsed = false
     public var list: ListKind? = nil
     public var listLevel: Int = 0
     /// The glyph this bulleted paragraph shows, when the file names one

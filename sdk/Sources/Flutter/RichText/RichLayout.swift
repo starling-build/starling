@@ -562,6 +562,10 @@ public final class RichLayout {
     /// What each paragraph's text is drawn lower by than the engine set
     /// it, so that its baselines are Word's (see `RichTextTheme.lineBox`).
     private var _inkShift: [Double] = []
+    /// How far a paragraph's text is set down to clear an object that
+    /// floats over its head and leaves its first line no room beside it
+    /// (px; part of `_spaceBefore`).
+    private var _floatPush: [Double] = []
     /// The width (pixels, either sign) of the box that stands before
     /// each paragraph's text for its first line's indent or its list
     /// number; 0 for none.
@@ -693,6 +697,7 @@ public final class RichLayout {
         _textWidth = Array(repeating: 0, count: n)
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
+        _floatPush = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
         _leaders = Array(repeating: [], count: n)
         _inserts = Array(repeating: [], count: n)
@@ -756,6 +761,7 @@ public final class RichLayout {
                 _textWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inkShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _floatPush.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _inserts.insert(contentsOf: Array(repeating: [], count: n), at: at)
@@ -785,6 +791,7 @@ public final class RichLayout {
                 _textWidth.removeSubrange(at ..< end)
                 _spaceBefore.removeSubrange(at ..< end)
                 _inkShift.removeSubrange(at ..< end)
+                _floatPush.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
                 _leaders.removeSubrange(at ..< end)
                 _inserts.removeSubrange(at ..< end)
@@ -2237,8 +2244,38 @@ public final class RichLayout {
         _painters[i] = painter
         _textLeft[i] = left
         _textWidth[i] = textWidth
-        _spaceBefore[i] = before
+        // An object that floats over the paragraph's head with text
+        // wrapping round it, and leaves the first line no room on either
+        // side of it — the line's indent is taken off each — sets the
+        // text down under it, as Word does: a box across the column
+        // with the title of the page in it, anchored in the paragraph
+        // of the line below. (Lines set beside a narrower one are not
+        // built: the text then runs over it, as before.)
+        var push = 0.0
+        if theme.wordRules, p.cell == nil {
+            let column = _flowWidth(i)
+            let firstLine = max(0, lead) + (left - (frameLeft ?? 0))
+            for image in p.inlineImages.values {
+                guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
+                      float.horizontalFrom != "page" else { continue }
+                let w = min(_px(image.width), column)
+                let x: Double
+                switch float.horizontalAlign {
+                case "center": x = (column - w) / 2
+                case "right", "outside": x = column - w
+                case "left", "inside": x = 0
+                default: x = _px(float.x)
+                }
+                let gap = _px(9), em = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
+                let leftRoom = x - gap - firstLine, rightRoom = column - (x + w) - gap - max(0, lead) - right
+                if leftRoom < em, rightRoom < em { push = max(push, _px(float.y) + _px(image.height)) }
+            }
+        }
+        if i < _floatPush.count { _floatPush[i] = push }
+        _spaceBefore[i] = before + push
         var bodyHeight = painter.height
+        // (No lines at all: `RichParagraphStyle.lineCollapsed`.)
+        if theme.wordRules, style.lineCollapsed, p.image == nil { bodyHeight = 0 }
         if let image = p.image {
             // Shown at its own size, shrunk to the column when wider.
             var w = _px(image.width)
@@ -2252,7 +2289,7 @@ public final class RichLayout {
         } else {
             _imageSize[i] = nil
         }
-        _heights[i] = (before + bodyHeight + after).rounded(.up)
+        _heights[i] = (before + push + bodyHeight + after).rounded(.up)
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.
         if theme.wordRules, p.text.isEmpty, p.image == nil, style.sectionXML != nil, p.cell == nil { _heights[i] = 0 }
@@ -2262,7 +2299,7 @@ public final class RichLayout {
             _heights[i] = 0
             // (And stands as far above or below the text it is anchored
             // to as the frame says: a page number 11.75pt up.)
-            if let frame = style.frame, frame.verticalAnchor == "text", frame.verticalAlign == nil { _spaceBefore[i] = before + _px(frame.y) }
+            if let frame = style.frame, frame.verticalAnchor == "text", frame.verticalAlign == nil { _spaceBefore[i] = before + push + _px(frame.y) }
         }
         _topsValid = false
     }
@@ -3737,6 +3774,7 @@ public final class RichLayout {
             }
         }
         if part == .rules { return }
+        if theme.wordRules, i < document.paragraphs.count, document.paragraphs[i].style.lineCollapsed, document.paragraphs[i].image == nil { return }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
             if let decoded = _decoded[image.id] {
                 let paint = Paint()
@@ -4009,7 +4047,8 @@ public final class RichLayout {
         default: x = bandLeft + _px(float.x)
         }
         if float.horizontalAlign == nil, float.horizontalFrom == "character" { x = g.textLeft + _px(float.x) }
-        let y = g.textTop + (float.verticalAlign == nil && ["paragraph", "line"].contains(float.verticalFrom) ? _px(float.y) : 0)
+        let pushed = i < _floatPush.count ? _floatPush[i] : 0
+        let y = g.textTop - pushed + (float.verticalAlign == nil && ["paragraph", "line"].contains(float.verticalFrom) ? _px(float.y) : 0)
         return Rect.fromLTWH(x, y, w, h)
     }
 

@@ -1441,6 +1441,22 @@ fitter dropped the paragraph's tail).
   Not drawn yet: the line Word closes the parted row with at the
   foot of the page.
 
+- **Text under a floating box.** Word wraps text into whatever is
+  left beside an object with square wrapping — one character a line
+  in a 30pt gap — but the paragraph's first-line indent comes off
+  each side's room, and a first line that fits on neither starts
+  under the object with the rest after it. That much is built
+  (zh-8e8d4c40's page title in a box across the column, anchored in
+  the paragraph of the line below); lines set beside a narrower
+  object are not, and its text still runs over it (zh-37b6536f's
+  charts).
+- **A line spacing of nothing** (`w:line="0"` as a multiple): the
+  paragraph takes no line and shows no text, where an exact 0 is
+  ignored and an at-least 0 is the natural height. A footer whose
+  last paragraph is written so sat a line too high here, and the body
+  ended a line early on every page. zh-8e8d4c40 27.5% -> 87.6% with
+  the two.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

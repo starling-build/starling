@@ -1342,6 +1342,7 @@ enum DocxFormat {
                 f.verticalAlign = v.first("wp:align")?.text
             }
             f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
+            f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
             return f
         }
         if let shape = ["v:shape", "v:rect", "v:group", "v:line", "v:oval", "v:roundrect"].contains(node.name) ? node
@@ -1363,6 +1364,7 @@ enum DocxFormat {
                 }
             }
             f.takesRoom = shape.first("w10:wrap")?["type"] == "topAndBottom"
+            f.wraps = ["square", "tight", "through"].contains(shape.first("w10:wrap")?["type"] ?? "")
             return f
         }
         return nil
@@ -1525,6 +1527,7 @@ enum DocxFormat {
             // ("At least 0" is a statement too — the line's natural height,
             // which a document on a line grid then does not snap; as single
             // spacing every paragraph of one sat 2.4pt lower.)
+            if let v = Double(sp["w:line"] ?? "") { style.lineCollapsed = v == 0 && (sp["w:lineRule"] ?? "auto") == "auto" }
             if let v = Double(sp["w:line"] ?? ""), v > 0 || (v == 0 && sp["w:lineRule"] == "atLeast") {
                 switch sp["w:lineRule"] ?? "auto" {
                 case "exact":
@@ -2454,7 +2457,9 @@ enum DocxFormat {
         if s.spaceBeforeAuto { spacing += " w:beforeAutospacing=\"1\"" } else if under?.spaceBeforeAuto ?? false { spacing += " w:beforeAutospacing=\"0\"" }
         spacing += " w:after=\"\(Int((s.spaceAfter * 20).rounded()))\""
         if s.spaceAfterAuto { spacing += " w:afterAutospacing=\"1\"" } else if under?.spaceAfterAuto ?? false { spacing += " w:afterAutospacing=\"0\"" }
-        if let pts = s.lineHeightPoints {
+        if s.lineCollapsed, s.lineHeightPoints == nil {
+            spacing += " w:line=\"0\" w:lineRule=\"auto\""
+        } else if let pts = s.lineHeightPoints {
             spacing += " w:line=\"\(Int((pts * 20).rounded()))\" w:lineRule=\"\(s.lineHeightIsMinimum ? "atLeast" : "exact")\""
         } else {
             spacing += " w:line=\"\(Int((s.lineSpacing * 240).rounded()))\" w:lineRule=\"auto\""
