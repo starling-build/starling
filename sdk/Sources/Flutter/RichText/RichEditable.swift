@@ -402,7 +402,12 @@ public final class RichEditableState: State<StatefulWidget> {
             if shift { c.insertLineBreak() } else { c.insertParagraphBreak() }
         case .tab:
             if c.isInCell { c.moveToAdjacentCell(forward: !shift) }
-            else if shift { c.indent(-1) } else if c.hasSelection { c.indent(1) } else { c.insertText("\t") }
+            // (At the start of a list item Tab is the item's level, as in
+            // Word and as the welcome page says — it typed a tab
+            // character after the bullet instead: seen 2026-10-13.)
+            else if shift { c.indent(-1) }
+            else if c.hasSelection || (c.currentParagraphStyle.list != nil && c.caret.offset == 0) { c.indent(1) }
+            else { c.insertText("\t") }
         case .escape:
             if c.hasSelection { c.moveTo(c.caret, extend: false) } else { return false }
         default:
