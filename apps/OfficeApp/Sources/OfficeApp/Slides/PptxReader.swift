@@ -1369,6 +1369,10 @@ private struct SlideContext {
         }
         if let blip = el.first("p:blipFill")?.first("a:blip") {
             (s.pictureAlpha, s.pictureDuotone) = PptxReader.blipEffects(blip, colors: colors)
+            if let change = blip.first("a:clrChange"), let from = change.first("a:clrFrom").flatMap({ colors.color(in: $0) }),
+               let to = change.first("a:clrTo").flatMap({ colors.color(in: $0) }) {
+                s.pictureColorChange = [from, to]
+            }
         }
         if let b = el.first("p:blipFill") { s.pictureInset = PptxReader.stretchInset(b) }
         // A fill of its own, behind the picture (showing through its

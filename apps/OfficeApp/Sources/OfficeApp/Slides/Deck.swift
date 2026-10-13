@@ -418,6 +418,11 @@ final class SlideShape {
     /// A picture's transparency and duotone recolouring, as read.
     var pictureAlpha = 1.0
     var pictureDuotone: [Color]? = nil
+    /// PowerPoint's Set Transparent Color (`a:clrChange`): the colour of
+    /// the picture that is drawn as another — in every file seen, as
+    /// nothing at all — as [from, to]. Drawn for a metafile's fills,
+    /// lines and text; a bitmap's pixels are not looked through yet.
+    var pictureColorChange: [Color]? = nil
     /// A picture's place within its frame (`a:fillRect`), as fractions
     /// inset from each edge.
     var pictureInset = EdgeInsets.zero

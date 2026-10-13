@@ -443,7 +443,8 @@ final class SlidePainter: CustomPainter {
                     canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
                     canvas.translate(-c.dx, -c.dy)
                 }
-                metafile.paint(canvas, in: whole, image: { cache.image($0) }, font: OfficeFonts.substitute)
+                metafile.paint(canvas, in: whole, image: { cache.image($0) }, font: OfficeFonts.substitute,
+                               change: shape.pictureColorChange)
                 canvas.restore()
             } else if let decoded = cache.image(image) {
                 let w = Double(decoded.width), h = Double(decoded.height)

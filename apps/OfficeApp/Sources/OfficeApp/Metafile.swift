@@ -82,9 +82,19 @@ final class Metafile {
 
     /// Draws the picture stretched into `dest`. `image` decodes one of
     /// `bitmaps` (nil while it is not ready), `font` names the face to draw
-    /// a metafile's face with.
-    func paint(_ canvas: any Canvas, in dest: Rect, image: (ImageAttachment) -> Image?, font: (String) -> String) {
+    /// a metafile's face with. `change` is a colour drawn as another
+    /// ([from, to], PowerPoint's Set Transparent Color): what is filled,
+    /// ruled or written in the first is in the second, or left out where
+    /// that is clear — tdf113163's page is a drawing on a white sheet,
+    /// the white taken out over a black slide.
+    func paint(_ canvas: any Canvas, in dest: Rect, image: (ImageAttachment) -> Image?, font: (String) -> String,
+               change: [Color]? = nil) {
         guard dest.width > 0, dest.height > 0 else { return }
+        func drawn(_ c: Color) -> Color? {
+            guard let change, change.count == 2, abs(c.r - change[0].r) < 0.002, abs(c.g - change[0].g) < 0.002,
+                  abs(c.b - change[0].b) < 0.002 else { return c }
+            return change[1].a < 0.002 ? nil : change[1]
+        }
         let sx = dest.width / bounds.width, sy = dest.height / bounds.height
         // GDI's one-pixel pen, and any thinner one, as most of a pixel here.
         let hairline = 0.75 / max(0.0001, (sx + sy) / 2)
@@ -97,12 +107,14 @@ final class Metafile {
         for step in steps {
             switch step {
             case .fill(let path, let color):
+                guard let color = drawn(color) else { continue }
                 let p = Paint()
                 p.style = .fill
                 p.isAntiAlias = true
                 p.color = color
                 canvas.drawPath(path, p)
             case .stroke(let path, let color, let width):
+                guard let color = drawn(color) else { continue }
                 let p = Paint()
                 p.style = .stroke
                 p.isAntiAlias = true
@@ -122,10 +134,11 @@ final class Metafile {
                 if let blend { p.blendMode = blend }
                 canvas.drawImageRect(decoded, source.map { $0.intersect(whole) } ?? whole, at, p)
             case .text(let run):
+                guard let ink = drawn(run.color) else { continue }
                 var decoration: TextDecoration? = nil
                 if run.underline { decoration = .underline }
                 let tp = TextPainter(text: TextSpan(text: run.text, style: Flutter.TextStyle(
-                    color: run.color, fontSize: max(1, run.size), fontWeight: run.bold ? .bold : .normal,
+                    color: ink, fontSize: max(1, run.size), fontWeight: run.bold ? .bold : .normal,
                     fontStyle: run.italic ? .italic : .normal, decoration: decoration, fontFamily: font(run.face))),
                     textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)

@@ -35,6 +35,7 @@ struct ShapeState: Equatable {
     var pictureGeometry: ShapePreset? = nil
     var pictureAlpha = 1.0
     var pictureDuotone: [Color]? = nil
+    var pictureColorChange: [Color]? = nil
     var pictureInset = EdgeInsets.zero
     var fillsWithBackground = false
     var inheritedPreset: ShapePreset? = nil
@@ -1115,7 +1116,8 @@ final class DeckController: ChangeNotifier {
                    color: s.textTheme?.textColor ?? theme.text, listIndent: s.textTheme?.listIndent ?? 18,
                    phType: s.phType, phIdx: s.phIdx, fillScheme: s.fillScheme, crop: s.crop,
                    flipH: s.flipH, flipV: s.flipV, pictureGeometry: s.pictureGeometry,
-                   pictureAlpha: s.pictureAlpha, pictureDuotone: s.pictureDuotone, pictureInset: s.pictureInset,
+                   pictureAlpha: s.pictureAlpha, pictureDuotone: s.pictureDuotone, pictureColorChange: s.pictureColorChange,
+                   pictureInset: s.pictureInset,
                    fillsWithBackground: s.fillsWithBackground, inheritedPreset: s.inheritedPreset,
                    customPath: s.customPath, fillStyle: s.fillStyle, invisible: s.invisible, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
@@ -1159,6 +1161,7 @@ final class DeckController: ChangeNotifier {
         shape.pictureGeometry = st.pictureGeometry
         shape.pictureAlpha = st.pictureAlpha
         shape.pictureDuotone = st.pictureDuotone
+        shape.pictureColorChange = st.pictureColorChange
         shape.pictureInset = st.pictureInset
         shape.fillsWithBackground = st.fillsWithBackground
         shape.inheritedPreset = st.inheritedPreset
