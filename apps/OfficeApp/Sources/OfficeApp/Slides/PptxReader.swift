@@ -1556,6 +1556,7 @@ private struct SlideContext {
         // row that tall however little is in it.
         let rowHeights = tbl.all("a:tr").map { ($0["h"].flatMap(Double.init) ?? 0) / Pptx.emu }
         let accent = theme.colors["accent1"] ?? Color(0xFF4472C4)
+        var tableGradient: SlideFill? = nil
         var ts = plain
             ? TableStyle(borders: styleId.isEmpty || styleId.hasPrefix("{5940675A"), headerRow: false, borderColor: colors.scheme("tx1"))
             : TableStyle(borders: true, headerRow: firstRow, headerFill: accent,
@@ -1576,8 +1577,19 @@ private struct SlideContext {
                        theme.fillStyles[idx - 1].name == "a:gradFill" {
                         var c = colors
                         c.placeholder = colors.color(in: ref)
-                        let stops = theme.fillStyles[idx - 1].first("a:gsLst")?.all("a:gs").compactMap { c.color(in: $0) } ?? []
-                        under = stops.isEmpty ? c.placeholder : stops[stops.count / 2]
+                        // The theme's gradient runs over the whole table,
+                        // under its cells, and a band's tint lies on it as
+                        // it is: bnc480256's "Themed Style" tables shade
+                        // from top to bottom across their rows. (Where the
+                        // gradient does not read, its middle colour under
+                        // every cell, as before.)
+                        if let gradient = PptxReader.gradient(theme.fillStyles[idx - 1], colors: c), gradient.stops.count >= 2 {
+                            tableGradient = gradient
+                            under = nil
+                        } else {
+                            let stops = theme.fillStyles[idx - 1].first("a:gsLst")?.all("a:gs").compactMap { c.color(in: $0) } ?? []
+                            under = stops.isEmpty ? c.placeholder : stops[stops.count / 2]
+                        }
                     } else {
                         under = colors.color(in: ref)
                     }
@@ -1603,6 +1615,7 @@ private struct SlideContext {
                             insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: doc,
                             font: _font(base.font), size: base.size ?? 18, color: base.color ?? colors.scheme("tx1") ?? Color(0xFF000000),
                             listIndent: 18)
+        st.fillStyle = tableGradient
         st.sourceXML = PptxXML.serialize(el)
         st.sourceText = doc
         st.sourcePart = part
