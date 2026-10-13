@@ -2660,6 +2660,9 @@ public final class RichLayout {
     /// gives). From 2013's layout on they give in a justified paragraph
     /// only and by another rule, not found: one space gave 4pt, two
     /// under 4, four under 5.
+    ///
+    /// In a table's cell no mark hangs; the marks inside a line give
+    /// there as anywhere.
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth width: Double,
                                     first: TextPainter, leadWidth: Double) -> [Int: Double] {
         // (From Word 2013's layout on, only a justified paragraph's
@@ -2672,7 +2675,13 @@ public final class RichLayout {
         // (The probe is the text alone: the box before it — the first
         // line's indent — is where the first line starts from instead.)
         let lead = 0
-        let hangs = fitted && p.style.eastAsian["w:overflowPunct"] != "0"
+        // (Nothing hangs out of a table's cell: a line of 24
+        // ideographs and a full stop is taken at 25 ems there, where
+        // the same paragraph outside a table takes it at 24 — in every
+        // mode, alignment and setting of the compatibility switches
+        // that sound like it, `w:doNotWrapTextWithPunct` among them.)
+        let inCell = p.cell != nil
+        let hangs = fitted && !inCell && p.style.eastAsian["w:overflowPunct"] != "0"
         let squeezes = fitted && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
         let units = Array(p.text.utf16)
         // (Marks to hang or squeeze, or a letter or digit an automatic
@@ -2826,7 +2835,13 @@ public final class RichLayout {
                     // what cannot be parted from it (an opening mark's
                     // word), as long as the line's marks can give that
                     // much: half an em each, shared evenly.
-                    let all = (marks + own).filter { hang == 0 || $0 != tail }
+                    // (The mark at the end is not one of them where it
+                    // hangs — nor, before Word 2013's layout, in a cell,
+                    // where it would have hung: there the line's other
+                    // marks give and the last keeps its em; from 2013's
+                    // on it gives its half like the rest.)
+                    let kept = hang > 0 || (legacy && inCell && Self._hangingUnits.contains(units[tail]))
+                    let all = (marks + own).filter { !kept || $0 != tail }
                     let given = legacy ? spaces + ownSpaces : []
                     // (A curly quote in a Latin face is as wide as it is.)
                     let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)

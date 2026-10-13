@@ -1400,6 +1400,17 @@ character count of lines at no width is not the count of break
 opportunities where a space is set wider than its glyph (the line
 fitter dropped the paragraph's tail).
 
+- **In a table's cell nothing hangs.** A line of 24 ideographs and
+  a full stop is taken at 25 ems in a cell and at 24 outside one, in
+  every mode and alignment, and whatever `w:doNotWrapTextWithPunct`
+  and `w:doNotUseEastAsianBreakRules` say (15 of the sample carry
+  both; neither changed a line of the lab's). The marks inside a
+  line give in a cell as anywhere; the one at the end gives its own
+  half only from mode 15 on. Twelve documents of the sample came
+  closer; the one that fell furthest (a5e2c3fa) now breaks its cells'
+  lines as Word does and parts from it where Word splits a row over
+  two pages and this app moves the row.
+
 Still open from the automatic space's lab: from mode 15 on the
 spaces give in a justified paragraph only, and by a rule not found
 (one space gave its whole 4pt, two under 4 between them, four under
