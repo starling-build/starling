@@ -515,6 +515,10 @@ final class SlidesShellState: State<StatefulWidget> {
         if let a = _active, !deck.currentSlide.shapes.contains(where: { $0 === a }) {
             _active = nil
             _point(at: nil)
+            // The keyboard goes back to the deck with it. Left on the
+            // editor of a slide no longer shown (New Slide from the
+            // ribbon while typing), every shortcut went nowhere until a click.
+            _deckFocus.requestFocus()
         }
         if _notesActive, session.controller !== deck.currentSlide.notes {
             _notesActive = false

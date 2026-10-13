@@ -7,6 +7,10 @@
 # STARLING_OFFICE_HOME moves the tree (a Flatpak installs it under /app).
 D="${STARLING_OFFICE_HOME:-/usr/lib/starling-office}"
 export STARLING_APP_GTK=1
+# Started from a Starling terminal, the shell's own socket for its built-in
+# apps is in the environment, and the app would try to draw into the desktop
+# instead of opening a window — and die there.
+unset FLUTTER_DMABUF_SOCKET
 export LD_LIBRARY_PATH="$D${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 # A menu entry runs `--sheets <file>`; the binary reads a file only as its
 # first argument, and the file's extension picks the app anyway.

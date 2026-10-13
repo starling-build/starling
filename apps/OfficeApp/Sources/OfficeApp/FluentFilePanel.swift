@@ -104,6 +104,13 @@ final class FluentFilePanelState: State<StatefulWidget> {
             if let s = _selected { _w.onDone(s) }
         case .save:
             var name = _name.text.trimmingWhitespace(newlines: false).portablePath
+            // The box opens with the stem selected, so a name typed WITH
+            // its extension lands in front of the one already there:
+            // "report.docx.docx" was meant as "report.docx".
+            let ext = name.pathExtension
+            if !ext.isEmpty, name.deletingPathExtension.pathExtension.lowercased() == ext.lowercased() {
+                name = name.deletingPathExtension
+            }
             guard !name.isEmpty else { return }
             // A whole path typed in the box is taken as one, not as a name
             // inside the listed folder; a folder typed there is gone to.
