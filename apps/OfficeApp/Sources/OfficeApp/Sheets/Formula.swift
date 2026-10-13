@@ -138,8 +138,8 @@ enum Formula {
     }
 
     static func quoteSheet(_ name: String) -> String {
-        let plain = !name.isEmpty && name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "." }
-            && !(name.first?.isNumber ?? false) && CellRefText.parse(Substring(name)).map { !$0.rest.isEmpty } != false
+        let plain = !name.isEmpty && name.allSatisfy { $0.isLetterQuick || $0.isNumberQuick || $0 == "_" || $0 == "." }
+            && !(name.first?.isNumberQuick ?? false) && CellRefText.parse(Substring(name)).map { !$0.rest.isEmpty } != false
         return plain ? name : "'" + name.replacingAll("'", with: "''") + "'"
     }
 
@@ -314,7 +314,7 @@ enum Formula {
                     case .name: operandBefore = n != "("
                     default: operandBefore = false
                     }
-                    if operandBefore, n.isLetter || n == "$" || n == "'" || n == "(" || n == "_" || n == "[" {
+                    if operandBefore, n.isLetterQuick || n == "$" || n == "'" || n == "(" || n == "_" || n == "[" {
                         out.append(.op(" "))
                     }
                 }
@@ -346,17 +346,17 @@ enum Formula {
                 throw FormulaError(message: "bad error literal")
             }
             // Numbers (a leading "." too).
-            if c.isNumber || (c == "." && (peek(1)?.isNumber ?? false)) {
+            if c.isNumberQuick || (c == "." && (peek(1)?.isNumberQuick ?? false)) {
                 // A row range like 3:5 is a reference, not a number.
                 if let r = _rowRange(s[i...]) { out.append(.ref(r.ref)); i = r.end; continue }
                 let start = i
-                while i < s.endIndex, s[i].isNumber || s[i] == "." { i = s.index(after: i) }
+                while i < s.endIndex, s[i].isNumberQuick || s[i] == "." { i = s.index(after: i) }
                 if i < s.endIndex, s[i] == "e" || s[i] == "E" {
                     var j = s.index(after: i)
                     if j < s.endIndex, s[j] == "+" || s[j] == "-" { j = s.index(after: j) }
-                    if j < s.endIndex, s[j].isNumber {
+                    if j < s.endIndex, s[j].isNumberQuick {
                         i = j
-                        while i < s.endIndex, s[i].isNumber { i = s.index(after: i) }
+                        while i < s.endIndex, s[i].isNumberQuick { i = s.index(after: i) }
                     }
                 }
                 let t = String(s[start ..< i])
@@ -364,7 +364,7 @@ enum Formula {
                 out.append(.number(v, t)); continue
             }
             // References, names, functions, booleans — with an optional sheet prefix.
-            if c == "'" || c == "$" || c.isLetter || c == "_" {
+            if c == "'" || c == "$" || c.isLetterQuick || c == "_" {
                 var j = i
                 var sheet: String? = nil
                 if c == "'" {
@@ -385,7 +385,7 @@ enum Formula {
                 } else {
                     // An identifier; if a "!" follows, it was a sheet name.
                     var k = j
-                    while k < s.endIndex, s[k].isLetter || s[k].isNumber || s[k] == "_" || s[k] == "." || s[k] == "$" {
+                    while k < s.endIndex, s[k].isLetterQuick || s[k].isNumberQuick || s[k] == "_" || s[k] == "." || s[k] == "$" {
                         k = s.index(after: k)
                     }
                     if k < s.endIndex, s[k] == "!" {
@@ -396,7 +396,7 @@ enum Formula {
                 // (before trying a cell reference: "Tab1" reads as a cell).
                 if sheet == nil {
                     var k = j
-                    while k < s.endIndex, s[k].isLetter || s[k].isNumber || s[k] == "_" || s[k] == "." || s[k] == "\\" { k = s.index(after: k) }
+                    while k < s.endIndex, s[k].isLetterQuick || s[k].isNumberQuick || s[k] == "_" || s[k] == "." || s[k] == "\\" { k = s.index(after: k) }
                     if k > j, k < s.endIndex, s[k] == "[" {
                         let end = try _bracketEnd(s, from: k)
                         out.append(.structured(String(s[j ..< end]))); i = end; continue
@@ -412,7 +412,7 @@ enum Formula {
                 }
                 if sheet != nil { throw FormulaError(message: "bad reference after \(sheet!)!") }
                 var k = j
-                while k < s.endIndex, s[k].isLetter || s[k].isNumber || s[k] == "_" || s[k] == "." { k = s.index(after: k) }
+                while k < s.endIndex, s[k].isLetterQuick || s[k].isNumberQuick || s[k] == "_" || s[k] == "." { k = s.index(after: k) }
                 let word = String(s[j ..< k])
                 guard !word.isEmpty else { throw FormulaError(message: "unexpected \(c)") }
                 if k < s.endIndex, s[k] == "(" {
@@ -476,7 +476,7 @@ enum Formula {
         }
         func continuesWord(_ rest: Substring) -> Bool {
             guard let f = rest.first else { return false }
-            return f.isLetter || f.isNumber || f == "_" || f == "(" || f == "."
+            return f.isLetterQuick || f.isNumberQuick || f == "_" || f == "(" || f == "."
         }
         let startEnd = RefEnd(row: a.row, col: a.col, rowAbs: a.rowAbs, colAbs: a.colAbs)
         if a.rest.first == ":" {
@@ -496,7 +496,7 @@ enum Formula {
     private static func _rowRange(_ s: Substring, sheet: String? = nil) -> (ref: FormulaRef, end: Substring.Index)? {
         guard let a = CellRefText.parse(s), a.col == nil, a.row != nil, a.rest.first == ":",
               let b = CellRefText.parse(a.rest.dropFirst()), b.col == nil, b.row != nil else { return nil }
-        if let f = b.rest.first, f.isLetter || f.isNumber || f == "." { return nil }
+        if let f = b.rest.first, f.isLetterQuick || f.isNumberQuick || f == "." { return nil }
         return (FormulaRef(sheet: sheet, start: RefEnd(row: a.row, col: nil, rowAbs: a.rowAbs, colAbs: false),
                            end: RefEnd(row: b.row, col: nil, rowAbs: b.rowAbs, colAbs: false)), b.rest.startIndex)
     }
@@ -586,5 +586,20 @@ enum Formula {
                 throw FormulaError(message: "unexpected \(t)")
             }
         }
+    }
+}
+
+extension Character {
+    /// `isLetter` and `isNumber`, answered from the byte for an ASCII
+    /// character — which a formula's are, nearly all of them — and by the
+    /// Unicode tables otherwise. Those tables were a tenth of opening a
+    /// workbook with a formula in every row.
+    @inline(__always) fileprivate var isLetterQuick: Bool {
+        if let a = asciiValue { return (a >= 65 && a <= 90) || (a >= 97 && a <= 122) }
+        return isLetter
+    }
+    @inline(__always) fileprivate var isNumberQuick: Bool {
+        if let a = asciiValue { return a >= 48 && a <= 57 }
+        return isNumber
     }
 }

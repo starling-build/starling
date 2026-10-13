@@ -88,6 +88,36 @@ final class XNode {
         #endif
     }
 
+    /// A part whose bulk is one long list under its root — a sheet's rows:
+    /// the tree with that list's parent left empty, and the items one at a
+    /// time, each built, handed over and let go. A million cells as a tree
+    /// are several million objects held at once; this way there is a row
+    /// of them. (Where the system's parser has to read the part, it is
+    /// the whole tree after all, taken apart afterwards.)
+    struct ListPart {
+        let root: XNode
+        let forEach: ((XNode) -> Void) -> Void
+    }
+
+    static func parse(_ data: Data, listUnder parent: String, of item: String) -> ListPart? {
+        let bytes = [UInt8](data)
+        var own = true
+        #if !os(WASI)
+        own = !_systemOnly && _plainUTF8(bytes)
+        #endif
+        if own, let root = MiniXML.parse(bytes, emptying: parent) {
+            return ListPart(root: root) { each in MiniXML.children(named: item, ofRootChild: parent, in: bytes, each) }
+        }
+        guard let root = parseSystem(data) else { return nil }
+        let isNamed: (XNode, String) -> Bool = { $0.name == $1 || $0.name.hasSuffix(":" + $1) }
+        var items: [XNode] = []
+        if let list = root.children.first(where: { isNamed($0, parent) }) {
+            items = list.children.filter { isNamed($0, item) }
+            list.children = []
+        }
+        return ListPart(root: root) { each in items.forEach(each) }
+    }
+
     /// `OFFICE_XML=system` reads everything with the system's parser: the
     /// other side of a comparison when the two are suspected to differ.
     private static let _systemOnly = ProcessInfo.processInfo.environment["OFFICE_XML"] == "system"

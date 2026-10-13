@@ -14,10 +14,53 @@ enum MiniXML {
         return p.document()
     }
 
+    /// The tree without what is inside the root's first child named
+    /// `local` (whatever its prefix): that child is there, and empty.
+    /// With `children(named:ofRootChild:in:_:)` this reads a part whose
+    /// bulk is one long list — a sheet's rows — without ever holding the
+    /// list as a tree: several objects a cell, most of what opening a
+    /// large workbook kept in memory.
+    static func parse(_ bytes: [UInt8], emptying local: String) -> XNode? {
+        var p = Parser(bytes)
+        p.listParent = Array(local.utf8)
+        return p.document()
+    }
+
+    /// Each child named `item` of the root's first child named `parent`
+    /// (both by local name), built on its own, handed over and let go.
+    static func children(named item: String, ofRootChild parent: String, in bytes: [UInt8], _ each: (XNode) -> Void) {
+        var p = Parser(bytes)
+        p.listParent = Array(parent.utf8)
+        p.listItem = Array(item.utf8)
+        withoutActuallyEscaping(each) { p.each = $0; _ = p.document(); p.each = nil }
+    }
+
     private struct Parser {
         let b: [UInt8]
         var i = 0
         init(_ bytes: [UInt8]) { b = bytes }
+
+        /// The list left out of the tree (`parse(_:emptying:)`), or — with
+        /// `listItem` and `each` — the only thing built.
+        var listParent: [UInt8]? = nil
+        var listItem: [UInt8]? = nil
+        var each: ((XNode) -> Void)? = nil
+
+        /// An open element: its node when it is being built, and whether
+        /// it is the list's parent or one of the items handed over.
+        private struct Frame {
+            var node: XNode?
+            var isListParent = false
+            var isItem = false
+        }
+
+        /// Whether the name in `r` is `local`, with or without a prefix.
+        func named(_ r: Range<Int>, _ local: [UInt8]) -> Bool {
+            guard r.count >= local.count else { return false }
+            let from = r.upperBound - local.count
+            guard b[from ..< r.upperBound].elementsEqual(local) else { return false }
+            return from == r.lowerBound || b[from - 1] == UInt8(ascii: ":")
+        }
 
         var atEnd: Bool { i >= b.count }
         func peek(_ s: String) -> Bool { b[i...].starts(with: s.utf8) }
@@ -30,6 +73,12 @@ enum MiniXML {
         }
         mutating func skip(past marker: String) {
             let m = Array(marker.utf8)
+            if m.count == 1 {
+                // An end tag's ">" — one for every element in the file.
+                let c = m[0]
+                while i < b.count { i += 1; if b[i - 1] == c { return } }
+                return
+            }
             while i + m.count <= b.count {
                 if b[i..<i + m.count].elementsEqual(m) { i += m.count; return }
                 i += 1
@@ -39,12 +88,14 @@ enum MiniXML {
 
         mutating func document() -> XNode? {
             var root: XNode?
-            var stack: [XNode] = []
+            var stack: [Frame] = []
+            var listSeen = false
+            let itemsOnly = listItem != nil
             while !atEnd {
                 if b[i] != UInt8(ascii: "<") {
                     let start = i
                     while !atEnd, b[i] != UInt8(ascii: "<") { i += 1 }
-                    if let top = stack.last { top.text += decode(b[start..<i]) }
+                    if let top = stack.last?.node { top.text += decode(b[start..<i]) }
                     continue
                 }
                 let next: UInt8 = i + 1 < b.count ? b[i + 1] : 0
@@ -54,18 +105,55 @@ enum MiniXML {
                     i += 9
                     let start = i
                     skip(past: "]]>")
-                    if let top = stack.last { top.text += String(decoding: b[start..<max(start, i - 3)], as: UTF8.self) }
+                    if let top = stack.last?.node { top.text += String(decoding: b[start..<max(start, i - 3)], as: UTF8.self) }
                     continue
                 }
                 if next == UInt8(ascii: "!") { skip(past: ">"); continue }
                 if next == UInt8(ascii: "/") {
                     i += 2
                     skip(past: ">")
-                    _ = stack.popLast()
+                    if let closed = stack.popLast(), closed.isItem, let node = closed.node { each?(node) }
                     continue
                 }
                 i += 1
-                let name = readName()
+                let nameStart = i
+                let name = readNameRange()
+                // What this element is to the list, and whether it is built.
+                var frame = Frame()
+                let top = stack.last
+                var build = true
+                if let parent = listParent {
+                    if !listSeen, stack.count == 1, named(name, parent) {
+                        listSeen = true
+                        frame.isListParent = true
+                        build = !itemsOnly
+                    } else if itemsOnly {
+                        if let top, top.isListParent { frame.isItem = named(name, listItem!); build = frame.isItem }
+                        else { build = top?.node != nil }
+                    } else {
+                        // Under the emptied list nothing is built.
+                        build = top == nil || (top!.node != nil && !top!.isListParent)
+                    }
+                }
+                guard build else {
+                    // Past the tag, its attributes unread (a ">" may sit
+                    // inside a quoted value).
+                    var selfClosing = false
+                    while !atEnd {
+                        let c = b[i]
+                        if c == UInt8(ascii: "\"") || c == UInt8(ascii: "'") {
+                            i += 1
+                            while !atEnd, b[i] != c { i += 1 }
+                        } else if c == UInt8(ascii: ">") {
+                            selfClosing = i > nameStart && b[i - 1] == UInt8(ascii: "/")
+                            i += 1
+                            break
+                        }
+                        i += 1
+                    }
+                    if !selfClosing { stack.append(frame) }
+                    continue
+                }
                 var attrs: [String: String] = [:]
                 var selfClosing = false
                 while true {
@@ -92,11 +180,29 @@ enum MiniXML {
                     }
                     attrs[key] = value
                 }
-                let node = XNode(name: name, attrs: attrs)
-                if let parent = stack.last { parent.children.append(node) } else if root == nil { root = node }
-                if !selfClosing { stack.append(node) }
+                let node = XNode(name: String(decoding: b[name], as: UTF8.self), attrs: attrs)
+                frame.node = node
+                if frame.isItem {
+                    if selfClosing { each?(node) }
+                } else if let parent = top?.node {
+                    parent.children.append(node)
+                } else if root == nil, top == nil || !itemsOnly {
+                    root = node
+                }
+                if !selfClosing { stack.append(frame) }
             }
             return root
+        }
+
+        mutating func readNameRange() -> Range<Int> {
+            let start = i
+            while !atEnd {
+                let c = b[i]
+                if c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0D || c == UInt8(ascii: ">")
+                    || c == UInt8(ascii: "/") || c == UInt8(ascii: "=") { break }
+                i += 1
+            }
+            return start ..< i
         }
 
         mutating func readName() -> String {

@@ -156,7 +156,9 @@ enum Xlsx {
         for (name, text) in split.children where !modeled.contains(name) {
             ws.keptElements.append((name, text))
         }
-        guard let root = XNode.parse(raw) else { throw ReadError.badPart(ws.origin ?? ws.name) }
+        // The rows are not in this tree: they are read as they go by, below.
+        guard let part = XNode.parse(raw, listUnder: "sheetData", of: "row") else { throw ReadError.badPart(ws.origin ?? ws.name) }
+        let root = part.root
         if let node = root.child("autoFilter"), let ref = node["ref"], let range = CellRange(ref) {
             ws.autoFilter = _readAutoFilter(node, range: range, raw: split.children.first { $0.name == "autoFilter" }?.text)
         }
@@ -214,11 +216,17 @@ enum Xlsx {
         var spillAreas: [(CellAddress, CellRange)] = []
         var cells: [CellAddress: Cell] = [:]
         var rowIndex = 0
-        let rowNodes = root.child("sheetData")?.kids("row") ?? []
         // Room for every cell at once: a dictionary grown a cell at a time
-        // is rehashed a dozen times over on its way to a million.
-        cells.reserveCapacity(rowNodes.reduce(0) { $0 + $1.children.count })
-        for row in rowNodes {
+        // is rehashed a dozen times over on its way to a million. (Counted
+        // in the bytes — "<c " and "<c>" — which is near enough.)
+        var cellTags = 0
+        var k = 0
+        while k + 2 < bytes.count {
+            if bytes[k] == UInt8(ascii: "<"), bytes[k + 1] == UInt8(ascii: "c"),
+               bytes[k + 2] == UInt8(ascii: " ") || bytes[k + 2] == UInt8(ascii: ">") { cellTags += 1; k += 3 } else { k += 1 }
+        }
+        cells.reserveCapacity(cellTags)
+        part.forEach { row in
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
             if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }

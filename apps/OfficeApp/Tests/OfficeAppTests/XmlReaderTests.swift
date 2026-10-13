@@ -76,6 +76,60 @@ final class XmlReaderTests: XCTestCase {
         XCTAssertNotEqual(MiniXML.parse([UInt8](data))?.first("t")?.text, XNode.parseSystem(data)?.first("t")?.text)
     }
 
+    // MARK: A part read as a tree and a list
+
+    private let sheet = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <worksheet xmlns="m" xmlns:x="m"><dimension ref="A1:B3"/><cols><col min="1" max="1" width="9"/></cols>
+        <sheetData note="a > b"><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1"><f>A1&amp;"x"</f><v>1</v></c></row>
+        <row r="2"/><stray><row r="nested"/></stray> <x:row r="3" ht="20"><c r="A3"><is><t>a&lt;b\r\nc</t></is></c></x:row>
+        <!-- <row r="in a comment"/> --></sheetData><mergeCells><mergeCell ref="A1:B1"/></mergeCells>
+        <sheetData><row r="second list"/></sheetData><autoFilter ref="A1:B3"/></worksheet>
+        """
+
+    func testAListPartIsTheTreeWithoutItsListAndTheItemsInOrder() throws {
+        let data = Data(sheet.utf8)
+        let whole = try XCTUnwrap(XNode.parseSystem(data))
+        let wanted = whole.child("sheetData")!.kids("row").map(PptxXML.serialize)
+        XCTAssertEqual(wanted.count, 3)
+        for mode in ["own", "system"] {
+            let part: XNode.ListPart
+            if mode == "own" {
+                let root = try XCTUnwrap(MiniXML.parse([UInt8](data), emptying: "sheetData"))
+                part = XNode.ListPart(root: root) { each in
+                    MiniXML.children(named: "row", ofRootChild: "sheetData", in: [UInt8](data), each)
+                }
+            } else {
+                // What `parse(_:listUnder:of:)` does when the part is the system's to read.
+                var latin = Data("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>".utf8)
+                latin.append(Data(sheet.utf8.drop { $0 != UInt8(ascii: "\n") }))
+                part = try XCTUnwrap(XNode.parse(latin, listUnder: "sheetData", of: "row"))
+            }
+            var rows: [String] = []
+            part.forEach { rows.append(PptxXML.serialize($0)) }
+            XCTAssertEqual(rows, wanted, mode)
+            // The rest of the tree is all there, the first list empty.
+            let emptied = try XCTUnwrap(XNode.parseSystem(data))
+            emptied.child("sheetData")!.children = []
+            XCTAssertEqual(PptxXML.serialize(part.root), PptxXML.serialize(emptied), mode)
+            XCTAssertEqual(part.root.child("sheetData")?["note"], "a > b", mode)
+        }
+    }
+
+    func testAListPartThroughTheUsualDoor() throws {
+        let part = try XCTUnwrap(XNode.parse(Data(sheet.utf8), listUnder: "sheetData", of: "row"))
+        var n = 0
+        part.forEach { _ in n += 1 }
+        XCTAssertEqual(n, 3)
+        XCTAssertNil(part.root.child("sheetData")?.child("row"))
+        // No list at all, and an empty one.
+        for xml in ["<worksheet><cols/></worksheet>", "<worksheet><sheetData/><cols/></worksheet>"] {
+            let p = try XCTUnwrap(XNode.parse(Data(xml.utf8), listUnder: "sheetData", of: "row"))
+            p.forEach { _ in XCTFail("no rows in \(xml)") }
+            XCTAssertNotNil(p.root.child("cols"))
+        }
+    }
+
     func testSerializingIsWhatItWas() {
         let xml = "<p:sp xmlns:p=\"u\" b=\"2\" a=\"1 &amp; &quot;q&quot; &lt;\"><p:t>a &lt; b &amp; c &gt; d \"q\"</p:t>\n  <p:e/><p:f> </p:f></p:sp>"
         let node = XNode.parse(Data(xml.utf8))!
