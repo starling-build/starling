@@ -1983,6 +1983,11 @@ public struct RichDocument: Hashable, Sendable {
 
     // MARK: Whole-document counts
 
+    /// Words as Word counts them: runs between spaces, and each East
+    /// Asian character one of its own — a Chinese document of 27 pages
+    /// is some fifteen thousand words, not the 71 its spaces make
+    /// (seen in the status bar, 2026-10-13). The ideographic space is
+    /// white space like any.
     public var wordCount: Int {
         var count = 0
         for p in paragraphs {
@@ -1990,6 +1995,9 @@ public struct RichDocument: Hashable, Sendable {
             for scalar in p.text.unicodeScalars {
                 if scalar.properties.isWhitespace {
                     inWord = false
+                } else if Self._countsAlone(scalar.value) {
+                    inWord = false
+                    count += 1
                 } else if !inWord {
                     inWord = true
                     count += 1
@@ -1997,6 +2005,14 @@ public struct RichDocument: Hashable, Sendable {
             }
         }
         return count
+    }
+
+    private static func _countsAlone(_ u: UInt32) -> Bool {
+        switch u {
+        case 0x1100 ... 0x11FF, 0x2E80 ... 0x9FFF, 0xAC00 ... 0xD7FF, 0xF900 ... 0xFAFF, 0xFE30 ... 0xFE4F,
+             0xFF00 ... 0xFFEF, 0x20000 ... 0x3FFFF: return true
+        default: return false
+        }
     }
 
     public var characterCount: Int {

@@ -223,6 +223,8 @@ final class RichDocumentControllerTests: XCTestCase {
     func testWordCount() {
         let c = controller("one two  three", "", "four")
         XCTAssertEqual(c.document.wordCount, 4)
+        // Each East Asian character is a word of its own, as Word counts.
+        XCTAssertEqual(RichDocument(paragraphs: [RichParagraph(text: "第5條 of 3 parts，如下：")]).wordCount, 10)
     }
 
     func testNamedStylesApplyAndEnterMovesToNext() {

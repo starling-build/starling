@@ -369,12 +369,14 @@ public final class RichEditableState: State<StatefulWidget> {
             else { c.moveRight(extend: shift) }
         case .up:
             keepStickyX = true
-            if _chords.primary && KeyModifiers.primary == .meta { c.moveToDocumentStart(extend: shift) }
+            // (To the document's start or end shows it, whether or not
+            // the caret was there already and the view elsewhere.)
+            if _chords.primary && KeyModifiers.primary == .meta { c.moveToDocumentStart(extend: shift); revealCaret() }
             else if _chords.alt { c.moveToParagraphStart(extend: shift) }
             else { _moveVertical(down: false, extend: shift) }
         case .down:
             keepStickyX = true
-            if _chords.primary && KeyModifiers.primary == .meta { c.moveToDocumentEnd(extend: shift) }
+            if _chords.primary && KeyModifiers.primary == .meta { c.moveToDocumentEnd(extend: shift); revealCaret() }
             else if _chords.alt { c.moveToParagraphEnd(extend: shift) }
             else { _moveVertical(down: true, extend: shift) }
         case .home:
@@ -476,6 +478,11 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         _scrollY += down ? step : -step
         _clampScroll()
+        // (The view goes a screenful on only as far as the caret can
+        // follow: on a page whose text ends near its top, Page Down left
+        // the caret behind and showed the blank paper under it — seen
+        // 2026-10-13 with two one-page documents.)
+        _ensureCaretVisible()
     }
 
     private func _syncLayoutIfNeeded() {
