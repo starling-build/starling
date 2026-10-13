@@ -692,6 +692,18 @@ PowerPoint's, because the bars are: the legend is drawn at 12 pt where
 the file's is 9, and takes that much of the plot. The legend is next,
 and the score waits on it.
 
+**One deck at a time: tdf149985, its legend, 2026-10-13** (5.70 → 3.45;
+the corpus 2.127%, two decks closer, none further). The legend has its
+own size (`c:legend/c:txPr`, here 9 pt; `Chart.legendSize`), and its
+keys and gaps go with it. Beside stacked columns or areas it lists the
+series in stacking order, the top of the stack first. A line of a legend
+at the side is its text's height and 6 pt. It is within 2 pt of
+PowerPoint's place, and being the right width it leaves the plot the
+right width: the bars and the labels from cells, 11 to 20 pt off before,
+are within 3. Left in this chart: the oval over the last bar (the
+chart's own drawing, `c:userShapes`), the bold category labels, and the
+shadow under the bottom series.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

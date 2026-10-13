@@ -84,6 +84,9 @@ struct Chart: Equatable {
     /// `c:legendPos`: "b" below the plot (what a new chart gets), "t" above,
     /// "r", "l" or "tr" beside it, one entry to a line.
     var legendPosition = "b"
+    /// The legend's text size in points where the file gives one
+    /// (`c:legend/c:txPr`); nil is the default, 12.
+    var legendSize: Double? = nil
     var dataLabels = false
     /// `c:grouping`: clustered/standard, stacked or percentStacked.
     var stacked = false
@@ -270,7 +273,12 @@ enum ChartXML {
         c.titleColor = titleColor
         c.legend = chart.first("c:legend") != nil
         // (Absent, the schema's default is the right.)
-        if let l = chart.first("c:legend") { c.legendPosition = l.first("c:legendPos")?["val"] ?? "r" }
+        if let l = chart.first("c:legend") {
+            c.legendPosition = l.first("c:legendPos")?["val"] ?? "r"
+            if let sz = l.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
+                c.legendSize = sz / 100
+            }
+        }
         c.stacked = grouping == "stacked" || grouping == "percentStacked"
         c.percent = grouping == "percentStacked"
         func shows(_ d: XNode?) -> Bool { d?.first("c:showVal")?["val"] == "1" || d?.first("c:showPercent")?["val"] == "1" }
@@ -554,11 +562,16 @@ enum ChartPainter {
         let pie = c.type.isPie
         if c.legend {
             let names = pie ? c.categories : c.series.map(\.name)
-            let entries = names.enumerated().map { (i: $0.offset, tp: text($0.element, 12)) }
-            let key = 7 * k, gap = 4 * k, spacing = 12 * k
+            // In the legend's own size, its keys and gaps in proportion.
+            let size = c.legendSize ?? 12, m = size / 12
+            var entries = names.enumerated().map { (i: $0.offset, tp: text($0.element, size)) }
+            let key = 7 * k * m, gap = 4 * k * m, spacing = 12 * k * m
             // Beside the plot (`legendPos` r, l, tr): a column, an entry to
             // a line, in the middle of the side; above or below: rows.
             let beside = ["r", "l", "tr"].contains(c.legendPosition)
+            // A column beside stacked columns (or areas) reads as the stack
+            // does, the last series — the top of it — first.
+            if beside, c.stacked, c.type == .column || c.type == .area { entries.reverse() }
             var lines: [[(i: Int, tp: TextPainter)]] = [[]]
             var lineW = 0.0
             for e in entries {
@@ -567,7 +580,9 @@ enum ChartPainter {
                 lineW += (lineW > 0 ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
             }
-            let lineH = (entries.map(\.tp.height).max() ?? 12 * k) * (beside ? 1.35 : 1)
+            // (An entry to a line: PowerPoint's 9 pt entries are 16.9 pt apart.)
+            let textH = entries.map(\.tp.height).max() ?? size * k
+            let lineH = beside ? textH + 6 * k : textH
             let columnW = (entries.map(\.tp.width).max() ?? 0) + key + gap
             var y: Double, columnX = 0.0
             if beside {
