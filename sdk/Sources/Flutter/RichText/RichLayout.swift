@@ -1351,10 +1351,23 @@ public final class RichLayout {
         return min(_spacing(i - 1, document).after, _spacing(i, document).before).rounded(.down)
     }
 
+    /// Where a list paragraph's text and number stand, in points, when
+    /// the file says: the text at the level's left indent (the
+    /// paragraph's own above it) and the number that far back from it —
+    /// 65099's "1.1.1" heading is a third level whose text is at 36pt,
+    /// not at three levels' worth. nil for a list of the editor's own,
+    /// which takes `theme.listIndent` a level.
+    private func _listIndents(_ p: RichParagraph, _ document: RichDocument) -> (left: Double, hanging: Double)? {
+        guard p.style.list != nil else { return nil }
+        let level = p.style.listId.flatMap { document.listFormats[$0]?[p.style.listLevel] }
+        guard let left = p.style.listIndentLeft ?? level?.indentLeft else { return nil }
+        return (left, p.style.listFirstLine.map { -$0 } ?? level?.hanging ?? 0)
+    }
+
     private func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         let style = p.style
         var left = _px(style.indentLeft)
-            + (style.list != nil ? _px(theme.listIndent) * Double(style.listLevel + 1) : 0)
+            + (style.list != nil ? _px(_listIndents(p, document)?.left ?? theme.listIndent * Double(style.listLevel + 1)) : 0)
         let right = _px(style.indentRight)
         var textWidth = max(1, width - left - right)
         if let c = p.cell {
@@ -2104,7 +2117,14 @@ public final class RichLayout {
                 g.textTop + _baselineShift(i, document) + g.painter.computeDistanceToActualBaseline(.alphabetic)
                     - marker.computeDistanceToActualBaseline(.alphabetic)
             }
-            if theme.markersAtHang {
+            if !theme.markersAtHang, let own = _listIndents(p, document), own.hanging > 0 {
+                // Where the file hangs it: the number starts that far
+                // back from the text, as Word sets it.
+                marker.textAlign = .left
+                marker.layout(minWidth: 0, maxWidth: max(1, slot * 8))
+                let hang = g.textLeft - _px(own.hanging)
+                marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width), top()))
+            } else if theme.markersAtHang {
                 // At the hang, and never over the text: a bullet whose hang
                 // is at the text (indent 0) sits just before it instead.
                 marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
