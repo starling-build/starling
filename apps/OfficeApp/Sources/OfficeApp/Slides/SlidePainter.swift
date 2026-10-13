@@ -652,7 +652,7 @@ final class SlidePainter: CustomPainter {
             for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { m[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k] } } }
             return m
         }
-        let (colors, positions) = Self.linearLight(fill.stops)
+        let (colors, positions) = Self.linearLight(fill.stops, eased: fill.eased)
         if let path = fill.path, r.width > 0, r.height > 0 {
             // From the fill-to point out to the farthest corner: circles,
             // or (rect, shape) rings in the area's own proportions — the
@@ -804,7 +804,7 @@ final class SlidePainter: CustomPainter {
     /// red-to-green is a bright orange, not the sRGB midpoint's brown. The
     /// shader blends in sRGB; these are the stops with linear-light
     /// in-betweens spelled out, so it lands where PowerPoint does.
-    static func linearLight(_ stops: [SlideFill.GradientStop]) -> ([Color], [Double]) {
+    static func linearLight(_ stops: [SlideFill.GradientStop], eased: Bool = false) -> ([Color], [Double]) {
         func lin(_ v: Int) -> Double { let c = Double(v) / 255; return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
         func srgb(_ l: Double) -> Int { let c = l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055; return Int((max(0, min(1, c)) * 255).rounded()) }
         var colors: [Color] = [], positions: [Double] = []
@@ -812,9 +812,11 @@ final class SlidePainter: CustomPainter {
             let s = stops[i]
             if i > 0 {
                 let a = stops[i - 1]
-                let steps = 8
+                // (An eased blend bends more, and takes more in-betweens.)
+                let steps = eased ? 16 : 8
                 for k in 1 ..< steps {
-                    let t = Double(k) / Double(steps)
+                    let at = Double(k) / Double(steps)
+                    let t = eased ? (1 - cos(.pi * at)) / 2 : at
                     func part(_ c: Color, _ sh: Int) -> Int { (c.value >> sh) & 0xFF }
                     func ch(_ sh: Int) -> Int {
                         let from = lin(part(a.color, sh)), to = lin(part(s.color, sh))
@@ -825,7 +827,7 @@ final class SlidePainter: CustomPainter {
                     let red = ch(16), green = ch(8), blue = ch(0)
                     let packed: Int = (alpha << 24) | (red << 16) | (green << 8) | blue
                     colors.append(Color(packed))
-                    positions.append(a.position + (s.position - a.position) * t)
+                    positions.append(a.position + (s.position - a.position) * at)
                 }
             }
             colors.append(s.color)

@@ -131,6 +131,13 @@ final class XNode {
         func parser(_ parser: XMLParser, foundCharacters string: String) {
             stack.last?.text += string
         }
+
+        // A CDATA section is text. The Mac's parser hands it to
+        // `foundCharacters` when this is not implemented; FoundationXML
+        // off a Mac drops it.
+        func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+            stack.last?.text += String(decoding: CDATABlock, as: UTF8.self)
+        }
     }
     #endif
 }

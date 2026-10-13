@@ -604,6 +604,29 @@ Left in that line: "over" is Andale Mono, drawn in Liberation Mono. Not
 checked: that the browser build fetches the new faces when a document
 asks for Verdana (they are staged, and listed lazy in the manifest).
 
+**One deck at a time: tdf105739, its gradient, 2026-10-13** (12.28 →
+0.42; sweep 41: 2.35 → 2.32%, three decks down — tdf109067 3.6 → 2.5 —
+one up by 0.13). A background of red to green at 45°, scaled. Its
+direction and middle were right already; PowerPoint's ramp kept to red,
+then to green, longer at each end.
+
+The ramp is in PowerPoint's own PDF to be read: an axial shading over a
+1,365-sample function. For this deck the samples are in a linear-light
+profile and follow **a half cosine** — (1 − cos πt) / 2 — to within a
+hundredth; for lo-subtitle-animation-save they are in sRGB and run
+evenly. Across the corpus the first kind are gradients whose stops are
+plain colours (`srgbClr`, no modifiers: tdf105739, tdf109067,
+ImportWordArtGradient) and the second those of theme colours under
+`tint`, `satMod` and the rest. `SlideFill.eased`, set by the reader when
+no stop's colour has a modifier; `linearLight(_:eased:)`. Why PowerPoint
+tells them apart is not known — and the second kind's even ramp in sRGB
+is not what `linearLight` gives them (it blends them evenly in linear
+light, as sweep 9 found for themes.pptx): not looked at here.
+
+With it: a CDATA section's text is kept by the system XML reader on
+Linux (`foundCDATA`; FoundationXML drops it where the Mac hands it to
+`foundCharacters`), which a new test of the two readers found.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

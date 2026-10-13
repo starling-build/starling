@@ -39,7 +39,16 @@ final class XmlReaderTests: XCTestCase {
     }
 
     func testCDataEntitiesCommentsAndInstructions() {
-        same("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<!-- c --><a x:y=\"&lt;&amp;&quot;&#233;\">t&gt;<![CDATA[<raw>&amp;\r\n]]><?pi x?><b/> tail<c> </c></a>")
+        // (A line end inside CDATA: the Mac's parser hands the section over
+        // as it stands, CR and all, and so does this app's; libxml2, which
+        // is the system's parser off a Mac, has made it a line feed by
+        // then. The two are compared where they can agree.)
+        #if canImport(FoundationXML)
+        let lineEnd = "\n"
+        #else
+        let lineEnd = "\r\n"
+        #endif
+        same("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<!-- c --><a x:y=\"&lt;&amp;&quot;&#233;\">t&gt;<![CDATA[<raw>&amp;\(lineEnd)]]><?pi x?><b/> tail<c> </c></a>")
     }
 
     func testAPartThatIsNotUtf8GoesToTheSystemsParser() {

@@ -269,6 +269,14 @@ struct SlideFill: Equatable {
     /// clockwise from left-to-right.
     var stops: [GradientStop] = []
     var angle = 0.0
+    /// The blend between two stops eases in and out (a half cosine, in
+    /// linear light) instead of running evenly. PowerPoint's own export
+    /// has it for a gradient whose stops are plain colours — red to green
+    /// keeps to red, then to green, a tenth of the way longer at each end
+    /// — and an even blend for one built of theme colours with
+    /// modifiers. Why it tells them apart is not known; that it does is
+    /// read off the ramps it stores (tdf105739, tdf109067).
+    var eased = false
     /// `a:lin scaled="1"`: the angle is of the fill's unit square, so it
     /// stretches with the area — 45° runs corner to corner of a wide
     /// slide, its bands of colour lying along the other diagonal.
