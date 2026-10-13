@@ -2107,7 +2107,7 @@ public final class RichLayout {
             if let k = p.style.bulletScale {
                 markerChar.fontSize = (markerChar.fontSize ?? document.styles.resolve(p.style)?.char.fontSize ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize) * k
             }
-            let markerStyle = theme.textStyle(for: markerChar, in: p.style, normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale)
+            let markerStyle = theme.textStyle(for: markerChar, in: p.style, named: document.styles.resolve(p.style), normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale)
             let marker = TextPainter(text: TextSpan(text: label, style: markerStyle),
                                      textAlign: .right, textDirection: .ltr)
             let slot = _px(theme.listIndent)
