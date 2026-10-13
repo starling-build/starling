@@ -580,6 +580,30 @@ only Latin-1 and the private range are a symbol face's codes. Same
 place and size as PowerPoint's (its star is Segoe UI Symbol's, this one
 DejaVu's).
 
+**One deck at a time: pptx2svg, its last line, 2026-10-13** (6.91 → 6.58
+over two tasks; sweep 40: three decks down — the AES conference deck, in
+Verdana throughout, 10.5 → 9.5 — none up; 179 Word documents, one 0.12
+up).
+
+- **Superscript and subscript leave the line.** They were shrunk and left
+  on the baseline: the engine has no baseline to shift. The run now
+  holds its place unseen (`textStyle(scriptHidden:)`) and
+  `RichLayout._paintScripts` draws each stretch of it again, three tenths
+  of the full size up or a fifth down — 7.0 and 5.0 pt at 24, as
+  PowerPoint's page has them. Layout, carets and selections are as they
+  were. Shared with Writer, whose superscripts rise too.
+- **Verdana is DejaVu Sans** (`OfficeFonts.verdana`; four faces added to
+  Resources/fonts, 3 MB), where it was Liberation Sans and an eighth
+  short. Not a metric clone — there is none — but of the same design,
+  and within a hundredth of Verdana's widths word for word; LibreOffice
+  makes the same replacement. The file keeps "Verdana". The line ends at
+  581.9 where PowerPoint's ends at 590.3 (517.4 before): Verdana's space
+  is the wider.
+
+Left in that line: "over" is Andale Mono, drawn in Liberation Mono. Not
+checked: that the browser build fetches the new faces when a document
+asks for Verdana (they are staged, and listed lazy in the manifest).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

@@ -182,6 +182,7 @@ if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
                 LiberationSans-*) family="Liberation Sans?" ;;
                 LiberationSerif-*) family="Liberation Serif?" ;;
                 LiberationMono-*) family="Liberation Mono?" ;;
+                DejaVuSans-*) family="DejaVu Sans?" ;;
             esac
         fi
         FONTS+=("$f=$family")

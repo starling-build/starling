@@ -154,7 +154,8 @@ public final class RichTextTheme {
     /// Resolve a run's style inside a paragraph to an engine TextStyle, at
     /// `scale` (zoom, 1.0 = 100%).
     public func textStyle(for style: CharStyle, in paragraph: RichParagraphStyle,
-                          named: RichNamedStyle? = nil, scale: Double, fontScale: Double = 1) -> TextStyle {
+                          named: RichNamedStyle? = nil, scale: Double, fontScale: Double = 1,
+                          scriptHidden: Bool = false) -> TextStyle {
         var size = style.fontSize ?? named?.char.fontSize ?? fontSize
         // A fitted size is a whole number of points: PowerPoint sets 32 pt
         // at 85% in 27, not 27.2.
@@ -181,6 +182,10 @@ public final class RichTextTheme {
             decorations.append(revision.kind == .deleted ? .lineThrough : .underline)
             if style.color == nil { color = Color(0xFFC00000) }
         }
+        // A raised or lowered run holds its place in the line unseen: the
+        // engine has no baseline to shift, so the layout draws it again
+        // where it belongs (`_paintScripts`).
+        if scriptHidden, style.script != .normal { color = color.withOpacity(0) }
         var px = size * pixelsPerPoint * scale
         if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
             // Hidden text takes no room and shows nothing, as Word prints it;
@@ -1414,7 +1419,7 @@ public final class RichLayout {
             return spans
         }
         if p.runs.count == 1, p.runs[0].style.inlineImage == nil {
-            let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale, fontScale: fontScale)
+            let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, scale: scale, fontScale: fontScale, scriptHidden: true)
             let spans = capped(p.text[...], p.runs[0].style, style)
             if spans.count == 1 { return (spans[0], []) }
             return (TextSpan(children: spans), [])
@@ -1428,7 +1433,7 @@ public final class RichLayout {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
             pos += run.length
-            let style = theme.textStyle(for: run.style, in: p.style, named: named, scale: scale, fontScale: fontScale)
+            let style = theme.textStyle(for: run.style, in: p.style, named: named, scale: scale, fontScale: fontScale, scriptHidden: true)
             if let id = run.style.inlineImage, let image = p.inlineImages[id] {
                 // A picture in the line, sitting on the baseline as Word
                 // sets it; shrunk to the column when wider.
@@ -1773,7 +1778,8 @@ public final class RichLayout {
     /// boxes; at a spacing under single they do not — the next line's
     /// ascenders stand in the last line's box, and showed as a row of
     /// specks under the foot of a column.
-    private func _linesPainter(_ piece: PagePiece, _ document: RichDocument) -> (painter: TextPainter, top: Double, first: Bool)? {
+    private func _linesPainter(_ piece: PagePiece, _ document: RichDocument)
+        -> (painter: TextPainter, top: Double, first: Bool, paragraph: RichParagraph)? {
         let i = piece.paragraph
         guard theme.singleLineHeight != nil, _cells[i] == nil, i >= _inline.count || _inline[i].isEmpty else { return nil }
         let g = geometry(i)
@@ -1800,15 +1806,63 @@ public final class RichLayout {
         let painter = TextPainter(text: span, textAlign: align, textDirection: p.style.rightToLeft ? .rtl : .ltr)
         painter.layout(minWidth: g.textWidth, maxWidth: g.textWidth)
         let top = start == 0 ? 0 : g.painter.getOffsetForCaret(TextPosition(offset: start), Rect.zero).dy
-        return (painter, top, start == 0)
+        return (painter, top, start == 0, lines)
+    }
+
+    /// The raised and lowered runs of `p`, drawn where they belong: each
+    /// stretch of one on a line again in its own style, up by three
+    /// tenths of the size it was shrunk from, or down by a fifth —
+    /// PowerPoint's and Word's superscript and subscript. `painter` is
+    /// the paragraph's (or its lines'), painted at `origin`, in which the
+    /// runs hold their place unseen.
+    private func _paintScripts(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
+                               _ canvas: any Canvas, _ document: RichDocument) {
+        guard p.runs.contains(where: { $0.style.script != .normal }) else { return }
+        let named = document.styles.resolve(p.style)
+        let units = Array(p.text.utf16)
+        var pos = 0
+        for run in p.runs {
+            let from = pos, to = min(units.count, pos + run.length)
+            pos += run.length
+            guard run.style.script != .normal, to > from else { continue }
+            let style = theme.textStyle(for: run.style, in: p.style, named: named, scale: scale, fontScale: fontScale)
+            // The size it was shrunk from (the style's is 65% of it).
+            let full = (style.fontSize ?? 0) / 0.65
+            // (Measured on PowerPoint's page: 7.0 pt up and 5.0 down at 24 pt.)
+            let dy = run.style.script == .superscript ? -0.3 * full : 0.2 * full
+            var a = from
+            while a < to {
+                // To the end of the run or of its line, whichever is first.
+                let line = painter.getLineBoundary(TextPosition(offset: a))
+                let b = max(a + 1, min(to, line.end))
+                let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: b))
+                if let box = boxes.first {
+                    let text = String(decoding: units[a ..< b], as: UTF16.self)
+                    // At the face's own height, as the box it stood in unseen
+                    // is: the two then share a baseline.
+                    let plain = TextStyle(color: style.color, fontSize: style.fontSize, fontWeight: style.fontWeight,
+                                          fontStyle: style.fontStyle, letterSpacing: style.letterSpacing,
+                                          fontFeatures: style.fontFeatures, decoration: style.decoration,
+                                          decorationColor: style.decorationColor, fontFamily: style.fontFamily,
+                                          fontFamilyFallback: style.fontFamilyFallback)
+                    let tp = TextPainter(text: TextSpan(text: text, style: plain), textDirection: p.style.rightToLeft ? .rtl : .ltr)
+                    tp.layout(minWidth: 0, maxWidth: Double.infinity)
+                    tp.paint(canvas, Offset(origin.dx + box.toRect().left, origin.dy + box.toRect().top + dy))
+                    tp.dispose()
+                }
+                a = b
+            }
+        }
     }
 
     private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument,
-                                 lines: (painter: TextPainter, top: Double, first: Bool)? = nil) {
+                                 lines: (painter: TextPainter, top: Double, first: Bool, paragraph: RichParagraph)? = nil) {
         let g = geometry(i)
         if let lines, !lines.first {
             // Lines from inside the paragraph: no marker, no rules — the text alone.
-            lines.painter.paint(canvas, Offset(g.textLeft, g.textTop + lines.top + _baselineShift(i, document)))
+            let at = Offset(g.textLeft, g.textTop + lines.top + _baselineShift(i, document))
+            lines.painter.paint(canvas, at)
+            _paintScripts(lines.paragraph, lines.painter, at: at, canvas, document)
             return
         }
         if let c = _cells[i], c.firstInRow {
@@ -2000,7 +2054,9 @@ public final class RichLayout {
             }
             marker.dispose()
         }
-        (lines?.painter ?? g.painter).paint(canvas, Offset(g.textLeft, g.textTop + _baselineShift(i, document)))
+        let textAt = Offset(g.textLeft, g.textTop + _baselineShift(i, document))
+        (lines?.painter ?? g.painter).paint(canvas, textAt)
+        _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document)
         if i < _inline.count, !_inline[i].isEmpty, let boxes = g.painter.inlinePlaceholderBoxes {
             for (k, box) in boxes.enumerated() where k < _inline[i].count {
                 let image = _inline[i][k]
