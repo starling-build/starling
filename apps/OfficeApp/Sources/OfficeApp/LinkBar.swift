@@ -34,7 +34,7 @@ final class LinkBar: StatelessWidget {
         var items: [Widget] = [
             SizedBox(width: 60, height: nil, child: Text("Link", style: fluent.typography.body)),
             SizedBox(width: 420, height: 30, child: FluentTextBox(
-                controller: address, placeholderText: "https://…", onSubmitted: { [onApply] _ in onApply() })),
+                controller: address, placeholderText: "https://…", onSubmitted: { [onApply] _ in onApply() }, autofocus: true)),
             Chrome.gap(12),
             Text(session.summary.hasSelection ? "Links the selected text" : "With nothing selected, the address becomes the text",
                  style: hint),

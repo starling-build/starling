@@ -31,8 +31,11 @@ final class HeaderFooterBar: StatelessWidget {
         let hint = fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)
         let items: [Widget] = [
             SizedBox(width: 60, height: nil, child: Text("Header", style: fluent.typography.body)),
+            // (The field takes the keyboard as the bar opens, as Find's
+            // does: Insert → Header and a typed line used to go into the
+            // document's text — seen on screen 2026-10-13.)
             SizedBox(width: 300, height: 30, child: FluentTextBox(
-                controller: header, placeholderText: "Header text", onSubmitted: { [onApply] _ in onApply() })),
+                controller: header, placeholderText: "Header text", onSubmitted: { [onApply] _ in onApply() }, autofocus: true)),
             Chrome.gap(16),
             SizedBox(width: 60, height: nil, child: Text("Footer", style: fluent.typography.body)),
             SizedBox(width: 300, height: 30, child: FluentTextBox(
