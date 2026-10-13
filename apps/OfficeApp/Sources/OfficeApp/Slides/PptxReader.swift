@@ -1701,6 +1701,7 @@ private struct SlideContext {
     /// A SmartArt's drawing part (`dsp:drawing`, reached from the data
     /// part's `dsp:dataModelExt relId`) as shapes at `frame`: its elements
     /// are DrawingML shapes under another prefix, so they read as `p:` ones.
+    private static let customTextId = -125551
     private func _diagram(_ el: XNode, frame: Rect, id: () -> Int) -> [ShapeState] {
         guard let relIds = el.descendant("dgm:relIds"), let dm = relIds["r:dm"],
               let dataPart = package.rels(part).first(where: { $0.id == dm })?.target,
@@ -1750,6 +1751,19 @@ private struct SlideContext {
                     font.children = [color]
                 }
             }
+            // A point whose text size the author set (`custT`): its shape is
+            // marked here (the drawing's ids are all 0) and keeps that size
+            // below, overflowing or not.
+            var custom: Set<String> = [], owner: [String: String] = [:]
+            for pt in data.first("dgm:ptLst")?.all("dgm:pt") ?? [] {
+                guard let id = pt["modelId"], let pr = pt.first("dgm:prSet") else { continue }
+                if pr["custT"] == "1" { custom.insert(id) }
+                if let o = pr["presAssocID"] { owner[id] = o }
+            }
+            for sp in tree?.all("p:sp") ?? [] {
+                guard let id = sp["modelId"], custom.contains(id) || owner[id].map(custom.contains) == true else { continue }
+                sp.descendant("p:cNvPr")?.attrs["id"] = String(Self.customTextId)
+            }
         } else if let (_, layoutDef) = related("r:lo") {
             // No drawing (a deck LibreOffice saved): laid out here from the
             // data and the layout definition.
@@ -1789,8 +1803,10 @@ private struct SlideContext {
         // serves for the rounded and snipped rectangles diagrams favour but
         // not for a gear (gear6, gear9): those are left out.
         // The drawing part caches one layout of the text; PowerPoint fits it
-        // to the shapes afresh, so every text shrinks to fit here too.
-        for i in out.indices where out[i].text != nil { out[i].autofit = true }
+        // to the shapes afresh, so every text shrinks to fit here too —
+        // but for one at a size its author set, which PowerPoint leaves
+        // alone (tdf125551's 32 pt labels run out of their bars).
+        for i in out.indices where out[i].text != nil && out[i].fileId != Self.customTextId { out[i].autofit = true }
         return out.filter { s in
             if case .geometry(let p) = s.kind {
                 // Round things and curved arrows look nothing like their box.
