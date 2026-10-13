@@ -237,7 +237,7 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         #if os(WASI)
         // A tab has no files by path; the picker (⌘O) hands bytes over.
-        _flash("Open a workbook with ⌘O")
+        _flash("Open a workbook with ⌘O".keys)
         #else
         guard let data = FileManager.default.contents(atPath: path) else {
             _flash("Could not open \(path.lastPathComponent)")
@@ -659,7 +659,7 @@ final class SheetsShellState: State<StatefulWidget> {
             if chords.shift { setState { _backstage = .saveAs } } else { _save() }
             return true
         case "o": session.onOpen?(); return true   // the picker in a tab, Backstage natively
-        case "n": _newWorkbook(); return true
+        case "n": session.replacing { [weak self] in self?._newWorkbook() }; return true
         case "p": _print(); return true
         case "f": _openFind(replace: false); return true
         case "h": _openFind(replace: true); return true

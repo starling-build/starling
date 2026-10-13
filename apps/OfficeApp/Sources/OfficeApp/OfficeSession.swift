@@ -140,6 +140,16 @@ final class OfficeSession {
     var onPageSetup: ((PageSetup) -> Void)?
     var onBackstage: ((Bool) -> Void)?
     var onNew: (() -> Void)?
+    /// What was asked for while the document had unsaved changes — a new
+    /// one, another file — held until Backstage's question is answered.
+    var unsavedPrompt: (() -> Void)? = nil
+    /// Run `action`, which replaces the open document: at once when there
+    /// is nothing to lose, otherwise after Backstage has asked.
+    func replacing(_ action: @escaping () -> Void) {
+        guard dirty else { action(); return }
+        unsavedPrompt = action
+        onBackstage?(true)
+    }
     /// Start the other kind (a deck from Writer, a document from Slides).
     var onNewKind: ((DocumentKind) -> Void)?
     /// Open a file of the other kind: the root swaps shells.

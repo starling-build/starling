@@ -787,7 +787,7 @@ final class OfficeShellState: State<StatefulWidget> {
         case "s":
             if mods.contains(.shift) { setState { _backstage = .saveAs } } else { _save() }
         case "o": session.onOpen?()
-        case "n": _new()
+        case "n": session.replacing { [weak self] in self?._new() }
         case "f": _openFind(replace: false)
         case "h": _openFind(replace: true)
         case "g": _findNext(backwards: mods.contains(.shift))
@@ -896,7 +896,7 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         area.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: pages)))
         column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
-        column.append(StatusBar(session: session, message: _status ?? _linkHover.map { "⌘-click to open \($0)" }))
+        column.append(StatusBar(session: session, message: _status ?? _linkHover.map { "⌘-click to open \($0)".keys }))
 
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))

@@ -73,9 +73,9 @@ extension Ribbon {
             ]),
             Chrome.vgap(4),
             Chrome.row([
-                Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)", st.bold, fluent) { wb.setStyle { $0.bold.toggle() } },
-                Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)", st.italic, fluent) { wb.setStyle { $0.italic.toggle() } },
-                Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)", st.underline, fluent) { wb.setStyle { $0.underline.toggle() } },
+                Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)".keys, st.bold, fluent) { wb.setStyle { $0.bold.toggle() } },
+                Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)".keys, st.italic, fluent) { wb.setStyle { $0.italic.toggle() } },
+                Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)".keys, st.underline, fluent) { wb.setStyle { $0.underline.toggle() } },
                 Chrome.toggle(FluentSystemIcons.textStrikethrough, "Strikethrough", st.strike, fluent) { wb.setStyle { $0.strike.toggle() } },
                 Chrome.gap(4),
                 Chrome.menu(nil, Icon(FluentSystemIcons.grid, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary), fluent, [
@@ -156,8 +156,8 @@ extension Ribbon {
             Chrome.small(FluentSystemIcons.mathFormula, "AutoSum", fluent) { Self._autoSum(wb) },
             Chrome.menu(Text("Fill", style: fluent.typography.caption), Icon(FluentSystemIcons.grid, size: Chrome.iconSize,
                         color: fluent.resources.textFillColorPrimary), fluent, [
-                ("Down (⌘D)", { wb.fillDown() }),
-                ("Right (⌘R)", { wb.fillRight() }),
+                ("Down (⌘D)".keys, { wb.fillDown() }),
+                ("Right (⌘R)".keys, { wb.fillRight() }),
             ]),
             Chrome.menu(Text("Clear", style: fluent.typography.caption), Icon(FluentSystemIcons.textClearFormatting, size: Chrome.iconSize,
                         color: fluent.resources.textFillColorPrimary), fluent, [

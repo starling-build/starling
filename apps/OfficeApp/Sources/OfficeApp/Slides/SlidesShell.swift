@@ -936,7 +936,7 @@ final class SlidesShellState: State<StatefulWidget> {
         case "z": _undo()
         case "y": _redo()
         case "n" where mods.contains(.shift): _endEditing(); deck.addSlide()
-        case "n": _newDeck()
+        case "n": session.replacing { [weak self] in self?._newDeck() }
         case "o": session.onOpen?()
         case "s" where mods.contains(.shift): session.onSaveAs?()
         case "s": session.onSave?()

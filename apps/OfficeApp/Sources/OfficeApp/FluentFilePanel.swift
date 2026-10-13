@@ -68,6 +68,7 @@ final class FluentFilePanelState: State<StatefulWidget> {
         return  // no directories to list in a tab
         #else
         var isDir: ObjCBool = false
+        let dir = dir.portablePath
         guard fm.fileExists(atPath: dir, isDirectory: &isDir), isDir.boolValue else { return }
         let names = (try? fm.contentsOfDirectory(atPath: dir)) ?? []
         var entries: [Entry] = []
@@ -95,10 +96,21 @@ final class FluentFilePanelState: State<StatefulWidget> {
         case .open:
             if let s = _selected { _w.onDone(s) }
         case .save:
-            var name = _name.text.trimmingWhitespace(newlines: false)
+            var name = _name.text.trimmingWhitespace(newlines: false).portablePath
             guard !name.isEmpty else { return }
-            if name.pathExtension.isEmpty, let ext = _w.extensions.first { name += ".\(ext)" }
-            _w.onDone(_dir.appendingPathComponent(name))
+            // A whole path typed in the box is taken as one, not as a name
+            // inside the listed folder; a folder typed there is gone to.
+            var target = name.isAbsolutePath ? name : _dir.appendingPathComponent(name)
+            #if !os(WASI)
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: target, isDirectory: &isDir), isDir.boolValue {
+                _name.text = _w.suggestedName
+                _load(target)
+                return
+            }
+            #endif
+            if name.pathExtension.isEmpty, let ext = _w.extensions.first { target += ".\(ext)"; name += ".\(ext)" }
+            _w.onDone(target)
         }
     }
 
@@ -135,11 +147,13 @@ final class FluentFilePanelState: State<StatefulWidget> {
         let crumbs = Row(crossAxisAlignment: .center, children: [
             Chrome.icon(FluentSystemIcons.up, "Up", fluent) { [weak self] in
                 guard let self else { return }
-                let parent = self._dir.deletingLastPathComponent
-                if !parent.isEmpty { self._load(parent) }
+                // "C:/Users" goes up to "C:/", and "C:/" is the top.
+                var parent = self._dir.deletingLastPathComponent
+                if parent.hasSuffix(":") { parent += "/" }
+                if !parent.isEmpty, parent != self._dir { self._load(parent) }
             },
             Chrome.gap(6),
-            Expanded(child: Text(_dir, style: fluent.typography.caption)),
+            Expanded(child: Text(_dir.displayPath, style: fluent.typography.caption)),
         ])
 
         let list = ListView(itemCount: _entries.count) { [weak self] _, i in

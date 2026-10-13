@@ -443,7 +443,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
 
 let initialPath: String? = {
     let args = CommandLine.arguments
-    if args.count > 1 && !args[1].hasPrefix("-") { return args[1] }
+    if args.count > 1 && !args[1].hasPrefix("-") { return args[1].portablePath }
     return nil
 }()
 

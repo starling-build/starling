@@ -29,7 +29,7 @@ enum WelcomeDocument {
         ps.append(styled("Lists and links", "Heading1"))
         for (i, item) in ["Bullets and numbering from the Home tab, Tab to indent.",
                           "Enter on an empty item ends the list.",
-                          "⌘K links the selection; ⌘-click a link to open it."].enumerated() {
+                          "⌘K links the selection; ⌘-click a link to open it.".keys].enumerated() {
             var p = RichParagraph(text: item)
             p.style.list = i < 2 ? .bullet : .numbered
             ps.append(p)
@@ -40,9 +40,9 @@ enum WelcomeDocument {
 
         ps.append(styled("Tables", "Heading1"))
         let cells = [["Feature", "Where", "Shortcut"],
-                     ["Find and replace", "Home → Editing", "⌘F, ⌘H"],
+                     ["Find and replace", "Home → Editing", "⌘F, ⌘H".keys],
                      ["Navigation pane", "View → Show", ""],
-                     ["Formatting marks", "Home → Paragraph", "⌘⇧8"]]
+                     ["Formatting marks", "Home → Paragraph", "⌘⇧8".keys]]
         for (r, row) in cells.enumerated() {
             for (c, text) in row.enumerated() {
                 var p = RichParagraph(text: text)

@@ -110,7 +110,7 @@ final class Ribbon: StatelessWidget {
     /// tab — deliberately not a saturated brand block.
     private func _fileTab(_ fluent: FluentThemeData) -> Widget {
         GestureDetector(
-            onTap: { [session] in session.onBackstage?(true) },
+            onTap: { [session] in session.unsavedPrompt = nil; session.onBackstage?(true) },
             child: Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 4), child: DecoratedBox(
                 decoration: BoxDecoration(color: fluent.accentColor.defaultBrushFor(fluent.brightness).withOpacity(0.08),
                                           border: Border.all(color: OfficeAppearance.border(fluent), width: 1),
@@ -283,8 +283,8 @@ final class Ribbon: StatelessWidget {
                 onChanged: { n in if let n { c.setFontSize(n) } },
                 placeholder: Text(Self._fmt(currentSize)))),
             Chrome.gap(6),
-            FlatButton(child: Chrome.sizeArrowIcon(up: true, fluent), tip: "Grow Font (⌘])") { [session] in c.stepFontSize(1, base: session.effectiveFontSize) },
-            FlatButton(child: Chrome.sizeArrowIcon(up: false, fluent), tip: "Shrink Font (⌘[)") { [session] in c.stepFontSize(-1, base: session.effectiveFontSize) },
+            FlatButton(child: Chrome.sizeArrowIcon(up: true, fluent), tip: "Grow Font (⌘])".keys) { [session] in c.stepFontSize(1, base: session.effectiveFontSize) },
+            FlatButton(child: Chrome.sizeArrowIcon(up: false, fluent), tip: "Shrink Font (⌘[)".keys) { [session] in c.stepFontSize(-1, base: session.effectiveFontSize) },
             Chrome.gap(2),
             Chrome.menu(nil, Icon(FluentSystemIcons.textChangeCase, size: Chrome.iconSize,
                                   color: fluent.resources.textFillColorPrimary), fluent, [
@@ -297,9 +297,9 @@ final class Ribbon: StatelessWidget {
             Chrome.icon(FluentSystemIcons.textClearFormatting, "Clear All Formatting", fluent) { c.clearFormatting() },
         ])
         let fontRow2 = Chrome.row([
-            Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)", s.bold, fluent) { c.toggleBold() },
-            Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)", s.italic, fluent) { c.toggleItalic() },
-            Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)", s.underline, fluent) { c.toggleUnderline() },
+            Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)".keys, s.bold, fluent) { c.toggleBold() },
+            Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)".keys, s.italic, fluent) { c.toggleItalic() },
+            Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)".keys, s.underline, fluent) { c.toggleUnderline() },
             Chrome.toggle(FluentSystemIcons.textStrikethrough, "Strikethrough", s.strikethrough, fluent) { c.toggleStrikethrough() },
             Chrome.toggle(FluentSystemIcons.textSubscript, "Subscript", s.subscript, fluent) { c.setScript(.subscript) },
             Chrome.toggle(FluentSystemIcons.textSuperscript, "Superscript", s.superscript, fluent) { c.setScript(.superscript) },
@@ -324,7 +324,7 @@ final class Ribbon: StatelessWidget {
             Chrome.icon(FluentSystemIcons.indentDecrease, "Decrease Indent", fluent) { c.indent(-1) },
             Chrome.icon(FluentSystemIcons.indentIncrease, "Increase Indent", fluent) { c.indent(1) },
             Chrome.gap(2),
-            Chrome.toggle(FluentSystemIcons.paragraphMarks, "Show/Hide ¶ (⌘⇧8)", session.showMarks, fluent) { [session] in session.onToggleMarks?() },
+            Chrome.toggle(FluentSystemIcons.paragraphMarks, "Show/Hide ¶ (⌘⇧8)".keys, session.showMarks, fluent) { [session] in session.onToggleMarks?() },
         ])
         let paraRow2 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.alignLeft, "Align Left", s.alignment == .left, fluent) { c.setAlignment(.left) },

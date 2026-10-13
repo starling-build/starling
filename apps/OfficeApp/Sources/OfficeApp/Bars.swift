@@ -47,11 +47,11 @@ final class TitleRow: StatelessWidget {
                     Chrome.gap(10),
                     Text(session.kind.appName, style: titleStyle),
                     Chrome.gap(24),
-                    command(FluentSystemIcons.save, "Save (⌘S)") { [session] in session.onSave?() },
-                    command(FluentSystemIcons.undo, "Undo (⌘Z)", enabled: s.canUndo) { [session] in
+                    command(FluentSystemIcons.save, "Save (⌘S)".keys) { [session] in session.onSave?() },
+                    command(FluentSystemIcons.undo, "Undo (⌘Z)".keys, enabled: s.canUndo) { [session] in
                         if let undo = session.onUndo { undo() } else { c.undo() }
                     },
-                    command(FluentSystemIcons.redo, "Redo (⇧⌘Z)", enabled: s.canRedo) { [session] in
+                    command(FluentSystemIcons.redo, "Redo (⇧⌘Z)".keys, enabled: s.canRedo) { [session] in
                         if let redo = session.onRedo { redo() } else { c.redo() }
                     },
                     Expanded(child: Padding(padding: EdgeInsets(left: 16, top: 0, right: 16, bottom: 0),
@@ -64,7 +64,7 @@ final class TitleRow: StatelessWidget {
                     Chrome.gap(16),
                     SizedBox(width: 230, height: 32, child: FluentTextBox(
                         controller: searchController,
-                        placeholderText: session.kind == .document ? "Find in document (⌘F)" : session.kind == .workbook ? "Find in workbook (⌘F)" : "Find in presentation (⌘F)",
+                        placeholderText: session.kind == .document ? "Find in document (⌘F)".keys : session.kind == .workbook ? "Find in workbook (⌘F)".keys : "Find in presentation (⌘F)".keys,
                         onSubmitted: { [onSearch] q in onSearch(q) })),
                 ])))
     }
@@ -88,7 +88,7 @@ final class StatusBar: StatelessWidget {
         var left: [Widget] = [
             Text("Page \(session.pageInfo.page) of \(session.pageInfo.count)", style: caption),
             Chrome.gap(20),
-            Text("\(s.words) words", style: caption),
+            Text(s.words == 1 ? "1 word" : "\(s.words) words", style: caption),
             Chrome.gap(20),
             Text("English (United States)", style: dim),
         ]

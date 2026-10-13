@@ -43,11 +43,46 @@ extension String {
     }
 }
 
+extension String {
+    /// A path as this file's arithmetic takes it: forward slashes only. On
+    /// Windows a path arrives with backslashes (the home directory, a
+    /// command-line argument, what a user types), which the functions
+    /// above would read as one long name; Windows itself takes either.
+    var portablePath: String {
+        #if os(Windows)
+        return String(map { $0 == "\\" ? "/" : $0 })
+        #else
+        return self
+        #endif
+    }
+
+    /// A path as the platform writes it, for showing: backslashes on Windows.
+    var displayPath: String {
+        #if os(Windows)
+        return String(map { $0 == "/" ? "\\" : $0 })
+        #else
+        return self
+        #endif
+    }
+
+    /// Whether this names a place by itself — "/a/b", or "C:/a" on Windows
+    /// — rather than something inside the current directory.
+    var isAbsolutePath: Bool {
+        if hasPrefix("/") { return true }
+        #if os(Windows)
+        let u = Array(unicodeScalars.prefix(3))
+        return u.count == 3 && u[1] == ":" && u[2] == "/" && u[0].properties.isAlphabetic
+        #else
+        return false
+        #endif
+    }
+}
+
 /// `NSHomeDirectory()`. A tab has no home; "/" keeps the paths well-formed.
 func homeDirectory() -> String {
     #if os(WASI)
     return "/"
     #else
-    return NSHomeDirectory()
+    return NSHomeDirectory().portablePath
     #endif
 }

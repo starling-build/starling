@@ -89,7 +89,8 @@ final class Backstage: StatelessWidget {
         var items: [Widget] = [
             Padding(padding: EdgeInsets(left: 8, top: 8, right: 8, bottom: 16), child: Row(children: [
                 FlatButton(child: Icon(FluentSystemIcons.back, size: 20, color: ink),
-                           tip: "Back to document", width: 36, height: 36, onAccent: true, action: onClose),
+                           tip: "Back to document", width: 36, height: 36, onAccent: true,
+                           action: { [session, onClose] in session.unsavedPrompt = nil; onClose() }),
                 Chrome.gap(10),
                 Text(session.kind.appName, style: fluent.typography.bodyStrong?.copyWith(color: ink)),
             ])),
@@ -112,6 +113,7 @@ final class Backstage: StatelessWidget {
     // MARK: Pages
 
     private func _content(_ fluent: FluentThemeData) -> Widget {
+        if let pending = session.unsavedPrompt { return _unsaved(pending, fluent) }
         switch page {
         case .home: return _home(fluent)
         case .new: return _new(fluent)
@@ -126,7 +128,7 @@ final class Backstage: StatelessWidget {
                                     ? ("Print…", { [session] in session.onPrint?() })
                                     : ("Export PDF", { [session] in session.onExport?("pdf") }))
         case .insertPicture: return _picturePanel(fluent)
-        case .close: return _simple("Close", "Close the document and start a blank one.", fluent, action: ("Close document", { [session] in session.onNew?() }))
+        case .close: return _simple("Close", "Close the document and start a blank one.", fluent, action: ("Close document", { [session] in session.replacing { session.onNew?() } }))
         }
     }
 
@@ -143,20 +145,20 @@ final class Backstage: StatelessWidget {
         }
         for path in recent.prefix(12) {
             recentRows.append(FlyoutListTile(
-                onPressed: { [onOpenPath] in onOpenPath(path) },
+                onPressed: { [session, onOpenPath] in session.replacing { onOpenPath(path) } },
                 icon: Icon(FluentSystemIcons.document, size: 16, color: fluent.resources.textFillColorPrimary),
                 text: Text(path.lastPathComponent),
-                trailing: Text(path.deletingLastPathComponent,
+                trailing: Text(path.deletingLastPathComponent.displayPath,
                                style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary))))
         }
         return Column(crossAxisAlignment: .start, children: [
             _heading("Good \(Self._daypart())", fluent),
             Row(children: [
-                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNewKind?(.document) },
+                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.replacing { session.onNewKind?(.document) } },
                 Chrome.gap(16),
-                _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.onNewKind?(.presentation) },
+                _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.replacing { session.onNewKind?(.presentation) } },
                 Chrome.gap(16),
-                _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.onNewKind?(.workbook) },
+                _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.replacing { session.onNewKind?(.workbook) } },
                 Chrome.gap(16),
                 _template("Open", FluentSystemIcons.folderOpen, fluent) { [self] in self._go(.open) },
             ]),
@@ -169,21 +171,21 @@ final class Backstage: StatelessWidget {
         Column(crossAxisAlignment: .start, children: [
             _heading("New", fluent),
             Row(children: [
-                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.onNewKind?(.document) },
+                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.replacing { session.onNewKind?(.document) } },
                 Chrome.gap(16),
-                _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.onNewKind?(.presentation) },
+                _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.replacing { session.onNewKind?(.presentation) } },
                 Chrome.gap(16),
-                _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.onNewKind?(.workbook) },
+                _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.replacing { session.onNewKind?(.workbook) } },
             ] + (session.kind != .document ? [] : [
                 Chrome.gap(16),
-                _template("Letter", FluentSystemIcons.document, fluent) { [session] in
+                _template("Letter", FluentSystemIcons.document, fluent) { [session] in session.replacing {
                     session.onNew?()
                     let c = session.controller
                     c.insertText("[Your name]\n[Street address]\n[City, State ZIP]\n\n\(Self._today())\n\nDear [Recipient],\n\n[Body]\n\nSincerely,\n\n[Your name]")
                     c.moveTo(.start, extend: false)
-                },
+                } },
                 Chrome.gap(16),
-                _template("Report", FluentSystemIcons.document, fluent) { [session] in
+                _template("Report", FluentSystemIcons.document, fluent) { [session] in session.replacing {
                     session.onNew?()
                     let c = session.controller
                     c.insertText("Report title")
@@ -194,7 +196,7 @@ final class Backstage: StatelessWidget {
                     c.insertParagraphBreak()
                     c.insertText("[Start writing here.]")
                     c.moveTo(.start, extend: false)
-                },
+                } },
             ])),
         ])
     }
@@ -225,6 +227,7 @@ final class Backstage: StatelessWidget {
         default: break
         }
         #endif
+        session.unsavedPrompt = nil
         onPage(p)
     }
 
@@ -240,9 +243,9 @@ final class Backstage: StatelessWidget {
                 mode: mode, initialDirectory: start, suggestedName: suggested,
                 extensions: mode == .open ? OfficeFormats.readable + ["pptx", "xlsx", "csv", "tsv"]
                     : session.kind == .presentation ? ["pptx"] : session.kind == .workbook ? ["xlsx", "csv", "tsv"] : OfficeFormats.writable,
-                onDone: { [onClose, onOpenPath, onSavePath] path in
+                onDone: { [session, onClose, onOpenPath, onSavePath] path in
                     guard let path else { onClose(); return }
-                    if mode == .open { onOpenPath(path) } else { onSavePath(path) }
+                    if mode == .open { session.replacing { onOpenPath(path) } } else { onSavePath(path) }
                 })),
         ])
     }
@@ -265,7 +268,7 @@ final class Backstage: StatelessWidget {
     private func _info(_ fluent: FluentThemeData) -> Widget {
         let s = session.summary
         let rows: [(String, String)] = [
-            ("Location", session.path ?? "Not saved yet"),
+            ("Location", session.path?.displayPath ?? "Not saved yet"),
             ("Pages", "\(session.pageInfo.count)"),
             ("Words", "\(s.words)"),
             ("Characters", "\(s.characters)"),
@@ -312,6 +315,38 @@ final class Backstage: StatelessWidget {
                 _template("Rich Text (.rtf)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("rtf") },
                 Chrome.gap(16),
                 _template("Plain Text (.txt)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("txt") },
+            ]),
+        ])
+    }
+
+    /// The question before a document with unsaved changes is replaced:
+    /// save it first, let the changes go, or stay.
+    private func _unsaved(_ pending: @escaping () -> Void, _ fluent: FluentThemeData) -> Widget {
+        let named = session.path != nil
+        return Column(crossAxisAlignment: .start, children: [
+            _heading("Save changes to \(session.title)?", fluent),
+            Text(named ? "It has changes that have not been saved."
+                       : "It has not been saved yet. Save it first, or its contents are lost.",
+                 style: fluent.typography.body),
+            Chrome.vgap(16),
+            Row(children: [
+                FilledButton(onPressed: { [session, onPage] in
+                    session.unsavedPrompt = nil
+                    guard named else { onPage(.saveAs); return }
+                    session.onSave?()
+                    // A save that failed has said so; the document stays.
+                    if !session.dirty { pending() }
+                }, child: Text(named ? "Save" : "Save As…")),
+                Chrome.gap(8),
+                Button(onPressed: { [session] in
+                    session.unsavedPrompt = nil
+                    pending()
+                }, child: Text("Don't Save")),
+                Chrome.gap(8),
+                Button(onPressed: { [session, onPage, page] in
+                    session.unsavedPrompt = nil
+                    onPage(page)
+                }, child: Text("Cancel")),
             ]),
         ])
     }
