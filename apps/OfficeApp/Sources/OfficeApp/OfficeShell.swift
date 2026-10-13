@@ -991,7 +991,11 @@ enum OfficeRecovery {
 
 enum OfficeRecent {
     private static var _file: String {
-        let dir = homeDirectory() + "/.config/starling"
+        // (A driven instance keeps its list with its recovery copies:
+        // the test drivers' scratch files filled the user's own Recent
+        // list — fourteen of its twenty places, 2026-10-13.)
+        let dir = ProcessInfo.processInfo.environment["OFFICE_RECOVERY_DIR"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? homeDirectory() + "/.config/starling"
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         return dir + "/office-recent.txt"
     }
