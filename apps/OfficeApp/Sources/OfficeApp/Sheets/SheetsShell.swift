@@ -685,6 +685,7 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     private func _closeFind() {
+        guard _findOpen else { return }   // a field being torn down blurs too
         setState { _findOpen = false }
         _grid?.focus.requestFocus()
     }

@@ -47,6 +47,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _recent: [String] = []
     private let _search = TextEditingController()
     private let _findQuery = TextEditingController()
+    /// The document's own focus, so closing a bar can hand the keyboard back.
+    private let _editorFocus = FocusNode(debugLabel: "Writer document")
     private let _findReplacement = TextEditingController()
     private var _headerFooterOpen = false
     private var _linkOpen = false
@@ -142,6 +144,7 @@ final class OfficeShellState: State<StatefulWidget> {
         _search.dispose()
         _findQuery.dispose()
         _findReplacement.dispose()
+        _editorFocus.dispose()
         _headerText.dispose()
         _linkText.dispose()
         _colorText.dispose()
@@ -605,6 +608,10 @@ final class OfficeShellState: State<StatefulWidget> {
         if controller.hasSelection, !controller.selectedText.contains(Character("\n")) {
             _findQuery.text = controller.selectedText
         }
+        // The query — the selection's, or the last one — comes up selected,
+        // so typing a different one replaces it.
+        let seed = _findQuery.text
+        _findQuery.value = TextEditingValue(text: seed, selection: TextSelection(baseOffset: 0, extentOffset: seed.utf16.count))
     }
 
     private func _findNext(backwards: Bool) {
@@ -760,7 +767,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _linkOpen { setState { _linkOpen = false }; return true }
             if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
-            if _findOpen { setState { _findOpen = false }; return true }
+            if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
             return false
         }
@@ -834,7 +841,12 @@ final class OfficeShellState: State<StatefulWidget> {
                                   onNext: { [weak self] back in self?._findNext(backwards: back) },
                                   onReplace: { [weak self] in self?._replaceOne() },
                                   onReplaceAll: { [weak self] in self?._replaceAll() },
-                                  onClose: { [weak self] in self?.setState { self?._findOpen = false } }))
+                                  onClose: { [weak self] in
+                                      // (A field being torn down blurs too: once is enough.)
+                                      guard let self, self._findOpen else { return }
+                                      self.setState { self._findOpen = false }
+                                      self._editorFocus.requestFocus()
+                                  }))
         }
         if let styleId = _styleOpen {
             column.append(StyleBar(session: session, styleId: styleId,
@@ -928,6 +940,7 @@ final class OfficeShellState: State<StatefulWidget> {
         return RichEditable(
             controller: controller, theme: theme,
             padding: EdgeInsets(left: readMargin, top: 24, right: readMargin, bottom: 24),
+            focusNode: _editorFocus,
             backgroundColor: paged ? backdrop : page, zoom: session.zoom,
             pageSetup: paged ? session.pageSetup : nil, pageColor: page,
             onPageInfo: { [weak self] p, n in

@@ -35,13 +35,20 @@ final class FindBar: StatelessWidget {
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
+        // Escape in a field unfocuses it and is consumed there, which left
+        // the bar open with the keyboard going nowhere — a second Escape,
+        // or Ctrl+H, did nothing. A field that loses focus to nothing (not
+        // to the other field, nor to the document) closes the bar.
+        let blurred: (Bool) -> Void = { [onClose] focused in
+            if !focused, FocusManager.instance.focusedNode == nil { onClose() }
+        }
         var items: [Widget] = [
             SizedBox(width: 60, height: nil, child: Text("Find", style: fluent.typography.body)),
             // The field takes the keyboard as the bar opens: ⌘F then type.
             SizedBox(width: 260, height: 30, child: FluentTextBox(
                 controller: query,
                 placeholderText: session.kind == .presentation ? "Search presentation" : "Search document",
-                onSubmitted: { [onNext] _ in onNext(false) }, autofocus: true)),
+                onSubmitted: { [onNext] _ in onNext(false) }, autofocus: true, onFocusChanged: blurred)),
             Chrome.gap(6),
             Chrome.icon(FluentSystemIcons.chevronUp, "Previous", fluent) { [onNext] in onNext(true) },
             Chrome.icon(FluentSystemIcons.chevronDown, "Next", fluent) { [onNext] in onNext(false) },
@@ -53,7 +60,7 @@ final class FindBar: StatelessWidget {
             items.append(SizedBox(width: 70, height: nil, child: Text("Replace", style: fluent.typography.body)))
             items.append(SizedBox(width: 220, height: 30, child: FluentTextBox(
                 controller: replacement, placeholderText: "Replace with",
-                onSubmitted: { [onReplace] _ in onReplace() })))
+                onSubmitted: { [onReplace] _ in onReplace() }, onFocusChanged: blurred)))
             items.append(Chrome.gap(6))
             items.append(Button(onPressed: onReplace, child: Text("Replace")))
             items.append(Chrome.gap(4))

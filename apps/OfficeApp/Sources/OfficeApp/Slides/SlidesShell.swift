@@ -306,6 +306,10 @@ final class SlidesShellState: State<StatefulWidget> {
         if (_active != nil || _notesActive), c.hasSelection, !c.selectedText.contains(Character("\n")) {
             _findQuery.text = c.selectedText
         }
+        // The query — the selection's, or the last one — comes up selected,
+        // so typing a different one replaces it.
+        let seed = _findQuery.text
+        _findQuery.value = TextEditingValue(text: seed, selection: TextSelection(baseOffset: 0, extentOffset: seed.utf16.count))
         setState {
             _findOpen = true
             _findReplace = replace
@@ -996,7 +1000,11 @@ final class SlidesShellState: State<StatefulWidget> {
                                   onNext: { [weak self] back in self?._findNext(backwards: back) },
                                   onReplace: { [weak self] in self?._replaceOne() },
                                   onReplaceAll: { [weak self] in self?._replaceAll() },
-                                  onClose: { [weak self] in self?.setState { self?._findOpen = false } }))
+                                  onClose: { [weak self] in
+                                      // (A field being torn down blurs too: once is enough.)
+                                      guard let self, self._findOpen else { return }
+                                      self.setState { self._findOpen = false }
+                                  }))
         }
         var work: [Widget] = [Expanded(child: SlideCanvas(
             key: _canvasKey,
