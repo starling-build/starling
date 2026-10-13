@@ -1377,23 +1377,37 @@ public final class RichLayout {
         }
         // A table's header row, repeated at the top of each later page it
         // runs on: the row's pieces again, marked, in the page only.
+        // How many of a table's first rows are its header, repeated on
+        // each page it runs on: the rows the file marks — none where it
+        // marks them all, which Word repeats nothing of (a form of
+        // sixteen rows, each marked: every page began with the form's
+        // head again and never got past it).
+        func headerRows(_ table: String) -> Int {
+            guard let ts = document.tableStyles[table], ts.headerRow else { return 0 }
+            let n = theme.wordRules ? max(1, ts.headerRowCount) : 1
+            return theme.wordRules && n > (_tableRows[table] ?? 0) ? 0 : n
+        }
         func repeatHeader(of table: String, before i: Int) {
             var k0 = i
             while k0 > 0, let d = _cells[k0 - 1], d.table == table { k0 -= 1 }
             guard let h = _cells[k0], h.row == 0 else { return }
             // (Every row the file marks as a header, where Word's rules
             // are followed: a heading of two rows is repeated whole.)
-            let rows = theme.wordRules ? max(1, document.tableStyles[table]?.headerRowCount ?? 1) : 1
+            let rows = headerRows(table)
             var j = k0
             var height = 0.0
+            var pieces: [PagePiece] = []
             while j < count, let d = _cells[j], d.table == table, d.row < rows {
                 let bottom = d.rowSpan > 1 ? d.rowTop + d.rowHeight : d.rowTop + d.ownRowHeight
                 var piece = PagePiece(paragraph: j, flowTop: d.rowTop, flowBottom: bottom, page: page, pageY: y + (d.rowTop - h.rowTop))
                 piece.repeated = true
-                _pages[page].append(piece)
+                pieces.append(piece)
                 height = max(height, d.rowTop + d.ownRowHeight - h.rowTop)
                 j += 1
             }
+            // (Not a header that leaves the page no room under it.)
+            guard height < contentH - y - 1 else { return }
+            _pages[page].append(contentsOf: pieces)
             y += height
         }
         // A table row too tall for what is left of the page parts over
@@ -1491,7 +1505,7 @@ public final class RichLayout {
         }
         func splitRow(_ i: Int, _ j: Int, _ c: _CellGeo, atTop: Bool) -> Bool {
             let ts = document.tableStyles[c.table]
-            guard let ts, !ts.rowsCantSplit.contains(c.row), !(ts.headerRow && c.row < max(1, ts.headerRowCount)) else { return false }
+            guard let ts, !ts.rowsCantSplit.contains(c.row), c.row >= headerRows(c.table) else { return false }
             for k in i ..< j { guard let d = _cells[k], !d.vertical else { return false } }
             var fresh = atTop
             let rowBottom = c.rowTop + c.ownRowHeight
@@ -1508,7 +1522,7 @@ public final class RichLayout {
                 columns[columns.count - 1].bottom = d.rowSpan > 1 ? min(rowBottom, _tops[k] + _heights[k] + d.pad.bottom)
                     : _tops[k] + _heights[k] + d.pad.bottom
             }
-            let repeats = c.row > 0 && ts.headerRow
+            let repeats = c.row > 0 && headerRows(c.table) > 0
             var pieces: [Int: [PagePiece]] = [:]
             var rules: [PagePiece] = []
             var first = true
@@ -1609,7 +1623,7 @@ public final class RichLayout {
                 // again, and the cells merged down from above.)
                 func goOn() {
                     guard c.row > 0 else { return }
-                    if document.tableStyles[c.table]?.headerRow == true { repeatHeader(of: c.table, before: i) }
+                    if headerRows(c.table) > 0 { repeatHeader(of: c.table, before: i) }
                     continueSpans(into: i, c)
                 }
                 let atTop = y < 0.01
