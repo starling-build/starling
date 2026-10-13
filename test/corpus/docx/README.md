@@ -7,7 +7,7 @@ them the PDF that Microsoft Word itself prints. The counterpart of
     docs/           the documents, as downloaded
     SHA256SUMS      of docs/, to tell a changed document from a changed painter
     word/           NAME-orig.pdf — Word's print of docs/NAME.docx
-    baseline.tsv    each document's score at the last recorded painter sweep (6, 2026-10-12, a Mac)
+    baseline.tsv    each document's score at the last recorded painter sweep (7, 2026-10-13, a Mac)
     matched.txt, others.txt   the two groups of that baseline
     roundtrip.tsv   the round-trip gate's score for each document (2026-10-12)
     zh-manifest.tsv where each `zh-*` document was downloaded from
@@ -29,18 +29,21 @@ it. `baseline.tsv`, swept by `test/docx-app-render.sh`:
 It needs a release build (`OFFICE_APP` names another binary) and takes
 about two minutes; `OfficeApp --convert NAME.docx NAME.pdf` is this
 app's side. `WORK/render.tsv` gets a row per document and `WORK/pairs/`
-a side-by-side PNG of every page that differs. Sweep 6, 2026-10-12, by
+a side-by-side PNG of every page that differs. Sweep 7, 2026-10-13, by
 `test/pdf-diff.swift` (CoreGraphics; a sweep by MuPDF off a Mac would be
 `baseline-mupdf.tsv` and its own numbers, as in the .pptx corpus):
 
 | | documents | pages | mean | median | ≤ 2% | 2–20% | > 20% | exact |
 |---|---|---|---|---|---|---|---|---|
-| all | 179 | 1,733 | 9.0% | 4.7% | 76 | 75 | 28 | 3 |
-| POI | 111 | 432 | 3.8% | 0.8% | 76 | 29 | 6 | 3 |
-| `zh-*` | 68 | 1,301 | 17.4% | 15.4% | 0 | 46 | 22 | 0 |
+| all | 179 | 1,698 | 7.7% | 4.3% | 77 | 85 | 17 | 3 |
+| POI | 111 | 427 | 3.5% | 0.7% | 77 | 29 | 5 | 3 |
+| `zh-*` | 68 | 1,271 | 14.6% | 13.7% | 0 | 56 | 12 | 0 |
 
-(Sweep 1, the same day and before any of the work it started: 12.6%
-over all, POI 4.7%, `zh-*` 25.6%; sweep 5, 9.7%, 3.8% and 19.3%.)
+(Sweep 1, 2026-10-12 and before any of the work it started: 12.6%
+over all, POI 4.7%, `zh-*` 25.6%; sweep 6, the same day, 9.0%, 3.8%
+and 17.4%. Sweep 7 is the first with the documents' pictures drawn —
+until then a converted PDF had a grey box for each — so a page of
+pictures set a few points off scores worse than it did.)
 
 A page diff says little about a document that is one line late from its
 second page on, so there is a second reading of the same sweep:
@@ -48,11 +51,11 @@ second page on, so there is a second reading of the same sweep:
     test/docx-line-match.py WORK             # the share of Word's lines set in the same place
     test/docx-line-match.py WORK zh-3550     # where one document first parts from Word
 
-At sweep 6 a POI document has three fifths of Word's lines where Word
-has them (mean 62%, 50 of 110 at 95% or more) and a Chinese one nearly
-half (mean 45%, median 43%; 3 at 95%, 25 at half or more, 40 of the
-68 with Word's page count); at sweep 1 it was 42% and 5%, at sweep 5
-61% and 33%. A document's score falls at the first paragraph that
+At sweep 7 a POI document has three fifths of Word's lines where Word
+has them (mean 62%, 50 of 110 at 95% or more) and a Chinese one two
+thirds (mean 65%, median 76%; 22 at 95%, 45 at half or more, 47 of
+the 68 with Word's page count); at sweep 1 it was 42% and 5%, at
+sweep 6 62% and 45%. A document's score falls at the first paragraph that
 breaks differently, and that paragraph is what the second form prints.
 (The pixel mean moves less, and not always the same way: a document
 that gains or loses a page against Word's count has a page that is

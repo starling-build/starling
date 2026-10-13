@@ -397,6 +397,12 @@ enum OfficeFonts {
         if let symbols = TerminalFontLoader.registerSymbolFallback() {
             RichTextTheme.glyphFallback = [symbols]
         }
+        #else
+        // Chinese text is drawn by the system's face, which the engine
+        // finds character by character — and finds in its regular weight
+        // whatever was asked: no bold heading was bold. Named as a
+        // fallback family it is matched like one, weight and all.
+        RichTextTheme.glyphFallback = ["PingFang SC"]
         #endif
         guard let bundle = _bundle("OfficeApp_OfficeApp") else {
             FileHandle.standardError.write("[Office] font bundle not found; documents use the engine's default face\n".data(using: .utf8)!)
