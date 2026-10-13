@@ -1411,6 +1411,18 @@ fitter dropped the paragraph's tail).
   lines as Word does and parts from it where Word splits a row over
   two pages and this app moves the row.
 
+- **A row's rules are part of its height**, and which rules a row
+  has is the cells' word before the table's. The line above a row is
+  as wide as the widest of its cells' top sides and the bottom sides
+  of the cells above them (a form whose cells rule their bottoms and
+  say `nil` above: rows 31pt apart for 30 high); a table ruled round
+  its rim whose cells each rule four sides has one above every row
+  (the fifteen plan tables of the sample were 0.75pt a row short,
+  twelve points by the foot of a page); a double line is three of
+  its width; a height the file gives a row (`w:trHeight`) is the
+  room between its rules, unless it is exact, which is the row.
+  Sample: 22 documents closer, 2 further; mean 46.1% -> 49.9%.
+
 Still open from the automatic space's lab: from mode 15 on the
 spaces give in a justified paragraph only, and by a rule not found
 (one space gave its whole 4pt, two under 4 between them, four under

@@ -526,6 +526,10 @@ public final class RichLayout {
         var across: Double = 0
         /// The cell's margins, px: its own, or the table's.
         var pad = EdgeInsets.zero
+        /// How much of `pad`, top and bottom together, is the row's
+        /// rules: a row is that much taller than the height the file
+        /// gave it.
+        var rules: Double = 0
         /// The cell's own edge lines (`CellRef.borders`).
         var borders = CellRef.CellBorders()
         var vertical: Bool { direction != .horizontal }
@@ -890,6 +894,20 @@ public final class RichLayout {
     /// centres or right-aligns (Word's table alignment).
     /// A table's cell insets (px): its own margins where it has them, the
     /// layout's padding where not.
+    /// One side of a cell's own borders as the file wrote them
+    /// (`CellRef.bordersXML`): its line style and width in points, nil
+    /// where the cell names no such side or says none.
+    private static func _cellSide(_ xml: String?, _ side: String) -> (style: String, width: Double)? {
+        guard let xml, let a = xml.range(of: "<w:\(side) "), let b = xml.range(of: ">", range: a.upperBound ..< xml.endIndex) else { return nil }
+        let element = xml[a.upperBound ..< b.lowerBound]
+        func value(_ name: String) -> Substring? {
+            guard let s = element.range(of: name + "=\""), let e = element.range(of: "\"", range: s.upperBound ..< element.endIndex) else { return nil }
+            return element[s.upperBound ..< e.lowerBound]
+        }
+        guard let style = value("w:val"), style != "nil", style != "none" else { return nil }
+        return (String(style), max(0.25, (value("w:sz").flatMap { Double($0) } ?? 4) / 8))
+    }
+
     private func _cellInsets(_ table: String, _ document: RichDocument) -> (top: Double, left: Double, bottom: Double, right: Double) {
         let s = document.tableStyles[table]
         return (s?.cellMarginTop.map(_px) ?? cellPadding, s?.cellMarginLeft.map(_px) ?? cellPadding,
@@ -1023,8 +1041,10 @@ public final class RichLayout {
                 while j < n, let d2 = _cells[j], d2.table == table, d2.row == d.row { j += 1 }
                 var stack: [Int: Double] = [:]
                 var rowHeight = 0.0
+                var rules = 0.0
                 for k in k0 ..< j {
                     let cell = _cells[k]!
+                    if cell.rowSpan == 1 { rules = max(rules, cell.rules) }
                     let offset = stack[cell.column] ?? 0
                     _tops[k] = y + cell.pad.top + offset
                     _rowTops[k] = y
@@ -1039,7 +1059,12 @@ public final class RichLayout {
                 // margins tall.)
                 rowHeight = max(rowHeight, ins.top + ins.bottom)
                 // A row the file gave a height: at least that tall.
-                if let least = document.tableStyles[table]?.rowHeights[d.row] { rowHeight = max(rowHeight, _px(least)) }
+                // (And its rules: the height is the room between them.)
+                // An exact one is that tall with its rules, whatever is in it.
+                if let least = document.tableStyles[table]?.rowHeights[d.row] {
+                    let exact = theme.wordRules && (document.tableStyles[table]?.rowsExactHeight.contains(d.row) ?? false)
+                    rowHeight = exact ? _px(least) : max(rowHeight, _px(least) + rules)
+                }
                 for k in k0 ..< j {
                     _cells[k]!.rowTop = y
                     _cells[k]!.rowHeight = rowHeight
@@ -1696,19 +1721,48 @@ public final class RichLayout {
             // A ruled row is its rule taller, as Word sets it: the line
             // above each row takes its width from the row, and the last
             // row has the table's bottom line too.
+            // (The cell's own side over the table's: a table ruled
+            // around its rim alone whose cells each rule their four
+            // sides has a line above every row. And a double line is
+            // three of its width — two lines and the gap: rows 17.5pt
+            // apart at half a point, 20.5 at one and a half, where a
+            // single line's are 16.5 and 17.5.)
+            // (The line between two rows is the upper row's bottom
+            // one as much as the lower row's top one: a form whose
+            // cells rule their bottoms and say none above is ruled
+            // between every two rows, 31pt apart for rows 30 high.)
+            var rules = 0.0
             if theme.wordRules, let ts = document.tableStyles[c.table] {
-                let rule = _px(c.borderWidth ?? ts.borderWidth ?? 0.5)
-                let last = c.row + c.rowSpan - 1 >= (_tableRows[c.table] ?? 0)
-                if (c.row == 0 ? ts.edges?.top : ts.edges?.insideH) ?? ts.borders {
-                    pad = EdgeInsets(left: pad.left, top: pad.top + rule, right: pad.right, bottom: pad.bottom)
+                let rows = _tableRows[c.table] ?? 0
+                func rule(_ d: CellRef, _ side: String) -> Double {
+                    let said = Self._cellSide(d.bordersXML, side)
+                    let end = d.row + d.rowSpan - 1
+                    let tables = side == "top" ? (d.row == 0 ? ts.edges?.top : ts.edges?.insideH) : (end >= rows ? ts.edges?.bottom : ts.edges?.insideH)
+                    guard (side == "top" ? d.edges?.top : d.edges?.bottom) ?? tables ?? ts.borders else { return 0 }
+                    let tableSide = (side == "top" ? d.row > 0 : end < rows) ? "insideH" : side
+                    let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
+                    let width = said?.width ?? d.borderWidth ?? ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
+                    return _px(width * (style == "double" ? 3 : 1))
                 }
-                if last, ts.edges?.bottom ?? ts.borders {
-                    pad = EdgeInsets(left: pad.left, top: pad.top, right: pad.right, bottom: pad.bottom + rule)
+                var top = rule(c, "top")
+                if c.row > 0 {
+                    var k = i - 1
+                    while k >= 0, let d = document.paragraphs[k].cell, d.table == c.table, d.row + d.rowSpan - 1 >= c.row - 1 {
+                        if d.row + d.rowSpan - 1 == c.row - 1 { top = max(top, rule(d, "bottom")) }
+                        k -= 1
+                    }
+                }
+                if top > 0 { pad = EdgeInsets(left: pad.left, top: pad.top + top, right: pad.right, bottom: pad.bottom) }
+                rules = top
+                if c.row + c.rowSpan - 1 >= rows {
+                    let bottom = rule(c, "bottom")
+                    if bottom > 0 { pad = EdgeInsets(left: pad.left, top: pad.top, right: pad.right, bottom: pad.bottom + bottom) }
+                    rules += bottom
                 }
             }
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
                                  colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges,
-                                 verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, borders: c.borders)
+                                 verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, rules: rules, borders: c.borders)
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
             if c.textDirection != .horizontal {
