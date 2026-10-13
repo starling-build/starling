@@ -1519,6 +1519,16 @@ fitter dropped the paragraph's tail).
   what of the next one's space before lay over it goes too.
   zh-33aa9899 32% -> 82%, zh-ae655121 84% -> 94%.
 
+- **A row with nothing of its own.** A row whose every cell is
+  merged down from above has no paragraph, and the layout counted
+  rows by their paragraphs: a cell merged over rows 2 to 4 was
+  measured against rows 2, 4 and 5, never stretched its own, and its
+  text ran into the block below (zh-15728c84). Such a row is placed
+  now, as tall as the file says. Still open in that table: Word
+  makes the two rows a two-line label is merged over 45pt where
+  their stated heights add up to 31 — some of a merged cell's text
+  is charged to a row in a way not yet measured.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

@@ -1144,6 +1144,18 @@ public final class RichLayout {
             var rules: [(above: Double, below: Double)] = []
             var k0 = i
             while k0 < n, let d = _cells[k0], d.table == table {
+                // A row with no paragraph of its own — every cell of it
+                // merged down from above — is a row all the same: as
+                // tall as the file says, and counted by the cells that
+                // span it. (Left out, a cell merged over three rows was
+                // measured against the row after them, never stretched
+                // its own, and ran into the text below.)
+                while rows.count < d.row {
+                    let h = _px(document.tableStyles[table]?.rowHeights[rows.count] ?? 0)
+                    rows.append((k0, k0, y, h))
+                    rules.append((0, 0))
+                    y += h
+                }
                 var j = k0
                 while j < n, let d2 = _cells[j], d2.table == table, d2.row == d.row { j += 1 }
                 var stack: [Int: Double] = [:]
