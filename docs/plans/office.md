@@ -1423,6 +1423,24 @@ fitter dropped the paragraph's tail).
   room between its rules, unless it is exact, which is the row.
   Sample: 22 documents closer, 2 further; mean 46.1% -> 49.9%.
 
+- **A row parts over a page's foot.** A row was one block, moved
+  whole to the next page — and the plan tables of the sample are
+  rows a page tall. Word parts a row where every cell with something
+  left can leave some of it above the foot: each cell is cut under
+  its own last line that fits, and each goes on from the top of the
+  next page. Before mode 15 no widow or orphan is kept in a cell (a
+  row with room for one line leaves one); from mode 15 on a
+  paragraph with widow control parts only with two lines on each
+  side, so a cell of two-line paragraphs parts between them and a
+  row with room for one line goes over whole. A cell merged down
+  (`w:vMerge`) is cut at the foot like the rest and goes on under
+  the repeated header, which is every row the file marks, not the
+  first. Not parted: a row with `w:cantSplit`, a header row, a
+  turned cell. Sample: mean 49.9% -> 59.7%, 18 documents at 95% or
+  more (6 before), 46 with Word's page count (38).
+  Not drawn yet: the line Word closes the parted row with at the
+  foot of the page.
+
 Still open from the automatic space's lab: from mode 15 on the
 spaces give in a justified paragraph only, and by a rule not found
 (one space gave its whole 4pt, two under 4 between them, four under
@@ -1430,7 +1448,7 @@ spaces give in a justified paragraph only, and by a rule not found
 16pt, where one is 10.7 wide), which this app does not.
 
 Left, in the order the line match names them: tables (cell widths,
-vertical alignment, rows that split), cover pages and frames in the
+vertical alignment), cover pages and frames in the
 body, page number formats and restarts per section, `w:topLinePunct`,
 drawn lines and shapes (a red rule under a letterhead), and whatever
 the next first-differing line turns out to be.

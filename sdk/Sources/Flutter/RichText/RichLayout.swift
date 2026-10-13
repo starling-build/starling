@@ -425,6 +425,13 @@ public struct PagePiece: Equatable, Sendable {
     /// A header row shown again at the top of a later page: painted and
     /// hit-tested there, but not where the paragraph lives.
     public var repeated = false
+    /// What of the paragraph the piece shows. A table row that parts
+    /// over two pages is cut cell by cell, each at a line of its own, so
+    /// its members' pieces show their text alone (`text`) and the row's
+    /// rules and shading are a piece apart (`rules`), on the row's first
+    /// paragraph, that reaches the page's foot whatever the cells do.
+    public var part: Part = .all
+    public enum Part: Sendable { case all, rules, text }
     public var height: Double { flowBottom - flowTop }
 }
 
@@ -1317,7 +1324,7 @@ public final class RichLayout {
         // from that page's first piece; the pages before it are kept.
         if start > 0, start < count, _pieceStart.count == count + 1, _pieceStart[start] < _allPieces.count,
            case let p = _allPieces[_pieceStart[start]].page, p > 0, p < _pages.count,
-           let first = _pages[p].first(where: { !$0.repeated }) {
+           let first = _pages[p].first(where: { !$0.repeated }), first.part == .all {
             page = p
             i = first.paragraph
             resumeCursor = first.flowTop
@@ -1335,12 +1342,14 @@ public final class RichLayout {
             _pages[0].reserveCapacity(32)
             _allPieces.removeAll(keepingCapacity: true)
         }
+        var prevContentH = contentH
         func newPage() {
             var fresh: [PagePiece] = []
             fresh.reserveCapacity(32)
             _pages.append(fresh)
             page += 1
             y = 0
+            prevContentH = contentH
             openPage()
         }
         if restarted {
@@ -1361,15 +1370,209 @@ public final class RichLayout {
             var k0 = i
             while k0 > 0, let d = _cells[k0 - 1], d.table == table { k0 -= 1 }
             guard let h = _cells[k0], h.row == 0 else { return }
+            // (Every row the file marks as a header, where Word's rules
+            // are followed: a heading of two rows is repeated whole.)
+            let rows = theme.wordRules ? max(1, document.tableStyles[table]?.headerRowCount ?? 1) : 1
             var j = k0
-            while j < count, let d = _cells[j], d.table == table, d.row == 0 { j += 1 }
-            for k in k0 ..< j {
-                let bottom = _cells[k]!.rowSpan > 1 ? h.rowTop + _cells[k]!.rowHeight : h.rowTop + h.ownRowHeight
-                var piece = PagePiece(paragraph: k, flowTop: h.rowTop, flowBottom: bottom, page: page, pageY: y)
+            var height = 0.0
+            while j < count, let d = _cells[j], d.table == table, d.row < rows {
+                let bottom = d.rowSpan > 1 ? d.rowTop + d.rowHeight : d.rowTop + d.ownRowHeight
+                var piece = PagePiece(paragraph: j, flowTop: d.rowTop, flowBottom: bottom, page: page, pageY: y + (d.rowTop - h.rowTop))
                 piece.repeated = true
                 _pages[page].append(piece)
+                height = max(height, d.rowTop + d.ownRowHeight - h.rowTop)
+                j += 1
             }
-            y += h.ownRowHeight
+            y += height
+        }
+        // A table row too tall for what is left of the page parts over
+        // the page's foot, as Word parts it (prints of 2026-10-13): where
+        // one line at least of one of its cells fits — no widow or orphan
+        // is kept in a cell — each cell is cut under its own last line
+        // that fits, and each goes on from the top of the next page.
+        // Not a row Word may not split (`w:cantSplit`), a repeated
+        // header row, or one with merged or turned cells.
+        // Where a cell's paragraph may part at a page's foot: under any
+        // of its lines, as Word parts it before its 2013 layout, which
+        // keeps no widow or orphan in a table; from that layout on a
+        // paragraph with widow control (Word's default) parts only with
+        // two lines on each side — a row with room for one line of each
+        // cell goes to the next page whole (prints of 2026-10-13, modes
+        // 14 and 15).
+        func cellCuts(_ k: Int) -> [Double] {
+            let g = geometry(k)
+            var lines = Self._lineBottoms(g.painter).map { g.textTop + $0 }
+            if (document.compatibilityMode ?? 12) >= 15, document.paragraphs[k].style.widowControl {
+                lines = lines.count >= 4 ? Array(lines[1 ..< lines.count - 2]) : []
+            } else if !lines.isEmpty {
+                lines.removeLast()
+            }
+            return lines + [_tops[k] + _heights[k]]
+        }
+        // A cell merged down from a row above (Word's `w:vMerge`) is
+        // one cell over the rows it covers, and its text is cut at a
+        // page's foot like any cell's: when the table goes on to a new
+        // page under it, what of it did not fit on the page before goes
+        // on from the top of this one.
+        func continueSpans(into i: Int, _ c: _CellGeo) {
+            guard theme.wordRules, page > 0 else { return }
+            var spans: [[Int]] = []
+            var open: (row: Int, column: Int)? = nil
+            var k = i - 1
+            while k >= 0, let d = _cells[k], d.table == c.table {
+                if d.row < c.row, d.row + d.rowSpan > c.row, !d.vertical {
+                    if let o = open, o.row == d.row, o.column == d.column {
+                        spans[spans.count - 1].insert(k, at: 0)
+                    } else {
+                        spans.append([k])
+                        open = (d.row, d.column)
+                    }
+                } else {
+                    open = nil
+                }
+                k -= 1
+            }
+            for members in spans {
+                // The cell's pieces on the page before, last first.
+                var found: [Int] = []
+                var n = _allPieces.count - 1
+                while n >= 0, _allPieces[n].paragraph >= members[0] {
+                    let piece = _allPieces[n]
+                    if piece.page == page - 1, piece.part != .rules, !piece.repeated, members.contains(piece.paragraph) { found.append(n) }
+                    n -= 1
+                }
+                guard let ref = found.first.map({ _allPieces[$0] }) else { continue }
+                // That page's foot, in the flow as the cell was set on it.
+                let limit = ref.flowTop + (prevContentH - ref.pageY) + 0.01
+                let last = members[members.count - 1]
+                guard _tops[last] + _heights[last] > limit else { continue }
+                var cut: Double? = nil
+                for m in members {
+                    for b in cellCuts(m) where b <= limit { cut = max(cut ?? b, b) }
+                }
+                let shownFrom = found.map { max(_allPieces[$0].flowTop, _tops[_allPieces[$0].paragraph]) }.min() ?? ref.flowTop
+                let at = max(cut ?? shownFrom, shownFrom)
+                for n in found {
+                    let old = _allPieces[n]
+                    let m = old.paragraph
+                    let top = max(_tops[m], old.flowTop), bottom = _tops[m] + _heights[m]
+                    guard bottom > at + 0.01, old.flowBottom > at + 0.01 else { continue }
+                    var fresh = PagePiece(paragraph: m, flowTop: max(top, at), flowBottom: bottom, page: page, pageY: y + max(0, top - at))
+                    fresh.part = .text
+                    // What stays on the page before: the text above the
+                    // cut, and the row's rules where this piece drew them.
+                    var kept: [PagePiece] = []
+                    if top < at - 0.01 {
+                        var text = PagePiece(paragraph: m, flowTop: old.flowTop, flowBottom: at, page: old.page, pageY: old.pageY)
+                        text.part = old.part == .all ? .text : old.part
+                        kept.append(text)
+                    }
+                    if old.part == .all {
+                        var rules = PagePiece(paragraph: m, flowTop: old.flowTop, flowBottom: min(old.flowBottom, limit), page: old.page, pageY: old.pageY)
+                        rules.part = .rules
+                        kept.append(rules)
+                    }
+                    _allPieces.replaceSubrange(n ... n, with: kept + [fresh])
+                    if let at = _pages[old.page].lastIndex(of: old) { _pages[old.page].replaceSubrange(at ... at, with: kept) }
+                    _pages[page].append(fresh)
+                }
+            }
+        }
+        func splitRow(_ i: Int, _ j: Int, _ c: _CellGeo, atTop: Bool) -> Bool {
+            let ts = document.tableStyles[c.table]
+            guard let ts, !ts.rowsCantSplit.contains(c.row), !(ts.headerRow && c.row < max(1, ts.headerRowCount)) else { return false }
+            for k in i ..< j { guard let d = _cells[k], !d.vertical else { return false } }
+            var fresh = atTop
+            let rowBottom = c.rowTop + c.ownRowHeight
+            struct Column { var members: [Int]; var cuts: [Double]; var bottom: Double; var cut: Double }
+            var columns: [Column] = []
+            for k in i ..< j {
+                let d = _cells[k]!
+                if columns.isEmpty || _cells[columns[columns.count - 1].members[0]]!.column != d.column {
+                    columns.append(Column(members: [], cuts: [], bottom: 0, cut: c.rowTop))
+                }
+                columns[columns.count - 1].members.append(k)
+                columns[columns.count - 1].cuts.append(contentsOf: cellCuts(k))
+                // (A cell merged down has the rows below for the rest.)
+                columns[columns.count - 1].bottom = d.rowSpan > 1 ? min(rowBottom, _tops[k] + _heights[k] + d.pad.bottom)
+                    : _tops[k] + _heights[k] + d.pad.bottom
+            }
+            let repeats = c.row > 0 && ts.headerRow
+            var pieces: [Int: [PagePiece]] = [:]
+            var rules: [PagePiece] = []
+            var first = true
+            while true {
+                let avail = contentH - y
+                let rest = first ? c.ownRowHeight : columns.map { max(0, $0.bottom - $0.cut) }.max() ?? 0
+                var fits = rest <= avail + 0.01
+                var next = columns.map(\.cut)
+                if !fits {
+                    // (Every cell with something left must take some of
+                    // it: where one cannot — a paragraph that may not
+                    // part there — the row goes to the next page whole.
+                    // On a page of its own it takes what it can.)
+                    var moved = false, stuck = false
+                    for (n, column) in columns.enumerated() {
+                        let limit = column.cut + avail + 0.01
+                        if column.bottom <= limit {
+                            // (All that is left of this cell is on this page.)
+                            if column.bottom > column.cut + 0.01 { moved = true }
+                            next[n] = max(column.cut, rowBottom)
+                        } else if let cut = column.cuts.last(where: { $0 > column.cut + 0.01 && $0 <= limit }) {
+                            next[n] = cut
+                            moved = true
+                        } else {
+                            stuck = true
+                        }
+                    }
+                    if stuck, !fresh { moved = false }
+                    if !moved {
+                        if !fresh, y > 0.01 {
+                            // Not a line of it fits here: the row starts the next page.
+                            newPage()
+                            fresh = true
+                            if repeats { repeatHeader(of: c.table, before: i) }
+                            if c.row > 0 { continueSpans(into: i, c) }
+                            continue
+                        }
+                        // (A line taller than a page: placed, and over the foot.)
+                        fits = true
+                    }
+                }
+                // The rules: from the row's top down to the page's foot,
+                // then the row's last stretch with its bottom line.
+                let shown = fits ? rest : avail
+                let from = first ? c.rowTop : fits ? rowBottom - rest : max(c.rowTop + 1, min(rowBottom - rest, rowBottom - avail - 1))
+                var rule = PagePiece(paragraph: i, flowTop: from, flowBottom: min(rowBottom, from + shown), page: page, pageY: y)
+                rule.part = .rules
+                rules.append(rule)
+                _pages[page].append(rule)
+                for (n, column) in columns.enumerated() {
+                    for k in column.members {
+                        let top = _tops[k], bottom = top + _heights[k]
+                        let lo = max(top, column.cut), hi = fits ? bottom : min(bottom, next[n])
+                        guard hi > lo + 0.01 || (pieces[k] == nil && hi >= lo && bottom <= lo + 0.01) else { continue }
+                        var piece = PagePiece(paragraph: k, flowTop: lo, flowBottom: hi, page: page, pageY: y + (lo - column.cut))
+                        piece.part = .text
+                        pieces[k, default: []].append(piece)
+                        _pages[page].append(piece)
+                    }
+                }
+                y += shown
+                if fits { break }
+                for n in columns.indices { columns[n].cut = next[n] }
+                first = false
+                newPage()
+                fresh = true
+                if repeats { repeatHeader(of: c.table, before: i) }
+                if c.row > 0 { continueSpans(into: i, c) }
+            }
+            // (In paragraph order, the rules after their paragraph's text.)
+            for k in i ..< j {
+                _allPieces.append(contentsOf: pieces[k] ?? [])
+                if k == i { _allPieces.append(contentsOf: rules) }
+            }
+            return true
         }
         while i < count {
             // Converged: this paragraph starts on the same page at the same
@@ -1391,9 +1594,23 @@ public final class RichLayout {
                 while j < count, let d = _cells[j], d.table == c.table, d.row == c.row { j += 1 }
                 let rowBottom = c.rowTop + c.ownRowHeight
                 resumeCursor = nil   // a row restarts whole
-                if c.ownRowHeight > contentH - y + 0.01 && y > 0.01 { newPage() }
-                if y < 0.01, c.row > 0, document.tableStyles[c.table]?.headerRow == true {
-                    repeatHeader(of: c.table, before: i)
+                // (At a page's top the table goes on: its header row
+                // again, and the cells merged down from above.)
+                func goOn() {
+                    guard c.row > 0 else { return }
+                    if document.tableStyles[c.table]?.headerRow == true { repeatHeader(of: c.table, before: i) }
+                    continueSpans(into: i, c)
+                }
+                let atTop = y < 0.01
+                if atTop { goOn() }
+                if theme.wordRules, c.ownRowHeight > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
+                    if y > contentH - 0.01 { newPage() }
+                    i = j
+                    continue
+                }
+                if !atTop, c.ownRowHeight > contentH - y + 0.01, y > 0.01 {
+                    newPage()
+                    goOn()
                 }
                 for k in i ..< j {
                     // A cell spanning rows paints through every row it covers.
@@ -1554,7 +1771,7 @@ public final class RichLayout {
             let g = geometry(i)
             let pieces = _pieceStart.count == count + 1 ? _allPieces[_pieceStart[i] ..< _pieceStart[i + 1]] : []
             func page(atFlow y: Double) -> Int {
-                let piece = pieces.first { y < $0.flowBottom - 0.01 } ?? pieces.last
+                let piece = pieces.first { $0.part != .rules && y < $0.flowBottom - 0.01 } ?? pieces.last
                 return piece.map { $0.page / _columns + 1 } ?? 0
             }
             // The block: its height with the spacing around the text, and
@@ -1624,7 +1841,7 @@ public final class RichLayout {
         let i = paragraphIndex(atY: r.height > 0 ? (r.top + r.bottom) / 2 : r.top)
         var out: [Rect] = []
         let pieces = i + 1 < _pieceStart.count ? Array(_allPieces[_pieceStart[i] ..< _pieceStart[i + 1]]) : []
-        for piece in pieces {
+        for piece in pieces where piece.part != .rules {
             let lo = max(r.top, piece.flowTop)
             let hi = min(r.bottom, piece.flowBottom)
             let inside = r.height <= 0 ? (r.top >= piece.flowTop && r.top < piece.flowBottom + 0.01) : hi > lo
@@ -1660,7 +1877,7 @@ public final class RichLayout {
             return Offset(x, totalHeight)
         }
         if localY <= first.pageY { return Offset(x, first.flowTop + max(0, localY - first.pageY)) }
-        for piece in pieces where localY < piece.pageY + piece.height {
+        for piece in pieces where piece.part != .rules && localY < piece.pageY + piece.height {
             return Offset(x, piece.flowTop + (localY - piece.pageY))
         }
         return Offset(x, last.flowBottom - 0.01)
@@ -3356,8 +3573,8 @@ public final class RichLayout {
 
     /// A table row's shading — the header's, or a band's — under every cell
     /// of the row; drawn by its first cell's paragraph, before the selection.
-    private func _paintShading(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
-        if let fill = document.paragraphs[i].style.fill, i < count {
+    private func _paintShading(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all) {
+        if part != .rules, let fill = document.paragraphs[i].style.fill, i < count {
             // The paragraph's own shading, text area wide.
             let g = geometry(i)
             let paint = Paint()
@@ -3365,7 +3582,7 @@ public final class RichLayout {
             paint.color = fill
             canvas.drawRect(Rect.fromLTWH(g.textLeft.rounded(), g.textTop.rounded(), g.textWidth.rounded(), g.painter.height.rounded()), paint)
         }
-        if let c = _cells[i], c.firstInRow, let ts = document.tableStyles[c.table] {
+        if part != .text, let c = _cells[i], c.firstInRow, let ts = document.tableStyles[c.table] {
             // The row's shading, under every cell of the row: the header's,
             // or a band's.
             let header = c.row == 0 && ts.headerRow
@@ -3404,7 +3621,16 @@ public final class RichLayout {
         }
         // The cell's own shading, over the row's; every paragraph of the
         // cell paints it (the same rectangle, so no seam).
-        if let c = _cells[i], let color = document.paragraphs[i].cell?.fill {
+        // (For a row that parts over two pages, all its cells' with the
+        // rules; its members' own pieces are their text alone.)
+        var members = part == .text ? i ..< i : i ..< i + 1
+        if part == .rules, let c = _cells[i] {
+            var j = i
+            while j < count, j < document.paragraphs.count, let d = _cells[j], d.table == c.table, d.row == c.row { j += 1 }
+            members = i ..< j
+        }
+        for k in members {
+            guard let c = _cells[k], let color = document.paragraphs[k].cell?.fill else { continue }
             let fill = Paint()
             fill.style = .fill
             fill.color = color
@@ -3413,9 +3639,9 @@ public final class RichLayout {
         }
     }
 
-    private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
+    private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all) {
         let g = geometry(i)
-        if let c = _cells[i], c.firstInRow {
+        if part != .text, let c = _cells[i], c.firstInRow {
             // The table's switch, refined by its own sides and by each
             // cell's: a side a cell states wins, then the table's side
             // for that position (outer or inside), then the switch.
@@ -3506,6 +3732,7 @@ public final class RichLayout {
                 k -= 1
             }
         }
+        if part == .rules { return }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
             if let decoded = _decoded[image.id] {
                 let paint = Paint()
@@ -4051,8 +4278,8 @@ public final class RichLayout {
                         canvas.save()
                         canvas.clipRect(Rect.fromLTRB(clipL, top, clipR, bottom))
                         canvas.translate(left, top - piece.flowTop)
-                        if shading { _paintShading(piece.paragraph, canvas, document) } else {
-                            _paintParagraph(piece.paragraph, canvas, document)
+                        if shading { _paintShading(piece.paragraph, canvas, document, part: piece.part) } else {
+                            _paintParagraph(piece.paragraph, canvas, document, part: piece.part)
                         }
                         canvas.restore()
                     }
