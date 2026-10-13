@@ -30,7 +30,8 @@ final class SheetsPrintTests: XCTestCase {
         XCTAssertEqual(pages.count, 1)
         XCTAssertEqual(pages[0].cols.count, 12)
         XCTAssertFalse(pages[0].rows.contains(3))
-        XCTAssertEqual(s, 511.2 / 768 * 0.999, accuracy: 1e-9)
+        // 511.2 / 768 is 66.56%: Excel's fit is the whole percent under it.
+        XCTAssertEqual(s, 0.66, accuracy: 1e-9)
     }
 
     func testReadsTheFilesPageSetup() {

@@ -140,6 +140,8 @@ final class Worksheet {
     /// and the elements of it we do not model, written back as they were:
     /// drawings, tables, conditional formats, data validations…
     var origin: String? = nil
+    /// A chart sheet: no cells, one chart, a page of its own on paper.
+    var isChartSheet: Bool { origin?.containsSubstring("/chartsheets/") ?? false }
     var keptElements: [(name: String, text: String)] = []
     /// The sheet's root start tag as the file wrote it (its namespaces,
     /// which kept elements may use).

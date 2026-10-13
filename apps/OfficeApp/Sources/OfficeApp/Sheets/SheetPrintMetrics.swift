@@ -111,7 +111,8 @@ struct SheetPrintMetrics {
         "ms mincho": "ms gothic", "ms pmincho": "ms pgothic", "ｍｓ 明朝": "ms gothic", "ｍｓ ｐ明朝": "ms pgothic",
         "新細明體": "pmingliu", "mingliu": "pmingliu", "맑은 고딕": "malgun gothic", "游ゴシック": "yu gothic",
         "微软雅黑": "microsoft yahei", "メイリオ": "meiryo", "meiryo ui": "meiryo",
-        "ms sans serif": "microsoft sans serif",
+        "ms sans serif": "microsoft sans serif", "lucida sans typewriter": "lucida sans unicode",
+        "lucida sans": "lucida sans unicode", "lucida grande": "lucida sans unicode",
         // (Dotum, Gulim and Batang left Windows; Excel prints them as Malgun Gothic.)
         "돋움": "malgun gothic", "dotum": "malgun gothic", "굴림": "malgun gothic", "gulim": "malgun gothic",
         "바탕": "malgun gothic", "batang": "malgun gothic",

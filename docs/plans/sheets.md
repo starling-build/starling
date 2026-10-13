@@ -150,6 +150,40 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**Sweep 3 (2026-10-12): mean 2.81%, median 0.40%**, 750 scored, 27 with a
+page only one side has, 42 exact (`baseline-mupdf.tsv`). What the pictures of sweep 2's worst
+showed, and what was done about each:
+
+- *Chart sheets* print as Excel prints them: one page, landscape unless
+  the sheet says otherwise, the chart filling the room between the
+  margins (in from them by the drawing's own 2.7 pt). They printed as an
+  empty worksheet with a chart at its screen size, cut across pages.
+- *Charts that drew nothing.* A 3-D bar, line, pie or area chart is drawn
+  as its flat kind, a pie-of-pie as its pie, a bubble chart as its points;
+  a chart with no series keeps its frame and its room on the page; a
+  scatter series the file gives a line (or whose chart style has lines)
+  is joined by it. Radar, stock, surface and combinations still draw
+  nothing.
+- *Fit to N pages* is a whole percent, stepped down until the pages asked
+  for really hold the sheet — rows and columns do not split, so the
+  arithmetic's scale could be a page over — and ignores manual breaks.
+- *Rows nobody sized* are as tall as their tallest font's line on the
+  printer, and (where the file's writer fits no rows itself) as their
+  wrapped text's lines. Excel writes a height for every row it has fitted;
+  POI and LibreOffice leave it to the reader.
+- *Printed gridlines are black* (they were the screen's grey, and
+  invisible at a glance).
+- *Borders inside a merged area* are not drawn: only the sides on the
+  area's own edge. A form made of narrow columns merged into fields came
+  out as a comb.
+- *A shape turned past 45°* is anchored to the cells its turned outline
+  covers; the shape itself has that rectangle's centre with width and
+  height changed over. Half of a fan of rotated bars pointed the wrong
+  way.
+- *`usePrinterDefaults="false"`*: Excel then takes the printer's paper
+  and ignores the sheet's `paperSize` — nine workbooks that say A4 print
+  on Letter, with the option that maps paper sizes off.
+
 **The rendering gate runs, and what the first two sweeps found
 (2026-10-12).** Excel's side is made (`test/corpus/xlsx/excel`: 757 PDFs
 from Excel 16.0 on Windows; 50 workbooks Excel will not open, 3 that hang
@@ -157,7 +191,7 @@ it — `test/corpus/xlsx/README.md`), and `test/xlsx-app-render.sh` scores
 the Windows build against it. Sweep 1 was mean 11.08% of pixels differing
 (705 scored; 144 workbooks with a page one side has and the other does
 not; 1 exact match). Sweep 2 is **mean 3.24%, median 0.42%** over
-750 scored, 37 with such a page, 43 exact — `baseline-mupdf.tsv`.
+750 scored, 37 with such a page, 43 exact.
 What moved it, largest first:
 
 - *The references were on the wrong paper.* Excel prints an A4 workbook

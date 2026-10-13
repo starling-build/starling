@@ -286,6 +286,7 @@ chart-deleted_legend_entry.xlsx
 chart-deleted_legend_entry2.xlsx
 chart-dispBlanksAs_2007.xlsx
 chart-dispBlanksAs_2013.xlsx
+chart-empty_chart.xlsx
 chart-external_str_ref.xlsx
 chart-fdo54361-1.xlsx
 chart-fdo54361.xlsx

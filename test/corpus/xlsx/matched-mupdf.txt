@@ -12,7 +12,6 @@ AmpersandHeader.xlsx
 BrNotClosed.xlsx
 HeaderFooterComplexFormats.xlsx
 SheetTabColors.xlsx
-chart-empty_chart.xlsx
 lo-RowImportCellStyleIssue.xlsx
 lo-button-form-control.xlsx
 lo-column-style.xlsx

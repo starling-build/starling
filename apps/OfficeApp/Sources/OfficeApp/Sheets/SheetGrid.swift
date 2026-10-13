@@ -250,8 +250,37 @@ final class SheetGridState: State<StatefulWidget> {
                                          baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
             let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : Xlsx._widthChars(ws, $0.key, $0.value) * m.digit) })
             let fitted = ws.customDefaultRowHeight || ws.defaultRowHeightPt <= 0 ? m.rowScale : m.defaultRow / ws.defaultRowHeightPt
-            let heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.map { ($0.key, $0.value * (ws.fittedRows.contains($0.key) ? fitted : m.rowScale)) })
+            var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.map { ($0.key, $0.value * (ws.fittedRows.contains($0.key) ? fitted : m.rowScale)) })
+            if !ws.customDefaultRowHeight {
+                // A row nobody sized is as tall as its tallest font's line: the
+                // file gives no height for it when Excel did not write the file.
+                var lines: [Int: Double] = [:]   // by style
+                for (a, cell) in ws.cells where cell.style != 0 && ws.rowHeights[a.row] == nil {
+                    let line: Double
+                    if let known = lines[cell.style] { line = known } else {
+                        let st = book.style(cell.style)
+                        line = st.fontName == nil && st.fontSize == nil ? 0
+                            : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st)).defaultRow
+                        lines[cell.style] = line
+                    }
+                    if line > m.defaultRow, line > heights[a.row] ?? 0 { heights[a.row] = line }
+                }
+            }
             cols = GridAxis(def: (ws.defaultColWidthChars ?? m.defaultChars) * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
+            if !ws.customDefaultRowHeight, ws.fittedRows.isEmpty {
+                // And as tall as its wrapped text's lines, in the column's width —
+                // where the file's writer left fitting to the reader (one that
+                // fits rows itself says so on the rows it fitted).
+                for (a, cell) in ws.cells where cell.style != 0 && ws.rowHeights[a.row] == nil && cell.value.isText {
+                    let st = book.style(cell.style)
+                    guard st.wrap, !ws.merges.contains(where: { $0.contains(a) }) else { continue }
+                    let width = cols.size(a.col) - 4 * zoom
+                    guard width > 4 else { continue }
+                    let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+                    let tall = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000)), maxWidth: width).height / scale + 1.5
+                    if tall > m.defaultRow, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
+                }
+            }
             rows = GridAxis(def: ws.customDefaultRowHeight ? ws.defaultRowHeightPt * m.rowScale : m.defaultRow, overrides: heights,
                             hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
@@ -416,7 +445,7 @@ final class SheetGridState: State<StatefulWidget> {
         switch d.kind {
         case .other: return
         case .shape(let shape):
-            shape.paint(canvas, in: r, pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
+            shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
         case .picture(let path, let data):
             _paintPicture(canvas, path, data, in: r)
         case .chart:
@@ -432,7 +461,7 @@ final class SheetGridState: State<StatefulWidget> {
             canvas.drawRect(r.deflate(0.5), p)
             // Excel's chart text is three quarters of PowerPoint's (14pt
             // titles, 9pt labels against 18.6 and 12), the painter's sizes.
-            ChartPainter.paint(chart, canvas, r, pxPerPt: scale * 0.75, theme: theme)
+            if !chart.series.isEmpty { ChartPainter.paint(chart, canvas, r, pxPerPt: scale * 0.75, theme: theme) }
         }
     }
 
@@ -1938,10 +1967,13 @@ final class SheetGridState: State<StatefulWidget> {
                 }
                 canvas.drawLine(a, z, border)
             }
-            if b.top { line("top", Offset(l, t), Offset(rr, t), inward: Offset(0, 1)) }
-            if b.bottom { line("bottom", Offset(l, bt), Offset(rr, bt), inward: Offset(0, -1)) }
-            if b.left { line("left", Offset(l, t), Offset(l, bt), inward: Offset(1, 0)) }
-            if b.right { line("right", Offset(rr, t), Offset(rr, bt), inward: Offset(-1, 0)) }
+            // Inside a merged area there are no cells to rule between: a side
+            // draws only where it is the area's own edge.
+            let m = merges.isEmpty ? nil : merges.first { $0.contains(a) }
+            if b.top, m.map({ $0.top == a.row }) ?? true { line("top", Offset(l, t), Offset(rr, t), inward: Offset(0, 1)) }
+            if b.bottom, m.map({ $0.bottom == a.row }) ?? true { line("bottom", Offset(l, bt), Offset(rr, bt), inward: Offset(0, -1)) }
+            if b.left, m.map({ $0.left == a.col }) ?? true { line("left", Offset(l, t), Offset(l, bt), inward: Offset(1, 0)) }
+            if b.right, m.map({ $0.right == a.col }) ?? true { line("right", Offset(rr, t), Offset(rr, bt), inward: Offset(-1, 0)) }
         }
         // Filter dropdowns: ▾, or a funnel on a column that filters.
         if !printing, let af = ws.autoFilter, rs.contains(af.range.top) {

@@ -8,7 +8,7 @@ baseline of how far this app's printing is from it.
     books/         the workbooks, as downloaded
     SHA256SUMS     of books/, to tell a changed workbook from a changed painter
     excel/         NAME-orig.pdf — Excel's print of books/NAME.xlsx, and export.tsv
-    baseline-mupdf.tsv   each workbook's score at sweep 2 (2026-10-12, Windows, MuPDF's page diff)
+    baseline-mupdf.tsv   each workbook's score at sweep 3 (2026-10-12, Windows, MuPDF's page diff)
     matched-mupdf.txt, others-mupdf.txt   the two groups of that baseline
 
 ## What works today
@@ -112,8 +112,16 @@ embedded objects and controls (`docs/plans/sheets.md` has the list). Of the 757:
 Over the 750: mean 3.24% of pixels differing, median 0.42%; 577 at or
 under 2%, 143 between 2 and 20, 30 over 20; 37 have a page only one side
 has. 43 match exactly, 36 of them workbooks neither side prints a page
-of. This is `baseline-mupdf.tsv`; the first sweep's figures above are
-kept for the comparison.
+of. The first sweep's figures above are kept for the comparison.
+
+## Sweep 3
+
+Later the same day: chart sheets, 3-D and empty charts, fit-to-pages,
+rows fitted to their fonts and wrapped text, black gridlines. Over the
+same 750: mean 2.81%, median 0.40%; 583 at or under 2%, 145 between 2 and
+20, 22 over 20; 27 have a page only one side has; 42 exact (an empty
+chart's frame is drawn now, 0.02% from Excel's). This is
+`baseline-mupdf.tsv`.
 
 ## Where the workbooks come from, and their licences
 

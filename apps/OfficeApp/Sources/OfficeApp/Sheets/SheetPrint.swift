@@ -65,7 +65,10 @@ struct SheetPrintSetup: Equatable {
                                        7: Size(522, 756), 8: Size(841.89, 1190.55), 9: Size(595.28, 841.89),
                                        10: Size(595.28, 841.89), 11: Size(419.53, 595.28), 12: Size(728.5, 1031.81),
                                        13: Size(515.91, 728.5), 70: Size(297.64, 419.53)]
-            if let n = Int(p["paperSize"] ?? ""), let size = papers[n] { s.paper = size }
+            // (With usePrinterDefaults set false Excel takes the printer's paper,
+            // not the sheet's: nine of the corpus say A4 that way and print Letter.)
+            let printers = p["usePrinterDefaults"] == "false" || p["usePrinterDefaults"] == "0"
+            if !printers, let n = Int(p["paperSize"] ?? ""), let size = papers[n] { s.paper = size }
             s.landscape = p["orientation"] == "landscape"
             if let v = Double(p["scale"] ?? ""), v >= 10, v <= 400 { s.scale = v }
             s.overThenDown = p["pageOrder"] == "overThenDown"
@@ -179,9 +182,10 @@ enum SheetPrintLayout {
             let totalW = cols.reduce(0) { $0 + width($1) }, totalH = rows.reduce(0) { $0 + height($1) }
             if let n = setup.fitWidth, n > 0 { s = min(s, availW0 * Double(n) / (totalW + titleWidth * Double(n))) }
             if let n = setup.fitHeight, n > 0 { s = min(s, availH0 * Double(n) / (totalH + titleHeight * Double(n))) }
-            s = max(0.1, s * 0.999)   // a hair under, so rounding never spills a page
+            // Excel's fit is a whole percent, the largest at which the pages
+            // asked for hold everything.
+            s = max(0.1, (s * 100).rounded(.down) / 100)
         }
-        let availW = max(18, availW0 - titleWidth * s), availH = max(18, availH0 - titleHeight * s)
         func bands(_ items: [Int], _ size: (Int) -> Double, _ avail: Double, _ breaks: Set<Int>) -> [[Int]] {
             var out: [[Int]] = [[]]
             var used = 0.0
@@ -193,7 +197,20 @@ enum SheetPrintLayout {
             }
             return out
         }
-        let colBands = bands(cols, width, availW, setup.colBreaks), rowBands = bands(rows, height, availH, setup.rowBreaks)
+        var colBands: [[Int]] = [], rowBands: [[Int]] = []
+        while true {
+            let availW = max(18, availW0 - titleWidth * s), availH = max(18, availH0 - titleHeight * s)
+            // (Fitting ignores manual breaks: they are for the unfitted sheet.)
+            let fitting = setup.fitWidth != nil || setup.fitHeight != nil
+            colBands = bands(cols, width, availW, fitting ? [] : setup.colBreaks)
+            rowBands = bands(rows, height, availH, fitting ? [] : setup.rowBreaks)
+            // Rows and columns do not split, so the arithmetic's scale can
+            // still be a page over: a percent less until it is not.
+            let over = (setup.fitWidth.map { $0 > 0 && colBands.count > $0 } ?? false)
+                || (setup.fitHeight.map { $0 > 0 && rowBands.count > $0 } ?? false)
+            guard over, s > 0.1 else { break }
+            s = max(0.1, s - 0.01)
+        }
         var pages: [SheetPage] = []
         if setup.overThenDown {
             for rb in rowBands { for cb in colBands { pages.append(SheetPage(cols: cb, rows: rb)) } }
@@ -235,6 +252,14 @@ extension SheetGridState {
         for si in indices {
             if c.activeSheet != si { c.activeSheet = si }
             let ws = c.sheet
+            if ws.isChartSheet {
+                // A chart sheet is one page, its chart filling it.
+                guard ws.drawings.contains(where: { $0.isChart && !$0.hidden }) else { continue }
+                var setup = SheetPrintSetup.read(ws)
+                if !ws.keptElements.contains(where: { $0.name == "pageSetup" && $0.text.contains("orientation=") }) { setup.landscape = true }
+                parts.append(Part(sheet: si, setup: setup, names: ([], nil, nil), jobs: [([SheetPage(cols: [], rows: [])], 1)]))
+                continue
+            }
             guard var used = SheetPrintLayout.usedArea(ws, book: book) else { continue }
             // Text running over empty cells prints to its end, as Excel's does:
             // the columns it crosses are part of what prints.
@@ -293,13 +318,18 @@ extension SheetGridState {
                             title: String, filePath: String?, maxPages: Int?, into out: inout [PdfDocument.Page]) {
         let c = controller
         let ws = c.sheet, book = c.book
+        if ws.isChartSheet {
+            _paintChartSheet(ws, setup: setup, pageCount: pageCount, title: title, filePath: filePath, maxPages: maxPages, into: &out)
+            return
+        }
         let ca = cols, ra = rows   // in points while printing
         let titleRows = names.titleRows.map { Array($0).filter { ra.size($0) > 0 } } ?? []
         let titleCols = names.titleCols.map { Array($0).filter { ca.size($0) > 0 } } ?? []
         let titleH = titleRows.reduce(0) { $0 + ra.size($1) }, titleW = titleCols.reduce(0) { $0 + ca.size($1) }
         let head = _headingSize(setup, lastRow: jobs.flatMap { $0.pages }.compactMap { $0.rows.last }.max() ?? 0)
         let size = setup.pageSize
-        let colors = _Colors(ink: Color(0xFF000000), paper: Color(0xFFFFFFFF), grid: Color(0xFFBFBFBF), showGrid: setup.gridlines)
+        // (Excel prints its gridlines black.)
+        let colors = _Colors(ink: Color(0xFF000000), paper: Color(0xFFFFFFFF), grid: Color(0xFF000000), showGrid: setup.gridlines)
         let charts = ws.drawings.map { d -> Chart? in
             if case .chart(let sc) = d.kind { return c.liveChart(sc) }
             return nil
@@ -393,6 +423,30 @@ extension SheetGridState {
                 out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
             }
         }
+    }
+
+    /// A chart sheet's page: the chart between the margins, in from them
+    /// by as much as the drawing stands in from the sheet's corner (Excel's
+    /// 2.7 pt), landscape unless the sheet says otherwise.
+    private func _paintChartSheet(_ ws: Worksheet, setup: SheetPrintSetup, pageCount: Int, title: String, filePath: String?,
+                                  maxPages: Int?, into out: inout [PdfDocument.Page]) {
+        if let maxPages, out.count >= maxPages { return }
+        guard let d = ws.drawings.first(where: { $0.isChart && !$0.hidden }), case .chart(let sc) = d.kind else { return }
+        let book = controller.book
+        let size = setup.pageSize
+        var inset = 0.0
+        if case .absolute(let x, _, _, _) = d.anchor { inset = min(18, max(0, x)) }
+        let r = Rect.fromLTRB(setup.left + inset, setup.top + inset, size.width - setup.right - inset, size.height - setup.bottom - inset)
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
+        _paintDrawing(canvas, d, chart: controller.liveChart(sc), in: r, theme: book.chartTheme)
+        var fields = HeaderFooterText.Fields(pages: pageCount, file: title, sheet: ws.name,
+                                             path: filePath.map { $0.deletingLastPathComponent } ?? "")
+        fields.page = setup.firstPageNumber + out.count
+        let st = book.style(0)
+        let font = GridTextStyle(family: OfficeFonts.substitute(book.fontName(st)), size: book.fontSize(st), color: Int64(0xFF000000))
+        _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: font, size: size)
+        out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
     }
 
     /// The page's header along the top margin and footer along the bottom:

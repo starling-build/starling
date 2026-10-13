@@ -123,7 +123,7 @@ enum SheetDrawingsXML {
                 d.relId = embed
             } else if let frame = el.child("graphicFrame"), let ref = _chartRef(frame), let path = rels[ref],
                       let space = parts[path].flatMap({ XNode.parse($0) }),
-                      let chart = ChartXML.read(space, color: { colors.color(in: $0) }) {
+                      let chart = ChartXML.read(space, allowEmpty: true, color: { colors.color(in: $0) }) {
                 d.name = frame.child("nvGraphicFramePr")?.child("cNvPr")?["name"] ?? "Chart"
                 var sc = SheetChart(chart: chart, refs: _refs(space), path: path)
                 for f in _formulas(space) { sc.formulas[f] = f }
