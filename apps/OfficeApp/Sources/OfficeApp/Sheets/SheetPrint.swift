@@ -116,6 +116,9 @@ enum SheetPrintLayout {
             let st = book.style(c.style)
             if st.fill != nil || st.borders != CellStyle.Borders() { take(a.row, a.col) }
         }
+        // A merged area is something to print though its cells are empty:
+        // Excel gives a sheet of nothing but merges its page.
+        for m in ws.merges { take(m.top, m.left); take(m.bottom, m.right) }
         // A drawing prints whole, however it is anchored: every cell its
         // frame touches (and not the one it only reaches the edge of).
         for d in ws.drawings where !d.hidden {
