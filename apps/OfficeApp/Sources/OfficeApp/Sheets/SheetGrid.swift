@@ -1814,14 +1814,28 @@ final class SheetGridState: State<StatefulWidget> {
         if colors.showGrid {
             let line = Paint()
             line.style = .stroke
-            line.strokeWidth = 1
+            line.strokeWidth = printing ? 0.5 : 1
             line.color = colors.grid
+            // A text that runs over its neighbours runs over the lines between
+            // them too: no gridline is drawn through it.
+            var crossed: [Int: Set<Int>] = [:]   // column → the rows whose right edge a text crosses
+            let shown = Set(rs)
+            for (a, cell) in ws.cells where cell.value.isText && shown.contains(a.row) {
+                guard let reach = textReach(a, cell, ws: ws, book: book) else { continue }
+                for col in reach.lowerBound ..< reach.upperBound { crossed[col, default: []].insert(a.row) }
+            }
             for col in cs {
-                let x = (colX(col) + ca.size(col)).rounded() - 0.5
-                canvas.drawLine(Offset(x, clip.top), Offset(x, clip.bottom), line)
+                let x = printing ? colX(col) + ca.size(col) : (colX(col) + ca.size(col)).rounded() - 0.5
+                guard let rows = crossed[col] else {
+                    canvas.drawLine(Offset(x, clip.top), Offset(x, clip.bottom), line)
+                    continue
+                }
+                for row in rs where !rows.contains(row) {
+                    canvas.drawLine(Offset(x, rowY(row)), Offset(x, rowY(row) + ra.size(row)), line)
+                }
             }
             for row in rs {
-                let y = (rowY(row) + ra.size(row)).rounded() - 0.5
+                let y = printing ? rowY(row) + ra.size(row) : (rowY(row) + ra.size(row)).rounded() - 0.5
                 canvas.drawLine(Offset(clip.left, y), Offset(clip.right, y), line)
             }
         }
@@ -1939,8 +1953,8 @@ final class SheetGridState: State<StatefulWidget> {
             let b = st.borders
             guard b.top || b.left || b.bottom || b.right else { continue }
             let r = rect(a)
-            let l = r.left.rounded() - 0.5, rr = r.right.rounded() - 0.5
-            let t = r.top.rounded() - 0.5, bt = r.bottom.rounded() - 0.5
+            let l = printing ? r.left : r.left.rounded() - 0.5, rr = printing ? r.right : r.right.rounded() - 0.5
+            let t = printing ? r.top : r.top.rounded() - 0.5, bt = printing ? r.bottom : r.bottom.rounded() - 0.5
             /// One side as the file drew it: thicker, doubled, dashed or dotted.
             func line(_ side: String, _ a: Offset, _ z: Offset, inward: Offset) {
                 let kind = b.kinds[side] ?? "thin"
@@ -2093,7 +2107,9 @@ final class SheetGridState: State<StatefulWidget> {
         }
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(clipLeft + 1, top, clipRight - 1, bottom))
-        tp.paint(canvas, Offset(tx.rounded(), ty.rounded()))
+        // (Whole pixels on a screen; on paper a page has no pixels, and a
+        // row's rounding would show as uneven lines of text.)
+        tp.paint(canvas, printing ? Offset(tx, ty) : Offset(tx.rounded(), ty.rounded()))
         canvas.restore()
     }
 
