@@ -558,6 +558,19 @@ sz="9600"` makes its row 122 pt of nothing, as a letter that size would;
 the cell reader took the cell's own size for an empty paragraph, where
 the body reader already took the end mark's.
 
+**One deck at a time: pptx2svg, its justified paragraph, 2026-10-12**
+(7.99 → 6.94; sweep 39: six decks down, none up). The paragraph was
+justified already; it broke its second line a word later than
+PowerPoint's. **PowerPoint sets letters one by one**: the engine joined
+Calibri's "tt" and "ti" into ligatures, which made "formatting" 72.8 pt
+where PowerPoint has 73.4, and a line of such words had room for one
+more. `RichTextTheme.disablesLigatures` (liga and clig off), for slides.
+The lines break at the same words now, the last ending at 455.1 / 454.7.
+
+Left in the deck, each its own task: its bullets are Wingdings stars
+(drawn as dots); the last line's mixed faces, raised word and spaced
+letters.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

@@ -1296,6 +1296,7 @@ final class DeckController: ChangeNotifier {
         theme.markersAtHang = true          // and puts the bullet at marL + indent
         theme.singleLineHeight = 1.2        // spaces lines by the size, not the face
         theme.omitsLeadingSpace = true      // and leaves out the space before a body's first paragraph
+        theme.disablesLigatures = true      // and sets "tt" as two letters
         return theme
     }
 

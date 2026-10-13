@@ -75,6 +75,10 @@ public final class RichTextTheme {
     /// pages have Arial (1.15 by its metrics), Consolas (1.17) and Lucida
     /// Sans Unicode (1.47) all at 1.2; Word's is the face's.
     public var singleLineHeight: Double? = nil
+    /// Whether letters are set one by one, the face's ligatures (Calibri's
+    /// "tt", "ti") left out: PowerPoint sets "formatting" 0.6 pt wider
+    /// than the engine does with them, and breaks its lines by that.
+    public var disablesLigatures = false
 
     /// The share of a face's line that lies below the baseline (Calibri's
     /// 0.22), measured once.
@@ -201,6 +205,7 @@ public final class RichTextTheme {
                 guard let points = paragraph.lineHeightPoints, size > 0 else { return multiple }
                 return paragraph.lineHeightIsMinimum ? max(points / size, multiple) : points / size
             }(),
+            fontFeatures: disablesLigatures ? [FontFeature("liga", 0), FontFeature("clig", 0)] : nil,
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
             fontFamily: family,
