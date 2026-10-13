@@ -97,6 +97,10 @@ struct Chart: Equatable {
     /// (`c:valAx/c:txPr`); nil is the default, 12. It also decides how
     /// many marks the axis has room for.
     var valueLabelSize: Double? = nil
+    /// The category axis's labels' size and weight where the file gives
+    /// them (`c:catAx/c:txPr`); nil is the default, 12.
+    var categoryLabelSize: Double? = nil
+    var categoryLabelBold = false
     /// The value axis's number format, an Excel format code ("#,##0"),
     /// where the file gives one other than General: the axis's own, or —
     /// "linked to source" — the one its first series' numbers came with.
@@ -309,6 +313,12 @@ enum ChartXML {
             : axes.first { $0.name == "c:valAx" }
         if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
             c.valueLabelSize = sz / 100
+        }
+        let categoryAxis = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }
+            : axes.first { $0.name != "c:valAx" }
+        if let run = categoryAxis?.first("c:txPr")?.descendant("a:defRPr") {
+            if let sz = run["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.categoryLabelSize = sz / 100 }
+            c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
         }
         if let fmt = valueAxis?.first("c:numFmt") {
             let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
@@ -534,11 +544,15 @@ enum ChartPainter {
         let font = OfficeFonts.substitute(theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
-        func text(_ s: String, _ size: Double, _ maxWidth: Double = .infinity) -> TextPainter {
+        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool) -> TextPainter {
             let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
-                color: ink, fontSize: max(3, size * k), fontFeatures: plain, fontFamily: font)), textDirection: .ltr)
+                color: ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
+                fontFeatures: plain, fontFamily: font)), textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
+        }
+        func text(_ s: String, _ size: Double, _ maxWidth: Double = .infinity) -> TextPainter {
+            styled(s, size, maxWidth, bold: false)
         }
         canvas.save()
         canvas.clipRect(r)
@@ -629,7 +643,8 @@ enum ChartPainter {
         if pie {
             _pie(c, canvas, area, k: k, theme: theme, text: text)
         } else {
-            _axes(c, canvas, area, k: k, theme: theme, grid: grid, text: text)
+            _axes(c, canvas, area, k: k, theme: theme, grid: grid, text: text,
+                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold) })
         }
         canvas.restore()
     }
@@ -670,7 +685,8 @@ enum ChartPainter {
     }
 
     private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, k: Double, theme: DeckTheme,
-                              grid: Color, text: (String, Double, Double) -> TextPainter) {
+                              grid: Color, text: (String, Double, Double) -> TextPainter,
+                              categoryText: (String, Double, Double) -> TextPainter) {
         let n = c.categories.count
         guard n > 0 else { return }
         let horizontal = c.type == .bar
@@ -730,12 +746,13 @@ enum ChartPainter {
         }
 
         // Tick labels: values along one axis, categories (or x values) along the other.
+        let catSize = c.categoryLabelSize ?? 12
         let catLabels: [TextPainter]
         if c.type == .scatter {
-            catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { text(label($0, percent: false), 12, .infinity) }
+            catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { categoryText(label($0, percent: false), catSize, .infinity) }
         } else {
             let slot = (horizontal ? area.height : area.width) / Double(n)
-            catLabels = c.categories.map { text($0, 12, horizontal ? area.width * 0.3 : max(slot - 2 * k, 8 * k)) }
+            catLabels = c.categories.map { categoryText($0, catSize, horizontal ? area.width * 0.3 : max(slot - 2 * k, 8 * k)) }
         }
         let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step / 2, by: sc.step))
         // In the axis's own number format where it has one: "1,600", and

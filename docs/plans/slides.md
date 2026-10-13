@@ -704,6 +704,14 @@ are within 3. Left in this chart: the oval over the last bar (the
 chart's own drawing, `c:userShapes`), the bold category labels, and the
 shadow under the bottom series.
 
+**One deck at a time: tdf149985, its category labels, 2026-10-13**
+(3.45 → 3.46: right, and no closer). The category axis's labels have
+their own size and weight (`c:catAx/c:txPr`; `Chart.categoryLabelSize`,
+`categoryLabelBold`), here 12 pt bold. They are PowerPoint's letters
+now, 2 pt above its and up to 3 pt left, which is the plot's doing: its
+left edge is 4 pt out and the gap under the axis 3 pt short. Left in
+this chart: that, the oval over the last bar, and the shadow.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
