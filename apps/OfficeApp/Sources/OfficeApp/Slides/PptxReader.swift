@@ -1515,9 +1515,14 @@ private struct SlideContext {
                     default:
                         break
                     }
+                    // An empty paragraph is as tall as its end mark says
+                    // (`endParaRPr`): a row grows for 96 pt of nothing
+                    // (tdf144092), as it would for a letter that size.
+                    let end = p.first("a:endParaRPr").map { LevelStyle.run($0, colors) }
                     var para = text.isEmpty
-                        ? RichParagraph(text: "", runs: [Run(length: 0, style: CharStyle(bold: look.bold ?? false, fontFamily: _font(look.font),
-                                                                                          fontSize: look.size ?? 18, color: look.color))], style: style)
+                        ? RichParagraph(text: "", runs: [Run(length: 0, style: CharStyle(bold: end?.bold ?? look.bold ?? false,
+                                                                                          fontFamily: _font(end?.font ?? look.font),
+                                                                                          fontSize: end?.size ?? look.size ?? 18, color: look.color))], style: style)
                         : RichParagraph(text: text, runs: runs, style: style)
                     para.cell = cell
                     cellParas.append(para)

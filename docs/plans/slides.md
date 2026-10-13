@@ -550,6 +550,14 @@ Left in it: the first baseline is 0.5 pt above PowerPoint's, inside what
 PowerPoint's own page rounds by in this deck (its pitches go 12.0, 12.9,
 13.0).
 
+**One deck at a time: tdf144092-emptyShapeTextProps, 2026-10-12** (11.80
+→ 0.39; sweep 38: 2.38 → 2.35%, six decks down — aascu's leadership
+summit 11.2 → 8.4 by the same — one up by 0.19). **An empty paragraph in
+a table cell is as tall as its end mark says**: the cell's `endParaRPr
+sz="9600"` makes its row 122 pt of nothing, as a letter that size would;
+the cell reader took the cell's own size for an empty paragraph, where
+the body reader already took the end mark's.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
