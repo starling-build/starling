@@ -1297,6 +1297,7 @@ final class DeckController: ChangeNotifier {
         theme.singleLineHeight = 1.2        // spaces lines by the size, not the face
         theme.omitsLeadingSpace = true      // and leaves out the space before a body's first paragraph
         theme.disablesLigatures = true      // and sets "tt" as two letters
+        theme.tableRulesTakeRoom = false    // and draws a table's lines over its rows
         return theme
     }
 

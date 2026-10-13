@@ -79,6 +79,11 @@ public final class RichTextTheme {
     /// "tt", "ti") left out: PowerPoint sets "formatting" 0.6 pt wider
     /// than the engine does with them, and breaks its lines by that.
     public var disablesLigatures = false
+    /// Whether a table's horizontal rules take room of their own: Word
+    /// sets a row's height under its top rule and above its bottom one —
+    /// three rows of 17.05pt ruled at half a point are 53pt, not 51 — and
+    /// PowerPoint draws its lines over the rows as they are.
+    public var tableRulesTakeRoom = true
 
     /// The share of a face's line that lies below the baseline (Calibri's
     /// 0.22), measured once.
@@ -836,16 +841,27 @@ public final class RichLayout {
             let table = c.table
             let ins = _cellInsets(table, document)
             var rows: [(first: Int, end: Int, top: Double, height: Double)] = []
+            // The room a rule takes (`theme.tableRulesTakeRoom`): the
+            // first row's top one, and every row's bottom one.
+            let ts = document.tableStyles[table]
+            func rule(_ side: String, _ on: Bool?) -> Double {
+                guard theme.tableRulesTakeRoom, on ?? ts?.borders ?? true else { return 0 }
+                return _px(ts?.edgeWidths[side] ?? ts?.borderWidth ?? 0.5)
+            }
+            var rules: [(above: Double, below: Double)] = []
             var k0 = i
             while k0 < n, let d = _cells[k0], d.table == table {
                 var j = k0
                 while j < n, let d2 = _cells[j], d2.table == table, d2.row == d.row { j += 1 }
                 var stack: [Int: Double] = [:]
                 var rowHeight = 0.0
+                let ruleAbove = rows.isEmpty ? rule("top", ts?.edges?.top) : 0
+                let lastRow = !(j < n && _cells[j]?.table == table)
+                let ruleBelow = lastRow ? rule("bottom", ts?.edges?.bottom) : rule("insideH", ts?.edges?.insideH)
                 for k in k0 ..< j {
                     let cell = _cells[k]!
                     let offset = stack[cell.column] ?? 0
-                    _tops[k] = y + cell.pad.top + offset
+                    _tops[k] = y + ruleAbove + cell.pad.top + offset
                     _rowTops[k] = y
                     stack[cell.column] = offset + _heights[k]
                     // A spanning cell's content counts against the rows it
@@ -859,6 +875,8 @@ public final class RichLayout {
                 rowHeight = max(rowHeight, ins.top + ins.bottom)
                 // A row the file gave a height: at least that tall.
                 if let least = document.tableStyles[table]?.rowHeights[d.row] { rowHeight = max(rowHeight, _px(least)) }
+                rowHeight += ruleAbove + ruleBelow
+                rules.append((ruleAbove, ruleBelow))
                 for k in k0 ..< j {
                     _cells[k]!.rowTop = y
                     _cells[k]!.rowHeight = rowHeight
@@ -940,14 +958,15 @@ public final class RichLayout {
                     let offset = stack[cell.column] ?? 0
                     let last = min(rows.count - 1, r + cell.rowSpan - 1)
                     let spanned = cell.rowSpan > 1 ? rows[r ... last].map(\.height).reduce(0, +) : row.height
-                    let room = cell.vertical ? cell.colWidth - cell.pad.left - cell.pad.right : spanned - cell.pad.top - cell.pad.bottom
+                    let room = cell.vertical ? cell.colWidth - cell.pad.left - cell.pad.right
+                        : spanned - cell.pad.top - cell.pad.bottom - rules[r].above - rules[last].below
                     let free = max(0, room - (content[cell.column] ?? 0))
                     let shift = cell.verticalAlign == "center" ? free / 2 : cell.verticalAlign == "bottom" ? free : 0
                     if cell.vertical {
                         _tops[k] = row.top
                         _cells[k]!.across = cell.acrossStart + offset + shift
                     } else {
-                        _tops[k] = row.top + cell.pad.top + offset + shift
+                        _tops[k] = row.top + rules[r].above + cell.pad.top + offset + shift
                     }
                     _rowTops[k] = row.top
                     stack[cell.column] = offset + _heights[k]
