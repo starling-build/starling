@@ -63,6 +63,12 @@ struct Chart: Equatable {
     var type: ChartType
     /// Shown above the plot; nil for none.
     var title: String?
+    /// The title's own size in points, weight and colour where the file
+    /// gives them (its first run's, else the title's default run
+    /// properties); nil is PowerPoint's default for a chart title.
+    var titleSize: Double? = nil
+    var titleBold = false
+    var titleColor: Color? = nil
     /// The first column of the data: category names, or for a scatter
     /// chart the x values.
     var categories: [String]
@@ -207,13 +213,33 @@ enum ChartXML {
 
         var title: String? = nil
         let deleted = chart.first("c:autoTitleDeleted")?["val"] == "1"
+        var titleSize: Double? = nil, titleBold = false, titleColor: Color? = nil
         if let t = chart.first("c:title") {
-            let text = _texts(t, "a:t").joined()
+            // Line by line: a paragraph, or a break inside one, starts a new line.
+            let paragraphs = t.first("c:tx")?.first("c:rich")?.all("a:p") ?? []
+            let text = paragraphs.isEmpty ? _texts(t, "a:t").joined() : paragraphs.map { p in
+                p.children.map { $0.name == "a:br" ? "\n" : $0.name == "a:r" ? ($0.first("a:t")?.text ?? "") : "" }.joined()
+            }.joined(separator: "\n")
             title = text.isEmpty ? (series.count == 1 ? series[0].name : "Chart Title") : text
+            // Its look: the first run's, over the paragraph's default run
+            // properties, over the title's own (`c:txPr`).
+            let run = paragraphs.first?.first("a:r")?.first("a:rPr")
+            let defaults = [paragraphs.first?.first("a:pPr")?.first("a:defRPr"),
+                            t.first("c:txPr")?.first("a:p")?.first("a:pPr")?.first("a:defRPr")]
+            let layers = ([run] + defaults).compactMap { $0 }
+            // (18.62 pt is the default, PowerPoint's and what this app writes.)
+            titleSize = layers.lazy.compactMap { $0["sz"].flatMap(Double.init) }.first.flatMap { $0 == 1862 ? nil : $0 / 100 }
+            titleBold = layers.lazy.compactMap { $0["b"] }.first.map { $0 == "1" || $0 == "true" } ?? false
+            for layer in layers where titleColor == nil {
+                if let fill = layer.first("a:solidFill") { titleColor = color(fill) }
+            }
         } else if !deleted && series.count == 1 {
             title = series[0].name
         }
         var c = Chart(type: type, title: title, categories: categories, series: series)
+        c.titleSize = titleSize
+        c.titleBold = titleBold
+        c.titleColor = titleColor
         c.legend = chart.first("c:legend") != nil
         // (Absent, the schema's default is the right.)
         if let l = chart.first("c:legend") { c.legendPosition = l.first("c:legendPos")?["val"] ?? "r" }
@@ -300,10 +326,15 @@ enum ChartXML {
 
     private static func _esc(_ s: String) -> String { PptxXML.escape(s, attribute: false) }
 
-    private static func _rich(_ text: String, size: Int?, rotated: Bool = false) -> String {
+    private static func _rich(_ text: String, size: Int?, rotated: Bool = false, bold: Bool = false, color: Color? = nil) -> String {
         let body = rotated ? "<a:bodyPr rot=\"-5400000\" vert=\"horz\"/>" : "<a:bodyPr/>"
-        let def = size.map { "<a:pPr><a:defRPr sz=\"\($0)\" b=\"0\"/></a:pPr>" } ?? ""
-        return "<c:title><c:tx><c:rich>\(body)<a:lstStyle/><a:p>\(def)<a:r><a:rPr lang=\"en-US\"/><a:t>\(_esc(text))</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title>"
+        let fill = color.map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" } ?? ""
+        let def = size.map { "<a:pPr><a:defRPr sz=\"\($0)\" b=\"\(bold ? 1 : 0)\">\(fill)</a:defRPr></a:pPr>" } ?? ""
+        // A line of the title is a paragraph of its own.
+        let paragraphs = text.split(separator: "\n", omittingEmptySubsequences: false).map {
+            "<a:p>\(def)<a:r><a:rPr lang=\"en-US\"/><a:t>\(_esc(String($0)))</a:t></a:r></a:p>"
+        }.joined()
+        return "<c:title><c:tx><c:rich>\(body)<a:lstStyle/>\(paragraphs)</c:rich></c:tx><c:overlay val=\"0\"/></c:title>"
     }
 
     private static let _gridLine = "<a:ln w=\"9525\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"15000\"/><a:lumOff val=\"85000\"/></a:schemeClr></a:solidFill><a:round/></a:ln>"
@@ -401,7 +432,9 @@ enum ChartXML {
             }
             plot += valAx
         }
-        let title = c.title.map { _rich($0, size: 1862) } ?? ""
+        let title = c.title.map {
+            _rich($0, size: c.titleSize.map { Int(($0 * 100).rounded()) } ?? 1862, bold: c.titleBold, color: c.titleColor)
+        } ?? ""
         let legend = c.legend ? "<c:legend><c:legendPos val=\"\(c.legendPosition)\"/><c:overlay val=\"0\"/></c:legend>" : ""
         let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1200\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
         return """
@@ -452,9 +485,11 @@ enum ChartPainter {
         let ink = _mix(theme.text, theme.background, 0.65)
         let grid = _mix(theme.text, theme.background, 0.15)
         let font = OfficeFonts.substitute(theme.bodyFont)
+        // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
+        let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
         func text(_ s: String, _ size: Double, _ maxWidth: Double = .infinity) -> TextPainter {
             let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
-                color: ink, fontSize: max(3, size * k), fontFamily: font)), textDirection: .ltr)
+                color: ink, fontSize: max(3, size * k), fontFeatures: plain, fontFamily: font)), textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
         }
@@ -463,8 +498,15 @@ enum ChartPainter {
         var area = r.deflate(9 * k)
 
         if let title = c.title, !title.isEmpty {
-            let tp = text(title, 18.6, area.width)
-            tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.top))
+            // In the file's size, weight and colour where it gives them,
+            // each line centred.
+            let tp = TextPainter(text: TextSpan(text: title, style: Flutter.TextStyle(
+                color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? 18.6) * k),
+                fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain, fontFamily: font)),
+                textAlign: .center, textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: max(1, area.width))
+            // (Two points higher than the area's edge: where PowerPoint's sits.)
+            tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.top - 2 * k))
             area = Rect.fromLTRB(area.left, area.top + tp.height + 6 * k, area.right, area.bottom)
             tp.dispose()
         }

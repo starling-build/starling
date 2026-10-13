@@ -644,6 +644,17 @@ Left in that chart, each its own task: the title's own run properties
 format; data labels; the legend's order and size; the user shape drawn
 over the plot (`chartUserShapes`).
 
+**One deck at a time: tdf149985, its chart's title, 2026-10-13** (6.31 →
+5.70; the corpus otherwise unmoved). **A chart's title has its own
+size, weight, colour and lines.** Every title was 18.6 pt of the theme's
+text colour on one line; this one is bold 14 pt in 002060 with a break
+in it. `Chart.titleSize`, `titleBold`, `titleColor`: the first run's
+properties, over the paragraph's `defRPr`, over the title's `txPr`; a
+paragraph or an `a:br` is a new line, each centred. Written back for a
+chart this app writes. And chart text is set without ligatures, as
+slide text is. Lands on PowerPoint's: 212.1 across, baseline 124.2 /
+124.3.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
