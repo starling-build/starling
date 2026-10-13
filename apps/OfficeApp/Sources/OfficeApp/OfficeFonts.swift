@@ -91,7 +91,13 @@ enum OfficeFonts {
     /// quotes in a Latin face. (A face Word has it knows whatever the
     /// table says: six files of the corpus declare 宋体 that way.)
     private nonisolated(unsafe) static var declaredLatin: Set<String> = []
+    #if os(WASI)
+    // One thread in the browser, and no NSLock in its Foundation.
+    private struct _NoLock { func lock() {}; func unlock() {} }
+    private static let declaredLock = _NoLock()
+    #else
     private static let declaredLock = NSLock()
+    #endif
     private static let wordsOwn: Set<String> = [
         "宋体", "simsun", "新宋体", "nsimsun", "黑体", "simhei", "楷体", "kaiti", "仿宋", "fangsong", "微软雅黑", "microsoft yahei",
         "microsoft yahei ui", "等线", "等线 light", "dengxian", "dengxian light", "新細明體", "pmingliu", "細明體", "mingliu",

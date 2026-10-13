@@ -655,6 +655,31 @@ chart this app writes. And chart text is set without ligatures, as
 slide text is. Lands on PowerPoint's: 212.1 across, baseline 124.2 /
 124.3.
 
+**One deck at a time: tdf149985, its chart's value axis, 2026-10-13**
+(5.70 → 5.65; aascu's download deck 12.8 → 13.1, below).
+
+- **An axis is marked in no more than eight steps**: the smallest of 1,
+  2, 5 × a power of ten that needs no more. It was six, which marked
+  this chart 0 to 1,500 in 500s where PowerPoint has 0 to 1,600 in 200s.
+  Two rules tied to the axis's length and the labels' size came first,
+  and the full sweep threw each out on another deck (halves on the
+  default chart; 50s on aascu's 0 to 600). Eight fits every axis of
+  PowerPoint's pages looked at: 200s to 1,600, 100s to 600, ones to 6,
+  twos to 10.
+- **The axis's labels in its own size** (`c:valAx/c:txPr`,
+  `Chart.valueLabelSize`) — 9 pt here, 8 on aascu's, where all were 12.
+  That one costs aascu's deck 0.3: its labels are PowerPoint's size now,
+  the column they stand in narrower, and its bars two pixels from where
+  they were.
+- **And in its own number format** (`c:numFmt`, or the first series'
+  when it is linked to the source; `Chart.valueFormat`), through
+  Sheets' `NumberFormat`: "1,600", and an accounting format's "-" for
+  nought. Right edges within half a point of PowerPoint's.
+
+With them, for the web build, which upstream's new code had stopped
+linking: `RichLayout._cellSide`'s `range(of:)` is `firstRange(of:)`, and
+`OfficeFonts`' lock is nothing where there is one thread.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

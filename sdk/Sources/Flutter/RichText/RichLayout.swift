@@ -986,10 +986,12 @@ public final class RichLayout {
     /// (`CellRef.bordersXML`): its line style and width in points, nil
     /// where the cell names no such side or says none.
     private static func _cellSide(_ xml: String?, _ side: String) -> (style: String, width: Double)? {
-        guard let xml, let a = xml.range(of: "<w:\(side) "), let b = xml.range(of: ">", range: a.upperBound ..< xml.endIndex) else { return nil }
+        // (`firstRange(of:)`, the standard library's: `range(of:)` is the
+        // legacy Foundation layer, which the web build does not link.)
+        guard let xml, let a = xml.firstRange(of: "<w:\(side) "), let b = xml[a.upperBound...].firstRange(of: ">") else { return nil }
         let element = xml[a.upperBound ..< b.lowerBound]
         func value(_ name: String) -> Substring? {
-            guard let s = element.range(of: name + "=\""), let e = element.range(of: "\"", range: s.upperBound ..< element.endIndex) else { return nil }
+            guard let s = element.firstRange(of: name + "=\""), let e = element[s.upperBound...].firstRange(of: "\"") else { return nil }
             return element[s.upperBound ..< e.lowerBound]
         }
         guard let style = value("w:val"), style != "nil", style != "none" else { return nil }

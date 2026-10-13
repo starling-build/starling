@@ -83,6 +83,14 @@ struct Chart: Equatable {
     var percent = false
     var categoryAxisTitle: String? = nil
     var valueAxisTitle: String? = nil
+    /// The value axis's labels' size in points where the file gives one
+    /// (`c:valAx/c:txPr`); nil is the default, 12. It also decides how
+    /// many marks the axis has room for.
+    var valueLabelSize: Double? = nil
+    /// The value axis's number format, an Excel format code ("#,##0"),
+    /// where the file gives one other than General: the axis's own, or —
+    /// "linked to source" — the one its first series' numbers came with.
+    var valueFormat: String? = nil
     /// A bar chart's spacing as the file set it, in percent of a bar:
     /// the gap between categories and the overlap of a category's bars.
     /// Nil is PowerPoint's default (219 and -27; 150 and 100 stacked).
@@ -268,6 +276,17 @@ enum ChartXML {
         } else {
             c.categoryAxisTitle = axisTitle(axes.first { $0.name != "c:valAx" })
             c.valueAxisTitle = axisTitle(axes.first { $0.name == "c:valAx" })
+        }
+        let valueAxis = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") }
+            : axes.first { $0.name == "c:valAx" }
+        if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
+            c.valueLabelSize = sz / 100
+        }
+        if let fmt = valueAxis?.first("c:numFmt") {
+            let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
+            let source = plot.descendant("c:val")?.descendant("c:formatCode")?.text
+            let code = (linked ? source : nil) ?? fmt["formatCode"] ?? ""
+            if !code.isEmpty, code.lowercased() != "general" { c.valueFormat = code }
         }
         return c
     }
@@ -588,13 +607,18 @@ enum ChartPainter {
 
     /// Round axis bounds and a step, Excel's way: about five to ten
     /// gridlines, 5% headroom above the data.
-    static func scale(_ lo0: Double, _ hi0: Double) -> (lo: Double, hi: Double, step: Double) {
+    /// The step is the smallest of 1, 2, 5 × a power of ten that marks the
+    /// axis in no more than `intervals` steps. Eight is PowerPoint's, by
+    /// every axis of its pages looked at: 0 to 1,600 in 200s (eight; 100s
+    /// would be sixteen), 0 to 600 in 100s (six; 50s twelve), 0 to 6 in
+    /// ones (halves twelve), 0 to 10 in twos (ones ten).
+    static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 8) -> (lo: Double, hi: Double, step: Double) {
         var lo = min(0, lo0), hi = max(0, hi0)
         if hi == lo { hi = lo + 1 }
         let span = hi - lo
         if hi > 0 { hi += span * 0.05 }
         if lo < 0 { lo -= span * 0.05 }
-        let rough = (hi - lo) / 6
+        let rough = (hi - lo) / Double(max(1, intervals))
         let mag = pow(10, floor(log10(rough)))
         let norm = rough / mag
         let step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
@@ -629,6 +653,7 @@ enum ChartPainter {
             let all = c.series.flatMap { $0.values.compactMap { $0 } }
             lo = all.min() ?? 0; hi = all.max() ?? 1
         }
+        let labelSize = c.valueLabelSize ?? 12
         let sc = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi)
         var xs = (lo: 0.0, hi: Double(n), step: 1.0)
         if c.type == .scatter {
@@ -670,8 +695,6 @@ enum ChartPainter {
         }
 
         // Tick labels: values along one axis, categories (or x values) along the other.
-        let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step / 2, by: sc.step))
-        let valueLabels = ticks.map { text(label($0, percent: c.percent), 12, .infinity) }
         let catLabels: [TextPainter]
         if c.type == .scatter {
             catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { text(label($0, percent: false), 12, .infinity) }
@@ -679,6 +702,15 @@ enum ChartPainter {
             let slot = (horizontal ? area.height : area.width) / Double(n)
             catLabels = c.categories.map { text($0, 12, horizontal ? area.width * 0.3 : max(slot - 2 * k, 8 * k)) }
         }
+        let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step / 2, by: sc.step))
+        // In the axis's own number format where it has one: "1,600", and
+        // an accounting format's "-" for nought. (Its padding is a cell's.)
+        func valueLabel(_ v: Double) -> String {
+            guard let code = c.valueFormat, !c.percent else { return label(v, percent: c.percent) }
+            let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
+            return shown.isEmpty ? label(v, percent: false) : shown
+        }
+        let valueLabels = ticks.map { text(valueLabel($0), labelSize, .infinity) }
         let lineH = valueLabels.first?.height ?? 12 * k
         let plot: Rect
         if horizontal {
