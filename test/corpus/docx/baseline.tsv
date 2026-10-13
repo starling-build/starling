@@ -55,7 +55,7 @@ documentProtection_no_protection_tag_existing.docx	summary pages=1 worst=0.08% m
 documentProtection_no_protection.docx	summary pages=1 worst=0.03% mean=0.03%
 documentProtection_readonly_no_password.docx	summary pages=1 worst=0.07% mean=0.07%
 documentProtection_trackedChanges_no_password.docx	summary pages=1 worst=0.15% mean=0.15%
-drawing.docx	summary pages=23 worst=100.00% mean=30.82%
+drawing.docx	summary pages=23 worst=100.00% mean=30.90%
 EmbeddedDocument.docx	summary pages=1 worst=0.11% mean=0.11%
 EmptyDocumentWithHeaderFooter.docx	summary pages=1 worst=0.01% mean=0.01%
 emptyPPr.docx	summary pages=1 worst=0.37% mean=0.37%
@@ -65,7 +65,7 @@ FancyFoot.docx	summary pages=2 worst=1.45% mean=1.31%
 FieldCodes.docx	summary pages=1 worst=0.04% mean=0.04%
 FldSimple.docx	summary pages=1 worst=0.02% mean=0.02%
 footnotes.docx	summary pages=1 worst=0.16% mean=0.16%
-form_footnotes.docx	summary pages=3 worst=100.00% mean=45.05%
+form_footnotes.docx	summary pages=3 worst=100.00% mean=44.56%
 headerFooter.docx	summary pages=1 worst=0.27% mean=0.27%
 HeaderFooterUnicode.docx	summary pages=2 worst=1.70% mean=1.05%
 headerPic.docx	summary pages=1 worst=1.25% mean=1.25%
@@ -114,7 +114,7 @@ zh-06c46ba9fb52d000668122f353ed515fa5c868fb1176421aa685966e7a13def7.docx	summary
 zh-06f6a036a53d8d2ae34eb035b4c90e693964d086128bfdc00b17e7b7c110d784.docx	summary pages=1 worst=6.25% mean=6.25%
 zh-0aac9d1ab534650abe976e6c61a9b807d8dd93604b1f1cfb7e0d23e6e832d400.docx	summary pages=12 worst=100.00% mean=15.05%
 zh-1563bd74648502837e9b6ed301c8f499216bc1a895722a7716ef8140d7b2d375.docx	summary pages=30 worst=100.00% mean=14.69%
-zh-15728c84f3aaf93320c67bedd3bc08ba3a7e88ca5d10e950df7c1d21f0cf129b.docx	summary pages=10 worst=100.00% mean=25.84%
+zh-15728c84f3aaf93320c67bedd3bc08ba3a7e88ca5d10e950df7c1d21f0cf129b.docx	summary pages=10 worst=100.00% mean=26.01%
 zh-190d730c1c3a510d17dc9cb6dab7e6b9217b7a3e44e1c8b80d3d043bc086c97e.docx	summary pages=9 worst=26.73% mean=19.41%
 zh-1a3c7aa0fc1b18e81897adf0930ddb6ca9bc22bd4568855e5e3da6db1178f102.docx	summary pages=90 worst=100.00% mean=8.12%
 zh-1d3d66d31f2b561b81e25b17521df8360f532cd1ce9b80f1bc0162a90d57fc4e.docx	summary pages=8 worst=18.50% mean=9.87%
@@ -123,7 +123,7 @@ zh-25c4de17122cbb8f68e529368e2aae29f2ebe0dd028bd8efae35f953ded7db34.docx	summary
 zh-2af9ab1b13ab0c804326fa98f2723a30d9d0ebdd193b713521ac204006dc7fa8.docx	summary pages=20 worst=12.39% mean=10.40%
 zh-2b9554118b80ab35a0d18b58bc7b6316495b39e81193c28a575344f6209584bb.docx	summary pages=29 worst=19.27% mean=9.50%
 zh-301f097c85ce6e45a805f423aa2613f98087f47aa17433f9ea34c3c072be58f2.docx	summary pages=3 worst=19.72% mean=15.59%
-zh-33aa98998b63fa3df8d454283c5eb05e298c654132590e3dd547a4ad3655b76e.docx	summary pages=13 worst=25.41% mean=13.62%
+zh-33aa98998b63fa3df8d454283c5eb05e298c654132590e3dd547a4ad3655b76e.docx	summary pages=13 worst=24.72% mean=11.42%
 zh-3550642e8cbf2f7f28126f5824db840c57a8ec2d9d6ec780a6d325cb2fa87014.docx	summary pages=3 worst=14.18% mean=11.21%
 zh-37b6536f7f58d26bda4b72689eb4a81042c4549b70f946df77f97bacefaf268d.docx	summary pages=6 worst=41.68% mean=20.29%
 zh-3a2eba04d66b661a6b4817de1d1be021cb30156b2c9417ab6b88cb1c989dd590.docx	summary pages=3 worst=11.70% mean=10.44%
@@ -144,8 +144,8 @@ zh-6cd1befe1b2cb7c989f740d5966e4a1db9e236b77343ea46762d647f993443f0.docx	summary
 zh-6d1afa56a33b2a1f2fae52f0a778889265f231b849785ef8ca5c4dc9f51a1fea.docx	summary pages=65 worst=100.00% mean=10.57%
 zh-78729cf9b83a4ba39ae2b88b05d5f070a919cc3dbf704d222320391425a2885c.docx	summary pages=18 worst=14.71% mean=10.91%
 zh-799c91cd09dd1f64390750093e46086bd4306f2002cbbd5a2f18995b192a53d7.docx	summary pages=13 worst=100.00% mean=15.40%
-zh-7dc3afadbc42c130dd5f099bdc6ac2665950213d334886327e1b0076e589ae2d.docx	summary pages=29 worst=100.00% mean=14.00%
-zh-84702a67b45e9160b11947a20ef044fafd173fba4fcd4635b35c2a09e59416e0.docx	summary pages=10 worst=17.77% mean=9.43%
+zh-7dc3afadbc42c130dd5f099bdc6ac2665950213d334886327e1b0076e589ae2d.docx	summary pages=29 worst=100.00% mean=13.61%
+zh-84702a67b45e9160b11947a20ef044fafd173fba4fcd4635b35c2a09e59416e0.docx	summary pages=10 worst=17.80% mean=9.43%
 zh-89385c9404859deeb01d84b18b4f30ed9d1279ed402a1a8b429024fc013c16c5.docx	summary pages=14 worst=100.00% mean=27.82%
 zh-8c2948a8400f239f94451678593ac44f1daccb767cea2bc51d25f97db6ea37f5.docx	summary pages=5 worst=22.53% mean=16.25%
 zh-8cd0369103083f0c14a3440e71cbe26f487575773e84f190b5821b428540c141.docx	summary pages=4 worst=23.67% mean=18.03%
@@ -164,7 +164,7 @@ zh-abe7e0637c725546b4397dd938a313a6f9972cca9b60659fb6d4309449852672.docx	summary
 zh-ac627439dcdfd83d289fa19e42e01588e29abef6e4af78263b7a63bf5e482723.docx	summary pages=16 worst=11.83% mean=10.10%
 zh-adfe24a7606076a3cd70f9bd37f81f328c7f003ce0d90e4a1663bf7d7624f977.docx	summary pages=8 worst=24.63% mean=20.93%
 zh-ae3d78eed2510d93e54ec5975c2a891b09537fd4bc2688a4599e7687fd11a43a.docx	summary pages=33 worst=13.53% mean=7.71%
-zh-ae6551210a3a9c4b5158de9605995b3ec2888d14992b1a3414e9540771268bd4.docx	summary pages=11 worst=14.22% mean=6.45%
+zh-ae6551210a3a9c4b5158de9605995b3ec2888d14992b1a3414e9540771268bd4.docx	summary pages=11 worst=14.22% mean=6.05%
 zh-b56eeded38fbffddc60c0fd85e8b3c204a62fdfa1d72b43fe64c8369aa78fd7e.docx	summary pages=7 worst=18.04% mean=9.61%
 zh-bc6eda4ebbb0eab87c83777a85533cd520ca5333b7b5565d2e7fc022cf8cb8c2.docx	summary pages=4 worst=18.82% mean=12.88%
 zh-c3dd22c4171f8f500afd633a1107b20b48f8cf87b2e8da9bba2d7a24d2e934d7.docx	summary pages=17 worst=12.64% mean=8.90%
