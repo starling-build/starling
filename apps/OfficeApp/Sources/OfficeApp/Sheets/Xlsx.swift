@@ -83,11 +83,15 @@ enum Xlsx {
         // Sheets, in tab order.
         var activeTab = 0
         if let view = wbNode.child("bookViews")?.kids("workbookView").first, let a = Int(view["activeTab"] ?? "") { activeTab = a }
+        // Each sheet's part as it was parsed, without its cells: what the
+        // readers of its drawings, objects and tables look through. They
+        // parsed the part again, each of them — an 18 MB sheet four times.
+        var sheetRoots: [String: XNode] = [:]
         for s in wbNode.child("sheets")?.kids("sheet") ?? [] {
             guard let name = s["name"], let rid = s["r:id"], let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
-            if let raw = parts[path] { try _readSheet(raw, into: ws, sst: sst, book: book) }
+            if let raw = parts[path] { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
             book.sheets.append(ws)
@@ -98,9 +102,9 @@ enum Xlsx {
         let colors = ColorContext(theme: PptxTheme(themeRoot))
         for ws in book.sheets {
             if let path = ws.origin {
-                (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors)
-                ws.objects = SheetObjectsXML.read(sheetPath: path, parts: parts)
-                ws.tables = TablesXML.read(sheetPath: path, parts: parts)
+                (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors, sheet: sheetRoots[path])
+                ws.objects = SheetObjectsXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
+                ws.tables = TablesXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
                 (ws.notes, ws.noteParts) = NotesXML.read(sheetPath: path, parts: parts)
                 for r in _relList(parts[_relsPath(path)]) where r.type.hasSuffix("/hyperlink") { ws.linkTargets[r.id] = r.target }
             }
@@ -141,7 +145,9 @@ enum Xlsx {
         return af
     }
 
-    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], book: Workbook) throws {
+    /// Returns the part's root with `sheetData` left out (see `sheetRoots`).
+    @discardableResult
+    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], book: Workbook) throws -> XNode {
         let bytes = [UInt8](raw)
         // The elements we do not model, kept as their original text.
         let split = RawXML.split(bytes)
@@ -208,7 +214,11 @@ enum Xlsx {
         var spillAreas: [(CellAddress, CellRange)] = []
         var cells: [CellAddress: Cell] = [:]
         var rowIndex = 0
-        for row in root.child("sheetData")?.kids("row") ?? [] {
+        let rowNodes = root.child("sheetData")?.kids("row") ?? []
+        // Room for every cell at once: a dictionary grown a cell at a time
+        // is rehashed a dozen times over on its way to a million.
+        cells.reserveCapacity(rowNodes.reduce(0) { $0 + $1.children.count })
+        for row in rowNodes {
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
             if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }
@@ -245,14 +255,18 @@ enum Xlsx {
                 }
                 var cell = Cell(input: "")
                 cell.style = styleIndex < book.styles.count ? styleIndex : 0
-                for k in ["vm", "cm", "ph"] { if let v = c[k] { cell.keptAttrs[k] = v } }
+                if c.attrs.count > 1 {
+                    for (k, v) in c.attrs where k == "vm" || k == "cm" || k == "ph" { cell.keptAttrs[k] = v }
+                }
                 if let f = c.child("f") {
                     // As the file wrote it, for when it cannot be read.
-                    let rawF: String = {
+                    // (Made only for a formula that cannot be: one in a
+                    // thousand, and this was a string built for every one.)
+                    func rawF() -> String {
                         var s = "<f"
                         for (k, v) in f.attrs.sorted(by: { $0.key < $1.key }) { s += " \(k)=\"\(_esc(v))\"" }
                         return f.text.isEmpty ? s + "/>" : s + ">" + _esc(f.text) + "</f>"
-                    }()
+                    }
                     var expr: FormulaExpr? = nil
                     if f["t"] == "shared", let si = f["si"] {
                         if !f.text.isEmpty, let e = try? Formula.parse(f.text) {
@@ -282,7 +296,7 @@ enum Xlsx {
                         cell.input = f.text.isEmpty ? NumberFormat.display(value, "General", width: 255).text : "=" + f.text
                         cell.value = value
                         cell.cached = value
-                        cell.rawFormula = rawF
+                        cell.rawFormula = rawF()
                     }
                 } else {
                     cell.value = value
@@ -314,6 +328,9 @@ enum Xlsx {
         for m in root.child("mergeCells")?.kids("mergeCell") ?? [] {
             if let r = m["ref"].flatMap({ CellRange($0) }) { ws.merges.append(r) }
         }
+        let light = XNode(name: root.name, attrs: root.attrs)
+        light.children = root.children.filter { $0.name != "sheetData" }
+        return light
     }
 
     /// A stored column width (characters of the default font's widest

@@ -40,8 +40,8 @@ struct SheetTable: Equatable, Sendable {
 
 enum TablesXML {
     /// The tables a sheet's `tableParts` name.
-    static func read(sheetPath: String, parts: [String: Data]) -> [SheetTable] {
-        guard let sheet = parts[sheetPath].flatMap({ XNode.parse($0) }) else { return [] }
+    static func read(sheetPath: String, parts: [String: Data], sheet: XNode? = nil) -> [SheetTable] {
+        guard let sheet = sheet ?? parts[sheetPath].flatMap({ XNode.parse($0) }) else { return [] }
         let rels = SheetDrawingsXML._relTargets(parts, of: sheetPath)
         return (sheet.child("tableParts")?.kids("tablePart") ?? []).compactMap { tp in
             guard let id = tp["r:id"], let path = rels[id], let root = parts[path].flatMap({ XNode.parse($0) }),

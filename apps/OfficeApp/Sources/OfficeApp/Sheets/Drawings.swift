@@ -87,10 +87,10 @@ enum SheetDrawingsXML {
 
     /// The drawings on one sheet (its `drawing` relationship's part), and
     /// that part's path and root tag.
-    static func read(sheetPath: String, parts: [String: Data], colors: ColorContext)
+    static func read(sheetPath: String, parts: [String: Data], colors: ColorContext, sheet: XNode? = nil)
         -> (drawings: [SheetDrawing], part: String?, root: String?) {
         let sheetRels = _relTargets(parts, of: sheetPath)
-        guard let sheet = parts[sheetPath].flatMap({ XNode.parse($0) }),
+        guard let sheet = sheet ?? parts[sheetPath].flatMap({ XNode.parse($0) }),
               let rid = sheet.child("drawing")?["r:id"], let drawingPath = sheetRels[rid],
               let bytes = parts[drawingPath], let root = XNode.parse(bytes) else { return ([], nil, nil) }
         let rels = _relTargets(parts, of: drawingPath)

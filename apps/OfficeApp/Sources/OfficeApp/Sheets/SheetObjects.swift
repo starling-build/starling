@@ -60,8 +60,8 @@ struct FormControl: Equatable {
 
 enum SheetObjectsXML {
     /// The objects and controls of one sheet.
-    static func read(sheetPath: String, parts: [String: Data]) -> [SheetObject] {
-        guard let sheet = parts[sheetPath].flatMap({ XNode.parse($0) }) else { return [] }
+    static func read(sheetPath: String, parts: [String: Data], sheet: XNode? = nil) -> [SheetObject] {
+        guard let sheet = sheet ?? parts[sheetPath].flatMap({ XNode.parse($0) }) else { return [] }
         let lists = ["oleObjects", "controls"].compactMap { sheet.child($0) }
         guard !lists.isEmpty || sheet.child("legacyDrawing") != nil else { return [] }
         let rels = SheetDrawingsXML._relTargets(parts, of: sheetPath)
