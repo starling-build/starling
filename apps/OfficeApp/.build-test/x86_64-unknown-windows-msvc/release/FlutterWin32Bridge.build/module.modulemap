@@ -1,4 +1,0 @@
-module FlutterWin32Bridge {
-    umbrella header "C:\\Users\\starling\\dev\\starling\\sdk\\Sources\\FlutterWin32Bridge\\include\\FlutterWin32Bridge.h"
-    export *
-}

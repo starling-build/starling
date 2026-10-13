@@ -1,3 +1,0 @@
-module SwiftRuntime {
-    header "C:\Users\starling\dev\starling\apps\OfficeApp\.build-test\x86_64-unknown-windows-msvc\release\SwiftRuntime.build\include\SwiftRuntime-Swift.h"
-}

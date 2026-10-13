@@ -1,3 +1,0 @@
-module FlutterWin32 {
-    header "C:\Users\starling\dev\starling\apps\OfficeApp\.build-test\x86_64-unknown-windows-msvc\release\FlutterWin32.build\include\FlutterWin32-Swift.h"
-}

@@ -1,4 +1,0 @@
-module CZlib {
-    umbrella "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\Vendor\\zlib\\include"
-    export *
-}
