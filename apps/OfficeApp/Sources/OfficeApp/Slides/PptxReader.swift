@@ -358,6 +358,14 @@ private struct LevelStyle {
         // Symbol faces are often spelled in the private range (U+F0xx).
         let code = (0xF000 ... 0xF0FF).contains(scalar.value) ? scalar.value - 0xF000 : scalar.value
         let face = (bulletFont ?? "").lowercased()
+        // A character that is a symbol in its own right (✭, ➢) is that
+        // symbol whatever face is named: a symbol face's codes are Latin-1
+        // or the private range, and PowerPoint finds anything else in
+        // another font (pptx2svg's stars, "Wingdings" with U+272D).
+        if scalar.value > 0xFF, !(0xF000 ... 0xF0FF).contains(scalar.value),
+           face.hasPrefix("wingdings") || face.hasPrefix("symbol") || face.hasPrefix("webdings") {
+            return String(ch[ch.startIndex])
+        }
         if face.hasPrefix("wingdings") {
             let map: [UInt32: String] = [
                 0x6C: "●", 0x6D: "❍", 0x6E: "■", 0x6F: "□", 0x70: "◻", 0x71: "❑", 0x72: "❒", 0x73: "◆",
@@ -658,6 +666,8 @@ struct PptxReader {
         var f = SlideFill(color: stops[0].color, stops: stops,
                           angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
         f.scaled = ["1", "true"].contains(g.first("a:lin")?["scaled"] ?? "")
+        // Plain colours: no stop's colour carries a modifier (tint, satMod…).
+        f.eased = !(g.first("a:gsLst")?.all("a:gs") ?? []).contains { gs in gs.children.contains { !$0.children.isEmpty } }
         if let path = g.first("a:path") {
             f.path = path["path"].flatMap(SlideFill.GradientPath.init(rawValue:)) ?? .shape
             if let to = path.first("a:fillToRect") {
@@ -1133,6 +1143,11 @@ private struct SlideContext {
         st.lineReduction = text.lineReduction
         st.insetsFollowFont = text.insetsFollowFont
         st.noWrap = text.noWrap
+        st.columns = text.columns
+        st.columnGap = text.columnGap
+        st.warp = text.warp
+        st.runLooks = text.runLooks
+        st.scene3d = Extrusion.read(spPr, colors: colors)
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
@@ -1510,9 +1525,14 @@ private struct SlideContext {
                     default:
                         break
                     }
+                    // An empty paragraph is as tall as its end mark says
+                    // (`endParaRPr`): a row grows for 96 pt of nothing
+                    // (tdf144092), as it would for a letter that size.
+                    let end = p.first("a:endParaRPr").map { LevelStyle.run($0, colors) }
                     var para = text.isEmpty
-                        ? RichParagraph(text: "", runs: [Run(length: 0, style: CharStyle(bold: look.bold ?? false, fontFamily: _font(look.font),
-                                                                                          fontSize: look.size ?? 18, color: look.color))], style: style)
+                        ? RichParagraph(text: "", runs: [Run(length: 0, style: CharStyle(bold: end?.bold ?? look.bold ?? false,
+                                                                                          fontFamily: _font(end?.font ?? look.font),
+                                                                                          fontSize: end?.size ?? look.size ?? 18, color: look.color))], style: style)
                         : RichParagraph(text: text, runs: runs, style: style)
                     para.cell = cell
                     cellParas.append(para)
@@ -1590,9 +1610,37 @@ private struct SlideContext {
     private func _chart(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
         guard let ref = el.descendant("c:chart")?["r:id"],
               let rel = package.rels(part).first(where: { $0.id == ref && !$0.external }),
-              let space = package.xml(rel.target),
-              let chart = ChartXML.read(space, color: { colors.color(in: $0) }),
+              let space = package.xml(rel.target) else { return nil }
+        // A chart pasted from another file brings that file's colours with
+        // it: a theme override part, whose scheme stands in for the deck's
+        // wherever the chart says `schemeClr` (tdf149985's greens, where
+        // the deck's own accents are Office's blue and orange).
+        var colors = colors
+        var overridden = false
+        if let over = package.rels(rel.target).first(where: { $0.kind == "themeOverride" && !$0.external }),
+           let scheme = package.xml(over.target)?.descendant("a:clrScheme") {
+            overridden = true
+            for child in scheme.children {
+                let name = String(child.name.drop { $0 != ":" }.dropFirst())
+                if let c = child.first("a:srgbClr")?["val"].flatMap(PptxTheme.hex)
+                    ?? child.first("a:sysClr")?["lastClr"].flatMap(PptxTheme.hex) {
+                    colors.theme.colors[name] = c
+                }
+            }
+        }
+        guard var chart = ChartXML.read(space, color: { colors.color(in: $0) }),
               var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
+        if overridden {
+            // A series that names a theme slot, or leaves its colour to the
+            // cycle, is drawn against the deck's theme — which is not this
+            // chart's. Each gets the colour it has in the chart's own.
+            let accents = (1 ... 6).compactMap { colors.scheme("accent\($0)") }
+            for i in chart.series.indices where chart.series[i].color == nil {
+                if let slot = chart.series[i].scheme { chart.series[i].color = colors.scheme(slot) }
+                else if accents.count == 6 { chart.series[i].color = Chart.cycle(i, accents) }
+                if chart.series[i].color != nil { chart.series[i].scheme = nil }
+            }
+        }
         if let t = transform { frame = t(frame) }
         var st = ShapeState(id: id(), name: el.descendant("p:cNvPr")?["name"] ?? "Chart", kind: .chart(chart), frame: frame,
                             rotation: 0, fill: nil, outline: nil, outlineWidth: 0, anchor: .top,
@@ -1819,6 +1867,11 @@ private struct SlideContext {
         var insetsFollowFont = false
         /// `bodyPr wrap="none"`.
         var noWrap = false
+        /// `bodyPr numCol` and `spcCol` (points).
+        var columns = 1
+        var columnGap = 0.0
+        var warp: TextWarp? = nil
+        var runLooks: [[RunLook]] = []
     }
 
     /// The master text style a placeholder (or plain shape) draws from.
@@ -1928,6 +1981,7 @@ private struct SlideContext {
             }
         }
         let shapeIndent = listIndent ?? 18
+        var runLooks: [[RunLook]] = []
         var paragraphs: [RichParagraph] = []
         let allParagraphs = body?.all("a:p") ?? []
         for p in allParagraphs {
@@ -1965,6 +2019,13 @@ private struct SlideContext {
                 if level.bullet == .char { style.bulletText = level.bulletGlyph }
                 style.bulletColor = level.bulletColor
                 style.bulletScale = level.bulletScale
+                // The bullet's own face — but not a symbol face, whose codes
+                // were turned into the glyphs they show and are set in the
+                // text's.
+                if level.bullet == .char, let f = level.bulletFont,
+                   !["wingdings", "symbol", "webdings"].contains(where: { f.lowercased().hasPrefix($0) }) {
+                    style.bulletFontFamily = _font(f)
+                }
                 // The file's own text edge (marL) and bullet offset (indent):
                 // the text placed where the file puts it, both written back
                 // as read. The layout indents a list by the shape's list
@@ -1980,8 +2041,12 @@ private struct SlideContext {
 
             var text = ""
             var runs: [Run] = []
-            func add(_ t: String, _ r: LevelStyle) {
+            var looks: [RunLook] = []
+            func add(_ t: String, _ r: LevelStyle, _ rPr: XNode? = nil) {
                 guard !t.isEmpty else { return }
+                var look = _runLook(rPr) ?? RunLook()
+                look.length = t.utf16.count
+                looks.append(look)
                 let s = r.filled(from: level)
                 var cs = CharStyle(bold: s.bold ?? false, italic: s.italic ?? false,
                                    underline: s.underline ?? false, strikethrough: s.strike ?? false,
@@ -1995,9 +2060,9 @@ private struct SlideContext {
             }
             for child in p.children {
                 switch child.name {
-                case "a:r": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
+                case "a:r": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
                 case "a:br": add("\n", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
-                case "a:fld": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
+                case "a:fld": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
                 default: continue
                 }
             }
@@ -2011,6 +2076,17 @@ private struct SlideContext {
             } else {
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
             }
+            runLooks.append(looks)
+        }
+        // Looks matter only where some run has one.
+        if !runLooks.contains(where: { $0.contains { !$0.isPlain } }) { runLooks = [] }
+        let warp: TextWarp? = (body?.first("a:bodyPr")?.first("a:prstTxWarp")).flatMap { w in
+            guard let preset = w["prst"], preset != "textNoShape" else { return nil }
+            let adjust = (w.first("a:avLst")?.all("a:gd") ?? []).compactMap { gd -> Double? in
+                guard let f = gd["fmla"], f.hasPrefix("val ") else { return nil }
+                return Double(f.dropFirst(4))
+            }
+            return TextWarp(preset: preset, adjust: adjust, xml: PptxXML.serialize(w))
         }
         if paragraphs.isEmpty {
             var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: level0.lineMultiple ?? 1.0)
@@ -2025,7 +2101,39 @@ private struct SlideContext {
                         autofit: fitRule == "a:normAutofit", fontScale: fitRule == "a:normAutofit" ? scale : 1,
                         lineReduction: fitRule == "a:normAutofit" ? min(1, max(0, reduction)) : 0,
                         insetsFollowFont: body?.first("a:bodyPr")?["starling:insScale"] == "1",
-                        noWrap: bodies.compactMap { $0?["wrap"] }.first == "none")
+                        noWrap: bodies.compactMap { $0?["wrap"] }.first == "none",
+                        columns: max(1, min(16, attr("numCol").flatMap(Int.init) ?? 1)),
+                        columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0,
+                        warp: warp, runLooks: runLooks)
+    }
+
+    /// A run's WordArt look: a gradient or picture fill, no fill, an
+    /// outline. Nil for a run that is plain coloured text.
+    private func _runLook(_ rPr: XNode?) -> RunLook? {
+        guard let rPr else { return nil }
+        var look = RunLook()
+        var any = false
+        if rPr.has("a:noFill") { look.noFill = true; any = true }
+        if let g = rPr.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors), f.stops.count >= 2 {
+            look.fill = f; any = true
+        } else if let b = rPr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
+                  let rel = package.rels(part).first(where: { $0.id == rid }), !rel.external,
+                  package.parts[rel.target] != nil {
+            var f = SlideFill(image: images.attachment(rel.target, package))
+            (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
+            if b.first("a:tile") != nil || b.first("a:stretch") == nil {
+                f.tiled = true
+                let dpi = package.parts[rel.target].flatMap(PptxReader.imageDPI) ?? 144
+                f.tileScale = (b.first("a:tile")?["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
+            }
+            look.fill = f; any = true
+        }
+        if let ln = rPr.first("a:ln"), !ln.has("a:noFill"), let c = ln.first("a:solidFill").flatMap(colors.color(in:)), c.alpha > 0 {
+            look.outline = c
+            look.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
+            any = true
+        }
+        return any ? look : nil
     }
 
     // MARK: Notes
@@ -2069,15 +2177,59 @@ enum PptxXML {
     /// An element back to text, prefixes and all. Attribute order is not
     /// kept (the parser does not keep it), which XML does not care about.
     static func serialize(_ node: XNode) -> String {
-        var out = "<" + node.name
-        for (k, v) in node.attrs.sorted(by: { $0.key < $1.key }) {
-            out += " \(k)=\"\(escape(v, attribute: true))\""
+        var out: [UInt8] = []
+        out.reserveCapacity(1024)
+        _write(node, into: &out)
+        return String(decoding: out, as: UTF8.self)
+    }
+
+    /// One buffer for the whole element. A string built per node and
+    /// appended to its parent's copies every byte once per level it sits
+    /// under, and a reader keeps the text of every shape: a slide of a
+    /// megabyte of grouped drawing spent most of its opening here.
+    private static func _write(_ node: XNode, into out: inout [UInt8]) {
+        out.append(UInt8(ascii: "<"))
+        out.append(contentsOf: node.name.utf8)
+        if node.attrs.count == 1, let (k, v) = node.attrs.first {
+            _attribute(k, v, into: &out)
+        } else if !node.attrs.isEmpty {
+            for (k, v) in node.attrs.sorted(by: { $0.key < $1.key }) { _attribute(k, v, into: &out) }
         }
-        let text = node.text.trimmingWhitespace().isEmpty && !node.children.isEmpty ? "" : node.text
-        if node.children.isEmpty && text.isEmpty { return out + "/>" }
-        out += ">" + escape(text, attribute: false)
-        for c in node.children { out += serialize(c) }
-        return out + "</" + node.name + ">"
+        // Whitespace between child elements is indentation, not content.
+        let text = !node.children.isEmpty && (node.text.isEmpty || node.text.trimmingWhitespace().isEmpty) ? "" : node.text
+        if node.children.isEmpty && text.isEmpty {
+            out.append(UInt8(ascii: "/")); out.append(UInt8(ascii: ">"))
+            return
+        }
+        out.append(UInt8(ascii: ">"))
+        _escape(text, attribute: false, into: &out)
+        for c in node.children { _write(c, into: &out) }
+        out.append(UInt8(ascii: "<")); out.append(UInt8(ascii: "/"))
+        out.append(contentsOf: node.name.utf8)
+        out.append(UInt8(ascii: ">"))
+    }
+
+    private static func _attribute(_ k: String, _ v: String, into out: inout [UInt8]) {
+        out.append(UInt8(ascii: " "))
+        out.append(contentsOf: k.utf8)
+        out.append(UInt8(ascii: "=")); out.append(UInt8(ascii: "\""))
+        _escape(v, attribute: true, into: &out)
+        out.append(UInt8(ascii: "\""))
+    }
+
+    /// The markup characters are single bytes in UTF-8 and occur in no
+    /// other character's encoding, so the bytes are walked, not the
+    /// characters.
+    private static func _escape(_ s: String, attribute: Bool, into out: inout [UInt8]) {
+        for b in s.utf8 {
+            switch b {
+            case UInt8(ascii: "&"): out.append(contentsOf: "&amp;".utf8)
+            case UInt8(ascii: "<"): out.append(contentsOf: "&lt;".utf8)
+            case UInt8(ascii: ">"): out.append(contentsOf: "&gt;".utf8)
+            case UInt8(ascii: "\"") where attribute: out.append(contentsOf: "&quot;".utf8)
+            default: out.append(b)
+            }
+        }
     }
 
     static func escape(_ s: String, attribute: Bool) -> String {

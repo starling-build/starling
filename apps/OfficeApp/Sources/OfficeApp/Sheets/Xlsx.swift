@@ -60,6 +60,12 @@ enum Xlsx {
         // `s` is its index in the book's table.
         if let st = xml("xl/styles.xml") {
             book.styles = _styles(st, theme: theme)
+            // The default font: the first, which the Normal style names.
+            if let f = st.child("fonts")?.kids("font").first {
+                if let n = f.child("name")?["val"], !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
+                book.defaultFontBold = f.child("b").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
+                if let z = f.child("sz").flatMap({ Double($0["val"] ?? "") }), z > 0, z != 11 { book.defaultFontSize = z }
+            }
             for i in book.styles.indices { book.styles[i].baseXf = i }
             book.styleSource = parts["xl/styles.xml"].map(_styleSource)
             if book.styles.isEmpty { book.styles = [.plain] }
@@ -77,11 +83,15 @@ enum Xlsx {
         // Sheets, in tab order.
         var activeTab = 0
         if let view = wbNode.child("bookViews")?.kids("workbookView").first, let a = Int(view["activeTab"] ?? "") { activeTab = a }
+        // Each sheet's part as it was parsed, without its cells: what the
+        // readers of its drawings, objects and tables look through. They
+        // parsed the part again, each of them — an 18 MB sheet four times.
+        var sheetRoots: [String: XNode] = [:]
         for s in wbNode.child("sheets")?.kids("sheet") ?? [] {
             guard let name = s["name"], let rid = s["r:id"], let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
-            if let raw = parts[path] { try _readSheet(raw, into: ws, sst: sst, book: book) }
+            if let raw = parts[path] { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
             book.sheets.append(ws)
@@ -92,8 +102,9 @@ enum Xlsx {
         let colors = ColorContext(theme: PptxTheme(themeRoot))
         for ws in book.sheets {
             if let path = ws.origin {
-                (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors)
-                ws.tables = TablesXML.read(sheetPath: path, parts: parts)
+                (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors, sheet: sheetRoots[path])
+                ws.objects = SheetObjectsXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
+                ws.tables = TablesXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
                 (ws.notes, ws.noteParts) = NotesXML.read(sheetPath: path, parts: parts)
                 for r in _relList(parts[_relsPath(path)]) where r.type.hasSuffix("/hyperlink") { ws.linkTargets[r.id] = r.target }
             }
@@ -134,7 +145,9 @@ enum Xlsx {
         return af
     }
 
-    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], book: Workbook) throws {
+    /// Returns the part's root with `sheetData` left out (see `sheetRoots`).
+    @discardableResult
+    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], book: Workbook) throws -> XNode {
         let bytes = [UInt8](raw)
         // The elements we do not model, kept as their original text.
         let split = RawXML.split(bytes)
@@ -143,7 +156,9 @@ enum Xlsx {
         for (name, text) in split.children where !modeled.contains(name) {
             ws.keptElements.append((name, text))
         }
-        guard let root = XNode.parse(raw) else { throw ReadError.badPart(ws.origin ?? ws.name) }
+        // The rows are not in this tree: they are read as they go by, below.
+        guard let part = XNode.parse(raw, listUnder: "sheetData", of: "row") else { throw ReadError.badPart(ws.origin ?? ws.name) }
+        let root = part.root
         if let node = root.child("autoFilter"), let ref = node["ref"], let range = CellRange(ref) {
             ws.autoFilter = _readAutoFilter(node, range: range, raw: split.children.first { $0.name == "autoFilter" }?.text)
         }
@@ -159,12 +174,26 @@ enum Xlsx {
             if view["showGridLines"] == "0" { ws.showGridlines = false }
             ws.viewAttrs = view.attrs.filter { !["tabSelected", "showGridLines", "workbookViewId"].contains($0.key) }
         }
-        if let f = root.child("sheetFormatPr") {
+        // Column widths are in characters of the default font's widest
+        // digit (7 px for Calibri 11) plus 5 px of padding. A sheet's own
+        // default is `defaultColWidth` in those characters, or else
+        // `baseColWidth` (8) digits and the padding, taken up to a multiple
+        // of 8 px: 64 px for Calibri 11, 72 for a face whose digit is 8.
+        let digit = book.digitWidth
+        ws.digitWidth = digit
+        let format = root.child("sheetFormatPr")
+        if let f = format {
             if let h = Double(f["defaultRowHeight"] ?? "") { ws.defaultRowHeightPt = h }
+            ws.customDefaultRowHeight = f["customHeight"] == "1" || f["customHeight"] == "true"
             ws.formatPrAttrs = f.attrs.filter { $0.key != "defaultRowHeight" }
         }
-        // Column widths are in characters of the default font's widest
-        // digit (7 px for Calibri 11) plus 5 px of padding.
+        if let w = Double(format?["defaultColWidth"] ?? ""), w > 0 {
+            ws.defaultColWidthPt = _charsToPoints(w, digit: digit)
+            ws.defaultColWidthChars = w
+        } else {
+            let base = Double(format?["baseColWidth"] ?? "") ?? 8
+            ws.defaultColWidthPt = ((base * digit + 5) / 8).rounded(.up) * 8 * 0.75
+        }
         for col in root.child("cols")?.kids("col") ?? [] {
             guard let lo = Int(col["min"] ?? ""), let hi = Int(col["max"] ?? "") else { continue }
             let extra = col.attrs.filter { !["min", "max", "width", "customWidth", "hidden"].contains($0.key) }
@@ -175,11 +204,11 @@ enum Xlsx {
                 for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols { ws.hiddenCols.insert(c - 1) }
             }
             guard let w = Double(col["width"] ?? "") else { continue }
-            let pt = w == 0 ? 0 : _charsToPoints(w)
+            let pt = w == 0 ? 0 : _charsToPoints(w, digit: digit)
             // A run over the whole sheet (a default width) is not 16k entries.
             if hi - lo > 2000 { if !hidden && w > 0 { ws.defaultColWidthPt = pt; ws.defaultColWidthChars = w }; continue }
             for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols {
-                if abs(pt - Worksheet.defaultColWidth) > 0.01 { ws.colWidths[c - 1] = pt; if w > 0 { ws.colWidthChars[c - 1] = w } }
+                if abs(pt - ws.defaultColWidthPt) > 0.01 { ws.colWidths[c - 1] = pt; if w > 0 { ws.colWidthChars[c - 1] = w } }
             }
         }
         // Cells.
@@ -187,10 +216,21 @@ enum Xlsx {
         var spillAreas: [(CellAddress, CellRange)] = []
         var cells: [CellAddress: Cell] = [:]
         var rowIndex = 0
-        for row in root.child("sheetData")?.kids("row") ?? [] {
+        // Room for every cell at once: a dictionary grown a cell at a time
+        // is rehashed a dozen times over on its way to a million. (Counted
+        // in the bytes — "<c " and "<c>" — which is near enough.)
+        var cellTags = 0
+        var k = 0
+        while k + 2 < bytes.count {
+            if bytes[k] == UInt8(ascii: "<"), bytes[k + 1] == UInt8(ascii: "c"),
+               bytes[k + 2] == UInt8(ascii: " ") || bytes[k + 2] == UInt8(ascii: ">") { cellTags += 1; k += 3 } else { k += 1 }
+        }
+        cells.reserveCapacity(cellTags)
+        part.forEach { row in
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
             if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }
+            if row["ht"] != nil, row["customHeight"] != "1", row["customHeight"] != "true" { ws.fittedRows.insert(rowIndex) }
             // `ht` is the row's height whether or not it is marked custom (a
             // larger font makes a taller row without the flag).
             // A row a filter hid keeps its height; one hidden by hand is height 0.
@@ -213,7 +253,9 @@ enum Xlsx {
                 var value: CellValue = .empty
                 switch t {
                 case "s": value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
-                case "inlineStr": value = c.child("is").map { .text(_text($0)) } ?? .empty
+                // (An inline string with nothing in it is still a string, the empty
+                // one: a cell with a value, which Excel prints the sheet as far as.)
+                case "inlineStr": value = .text(c.child("is").map { _text($0) } ?? "")
                 case "str": value = .text(vText ?? "")
                 case "b": value = .bool(vText == "1")
                 case "e": value = .error(ExcelError(rawValue: vText ?? "") ?? .value)
@@ -221,14 +263,18 @@ enum Xlsx {
                 }
                 var cell = Cell(input: "")
                 cell.style = styleIndex < book.styles.count ? styleIndex : 0
-                for k in ["vm", "cm", "ph"] { if let v = c[k] { cell.keptAttrs[k] = v } }
+                if c.attrs.count > 1 {
+                    for (k, v) in c.attrs where k == "vm" || k == "cm" || k == "ph" { cell.keptAttrs[k] = v }
+                }
                 if let f = c.child("f") {
                     // As the file wrote it, for when it cannot be read.
-                    let rawF: String = {
+                    // (Made only for a formula that cannot be: one in a
+                    // thousand, and this was a string built for every one.)
+                    func rawF() -> String {
                         var s = "<f"
                         for (k, v) in f.attrs.sorted(by: { $0.key < $1.key }) { s += " \(k)=\"\(_esc(v))\"" }
                         return f.text.isEmpty ? s + "/>" : s + ">" + _esc(f.text) + "</f>"
-                    }()
+                    }
                     var expr: FormulaExpr? = nil
                     if f["t"] == "shared", let si = f["si"] {
                         if !f.text.isEmpty, let e = try? Formula.parse(f.text) {
@@ -258,7 +304,7 @@ enum Xlsx {
                         cell.input = f.text.isEmpty ? NumberFormat.display(value, "General", width: 255).text : "=" + f.text
                         cell.value = value
                         cell.cached = value
-                        cell.rawFormula = rawF
+                        cell.rawFormula = rawF()
                     }
                 } else {
                     cell.value = value
@@ -290,23 +336,27 @@ enum Xlsx {
         for m in root.child("mergeCells")?.kids("mergeCell") ?? [] {
             if let r = m["ref"].flatMap({ CellRange($0) }) { ws.merges.append(r) }
         }
+        let light = XNode(name: root.name, attrs: root.attrs)
+        light.children = root.children.filter { $0.name != "sheetData" }
+        return light
     }
 
     /// A stored column width (characters of the default font's widest
-    /// digit, 7 px for Calibri 11, padding included) as points, and back —
-    /// ECMA-376 18.3.1.13's formulas, which round-trip to the pixel.
-    static func _charsToPoints(_ w: Double) -> Double {
-        ((256 * w + (128.0 / 7).rounded(.down)) / 256 * 7).rounded(.down) * 0.75
+    /// digit — `digit` pixels, 7 for Calibri 11 — padding included) as
+    /// points, and back: ECMA-376 18.3.1.13's formulas, which round-trip to
+    /// the pixel.
+    static func _charsToPoints(_ w: Double, digit: Double = 7) -> Double {
+        ((256 * w + (128.0 / digit).rounded(.down)) / 256 * digit).rounded(.down) * 0.75
     }
     /// A column's width for the file: as the file had it while unchanged.
     static func _widthChars(_ ws: Worksheet, _ col: Int, _ pt: Double) -> Double {
-        if let w = ws.colWidthChars[col], _charsToPoints(w) == pt { return w }
-        return _pointsToChars(pt)
+        if let w = ws.colWidthChars[col], _charsToPoints(w, digit: ws.digitWidth) == pt { return w }
+        return _pointsToChars(pt, digit: ws.digitWidth)
     }
 
-    static func _pointsToChars(_ pt: Double) -> Double {
+    static func _pointsToChars(_ pt: Double, digit: Double = 7) -> Double {
         let px = (pt / 0.75).rounded()
-        return (px / 7 * 256).rounded(.down) / 256
+        return (px / digit * 256).rounded(.down) / 256
     }
 
     /// Strip the _xlfn. prefixes newer functions carry in files.
@@ -903,7 +953,8 @@ enum Xlsx {
                 if let w = ws.colWidths[start] {
                     key += " width=\"\(_num(_widthChars(ws, start, w)))\"" + (w == 0 || hidden ? " hidden=\"1\"" : "") + " customWidth=\"1\""
                 } else if !attrs.isEmpty || hidden {
-                    let d = ws.defaultColWidthChars.flatMap { _charsToPoints($0) == ws.defaultColWidthPt ? $0 : nil } ?? _pointsToChars(ws.defaultColWidthPt)
+                    let d = ws.defaultColWidthChars.flatMap { _charsToPoints($0, digit: ws.digitWidth) == ws.defaultColWidthPt ? $0 : nil }
+                        ?? _pointsToChars(ws.defaultColWidthPt, digit: ws.digitWidth)
                     key += " width=\"\(_num(d))\"" + (hidden ? " hidden=\"1\"" : "")
                 }
                 for (name, v) in attrs.sorted(by: { $0.key < $1.key }) { key += " \(name)=\"\(_esc(v))\"" }
@@ -1199,10 +1250,10 @@ enum Xlsx {
             if st.italic { font += "<i/>" }
             if st.strike { font += "<strike/>" }
             if st.underline { font += "<u/>" }
-            font += "<sz val=\"\(_num(st.fontSize ?? 11))\"/>"
+            font += "<sz val=\"\(_num(book.fontSize(st)))\"/>"
             font += st.color.map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color theme=\"1\"/>"
-            font += "<name val=\"\(_esc(st.fontName ?? "Calibri"))\"/><family val=\"2\"/>"
-            if st.fontName == nil { font += "<scheme val=\"minor\"/>" }
+            font += "<name val=\"\(_esc(book.fontName(st)))\"/><family val=\"2\"/>"
+            if st.fontName == nil && book.defaultFontName == nil { font += "<scheme val=\"minor\"/>" }
             font += "</font>"
             func same(_ a: CellStyle, _ b: CellStyle, _ keys: [PartialKeyPath<CellStyle>]) -> Bool {
                 keys.allSatisfy { k in String(describing: a[keyPath: k]) == String(describing: b[keyPath: k]) }

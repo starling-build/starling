@@ -234,15 +234,66 @@ final class SheetGridState: State<StatefulWidget> {
     var cols: GridAxis { _axes().cols }
     var rows: GridAxis { _axes().rows }
     /// The axes, rebuilt only when the sheet's sizes, hidden rows or the zoom change.
-    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, cols: GridAxis, rows: GridAxis)? = nil
+    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, cols: GridAxis, rows: GridAxis)? = nil
 
     private func _axes() -> (cols: GridAxis, rows: GridAxis) {
         let ws = controller.sheet
         let id = ObjectIdentifier(ws)
-        if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale { return (c.cols, c.rows) }
-        let cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
-        let rows = GridAxis(def: ws.defaultRowHeightPt, overrides: ws.rowHeights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
-        _axisCache = (id, ws.layoutVersion, scale, cols, rows)
+        if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale, c.printing == printing { return (c.cols, c.rows) }
+        let cols: GridAxis, rows: GridAxis
+        if printing {
+            // On paper the sheet has the printer's sizes, not the screen's: a
+            // column is its characters in the printer's digits, a row the
+            // printer's line or a set height scaled by it (SheetPrintMetrics).
+            let book = controller.book
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold,
+                                         baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
+            let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : m.column(Xlsx._widthChars(ws, $0.key, $0.value))) })
+            let fitted = ws.customDefaultRowHeight || ws.defaultRowHeightPt <= 0 ? m.rowScale : m.defaultRow / ws.defaultRowHeightPt
+            // (Where the sheet sets its default height, a row whose height is
+            // only a fit — not set — takes that default: Excel fits it again.)
+            var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.compactMap { (r, h) -> (Int, Double)? in
+                let fit = ws.fittedRows.contains(r)
+                if fit, h > 0, ws.customDefaultRowHeight { return nil }
+                return (r, h * (fit ? fitted : m.rowScale))
+            })
+            if !ws.customDefaultRowHeight {
+                // A row nobody sized is as tall as its tallest font's line: the
+                // file gives no height for it when Excel did not write the file.
+                var lines: [Int: Double] = [:]   // by style
+                for (a, cell) in ws.cells where cell.style != 0 && ws.rowHeights[a.row] == nil {
+                    let line: Double
+                    if let known = lines[cell.style] { line = known } else {
+                        let st = book.style(cell.style)
+                        line = st.fontName == nil && st.fontSize == nil ? 0
+                            : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st)).defaultRow
+                        lines[cell.style] = line
+                    }
+                    if line > m.defaultRow, line > heights[a.row] ?? 0 { heights[a.row] = line }
+                }
+            }
+            cols = GridAxis(def: ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
+            if !ws.customDefaultRowHeight, ws.fittedRows.isEmpty {
+                // And as tall as its wrapped text's lines, in the column's width —
+                // where the file's writer left fitting to the reader (one that
+                // fits rows itself says so on the rows it fitted).
+                for (a, cell) in ws.cells where cell.style != 0 && ws.rowHeights[a.row] == nil && cell.value.isText {
+                    let st = book.style(cell.style)
+                    guard st.wrap, !ws.merges.contains(where: { $0.contains(a) }) else { continue }
+                    let width = cols.size(a.col) - 4 * zoom
+                    guard width > 4 else { continue }
+                    let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+                    let tall = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000)), maxWidth: width).height / scale + 1.5
+                    if tall > m.defaultRow, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
+                }
+            }
+            rows = GridAxis(def: ws.customDefaultRowHeight ? ws.defaultRowHeightPt * m.rowScale : m.defaultRow, overrides: heights,
+                            hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
+        } else {
+            cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
+            rows = GridAxis(def: ws.defaultRowHeightPt, overrides: ws.rowHeights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
+        }
+        _axisCache = (id, ws.layoutVersion, scale, printing, cols, rows)
         return (cols, rows)
     }
 
@@ -374,7 +425,15 @@ final class SheetGridState: State<StatefulWidget> {
 
     /// Where a drawing's anchor puts it on screen.
     func drawingRect(_ anchor: SheetAnchor) -> Rect {
-        func at(_ m: SheetMarker) -> Offset { Offset(colX(m.col) + m.colOff * scale, rowY(m.row) + m.rowOff * scale) }
+        // An offset is a share of its cell — never past it (Excel holds a
+        // corner inside the cell it names), and on paper, where the cell has
+        // the printer's size, the same share of that.
+        let ws = controller.sheet, ca = cols, ra = rows
+        func at(_ m: SheetMarker) -> Offset {
+            let w = ws.colWidth(m.col), h = ws.rowHeight(m.row)
+            return Offset(colX(m.col) + (w > 0 ? min(1, m.colOff / w) : 0) * ca.size(m.col),
+                          rowY(m.row) + (h > 0 ? min(1, m.rowOff / h) : 0) * ra.size(m.row))
+        }
         switch anchor {
         case .twoCell(let from, let to):
             let a = at(from), b = at(to)
@@ -392,11 +451,9 @@ final class SheetGridState: State<StatefulWidget> {
         switch d.kind {
         case .other: return
         case .shape(let shape):
-            shape.paint(canvas, in: r, pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
+            shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
         case .picture(let path, let data):
-            if let image = _image(path, data) {
-                canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), r, Paint())
-            }
+            _paintPicture(canvas, path, data, in: r)
         case .chart:
             guard let chart else { return }
             // Excel's chart area: the theme's background with a light grey edge.
@@ -410,8 +467,50 @@ final class SheetGridState: State<StatefulWidget> {
             canvas.drawRect(r.deflate(0.5), p)
             // Excel's chart text is three quarters of PowerPoint's (14pt
             // titles, 9pt labels against 18.6 and 12), the painter's sizes.
-            ChartPainter.paint(chart, canvas, r, pxPerPt: scale * 0.75, theme: theme)
+            if !chart.series.isEmpty { ChartPainter.paint(chart, canvas, r, pxPerPt: scale * 0.75, theme: theme) }
         }
+    }
+
+    /// A picture's bytes into `r`: a bitmap through the codec, a metafile
+    /// (WMF, EMF — what an embedded object's picture usually is) played.
+    private func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect) {
+        if let played = _metafile(path, data) {
+            played.paint(canvas, in: r, image: { self._image($0.id, $0.data) }, font: { OfficeFonts.substitute($0) })
+        } else if !Metafile.isMetafile(data), let image = _image(path, data) {
+            canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), r, Paint())
+        }
+    }
+
+    /// Embedded objects and controls: each one's picture, or the form
+    /// control drawn.
+    func _paintObjects(_ canvas: any Canvas, _ ws: Worksheet, clip: Rect) {
+        for o in ws.objects where !(printing && o.screenOnly) {
+            let r = drawingRect(o.anchor)
+            guard r.width > 1, r.height > 1, r.overlaps(clip) else { continue }
+            switch o.kind {
+            case .preview(let path, let data):
+                _paintPicture(canvas, path, data, in: r)
+                if o.framed {
+                    let rule = Paint()
+                    rule.style = .stroke
+                    rule.strokeWidth = 0.75 * scale
+                    rule.color = Color(0xFF000000)
+                    canvas.drawRect(r, rule)
+                }
+            case .control(let control): control.paint(canvas, in: r, pt: scale)
+            }
+        }
+    }
+
+    /// Metafiles, parsed once each; nil for one that draws nothing read here.
+    private var _metafiles: [String: Metafile?] = [:]
+    func _metafile(_ key: String, _ data: Data) -> Metafile? {
+        guard Metafile.isMetafile(data) else { return nil }
+        _ = _imagesOfThisBook()
+        if let known = _metafiles[key] { return known }
+        let played = Metafile(data, id: key)
+        _metafiles[key] = .some(played)
+        return played
     }
 
     private var _images: [String: Image] = [:]
@@ -420,14 +519,20 @@ final class SheetGridState: State<StatefulWidget> {
     /// workbook has an `xl/media/image1.png`.
     private var _imagesBook: ObjectIdentifier? = nil
 
-    /// A picture, decoded once; nil (and a repaint later) while it decodes.
-    func _image(_ key: String, _ data: Data) -> Image? {
+    /// The open workbook, with the cache emptied of any other's pictures.
+    private func _imagesOfThisBook() -> ObjectIdentifier {
         let book = ObjectIdentifier(controller.book)
         if _imagesBook != book {
             for image in _images.values { image.dispose() }
-            _images.removeAll(); _decoding.removeAll()
+            _images.removeAll(); _decoding.removeAll(); _metafiles.removeAll()
             _imagesBook = book
         }
+        return book
+    }
+
+    /// A picture, decoded once; nil (and a repaint later) while it decodes.
+    func _image(_ key: String, _ data: Data) -> Image? {
+        let book = _imagesOfThisBook()
         if let image = _images[key] { return image }
         guard !_decoding.contains(key) else { return nil }
         _decoding.insert(key)
@@ -451,6 +556,9 @@ final class SheetGridState: State<StatefulWidget> {
     /// The picture decoded and waited for (an export's way in).
     @MainActor
     func _decodeNow(_ key: String, _ data: Data) async {
+        // (The cache is this workbook's from here on: left unclaimed, the
+        // first page painted would empty it of what was decoded for it.)
+        _ = _imagesOfThisBook()
         guard _images[key] == nil else { return }
         var decoded: Image? = nil
         if let codec = try? await instantiateImageCodec([UInt8](data)) {
@@ -1073,7 +1181,7 @@ final class SheetGridState: State<StatefulWidget> {
             if merged.contains(where: { $0.contains(a) }) { continue }
             let st = c.book.style(cell.style)
             let tstyle = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
-            let size = st.fontSize ?? 11
+            let size = c.book.fontSize(st)
             if axis == .cols {
                 if st.wrap && cell.value.isText { continue }
                 // The full text: autofit is how long numbers stop being ####.
@@ -1335,6 +1443,18 @@ final class SheetGridState: State<StatefulWidget> {
 
     // MARK: Paint
 
+    /// The first screen of the active sheet through the window's own
+    /// painter, with no window (`--read-bench`): at the printing scale,
+    /// since the zoom is the widget's.
+    func paintFirstScreen(_ size: Size) {
+        printing = true
+        defer { printing = false }
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
+        paint(canvas, size, fluent: nil)
+        _ = recorder.endRecording()
+    }
+
     fileprivate func paint(_ canvas: any Canvas, _ size: Size, fluent: FluentThemeData?) {
         let c = controller
         let ws = c.sheet
@@ -1435,7 +1555,7 @@ final class SheetGridState: State<StatefulWidget> {
             canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), outline)
         }
         // Pictures and charts float over the cells and their selection, pane by pane.
-        if !ws.drawings.isEmpty {
+        if !ws.drawings.isEmpty || !ws.objects.isEmpty {
             let charts = ws.drawings.map { d -> Chart? in
                 if case .chart(let sc) = d.kind { return controller.liveChart(sc) }
                 return nil
@@ -1445,9 +1565,10 @@ final class SheetGridState: State<StatefulWidget> {
                 canvas.clipRect(clip)
                 for (i, d) in ws.drawings.enumerated() {
                     let r = drawingRect(d.anchor)
-                    guard r.overlaps(clip) else { continue }
+                    guard r.overlaps(clip), !d.hidden else { continue }
                     _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
                 }
+                _paintObjects(canvas, ws, clip: clip)
                 canvas.restore()
             }
         }
@@ -1699,14 +1820,28 @@ final class SheetGridState: State<StatefulWidget> {
         if colors.showGrid {
             let line = Paint()
             line.style = .stroke
-            line.strokeWidth = 1
+            line.strokeWidth = printing ? 0.5 : 1
             line.color = colors.grid
+            // A text that runs over its neighbours runs over the lines between
+            // them too: no gridline is drawn through it.
+            var crossed: [Int: Set<Int>] = [:]   // column → the rows whose right edge a text crosses
+            let shown = Set(rs)
+            for (a, cell) in ws.cells where cell.value.isText && shown.contains(a.row) {
+                guard let reach = textReach(a, cell, ws: ws, book: book) else { continue }
+                for col in reach.lowerBound ..< reach.upperBound { crossed[col, default: []].insert(a.row) }
+            }
             for col in cs {
-                let x = (colX(col) + ca.size(col)).rounded() - 0.5
-                canvas.drawLine(Offset(x, clip.top), Offset(x, clip.bottom), line)
+                let x = printing ? colX(col) + ca.size(col) : (colX(col) + ca.size(col)).rounded() - 0.5
+                guard let rows = crossed[col] else {
+                    canvas.drawLine(Offset(x, clip.top), Offset(x, clip.bottom), line)
+                    continue
+                }
+                for row in rs where !rows.contains(row) {
+                    canvas.drawLine(Offset(x, rowY(row)), Offset(x, rowY(row) + ra.size(row)), line)
+                }
             }
             for row in rs {
-                let y = (rowY(row) + ra.size(row)).rounded() - 0.5
+                let y = printing ? rowY(row) + ra.size(row) : (rowY(row) + ra.size(row)).rounded() - 0.5
                 canvas.drawLine(Offset(clip.left, y), Offset(clip.right, y), line)
             }
         }
@@ -1824,8 +1959,8 @@ final class SheetGridState: State<StatefulWidget> {
             let b = st.borders
             guard b.top || b.left || b.bottom || b.right else { continue }
             let r = rect(a)
-            let l = r.left.rounded() - 0.5, rr = r.right.rounded() - 0.5
-            let t = r.top.rounded() - 0.5, bt = r.bottom.rounded() - 0.5
+            let l = printing ? r.left : r.left.rounded() - 0.5, rr = printing ? r.right : r.right.rounded() - 0.5
+            let t = printing ? r.top : r.top.rounded() - 0.5, bt = printing ? r.bottom : r.bottom.rounded() - 0.5
             /// One side as the file drew it: thicker, doubled, dashed or dotted.
             func line(_ side: String, _ a: Offset, _ z: Offset, inward: Offset) {
                 let kind = b.kinds[side] ?? "thin"
@@ -1852,10 +1987,13 @@ final class SheetGridState: State<StatefulWidget> {
                 }
                 canvas.drawLine(a, z, border)
             }
-            if b.top { line("top", Offset(l, t), Offset(rr, t), inward: Offset(0, 1)) }
-            if b.bottom { line("bottom", Offset(l, bt), Offset(rr, bt), inward: Offset(0, -1)) }
-            if b.left { line("left", Offset(l, t), Offset(l, bt), inward: Offset(1, 0)) }
-            if b.right { line("right", Offset(rr, t), Offset(rr, bt), inward: Offset(-1, 0)) }
+            // Inside a merged area there are no cells to rule between: a side
+            // draws only where it is the area's own edge.
+            let m = merges.isEmpty ? nil : merges.first { $0.contains(a) }
+            if b.top, m.map({ $0.top == a.row }) ?? true { line("top", Offset(l, t), Offset(rr, t), inward: Offset(0, 1)) }
+            if b.bottom, m.map({ $0.bottom == a.row }) ?? true { line("bottom", Offset(l, bt), Offset(rr, bt), inward: Offset(0, -1)) }
+            if b.left, m.map({ $0.left == a.col }) ?? true { line("left", Offset(l, t), Offset(l, bt), inward: Offset(1, 0)) }
+            if b.right, m.map({ $0.right == a.col }) ?? true { line("right", Offset(rr, t), Offset(rr, bt), inward: Offset(-1, 0)) }
         }
         // Filter dropdowns: ▾, or a funnel on a column that filters.
         if !printing, let af = ws.autoFilter, rs.contains(af.range.top) {
@@ -1900,8 +2038,9 @@ final class SheetGridState: State<StatefulWidget> {
     /// The text style a cell draws with.
     private func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
-        return GridTextStyle(family: OfficeFonts.substitute(st.fontName ?? OfficeFonts.defaultFamily),
-                             size: (st.fontSize ?? 11) * scale * Self.excelTextScale, bold: st.bold, italic: st.italic,
+        let book = controller.book
+        return GridTextStyle(family: OfficeFonts.substitute(book.fontName(st)),
+                             size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c)
     }
 
@@ -1949,7 +2088,7 @@ final class SheetGridState: State<StatefulWidget> {
             if align == .left || align == .general {
                 var col = a.col + 1
                 while col < CellAddress.maxCols, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
-                      clipRight - left < tp.width + pad * 2, col <= a.col + 30 {
+                      clipRight - left < tp.width + pad * 2, col <= a.col + (printing ? 255 : 30) {
                     clipRight += ca.size(col); col += 1
                 }
             } else if align == .right {
@@ -1974,8 +2113,38 @@ final class SheetGridState: State<StatefulWidget> {
         }
         canvas.save()
         canvas.clipRect(Rect.fromLTRB(clipLeft + 1, top, clipRight - 1, bottom))
-        tp.paint(canvas, Offset(tx.rounded(), ty.rounded()))
+        // (Whole pixels on a screen; on paper a page has no pixels, and a
+        // row's rounding would show as uneven lines of text.)
+        tp.paint(canvas, printing ? Offset(tx, ty) : Offset(tx.rounded(), ty.rounded()))
         canvas.restore()
+    }
+
+    /// The columns a text too long for its cell runs over, as `_paintCell`
+    /// lets it: empty neighbours to the right of left-aligned text, to the
+    /// left of right-aligned. Nil when it stays in its own cell.
+    func textReach(_ a: CellAddress, _ cell: Cell, ws: Worksheet, book: Workbook) -> ClosedRange<Int>? {
+        guard case .text(let raw) = cell.value else { return nil }
+        let st = book.style(cell.style)
+        let ca = cols
+        let width = ca.size(a.col)
+        // (Cheaply first: no glyph is under a fifth of its size wide.)
+        guard width > 0, !st.wrap, st.hAlign != .center, Double(raw.count) * book.fontSize(st) * scale * 0.2 > width else { return nil }
+        if ws.merges.contains(where: { $0.contains(a) }) { return nil }
+        let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+        let need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
+        guard need > width else { return nil }
+        var have = width, lo = a.col, hi = a.col
+        if st.hAlign == .right {
+            while lo > 0, have < need, ws.cells[CellAddress(row: a.row, col: lo - 1)]?.value.isEmpty ?? true {
+                lo -= 1; have += ca.size(lo)
+            }
+        } else {
+            while hi < CellAddress.maxCols - 1, hi < a.col + 255, have < need,
+                  ws.cells[CellAddress(row: a.row, col: hi + 1)]?.value.isEmpty ?? true {
+                hi += 1; have += ca.size(hi)
+            }
+        }
+        return lo == hi ? nil : lo ... hi
     }
 
     private func _paintEditor(_ canvas: any Canvas, _ e: CellEdit, ink: Color, paper: Color, accent: Color, size: Size) {

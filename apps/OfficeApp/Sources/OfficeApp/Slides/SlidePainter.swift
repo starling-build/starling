@@ -19,6 +19,7 @@ final class SlideTextCache {
         let revision: Int
         let width: Double
         let scale: Double
+        let fontScale: Double
         /// The text theme laid out with: a new one (a theme applied) is a miss.
         let theme: ObjectIdentifier
         let layout: RichLayout
@@ -122,7 +123,8 @@ final class SlideTextCache {
             let room = shape.frame.height - (shape.insets.top + shape.insets.bottom) * k
             let width = max(1, shape.frame.width - (shape.insets.left + shape.insets.right) * k)
             let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
-            layout.scale = scale / theme.pixelsPerPoint
+            layout.scale = 1 / theme.pixelsPerPoint
+            layout.fontScale = scale
             layout.width = width
             layout.ensureLaidOut(text.document)
             if layout.totalHeight <= room + 0.5, !wholeWords || widestWord(text.document, theme, scale: scale) <= width + 0.5 {
@@ -151,16 +153,33 @@ final class SlideTextCache {
     func layout(_ shape: SlideShape, pxPerPt: Double) -> RichLayout? {
         guard let text = shape.text, let theme = shape.textTheme else { return nil }
         let width = max(1, (shape.frame.width - shape.drawInsets.left - shape.drawInsets.right) * pxPerPt)
-        let scale = pxPerPt * shape.fontScale / theme.pixelsPerPoint
+        // The fitted size scales the letters alone: the indents and the box
+        // stay the file's.
+        let scale = pxPerPt / theme.pixelsPerPoint
         let key = ObjectIdentifier(text)
-        if let e = _entries[key], e.revision == text.revision, e.width == width, e.scale == scale,
+        if let e = _entries[key], e.revision == text.revision, e.width == width, e.scale == scale, e.fontScale == shape.fontScale,
            e.theme == ObjectIdentifier(theme) {
             return e.layout
         }
         func laidOut(_ w: Double) -> RichLayout {
             let l = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
             l.scale = scale
+            l.fontScale = shape.fontScale
             l.width = w
+            if shape.columns > 1, !shape.noWrap {
+                // Columns are the layout's pages: one "page" the size of
+                // the text's room, cut into columns, each filled to the
+                // bottom before the next. (A page is in points of the
+                // layout's own scale, which the fitted size is part of.)
+                let k = pxPerPt / (theme.pixelsPerPoint * scale)
+                let room = max(1, shape.frame.height - shape.drawInsets.top - shape.drawInsets.bottom)
+                var page = PageSetup(width: w / pxPerPt * k, height: room * k, marginTop: 0, marginBottom: 0,
+                                     marginLeft: 0, marginRight: 0, gap: 0)
+                page.columns = shape.columns
+                page.columnGap = shape.columnGap * k
+                l.pageSetup = page
+                l.width = max(1, (w - shape.columnGap * pxPerPt * Double(shape.columns - 1)) / Double(shape.columns))
+            }
             l.ensureLaidOut(text.document)
             return l
         }
@@ -180,7 +199,7 @@ final class SlideTextCache {
                 layout = laidOut(w)
             }
         }
-        _entries[key] = Entry(revision: text.revision, width: width, scale: scale, theme: ObjectIdentifier(theme),
+        _entries[key] = Entry(revision: text.revision, width: width, scale: scale, fontScale: shape.fontScale, theme: ObjectIdentifier(theme),
                               layout: layout)
         return layout
     }
@@ -194,7 +213,10 @@ final class SlideTextCache {
         let top = shape.drawInsets.top * pxPerPt
         guard let layout = layout(shape, pxPerPt: pxPerPt) else { return top }
         let room = (shape.frame.height - shape.drawInsets.top - shape.drawInsets.bottom) * pxPerPt
-        let spare = room - layout.totalHeight
+        // In columns the text is as tall as its tallest column.
+        let height = layout.isPaged
+            ? layout.pieces.map { $0.reduce(0) { $0 + $1.height } }.max() ?? 0 : layout.totalHeight
+        let spare = room - height
         switch shape.anchor {
         case .top: return top
         case .middle: return top + spare / 2
@@ -392,6 +414,13 @@ final class SlidePainter: CustomPainter {
             canvas.rotate(shape.rotation * .pi / 180)
             canvas.translate(-c.dx, -c.dy)
         }
+        if let scene = shape.scene3d, scene.isFlatTurn, scene.rev != 0 {
+            // A camera that only revolves: the shape turned the other way.
+            let c = r.center
+            canvas.translate(c.dx, c.dy)
+            canvas.rotate(-scene.rev * .pi / 180)
+            canvas.translate(-c.dx, -c.dy)
+        }
         if let image = shape.picture {
             if let metafile = cache.metafile(image) {
                 // A WMF or EMF, as vectors: the whole picture placed so that
@@ -483,7 +512,19 @@ final class SlidePainter: CustomPainter {
         // (`customPath`): drawn contour by contour, each filled and stroked
         // as the definition says.
         let freeform = shape.opaque?.freeform ?? (shape.picture == nil && shape.chart == nil ? shape.customPath : nil)
-        if let freeform {
+        // A shape with depth: its solid, in place of the flat outline.
+        var solid = false
+        if shape.scene3d != nil, shape.picture == nil, shape.chart == nil, shape.opaque == nil {
+            let outline: Path
+            if let freeform { outline = Self.combinedPath(freeform, r) }
+            else if let p = shape.preset ?? shape.inheritedPreset, !p.isLine { outline = geometryPath(p, r) }
+            else { outline = Path(); outline.addRect(r) }
+            if mirrored { mirror() }
+            solid = Extrusion.paint(shape, outline: outline, r, canvas, pxPerPt: px)
+            if mirrored { canvas.restore() }
+        }
+        if solid {
+        } else if let freeform {
             if mirrored { mirror() }
             // A freeform along its own path, in the shape's fill and line.
             if let style = shape.fillStyle {
@@ -537,7 +578,7 @@ final class SlidePainter: CustomPainter {
         }
         let preset = shape.preset ?? shape.inheritedPreset
         let path: Path? = preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
-        let drawnAlready = freeform != nil
+        let drawnAlready = freeform != nil || solid
         if mirrored { mirror() }
         if let style = shape.fillStyle, !drawnAlready, shape.chart == nil, shape.picture == nil {
             // A gradient or picture fill, within the shape's outline.
@@ -568,7 +609,9 @@ final class SlidePainter: CustomPainter {
         }
         if mirrored { canvas.restore() }
         // (An empty table still has its rows' fills and borders to draw.)
-        if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
+        if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, r, canvas, pxPerPt: px, cache: cache) {
+            // WordArt: fitted to the box and bent, not laid out in it.
+        } else if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
             let ox = r.left + cache.textLeft(shape, pxPerPt: px), oy = r.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
@@ -598,49 +641,67 @@ final class SlidePainter: CustomPainter {
         canvas.restore()
     }
 
+    /// The shader of a gradient fill over `r` — under `pre` when it is
+    /// drawn through a transform of its own (a WordArt glyph's), so the
+    /// gradient stays the area's. Column-major 4×4s.
+    static func gradientShader(_ fill: SlideFill, _ r: Rect, pre: [Double]? = nil) -> Shader? {
+        guard fill.stops.count >= 2 else { return nil }
+        func mul(_ a: [Double]?, _ b: [Double]) -> [Double] {
+            guard let a else { return b }
+            var m = [Double](repeating: 0, count: 16)
+            for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { m[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k] } } }
+            return m
+        }
+        let (colors, positions) = Self.linearLight(fill.stops, eased: fill.eased)
+        if let path = fill.path, r.width > 0, r.height > 0 {
+            // From the fill-to point out to the farthest corner: circles,
+            // or (rect, shape) rings in the area's own proportions — the
+            // ellipse that stands in for PowerPoint's concentric boxes.
+            // PowerPoint stretches even a "circle" to the area's
+            // proportions (themes.pptx's radial slide is lit to all four
+            // edges alike), so every kind is a circle in a space squeezed
+            // to the area's aspect — y scaled by width/height — and its
+            // rings are ellipses.
+            _ = path
+            let f = fill.fillTo
+            let c = Offset(r.left + (f.left + f.right) / 2 * r.width, r.top + (f.top + f.bottom) / 2 * r.height)
+            let corners = [Offset(r.left, r.top), Offset(r.right, r.top), Offset(r.left, r.bottom), Offset(r.right, r.bottom)]
+            let sy = r.width / r.height
+            let radius = corners.map { hypot($0.dx - c.dx, ($0.dy - c.dy) * sy) }.max() ?? 1
+            return Gradient(radial: Offset(c.dx, c.dy * sy), radius: max(1, radius), colors: colors,
+                            colorStops: positions,
+                            matrix4: mul(pre, [1, 0, 0, 0, 0, 1 / sy, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]))
+        } else {
+            let a = fill.angle * .pi / 180
+            if fill.scaled, r.width > 0, r.height > 0 {
+                // Laid out in the unit square and stretched onto the
+                // area with it.
+                let half = (abs(cos(a)) + abs(sin(a))) / 2
+                let d = Offset(cos(a) * half, sin(a) * half)
+                return Gradient(linear: Offset(0.5 - d.dx, 0.5 - d.dy), to: Offset(0.5 + d.dx, 0.5 + d.dy),
+                                colors: colors, colorStops: positions,
+                                matrix4: mul(pre, [r.width, 0, 0, 0, 0, r.height, 0, 0, 0, 0, 1, 0, r.left, r.top, 0, 1]))
+            } else {
+                let c = r.center
+                let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
+                let d = Offset(cos(a) * half, sin(a) * half)
+                if let pre {
+                    return Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
+                                    colors: colors, colorStops: positions, matrix4: pre)
+                }
+                return Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
+                                colors: colors, colorStops: positions)
+            }
+        }
+    }
+
     /// A colour, gradient or picture filling `r`.
     static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache, pxPerPt: Double = 1) {
         let p = Paint()
         p.style = .fill
         p.color = fill.color ?? Color(0xFFFFFFFF)
-        if fill.stops.count >= 2 {
-            let (colors, positions) = Self.linearLight(fill.stops)
-            if let path = fill.path, r.width > 0, r.height > 0 {
-                // From the fill-to point out to the farthest corner: circles,
-                // or (rect, shape) rings in the area's own proportions — the
-                // ellipse that stands in for PowerPoint's concentric boxes.
-                // PowerPoint stretches even a "circle" to the area's
-                // proportions (themes.pptx's radial slide is lit to all four
-                // edges alike), so every kind is a circle in a space squeezed
-                // to the area's aspect — y scaled by width/height — and its
-                // rings are ellipses.
-                _ = path
-                let f = fill.fillTo
-                let c = Offset(r.left + (f.left + f.right) / 2 * r.width, r.top + (f.top + f.bottom) / 2 * r.height)
-                let corners = [Offset(r.left, r.top), Offset(r.right, r.top), Offset(r.left, r.bottom), Offset(r.right, r.bottom)]
-                let sy = r.width / r.height
-                let radius = corners.map { hypot($0.dx - c.dx, ($0.dy - c.dy) * sy) }.max() ?? 1
-                p.shader = Gradient(radial: Offset(c.dx, c.dy * sy), radius: max(1, radius), colors: colors,
-                                    colorStops: positions,
-                                    matrix4: [1, 0, 0, 0, 0, 1 / sy, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
-            } else {
-                let a = fill.angle * .pi / 180
-                if fill.scaled, r.width > 0, r.height > 0 {
-                    // Laid out in the unit square and stretched onto the
-                    // area with it.
-                    let half = (abs(cos(a)) + abs(sin(a))) / 2
-                    let d = Offset(cos(a) * half, sin(a) * half)
-                    p.shader = Gradient(linear: Offset(0.5 - d.dx, 0.5 - d.dy), to: Offset(0.5 + d.dx, 0.5 + d.dy),
-                                        colors: colors, colorStops: positions,
-                                        matrix4: [r.width, 0, 0, 0, 0, r.height, 0, 0, 0, 0, 1, 0, r.left, r.top, 0, 1])
-                } else {
-                    let c = r.center
-                    let half = (abs(cos(a)) * r.width + abs(sin(a)) * r.height) / 2
-                    let d = Offset(cos(a) * half, sin(a) * half)
-                    p.shader = Gradient(linear: Offset(c.dx - d.dx, c.dy - d.dy), to: Offset(c.dx + d.dx, c.dy + d.dy),
-                                        colors: colors, colorStops: positions)
-                }
-            }
+        if let shader = Self.gradientShader(fill, r) {
+            p.shader = shader
             // The paint's own alpha scales the shader: a first stop that is
             // transparent must not make the whole gradient so.
             p.color = Color(0xFFFFFFFF)
@@ -743,7 +804,7 @@ final class SlidePainter: CustomPainter {
     /// red-to-green is a bright orange, not the sRGB midpoint's brown. The
     /// shader blends in sRGB; these are the stops with linear-light
     /// in-betweens spelled out, so it lands where PowerPoint does.
-    static func linearLight(_ stops: [SlideFill.GradientStop]) -> ([Color], [Double]) {
+    static func linearLight(_ stops: [SlideFill.GradientStop], eased: Bool = false) -> ([Color], [Double]) {
         func lin(_ v: Int) -> Double { let c = Double(v) / 255; return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
         func srgb(_ l: Double) -> Int { let c = l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055; return Int((max(0, min(1, c)) * 255).rounded()) }
         var colors: [Color] = [], positions: [Double] = []
@@ -751,9 +812,11 @@ final class SlidePainter: CustomPainter {
             let s = stops[i]
             if i > 0 {
                 let a = stops[i - 1]
-                let steps = 8
+                // (An eased blend bends more, and takes more in-betweens.)
+                let steps = eased ? 16 : 8
                 for k in 1 ..< steps {
-                    let t = Double(k) / Double(steps)
+                    let at = Double(k) / Double(steps)
+                    let t = eased ? (1 - cos(.pi * at)) / 2 : at
                     func part(_ c: Color, _ sh: Int) -> Int { (c.value >> sh) & 0xFF }
                     func ch(_ sh: Int) -> Int {
                         let from = lin(part(a.color, sh)), to = lin(part(s.color, sh))
@@ -764,7 +827,7 @@ final class SlidePainter: CustomPainter {
                     let red = ch(16), green = ch(8), blue = ch(0)
                     let packed: Int = (alpha << 24) | (red << 16) | (green << 8) | blue
                     colors.append(Color(packed))
-                    positions.append(a.position + (s.position - a.position) * t)
+                    positions.append(a.position + (s.position - a.position) * at)
                 }
             }
             colors.append(s.color)

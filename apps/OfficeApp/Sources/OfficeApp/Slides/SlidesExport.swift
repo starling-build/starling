@@ -6,8 +6,8 @@ import FlutterSwiftBridge
 import Foundation
 
 /// A deck to PDF: one page per slide (hidden ones left out, as a printed
-/// show would), each drawn by SlidePainter into a recorded picture at one
-/// pixel per point, so the page is the slide's own size in PDF points.
+/// show would), each drawn by SlidePainter into a recorded picture scaled so
+/// the page is the slide's own size in PDF points.
 enum SlidesPdf {
     @MainActor
     static func write(_ deck: DeckController, cache: SlideTextCache, to path: String, title: String) async -> Bool {
@@ -21,6 +21,7 @@ enum SlidesPdf {
             for s in slide.shapes {
                 if let i = s.picture { images.append(i) }
                 if let i = s.fillStyle?.image { images.append(i) }
+                for look in s.runLooks.joined() { if let i = look.fill?.image { images.append(i) } }
                 for sub in s.rendered {
                     if let i = sub.picture { images.append(i) }
                     if let i = sub.fillStyle?.image { images.append(i) }
@@ -35,7 +36,13 @@ enum SlidesPdf {
             let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
             let painter = SlidePainter(slide: slide, theme: deck.theme, slideSize: size, revision: deck.revision, cache: cache,
                                        placeholders: false)
-            painter.paint(canvas, size)
+            // Laid out at twenty pixels a point and scaled back: the engine
+            // sets a line on whole pixels, and at one a point a 12.8 pt
+            // line is 13 — a third of a line astray by the foot of a body.
+            // (At four, 12.6 was 12.5, and sixteen lines ended 1.6 pt high.)
+            let k = 20.0
+            canvas.scale(1 / k, 1 / k)
+            painter.paint(canvas, Size(size.width * k, size.height * k))
             pages.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
         }
         return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName())

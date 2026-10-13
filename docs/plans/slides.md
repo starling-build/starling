@@ -391,6 +391,259 @@ Seen and left: a chart's own series colours, bold title and data labels
 table row's height (tdf144092-emptyShapeTextProps); hList1's item
 heights and shadows (fill-color-list).
 
+**Where a body's lines fall, 2026-10-12** (sweep 33, Linux and MuPDF:
+2.70 → 2.57%, ≤2% 387 → 396, 2–20% 158 → 149; 120 decks down, 14 up, the
+most by 0.5; 60 matched — two gained, `lo-slidenum_field` lost at 0.01%).
+Measured, not seen: the baseline of every line in PowerPoint's PDF
+against ours (`page.get_text("dict")` in MuPDF gives both), which says
+which of two lines is off by a point where a pair image shows a blur.
+Four things, each of which alone made as many decks worse as better,
+because they had been cancelling each other:
+
+- **"Single" is 1.2 of the size, for every face.** PowerPoint's own pages
+  have Arial, Consolas and Lucida Sans Unicode (1.15, 1.17 and 1.47 by
+  their metrics) all at 1.2; Calibri's 1.22 was near enough to have
+  looked like the face's own. `RichTextTheme.singleLineHeight`; Word
+  keeps the face's.
+- **No space before a body's first paragraph** (`omitsLeadingSpace`):
+  `sample` lands on PowerPoint's baseline to the tenth of a point.
+- **`lnSpcReduction` is taken off the spacing, not multiplied into it**:
+  90% less 20% is 70%. `lineSpacingReduction`, in `lineSpacingScale`'s
+  place.
+- **The export lays out at four pixels a point.** The engine sets a line
+  on whole pixels, so at one a point 12.8 was 13 and 26.5 was 27, and a
+  long body ended a third of a line low.
+
+With them: **`bodyPr numCol`** — a body in columns, each filled to the
+box's height before the next, `spcCol` apart, as the layout's pages
+(lo-3columns 12.4 → 7.0); and **a bullet sits on its line's baseline**,
+where one at 80% of the size hung six points above the text.
+
+Left: the editor's caret and selection in a columned body follow the
+layout's page geometry and were not looked at on screen; autofit does not
+know about columns; lo-tdf169524 (+0.3) spaces its lines at 1.08 of the
+size by something not found.
+
+**WordArt and shapes with depth, 2026-10-12** (sweep 34, Linux and MuPDF:
+2.57 → 2.41%, ≤2% 396 → 400, over 20% 8 → 6; 20 decks down, six up by
+0.1 to 2.2).
+
+- **WordArt** (`Slides/WordArt.swift`): a body with a `prstTxWarp` is
+  fitted to its box and bent, where it was laid out flat at its own
+  size. The envelope bends (plain and its slant, inflate, deflate and
+  their halves, the waves, can, triangle, chevron, slant,
+  deflate-inflate) stretch every line across the box between two
+  curves; arch, circle and button set each line along the box's ellipse
+  at its own size. There are no glyph outlines to bend, so a character
+  is drawn through the affine map of its own cell — exact along a path,
+  and for the bends a letter leans and rides the curve without itself
+  curving. (The rest came the same day: see below.)
+- **A run's gradient or picture fill and its outline** (`a:rPr`'s
+  `gradFill`, `blipFill`, `ln`) are read (`RunLook`, by run position)
+  and drawn in WordArt, the fill as one across the whole word. This
+  needed the engine: a text style's foreground crossed the bridge as a
+  colour only. `ParagraphBuilderBridge::SetForegroundPaint` hands the
+  next `PushStyle` a whole paint — shader, stroke — on the native
+  bridge and the web one; and an `ImageShader` takes a raster image,
+  which a headless export's decoded pictures are (it took only
+  "UI-thread-safe" ones, so never one of those).
+- **Shapes with depth** (`Slides/Extrusion.swift`): `a:sp3d
+  extrusionH` under `a:scene3d`'s camera is drawn as the solid — the
+  outline swept back, turned by the camera's latitude, longitude and
+  revolution (the preset's, or the file's `a:rot`), its sides drawn far
+  to near in the extrusion colour, else the outline's, else the
+  fill's, lit by how they face. Oblique cameras slide the back aside
+  instead (a fifth of the depth, measured), the legacy perspective
+  ones draw it in toward a point as well, `legacyWireframe` is edges
+  only, and a camera that only revolves a flat shape turns it in its
+  plane. The outlines land on PowerPoint's (isometricRightUp 10.7 →
+  4.1, wireframe 25.7 → 0.7, orthographicFront 12.7 → 0.7, the
+  highlight rings 29.8 → 14.0). What it is not: bevels, materials,
+  light rigs — one fixed light — or true perspective for the modern
+  perspective cameras, which are drawn parallel.
+
+The pixel score is a poor judge of WordArt: large letters a few pixels
+from PowerPoint's cost more than small flat ones nowhere near
+(WordArtDefaultColor 6.3 → 8.5 with the slant now drawn, Arial Black
+standing in as Liberation Sans). Those six are up for that.
+
+Left: the text of a 3D shape is drawn flat
+over the solid; a deck's saved copy keeps the warp but not a run's
+gradient or outline (they were never written); none of this was looked at in the
+editor, on screen; lo-tdf146223's 2×2
+JPEG backgrounds, which PowerPoint prints as one flat grey and this app
+as four pixels — the file is a LibreOffice regression case, left alone.
+
+**Every WordArt bend, 2026-10-12.** All forty presets are drawn now,
+fitted against PowerPoint's own printing of each: `test/corpus/pptx-wordart`
+is five decks made for it, eight bends a slide, and PowerPoint for
+Windows' export of them — the corpus has a dozen of the forty, and the
+first versions of the rest, written from what the names suggest, were
+wrong about four families:
+
+- **A pour** (Arch Up, Arch Down, Circle, Button Pour) is the text poured
+  between two arcs of the box's ellipse — stretched from the outer curve
+  in to half its radius, across the whole arc — not text along a path.
+- **A ring** is the text round a ring seen from the front: its first half
+  across the near side, the second coming back across the far side
+  mirrored; inside the ring the near side is the upper arc.
+- **Curve** tapers over a level foot; **cascade** runs from its full
+  height to the adjust's share of it; **deflate-inflate** and its three-
+  band sibling give one line the top band alone.
+- **The text is fitted by the letters there are**: with no descender in
+  it the baseline is the foot of the band ("Plain" fills its box, "Stop"
+  leaves room for its p).
+
+And: a run's look is found by where a character falls, not by the run's
+position — the document merges runs alike in what it knows, so
+"Double" + " Wave 1" was one run with two looks and drew black; text on a
+path is filled letter by letter, each with the whole gradient, where
+text fitted to the box shares one across it.
+
+Left: a bend's adjust values other than the default are read and used
+but were fitted at the default only; Button and the banded bends were
+seen with one line.
+
+**One deck at a time: lo-font-scale, 2026-10-12** (9.67 → 5.88; sweep 36,
+Linux and MuPDF: 2.41 → 2.39%, 23 decks down, 14 up — the most
+lo-3columns by 1.3, not looked into). The way of working from here: one
+deck, one thing in it, measured against PowerPoint's page until it
+matches; the whole corpus once, at the end. In this deck, three bulleted
+paragraphs under `normAutofit fontScale="85000" lnSpcReduction="20000"`:
+
+- **The fitted scale is the letters' alone.** The text began 4 pt left of
+  PowerPoint's: `marL` had been shrunk with the font. `RichLayout.fontScale`
+  scales the sizes; the indents, the spacing and the box stay the file's
+  (81.3 where PowerPoint has 81.4).
+- **A fitted size is a whole number of points**: 32 pt at 85% is set in
+  27, not 27.2 — the lines were 4 pt too wide and one broke elsewhere
+  (674.6 / 674.7).
+- **A spacing under single comes off the space above the line**, the
+  letters keeping their depth below, where the engine shares it out
+  above and below: the first baseline was 1.2 pt low (87.9 / 88.1).
+  `RichTextTheme.baselineShift`, for a multiple only, PowerPoint only.
+- **A bullet is set in its own face** (`buFont`,
+  `RichParagraphStyle.bulletFontFamily`): Arial's dot is two thirds the
+  width of Calibri's. Not for a symbol face, whose codes become the
+  glyphs they show.
+
+Left in it: the gap between paragraphs is 32.5 pt where PowerPoint's is
+31.9 — its space before comes out near 5.9 of the file's 6.41, by a rule
+one deck does not give away (not the fitted scale: that would be 5.45).
+The editor still lays fitted text out the old way (`SlideCanvas`'s zoom).
+
+**One deck at a time: lo-3columns, 2026-10-12** (8.26 → 6.62; sweep 37:
+2.39 → 2.38%, 19 decks down, ten up by at most 0.34). A body in three
+columns under `fontScale="62500" lnSpcReduction="20000"`:
+
+- **The export lays out at twenty pixels a point**, where it was four:
+  the engine sets a line on whole pixels, so 12.6 pt was 12.5 and the
+  sixteenth line of a column stood 1.6 pt high. 12.6 now, as PowerPoint's.
+- **A column draws its own lines of a paragraph that runs on** into the
+  next (`RichLayout._linesPainter`), where it showed the whole paragraph
+  through a window: at a spacing under single a line's ascenders stand
+  in the box of the line above, and the next column's first line showed
+  as a row of specks under this one's last. Only where
+  `singleLineHeight` is set; Word's pages keep the window.
+
+Left in it: the first baseline is 0.5 pt above PowerPoint's, inside what
+PowerPoint's own page rounds by in this deck (its pitches go 12.0, 12.9,
+13.0).
+
+**One deck at a time: tdf144092-emptyShapeTextProps, 2026-10-12** (11.80
+→ 0.39; sweep 38: 2.38 → 2.35%, six decks down — aascu's leadership
+summit 11.2 → 8.4 by the same — one up by 0.19). **An empty paragraph in
+a table cell is as tall as its end mark says**: the cell's `endParaRPr
+sz="9600"` makes its row 122 pt of nothing, as a letter that size would;
+the cell reader took the cell's own size for an empty paragraph, where
+the body reader already took the end mark's.
+
+**One deck at a time: pptx2svg, its justified paragraph, 2026-10-12**
+(7.99 → 6.94; sweep 39: six decks down, none up). The paragraph was
+justified already; it broke its second line a word later than
+PowerPoint's. **PowerPoint sets letters one by one**: the engine joined
+Calibri's "tt" and "ti" into ligatures, which made "formatting" 72.8 pt
+where PowerPoint has 73.4, and a line of such words had room for one
+more. `RichTextTheme.disablesLigatures` (liga and clig off), for slides.
+The lines break at the same words now, the last ending at 455.1 / 454.7.
+
+Left in the deck, each its own task: its bullets are Wingdings stars
+(drawn as dots); the last line's mixed faces, raised word and spaced
+letters.
+
+**One deck at a time: pptx2svg, its bullets, 2026-10-12** (6.94 → 6.91;
+the corpus unmoved). `buFont typeface="Wingdings"` with `buChar char="✭"`
+— U+272D, a star in its own right, not a Wingdings code — drew the
+level's dot: the symbol-face table had no entry for it. **A character
+that is a symbol by itself is that symbol whatever face is named**;
+only Latin-1 and the private range are a symbol face's codes. Same
+place and size as PowerPoint's (its star is Segoe UI Symbol's, this one
+DejaVu's).
+
+**One deck at a time: pptx2svg, its last line, 2026-10-13** (6.91 → 6.58
+over two tasks; sweep 40: three decks down — the AES conference deck, in
+Verdana throughout, 10.5 → 9.5 — none up; 179 Word documents, one 0.12
+up).
+
+- **Superscript and subscript leave the line.** They were shrunk and left
+  on the baseline: the engine has no baseline to shift. The run now
+  holds its place unseen (`textStyle(scriptHidden:)`) and
+  `RichLayout._paintScripts` draws each stretch of it again, three tenths
+  of the full size up or a fifth down — 7.0 and 5.0 pt at 24, as
+  PowerPoint's page has them. Layout, carets and selections are as they
+  were. Shared with Writer, whose superscripts rise too.
+- **Verdana is DejaVu Sans** (`OfficeFonts.verdana`; four faces added to
+  Resources/fonts, 3 MB), where it was Liberation Sans and an eighth
+  short. Not a metric clone — there is none — but of the same design,
+  and within a hundredth of Verdana's widths word for word; LibreOffice
+  makes the same replacement. The file keeps "Verdana". The line ends at
+  581.9 where PowerPoint's ends at 590.3 (517.4 before): Verdana's space
+  is the wider.
+
+Left in that line: "over" is Andale Mono, drawn in Liberation Mono. Not
+checked: that the browser build fetches the new faces when a document
+asks for Verdana (they are staged, and listed lazy in the manifest).
+
+**One deck at a time: tdf105739, its gradient, 2026-10-13** (12.28 →
+0.42; sweep 41: 2.35 → 2.32%, three decks down — tdf109067 3.6 → 2.5 —
+one up by 0.13). A background of red to green at 45°, scaled. Its
+direction and middle were right already; PowerPoint's ramp kept to red,
+then to green, longer at each end.
+
+The ramp is in PowerPoint's own PDF to be read: an axial shading over a
+1,365-sample function. For this deck the samples are in a linear-light
+profile and follow **a half cosine** — (1 − cos πt) / 2 — to within a
+hundredth; for lo-subtitle-animation-save they are in sRGB and run
+evenly. Across the corpus the first kind are gradients whose stops are
+plain colours (`srgbClr`, no modifiers: tdf105739, tdf109067,
+ImportWordArtGradient) and the second those of theme colours under
+`tint`, `satMod` and the rest. `SlideFill.eased`, set by the reader when
+no stop's colour has a modifier; `linearLight(_:eased:)`. Why PowerPoint
+tells them apart is not known — and the second kind's even ramp in sRGB
+is not what `linearLight` gives them (it blends them evenly in linear
+light, as sweep 9 found for themes.pptx): not looked at here.
+
+With it: a CDATA section's text is kept by the system XML reader on
+Linux (`foundCDATA`; FoundationXML drops it where the Mac hands it to
+`foundCharacters`), which a new test of the two readers found.
+
+**One deck at a time: tdf149985, its chart's colours, 2026-10-13** (10.44
+→ 6.31; sweep 42: two decks down — oox-chart-theme-override 1.1 → 0.5 —
+none up). **A chart's theme override is its theme.** A chart pasted from
+another file has a `themeOverride` part beside it, whose colour scheme
+stands in for the deck's wherever the chart says `schemeClr`; the bars
+were Office's gold, orange, green and blue where the chart's own accents
+are a navy and three greens. The reader resolves the chart's colours
+against the override, and a series that names a slot or leaves its
+colour to the cycle — which are drawn against the deck's theme, later —
+gets the colour it has in the chart's own. (The file's XML is what is
+written back while the chart is untouched.)
+
+Left in that chart, each its own task: the title's own run properties
+(bold, centred, dark blue); the value axis's major unit and number
+format; data labels; the legend's order and size; the user shape drawn
+over the plot (`chartUserShapes`).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

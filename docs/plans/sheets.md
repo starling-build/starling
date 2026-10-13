@@ -150,6 +150,155 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**Sweep 4 (2026-10-12): mean 1.93%, median 0.40%**, 751 scored, 10 with a
+page only one side has, 42 exact (`baseline-mupdf.tsv`). One workbook and
+one cause at a time from here, each checked on its own file and the
+whole corpus swept now and then from a frozen copy of the build — which
+caught two rules that were right for their file and wrong for others
+(below).
+
+- *What counts as there to print.* A merged area, though its cells are
+  empty (61034). An inline string with nothing in it: a value (52348).
+  What an array formula spills (lo-tdf137543). The cell a drawing's far
+  corner stands on, edge or not (chart-tdf128634). A turned shape's
+  turned outline, not its anchor's cells (lo-testShapeRotationImport).
+  Not a cell, or a merge, in a hidden row or column
+  (lo-cool14390_chart_external_ref).
+- *Blank pages at the end of a sheet's print are left out* (56644,
+  MatrixFormulaEvalTestData), but not one between printed pages, and
+  none where titles repeat.
+- *Sizes.* A printed column is its screen pixels' worth of characters —
+  Excel holds a width in whole pixels, so 0.855 characters print as 0.867
+  (lo-tdf118668, 167 such columns). A bold default font has its own line
+  and digit (lo-tdf100034). A row whose height is a fit, not set, takes
+  the sheet's default where the sheet sets one.
+- *Drawing.* No gridline through text that runs over its neighbours;
+  nothing snapped to pixels on paper; a print area named twice prints
+  once.
+- *Wrong, and taken back.* "A row someone gave a height is in use" put a
+  thousand empty sized rows on paper in five workbooks (the row in 52348
+  was its inline strings). "A cell that is only formatted widens what
+  prints" explained FormatConditionTests' fourth page and tripled three
+  other workbooks'. Neither showed in a one-in-seven sample; both showed
+  in a full sweep.
+
+Not understood yet: why Excel prints FormatConditionTests across to a
+formatted, empty H7 and not down to formatted, empty D55–D342; what
+makes a row holding Lucida Sans Typewriter 10 in a Verdana 10 workbook
+13.32 pt (neither face's own line); 52348's rows at 15.94 pt for a set
+15 (a workbook with no cell styles part).
+
+**Sweep 3 (2026-10-12): mean 2.81%, median 0.40%**, 750 scored, 27 with a
+page only one side has, 42 exact. What the pictures of sweep 2's worst
+showed, and what was done about each:
+
+- *Chart sheets* print as Excel prints them: one page, landscape unless
+  the sheet says otherwise, the chart filling the room between the
+  margins (in from them by the drawing's own 2.7 pt). They printed as an
+  empty worksheet with a chart at its screen size, cut across pages.
+- *Charts that drew nothing.* A 3-D bar, line, pie or area chart is drawn
+  as its flat kind, a pie-of-pie as its pie, a bubble chart as its points;
+  a chart with no series keeps its frame and its room on the page; a
+  scatter series the file gives a line (or whose chart style has lines)
+  is joined by it. Radar, stock, surface and combinations still draw
+  nothing.
+- *Fit to N pages* is a whole percent, stepped down until the pages asked
+  for really hold the sheet — rows and columns do not split, so the
+  arithmetic's scale could be a page over — and ignores manual breaks.
+- *Rows nobody sized* are as tall as their tallest font's line on the
+  printer, and (where the file's writer fits no rows itself) as their
+  wrapped text's lines. Excel writes a height for every row it has fitted;
+  POI and LibreOffice leave it to the reader.
+- *Printed gridlines are black* (they were the screen's grey, and
+  invisible at a glance).
+- *Borders inside a merged area* are not drawn: only the sides on the
+  area's own edge. A form made of narrow columns merged into fields came
+  out as a comb.
+- *A shape turned past 45°* is anchored to the cells its turned outline
+  covers; the shape itself has that rectangle's centre with width and
+  height changed over. Half of a fan of rotated bars pointed the wrong
+  way.
+- *`usePrinterDefaults="false"`*: Excel then takes the printer's paper
+  and ignores the sheet's `paperSize` — nine workbooks that say A4 print
+  on Letter, with the option that maps paper sizes off.
+
+**The rendering gate runs, and what the first two sweeps found
+(2026-10-12).** Excel's side is made (`test/corpus/xlsx/excel`: 757 PDFs
+from Excel 16.0 on Windows; 50 workbooks Excel will not open, 3 that hang
+it — `test/corpus/xlsx/README.md`), and `test/xlsx-app-render.sh` scores
+the Windows build against it. Sweep 1 was mean 11.08% of pixels differing
+(705 scored; 144 workbooks with a page one side has and the other does
+not; 1 exact match). Sweep 2 is **mean 3.24%, median 0.42%** over
+750 scored, 37 with such a page, 43 exact.
+What moved it, largest first:
+
+- *The references were on the wrong paper.* Excel prints an A4 workbook
+  on Letter when Letter is the region's paper ("Scale content for A4 or
+  8.5 x 11" paper sizes", on by default). 252 references were made again
+  with the option off; the export script now turns it off and puts it
+  back.
+- *Excel sizes a printed sheet by the printer's font, not the screen's*
+  (`Sheets/SheetPrintMetrics.swift`). A column's width is a count of the
+  default font's digits, and on paper a digit is its advance at 600 dpi:
+  5.64 pt for Calibri 11 where the screen's 7 px is 5.25 pt, so columns
+  print about 7% wider than they show and a page holds fewer of them. Rows
+  go by the printer's line height — 14.52 pt for a default Calibri 11 row,
+  not 15 — and a height someone set is scaled by printer line over screen
+  line. None of this is in the file format's documentation; it was
+  measured by having Excel print a ruled grid in 30 faces at 9 sizes and
+  reading the rules back from the PDFs. The table is that Excel's, on a
+  display at 200% (the default column and the row scale depend on the
+  display). Printing now lays the sheet out with these sizes, draws text
+  at its true size (the screen draws it 6% small so a digit is 7 px), and
+  keeps a drawing's corners at the same share of their cells.
+- *The workbook's default font was dropped.* A style with the default
+  font kept no name or size, and everything drew — and every column was
+  counted — in Calibri 11. POI's files are mostly Arial 10, the Japanese
+  and Chinese ones MS PGothic and SimSun 11, whose digit is 8 px. The
+  workbook now carries its default font (`Workbook.defaultFontName`/
+  `Size`); a column width is read in that font's digit
+  (`Workbook.digitWidth`), and a sheet's default width from
+  `defaultColWidth` or `baseColWidth`, which were not read at all.
+- *Where the printed area ends, and starts.* It starts at A1, however far
+  in the first cell is. It takes in every cell a drawing covers (a
+  one-cell or absolute anchor counted for nothing, or for its corner),
+  the columns a long text runs over, and rows formatted as a whole.
+- *Smaller:* a workbook with nothing to print is a match when Excel's PDF
+  has no pages either (36); printed row and column headings
+  (`printOptions@headings`); A4 Small, A6, B4, B5, Executive and Tabloid
+  paper; an anchor offset past its cell stops at the cell's edge; and the
+  picture cache no longer empties itself of what a print had just decoded
+  (pictures were missing from printed pages since afc6afb8); a drawing
+  marked hidden is not drawn and does not count.
+
+- *Embedded objects and controls* (`Sheets/SheetObjects.swift`). An
+  embedded object (a PDF, a package, another workbook) and an ActiveX
+  control come with the picture Excel last drew of them, an EMF; the
+  sheet's `oleObjects`/`controls` entry or the legacy VML shape of the
+  same number says where it sits. They are drawn from that picture, an
+  object's with the shape's outline round it. The metafile player learned
+  the alpha-blended bitmap such a picture's icon is (EMR_ALPHABLEND), and
+  a sheet's own pictures that are metafiles are played too — they drew
+  nothing before. A form control has no picture: check box, option
+  button, button, label, group box, drop-down, list, scroll bar and
+  spinner are drawn from their kind, state and caption, found on the
+  sheet or (before Excel 2010) only in the VML. One Excel leaves off
+  paper (`x:PrintObject` False, a button's default) is left off. All of
+  it is display only: nothing is written, moved or clicked, and the
+  file's parts are kept as they were. 7 of the 14 workbooks that printed
+  nothing print now.
+
+What is left, by what the pictures show: a legacy shape's pixel offsets
+(this Excel, at 200%, reads them as its own pixels, so a control placed
+only by VML sits up to half a column off its reference), form controls
+other than the check box and option button (drawn, but the corpus has
+none that prints, so none was compared with Excel's), clicking a
+control, charts with no series (Excel draws the frame), East Asian text drawn in a
+narrower face than Excel's so long lines end early, a border on an empty
+cell that is not drawn (61034), `lo-xf_default_values` (Excel halves its
+set row heights; not understood), and the fonts this app has no clone
+for. The Mac's `baseline.tsv` for Sheets does not exist yet.
+
 **A rendering gate against Excel, half built (2026-10-11).** The corpus
 is in the repository — `test/corpus/xlsx/books`, 810 workbooks (POI's 352
 of the oracle rounds below, LibreOffice's `sc` and `chart2` regression

@@ -17,6 +17,7 @@
 # skipped, so a sweep resumes. OFFICE_APP picks the binary.
 #   test/docx-app-render.sh                  # the corpus in the repo, into ~/starling-doc-check/app
 #   test/docx-app-render.sh WORK             # … into WORK
+#   OFFICE_WEB=1 test/docx-app-render.sh WORK   # … drawn by the browser build
 #   test/docx-app-render.sh test/corpus/docx/docs test/corpus/docx/word WORK [names…]
 # The documents and Word's PDFs of them are checked in under
 # test/corpus/docx (its README says where they come from and how the PDFs
@@ -62,11 +63,33 @@ fi
 # (By line: a document's name may have spaces in it.)
 [ ${#names[@]} -gt 0 ] || while IFS= read -r l; do names+=("$l"); done < <(cd "$IN" && ls *.docx | grep -v '^~\$')
 touch "$WORK/render.tsv"
+# OFFICE_WEB=1 sweeps the BROWSER build instead, as test/pptx-app-render.sh
+# does: every document opened in headless Chrome and exported there
+# (build/tools/web-drive.mjs pdfs), then scored against the same PDFs.
+if [ -n "$OFFICE_WEB" ]; then
+  STAGE="$ROOT/.stage-web-OfficeApp"
+  [ -s "$STAGE/app.wasm" ] || { echo "no web build staged: build/web-app.sh OfficeApp --package apps/OfficeApp" >&2; exit 2; }
+  : > "$WORK/web-list.txt"
+  for n in "${names[@]}"; do
+    n=$(basename "$n")
+    [ -f "$WD/${n%.docx}-orig.pdf" ] || continue
+    awk -F'\t' -v n="$n" '$1 == n { f = 1 } END { exit !f }' "$WORK/render.tsv" || echo "$IN/$n" >> "$WORK/web-list.txt"
+  done
+  python3 "$ROOT/build/tools/web-serve.py" "$STAGE" "${WEB_PORT:-8146}" >/dev/null 2>&1 & SERVER=$!
+  trap 'kill $SERVER 2>/dev/null' EXIT
+  sleep 1
+  URL="http://127.0.0.1:${WEB_PORT:-8146}/" PORT="${DEVTOOLS:-9346}" CHROME_PROFILE="$WORK/chrome-profile" \
+    node "$ROOT/build/tools/web-drive.mjs" pdfs "$WORK/web-list.txt" "$WORK/pdf" > "$WORK/web-drive.log" 2>&1
+  kill $SERVER 2>/dev/null
+fi
 for n in "${names[@]}"; do
   n=$(basename "$n"); base=${n%.docx}
   [ -f "$WD/$base-orig.pdf" ] || continue
   awk -F'\t' -v n="$n" '$1 == n { f = 1 } END { exit !f }' "$WORK/render.tsv" && continue
-  if ! out=$(OFFICE_WORD_FONTS=mac "$APP" --convert "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
+  if [ -n "$OFFICE_WEB" ]; then
+    [ -s "$WORK/pdf/$base.pdf" ] || {
+      printf '%s\tERROR\t%s\n' "$n" "$(grep -F "$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue; }
+  elif ! out=$(OFFICE_WORD_FONTS=mac "$APP" --convert "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
     printf '%s\tERROR\t%s\n' "$n" "$(echo "$out" | tail -1 | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue
   fi
   s=$("${DIFF[@]}" "$WD/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)

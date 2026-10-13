@@ -476,7 +476,11 @@ final class WorkbookController: ChangeNotifier {
         if _structureLocked() { return }
         structural {
             let at = activeSheet + 1
-            book.sheets.insert(Worksheet(name: book.nextSheetName()), at: at)
+            let fresh = Worksheet(name: book.nextSheetName())
+            // Its columns are counted in the workbook's default font, as the others'.
+            fresh.digitWidth = book.digitWidth
+            fresh.defaultColWidthPt = ((8 * fresh.digitWidth + 5) / 8).rounded(.up) * 8 * 0.75
+            book.sheets.insert(fresh, at: at)
             // Sheet-local names (print areas…) of the sheets after it move along.
             for k in book.fileNames.indices { if let l = book.fileNames[k].localSheet, l >= at { book.fileNames[k].localSheet = l + 1 } }
             activeSheet = at

@@ -357,6 +357,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// (PowerPoint's `buClr`, `buSzPct`); nil follows the text.
     public var bulletColor: Color? = nil
     public var bulletScale: Double? = nil
+    /// The face the marker is set in (PowerPoint's `buFont`); nil is the
+    /// text's. Arial's bullet is two thirds the width of Calibri's.
+    public var bulletFontFamily: String? = nil
     /// Which list this paragraph belongs to, for numbering: Word's numId.
     /// Items of one id number on across other paragraphs; nil items number
     /// as a run, restarting after an interruption.
@@ -1825,6 +1828,11 @@ public struct RichDocument: Hashable, Sendable {
     /// headings are plain paragraphs with contextual spacing, and giving
     /// them a style the next paragraph lacked put 10pt back between them.
     public var readFromFile = false
+    /// The space after a paragraph and the space before the next are both
+    /// there (Word's `w:doNotUseHTMLParagraphAutoSpacing`, in files from
+    /// Word 2003 and before). Without it Word keeps the larger of the two
+    /// alone, as HTML's margins collapse: 9pt after and 9pt before are 9.
+    public var addsParagraphSpacing = false
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
     /// The kept headers and footers as paragraphs: what the layout draws

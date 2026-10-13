@@ -13,13 +13,19 @@ an open licence:
 | Courier New | Liberation Mono | " |
 | Calibri | Carlito | Carlito-LICENSE.txt (OFL) |
 | Cambria | Caladea | Caladea-LICENSE.txt (OFL) |
+| Verdana | DejaVu Sans | DejaVu-LICENSE.txt (Bitstream Vera's) |
 
 The document keeps the name it came with ("Times New Roman" stays "Times
 New Roman", and is written back as such); `OfficeFonts.substitute` picks
 the face at render time. This is how Google Docs handles the same fonts.
 There is no system-font path at all: a family not in this table draws
-with the nearest of the five, and on Linux and the web there is nothing
+with the nearest of the six, and on Linux and the web there is nothing
 else to draw with.
 
-Sources: Liberation 2.x (github.com/liberationfonts), Carlito
+DejaVu Sans is the one that is not a clone: it and Verdana come of the
+same design, and its widths are within a hundredth of Verdana's word for
+word (measured on a PowerPoint page), which is what keeps the lines.
+
+Sources: DejaVu 2.37 (dejavu-fonts.github.io; `-Italic` here is its
+Oblique), Liberation 2.x (github.com/liberationfonts), Carlito
 (github.com/googlefonts/carlito), Caladea (github.com/huertatipografica/Caladea).

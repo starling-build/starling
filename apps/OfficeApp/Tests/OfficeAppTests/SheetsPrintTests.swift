@@ -30,7 +30,8 @@ final class SheetsPrintTests: XCTestCase {
         XCTAssertEqual(pages.count, 1)
         XCTAssertEqual(pages[0].cols.count, 12)
         XCTAssertFalse(pages[0].rows.contains(3))
-        XCTAssertEqual(s, 511.2 / 768 * 0.999, accuracy: 1e-9)
+        // 511.2 / 768 is 66.56%: Excel's fit is the whole percent under it.
+        XCTAssertEqual(s, 0.66, accuracy: 1e-9)
     }
 
     func testReadsTheFilesPageSetup() {
@@ -57,11 +58,13 @@ final class SheetsPrintTests: XCTestCase {
         ws.cells[CellAddress("C3")!] = Cell(input: "x", value: .text("x"))
         var st = CellStyle(); st.fill = 0xFFFF00
         ws.cells[CellAddress("E9")!] = Cell(input: "", style: book.styleIndex(st))
-        XCTAssertEqual(SheetPrintLayout.usedArea(ws, book: book), CellRange("C3:E9"))
+        // From A1, as Excel prints, to the last cell with something to show.
+        XCTAssertEqual(SheetPrintLayout.usedArea(ws, book: book), CellRange("A1:E9"))
         ws.drawings = [SheetDrawing(name: "p", anchor: .twoCell(from: SheetMarker(col: 1, colOff: 0, row: 1, rowOff: 0),
                                                                  to: SheetMarker(col: 7, colOff: 0, row: 20, rowOff: 0)),
                                     kind: .picture(path: "x", data: Data()))]
-        XCTAssertEqual(SheetPrintLayout.usedArea(ws, book: book), CellRange("B2:H21"))
+        // The cells the picture covers, the one its far corner stands on too.
+        XCTAssertEqual(SheetPrintLayout.usedArea(ws, book: book), CellRange("A1:H21"))
     }
 }
 

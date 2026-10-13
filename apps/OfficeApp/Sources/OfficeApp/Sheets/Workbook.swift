@@ -140,6 +140,8 @@ final class Worksheet {
     /// and the elements of it we do not model, written back as they were:
     /// drawings, tables, conditional formats, data validations…
     var origin: String? = nil
+    /// A chart sheet: no cells, one chart, a page of its own on paper.
+    var isChartSheet: Bool { origin?.containsSubstring("/chartsheets/") ?? false }
     var keptElements: [(name: String, text: String)] = []
     /// The sheet's root start tag as the file wrote it (its namespaces,
     /// which kept elements may use).
@@ -164,6 +166,8 @@ final class Worksheet {
     /// The drawings were added to, moved or deleted here: the part is
     /// written from the model on save (unchanged ones verbatim).
     var drawingsEdited = false
+    /// Embedded objects and controls, for display (SheetObjects.swift).
+    var objects: [SheetObject] = []
     /// `<col>` attributes besides width and hidden — a column's style,
     /// outline level, collapsed — by run (zero-based, inclusive).
     var colAttrRuns: [(lo: Int, hi: Int, attrs: [String: String])] = [] { didSet { layoutVersion &+= 1 } }
@@ -171,6 +175,15 @@ final class Worksheet {
     /// exactly while the width is unchanged (points round to whole pixels).
     var colWidthChars: [Int: Double] = [:]
     var defaultColWidthChars: Double? = nil
+    /// Rows whose height the file gave without calling it set
+    /// (`customHeight`): Excel's own fit to their content, and the sheet's
+    /// default height where the file calls THAT set. Printing scales the
+    /// two kinds differently (SheetPrintMetrics).
+    var fittedRows: Set<Int> = []
+    var customDefaultRowHeight = false
+    /// The pixels in one of those characters: the workbook's default
+    /// font's widest digit (`Workbook.digitWidth`).
+    var digitWidth = 7.0
     /// `<row>` attributes besides its height and hidden: style (s with
     /// customFormat), outline level, collapsed, thick borders…
     var rowAttrs: [Int: [String: String]] = [:] { didSet { layoutVersion &+= 1 } }
@@ -249,6 +262,7 @@ final class Worksheet {
         s.defaultRowHeightPt = defaultRowHeightPt
         s.autoFilter = autoFilter
         s.drawings = drawings
+        s.objects = objects
         s.drawingPart = drawingPart
         s.drawingRoot = drawingRoot
         s.drawingsEdited = drawingsEdited
@@ -256,6 +270,9 @@ final class Worksheet {
         s.colAttrRuns = colAttrRuns
         s.colWidthChars = colWidthChars
         s.defaultColWidthChars = defaultColWidthChars
+        s.digitWidth = digitWidth
+        s.fittedRows = fittedRows
+        s.customDefaultRowHeight = customDefaultRowHeight
         s.rowAttrs = rowAttrs
         s.formatPrAttrs = formatPrAttrs
         s.viewAttrs = viewAttrs
@@ -274,6 +291,45 @@ final class Worksheet {
 final class Workbook {
     var sheets: [Worksheet]
     var styles: [CellStyle] = [.plain]
+    /// The file's default font (its first one, the Normal style's) where
+    /// that is not Calibri 11: a style whose `fontName`/`fontSize` is nil
+    /// draws in it, and column widths are counted in its digits.
+    var defaultFontName: String? = nil
+    var defaultFontSize: Double? = nil
+    var defaultFontBold = false
+    func fontName(_ st: CellStyle) -> String { st.fontName ?? defaultFontName ?? OfficeFonts.defaultFamily }
+    func fontSize(_ st: CellStyle) -> Double { st.fontSize ?? defaultFontSize ?? 11 }
+    /// The widest digit of the default font, in pixels at 96 dpi — the
+    /// unit of a stored column width (7 for Calibri 11).
+    var digitWidth: Double { Workbook.digitWidth(family: defaultFontName ?? OfficeFonts.defaultFamily, size: defaultFontSize ?? 11) }
+
+    /// A digit's width in pixels as Excel counts it: the face's advance at
+    /// the size, in whole pixels. The faces are Windows' own, by name — what
+    /// the shipped clones measure is not the question, since the file's
+    /// widths were written against these. An East Asian face's digits are
+    /// half its cell, rounded up (its bitmap strikes): 8 px for
+    /// MS PGothic 11 and SimSun 11, where 72 px is the default column.
+    static func digitWidth(family: String, size: Double) -> Double {
+        let px = size * 96 / 72
+        let n = family.trimmingWhitespace().lowercased()
+        let advances: [String: Double] = [
+            "calibri": 0.507, "calibri light": 0.507, "carlito": 0.507, "aptos": 0.52, "aptos narrow": 0.5,
+            "arial": 0.556, "helvetica": 0.556, "liberation sans": 0.556, "arimo": 0.556, "ms sans serif": 0.556,
+            "microsoft sans serif": 0.556, "arial narrow": 0.456, "arial unicode ms": 0.556,
+            "verdana": 0.636, "tahoma": 0.546, "segoe ui": 0.539, "trebuchet ms": 0.524, "century gothic": 0.554,
+            "times new roman": 0.5, "liberation serif": 0.5, "times": 0.5, "georgia": 0.614, "cambria": 0.554,
+            "garamond": 0.469, "book antiqua": 0.5, "palatino linotype": 0.5, "comic sans ms": 0.61,
+            "courier new": 0.6, "liberation mono": 0.6, "courier": 0.6, "consolas": 0.55, "lucida console": 0.603,
+            "malgun gothic": 0.55, "yu gothic": 0.55, "dengxian": 0.53, "microsoft yahei": 0.58, "meiryo": 0.6,
+            "meiryo ui": 0.56,
+        ]
+        if let a = advances[n] { return max(1, (px * a).rounded()) }
+        let eastAsian = ["gothic", "mincho", "simsun", "simhei", "mingliu", "gulim", "dotum", "batang", "fangsong", "kaiti"]
+        if n.unicodeScalars.contains(where: { $0.value > 0x2E7F }) || eastAsian.contains(where: { n.containsSubstring($0) }) {
+            return max(1, (px.rounded() / 2).rounded(.up))
+        }
+        return max(1, (px * 0.556).rounded())
+    }
     var names: [String: String] = [:]   // defined name (uppercased) → "Sheet1!$A$1:$B$4"
     /// The names as the file spelled them, for writing back.
     var nameSpellings: [String: String] = [:]

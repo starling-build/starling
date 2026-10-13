@@ -5,6 +5,8 @@
 .build/
 .build-starling/
 .build-gtk/
+# The scratch a Windows unit-test run builds into (swift test --scratch-path).
+.build-test/
 .DS_Store
 .stage/
 /build/tools/drm_screenshot
@@ -42,3 +44,8 @@ apps/OfficeApp/Vendor/
 
 # Desktop presentation browser runtime
 ui/desktop/runtime/
+
+# Static landing-page packages
+.stage-landings/
+# Generated local Office editors (build/office-web-preview.sh).
+ui/openoffice/apps/

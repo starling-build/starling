@@ -1,5 +1,4 @@
 1_NoIden.xlsx
-45430.xlsx
 45540_classic_Footer.xlsx
 45540_classic_Header.xlsx
 45540_form_Footer.xlsx
@@ -7,7 +6,6 @@
 45544.xlsx
 46535.xlsx
 46536.xlsx
-47090.xlsx
 47504.xlsx
 47668.xlsx
 47737.xlsx
@@ -38,7 +36,6 @@
 50846-border_colours.xlsx
 50867_with_table.xlsx
 51222.xlsx
-51470.xlsx
 51519.xlsx
 51585.xlsx
 51626.xlsx
@@ -46,9 +43,7 @@
 51710.xlsx
 51850.xlsx
 51963.xlsx
-51998.xlsx
 52348.xlsx
-52425.xlsx
 52716.xlsx
 53101.xlsx
 53105.xlsx
@@ -76,11 +71,9 @@
 55864.xlsx
 55906-MultiSheetRefs.xlsx
 55923.xlsx
-55924.xlsx
 55926.xlsx
 55927.xlsx
 56011.xlsx
-56017.xlsx
 56169.xlsx
 56170.xlsx
 56274.xlsx
@@ -117,7 +110,6 @@
 57828.xlsx
 57838.xlsx
 57890.xlsx
-57893-many-merges.xlsx
 57914.xlsx
 58106.xlsx
 58315.xlsx
@@ -127,7 +119,6 @@
 58648.xlsx
 58731.xlsx
 58747.xlsx
-58760.xlsx
 58896.xlsx
 59021.xlsx
 59026.xlsx
@@ -144,7 +135,6 @@
 60384.xlsx
 60509.xlsx
 60709.xlsx
-60825.xlsx
 61034.xlsx
 61060-conditional-number-formatting.xlsx
 61063.xlsx
@@ -163,10 +153,8 @@
 64759.xlsx
 66365.xlsx
 70005-countifs.xlsx
-AmpersandHeader.xlsx
 AverageTaxRates.xlsx
 Booleans.xlsx
-BrNotClosed.xlsx
 CVLKRA-KYC_Download_File_Structure_V3.1.xlsx
 ConditionalFormattingSamples.xlsx
 CustomXMLMapping-singleattributenamespace.xlsx
@@ -193,7 +181,6 @@ FormulaEvalTestData_Copy.xlsx
 FormulaSheetRange.xlsx
 GeneralFormatTests.xlsx
 GroupTest.xlsx
-HeaderFooterComplexFormats.xlsx
 HsGetVal.xlsx
 InlineString.xlsx
 InlineStrings.xlsx
@@ -209,7 +196,6 @@ NumberFormatTests.xlsx
 RepeatingRowsCols.xlsx
 SampleSS.strict.xlsx
 SampleSS.xlsx
-SheetTabColors.xlsx
 ShrinkToFit.xlsx
 SimpleMultiCell.xlsx
 SimpleNormal.xlsx
@@ -442,7 +428,6 @@ lo-PivotTable_CachedDefinitionAndDataInSync.xlsx
 lo-PivotTable_CachedDefinitionAndDataNotInSync_SheetColumnsRemoved_WithCacheData.xlsx
 lo-PivotTable_CachedDefinitionAndDataNotInSync_SheetColumnsRemoved_WithoutCacheData.xlsx
 lo-ProtecteSheet1234Pass.xlsx
-lo-RowImportCellStyleIssue.xlsx
 lo-SimpleSpillOperatorFixture.xlsx
 lo-Sparklines.xlsx
 lo-Spill.xlsx
@@ -459,7 +444,6 @@ lo-autofilterShowButton.xlsx
 lo-autofilternamedrange.xlsx
 lo-bnc762542.xlsx
 lo-built-in_ranges.xlsx
-lo-button-form-control.xlsx
 lo-ceiling-floor.xlsx
 lo-cell-anchored-hidden-shapes.xlsx
 lo-cell-borders.xlsx
@@ -475,15 +459,12 @@ lo-checkbox-form-control.xlsx
 lo-colorscale.xlsx
 lo-colorscale_num_with_ref.xlsx
 lo-column-style-autofilter.xlsx
-lo-column-style.xlsx
-lo-column_style.xlsx
 lo-complex_icon_set.xlsx
 lo-condFormat_cellis.xlsx
 lo-cond_format_formula_listener.xlsx
 lo-cond_format_theme_color2.xlsx
 lo-cond_format_theme_color3.xlsx
 lo-cond_parent.xlsx
-lo-condformat_databar.xlsx
 lo-condformat_theme_color.xlsx
 lo-conditional_fmt_checkpriority.xlsx
 lo-conditional_fmt_origin.xlsx
@@ -494,9 +475,7 @@ lo-data_validation_test.xlsx
 lo-databar.xlsx
 lo-database.xlsx
 lo-dateAutofilter.xlsx
-lo-different-column-width-excel2010.xlsx
 lo-embedded-text-in-decimal.xlsx
-lo-empty-noconf.xlsx
 lo-empty.xlsx
 lo-enhanced-protection.xlsx
 lo-enhancedProtectionRangeShorthand.xlsx
@@ -510,8 +489,6 @@ lo-forum-mso-en4-145327.xlsx
 lo-functions-excel-2010.xlsx
 lo-groupShape.xlsx
 lo-hiddenButton.xlsx
-lo-hiddenShape.xlsx
-lo-hidden_sheets.xlsx
 lo-hyperlink.xlsx
 lo-hyperlink_export.xlsx
 lo-hyperlink_formula.xlsx
@@ -526,7 +503,6 @@ lo-new_cond_format_test.xlsx
 lo-new_cond_format_test_export.xlsx
 lo-open-as-read-only.xlsx
 lo-orderOfCNumFmtElements.xlsx
-lo-page_scale.xlsx
 lo-pivot_dark1.xlsx
 lo-pivot_table_first_header_row.xlsx
 lo-pivottable_1s_difference.xlsx
@@ -542,13 +518,10 @@ lo-pivottable_rowcolpage_field_filter.xlsx
 lo-pivottable_string_field_filter.xlsx
 lo-preserve-whitespace.xlsx
 lo-preserve_space.xlsx
-lo-queryTableExport.xlsx
 lo-ref_string.xlsx
 lo-row-index-1-based.xlsx
 lo-seconds-without-truncate-and-decimals.xlsx
 lo-shape-macro-ext-ref.xlsx
-lo-sheet-names.xlsx
-lo-sheet-tab-color.xlsx
 lo-singlecontrol.xlsx
 lo-sortconditionref.xlsx
 lo-sortconditionref2.xlsx
@@ -558,11 +531,8 @@ lo-tableStyleInnerBorders.xlsx
 lo-tableref-column-linebreak.xlsx
 lo-tablerefsnamed.xlsx
 lo-tdf100034.xlsx
-lo-tdf100154.xlsx
-lo-tdf104310-2.xlsx
 lo-tdf104310.xlsx
 lo-tdf105272.xlsx
-lo-tdf105840_allRowsHidden.xlsx
 lo-tdf106197_import_upright.xlsx
 lo-tdf107586.xlsx
 lo-tdf109061.xlsx
@@ -570,7 +540,6 @@ lo-tdf110440.xlsx
 lo-tdf111876.xlsx
 lo-tdf111980_radioButtons.xlsx
 lo-tdf112106.xlsx
-lo-tdf112567.xlsx
 lo-tdf112936.xlsx
 lo-tdf113013.xlsx
 lo-tdf113271.xlsx
@@ -587,13 +556,11 @@ lo-tdf120168.xlsx
 lo-tdf120301_xmlSpaceParsing.xlsx
 lo-tdf120749.xlsx
 lo-tdf121715.xlsx
-lo-tdf121887.xlsx
 lo-tdf122102.xlsx
 lo-tdf122191.xlsx
 lo-tdf122336.xlsx
 lo-tdf122471.xlsx
 lo-tdf122716_font_with_charset.xlsx
-lo-tdf122945_TabColorProtectedSheet.xlsx
 lo-tdf123139_applyAlignment.xlsx
 lo-tdf123353.xlsx
 lo-tdf124525.xlsx
@@ -606,11 +573,8 @@ lo-tdf131536.xlsx
 lo-tdf131575.xlsx
 lo-tdf134392.xlsx
 lo-tdf134455.xlsx
-lo-tdf134459_HeaderFooterColor.xlsx
 lo-tdf134553.xlsx
 lo-tdf134769.xlsx
-lo-tdf134817_HeaderFooterTextWith2Section.xlsx
-lo-tdf134826.xlsx
 lo-tdf135828_Shape_Rect.xlsx
 lo-tdf136364.xlsx
 lo-tdf136721_letter_sized_paper.xlsx
@@ -662,7 +626,6 @@ lo-tdf165503.xlsx
 lo-tdf165655.xlsx
 lo-tdf165886.xlsx
 lo-tdf166413.xlsx
-lo-tdf166712.xlsx
 lo-tdf166724_cellAnchor.xlsx
 lo-tdf167019.xlsx
 lo-tdf167689_tableType.xlsx
@@ -691,22 +654,20 @@ lo-tdf83672.xlsx
 lo-tdf83779.xlsx
 lo-tdf85617.xlsx
 lo-tdf89139_pivot_table.xlsx
-lo-tdf90104.xlsx
 lo-tdf91251_missingOverflowRoundtrip.xlsx
 lo-tdf91332.xlsx
 lo-tdf95640.xlsx
 lo-tdf97598_scenarios.xlsx
 lo-tdf98481.xlsx
 lo-testDeleteCircles.xlsx
+lo-testDrawCircleInMergeCells.xlsx
 lo-testShapeAutofit.xlsx
-lo-testShapeDisplacementOnRotationImport.xlsx
 lo-testShapeRotationImport.xlsx
 lo-test_115192.xlsx
 lo-textLengthDataValidity.xlsx
 lo-textbox-CharKerningSpace.xlsx
 lo-textbox-CondensedCharacterSpace.xlsx
 lo-textbox-hyperlink.xlsx
-lo-threadedComment.xlsx
 lo-totalsRowFunction.xlsx
 lo-totalsRowShown.xlsx
 lo-twoCellAnchor_editAs_oneCell.xlsx
@@ -729,7 +690,6 @@ sample.strict.xlsx
 sample.xlsx
 shared_formulas.xlsx
 sharedhyperlink.xlsx
-sheetProtection_allLocked.xlsx
 sheetProtection_not_protected.xlsx
 simple-monthly-budget.xlsx
 simple-table-named-range.xlsx
@@ -747,7 +707,6 @@ workbookProtection-sheet_password-2013.xlsx
 workbookProtection-workbook_password-2013.xlsx
 workbookProtection-workbook_password_user_range-2010.xlsx
 workbookProtection_not_protected.xlsx
-workbookProtection_workbook_revision_protected.xlsx
 workbookProtection_workbook_structure_protected.xlsx
 workbookProtection_workbook_windows_protected.xlsx
 workbookProtection_worksheet_protected.xlsx

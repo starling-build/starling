@@ -28,6 +28,11 @@ enum OfficeFonts {
     static let mono = "Liberation Mono"
     static let calibri = "Carlito"
     static let cambria = "Caladea"
+    /// DejaVu Sans, for Verdana: not a metric clone, but of the same
+    /// family (both grew out of Bitstream Vera's design) and within a
+    /// hundredth of its widths word for word, where Liberation Sans set
+    /// Verdana's lines an eighth short.
+    static let verdana = "DejaVu Sans"
 
     /// The name a file gets for one of our faces: the Word font it is the
     /// clone of, so that Word opens the file in the real thing. Any other
@@ -39,6 +44,7 @@ enum OfficeFonts {
         case mono: return "Courier New"
         case calibri: return "Calibri"
         case cambria: return "Cambria"
+        case verdana: return "Verdana"
         default: return family
         }
     }
@@ -48,9 +54,11 @@ enum OfficeFonts {
     static func substitute(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         switch n {
-        case "liberation sans", "arial", "helvetica", "helvetica neue", "verdana", "tahoma",
+        case "liberation sans", "arial", "helvetica", "helvetica neue", "tahoma",
              "segoe ui", "aptos", "arimo":
             return sans
+        case "verdana", "dejavu sans", "bitstream vera sans":
+            return verdana
         case "liberation serif", "times new roman", "times", "georgia", "book antiqua",
              "garamond", "palatino", "tinos":
             return serif
@@ -410,7 +418,7 @@ enum OfficeFonts {
         }
         var ok = true
         for (file, family) in [("LiberationSans", sans), ("LiberationSerif", serif), ("LiberationMono", mono),
-                               ("Carlito", calibri), ("Caladea", cambria)] {
+                               ("Carlito", calibri), ("Caladea", cambria), ("DejaVuSans", verdana)] {
             for variant in ["Regular", "Bold", "Italic", "BoldItalic"] {
                 let path = bundle.bundleURL.appendingPathComponent("fonts/\(file)-\(variant).ttf").path
                 if !flutter.swift_bridge.LoadFontFromFile(path, family) {

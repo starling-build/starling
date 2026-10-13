@@ -8,6 +8,9 @@
 // takes them if the name is the one it was built for.
 
 import Foundation
+#if os(WASI)
+import FlutterWeb
+#endif
 
 enum PickedFile {
     nonisolated(unsafe) private static var pending: (name: String, data: Data)?
@@ -16,8 +19,16 @@ enum PickedFile {
 
     /// The bytes handed over under `name`, once.
     static func take(_ name: String) -> Data? {
-        guard let p = pending, p.name == name else { return nil }
-        pending = nil
-        return p.data
+        if let p = pending, p.name == name {
+            pending = nil
+            return p.data
+        }
+        #if os(WASI)
+        // A web app can supply its opening example before Swift mounts.
+        // Consume it once, just like a file picked in another Office app.
+        return WebFiles.startupFiles.removeValue(forKey: name)
+        #else
+        return nil
+        #endif
     }
 }

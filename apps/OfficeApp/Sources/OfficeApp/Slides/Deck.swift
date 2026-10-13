@@ -269,6 +269,14 @@ struct SlideFill: Equatable {
     /// clockwise from left-to-right.
     var stops: [GradientStop] = []
     var angle = 0.0
+    /// The blend between two stops eases in and out (a half cosine, in
+    /// linear light) instead of running evenly. PowerPoint's own export
+    /// has it for a gradient whose stops are plain colours — red to green
+    /// keeps to red, then to green, a tenth of the way longer at each end
+    /// — and an even blend for one built of theme colours with
+    /// modifiers. Why it tells them apart is not known; that it does is
+    /// read off the ramps it stores (tdf105739, tdf109067).
+    var eased = false
     /// `a:lin scaled="1"`: the angle is of the fill's unit square, so it
     /// stretches with the area — 45° runs corner to corner of a wide
     /// slide, its bands of colour lying along the other diagonal.
@@ -290,6 +298,51 @@ struct SlideFill: Equatable {
         var position: Double
         var color: Color
     }
+}
+
+/// `bodyPr/a:prstTxWarp`: WordArt's bend. The preset's name, its adjust
+/// values in the file's order (thousandths of a percent, or 60000ths of
+/// a degree), and the element as read, which is what is written back.
+struct TextWarp: Equatable {
+    var preset: String
+    var adjust: [Double] = []
+    var xml: String
+}
+
+/// `a:scene3d` and `a:sp3d`: a shape pushed back into a solid and looked
+/// at from an angle. The depth in points; the camera's rotation in
+/// degrees (latitude, longitude, revolution); an oblique camera's slide
+/// per unit of depth instead of a rotation; the sides' colour when the
+/// file names one.
+struct Scene3D: Equatable {
+    var depth: Double
+    var lat = 0.0, lon = 0.0, rev = 0.0
+    var oblique: Offset? = nil
+    /// A legacy perspective camera: what lies behind also shrinks toward
+    /// a point as it slides.
+    var perspective = false
+    var extrusionColor: Color? = nil
+    /// `prstMaterial="legacyWireframe"`: edges only.
+    var wireframe = false
+
+    /// A camera that only revolves a shape with no depth: the shape
+    /// turned in its own plane, and nothing of a solid to draw.
+    var isFlatTurn: Bool { depth == 0 && lat == 0 && lon == 0 && oblique == nil }
+}
+
+/// What a run of WordArt is drawn with beyond its colour: a gradient or
+/// picture fill, no fill at all, and an outline (`a:rPr/a:ln`), in points.
+struct RunLook: Equatable {
+    /// How much of its paragraph the run is, in UTF-16 units: looks are
+    /// found by where a character falls, since the document merges runs
+    /// that are alike in everything it knows of.
+    var length = 0
+    var fill: SlideFill? = nil
+    var noFill = false
+    var outline: Color? = nil
+    var outlineWidth = 0.75
+
+    var isPlain: Bool { fill == nil && !noFill && outline == nil }
 }
 
 enum TextAnchor: String {
@@ -328,6 +381,18 @@ final class SlideShape {
     /// narrow the box — the text runs past its edges, from the side its
     /// first paragraph is aligned to. (Drawn so; the editor still wraps.)
     var noWrap = false
+    /// `bodyPr numCol`: the text runs down this many columns of the box,
+    /// filling each to the box's height before the next, `columnGap`
+    /// points (`spcCol`) apart. (Drawn so; the editor edits one column.)
+    var columns = 1
+    var columnGap = 0.0
+    /// WordArt: the bend the text is drawn in (`WordArt.paint`), and each
+    /// paragraph's runs' looks as the file has them — by position, so
+    /// they hold only while the text has the runs it was read with.
+    var warp: TextWarp? = nil
+    var runLooks: [[RunLook]] = []
+    /// The shape as a solid seen from an angle (`Extrusion.paint`).
+    var scene3d: Scene3D? = nil
     /// `normAutofit lnSpcReduction`: the share PowerPoint took off the
     /// line spacing to fit (0.2 = lines at 80%); the theme carries it.
     var lineReduction = 0.0

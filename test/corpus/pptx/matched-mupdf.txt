@@ -20,7 +20,6 @@ lo-narration.pptx
 lo-onemaster-twolayouts.pptx
 lo-picture-placeholder-custom-prompt.pptx
 lo-pres-with-notes.pptx
-lo-slidenum_field.pptx
 lo-tdf103473.pptx
 lo-tdf103792.pptx
 lo-tdf103876.pptx
@@ -35,12 +34,14 @@ lo-tdf112280.pptx
 lo-tdf112333.pptx
 lo-tdf112633.pptx
 lo-tdf128952.pptx
+lo-tdf130058.pptx
 lo-tdf134174.pptx
 lo-tdf137675.pptx
 lo-tdf147459.pptx
 lo-tdf148478_transitionMusic.pptx
 lo-tdf149803.pptx
 lo-tdf151547-transparent-white-text.pptx
+lo-tdf152434.pptx
 lo-tdf156808.pptx
 lo-tdf163239.pptx
 lo-tdf163239_v2.pptx

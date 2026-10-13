@@ -154,6 +154,16 @@ struct SheetShape: Equatable {
 
     static let lineGeometries: Set<String> = ["line", "straightConnector1", "bentConnector3", "curvedConnector3"]
 
+    /// Where the shape lies before it is turned, given the rectangle its
+    /// cell anchor spans. Turned nearer the vertical than the horizontal
+    /// (45° to 135°, 225° to 315°), Excel anchors the cells its turned
+    /// outline covers — the same centre, width and height changed over.
+    func unturned(_ r: Rect) -> Rect {
+        let turn = (rotation.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
+        guard turn >= 45, turn < 135 else { return r }
+        return Rect.fromCenter(center: r.center, width: r.height, height: r.width)
+    }
+
     /// Draw it into `r` at `k` pixels per point.
     func paint(_ canvas: any Canvas, in r: Rect, pxPerPt k: Double, font: String) {
         canvas.save()

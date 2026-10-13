@@ -46,9 +46,10 @@ final class XNode {
     func all(_ name: String) -> [XNode] { children.filter { $0.name == name } }
     var has: (String) -> Bool { { self.first($0) != nil } }
 
-    /// Parse with prefixes kept ("w:p"), which is what the OOXML parts use
-    /// consistently and saves resolving namespaces.
-    static func parse(_ data: Data) -> XNode? {
+    /// The system's parser, with prefixes kept ("w:p") — which is what the
+    /// OOXML parts use consistently and saves resolving namespaces. What
+    /// `parse` falls back on.
+    static func parseSystem(_ data: Data) -> XNode? {
         #if os(WASI)
         // FoundationXML's parser is libxml2 and an NSObject delegate, neither
         // of which the web build has; WordprocessingML is plain, well-formed
@@ -59,9 +60,85 @@ final class XNode {
         let parser = XMLParser(data: data)
         parser.delegate = builder
         parser.shouldProcessNamespaces = false
-        guard parser.parse() else { return nil }
-        return builder.root
+        if parser.parse() { return builder.root }
+        #if canImport(FoundationXML)
+        // libxml2 off a Mac gives up on a part past 10 MB (a 12 MB
+        // document.xml: bug65649), where the Mac's reads it.
+        if data.count > 10_000_000 { return MiniXML.parse([UInt8](data)) }
         #endif
+        return nil
+        #endif
+    }
+
+    /// A part as a tree: by this app's own reader where it can read the
+    /// part, and by the system's where it cannot — a part that is not
+    /// UTF-8 (a byte order mark of UTF-16, or a declaration naming another
+    /// encoding), or one it makes nothing of. About twice as fast as the
+    /// system's parser on a Mac, where every element's attributes cross
+    /// into Swift as a bridged dictionary — half of what opening a deck
+    /// cost, and most of opening a large workbook.
+    static func parse(_ data: Data) -> XNode? {
+        #if os(WASI)
+        return parseSystem(data)
+        #else
+        if _systemOnly { return parseSystem(data) }
+        let bytes = [UInt8](data)
+        if _plainUTF8(bytes), let root = MiniXML.parse(bytes) { return root }
+        return parseSystem(data)
+        #endif
+    }
+
+    /// A part whose bulk is one long list under its root — a sheet's rows:
+    /// the tree with that list's parent left empty, and the items one at a
+    /// time, each built, handed over and let go. A million cells as a tree
+    /// are several million objects held at once; this way there is a row
+    /// of them. (Where the system's parser has to read the part, it is
+    /// the whole tree after all, taken apart afterwards.)
+    struct ListPart {
+        let root: XNode
+        let forEach: ((XNode) -> Void) -> Void
+    }
+
+    static func parse(_ data: Data, listUnder parent: String, of item: String) -> ListPart? {
+        let bytes = [UInt8](data)
+        var own = true
+        #if !os(WASI)
+        own = !_systemOnly && _plainUTF8(bytes)
+        #endif
+        if own, let root = MiniXML.parse(bytes, emptying: parent) {
+            return ListPart(root: root) { each in MiniXML.children(named: item, ofRootChild: parent, in: bytes, each) }
+        }
+        guard let root = parseSystem(data) else { return nil }
+        let isNamed: (XNode, String) -> Bool = { $0.name == $1 || $0.name.hasSuffix(":" + $1) }
+        var items: [XNode] = []
+        if let list = root.children.first(where: { isNamed($0, parent) }) {
+            items = list.children.filter { isNamed($0, item) }
+            list.children = []
+        }
+        return ListPart(root: root) { each in items.forEach(each) }
+    }
+
+    /// `OFFICE_XML=system` reads everything with the system's parser: the
+    /// other side of a comparison when the two are suspected to differ.
+    private static let _systemOnly = ProcessInfo.processInfo.environment["OFFICE_XML"] == "system"
+
+    /// Whether this app's own reader can take the part.
+    private static func _plainUTF8(_ b: [UInt8]) -> Bool {
+        if b.count >= 2, (b[0] == 0xFE && b[1] == 0xFF) || (b[0] == 0xFF && b[1] == 0xFE) || b[0] == 0 || b[1] == 0 { return false }
+        // <?xml version="1.0" encoding="…"?> is all there is to look at.
+        let head = b.prefix(512).map { $0 >= 0x41 && $0 <= 0x5A ? $0 + 0x20 : $0 }
+        func find(_ word: String, from: Int = 0) -> Int? {
+            let w = Array(word.utf8)
+            guard head.count >= w.count else { return nil }
+            for k in from ... head.count - w.count where head[k ..< k + w.count].elementsEqual(w) { return k + w.count }
+            return nil
+        }
+        // A document type declaration can define entities, and this app's
+        // reader knows the five predefined ones: the system's parser reads
+        // those parts (and refuses the ones that are a bomb).
+        if find("<!doctype") != nil { return false }
+        guard let xml = find("<?xml"), xml <= 8, let e = find("encoding", from: xml) else { return true }
+        return find("utf-8", from: e) != nil || find("utf8", from: e) != nil || find("us-ascii", from: e) != nil
     }
 
     #if !os(WASI)
@@ -83,6 +160,13 @@ final class XNode {
 
         func parser(_ parser: XMLParser, foundCharacters string: String) {
             stack.last?.text += string
+        }
+
+        // A CDATA section is text. The Mac's parser hands it to
+        // `foundCharacters` when this is not implemented; FoundationXML
+        // off a Mac drops it.
+        func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+            stack.last?.text += String(decoding: CDATABlock, as: UTF8.self)
         }
     }
     #endif
@@ -1194,6 +1278,7 @@ enum DocxFormat {
             document.hangsHalf = settings.first("w:compat")?.first("w:useAltKinsokuLineBreakRules").map { !_isOff($0) } ?? false
             document.compatibilityMode = settings.first("w:compat")?.all("w:compatSetting")
                 .first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") }
+            document.addsParagraphSpacing = settings.first("w:compat")?.first("w:doNotUseHTMLParagraphAutoSpacing").map { !_isOff($0) } ?? false
             let margins = ["w:mirrorMargins", "w:gutterAtTop"].compactMap { settings.first($0) }.map { PptxXML.serialize($0) }.joined()
             document.marginSettingsXML = margins.isEmpty ? nil : margins
             for name in _keptSettingNames.flatMap({ $0 }) {
@@ -3313,7 +3398,20 @@ enum DocxFormat {
         // with that section's own XML: a chemicals list of three sections
         // lost the setting and showed its odd footer on every page.)
         let evenReferenced = keptHF.contains(where: { $0.element.type == "even" })
-            || document.containsSubstring("Reference r:id=") && document.range(of: "<w:(header|footer)Reference [^>]*w:type=\"even\"", options: .regularExpression) != nil
+            || document.containsSubstring("Reference r:id=") && {
+                // A header or footer reference of type "even", found by hand:
+                // a regular expression is the legacy Foundation layer, which
+                // the web build does not link.
+                for tag in ["<w:headerReference ", "<w:footerReference "] {
+                    var rest = Substring(document)
+                    while let at = rest.firstRange(of: tag) {
+                        rest = rest[at.upperBound...]
+                        let end = rest.firstIndex(of: ">") ?? rest.endIndex
+                        if String(rest[..<end]).containsSubstring("w:type=\"even\"") { return true }
+                    }
+                }
+                return false
+            }()
         var settings = doc.evenAndOddHeaders && evenReferenced
             ? _settingsPart.replacingAll("<w:defaultTabStop", with: "<w:evenAndOddHeaders/><w:defaultTabStop") : _settingsPart
         // The rest of what Word lays out by, each group at its place in the

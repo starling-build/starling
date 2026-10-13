@@ -36,10 +36,11 @@ git clone --depth 1 "$REPO" "$WORK/site" 2>/dev/null || {
     echo "error: cannot clone $REPO — create it (public) first" >&2; exit 1
 }
 
+"$UI/../build/landing-pages.sh" "$WORK/package"
+
 # Replace tracked content, keeping the site repo's own git metadata.
 find "$WORK/site" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-cp -r "$UI"/index.html "$UI"/styles.css "$UI"/main.js \
-      "$UI"/CNAME "$UI"/img "$UI"/video "$WORK/site/"
+cp -R "$WORK/package/starling/." "$WORK/site/"
 
 cd "$WORK/site"
 # A freshly created repo has an unborn HEAD, possibly on the wrong branch name.

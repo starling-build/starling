@@ -419,7 +419,7 @@ private struct Player {
 
     /// A device-independent bitmap (header, palette, bits) as a BMP file,
     /// which the image codec reads; its index among `bitmaps`.
-    mutating func bitmap(header: Int, headerLength: Int, bits: Int? = nil, bitsLength: Int = 0) -> (index: Int, width: Double, height: Double)? {
+    mutating func bitmap(header: Int, headerLength: Int, bits: Int? = nil, bitsLength: Int = 0, alpha: Bool = false) -> (index: Int, width: Double, height: Double)? {
         guard header >= 0, header + 16 <= bytes.count else { return nil }
         let size = u32(header)
         var width = 0, height = 0, palette = 0
@@ -457,8 +457,25 @@ private struct Player {
             guard header < end else { return nil }
             dib = Array(bytes[header ..< end])
         }
-        let offset = 14 + size + palette
+        var offset = 14 + size + palette
         guard dib.count + 14 > offset else { return nil }
+        // An alpha blend's 32-bit bitmap carries its alpha in the fourth byte,
+        // which a plain header tells a reader to ignore (and the transparent
+        // surround comes out black). Said outright: a V4 header with masks.
+        let masked = u32(header + 16) == 3 && palette == 12
+        if alpha, size == 40, u16(header + 14) == 32, (u32(header + 16) == 0 && palette == 0) || masked, dib.count >= 40 + palette {
+            var v4 = Array(dib[0 ..< 40]) + [UInt8](repeating: 0, count: 68)
+            v4[0] = 108; v4[16] = 3
+            if masked {
+                // The file's own colour masks, and alpha in the bits they leave.
+                for k in 0 ..< 12 { v4[40 + k] = dib[40 + k] }
+                for k in 0 ..< 4 { v4[52 + k] = ~(dib[40 + k] | dib[44 + k] | dib[48 + k]) }
+            } else {
+                v4[42] = 0xFF; v4[45] = 0xFF; v4[48] = 0xFF; v4[55] = 0xFF   // red, green, blue, alpha masks
+            }
+            dib = v4 + dib[(40 + palette)...]
+            offset = 14 + 108
+        }
         var file: [UInt8] = [0x42, 0x4D]
         func le(_ v: Int) -> [UInt8] { [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)] }
         file += le(14 + dib.count) + [0, 0, 0, 0] + le(offset) + dib
@@ -825,18 +842,20 @@ private struct Player {
                 let box = Rect.fromLTRB(Double(i32(a + 48)), Double(i32(a + 52)), Double(i32(a + 56)), Double(i32(a + 60)))
                 guard n < 100_000, at + n * 2 <= p + size else { break }
                 text(utf16(at, n), at: Offset(x, y), opaque: options & 2 != 0 ? box : nil)
-            case 76, 77:   // BitBlt, StretchBlt
+            case 76, 77, 114:   // BitBlt, StretchBlt, AlphaBlend (StretchBlt's record, a blend where its raster op is)
                 let x = Double(i32(a + 16)), y = Double(i32(a + 20)), w = Double(i32(a + 24)), h = Double(i32(a + 28))
                 let sx = Double(i32(a + 36)), sy = Double(i32(a + 40))
                 let head = u32(a + 76), headLength = u32(a + 80), bits = u32(a + 84), bitsLength = u32(a + 88)
-                let image = headLength > 0 ? bitmap(header: p + head, headerLength: headLength, bits: p + bits, bitsLength: bitsLength) : nil
+                // (Per-pixel alpha when the blend's format says so: AC_SRC_ALPHA.)
+                let perPixel = type == 114 && (u32(a + 32) >> 24) & 1 == 1
+                let image = headLength > 0 ? bitmap(header: p + head, headerLength: headLength, bits: p + bits, bitsLength: bitsLength, alpha: perPixel) : nil
                 var source: Rect? = nil
                 if let image {
-                    let sw = type == 77 ? Double(i32(a + 92)) : min(abs(w) * scaleX, image.width)
-                    let sh = type == 77 ? Double(i32(a + 96)) : min(abs(h) * scaleY, image.height)
+                    let sw = type != 76 ? Double(i32(a + 92)) : min(abs(w) * scaleX, image.width)
+                    let sh = type != 76 ? Double(i32(a + 96)) : min(abs(h) * scaleY, image.height)
                     source = Rect.fromLTWH(sx, sy, sw, sh)
                 }
-                blit(rop: u32(a + 32), dest: Rect.fromLTWH(x, y, w, h), source: source, image: image)
+                blit(rop: type == 114 ? 0xCC0020 : u32(a + 32), dest: Rect.fromLTWH(x, y, w, h), source: source, image: image)
             case 81:   // StretchDIBits
                 let x = Double(i32(a + 16)), y = Double(i32(a + 20)), sx = Double(i32(a + 24)), sy = Double(i32(a + 28))
                 let sw = Double(i32(a + 32)), sh = Double(i32(a + 36))

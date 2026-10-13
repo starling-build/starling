@@ -1493,6 +1493,22 @@ fitter dropped the paragraph's tail).
 - **A table whose every row is marked a header** repeats none
   (zh-e37f8d40: 23 pages -> 17 for Word's 14).
 
+- **Two readings of one page, merged (2026-10-13).** This work and
+  another session's on the same branch each taught the layout Word's
+  spacing between paragraphs and the room a table's rules take. What
+  stands: the space after a paragraph and the space before the next
+  share the room in every document that does not say
+  `w:doNotUseHTMLParagraphAutoSpacing` — the other session's, and
+  wider than the automatic-spacing case this one had measured (POI's
+  lines where Word has them 62% -> 67%, median 76 -> 96) — with one
+  `_spacing` both use (spacing in lines, the web's 14pt, contextual
+  spacing; in a cell, where nothing is shared, the automatic kind
+  still closes up). A row's rules are the cells' own under Word's
+  rules (above), the table's plain ones elsewhere
+  (`tableRulesTakeRoom`). zh-33aa9899 fell (68% -> 32%): a title, an
+  empty paragraph and a heading, all with automatic spacing, stand
+  20pt further apart than in Word.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

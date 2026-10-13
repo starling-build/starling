@@ -75,6 +75,9 @@ private struct ResolvedTextStyle {
     var locale: String?
     var background: UInt32?
     var foreground: UInt32?
+    /// SetForegroundPaint's: the whole paint, in the colour's place. The
+    /// builder that made it disposes it.
+    var foregroundPaint: WebPaint?
     var shadows: [Shadow] = []
     var features: [(tag: String, value: Int32)] = []
     var variations: [(tag: UInt32, value: Float)] = []
@@ -109,7 +112,9 @@ private struct ResolvedTextStyle {
             textStyle_setBackground(style, paint)
             paint_dispose(paint)
         }
-        if let foreground {
+        if let foregroundPaint {
+            textStyle_setForeground(style, foregroundPaint.skHandle)
+        } else if let foreground {
             let paint = makePlainPaint(foreground)
             textStyle_setForeground(style, paint)
             paint_dispose(paint)
@@ -177,6 +182,11 @@ extension flutter.swift_bridge {
         /// The style in force, innermost last. The first entry is the
         /// paragraph style's own text style and is never popped.
         private var styles: [ResolvedTextStyle]
+
+        /// The paint the next PushStyle's foreground is drawn with, and
+        /// every one handed over so far, kept until the builder goes.
+        private var pendingForeground: WebPaint?
+        private var foregroundPaints: [WebPaint] = []
 
         // MARK: - ParagraphStyle
 
@@ -268,7 +278,10 @@ extension flutter.swift_bridge {
             paragraphStyle_dispose(paragraphStyle)
         }
 
-        deinit { if skHandle != 0 { paragraphBuilder_dispose(skHandle) } }
+        deinit {
+            if skHandle != 0 { paragraphBuilder_dispose(skHandle) }
+            foregroundPaints.forEach { $0.dispose() }
+        }
 
         /// Decodes dart:ui's strut encoding: a mask byte, then one byte each
         /// for weight and slant if present, then a float each for size,
@@ -390,13 +403,15 @@ extension flutter.swift_bridge {
             if mask & Self.tsHeight != 0 { style.height = Float(height) }
             if mask & Self.tsLocale != 0 { style.locale = locale.map { String(cString: $0) } ?? "" }
 
-            // WEB-TODO: a foreground or background arrives as a colour only —
-            // the call site (Text.swift, pushStyle) reduces the Paint to its
-            // colour before calling, on every platform. When it passes the
-            // whole paint, build it with the canvas family's paint decoding
-            // (a `webMakePaint` hook) in place of makePlainPaint.
+            // A background arrives as a colour only; a foreground as its
+            // colour, or — a shader, a stroke — as the paint
+            // SetForegroundPaint left for this push.
             if mask & Self.tsBackground != 0, has_background { style.background = background_color }
-            if mask & Self.tsForeground != 0, has_foreground { style.foreground = foreground_color }
+            if mask & Self.tsForeground != 0, has_foreground {
+                style.foreground = foreground_color
+                style.foregroundPaint = pendingForeground
+            }
+            pendingForeground = nil
 
             if mask & Self.tsShadows != 0 {
                 style.shadows = Self.decodeShadows(shadows_data, shadows_data_length)
@@ -493,6 +508,16 @@ extension flutter.swift_bridge {
                     variations.append((tag, value))
                 }
             }
+        }
+
+        /// The paint the NEXT PushStyle's foreground is drawn with, in place
+        /// of its plain colour (the native bridge's SetForegroundPaint).
+        public func SetForegroundPaint(
+            _ paintData: UnsafeRawPointer?, _ shader: UnsafeRawPointer?,
+            _ colorFilter: UnsafeRawPointer?, _ imageFilter: UnsafeRawPointer?
+        ) {
+            pendingForeground = WebPaint(paintData, shader: shader, colorFilter: colorFilter, imageFilter: imageFilter)
+            if let pendingForeground { foregroundPaints.append(pendingForeground) }
         }
 
         public func Pop() {

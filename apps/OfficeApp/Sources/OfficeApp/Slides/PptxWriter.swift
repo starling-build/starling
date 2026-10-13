@@ -798,8 +798,9 @@ private struct SlideXML {
                 } else {
                     fit = "<a:noAutofit/>"
                 }
-                xml += "<p:txBody><a:bodyPr wrap=\"square\" lIns=\"\(Self._emu(ins.left))\" tIns=\"\(Self._emu(ins.top))\" "
-                    + "rIns=\"\(Self._emu(ins.right))\" bIns=\"\(Self._emu(ins.bottom))\" anchor=\"\(anchor)\" rtlCol=\"0\">\(fit)</a:bodyPr>"
+                let cols = s.columns > 1 ? " numCol=\"\(s.columns)\" spcCol=\"\(Self._emu(s.columnGap))\"" : ""
+                xml += "<p:txBody><a:bodyPr wrap=\"square\"\(cols) lIns=\"\(Self._emu(ins.left))\" tIns=\"\(Self._emu(ins.top))\" "
+                    + "rIns=\"\(Self._emu(ins.right))\" bIns=\"\(Self._emu(ins.bottom))\" anchor=\"\(anchor)\" rtlCol=\"0\">\(s.warp?.xml ?? "")\(fit)</a:bodyPr>"
                     + "<a:lstStyle/>" + PptxText.paragraphs(doc, defaults: s, field: s.field) + "</p:txBody>"
             }
             return xml + "</p:sp>"
@@ -1028,7 +1029,7 @@ enum PptxText {
                 if let c = st.bulletColor { inner += "<a:buClr><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:buClr>" }
                 if let k = st.bulletScale { inner += "<a:buSzPct val=\"\(Int((k * 100000).rounded()))\"/>" }
                 inner += st.list == .bullet
-                    ? "<a:buFont typeface=\"Arial\"/><a:buChar char=\"\(PptxXML.escape(st.bulletText ?? "•", attribute: true))\"/>"
+                    ? "<a:buFont typeface=\"\(PptxXML.escape(st.bulletFontFamily ?? "Arial", attribute: true))\"/><a:buChar char=\"\(PptxXML.escape(st.bulletText ?? "•", attribute: true))\"/>"
                     : "<a:buFont typeface=\"+mj-lt\"/><a:buAutoNum type=\"arabicPeriod\"/>"
             case nil: inner += "<a:buNone/>"
             }

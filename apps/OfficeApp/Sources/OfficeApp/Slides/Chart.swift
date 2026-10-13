@@ -54,6 +54,9 @@ struct ChartSeries: Equatable {
     var color: Color? = nil
     /// The theme slot the file named ("accent3"), followed by a new theme.
     var scheme: String? = nil
+    /// A scatter series whose points are joined by its line (the file gave
+    /// the series a line, or the chart's style is one with lines).
+    var joined = false
 }
 
 struct Chart: Equatable {
@@ -142,19 +145,23 @@ struct Chart: Equatable {
 
 enum ChartXML {
     /// The chart in a `c:chartSpace`, or nil for one this app cannot draw
-    /// (3D, radar, stock, combinations) — kept as an object then.
-    static func read(_ space: XNode, color: (XNode) -> Color?) -> Chart? {
+    /// (radar, stock, surface, combinations) — kept as an object then. A 3-D
+    /// chart is drawn as its flat kind, a pie-of-pie as its pie, a bubble
+    /// chart as its points: the data where it belongs, without the depth.
+    /// `allowEmpty`: a chart with no series is still a chart (Excel draws
+    /// its empty frame, and gives it its room on the page).
+    static func read(_ space: XNode, allowEmpty: Bool = false, color: (XNode) -> Color?) -> Chart? {
         guard let chart = space.first("c:chart"), let plot = chart.first("c:plotArea") else { return nil }
         let kinds = plot.children.filter { $0.name.hasPrefix("c:") && $0.name.hasSuffix("Chart") }
         guard kinds.count == 1, let el = kinds.first else { return nil }
         let type: ChartType
         switch el.name {
-        case "c:barChart": type = el.first("c:barDir")?["val"] == "bar" ? .bar : .column
-        case "c:lineChart": type = .line
-        case "c:pieChart": type = .pie
+        case "c:barChart", "c:bar3DChart": type = el.first("c:barDir")?["val"] == "bar" ? .bar : .column
+        case "c:lineChart", "c:line3DChart": type = .line
+        case "c:pieChart", "c:pie3DChart", "c:ofPieChart": type = .pie
         case "c:doughnutChart": type = .doughnut
-        case "c:areaChart": type = .area
-        case "c:scatterChart": type = .scatter
+        case "c:areaChart", "c:area3DChart": type = .area
+        case "c:scatterChart", "c:bubbleChart": type = .scatter
         default: return nil
         }
         let grouping = el.first("c:grouping")?["val"] ?? "standard"
@@ -171,8 +178,13 @@ enum ChartXML {
             let values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
             let pr = ser.first("c:spPr")
+            if type == .scatter {
+                let style = el.first("c:scatterStyle")?["val"] ?? "marker"
+                let ln = pr?.first("a:ln")
+                s.joined = ln.map { $0.first("a:noFill") == nil } ?? (style != "marker" && style != "none")
+            }
             let fill = type == .line ? pr?.first("a:ln")?.first("a:solidFill")
-                : type == .scatter ? ser.first("c:marker")?.first("c:spPr")?.first("a:solidFill") ?? pr?.first("a:solidFill")
+                : type == .scatter ? ser.first("c:marker")?.first("c:spPr")?.first("a:solidFill") ?? pr?.first("a:ln")?.first("a:solidFill") ?? pr?.first("a:solidFill")
                 : pr?.first("a:solidFill")
             if let fill {
                 let index = series.count
@@ -186,7 +198,7 @@ enum ChartXML {
             }
             series.append(s)
         }
-        guard !series.isEmpty else { return nil }
+        guard !series.isEmpty || allowEmpty else { return nil }
         let n = max(categories.count, series.map(\.values.count).max() ?? 0)
         if categories.count < n { categories += (categories.count ..< n).map { "\($0 + 1)" } }
         for i in series.indices where series[i].values.count < n {
@@ -346,7 +358,8 @@ enum ChartXML {
             case .line:
                 sers += "<c:ser>\(head)<c:spPr><a:ln w=\"28575\" cap=\"rnd\">\(_solid(c, i))<a:round/></a:ln></c:spPr><c:marker><c:symbol val=\"none\"/></c:marker><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val><c:smooth val=\"0\"/></c:ser>"
             case .scatter:
-                sers += "<c:ser>\(head)<c:spPr><a:ln w=\"25400\" cap=\"rnd\"><a:noFill/><a:round/></a:ln></c:spPr><c:marker><c:symbol val=\"circle\"/><c:size val=\"5\"/><c:spPr>\(_solid(c, i))<a:ln w=\"9525\">\(_solid(c, i))</a:ln></c:spPr></c:marker><c:xVal>\(catCache)</c:xVal><c:yVal>\(val)</c:yVal><c:smooth val=\"0\"/></c:ser>"
+                let join = c.series[i].joined ? _solid(c, i) : "<a:noFill/>"
+                sers += "<c:ser>\(head)<c:spPr><a:ln w=\"\(c.series[i].joined ? 19050 : 25400)\" cap=\"rnd\">\(join)<a:round/></a:ln></c:spPr><c:marker><c:symbol val=\"circle\"/><c:size val=\"5\"/><c:spPr>\(_solid(c, i))<a:ln w=\"9525\">\(_solid(c, i))</a:ln></c:spPr></c:marker><c:xVal>\(catCache)</c:xVal><c:yVal>\(val)</c:yVal><c:smooth val=\"0\"/></c:ser>"
             case .pie, .doughnut:
                 var dpts = ""
                 for p in 0 ..< n {
@@ -794,6 +807,24 @@ enum ChartPainter {
         case .scatter:
             for j in 0 ..< s {
                 fill.color = c.color(series: j, accents: theme.accents)
+                if c.series[j].joined {
+                    // The series' line under its points, broken at a blank.
+                    let p = Paint()
+                    p.style = .stroke
+                    p.isAntiAlias = true
+                    p.strokeWidth = max(1, 1.5 * k)
+                    p.strokeCap = .round
+                    p.strokeJoin = .round
+                    p.color = fill.color
+                    let path = Path()
+                    var pen = false
+                    for i in 0 ..< n {
+                        guard let v = c.series[j].values[safe: i] ?? nil else { pen = false; continue }
+                        let x = plot.left + (c.x(i) - xs.lo) / (xs.hi - xs.lo) * plot.width
+                        if pen { path.lineTo(x, vpos(v)) } else { path.moveTo(x, vpos(v)); pen = true }
+                    }
+                    canvas.drawPath(path, p)
+                }
                 for i in 0 ..< n {
                     guard let v = c.series[j].values[safe: i] ?? nil else { continue }
                     let x = plot.left + (c.x(i) - xs.lo) / (xs.hi - xs.lo) * plot.width

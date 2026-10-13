@@ -143,6 +143,9 @@ enum NumberFormat {
         if n == 0 { return "0" }
         let a = abs(n)
         if a >= 1e15 || a < 1e-15 { return _scientific(n, digits: 14) }
+        // A whole number is its digits (what the steps below come to,
+        // without the logarithm and the trailing zeros).
+        if n == n.rounded(.towardZero) { return String(Int64(n)) }
         let mag = Int(floor(log10(a)))
         var s = fixed(n, decimals: max(0, min(15, 14 - mag)))
         if s.containsSubstring(".") {

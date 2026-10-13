@@ -1,123 +1,277 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#165b46">
-  <title>Starling — great software, open to everyone</title>
-  <meta name="description" content="An open software factory building world-class applications. Meet Starling Terminal, Office, Desktop, and the SDK. Free to use. Open to build on.">
-  <meta property="og:title" content="Starling — great software, open to everyone">
-  <meta property="og:description" content="A fast terminal. An office for your ideas. A desktop with a different perspective. One open software factory.">
-  <meta property="og:type" content="website">
-  <meta property="og:image" content="https://starling.build/img/starling-factory.png">
-  <meta property="og:url" content="https://starling.build/">
-  <link rel="canonical" href="https://starling.build/">
-  <link rel="icon" href="img/starling.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css">
-  <script src="main.js" defer></script>
-</head>
-<body>
-  <a class="skip-link" href="#main">Skip to presentation</a>
-  <header class="site-header">
-    <a class="brand" href="#intro" aria-label="Starling home"><img src="img/starling.svg" width="34" height="34" alt="">starling<span class="brand-dot">.</span><span class="brand-caption">Software factory</span></a>
-    <nav aria-label="Main navigation"><a class="github-link" href="https://github.com/starling-build/starling">GitHub ↗</a><a class="header-action" href="#terminal">Explore apps ↘</a></nav>
-  </header>
-  <main id="main" aria-label="Starling presentation">
-    <section class="slide intro-slide" id="intro" aria-labelledby="intro-title" data-label="The software factory" data-action="Explore the apps" data-href="#terminal">
-      <div class="slide-copy"><p class="eyebrow">STARLING / AN OPEN SOFTWARE FACTORY</p><h1 id="intro-title">Great software.<br>For everyone.</h1><p class="lede">We’re building world-class software.<br>Thoughtful applications. A shared foundation.<br>Free to use. Open to build on.</p><p class="slide-note">A terminal. An office. A desktop.<br>And the ambition to keep building.</p></div>
-      <div class="product-stack" aria-label="Explore Starling products">
-        <a class="product-tile terminal-tile" href="#terminal"><span class="app-mark terminal-mark" aria-hidden="true">&gt;_</span><span><strong>Terminal</strong><span>A fast place to work.</span></span><span class="tile-arrow" aria-hidden="true">↗</span></a>
-        <a class="product-tile office-tile" href="#office"><span class="app-mark office-mark" aria-hidden="true">O</span><span><strong>Office</strong><span>Room for your ideas.</span></span><span class="tile-arrow" aria-hidden="true">↗</span></a>
-        <a class="product-tile desktop-tile" href="#desktop"><span class="app-mark desktop-mark" aria-hidden="true">◇</span><span><strong>Desktop</strong><span>A different perspective.</span></span><span class="tile-arrow" aria-hidden="true">↗</span></a>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Starling — great software, open to everyone</title>
+    <meta
+      name="description"
+      content="An open software factory building world-class applications. A fast terminal, an office suite, a native desktop, and a shared Swift SDK."
+    />
+    <link rel="canonical" href="https://starling.build/" />
+    <meta
+      property="og:title"
+      content="Starling — great software, open to everyone"
+    />
+    <meta
+      property="og:description"
+      content="An open software factory building world-class applications. A fast terminal, an office suite, a native desktop, and a shared Swift SDK."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://starling.build/" />
+    <meta
+      property="og:image"
+      content="https://starling.build/img/starling-factory.png"
+    />
+    <link rel="icon" href="img/starling.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="#intro"
+          ><img
+            src="img/starling.svg"
+            width="32"
+            height="32"
+            alt=""
+          />Starling<span>Software factory</span></a
+        >
+        <nav aria-label="Main navigation">
+          <a href="#products">Applications</a><a href="#sdk">For builders</a
+          ><a href="https://github.com/starling-build/starling"
+            >GitHub <span aria-hidden="true">↗</span></a
+          >
+        </nav>
       </div>
-    </section>
-    <section class="slide terminal-slide" id="terminal" aria-labelledby="terminal-title" data-label="Starling Terminal" data-action="Get Terminal" data-href="https://github.com/starling-build/starling/releases/tag/terminal-v0.2.0">
-      <div class="slide-copy"><p class="eyebrow">01 / STARLING TERMINAL</p><h2 id="terminal-title">Less waiting.<br>More doing.</h2><p class="lede">A fast terminal for the work you love.<br>Local shells. Remote workspaces.<br>Sessions that outlive the connection.</p><a class="inline-link" href="https://github.com/starling-build/starling/releases/tag/terminal-v0.2.0">Get Starling Terminal <span aria-hidden="true">↗</span></a><p class="slide-note">macOS · Windows · Linux</p></div>
-      <div class="terminal-illustration" aria-label="Illustration of a command-line session">
-        <div class="window-heading"><span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Starling Terminal</span><span aria-hidden="true">⌘</span></div>
-        <div class="terminal-code"><p class="terminal-path">~/projects/next-idea</p><p><span class="prompt">❯</span> git status</p><p class="terminal-output">On branch main<br>nothing to commit,<br>working tree clean</p><p><span class="prompt">❯</span> <span class="terminal-cursor" aria-hidden="true"></span></p></div>
-        <div class="terminal-tags"><span>Built for speed</span><span>Made for focus</span><span>Open source</span></div>
-      </div>
-    </section>
-    <section class="slide office-slide" id="office" aria-labelledby="office-title" data-label="Starling Office" data-action="Open Office" data-href="https://openoffice.starling.build/">
-      <div class="slide-copy"><p class="eyebrow">02 / STARLING OFFICE</p><h2 id="office-title">Big ideas.<br>Start here.</h2><p class="lede">Write something great. Make your point.<br>Let the numbers tell the story.<br>An open office suite, right in your browser.</p><a class="inline-link" href="https://openoffice.starling.build/">Meet Starling Office <span aria-hidden="true">↗</span></a><p class="slide-note">Documents · Presentations · Spreadsheets</p></div>
-      <div class="office-apps" aria-label="Open an Office application">
-        <a href="https://writer.starling.build/" class="office-app writer-app"><div class="office-app-top"><span class="app-mark writer-mark" aria-hidden="true">W</span><span class="tile-arrow" aria-hidden="true">↗</span></div><h3>Writer</h3><p>Turn a thought<br>into a document.</p><div class="document-art" aria-hidden="true"><b></b><i></i><i></i><i></i></div><span class="office-app-link">Open Writer ↗</span></a>
-        <a href="https://slides.starling.build/" class="office-app slides-app"><div class="office-app-top"><span class="app-mark slides-mark" aria-hidden="true">S</span><span class="tile-arrow" aria-hidden="true">↗</span></div><h3>Slides</h3><p>Give your idea<br>an audience.</p><div class="chart-art" aria-hidden="true"><i></i><i></i><i></i></div><span class="office-app-link">Open Slides ↗</span></a>
-        <a href="https://sheets.starling.build/" class="office-app sheets-app"><div class="office-app-top"><span class="app-mark sheets-mark" aria-hidden="true">#</span><span class="tile-arrow" aria-hidden="true">↗</span></div><h3>Sheets</h3><p>Make sense<br>of the numbers.</p><div class="sheet-art" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="office-app-link">Open Sheets ↗</span></a>
-      </div>
-    </section>
-    <section class="slide desktop-slide" id="desktop" aria-labelledby="desktop-title" data-label="Starling Desktop" data-action="Explore Desktop" data-href="desktop/">
-      <div class="slide-copy"><p class="eyebrow">03 / STARLING DESKTOP</p><h2 id="desktop-title">One desktop.<br>Many possibilities.</h2><p class="lede">A fast, native desktop for your real apps.<br>Built-in tools. Dedicated agent workspaces.<br>One shared foundation, from dock to windows.</p><div class="desktop-links"><a class="inline-link" href="desktop/">Explore Desktop <span aria-hidden="true">↗</span></a><a class="inline-link" href="#install" data-open-dialog="desktop-install">Get the desktop <span aria-hidden="true">↗</span></a></div><p class="slide-note">Ubuntu · Windows through WSL2</p></div>
-      <div class="desktop-preview"><div class="preview-toolbar"><span>A NATIVE DESKTOP. ROOM TO EXPLORE.</span><div class="mode-switch" role="group" aria-label="Preview desktop mode"><button type="button" data-mode="2d" aria-pressed="true" disabled>2D</button><button type="button" data-mode="3d" aria-pressed="false" disabled>3D</button></div></div><a class="preview-image-link" href="#film" data-open-dialog="desktop-film" aria-label="Watch the Starling desktop film"><img id="desktop-image" src="img/desktop-2d.webp" width="1920" height="1080" alt="Starling’s native 2D desktop with a status bar and app dock." loading="lazy"><span class="preview-play" aria-hidden="true">▶ Watch the film</span></a><p id="mode-caption" aria-live="polite">Your everyday workspace. The 3D city is another way to explore.</p><span id="scene-name" class="sr-only">YOUR FAMILIAR WORKSPACE</span></div>
-    </section>
-    <section class="slide sdk-slide" id="sdk" aria-labelledby="sdk-title" data-label="The shared foundation" data-action="Explore the SDK" data-href="https://github.com/starling-build/starling/tree/office/sdk">
-      <div class="slide-copy"><p class="eyebrow">04 / THE SHARED FOUNDATION</p><h2 id="sdk-title">Build once.<br>Build on it.</h2><p class="lede">Great applications need great foundations.<br>Our Swift SDK brings the pieces together.<br>What we build, you can build on.</p><a class="inline-link" href="https://github.com/starling-build/starling/tree/office/sdk">Explore the Starling SDK <span aria-hidden="true">↗</span></a><p class="slide-note">One open foundation. Many possibilities.</p></div>
-      <div class="factory-diagram" aria-label="Terminal, Office, and Desktop are built on the open Starling SDK"><div class="factory-products"><span><b aria-hidden="true">&gt;_</b>Terminal</span><span><b aria-hidden="true">O</b>Office</span><span><b aria-hidden="true">◇</b>Desktop</span></div><div class="factory-connectors" aria-hidden="true"><i></i><i></i><i></i></div><a class="sdk-foundation" href="https://github.com/starling-build/starling/tree/office/sdk"><span>STARLING SDK</span><strong>The building blocks<br>are open, too.</strong><span>Swift · UI · Rendering · Platform hosts <span aria-hidden="true">↗</span></span></a></div>
-    </section>
-    <section class="slide mission-slide" id="open" aria-labelledby="open-title" data-label="Open and free" data-action="View on GitHub" data-href="https://github.com/starling-build/starling">
-      <div class="slide-copy"><p class="eyebrow">05 / OPEN CODE. SHARED AMBITION.</p><h2 id="open-title">World-class<br>is the goal.<br>Open is the way.</h2><p class="lede">Software should be worth using.<br>And everyone should be free to use it.<br>Read the code. Help shape what comes next.</p><a class="repository-link" href="https://github.com/starling-build/starling">github.com/starling-build/starling <span aria-hidden="true">↗</span></a><p class="slide-note">Free to use · Open source · Apache 2.0</p></div>
-      <div class="mission-art" aria-label="Use it. Study it. Build on it."><span class="mission-word">Use it.</span><span class="mission-word">Study it.</span><span class="mission-word">Build on it.</span><div class="mission-line" aria-hidden="true"></div><p>A software factory.<br>A shared future.</p></div>
-    </section>
-  </main>
-  <footer class="presentation-controls">
-    <a class="footer-brand" href="#intro"><img src="img/starling.svg" width="29" height="29" alt=""><span>Built in the open.<br><strong>Built for everyone.</strong></span></a>
-    <nav class="slide-navigation" aria-label="Presentation navigation"><button id="previous" type="button" aria-label="Previous slide" disabled>←</button><div class="dots"><a href="#intro" data-slide="0" aria-label="Slide 1: Software factory" aria-current="step"></a><a href="#terminal" data-slide="1" aria-label="Slide 2: Terminal"></a><a href="#office" data-slide="2" aria-label="Slide 3: Office"></a><a href="#desktop" data-slide="3" aria-label="Slide 4: Desktop"></a><a href="#sdk" data-slide="4" aria-label="Slide 5: SDK"></a><a href="#open" data-slide="5" aria-label="Slide 6: Open source"></a></div><span id="position" aria-live="polite" aria-atomic="true">01 / 06</span><button id="next" type="button" aria-label="Next slide">→</button></nav>
-    <a class="slide-action" id="slide-action" href="#terminal">Explore the apps <span aria-hidden="true">↗</span></a>
-  </footer>
-  <dialog id="desktop-film" aria-label="Starling desktop film"><button class="dialog-close" type="button" aria-label="Close film">×</button>
-    <section class="film-section" id="film" aria-labelledby="film-title">
-      <div class="wrap">
-        <div class="film-heading">
-          <div><p class="section-index">02 / SEE IT FOR YOURSELF</p><h2 id="film-title">This is a desktop.<br><span>Yes, really.</span></h2></div>
-          <p>From an empty workspace to a city in motion.<br>Then Chrome, a film, your files, and a terminal.<br><span class="film-meta">2 MIN 50 SEC <i aria-hidden="true">·</i> MUSIC &amp; NARRATION</span></p>
+    </header>
+    <main id="main">
+      <section class="hero hero-green" id="intro">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">AN OPEN SOFTWARE FACTORY</p>
+            <h1>Great software.<br />For everyone.</h1>
+            <p class="lead">
+              We’re building world-class software for everyday work. A fast
+              terminal. An office for your ideas. A desktop that gives you room
+              to do more.
+            </p>
+            <p class="hero-note">
+              Free to use. Open to study, change, and build on.
+            </p>
+            <a class="button button-light" href="#products"
+              >Explore the applications <span aria-hidden="true">↓</span></a
+            >
+          </div>
+          <div class="product-directory" aria-label="Explore Starling products">
+            <a href="#terminal"
+              ><span class="app-icon terminal-icon" aria-hidden="true"
+                >&gt;_</span
+              >
+              <div>
+                <h2>Terminal</h2>
+                <p>Local shells. Remote workspaces.</p>
+              </div>
+              <span aria-hidden="true">↗</span></a
+            >
+            <a href="#office"
+              ><span class="app-icon writer-icon" aria-hidden="true">W</span>
+              <div>
+                <h2>Office</h2>
+                <p>Documents. Slides. Spreadsheets.</p>
+              </div>
+              <span aria-hidden="true">↗</span></a
+            >
+            <a href="#desktop"
+              ><span class="app-icon desktop-icon" aria-hidden="true">◇</span>
+              <div>
+                <h2>Desktop</h2>
+                <p>Your apps. Your workspaces.</p>
+              </div>
+              <span aria-hidden="true">↗</span></a
+            >
+          </div>
         </div>
-        <div class="film-player">
-          <video id="demo-video" controls playsinline preload="none" poster="img/film-poster.webp" width="1920" height="1080" aria-label="Starling desktop demo with music and English narration">
-            <source src="video/starling-desktop.mp4" type="video/mp4">
-            <track kind="captions" src="video/narration.vtt" srclang="en" label="English narration">
-            <p>Your browser cannot play this video. <a href="video/starling-desktop.mp4">Download the demo instead.</a></p>
-          </video>
-          <button class="film-play" id="film-play" type="button" hidden aria-label="Play the Starling desktop film with sound"><span class="big-play" aria-hidden="true">▶</span><span>Enter the desktop<span class="film-play-note">Sound on. Take a look around.</span></span></button>
-        </div>
-        <div class="film-bottom"><p>Recorded on the running Starling desktop.</p><a href="video/starling-desktop.mp4" download>Download the film <span aria-hidden="true">↓</span></a></div>
-        <div class="chapters" aria-label="Jump to a moment in the film">
-          <a href="video/starling-desktop.mp4#t=0" data-time="0"><span>00:00</span>The transformation <span aria-hidden="true">↗</span></a>
-          <a href="video/starling-desktop.mp4#t=25" data-time="25"><span>00:25</span>Down to the waterfront <span aria-hidden="true">↗</span></a>
-          <a href="video/starling-desktop.mp4#t=64.2" data-time="64.2"><span>01:04</span>Your apps, in the city <span aria-hidden="true">↗</span></a>
-          <a href="video/starling-desktop.mp4#t=142.3" data-time="142.3"><span>02:22</span>Switch your perspective <span aria-hidden="true">↗</span></a>
+      </section>
+      <div class="principles">
+        <div class="wrap">
+          <span>Thoughtful applications</span
+          ><span>A shared native foundation</span><span>Built in the open</span>
         </div>
       </div>
-    </section>
-
-    <p class="media-credits">Demo: original instrumental music and AI-generated English narration. Sample film: <a href="https://www.bigbuckbunny.org/">Big Buck Bunny</a>, © 2008 Blender Foundation, <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>, resized for playback.</p>
-  </dialog>
-  <dialog id="desktop-install" aria-label="Install Starling Desktop"><button class="dialog-close" type="button" aria-label="Close installation instructions">×</button>
-    <section class="install-section wrap" id="install" aria-labelledby="install-title">
-      <div class="install-intro">
-        <p class="section-index">04 / MAKE YOURSELF AT HOME</p>
-        <h2 id="install-title">Your next desktop.<br><em>Start here.</em></h2>
-        <p>Supported on Ubuntu 26.04 LTS (amd64) and Windows through WSL2 with Ubuntu 26.04. On Ubuntu Desktop, Starling adds a session alongside your existing desktop. On WSL, connect with Windows Remote Desktop.</p>
-        <a class="text-link" href="https://github.com/starling-build/starling/blob/release-0.5.0/docs/INSTALL.md">Full installation guide <span aria-hidden="true">↗</span></a>
-      </div>
-      <div class="install-steps">
-        <ol aria-label="Ubuntu desktop installation">
-          <li><h3>Download the desktop</h3><p>Open a terminal and download the Ubuntu package:</p><pre aria-label="Download command"><code>curl -fLO https://github.com/starling-build/starling/releases/download/v0.5.0/starling_0.5.0_amd64.deb</code></pre></li>
-          <li><h3>Install the package</h3><p>In the same folder, install Starling and its dependencies:</p><pre aria-label="Installation command"><code>sudo apt install ./starling_0.5.0_amd64.deb</code></pre><p class="install-note">Ubuntu Desktop includes the login manager. On a minimal or Server install, add it with <code>sudo apt install gdm3</code>.</p></li>
-          <li><h3>Sign in to Starling</h3><p>Log out, select your name, and open the session menu (usually the gear icon). Choose <strong>Starling</strong>, then sign in.</p></li>
-        </ol>
-
-        <div class="install-preview-note" aria-labelledby="wsl-install-title">
-          <h3 id="wsl-install-title">Windows, through WSL2</h3>
-          <p>Inside your Ubuntu 26.04 WSL terminal, download and install the package using the commands above. A login manager is not needed. Start Starling:</p>
-          <pre aria-label="Start Starling in WSL"><code>starling-session</code></pre>
-          <p>Then open PowerShell or the Windows Run dialog and connect:</p>
-          <pre aria-label="Connect from Windows"><code>mstsc /v:localhost:3390</code></pre>
+      <section class="section wrap" id="products">
+        <div class="section-heading">
+          <p class="eyebrow">THE APPLICATIONS</p>
+          <h2>Real tools.<br />Room to do great work.</h2>
+          <p>
+            Each application has a purpose of its own. Together, they share a
+            commitment to speed, thoughtful design, and open code.
+          </p>
         </div>
-        <p class="install-note">Early preview. Tested with AMD, Intel, and NVIDIA graphics, plus VirtIO-GPU / virgl in a VM and Windows through WSL2. See the installation guide for requirements and troubleshooting.</p>
+        <article class="product-row" id="terminal">
+          <div>
+            <p class="eyebrow">01 / STARLING TERMINAL</p>
+            <h3>A fast place<br />to get things done.</h3>
+            <p>
+              Work in a local shell or connect to a remote workspace. Persistent
+              remote sessions keep your work running when the connection drops,
+              so you can return to where you left off.
+            </p>
+            <ul class="feature-list">
+              <li>Local shells and remote workspaces</li>
+              <li>Persistent sessions you can reconnect to</li>
+              <li>Available for macOS, Windows, and Linux</li>
+            </ul>
+            <a
+              class="text-link"
+              href="https://github.com/starling-build/starling/releases/tag/terminal-v0.2.0"
+              >Get Starling Terminal ↗</a
+            >
+          </div>
+          <div class="terminal-art" aria-label="Illustrative terminal session">
+            <div class="window-bar">
+              <span aria-hidden="true">● ● ●</span>Starling Terminal
+            </div>
+            <div class="terminal-content">
+              <p class="terminal-muted">~/projects/next-idea</p>
+              <p><span>❯</span> git status</p>
+              <p class="terminal-muted">
+                On branch main<br />nothing to commit,<br />working tree clean
+              </p>
+              <p><span>❯</span> <b class="cursor" aria-hidden="true"></b></p>
+            </div>
+            <p class="art-caption">A familiar place to start something new.</p>
+          </div>
+        </article>
+        <article class="product-row" id="office">
+          <div>
+            <p class="eyebrow">02 / STARLING OFFICE</p>
+            <h3>One suite.<br />So many possibilities.</h3>
+            <p>
+              Write a proposal, build a presentation, or work through the
+              numbers. Writer, Slides, and Sheets bring familiar editing tools
+              to an open source office suite you can try in your browser.
+            </p>
+            <a class="text-link" href="https://openoffice.starling.build/"
+              >Explore Starling Office ↗</a
+            >
+          </div>
+          <div class="app-list">
+            <a href="openoffice/apps/writer/"
+              ><span class="app-icon writer-icon" aria-hidden="true">W</span>
+              <div>
+                <h4>Writer</h4>
+                <p>
+                  Write reports with styles, tables, pictures, and page layout.
+                  Open and save DOCX.
+                </p>
+                <span class="small-link">Open Writer ↗</span>
+              </div></a
+            ><a href="openoffice/apps/slides/"
+              ><span class="app-icon slides-icon" aria-hidden="true">S</span>
+              <div>
+                <h4>Slides</h4>
+                <p>
+                  Build PPTX decks with themes, editable charts, animations, and
+                  speaker notes.
+                </p>
+                <span class="small-link">Open Slides ↗</span>
+              </div></a
+            ><a href="openoffice/apps/sheets/"
+              ><span class="app-icon sheets-icon" aria-hidden="true">#</span>
+              <div>
+                <h4>Sheets</h4>
+                <p>
+                  Work with XLSX and CSV, formulas, sorting, filters, and
+                  charts.
+                </p>
+                <span class="small-link">Open Sheets ↗</span>
+              </div></a
+            >
+          </div>
+        </article>
+        <article class="product-row" id="desktop">
+          <div>
+            <p class="eyebrow">03 / STARLING DESKTOP</p>
+            <h3>A native home<br />for your work.</h3>
+            <p>
+              A desktop built around real applications, useful tools, and
+              dedicated agent workspaces. Start in the familiar 2D view, or
+              explore the 3D city as another way to work.
+            </p>
+            <ul class="feature-list">
+              <li>Linux applications alongside built-in tools</li>
+              <li>Agent workspaces you can watch and take over</li>
+              <li>Early preview for Ubuntu and Windows through WSL2</li>
+            </ul>
+            <a class="text-link" href="desktop/">Explore Starling Desktop ↗</a>
+          </div>
+          <figure class="desktop-preview">
+            <img
+              src="img/desktop-2d.webp"
+              width="1920"
+              height="1080"
+              alt="The Starling desktop with a status bar, dock, and city wallpaper."
+              loading="lazy"
+            />
+            <figcaption>A familiar desktop. A foundation for more.</figcaption>
+          </figure>
+        </article>
+      </section>
+      <section class="section foundation" id="sdk">
+        <div class="wrap split">
+          <div>
+            <p class="eyebrow">THE SHARED FOUNDATION</p>
+            <h2>What we build,<br />you can build on.</h2>
+          </div>
+          <div>
+            <p class="lead">
+              The Starling SDK brings Swift, UI, rendering, and platform hosts
+              together. Our applications build on the same open foundation, and
+              improvements can carry from one application to the next.
+            </p>
+            <p>
+              Explore the implementation, follow development, or use the
+              building blocks for an idea of your own.
+            </p>
+            <a
+              class="text-link"
+              href="https://github.com/starling-build/starling/tree/office/sdk"
+              >Explore the SDK ↗</a
+            >
+          </div>
+        </div>
+      </section>
+      <section class="section wrap open-section" id="open">
+        <p class="eyebrow">OPEN CODE. SHARED AMBITION.</p>
+        <h2>World-class is the goal.<br />Open is the way.</h2>
+        <p class="lead">
+          Use the software. Read the code. Report a rough edge, improve a
+          feature, or help build the next application. Starling is a software
+          factory with room to keep growing.
+        </p>
+        <a class="button" href="https://github.com/starling-build/starling"
+          >Explore Starling on GitHub ↗</a
+        >
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <div>
+          <a class="footer-brand" href="#intro">Starling.</a>
+          <p>Great software. Open to everyone.</p>
+        </div>
+        <nav aria-label="Footer navigation">
+          <a href="https://openoffice.starling.build/">Office</a
+          ><a href="desktop/">Desktop</a
+          ><a href="https://github.com/starling-build/starling"
+            >Source on GitHub ↗</a
+          >
+        </nav>
+        <p class="fine">Free to use. Open source. Apache 2.0.</p>
       </div>
-    </section>
-  </dialog>
-  <noscript><p class="no-script">Browse the presentation below. <a href="video/starling-desktop.mp4">Watch the desktop film</a> or <a href="https://github.com/starling-build/starling/blob/release-0.5.0/docs/INSTALL.md">read the installation guide</a>.</p></noscript>
-</body>
+    </footer>
+    <script src="main.js" defer></script>
+  </body>
 </html>

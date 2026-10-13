@@ -95,6 +95,18 @@ fi
 if [ -n "$TITLE" ]; then
     sed -i '' "s|<title>Starling</title>|<title>$TITLE</title>|; s|document.title = 'Starling — running'|document.title = '$TITLE'|; s|document.title = 'Starling — failed'|document.title = '$TITLE — failed'|" "$WORK/site/index.html"
 fi
+# The public Office previews open useful examples; File -> New stays blank.
+if [ "$APP" = OfficeApp ]; then
+    case "$ARGS" in
+        '') OFFICE_START=writer ;;
+        --slides) OFFICE_START=slides ;;
+        --sheets) OFFICE_START=sheets ;;
+        *) OFFICE_START='' ;;
+    esac
+    if [ -n "$OFFICE_START" ]; then
+        python3 "$REPO_ROOT/build/tools/office-web-start.py" "$WORK/site" "$OFFICE_START"
+    fi
+fi
 if [ -n "$HOST" ]; then echo "$HOST" > "$WORK/site/CNAME"; fi
 # Pages runs Jekyll by default, which drops files and folders it does not
 # like (anything starting with an underscore); this turns it off.

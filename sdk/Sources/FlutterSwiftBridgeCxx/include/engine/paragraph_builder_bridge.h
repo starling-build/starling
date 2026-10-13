@@ -158,6 +158,15 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT SWIFT_SHARED_REFERENCE(
                  uint32_t background_color,
                  uint32_t foreground_color);
 
+  /// Starling: the paint the NEXT PushStyle's foreground is drawn with, in
+  /// place of its plain colour — a gradient or picture shader, a stroke
+  /// (WordArt's fills and outlines). Encoded as a canvas call's paint is;
+  /// used once, by a style that has a foreground, then forgotten.
+  void SetForegroundPaint(const void* paint_data,
+                          const void* shader_ptr,
+                          const void* color_filter_ptr,
+                          const void* image_filter_ptr);
+
   /// Pops the most recent style from the stack.
   ///
   /// **Dart Source:** `text.dart:3681-3683`

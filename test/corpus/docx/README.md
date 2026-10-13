@@ -35,9 +35,9 @@ a side-by-side PNG of every page that differs. Sweep 7, 2026-10-13, by
 
 | | documents | pages | mean | median | ≤ 2% | 2–20% | > 20% | exact |
 |---|---|---|---|---|---|---|---|---|
-| all | 179 | 1,698 | 7.7% | 4.3% | 77 | 85 | 17 | 3 |
-| POI | 111 | 427 | 3.5% | 0.7% | 77 | 29 | 5 | 3 |
-| `zh-*` | 68 | 1,271 | 14.6% | 13.7% | 0 | 56 | 12 | 0 |
+| all | 179 | 1,695 | 7.6% | 4.2% | 80 | 82 | 17 | 3 |
+| POI | 111 | 427 | 3.4% | 0.7% | 80 | 26 | 5 | 3 |
+| `zh-*` | 68 | 1,268 | 14.3% | 13.6% | 0 | 56 | 12 | 0 |
 
 (Sweep 1, 2026-10-12 and before any of the work it started: 12.6%
 over all, POI 4.7%, `zh-*` 25.6%; sweep 6, the same day, 9.0%, 3.8%
@@ -51,10 +51,10 @@ second page on, so there is a second reading of the same sweep:
     test/docx-line-match.py WORK             # the share of Word's lines set in the same place
     test/docx-line-match.py WORK zh-3550     # where one document first parts from Word
 
-At sweep 7 a POI document has three fifths of Word's lines where Word
-has them (mean 62%, 50 of 110 at 95% or more) and a Chinese one two
-thirds (mean 65%, median 76%; 22 at 95%, 45 at half or more, 47 of
-the 68 with Word's page count); at sweep 1 it was 42% and 5%, at
+At sweep 7 a POI document has two thirds of Word's lines where Word
+has them (mean 67%, median 96%, 55 of 110 at 95% or more) and a
+Chinese one as many (mean 66%, median 80%; 22 at 95%, 46 at half or
+more, 49 of the 68 with Word's page count); at sweep 1 it was 42% and 5%, at
 sweep 6 62% and 45%. A document's score falls at the first paragraph that
 breaks differently, and that paragraph is what the second form prints.
 (The pixel mean moves less, and not always the same way: a document

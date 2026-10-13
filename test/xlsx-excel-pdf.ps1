@@ -46,6 +46,13 @@ $app.DisplayAlerts = $false
 $app.AskToUpdateLinks = $false
 $app.EnableEvents = $false
 try { $app.AutomationSecurity = $msoAutomationSecurityForceDisable } catch {}
+# A workbook set up for A4 prints on A4: Excel's "Scale content for A4 or
+# 8.5 x 11\" paper sizes" (on by default) would print it on Letter where
+# Letter is the region's paper, and the same file would then have two
+# references. The option is the user's and is saved with Excel's settings,
+# so it is put back before quitting.
+$mapPaper = $null
+try { $mapPaper = $app.MapPaperSize; $app.MapPaperSize = $false } catch {}
 
 $wb = $null; $repaired = $false; $why = ''
 try {
@@ -75,6 +82,7 @@ if ($null -eq $wb) {
     try { $wb.Close($false) } catch {}
     [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($wb)
 }
+if ($null -ne $mapPaper) { try { $app.MapPaperSize = $mapPaper } catch {} }
 try { $app.Quit() } catch {}
 [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($app)
 

@@ -76,6 +76,8 @@ struct SheetDrawing: Equatable {
     var rawAnchor: SheetAnchor? = nil
     /// The drawing part's relationship to its picture or chart.
     var relId: String? = nil
+    /// `cNvPr@hidden`: in the file, and neither drawn nor printed.
+    var hidden = false
 
     var isChart: Bool { if case .chart = kind { return true } else { return false } }
 }
@@ -85,10 +87,10 @@ enum SheetDrawingsXML {
 
     /// The drawings on one sheet (its `drawing` relationship's part), and
     /// that part's path and root tag.
-    static func read(sheetPath: String, parts: [String: Data], colors: ColorContext)
+    static func read(sheetPath: String, parts: [String: Data], colors: ColorContext, sheet: XNode? = nil)
         -> (drawings: [SheetDrawing], part: String?, root: String?) {
         let sheetRels = _relTargets(parts, of: sheetPath)
-        guard let sheet = parts[sheetPath].flatMap({ XNode.parse($0) }),
+        guard let sheet = sheet ?? parts[sheetPath].flatMap({ XNode.parse($0) }),
               let rid = sheet.child("drawing")?["r:id"], let drawingPath = sheetRels[rid],
               let bytes = parts[drawingPath], let root = XNode.parse(bytes) else { return ([], nil, nil) }
         let rels = _relTargets(parts, of: drawingPath)
@@ -121,7 +123,7 @@ enum SheetDrawingsXML {
                 d.relId = embed
             } else if let frame = el.child("graphicFrame"), let ref = _chartRef(frame), let path = rels[ref],
                       let space = parts[path].flatMap({ XNode.parse($0) }),
-                      let chart = ChartXML.read(space, color: { colors.color(in: $0) }) {
+                      let chart = ChartXML.read(space, allowEmpty: true, color: { colors.color(in: $0) }) {
                 d.name = frame.child("nvGraphicFramePr")?.child("cNvPr")?["name"] ?? "Chart"
                 var sc = SheetChart(chart: chart, refs: _refs(space), path: path)
                 for f in _formulas(space) { sc.formulas[f] = f }
@@ -136,6 +138,9 @@ enum SheetDrawingsXML {
             } else if raw == nil {
                 continue
             }
+            let named = (el.child("pic")?.child("nvPicPr") ?? el.child("graphicFrame")?.child("nvGraphicFramePr")
+                ?? el.child("sp")?.child("nvSpPr") ?? el.child("cxnSp")?.child("nvCxnSpPr") ?? el.child("grpSp")?.child("nvGrpSpPr"))?.child("cNvPr")
+            d.hidden = named?["hidden"] == "1" || named?["hidden"] == "true"
             out.append(d)
         }
         return (out, drawingPath, split.rootStart)
@@ -173,7 +178,7 @@ enum SheetDrawingsXML {
         }
     }
 
-    private static func _marker(_ n: XNode) -> SheetMarker? {
+    static func _marker(_ n: XNode) -> SheetMarker? {
         guard let col = Int(n.child("col")?.text ?? ""), let row = Int(n.child("row")?.text ?? "") else { return nil }
         return SheetMarker(col: col, colOff: _emu(n.child("colOff")?.text), row: row, rowOff: _emu(n.child("rowOff")?.text))
     }
@@ -478,7 +483,9 @@ extension Worksheet {
 
     /// Where a marker is, in points from A1's corner.
     func point(_ m: SheetMarker) -> (x: Double, y: Double) {
-        var x = m.colOff, y = m.rowOff
+        // (An offset past its cell's far edge stops there, as Excel's does.)
+        var x = isColHidden(m.col) ? 0 : min(m.colOff, colWidth(m.col))
+        var y = isRowHidden(m.row) ? 0 : min(m.rowOff, rowHeight(m.row))
         for c in 0 ..< m.col where !isColHidden(c) { x += colWidth(c) }
         for r in 0 ..< m.row where !isRowHidden(r) { y += rowHeight(r) }
         return (x, y)

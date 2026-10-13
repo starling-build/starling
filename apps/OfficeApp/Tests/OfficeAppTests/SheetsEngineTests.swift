@@ -344,6 +344,13 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(NumberFormat.general(-0.5), "-0.5")
         XCTAssertEqual(NumberFormat.full(1.0 / 3), "0.333333333333333")
         XCTAssertEqual(NumberFormat.full(0.1 + 0.2), "0.3")
+        // Whole numbers take a short way; it is the long way's answer.
+        XCTAssertEqual(NumberFormat.full(1), "1")
+        XCTAssertEqual(NumberFormat.full(-25), "-25")
+        XCTAssertEqual(NumberFormat.full(1200), "1200")
+        XCTAssertEqual(NumberFormat.full(999_999_999_999_999), "999999999999999")
+        XCTAssertEqual(NumberFormat.full(-100_000_000_000_000), "-100000000000000")
+        XCTAssertEqual(NumberFormat.full(2.5), "2.5")
         XCTAssertEqual(f(1234.5, "#,##0.00"), "1,234.50")
         XCTAssertEqual(f(-1234.5, "#,##0"), "-1,235")
         XCTAssertEqual(f(0.5, "0%"), "50%")
