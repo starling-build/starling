@@ -26,6 +26,10 @@ enum ReadBench {
     static func ms(_ from: UInt64, _ to: UInt64) -> String { String(format: "%.1f", Double(to - from) / 1e6) }
 
     static func peakMB() -> String {
+        #if os(Windows)
+        // (No getrusage there; the bench's memory column is a Mac and Linux figure.)
+        return "-"
+        #else
         var u = rusage()
         getrusage(RUSAGE_SELF, &u)
         #if os(Linux)
@@ -34,6 +38,7 @@ enum ReadBench {
         let bytes = Double(u.ru_maxrss)
         #endif
         return String(format: "%.0f", bytes / 1_048_576)
+        #endif
     }
 
     static func run(_ paths: [String]) -> Int32 {
