@@ -69,6 +69,41 @@ final class XNode {
         #endif
     }
 
+    /// The same tree by this app's own reader where it can read the part,
+    /// and by `parse` where it cannot: a part that is not UTF-8 (a byte
+    /// order mark of UTF-16, or a declaration naming another encoding),
+    /// or one it makes nothing of. About twice as fast as the system's
+    /// parser on a Mac, where every element's attributes cross into Swift
+    /// as a bridged dictionary — half of what opening a deck cost.
+    static func parseFast(_ data: Data) -> XNode? {
+        #if os(WASI)
+        return parse(data)
+        #else
+        if _systemOnly { return parse(data) }
+        let bytes = [UInt8](data)
+        if _isUTF8(bytes), let root = MiniXML.parse(bytes) { return root }
+        return parse(data)
+        #endif
+    }
+
+    /// `OFFICE_XML=system` reads everything with the system's parser: the
+    /// other side of a comparison when the two are suspected to differ.
+    private static let _systemOnly = ProcessInfo.processInfo.environment["OFFICE_XML"] == "system"
+
+    private static func _isUTF8(_ b: [UInt8]) -> Bool {
+        if b.count >= 2, (b[0] == 0xFE && b[1] == 0xFF) || (b[0] == 0xFF && b[1] == 0xFE) || b[0] == 0 || b[1] == 0 { return false }
+        // <?xml version="1.0" encoding="…"?> is all there is to look at.
+        let head = b.prefix(120).map { $0 >= 0x41 && $0 <= 0x5A ? $0 + 0x20 : $0 }
+        func find(_ word: String, from: Int = 0) -> Int? {
+            let w = Array(word.utf8)
+            guard head.count >= w.count else { return nil }
+            for k in from ... head.count - w.count where head[k ..< k + w.count].elementsEqual(w) { return k + w.count }
+            return nil
+        }
+        guard let xml = find("<?xml"), xml <= 8, let e = find("encoding", from: xml) else { return true }
+        return find("utf-8", from: e) != nil || find("utf8", from: e) != nil || find("us-ascii", from: e) != nil
+    }
+
     #if !os(WASI)
     private final class _Builder: NSObject, XMLParserDelegate {
         var root: XNode?

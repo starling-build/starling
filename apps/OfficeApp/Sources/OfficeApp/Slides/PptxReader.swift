@@ -40,7 +40,7 @@ struct PptxPackage: Equatable {
         var parts: [String: Data] = [:]
         for e in entries { parts[e.name] = e.data }
         self.parts = parts
-        if let ct = parts["[Content_Types].xml"].flatMap(XNode.parse) {
+        if let ct = parts["[Content_Types].xml"].flatMap(XNode.parseFast) {
             for o in ct.all("Override") {
                 if let name = o["PartName"], let type = o["ContentType"] {
                     overrides[String(name.drop { $0 == "/" })] = type
@@ -52,7 +52,7 @@ struct PptxPackage: Equatable {
         }
     }
 
-    func xml(_ part: String) -> XNode? { parts[part].flatMap(XNode.parse) }
+    func xml(_ part: String) -> XNode? { parts[part].flatMap(XNode.parseFast) }
 
     func contentType(_ part: String) -> String? {
         overrides[part] ?? defaults[(part.split(separator: ".").last.map(String.init) ?? "").lowercased()]
@@ -2147,15 +2147,59 @@ enum PptxXML {
     /// An element back to text, prefixes and all. Attribute order is not
     /// kept (the parser does not keep it), which XML does not care about.
     static func serialize(_ node: XNode) -> String {
-        var out = "<" + node.name
-        for (k, v) in node.attrs.sorted(by: { $0.key < $1.key }) {
-            out += " \(k)=\"\(escape(v, attribute: true))\""
+        var out: [UInt8] = []
+        out.reserveCapacity(1024)
+        _write(node, into: &out)
+        return String(decoding: out, as: UTF8.self)
+    }
+
+    /// One buffer for the whole element. A string built per node and
+    /// appended to its parent's copies every byte once per level it sits
+    /// under, and a reader keeps the text of every shape: a slide of a
+    /// megabyte of grouped drawing spent most of its opening here.
+    private static func _write(_ node: XNode, into out: inout [UInt8]) {
+        out.append(UInt8(ascii: "<"))
+        out.append(contentsOf: node.name.utf8)
+        if node.attrs.count == 1, let (k, v) = node.attrs.first {
+            _attribute(k, v, into: &out)
+        } else if !node.attrs.isEmpty {
+            for (k, v) in node.attrs.sorted(by: { $0.key < $1.key }) { _attribute(k, v, into: &out) }
         }
-        let text = node.text.trimmingWhitespace().isEmpty && !node.children.isEmpty ? "" : node.text
-        if node.children.isEmpty && text.isEmpty { return out + "/>" }
-        out += ">" + escape(text, attribute: false)
-        for c in node.children { out += serialize(c) }
-        return out + "</" + node.name + ">"
+        // Whitespace between child elements is indentation, not content.
+        let text = !node.children.isEmpty && (node.text.isEmpty || node.text.trimmingWhitespace().isEmpty) ? "" : node.text
+        if node.children.isEmpty && text.isEmpty {
+            out.append(UInt8(ascii: "/")); out.append(UInt8(ascii: ">"))
+            return
+        }
+        out.append(UInt8(ascii: ">"))
+        _escape(text, attribute: false, into: &out)
+        for c in node.children { _write(c, into: &out) }
+        out.append(UInt8(ascii: "<")); out.append(UInt8(ascii: "/"))
+        out.append(contentsOf: node.name.utf8)
+        out.append(UInt8(ascii: ">"))
+    }
+
+    private static func _attribute(_ k: String, _ v: String, into out: inout [UInt8]) {
+        out.append(UInt8(ascii: " "))
+        out.append(contentsOf: k.utf8)
+        out.append(UInt8(ascii: "=")); out.append(UInt8(ascii: "\""))
+        _escape(v, attribute: true, into: &out)
+        out.append(UInt8(ascii: "\""))
+    }
+
+    /// The markup characters are single bytes in UTF-8 and occur in no
+    /// other character's encoding, so the bytes are walked, not the
+    /// characters.
+    private static func _escape(_ s: String, attribute: Bool, into out: inout [UInt8]) {
+        for b in s.utf8 {
+            switch b {
+            case UInt8(ascii: "&"): out.append(contentsOf: "&amp;".utf8)
+            case UInt8(ascii: "<"): out.append(contentsOf: "&lt;".utf8)
+            case UInt8(ascii: ">"): out.append(contentsOf: "&gt;".utf8)
+            case UInt8(ascii: "\"") where attribute: out.append(contentsOf: "&quot;".utf8)
+            default: out.append(b)
+            }
+        }
     }
 
     static func escape(_ s: String, attribute: Bool) -> String {

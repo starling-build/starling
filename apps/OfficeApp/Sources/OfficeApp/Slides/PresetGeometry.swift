@@ -13,7 +13,7 @@ import Foundation
 /// come out as the file sets them.
 enum PresetGeometry {
     private static let definitions: [String: XNode] = {
-        guard let root = XNode.parse(Data(PresetDefinitions.xml.utf8)) else { return [:] }
+        guard let root = XNode.parseFast(Data(PresetDefinitions.xml.utf8)) else { return [:] }
         var out: [String: XNode] = [:]
         for c in root.children { out[c.name] = c }
         return out
