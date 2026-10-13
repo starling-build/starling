@@ -122,7 +122,10 @@ final class FilterPanelState: State<StatefulWidget> {
                 SizedBox(width: nil, height: 30, child: FluentTextBox(
                     controller: _search, placeholderText: "Search",
                     onChanged: { [weak self] q in self?.setState { self?._query = q } },
-                    onSubmitted: { [weak self] _ in self?._apply() })),
+                    // (The box takes the keyboard as the panel opens: a
+                    // word typed to search went into the header cell,
+                    // over its name — seen on screen 2026-10-13.)
+                    onSubmitted: { [weak self] _ in self?._apply() }, autofocus: true)),
                 Chrome.gap(6),
                 all,
                 SizedBox(width: nil, height: min(220, Double(max(1, shown.count)) * 28), child: list),

@@ -930,6 +930,9 @@ final class SlidesShellState: State<StatefulWidget> {
             return true
         }
         if named == .escape {
+            // (Esc is Cancel in the Header and Footer dialog: it stayed
+            // up — seen on screen 2026-10-13.)
+            if _headerFooter { setState { _headerFooter = false }; return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
             if typing {
                 // Esc leaves the text with its shape still selected.
@@ -1053,8 +1056,12 @@ final class SlidesShellState: State<StatefulWidget> {
             ])
         }
         if _headerFooter {
+            // (The window behind takes no clicks while the dialog is up:
+            // its own scrim did not keep them from the slide, and a
+            // click beside the dialog selected the shape under it —
+            // seen on screen 2026-10-13.)
             return Stack(children: [
-                window,
+                IgnorePointer(ignoring: true, child: window),
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HeaderFooterDialog(
                     initial: deck.headerFooter(of: deck.currentSlide),
                     onApply: { [weak self] hf, all in
