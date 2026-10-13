@@ -186,6 +186,22 @@ final class OfficeSession {
         }
     }
 
+    /// Where a key goes when nothing has the keyboard. Focus is left with
+    /// nobody whenever a field that had it goes away — Save As closing
+    /// after a save, a chart's data cell, a bar dismissed — and from then
+    /// on every key, shortcuts included, was dropped until something was
+    /// clicked. `home` names the document's own focus node, or nil while
+    /// something is laid over the document (Backstage, a show, a dialog)
+    /// and its keys are not the document's to take.
+    func homeForKeys(_ home: @escaping () -> FocusNode?) {
+        if let token = OfficeSession._homeToken { FocusManager.instance.removeKeyInterceptor(token) }
+        OfficeSession._homeToken = FocusManager.instance.addKeyInterceptor { _ in
+            if FocusManager.instance.focusedNode == nil { home()?.requestFocus() }
+            return false   // never consumed here: the key goes on to its new home
+        }
+    }
+    nonisolated(unsafe) private static var _homeToken: Int? = nil
+
     /// The window's own close asks too, where the host lets the app answer
     /// one: a modified document keeps the window and puts the question.
     func guardWindowClose() {

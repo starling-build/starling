@@ -127,6 +127,13 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         _point(at: nil)
         _deckFocus.onKeyData = { [weak self] key in self?._deckKey(key) ?? false }
+        // A chord that moves the keyboard elsewhere — Ctrl+F opens the find
+        // box — takes the modifier's key-up with it, and the deck went on
+        // believing Ctrl was held: the next plain letters were commands
+        // (typing "z" undid). Whoever loses the keyboard forgets modifiers.
+        _deckFocus.onFocusChange = { [weak self] focused in
+            if !focused { self?._deckChords.reset() }
+        }
         if let path = _w.initialPath {
             // Bytes from the browser's picker that crossed the kind switch
             // (a .pptx picked in Writer) arrive by name, not on disk.
@@ -160,6 +167,10 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onNew = { [weak self] in self?._newDeck() }
         session.guardWindowClose()
         session.routeFieldChords()
+        session.homeForKeys { [weak self] in
+            guard let self, self.mounted, self._backstage == nil, self._show == nil, !self._headerFooter else { return nil }
+            return self._deckFocus
+        }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         session.onNewKind = { [weak self] kind in
             guard let self else { return }

@@ -217,6 +217,10 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onNew = { [weak self] in self?._new() }
         session.guardWindowClose()
         session.routeFieldChords()
+        session.homeForKeys { [weak self] in
+            guard let self, self.mounted, self._backstage == nil else { return nil }
+            return self._editorFocus
+        }
         session.onNewKind = { [weak self] kind in
             guard let self else { return }
             if kind == .document { self._new() } else { (self.widget as! OfficeShell).onSwitch?(kind, nil) }
