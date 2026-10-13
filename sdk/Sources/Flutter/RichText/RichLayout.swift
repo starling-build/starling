@@ -3607,7 +3607,13 @@ public final class RichLayout {
             // (The half em a line takes at most is Word's to a twentieth
             // of a point: 7.12pt over at 14pt is not taken. The widths
             // are the faces' own now, and the hair would take it.)
-            let edge = min(hair, _px(0.05))
+            // (Under a twentieth, which is one of Word's units: 16pt
+            // text spaced -0.5 takes a character 7.5 over and leaves one
+            // 7.55 over — zh-6cd1befe, in a column of 445.25. But as
+            // near to it as may be: with Latin digits on the line the
+            // sum here is not Word's to the hundredth, and zh-a4b0f6ea
+            // has a "《威" taken that comes out a few hundredths over.)
+            let edge = min(hair, _px(0.045))
             var fits = x + w - after <= width + hair
             // (Fitting by that hair is fitting: the engine allows none,
             // so the last character gives it up.)

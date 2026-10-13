@@ -1675,6 +1675,31 @@ fitter dropped the paragraph's tail).
   apart, the spacing counted twice where widths are balanced) takes
   one 7.55 over and not 7.65; spaced -1, 6.9 and not 7.1; unspaced,
   7.9 and not 8.1. zh-6cd1befe 32% -> 53%; Chinese sample 71.8%.
+  The allowance over that half is now under a twentieth of a point
+  (it was a twentieth): Word counts in twentieths, and the same
+  document leaves a character that is 7.55 over a half of 7.5.
+
+- **Circled numbers are Cambria Math's (2026-10-13).** The same
+  document's lists open "⑤上级工作组…" and Word ended those lines
+  one character before ours. Lab `si` (`body32.py`): the paragraph
+  as written, and with one thing changed at a time — only replacing
+  ⑤ with an ideograph let the character on. Lab `cn`
+  (`body33.py`), ten of each per face: ⓪ and ①–⑳ are 1.2007 ems
+  in a Times New Roman, Arial or Cambria run (1.22 in bold) —
+  Cambria Math's glyphs, which Word falls back to — 1.328 in
+  Calibri, which has its own (and so has Carlito), and an em in a
+  run hinted East Asian (⑳ excepted: 宋体 has none). They go in
+  `otherAdvances` for every Latin clone but Carlito.
+  zh-6cd1befe 53% -> 86%; Chinese sample 72.3%, POI unchanged.
+
+  Seen and not built, lab `sh` (`body31.py`): where the character
+  that is over is followed by a closing mark, Word's line ends 8.56pt
+  past the margin whatever the overhang — the mark is set in its
+  left half and the line's commas give the rest — where ours hangs
+  the mark a whole em and has the commas give less. The lines break
+  alike but for the last case (7.2 over, spaced -0.5, taken by Word).
+  And with room enough in the commas Word draws the mark wholly
+  inside the margin and hangs nothing.
 
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

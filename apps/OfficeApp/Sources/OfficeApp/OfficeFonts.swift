@@ -307,6 +307,17 @@ enum OfficeFonts {
         for (k, w) in lower.enumerated() { table[0x2170 + UInt32(k)] = w }
         return table
     }
+    // The circled numbers ⓪ and ① to ⑳: Calibri has its own (and
+    // Carlito the same), and for a run in Times New Roman, Arial or
+    // Cambria Word takes Cambria Math's, 1.2 ems wide — 1.22 in bold
+    // (lab `cn`, ten of each per face, 2026-10-13). A paragraph that
+    // opens "⑤" is a fifth of an em further along than a fallback's
+    // em-wide glyph puts it, and zh-6cd1befe's lists broke by it.
+    private static func circled(_ ems: Double) -> [UInt32: Double] {
+        var table: [UInt32: Double] = [0x24EA: ems]
+        for u in UInt32(0x2460) ... 0x2473 { table[u] = ems }
+        return table
+    }
     private static let timesNumerals = numerals([0.3330, 0.6465, 0.9595, 1.0513, 0.7222, 1.0474, 1.3604, 1.6733, 1.0527, 0.7222, 1.0479, 1.3608],
                                                 [0.2778, 0.5244, 0.7710, 0.7393, 0.5000, 0.7612, 1.0078, 1.2544, 0.7661, 0.5000, 0.7588, 1.0054])
     private static let timesBoldNumerals = numerals([0.3892, 0.7646, 1.1401, 1.1113, 0.7222, 1.1089, 1.4844, 1.8599, 1.1123, 0.7222, 1.1123, 1.4878],
@@ -337,9 +348,13 @@ enum OfficeFonts {
             default: baseline = 0.938
             }
             var face = RichResolvedFace(family: clone, baseline: baseline)
+            if clone != calibri {
+                face.otherAdvances = circled(1.2007)
+                face.boldOtherAdvances = circled(1.2207)
+            }
             if clone == serif {
-                face.otherAdvances = timesNumerals
-                face.boldOtherAdvances = timesBoldNumerals
+                face.otherAdvances?.merge(timesNumerals) { $1 }
+                face.boldOtherAdvances?.merge(timesBoldNumerals) { $1 }
             }
             return face
         }
