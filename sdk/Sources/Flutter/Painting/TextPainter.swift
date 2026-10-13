@@ -942,6 +942,9 @@ public final class TextPainter {
         markNeedsLayout()
     }
     private var _placeholderDimensions: [PlaceholderDimensions]?
+    /// The dimensions last set (Starling: a copy of a painter at
+    /// another size needs them).
+    public var placeholderDimensions: [PlaceholderDimensions]? { _placeholderDimensions }
 
     // MARK: - Layout Template
 

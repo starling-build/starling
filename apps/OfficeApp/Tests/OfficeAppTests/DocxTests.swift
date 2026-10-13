@@ -1197,6 +1197,41 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(savedSettings.contains("w:val=\"14\"/><w:useFELayout/></w:compat>"), savedSettings)
     }
 
+    /// The settings the line fitting reads (measured against Word,
+    /// 2026-10-12): balanced widths, the alternative kinsoku rules, the
+    /// compatibility mode, a default tab stop of none; and a section's
+    /// own line grid and first-page switch on the paragraph that ends it.
+    func testSettingsAndSectionGridThatSteerTheLayout() throws {
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "first"), RichParagraph(text: "second")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let si = entries.firstIndex { $0.name == "word/settings.xml" }!
+        var settings = String(decoding: entries[si].data, as: UTF8.self)
+        settings = settings.replacingAll("w:val=\"15\"/></w:compat>", with: "w:val=\"14\"/><w:balanceSingleByteDoubleByteWidth/><w:useAltKinsokuLineBreakRules/><w:useFELayout/></w:compat>")
+        settings = settings.replacingAll("<w:defaultTabStop w:val=\"720\"/>", with: "<w:defaultTabStop w:val=\"0\"/>")
+        XCTAssertTrue(settings.contains("balanceSingleByteDoubleByteWidth") && settings.contains("<w:defaultTabStop w:val=\"0\"/>"), settings)
+        entries[si] = ZipEntry(name: "word/settings.xml", data: Data(settings.utf8))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let sect = "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/><w:titlePg/><w:docGrid w:type=\"linesAndChars\" w:linePitch=\"312\" w:charSpace=\"4096\"/></w:sectPr>"
+        let textAt = xml.range(of: ">first<")!.lowerBound
+        let close = xml.range(of: "</w:pPr>", options: .backwards, range: xml.startIndex ..< textAt)!
+        xml.insert(contentsOf: sect, at: close.lowerBound)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(back.balancesSpaceWidth)
+        XCTAssertTrue(back.hangsHalf)
+        XCTAssertEqual(back.compatibilityMode, 14)
+        XCTAssertEqual(back.defaultTabStop, 0)
+        let section = try XCTUnwrap(back.paragraphs[0].style.sectionPage)
+        XCTAssertEqual(section.lineGridPitch ?? 0, 15.6, accuracy: 0.001)
+        XCTAssertEqual(section.characterGridSpace ?? 0, 1, accuracy: 0.001)
+        XCTAssertTrue(section.titlePage)
+        // (The last section's grid is the document's, and it has none.)
+        XCTAssertNil(back.lineGridPitch)
+        let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/settings.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(saved.contains("<w:defaultTabStop w:val=\"0\"/>"), saved)
+    }
+
     func testRunTurningOffItsStyleBoldIsWrittenOff() throws {
         var doc = RichDocument(paragraphs: [RichParagraph(text: "plain heading")])
         doc.styles = OfficeStyles.sheet

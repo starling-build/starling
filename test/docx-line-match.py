@@ -44,13 +44,19 @@ def lines(tool, pdf):
             rows.append((int(p[0][1:]), float(p[1]), float(p[2]), t))
     # PDFKit cuts a line where its fonts change: the pieces of one line
     # (same page, same height) are put back together, leftmost first.
+    # (Leftmost first whatever their heights: a mark that hangs past the
+    # margin is a piece of its own, a hair higher than its line.)
     rows.sort(key=lambda r: (r[0], -r[1], r[2]))
-    merged = []
+    groups = []
     for r in rows:
-        if merged and merged[-1][0] == r[0] and abs(merged[-1][1] - r[1]) < 2.5:
-            merged[-1] = merged[-1][:3] + (merged[-1][3] + r[3],)
+        if groups and groups[-1][0][0] == r[0] and abs(groups[-1][0][1] - r[1]) < 2.5:
+            groups[-1].append(r)
         else:
-            merged.append(r)
+            groups.append([r])
+    merged = []
+    for g in groups:
+        g.sort(key=lambda r: r[2])
+        merged.append((g[0][0], max(r[1] for r in g), g[0][2], "".join(r[3] for r in g)))
     return merged
 
 

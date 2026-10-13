@@ -77,10 +77,45 @@ enum OfficeFonts {
         }
     }
 
+    /// Names a file's font table declares in the Latin character set
+    /// (`w:charset` 00) that are no face Word has: "S宋体" reads as a
+    /// Chinese face and is not one — Word sets its letters, digits and
+    /// quotes in a Latin face. (A face Word has it knows whatever the
+    /// table says: six files of the corpus declare 宋体 that way.)
+    private nonisolated(unsafe) static var declaredLatin: Set<String> = []
+    private static let declaredLock = NSLock()
+    private static let wordsOwn: Set<String> = [
+        "宋体", "simsun", "新宋体", "nsimsun", "黑体", "simhei", "楷体", "kaiti", "仿宋", "fangsong", "微软雅黑", "microsoft yahei",
+        "microsoft yahei ui", "等线", "等线 light", "dengxian", "dengxian light", "新細明體", "pmingliu", "細明體", "mingliu",
+        "微軟正黑體", "microsoft jhenghei", "华文中宋", "华文仿宋", "华文楷体", "华文宋体", "华文细黑", "stsong", "stkaiti",
+        "stfangsong", "stzhongsong", "stxihei", "arial unicode ms", "幼圆", "youyuan", "隶书", "lisu",
+    ]
+
+    /// Takes a file's font table: each name and its `w:charset`.
+    static func noteFontTable(_ charsets: [String: String]) {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        for (name, charset) in charsets {
+            let parts = name.split(separator: ",").map { $0.trimmingWhitespace().lowercased() }
+            if charset == "00", !parts.contains(where: { wordsOwn.contains($0) }) {
+                declaredLatin.insert(name)
+            } else {
+                declaredLatin.remove(name)
+            }
+        }
+    }
+
+    private static func isDeclaredLatin(_ family: String) -> Bool {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        return !declaredLatin.isEmpty && declaredLatin.contains(family)
+    }
+
     /// Whether a family name is an East Asian face: written in its own
     /// script (宋体, 標楷體, ＭＳ 明朝), or one of the Latin names those
     /// faces also go by.
     static func isEastAsianFace(_ family: String) -> Bool {
+        if isDeclaredLatin(family) { return false }
         if family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return true }
         let n = family.trimmingWhitespace().lowercased()
         for key in ["simsun", "simhei", "kaiti", "fangsong", "yahei", "dengxian", "mingliu", "dfkai", "jhenghei",
@@ -113,6 +148,11 @@ enum OfficeFonts {
         /// The baseline below the top of a single line, in ems: the
         /// face's ascent and half of what Word adds to its height.
         var baseline: Double? = nil
+        /// The same two for characters with a scale of their own
+        /// (`w:w`), where they differ: Word measures those by the
+        /// face's OS/2 ascent and descent rather than its hhea ones.
+        var scaledHeight: Double? = nil
+        var scaledBaseline: Double? = nil
     }
 
     private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 5.0 / 6.0, fakeBold: true, baseline: 1.005)
@@ -126,7 +166,12 @@ enum OfficeFonts {
         if has("jhenghei", "微軟正黑") { return EastAsianFace(height: 1.74, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95], fakeBold: false) }
         if has("dengxian", "等线") { return EastAsianFace(height: 1.36, latin: sans, latinScale: 0.955, latinClasses: [0.992, 0.927, 1.021, 0.91], fakeBold: false, baseline: 1.01) }
         if has("pmingliu", "新細明體") { return EastAsianFace(height: 1.3, latin: serif, latinScale: 0.94, fakeBold: true) }
-        if has("stzhongsong", "华文中宋") { return EastAsianFace(height: 1.74, latin: serif, latinScale: 1.16, fakeBold: true) }
+        if has("stzhongsong", "华文中宋") {
+            // (hhea 1.007 + .318, OS/2 win .912 + .225: 105.3pt a line at
+            // 61pt, and 90.2 at 34% of its width.)
+            return EastAsianFace(height: 1.7225, latin: serif, latinScale: 1.16, fakeBold: true, baseline: 1.206,
+                                 scaledHeight: 1.478, scaledBaseline: 1.083)
+        }
         if has("stfangsong", "华文仿宋") { return EastAsianFace(height: 1.71, latin: serif, latinScale: 1.0, fakeBold: false) }
         if has("stkaiti", "华文楷体") { return EastAsianFace(height: 1.7, latin: serif, latinScale: 1.04, fakeBold: true) }
         if has("stsong", "华文宋体") { return EastAsianFace(height: 1.31, latin: serif, latinScale: 1.0, fakeBold: true) }
@@ -170,20 +215,30 @@ enum OfficeFonts {
             }
             return RichResolvedFace(family: clone, baseline: baseline)
         }
-        let ea = own ? eastAsianFace(family) : square
+        // (A name the table declares Latin still sets East Asian text
+        // as the face it names.)
+        let ea = own || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) ? eastAsianFace(family) : square
         if eastAsian {
-            return RichResolvedFace(family: substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? 1.0 / 57 : 0,
-                                    baseline: ea.baseline)
+            var face = RichResolvedFace(family: substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? 1.0 / 57 : 0,
+                                        baseline: ea.baseline)
+            face.scaledHeight = ea.scaledHeight
+            face.scaledBaseline = ea.scaledBaseline
+            return face
         }
-        return RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
-                                boldSpread: ea.fakeBold ? 1.0 / 57 : 0, classScales: ea.latinClasses, baseline: ea.baseline,
-                                isEastAsian: true)
+        var face = RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
+                                    boldSpread: ea.fakeBold ? 1.0 / 57 : 0, classScales: ea.latinClasses, baseline: ea.baseline,
+                                    isEastAsian: true)
+        face.scaledHeight = ea.scaledHeight
+        face.scaledBaseline = ea.scaledBaseline
+        return face
     }
 
     /// The theme's `averageCharWidth`: the OS/2 average character width
     /// of the face Word sets a Latin name in, in ems.
     static func averageCharWidth(_ family: String?) -> Double {
-        guard let family, !isEastAsianFace(family) else { return 0.5 }
+        // (An East Asian face counts half an em whatever its own
+        // average: 4.0pt at 16pt beside YaHei's digits as beside 宋体's.)
+        guard let family, !isEastAsianFace(family), !family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) else { return 0.5 }
         switch substitute(family) {
         case serif: return 0.401
         case mono: return 0.6

@@ -164,7 +164,7 @@ enum DocxFormat {
         // Word's 1.25cm), and every typed "4.2.8.<tab>text" lands
         // elsewhere under our 36 — bug65649's first lines.
         let defaultTabStop = part("word/settings.xml").flatMap(XNode.parse)?.first("w:defaultTabStop")
-            .flatMap { Double($0["w:val"] ?? "") }.flatMap { $0 > 0 ? $0 / 20 : nil }
+            .flatMap { Double($0["w:val"] ?? "") }.flatMap { $0 >= 0 ? $0 / 20 : nil }
         if let sect = body.first("w:sectPr") {
             // A header or footer with a picture, a table or a text box
             // (a logo, 60329's banner) is more than its text: the part is
@@ -1048,10 +1048,10 @@ enum DocxFormat {
         var headerFooters: [RichHeaderFooter] = []
         do {
             let bodyParagraphs = paragraphs, bodyRels = rels, bodyInfo = notes.rels
-            // The last section's own, and for a kind it names none of,
-            // the nearest earlier section's: a section that names no
-            // header or footer goes on with the one before it.
-            var shown = keptHeaderFooters.map { (kind: $0.kind, type: $0.type, part: $0.part) }
+            // Section by section: what each names, and what it does
+            // not it has from the one before — type by type, so a
+            // section that names only a first page's footer goes on
+            // with the earlier default one.
             var earlier: [XNode] = []
             func sections(_ n: XNode) {
                 for c in n.children {
@@ -1060,20 +1060,32 @@ enum DocxFormat {
                 }
             }
             sections(body)
-            for sect in earlier.reversed() {
+            var named: [String: (kind: KeptHeaderFooter.Kind, type: String, part: String)] = [:]
+            var perSection: [[String: (kind: KeptHeaderFooter.Kind, type: String, part: String)]] = []
+            for sect in earlier {
                 for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
                     let kind: KeptHeaderFooter.Kind = ref.name == "w:headerReference" ? .header : .footer
                     let type = ref["w:type"] ?? "default"
-                    guard ["default", "first", "even"].contains(type), !shown.contains(where: { $0.kind == kind }),
+                    guard ["default", "first", "even"].contains(type),
                           let rid = ref["r:id"], let target = relInfo[rid]?.target, !(relInfo[rid]?.external ?? false) else { continue }
-                    shown.append((kind, type + "+", _resolvePath("word", target)))
+                    named["\(kind.rawValue)|\(type)"] = (kind, type, _resolvePath("word", target))
                 }
-                // (Every type of a kind from the one section that names it.)
-                shown = shown.map { ($0.kind, $0.type.hasSuffix("+") ? String($0.type.dropLast()) : $0.type, $0.part) }
+                perSection.append(named)
             }
-            for hf in shown {
-                guard let data = part(hf.part), let node = XNode.parse(data) else { continue }
-                var comps = hf.part.split(separator: "/").map(String.init)
+            for k in keptHeaderFooters { named["\(k.kind.rawValue)|\(k.type)"] = (k.kind, k.type, k.part) }
+            perSection.append(named)
+            // (Counted as the layout counts them; where the two differ
+            // the last section's stand for every page.)
+            var marks = 0
+            for (i, p) in bodyParagraphs.enumerated() where p.cell == nil && p.style.sectionPage != nil && i < bodyParagraphs.count - 1 { marks += 1 }
+            let numbered = marks == earlier.count
+            if !numbered { perSection = [named] }
+            var read: [String: [RichParagraph]] = [:]
+            func paragraphsOf(_ path: String) -> [RichParagraph] {
+                if let hit = read[path] { return hit }
+                read[path] = []
+                guard let data = part(path), let node = XNode.parse(data) else { return [] }
+                var comps = path.split(separator: "/").map(String.init)
                 let file = comps.popLast() ?? ""
                 let dir = comps.joined(separator: "/")
                 rels = [:]
@@ -1092,7 +1104,17 @@ enum DocxFormat {
                 pendingPageBreak = false
                 for child in node.children { walkBlock(child, indent: 0) }
                 notes.inHeaderFooter = false
-                if !paragraphs.isEmpty { headerFooters.append(RichHeaderFooter(kind: hf.kind, type: hf.type, paragraphs: paragraphs)) }
+                read[path] = paragraphs
+                return paragraphs
+            }
+            for (s, entries) in perSection.enumerated() {
+                for key in entries.keys.sorted() {
+                    guard let hf = entries[key] else { continue }
+                    let made = paragraphsOf(hf.part)
+                    if !made.isEmpty {
+                        headerFooters.append(RichHeaderFooter(kind: hf.kind, type: hf.type, paragraphs: made, section: numbered ? s : nil))
+                    }
+                }
             }
             paragraphs = bodyParagraphs
             rels = bodyRels
@@ -1130,6 +1152,9 @@ enum DocxFormat {
                 if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
                     document.lineGridPitch = pitch / 20
                 }
+                if grid["w:type"] == "linesAndChars", let space = Double(grid["w:charSpace"] ?? ""), space != 0 {
+                    document.characterGridSpace = space / 4096
+                }
             }
             document.sectionTypeXML = sect.first("w:type").map { PptxXML.serialize($0) }
             if let cols = sect.first("w:cols") {
@@ -1149,6 +1174,15 @@ enum DocxFormat {
         // (A file with no settings at all, or no styles, is set by the
         // East Asian rules: Word reads it as one of its older documents.)
         if part("word/settings.xml") == nil { document.usesEastAsianLayout = true }
+        if let table = part("word/fontTable.xml").flatMap(XNode.parse) {
+            var charsets: [String: String] = [:]
+            for font in table.all("w:font") {
+                guard let name = font["w:name"], name.unicodeScalars.contains(where: { $0.value >= 0x2E80 }),
+                      let charset = font.first("w:charset")?["w:val"] else { continue }
+                charsets[name] = charset
+            }
+            if !charsets.isEmpty { OfficeFonts.noteFontTable(charsets) }
+        }
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
@@ -1156,6 +1190,10 @@ enum DocxFormat {
             document.htmlAutoSpacing = !(settings.first("w:compat")?.first("w:doNotUseHTMLParagraphAutoSpacing").map { !_isOff($0) } ?? false)
             document.usesEastAsianLayout = settings.first("w:compat")?.first("w:useFELayout").map { !_isOff($0) }
                 ?? (part("word/styles.xml") == nil)
+            document.balancesSpaceWidth = settings.first("w:compat")?.first("w:balanceSingleByteDoubleByteWidth").map { !_isOff($0) } ?? false
+            document.hangsHalf = settings.first("w:compat")?.first("w:useAltKinsokuLineBreakRules").map { !_isOff($0) } ?? false
+            document.compatibilityMode = settings.first("w:compat")?.all("w:compatSetting")
+                .first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") }
             let margins = ["w:mirrorMargins", "w:gutterAtTop"].compactMap { settings.first($0) }.map { PptxXML.serialize($0) }.joined()
             document.marginSettingsXML = margins.isEmpty ? nil : margins
             for name in _keptSettingNames.flatMap({ $0 }) {
@@ -1515,6 +1553,7 @@ enum DocxFormat {
         }
         var setup = PageSetup(width: w / 20, height: h / 20)
         setup.orientStated = sz["w:orient"] != nil
+        if let t = sect.first("w:titlePg"), !_isOff(t) { setup.titlePage = true }
         if let mar = sect.first("w:pgMar") {
             setup.marginTop = Double(mar["w:top"] ?? "1440").map { abs($0) / 20 } ?? 72
             setup.marginBottom = Double(mar["w:bottom"] ?? "1440").map { abs($0) / 20 } ?? 72
@@ -1531,6 +1570,14 @@ enum DocxFormat {
         if let cols = sect.first("w:cols") {
             if let n = Int(cols["w:num"] ?? ""), n > 1 { setup.columns = n }
             if let space = Double(cols["w:space"] ?? "") { setup.columnGap = space / 20 }
+        }
+        if let grid = sect.first("w:docGrid") {
+            if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
+                setup.lineGridPitch = pitch / 20
+            }
+            if grid["w:type"] == "linesAndChars", let space = Double(grid["w:charSpace"] ?? ""), space != 0 {
+                setup.characterGridSpace = space / 4096
+            }
         }
         return setup
     }
@@ -1552,11 +1599,13 @@ enum DocxFormat {
     /// the parts kept verbatim for objects the editor cannot show.
     final class _Shared {
         let footnotes: Bool, endnotes: Bool
-        private var seenFootnotes = 0, seenEndnotes = 0
+        fileprivate var seenFootnotes = 0, seenEndnotes = 0
         var rels: [String: KeptRel]
         /// Reading a header or footer part: its page fields stay fields
         /// (the layout fills them for each page).
         var inHeaderFooter = false
+        /// Reading a text box's paragraphs (a box inside a box is not read).
+        var inTextBox = false
         var fieldShown = false   // the innermost field's result has text
         let rootNS: [String: String]
         let part: (String) -> Data?
@@ -1981,6 +2030,48 @@ enum DocxFormat {
             att.sourceXML = frag.xml
             att.sourceRels = frag.rels
             att.float = _float(node)
+            // A text box's text, for the layout to set in it: the
+            // drawing's (`wps:txbx`), or its VML twin's.
+            if !notes.inTextBox, let content = node.descendant("w:txbxContent") {
+                notes.inTextBox = true
+                // (The box's markup is kept whole and written back as it
+                // was: reading its text again must leave no mark on what
+                // the body's own reading counts — notes, comments,
+                // bookmarks, open fields.)
+                let saved = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                             notes.seenComments, notes.fieldShown)
+                defer {
+                    (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                     notes.seenComments, notes.fieldShown) = saved
+                }
+                notes.fields = []
+                var inside: [RichParagraph] = []
+                var stack = Array(content.children.reversed())
+                while let n = stack.popLast() {
+                    if n.name == "w:p" {
+                        for b in _paragraphs(n, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, cellChar, nil) { inside.append(b.paragraph) }
+                    } else if n.name != "w:tbl" {
+                        stack.append(contentsOf: n.children.reversed())
+                    }
+                }
+                notes.inTextBox = false
+                if inside.contains(where: { !$0.text.isEmpty }) {
+                    var box = RichTextBox(paragraphs: inside)
+                    if let body = node.descendant("wps:bodyPr") {
+                        if let v = Double(body["lIns"] ?? "") { box.insetLeft = v / 12700 }
+                        if let v = Double(body["tIns"] ?? "") { box.insetTop = v / 12700 }
+                        if let v = Double(body["rIns"] ?? "") { box.insetRight = v / 12700 }
+                        if let v = Double(body["bIns"] ?? "") { box.insetBottom = v / 12700 }
+                    } else if let inset = node.descendant("v:textbox")?["inset"] {
+                        let parts = inset.split(separator: ",", omittingEmptySubsequences: false).map { _length(String($0).trimmingWhitespace()) }
+                        if parts.count > 0, let v = parts[0] { box.insetLeft = v }
+                        if parts.count > 1, let v = parts[1] { box.insetTop = v }
+                        if parts.count > 2, let v = parts[2] { box.insetRight = v }
+                        if parts.count > 3, let v = parts[3] { box.insetBottom = v }
+                    }
+                    att.textBox = box
+                }
+            }
             return att
         }
         func addImage(_ drawing: XNode) {
@@ -2422,6 +2513,10 @@ enum DocxFormat {
             case "w:rtl": cs.rightToLeft = !_isOff(child)
             case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }
             case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid", "w:eastAsianLayout":
+                // (The character scale, for the layout too.)
+                if child.name == "w:w", let v = Double((child["w:val"] ?? "").replacingAll("%", with: "")), v > 0 {
+                    cs.horizontalScale = v == 100 ? nil : v / 100
+                }
                 keptRun[child.name] = PptxXML.serialize(child)
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }
             case "w:sz": sawSz = true; if let v = Double(child["w:val"] ?? "") { cs.fontSize = v / 2 }

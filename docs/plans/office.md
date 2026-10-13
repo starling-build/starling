@@ -1310,3 +1310,80 @@ first sweep of this app's own drawing against Word's print
 with no document under 2%, because lines and pages break elsewhere
 (1,275 pages against Word's 1,239). That is the painter's work list, and
 a different one from the writer's.
+
+### The painter against Word, 2026-10-12
+
+The work list of the section above, worked. `test/docx-app-render.sh`
+scores pixels; `test/docx-line-match.py` reads both prints' text and
+says what share of Word's lines this app sets on the same page at the
+same height, and where a document first parts from Word. The second is
+the one to steer by: a paragraph that breaks one character early moves
+every line after it, and the pixel mean hardly notices which paragraph.
+The method that found every rule below is the same each time — take
+the first line that differs, read that paragraph's XML and the
+settings, write a ten-line lab document that isolates the suspected
+rule, print it with Word, and read the widths off the PDF.
+
+Standing, sweep 6: POI 3.8% mean (median 0.8%), the Chinese
+sample 17.4% (median 15.4%) against 25.6% at the start; lines where
+Word has them 62% of POI's and 45% of the Chinese sample's (42% and
+5% at the start), 40 of the 68 with Word's page count.
+
+What Word does, by what was measured (each is in the code beside the
+line that does it):
+
+- **Lines.** An East Asian face's line is 1.3 times its ascent and
+  descent; on a line grid a line is whole pitches; an exact height
+  ignores the grid; the baseline sits 13/16 down an exact line and is
+  centred in a grid's. A section has its own grid, and one without
+  `w:docGrid` has none — the last section's is not the document's.
+- **Characters.** Word on a Mac has few Chinese faces and sets the
+  rest in Microsoft YaHei (`OFFICE_WORD_FONTS=mac`). A name the font
+  table declares in the Latin character set that Word does not have
+  ("S宋体") is a Latin face. Curly quotes in East Asian text are
+  full-width marks, an em each with the blank outside (the opening
+  one's blank rides a word joiner before it). A character
+  scale (`w:w`) is a true narrowing — drawn from a second painter at
+  full size under a narrower canvas — and takes the face's OS/2 line
+  metrics, which for 华文中宋 are not its hhea ones.
+- **`w:balanceSingleByteDoubleByteWidth`** (two thirds of the sample):
+  a space is half an em unless it stands between two Latin
+  characters; character spacing counts twice on a full-width
+  character; the automatic space beside an ideograph is a quarter of
+  half an em and the East Asian face's average width; two half-width
+  characters share a character grid's addition.
+- **Line ends.** A closing mark hangs past the margin and a line's
+  marks give up to half an em each (`w:characterSpacingControl`) — in
+  a justified paragraph only from compatibility mode 15 on, and in
+  every paragraph below it, which is three quarters of the sample.
+  Under `w:useAltKinsokuLineBreakRules` a mark hangs by half an em,
+  and not at all where nothing is compressed. Full-width quotes give
+  like brackets; Latin ones do not, and hang by their own width. From
+  mode 15 on the test for taking one more character is that each mark
+  gives no more than the line would otherwise stretch by. A Latin
+  word with no space in it moves whole, unless it is longer than a
+  line or the paragraph says `w:wordWrap` off.
+- **Pages.** Each section has its page setup, its header and footer —
+  what it does not name it has from the section before, type by type —
+  and its first page's own where it says `w:titlePg`. A header or
+  footer taller than its margin pushes the text. A frame stands off
+  its anchor by its `w:y`. Paragraphs keep with the next, keep their
+  lines, and leave no widow or orphan.
+
+Three things of the engine's own turned up on the way and are worked
+around in `RichLayout`: its justifying sets every space of a line to
+the one step it puts between ideographs, so the spaces after "第一条"
+vanished (inside a justified line they are no-break spaces now, with
+a zero-width space after them, laid out a second time and kept only
+if no line break moved); its line heights do not add up to the
+paragraph's under a forced strut when the first line opens with the
+indent's placeholder (pages were cut a point into a line), and a
+character count of lines at no width is not the count of break
+opportunities where a space is set wider than its glyph (the line
+fitter dropped the paragraph's tail).
+
+Left, in the order the line match names them: tables (cell widths,
+vertical alignment, rows that split), cover pages and frames in the
+body, page number formats and restarts per section, `w:topLinePunct`,
+drawn lines and shapes (a red rule under a letterhead), and whatever
+the next first-differing line turns out to be.

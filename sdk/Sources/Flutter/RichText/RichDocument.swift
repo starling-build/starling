@@ -116,6 +116,10 @@ public struct CharStyle: Hashable, Sendable {
     public var rightToLeft = false
     /// Kerning from this size up, in points (Word's w:kern); nil for none.
     public var kerningFrom: Double? = nil
+    /// Word's character scale (`w:w`): the letters set this much
+    /// narrower or wider than drawn, their height as it was — a
+    /// letterhead's name squeezed onto one line. 1 or nil for none.
+    public var horizontalScale: Double? = nil
     /// The faces a file names for complex-script (Arabic, Hebrew) and
     /// East Asian characters when it names them (Word's w:cs and
     /// w:eastAsia font slots); nil means `fontFamily` serves them too.
@@ -223,6 +227,17 @@ public struct ImageFloat: Hashable, Sendable {
     public init() {}
 }
 
+/// A text box's contents (`ImageAttachment.textBox`): its paragraphs,
+/// and how far inside the box's edges they are set, in points.
+public struct RichTextBox: Hashable, Sendable {
+    public var paragraphs: [RichParagraph]
+    public var insetLeft = 7.2
+    public var insetTop = 3.6
+    public var insetRight = 7.2
+    public var insetBottom = 3.6
+    public init(paragraphs: [RichParagraph]) { self.paragraphs = paragraphs }
+}
+
 /// Where a framed paragraph (`w:framePr`) is set: its offsets in points
 /// from what it is anchored to ("text", "margin" or "page"), or an
 /// alignment in place of one ("center", "right"; "top", "bottom"), and
@@ -241,13 +256,18 @@ public struct ParagraphFrame: Hashable, Sendable {
 /// A header or footer as the paragraphs the file wrote (with the
 /// tables and pictures among them), for the layout to set on each page:
 /// `kind` and `type` as `KeptHeaderFooter`'s. A run whose `field` is
-/// PAGE or NUMPAGES shows that page's number, or the count.
+/// PAGE or NUMPAGES shows that page's number, or the count. `section`
+/// is the section whose pages it is for, counted as the layout counts
+/// them (a paragraph that carries a `sectionPage` ends one) — what a
+/// section does not name it has from the one before, type by type —
+/// or nil for every page of the document.
 public struct RichHeaderFooter: Hashable, Sendable {
     public var kind: KeptHeaderFooter.Kind
     public var type: String
     public var paragraphs: [RichParagraph]
-    public init(kind: KeptHeaderFooter.Kind, type: String, paragraphs: [RichParagraph]) {
-        self.kind = kind; self.type = type; self.paragraphs = paragraphs
+    public var section: Int?
+    public init(kind: KeptHeaderFooter.Kind, type: String, paragraphs: [RichParagraph], section: Int? = nil) {
+        self.kind = kind; self.type = type; self.paragraphs = paragraphs; self.section = section
     }
 }
 
@@ -637,6 +657,10 @@ public struct ImageAttachment: Hashable, Sendable {
     /// room for it in the line, and none above and below unless it
     /// `takesRoom`. nil for an object in the line.
     public var float: ImageFloat? = nil
+    /// For a text box: the text inside it, which the layout sets in the
+    /// box (a page number in a footer's text box, a letterhead's lines).
+    /// The box itself — its outline, its fill — stays the kept markup's.
+    public var textBox: RichTextBox? = nil
 
     public init(data: Data, width: Double, height: Double, name: String = "image.png",
                 naturalWidth: Double? = nil, naturalHeight: Double? = nil) {
@@ -1682,6 +1706,11 @@ public struct RichDocument: Hashable, Sendable {
     /// whole number of pitches tall. nil lays lines out at their own
     /// height.
     public var lineGridPitch: Double? = nil
+    /// What the grid adds to every character's width, in points, where
+    /// it is a grid of characters too (type `linesAndChars`, its
+    /// `w:charSpace` in 4096ths of a point — negative to fit more to a
+    /// line). A run that says `w:snapToGrid` off keeps its own widths.
+    public var characterGridSpace: Double? = nil
     /// More of the last section kept as written, in schema order: what
     /// stands before the columns (`w:lnNumType`, `w:pgNumType`) and
     /// after them (`w:vAlign`, `w:textDirection`, `w:bidi`,
@@ -1727,6 +1756,19 @@ public struct RichDocument: Hashable, Sendable {
     /// `w:noPunctuationKerning`): two marks that stand together close up
     /// only where it does.
     public var kernsPunctuation = true
+    /// Word's `w:balanceSingleByteDoubleByteWidth` (most documents from
+    /// WPS say it): a space is half an em wide, whatever its face's own
+    /// — unless it stands between two Latin words. The spaces that push
+    /// a signature across the page are then twice as wide in most faces.
+    public var balancesSpaceWidth = false
+    /// The settings' `compatibilityMode` (15 for Word 2013 on; nil
+    /// where they name none, which Word takes for an older one). Below
+    /// 15 a line's punctuation hangs and gives in a paragraph set any
+    /// way; from 15 on only in a justified one.
+    public var compatibilityMode: Int? = nil
+    /// Word's `w:useAltKinsokuLineBreakRules`: a closing mark hangs past
+    /// the margin by half an em at most, not by all of itself.
+    public var hangsHalf = false
     /// Whether "automatic" paragraph spacing is the web's: 14 points,
     /// and between two paragraphs the larger of the one's space after
     /// and the other's before rather than both, with none before the
