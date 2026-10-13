@@ -178,7 +178,7 @@ enum SheetDrawingsXML {
         }
     }
 
-    private static func _marker(_ n: XNode) -> SheetMarker? {
+    static func _marker(_ n: XNode) -> SheetMarker? {
         guard let col = Int(n.child("col")?.text ?? ""), let row = Int(n.child("row")?.text ?? "") else { return nil }
         return SheetMarker(col: col, colOff: _emu(n.child("colOff")?.text), row: row, rowOff: _emu(n.child("rowOff")?.text))
     }

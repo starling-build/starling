@@ -156,8 +156,8 @@ from Excel 16.0 on Windows; 50 workbooks Excel will not open, 3 that hang
 it — `test/corpus/xlsx/README.md`), and `test/xlsx-app-render.sh` scores
 the Windows build against it. Sweep 1 was mean 11.08% of pixels differing
 (705 scored; 144 workbooks with a page one side has and the other does
-not; 1 exact match). Sweep 2 is **mean 3.45%, median 0.42%** over
-743 scored, 39 with such a page, 43 exact — `baseline-mupdf.tsv`.
+not; 1 exact match). Sweep 2 is **mean 3.24%, median 0.42%** over
+750 scored, 37 with such a page, 43 exact — `baseline-mupdf.tsv`.
 What moved it, largest first:
 
 - *The references were on the wrong paper.* Excel prints an A4 workbook
@@ -199,9 +199,29 @@ What moved it, largest first:
   (pictures were missing from printed pages since afc6afb8); a drawing
   marked hidden is not drawn and does not count.
 
-What is left, by what the pictures show: form controls and OLE objects
-(legacy drawings — most of the 14 workbooks that print nothing here),
-charts with no series (Excel draws the frame), East Asian text drawn in a
+- *Embedded objects and controls* (`Sheets/SheetObjects.swift`). An
+  embedded object (a PDF, a package, another workbook) and an ActiveX
+  control come with the picture Excel last drew of them, an EMF; the
+  sheet's `oleObjects`/`controls` entry or the legacy VML shape of the
+  same number says where it sits. They are drawn from that picture, an
+  object's with the shape's outline round it. The metafile player learned
+  the alpha-blended bitmap such a picture's icon is (EMR_ALPHABLEND), and
+  a sheet's own pictures that are metafiles are played too — they drew
+  nothing before. A form control has no picture: check box, option
+  button, button, label, group box, drop-down, list, scroll bar and
+  spinner are drawn from their kind, state and caption, found on the
+  sheet or (before Excel 2010) only in the VML. One Excel leaves off
+  paper (`x:PrintObject` False, a button's default) is left off. All of
+  it is display only: nothing is written, moved or clicked, and the
+  file's parts are kept as they were. 7 of the 14 workbooks that printed
+  nothing print now.
+
+What is left, by what the pictures show: a legacy shape's pixel offsets
+(this Excel, at 200%, reads them as its own pixels, so a control placed
+only by VML sits up to half a column off its reference), form controls
+other than the check box and option button (drawn, but the corpus has
+none that prints, so none was compared with Excel's), clicking a
+control, charts with no series (Excel draws the frame), East Asian text drawn in a
 narrower face than Excel's so long lines end early, a border on an empty
 cell that is not drawn (61034), `lo-xf_default_values` (Excel halves its
 set row heights; not understood), and the fonts this app has no clone

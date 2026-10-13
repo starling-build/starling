@@ -101,16 +101,16 @@ first thing to look at, ahead of anything drawn on them.
 ## Sweep 2
 
 2026-10-12, after 252 references were made again on their own paper and
-the app learned how Excel sizes a sheet for the printer
-(`docs/plans/sheets.md` has the list). Of the 757:
+the app learned how Excel sizes a sheet for the printer, and to draw
+embedded objects and controls (`docs/plans/sheets.md` has the list). Of the 757:
 
 | | workbooks |
 |---|---|
-| scored | 743 |
-| not read by this app, or nothing found to print where Excel printed | 14 |
+| scored | 750 |
+| not read by this app, or nothing found to print where Excel printed | 7 |
 
-Over the 743: mean 3.45% of pixels differing, median 0.42%; 568 at or
-under 2%, 143 between 2 and 20, 32 over 20; 39 have a page only one side
+Over the 750: mean 3.24% of pixels differing, median 0.42%; 577 at or
+under 2%, 143 between 2 and 20, 30 over 20; 37 have a page only one side
 has. 43 match exactly, 36 of them workbooks neither side prints a page
 of. This is `baseline-mupdf.tsv`; the first sweep's figures above are
 kept for the comparison.

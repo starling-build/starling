@@ -418,9 +418,7 @@ final class SheetGridState: State<StatefulWidget> {
         case .shape(let shape):
             shape.paint(canvas, in: r, pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
         case .picture(let path, let data):
-            if let image = _image(path, data) {
-                canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), r, Paint())
-            }
+            _paintPicture(canvas, path, data, in: r)
         case .chart:
             guard let chart else { return }
             // Excel's chart area: the theme's background with a light grey edge.
@@ -438,6 +436,48 @@ final class SheetGridState: State<StatefulWidget> {
         }
     }
 
+    /// A picture's bytes into `r`: a bitmap through the codec, a metafile
+    /// (WMF, EMF — what an embedded object's picture usually is) played.
+    private func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect) {
+        if let played = _metafile(path, data) {
+            played.paint(canvas, in: r, image: { self._image($0.id, $0.data) }, font: { OfficeFonts.substitute($0) })
+        } else if !Metafile.isMetafile(data), let image = _image(path, data) {
+            canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), r, Paint())
+        }
+    }
+
+    /// Embedded objects and controls: each one's picture, or the form
+    /// control drawn.
+    func _paintObjects(_ canvas: any Canvas, _ ws: Worksheet, clip: Rect) {
+        for o in ws.objects where !(printing && o.screenOnly) {
+            let r = drawingRect(o.anchor)
+            guard r.width > 1, r.height > 1, r.overlaps(clip) else { continue }
+            switch o.kind {
+            case .preview(let path, let data):
+                _paintPicture(canvas, path, data, in: r)
+                if o.framed {
+                    let rule = Paint()
+                    rule.style = .stroke
+                    rule.strokeWidth = 0.75 * scale
+                    rule.color = Color(0xFF000000)
+                    canvas.drawRect(r, rule)
+                }
+            case .control(let control): control.paint(canvas, in: r, pt: scale)
+            }
+        }
+    }
+
+    /// Metafiles, parsed once each; nil for one that draws nothing read here.
+    private var _metafiles: [String: Metafile?] = [:]
+    func _metafile(_ key: String, _ data: Data) -> Metafile? {
+        guard Metafile.isMetafile(data) else { return nil }
+        _ = _imagesOfThisBook()
+        if let known = _metafiles[key] { return known }
+        let played = Metafile(data, id: key)
+        _metafiles[key] = .some(played)
+        return played
+    }
+
     private var _images: [String: Image] = [:]
     private var _decoding: Set<String> = []
     /// The workbook the cache is of: its keys are part names, and every
@@ -449,7 +489,7 @@ final class SheetGridState: State<StatefulWidget> {
         let book = ObjectIdentifier(controller.book)
         if _imagesBook != book {
             for image in _images.values { image.dispose() }
-            _images.removeAll(); _decoding.removeAll()
+            _images.removeAll(); _decoding.removeAll(); _metafiles.removeAll()
             _imagesBook = book
         }
         return book
@@ -1468,7 +1508,7 @@ final class SheetGridState: State<StatefulWidget> {
             canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), outline)
         }
         // Pictures and charts float over the cells and their selection, pane by pane.
-        if !ws.drawings.isEmpty {
+        if !ws.drawings.isEmpty || !ws.objects.isEmpty {
             let charts = ws.drawings.map { d -> Chart? in
                 if case .chart(let sc) = d.kind { return controller.liveChart(sc) }
                 return nil
@@ -1481,6 +1521,7 @@ final class SheetGridState: State<StatefulWidget> {
                     guard r.overlaps(clip), !d.hidden else { continue }
                     _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
                 }
+                _paintObjects(canvas, ws, clip: clip)
                 canvas.restore()
             }
         }

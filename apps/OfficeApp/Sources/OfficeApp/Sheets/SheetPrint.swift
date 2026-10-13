@@ -121,6 +121,12 @@ enum SheetPrintLayout {
             let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width - 0.01, y: f.y + f.height - 0.01)
             take(a.row, a.col); take(b.row, b.col)
         }
+        for o in ws.objects where !o.screenOnly {
+            let f = ws.frame(o.anchor)
+            guard f.width > 0, f.height > 0 else { continue }
+            let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width - 0.01, y: f.y + f.height - 0.01)
+            take(a.row, a.col); take(b.row, b.col)
+        }
         // A row formatted as a whole (a fill or borders on the row itself)
         // prints across the columns in use, cells or no cells.
         for r in ws.rowAttrs.keys {
@@ -345,6 +351,7 @@ extension SheetGridState {
                         guard r.overlaps(clip), !d.hidden else { continue }
                         _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
                     }
+                    _paintObjects(canvas, ws, clip: clip)
                     canvas.restore()
                 }
                 band(tRows, tCols, head.width, head.height)
@@ -430,9 +437,21 @@ extension SheetGridState {
     /// long as the decode takes, and not at all for one that failed.
     @MainActor
     private func _preloadPictures(_ ws: Worksheet) async {
-        for d in ws.drawings {
-            guard case .picture(let key, let data) = d.kind else { continue }
-            await _decodeNow(key, data)
+        var pictures: [(String, Data)] = ws.drawings.compactMap { d in
+            if case .picture(let key, let data) = d.kind { return (key, data) }
+            return nil
+        }
+        pictures += ws.objects.compactMap { o in
+            if case .preview(let key, let data) = o.kind { return (key, data) }
+            return nil
+        }
+        for (key, data) in pictures {
+            // A metafile is played, not decoded — but the bitmaps it draws are.
+            if let played = _metafile(key, data) {
+                for bitmap in played.bitmaps { await _decodeNow(bitmap.id, bitmap.data) }
+            } else {
+                await _decodeNow(key, data)
+            }
         }
     }
 }

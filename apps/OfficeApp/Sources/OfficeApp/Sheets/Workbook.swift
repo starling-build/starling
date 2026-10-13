@@ -164,6 +164,8 @@ final class Worksheet {
     /// The drawings were added to, moved or deleted here: the part is
     /// written from the model on save (unchanged ones verbatim).
     var drawingsEdited = false
+    /// Embedded objects and controls, for display (SheetObjects.swift).
+    var objects: [SheetObject] = []
     /// `<col>` attributes besides width and hidden — a column's style,
     /// outline level, collapsed — by run (zero-based, inclusive).
     var colAttrRuns: [(lo: Int, hi: Int, attrs: [String: String])] = [] { didSet { layoutVersion &+= 1 } }
@@ -258,6 +260,7 @@ final class Worksheet {
         s.defaultRowHeightPt = defaultRowHeightPt
         s.autoFilter = autoFilter
         s.drawings = drawings
+        s.objects = objects
         s.drawingPart = drawingPart
         s.drawingRoot = drawingRoot
         s.drawingsEdited = drawingsEdited

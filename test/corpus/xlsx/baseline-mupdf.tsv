@@ -2,8 +2,8 @@
 45430.xlsx	summary pages=0 worst=0.00% mean=0.00%
 45540_classic_Footer.xlsx	summary pages=11 worst=12.34% mean=5.25%
 45540_classic_Header.xlsx	summary pages=11 worst=12.35% mean=5.26%
-45540_form_Footer.xlsx	summary pages=2 worst=6.81% mean=6.15%
-45540_form_Header.xlsx	summary pages=2 worst=6.81% mean=6.16%
+45540_form_Footer.xlsx	summary pages=2 worst=6.89% mean=6.20%
+45540_form_Header.xlsx	summary pages=2 worst=6.90% mean=6.20%
 45544.xlsx	summary pages=10 worst=100.00% mean=15.96%
 46535.xlsx	summary pages=20 worst=4.30% mean=3.54%
 46536.xlsx	summary pages=1 worst=0.11% mean=0.11%
@@ -70,7 +70,7 @@
 54607.xlsx	summary pages=3 worst=0.00% mean=0.00%
 55406_Conditional_formatting_sample.xlsx	summary pages=2 worst=0.09% mean=0.09%
 55640.xlsx	summary pages=1 worst=100.00% mean=100.00%
-55745.xlsx	summary pages=1 worst=4.13% mean=4.13%
+55745.xlsx	summary pages=1 worst=4.15% mean=4.15%
 55814.xlsx	summary pages=1 worst=0.08% mean=0.08%
 55850.xlsx	summary pages=1 worst=0.15% mean=0.15%
 55864.xlsx	summary pages=1 worst=0.20% mean=0.20%
@@ -121,8 +121,8 @@
 57914.xlsx	summary pages=1 worst=0.15% mean=0.15%
 58106.xlsx	summary pages=1 worst=0.32% mean=0.32%
 58315.xlsx	summary pages=1 worst=0.06% mean=0.06%
-58325_db.xlsx	summary pages=4 worst=100.00% mean=50.15%
-58325_lt.xlsx	summary pages=1 worst=0.34% mean=0.34%
+58325_db.xlsx	summary pages=4 worst=0.77% mean=0.35%
+58325_lt.xlsx	summary pages=1 worst=0.44% mean=0.44%
 58616.xlsx	ERROR	sheet pdf failed: notAZip
 58648.xlsx	summary pages=1 worst=0.30% mean=0.30%
 58731.xlsx	summary pages=1 worst=0.38% mean=0.38%
@@ -168,12 +168,12 @@ AverageTaxRates.xlsx	summary pages=4 worst=100.00% mean=32.69%
 Booleans.xlsx	summary pages=1 worst=0.31% mean=0.31%
 BrNotClosed.xlsx	summary pages=0 worst=0.00% mean=0.00%
 CVLKRA-KYC_Download_File_Structure_V3.1.xlsx	summary pages=20 worst=23.11% mean=13.92%
-ConditionalFormattingSamples.xlsx	summary pages=20 worst=10.77% mean=4.80%
+ConditionalFormattingSamples.xlsx	summary pages=20 worst=10.75% mean=4.80%
 CustomXMLMapping-singleattributenamespace.xlsx	summary pages=1 worst=0.10% mean=0.10%
 CustomXMLMappings-complex-type.xlsx	summary pages=4 worst=2.01% mean=1.09%
 CustomXMLMappings.xlsx	summary pages=1 worst=0.24% mean=0.24%
 CustomXmlMappings-inverse-order.xlsx	summary pages=1 worst=0.24% mean=0.24%
-DataTableCities.xlsx	summary pages=4 worst=4.46% mean=3.58%
+DataTableCities.xlsx	summary pages=4 worst=4.47% mean=3.60%
 DataValidationEvaluations.xlsx	summary pages=2 worst=6.35% mean=4.81%
 DataValidationListTooLong.xlsx	summary pages=1 worst=0.03% mean=0.03%
 DataValidations-49244.xlsx	summary pages=2 worst=2.53% mean=1.91%
@@ -233,8 +233,8 @@ WidthsAndHeights.xlsx	summary pages=1 worst=0.32% mean=0.32%
 WithChart.xlsx	summary pages=2 worst=2.05% mean=1.06%
 WithChartSheet.xlsx	summary pages=10 worst=100.00% mean=17.08%
 WithConditionalFormatting.xlsx	summary pages=1 worst=0.23% mean=0.23%
-WithDrawing.xlsx	summary pages=2 worst=5.61% mean=3.90%
-WithEmbeded.xlsx	summary pages=1 worst=1.34% mean=1.34%
+WithDrawing.xlsx	summary pages=2 worst=2.47% mean=2.33%
+WithEmbeded.xlsx	summary pages=1 worst=1.01% mean=1.01%
 WithMoreVariousData.xlsx	summary pages=1 worst=1.72% mean=1.72%
 WithTable.xlsx	summary pages=1 worst=0.13% mean=0.13%
 WithTextBox.xlsx	summary pages=1 worst=0.23% mean=0.23%
@@ -250,7 +250,7 @@ bug60848_sumproduct_unary_minus.xlsx	summary pages=1 worst=0.05% mean=0.05%
 bug60858.xlsx	summary pages=5 worst=0.41% mean=0.26%
 bug62181.xlsx	summary pages=20 worst=14.92% mean=14.28%
 bug63189.xlsx	summary pages=2 worst=0.43% mean=0.25%
-bug64512_embed.xlsx	ERROR	sheet pdf failed: nothing to print, or could not write
+bug64512_embed.xlsx	summary pages=1 worst=0.75% mean=0.75%
 bug65306.xlsx	summary pages=1 worst=0.03% mean=0.03%
 bug65464.xlsx	summary pages=5 worst=6.62% mean=1.32%
 bug66215.xlsx	summary pages=1 worst=1.12% mean=1.12%
@@ -339,7 +339,7 @@ chart-strict_chart.xlsx	summary pages=3 worst=0.63% mean=0.25%
 chart-sunburst.xlsx	summary pages=2 worst=2.26% mean=2.25%
 chart-tdf100084.xlsx	summary pages=3 worst=16.65% mean=10.95%
 chart-tdf108107.xlsx	summary pages=2 worst=0.47% mean=0.43%
-chart-tdf111173.xlsx	summary pages=2 worst=1.19% mean=1.01%
+chart-tdf111173.xlsx	summary pages=2 worst=1.19% mean=1.04%
 chart-tdf111824.xlsx	summary pages=3 worst=10.62% mean=5.95%
 chart-tdf114139.xlsx	summary pages=1 worst=5.99% mean=5.99%
 chart-tdf115012.xlsx	summary pages=2 worst=0.52% mean=0.32%
@@ -451,7 +451,7 @@ lo-TableStyleTest.xlsx	summary pages=1 worst=1.52% mean=1.52%
 lo-Test_ThemeColor_Text_Background_Border.xlsx	summary pages=1 worst=0.20% mean=0.20%
 lo-TextColor.xlsx	summary pages=1 worst=0.05% mean=0.05%
 lo-XlStartupExternal.xlsx	summary pages=3 worst=0.78% mean=0.68%
-lo-activex_checkbox.xlsx	ERROR	sheet pdf failed: nothing to print, or could not write
+lo-activex_checkbox.xlsx	summary pages=1 worst=0.18% mean=0.18%
 lo-autofilter-colors-fg.xlsx	summary pages=1 worst=0.45% mean=0.45%
 lo-autofilter-colors.xlsx	summary pages=1 worst=0.34% mean=0.34%
 lo-autofilter.xlsx	summary pages=1 worst=0.21% mean=0.21%
@@ -469,10 +469,10 @@ lo-cell-value.xlsx	summary pages=20 worst=100.00% mean=45.26%
 lo-change-tracking.xlsx	summary pages=1 worst=0.10% mean=0.10%
 lo-chart_hyperlink.xlsx	summary pages=3 worst=1.47% mean=1.29%
 lo-check-boolean.xlsx	summary pages=1 worst=0.10% mean=0.10%
-lo-checkbox-form-control-align.xlsx	ERROR	sheet pdf failed: nothing to print, or could not write
-lo-checkbox-form-control-font.xlsx	ERROR	sheet pdf failed: nothing to print, or could not write
-lo-checkbox-form-control.xlsx	summary pages=1 worst=0.03% mean=0.03%
-lo-colorscale.xlsx	summary pages=2 worst=1.37% mean=1.18%
+lo-checkbox-form-control-align.xlsx	summary pages=1 worst=0.09% mean=0.09%
+lo-checkbox-form-control-font.xlsx	summary pages=1 worst=0.14% mean=0.14%
+lo-checkbox-form-control.xlsx	summary pages=1 worst=0.05% mean=0.05%
+lo-colorscale.xlsx	summary pages=2 worst=1.36% mean=1.18%
 lo-colorscale_num_with_ref.xlsx	summary pages=1 worst=2.45% mean=2.45%
 lo-column-style-autofilter.xlsx	summary pages=20 worst=11.93% mean=5.47%
 lo-column-style.xlsx	summary pages=0 worst=0.00% mean=0.00%
@@ -505,7 +505,7 @@ lo-external-ref-wholecol-xlookup.xlsx	summary pages=1 worst=0.18% mean=0.18%
 lo-external-refs.xlsx	summary pages=1 worst=0.09% mean=0.09%
 lo-fontSize.xlsx	summary pages=1 worst=0.28% mean=0.28%
 lo-forum-mso-de-104083.xlsx	summary pages=20 worst=15.79% mean=10.95%
-lo-forum-mso-en4-134670.xlsx	summary pages=20 worst=17.75% mean=13.53%
+lo-forum-mso-en4-134670.xlsx	summary pages=20 worst=17.83% mean=13.51%
 lo-forum-mso-en4-145327.xlsx	summary pages=6 worst=8.42% mean=6.51%
 lo-functions-excel-2010.xlsx	summary pages=7 worst=100.00% mean=19.32%
 lo-groupShape.xlsx	summary pages=1 worst=0.27% mean=0.27%
@@ -549,7 +549,7 @@ lo-seconds-without-truncate-and-decimals.xlsx	summary pages=1 worst=0.09% mean=0
 lo-shape-macro-ext-ref.xlsx	summary pages=3 worst=1.18% mean=0.69%
 lo-sheet-names.xlsx	summary pages=0 worst=0.00% mean=0.00%
 lo-sheet-tab-color.xlsx	summary pages=0 worst=0.00% mean=0.00%
-lo-singlecontrol.xlsx	summary pages=12 worst=100.00% mean=83.35%
+lo-singlecontrol.xlsx	summary pages=12 worst=0.17% mean=0.09%
 lo-sortconditionref.xlsx	summary pages=1 worst=0.21% mean=0.21%
 lo-sortconditionref2.xlsx	summary pages=2 worst=0.35% mean=0.26%
 lo-strike-through.xlsx	summary pages=1 worst=0.12% mean=0.12%
@@ -568,7 +568,7 @@ lo-tdf107586.xlsx	summary pages=2 worst=100.00% mean=50.19%
 lo-tdf109061.xlsx	summary pages=1 worst=0.06% mean=0.06%
 lo-tdf110440.xlsx	summary pages=1 worst=0.02% mean=0.02%
 lo-tdf111876.xlsx	summary pages=1 worst=0.17% mean=0.17%
-lo-tdf111980_radioButtons.xlsx	ERROR	sheet pdf failed: nothing to print, or could not write
+lo-tdf111980_radioButtons.xlsx	summary pages=2 worst=1.11% mean=0.78%
 lo-tdf112106.xlsx	summary pages=2 worst=1.49% mean=1.11%
 lo-tdf112567.xlsx	summary pages=0 worst=0.00% mean=0.00%
 lo-tdf112936.xlsx	summary pages=1 worst=0.96% mean=0.96%
@@ -584,7 +584,7 @@ lo-tdf119190.xlsx	summary pages=1 worst=0.01% mean=0.01%
 lo-tdf119292.xlsx	summary pages=1 worst=0.37% mean=0.37%
 lo-tdf119565.xlsx	summary pages=1 worst=1.22% mean=1.22%
 lo-tdf120168.xlsx	summary pages=1 worst=0.13% mean=0.13%
-lo-tdf120301_xmlSpaceParsing.xlsx	ERROR	sheet pdf failed: nothing to print, or could not write
+lo-tdf120301_xmlSpaceParsing.xlsx	summary pages=1 worst=0.11% mean=0.11%
 lo-tdf120749.xlsx	summary pages=2 worst=0.62% mean=0.32%
 lo-tdf121715.xlsx	summary pages=2 worst=0.18% mean=0.14%
 lo-tdf121887.xlsx	summary pages=1 worst=0.00% mean=0.00%
@@ -639,7 +639,7 @@ lo-tdf145129_DefaultRowHeight_28.35pt_SavedByExcel.xlsx	summary pages=3 worst=0.
 lo-tdf147014.xlsx	summary pages=1 worst=0.18% mean=0.18%
 lo-tdf147955.xlsx	summary pages=1 worst=3.30% mean=3.30%
 lo-tdf148820.xlsx	summary pages=1 worst=2.81% mean=2.81%
-lo-tdf151755_stylesLostOnXLSXExport.xlsx	summary pages=1 worst=7.06% mean=7.06%
+lo-tdf151755_stylesLostOnXLSXExport.xlsx	summary pages=1 worst=7.05% mean=7.05%
 lo-tdf151818_SmartartThemeFontColor.xlsx	summary pages=1 worst=0.57% mean=0.57%
 lo-tdf152581_bordercolorNotExportedToXLSX.xlsx	summary pages=1 worst=0.12% mean=0.12%
 lo-tdf153767.xlsx	summary pages=2 worst=1.17% mean=1.07%
@@ -653,7 +653,7 @@ lo-tdf159581_optimalRowHeight.xlsx	summary pages=2 worst=0.35% mean=0.24%
 lo-tdf160371.xlsx	summary pages=1 worst=0.63% mean=0.63%
 lo-tdf161301.xlsx	summary pages=2 worst=0.83% mean=0.51%
 lo-tdf161365.xlsx	summary pages=1 worst=0.44% mean=0.44%
-lo-tdf162093.xlsx	summary pages=2 worst=2.87% mean=1.79%
+lo-tdf162093.xlsx	summary pages=2 worst=2.86% mean=1.79%
 lo-tdf162948.xlsx	summary pages=1 worst=0.22% mean=0.22%
 lo-tdf162963_TableWithTotalsEnabled.xlsx	summary pages=1 worst=0.67% mean=0.67%
 lo-tdf163554.xlsx	summary pages=2 worst=0.32% mean=0.22%
@@ -663,13 +663,13 @@ lo-tdf165655.xlsx	summary pages=1 worst=1.03% mean=1.03%
 lo-tdf165886.xlsx	summary pages=1 worst=0.37% mean=0.37%
 lo-tdf166413.xlsx	summary pages=1 worst=0.21% mean=0.21%
 lo-tdf166712.xlsx	summary pages=0 worst=0.00% mean=0.00%
-lo-tdf166724_cellAnchor.xlsx	ERROR	sheet pdf failed: nothing to print, or could not write
+lo-tdf166724_cellAnchor.xlsx	summary pages=1 worst=0.09% mean=0.09%
 lo-tdf167019.xlsx	summary pages=1 worst=5.08% mean=5.08%
 lo-tdf167689_tableType.xlsx	summary pages=1 worst=0.23% mean=0.23%
 lo-tdf167689_x15_namespace.xlsx	summary pages=2 worst=5.74% mean=3.92%
 lo-tdf167689_xmlMaps_and_xmlColumnPr.xlsx	summary pages=1 worst=0.63% mean=0.63%
 lo-tdf169326_ignore_line_breaks_in_referenced_cells.xlsx	summary pages=1 worst=0.12% mean=0.12%
-lo-tdf169379.xlsx	summary pages=1 worst=2.22% mean=2.22%
+lo-tdf169379.xlsx	summary pages=1 worst=2.25% mean=2.25%
 lo-tdf169496_hidden_graphic.xlsx	summary pages=1 worst=0.20% mean=0.20%
 lo-tdf170298.xlsx	summary pages=6 worst=1.67% mean=0.74%
 lo-tdf171828_fail_to_import_file.xlsx	summary pages=20 worst=37.15% mean=17.24%
@@ -736,7 +736,7 @@ simple-monthly-budget.xlsx	summary pages=2 worst=10.38% mean=6.16%
 simple-table-named-range.xlsx	summary pages=1 worst=0.23% mean=0.23%
 style-alternate-content.xlsx	summary pages=1 worst=8.83% mean=8.83%
 styles.xlsx	summary pages=1 worst=0.56% mean=0.56%
-table-sample.xlsx	summary pages=1 worst=0.96% mean=0.96%
+table-sample.xlsx	summary pages=1 worst=0.98% mean=0.98%
 tableStyle.xlsx	summary pages=1 worst=3.89% mean=3.89%
 template.xlsx	summary pages=1 worst=0.02% mean=0.02%
 testSharedFormulasRangeSetBlankBug.xlsx	summary pages=3 worst=4.83% mean=2.48%
