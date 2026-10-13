@@ -46,6 +46,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _savedRevision = 0
     private var _recent: [String] = []
     private let _search = TextEditingController()
+    private var _ribbonBeforeReading = false
     private let _findQuery = TextEditingController()
     /// The document's own focus, so closing a bar can hand the keyboard back.
     private let _editorFocus = FocusNode(debugLabel: "Writer document")
@@ -160,9 +161,17 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onViewMode = { [weak self] m in
             guard let self else { return }
             self.setState {
+                // Read Mode folds the ribbon away; leaving it puts the
+                // ribbon back as it was, not folded for good.
+                let was = self.session.viewMode
+                if m == .readMode, was != .readMode {
+                    self._ribbonBeforeReading = self._ribbonCollapsed
+                    self._ribbonCollapsed = true
+                } else if was == .readMode, m != .readMode {
+                    self._ribbonCollapsed = self._ribbonBeforeReading
+                }
                 self.session.viewMode = m
                 self.controller.readOnly = m == .readMode
-                if m == .readMode { self._ribbonCollapsed = true }
             }
         }
         session.onToggleRuler = { [weak self] in
@@ -770,6 +779,8 @@ final class OfficeShellState: State<StatefulWidget> {
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
+            // With nothing else to dismiss, Escape leaves Read Mode.
+            if session.viewMode == .readMode { session.onViewMode?(.printLayout); return true }
             return false
         }
         guard mods.contains(.primary) else { return false }
