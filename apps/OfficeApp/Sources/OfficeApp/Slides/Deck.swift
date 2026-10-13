@@ -325,10 +325,16 @@ struct Scene3D: Equatable {
 /// What a run of WordArt is drawn with beyond its colour: a gradient or
 /// picture fill, no fill at all, and an outline (`a:rPr/a:ln`), in points.
 struct RunLook: Equatable {
+    /// How much of its paragraph the run is, in UTF-16 units: looks are
+    /// found by where a character falls, since the document merges runs
+    /// that are alike in everything it knows of.
+    var length = 0
     var fill: SlideFill? = nil
     var noFill = false
     var outline: Color? = nil
     var outlineWidth = 0.75
+
+    var isPlain: Bool { fill == nil && !noFill && outline == nil }
 }
 
 enum TextAnchor: String {
@@ -376,7 +382,7 @@ final class SlideShape {
     /// paragraph's runs' looks as the file has them — by position, so
     /// they hold only while the text has the runs it was read with.
     var warp: TextWarp? = nil
-    var runLooks: [[RunLook?]] = []
+    var runLooks: [[RunLook]] = []
     /// The shape as a solid seen from an angle (`Extrusion.paint`).
     var scene3d: Scene3D? = nil
     /// `normAutofit lnSpcReduction`: the share PowerPoint took off the

@@ -43,14 +43,32 @@ enum WordArt {
         case "textChevronInverted": let a = adj(75000); return { ((1 - a) * (1 - abs(2 * $0 - 1)), 1 - (1 - a) * abs(2 * $0 - 1)) }
         case "textSlantUp": let a = adj(55556); return { (a * (1 - $0), 1 - a * $0) }
         case "textSlantDown": let a = adj(44444); return { (a * $0, 1 - a * (1 - $0)) }
+        // Curve: the text shrinks (or grows) along a quarter turn over a
+        // level foot.
+        case "textCurveDown": let a = adj(45977); return { (a * sin($0 * .pi / 2), 1) }
+        case "textCurveUp": let a = adj(45977); return { (a * sin((1 - $0) * .pi / 2), 1) }
+        // Stop: the corners cut, as a stop sign's.
+        case "textStop":
+            let a = adj(25000)
+            return { u in let t = a * max(0, max(1 - 3 * u, 3 * u - 2)); return (t, 1 - t) }
+        // Fade: the text narrows toward one side.
+        case "textFadeRight": let a = adj(33333); return { ($0 * a, 1 - $0 * a) }
+        case "textFadeLeft": let a = adj(33333); return { ((1 - $0) * a, 1 - (1 - $0) * a) }
+        case "textFadeUp", "textFadeDown": return { _ in (0, 1) }
+        // Cascade: the lines climb (or descend) and shrink as they go.
+        case "textCascadeUp": let a = adj(44444); return { (0, 1 - (1 - a) * $0) }
+        case "textCascadeDown": let a = adj(44444); return { (0, a + (1 - a) * $0) }
         default: return nil
         }
     }
 
     /// The presets whose text follows the area's ellipse.
     static let followsPath: Set<String> = ["textArchUp", "textArchDown", "textCircle", "textButton"]
+    /// The presets drawn in bands of their own making.
+    private static let banded: Set<String> = ["textDeflateInflate", "textDeflateInflateDeflate", "textRingInside", "textRingOutside",
+                                              "textArchUpPour", "textArchDownPour", "textCirclePour", "textButtonPour"]
 
-    static func draws(_ warp: TextWarp) -> Bool { followsPath.contains(warp.preset) || envelope(warp) != nil || warp.preset == "textDeflateInflate" }
+    static func draws(_ warp: TextWarp) -> Bool { followsPath.contains(warp.preset) || envelope(warp) != nil || banded.contains(warp.preset) }
 
     private struct Glyph {
         /// The glyph in its plain colour: what is measured, and what is
@@ -86,14 +104,21 @@ enum WordArt {
         for (pi, p) in doc.paragraphs.enumerated() where !p.text.isEmpty {
             var line = Line()
             line.alignment = p.style.alignment
-            let looks = keepLooks && shape.runLooks[pi].count == p.runs.count ? shape.runLooks[pi] : []
+            // The looks hold while they still cover the paragraph they were read with.
             let units = Array(p.text.utf16)
+            var looks = keepLooks ? shape.runLooks[pi] : []
+            if looks.reduce(0, { $0 + $1.length }) != units.count { looks = [] }
+            func look(at offset: Int) -> RunLook? {
+                var end = 0
+                for l in looks { end += l.length; if offset < end { return l.isPlain ? nil : l } }
+                return nil
+            }
             var at = 0
-            for (ri, run) in p.runs.enumerated() {
+            for run in p.runs {
+                let start = at
                 let text = String(decoding: units[at ..< min(units.count, at + run.length)], as: UTF16.self)
                 at += run.length
                 let base = theme.textStyle(for: run.style, in: p.style, scale: scale)
-                let look = ri < looks.count ? looks[ri] : nil
                 let color = base.color ?? Color(0xFF000000)
                 func style(_ paint: Paint) -> Flutter.TextStyle {
                     Flutter.TextStyle(fontSize: base.fontSize, fontWeight: base.fontWeight, fontStyle: base.fontStyle, height: 1.0,
@@ -102,10 +127,13 @@ enum WordArt {
                 let fill = Paint()
                 fill.style = .fill
                 fill.color = color
-                for ch in text where ch != "\n" {
+                var offset = start
+                for ch in text {
+                    defer { offset += String(ch).utf16.count }
+                    guard ch != "\n" else { continue }
                     let tp = TextPainter(text: TextSpan(text: String(ch), style: style(fill)), textDirection: .ltr)
                     tp.layout(minWidth: 0, maxWidth: Double.infinity)
-                    line.glyphs.append(Glyph(painter: tp, text: String(ch), style: style, look: look))
+                    line.glyphs.append(Glyph(painter: tp, text: String(ch), style: style, look: look(at: offset)))
                 }
             }
             if !line.glyphs.isEmpty { lines.append(line) }
@@ -115,6 +143,9 @@ enum WordArt {
 
         /// One glyph through the map of its cell: `origin` its top left,
         /// `x` and `y` where a unit step along and down it lands.
+        // Text on a path is filled letter by letter, each with the whole
+        // gradient; text fitted to the box shares one across it.
+        let fillsEachGlyph = followsPath.contains(warp.preset)
         func draw(_ g: Glyph, origin: Offset, x: Offset, y: Offset) {
             let m = [x.dx, x.dy, 0, 0, y.dx, y.dy, 0, 0, 0, 0, 1, 0, origin.dx, origin.dy, 0, 1]
             let det = x.dx * y.dy - x.dy * y.dx
@@ -137,7 +168,10 @@ enum WordArt {
                 let paint = Paint()
                 paint.style = .fill
                 paint.color = Color(0xFFFFFFFF)
-                if let shader = SlidePainter.gradientShader(fill, area, pre: inv) {
+                if fillsEachGlyph, let shader = SlidePainter.gradientShader(fill, Rect.fromLTWH(0, 0, g.width, g.painter.height)) {
+                    paint.shader = shader
+                    drawn(paint)
+                } else if let shader = SlidePainter.gradientShader(fill, area, pre: inv) {
                     paint.shader = shader
                     drawn(paint)
                 } else if let image = fill.image, let decoded = cache.image(image) {
@@ -176,34 +210,117 @@ enum WordArt {
             _paintAlongEllipse(lines, warp, area, draw)
             return true
         }
-        // The bands: one for the whole text, or — deflate-inflate — the
-        // first line squeezed above a curve and the rest swelling below it.
-        var bands: [(lines: [Line], env: (Double) -> (top: Double, bottom: Double))] = []
-        if warp.preset == "textDeflateInflate" {
-            let a = (warp.adjust.first ?? 35000) / 100_000
-            func mid(_ u: Double) -> Double { 0.5 - (0.5 - a) * (1 - (2 * u - 1) * (2 * u - 1)) }
-            if lines.count == 1 {
-                bands = [(lines, { u in (0.5 - mid(u) + 0, 1) })]
-            } else {
-                bands = [([lines[0]], { u in (0, mid(u) - 0.03) }), (Array(lines[1...]), { u in (mid(u) + 0.03, 1) })]
+        // The bands: one for the whole text, or several — deflate-inflate's
+        // first line squeezed above a curve and the rest swelling below it,
+        // a ring's two halves. A mirrored band runs right to left, its
+        // letters seen from behind; `sides` narrows a band toward its top
+        // or bottom.
+        typealias Envelope = (Double) -> (top: Double, bottom: Double)
+        var bands: [(lines: [Line], env: Envelope, mirrored: Bool, sides: ((Double) -> (Double, Double))?)] = []
+        // A pour: the text poured between two arcs of the box's ellipse —
+        // across the arc from `start` through `sweep` degrees, from the
+        // outer curve in to one at `inner` of its radius (or out, when the
+        // letters' feet are on the outside).
+        var pour: ((Double, Double) -> Offset)? = nil
+        func poured(start: Double, sweep: Double, feetOut: Bool) {
+            let inner = (warp.adjust.count > 1 ? warp.adjust[1] : 50000) / 100_000
+            pour = { u, v in
+                let a = (start + sweep * u) * .pi / 180
+                let rho = feetOut ? inner + (1 - inner) * v : 1 - (1 - inner) * v
+                return Offset(area.center.dx + area.width / 2 * rho * cos(a), area.center.dy + area.height / 2 * rho * sin(a))
             }
-        } else if let env = envelope(warp) {
-            bands = [(lines, env)]
+        }
+        func bow(_ u: Double) -> Double { (2 * u - 1) * (2 * u - 1) }
+        switch warp.preset {
+        case "textDeflateInflate":
+            let a = (warp.adjust.first ?? 35000) / 100_000
+            func mid(_ u: Double) -> Double { 0.5 - (0.5 - a) * (1 - bow(u)) }
+            if lines.count == 1 {
+                // One line has the upper band alone.
+                bands = [(lines, { u in (0, mid(u)) }, false, nil)]
+            } else {
+                bands = [([lines[0]], { u in (0, mid(u) - 0.03) }, false, nil),
+                         (Array(lines[1...]), { u in (mid(u) + 0.03, 1) }, false, nil)]
+            }
+        case "textDeflateInflateDeflate":
+            // Three bands: pinched, swollen, pinched.
+            let a = (warp.adjust.first ?? 25000) / 100_000
+            func upper(_ u: Double) -> Double { 1.0 / 3 - (1.0 / 3 - a) * (1 - bow(u)) }
+            func lower(_ u: Double) -> Double { 1 - upper(u) }
+            let third = max(1, lines.count / 3)
+            if lines.count < 3 {
+                // Fewer lines than bands: the bands from the top down.
+                bands = [([lines[0]], { u in (0, upper(u) - 0.02) }, false, nil)]
+                if lines.count == 2 { bands.append(([lines[1]], { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil)) }
+            } else {
+                bands = [(Array(lines[..<third]), { u in (0, upper(u) - 0.02) }, false, nil),
+                         (Array(lines[third ..< lines.count - third]), { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil),
+                         (Array(lines[(lines.count - third)...]), { u in (lower(u) + 0.02, 1) }, false, nil)]
+            }
+        case "textRingInside", "textRingOutside":
+            // The text round a ring seen from the front: its first half
+            // across the near side, the second coming back across the far
+            // side, mirrored. Inside the ring the near side is the upper
+            // arc; outside it, the lower.
+            var all = Line()
+            all.glyphs = lines.flatMap(\.glyphs)
+            let half = (all.glyphs.count + 1) / 2
+            var near = Line(), far = Line()
+            near.glyphs = Array(all.glyphs[..<half])
+            far.glyphs = Array(all.glyphs[half...])
+            // A shallow arc and a band a third of the box, as PowerPoint's
+            // default (adjust 60%) comes out: the ends of the two halves
+            // cross where the ring turns away.
+            let adjust = (warp.adjust.first ?? 60000) / 100_000
+            let depth = 0.5 * (1 - adjust), t = 0.55 * adjust
+            // Nearly level across the middle and turning down sharply at
+            // the ends, as the edge of a ring does.
+            func dip(_ u: Double) -> Double { depth * 1.5 * (1 - (1 - 0.97 * bow(u)).squareRoot()) }
+            let top: Envelope = { u in (dip(u), dip(u) + t) }
+            let bottom: Envelope = { u in (1 - dip(u) - t, 1 - dip(u)) }
+            let inside = warp.preset == "textRingInside"
+            bands = [([near], inside ? top : bottom, false, nil)]
+            if !far.glyphs.isEmpty { bands.append(([far], inside ? bottom : top, true, nil)) }
+        case "textArchUpPour", "textButtonPour":
+            poured(start: 180, sweep: 180, feetOut: false)
+            bands = [(lines, { _ in (0, 1) }, false, nil)]
+        case "textArchDownPour":
+            poured(start: 180, sweep: -180, feetOut: true)
+            bands = [(lines, { _ in (0, 1) }, false, nil)]
+        case "textCirclePour":
+            poured(start: 180, sweep: 360, feetOut: false)
+            bands = [(lines, { _ in (0, 1) }, false, nil)]
+        default:
+            if let env = envelope(warp) {
+                var sides: ((Double) -> (Double, Double))? = nil
+                let a = (warp.adjust.first ?? 33333) / 100_000
+                if warp.preset == "textFadeUp" { sides = { v in (a * (1 - v), 1 - a * (1 - v)) } }
+                if warp.preset == "textFadeDown" { sides = { v in (a * v, 1 - a * v) } }
+                bands = [(lines, env, false, sides)]
+            }
         }
         // textPlain's adjust slants the block: its top and bottom edges slide
         // apart by twice the adjust's distance from the middle, and the
         // text is that much narrower.
         let slant = warp.preset == "textPlain" ? 2 * ((warp.adjust.first ?? 50000) / 100_000 - 0.5) : 0
-        // Every line at the widest one's scale: a shorter line is shorter,
-        // and sits where its paragraph is aligned.
-        let widest = max(1e-6, lines.map(\.width).max() ?? 1)
+        // Fitted to the letters there are: with nothing hanging below the
+        // line, the line itself is the foot of the band.
+        let descends = lines.contains { $0.glyphs.contains { "gjpqyQ,;".containsSubstring($0.text) } }
+        // Every line at the widest one's scale, whichever band it is in —
+        // but a ring's two halves each go the whole way across.
+        let ring = warp.preset.hasPrefix("textRing")
+        let widestOfAll = max(1e-6, bands.flatMap(\.lines).map(\.width).max() ?? 1)
         for band in bands {
             let n = Double(band.lines.count)
+            let widest = ring ? max(1e-6, band.lines.map(\.width).max() ?? 1) : widestOfAll
             func point(_ u: Double, _ v: Double) -> Offset {
+                if let pour { return pour(u, v) }
+                let u = band.mirrored ? 1 - u : u
                 let e = band.env(u)
                 let shift = slant >= 0 ? slant * v : -slant * (1 - v)
-                return Offset(area.left + (u * (1 - abs(slant)) + shift) * area.width,
-                              area.top + (e.top + (e.bottom - e.top) * v) * area.height)
+                var x = u * (1 - abs(slant)) + shift
+                if let sides = band.sides { let (l, r) = sides(max(0, min(1, v))); x = l + (r - l) * u }
+                return Offset(area.left + x * area.width, area.top + (e.top + (e.bottom - e.top) * v) * area.height)
             }
             for (li, line) in band.lines.enumerated() {
                 let total = widest
@@ -212,7 +329,7 @@ enum WordArt {
                 // A line's share of the band is its letters', capital top
                 // to descender, not its whole box: the box has an eighth
                 // of nothing above the capitals, which goes outside.
-                let above = 0.13, below = 0.03
+                let above = 0.13, below = descends ? 0.03 : 0.2
                 let share = 1 / n / (1 - above - below)
                 let v0 = Double(li) / n - above * share, v1 = Double(li + 1) / n + below * share
                 for g in line.glyphs {

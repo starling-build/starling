@@ -171,54 +171,54 @@ enum SheetObjectsXML {
     static func _vmlShapes(_ vml: String) -> [String: _VmlShape] {
         var out: [String: _VmlShape] = [:]
         var rest = Substring(vml)
-        while let start = rest.range(of: "<v:shape ") {
+        while let start = rest.firstRange(of: "<v:shape ") {
             let after = rest[start.upperBound...]
-            let end = after.range(of: "</v:shape>")?.lowerBound ?? after.endIndex
+            let end = after.firstRange(of: "</v:shape>")?.lowerBound ?? after.endIndex
             let body = after[..<end]
             rest = after[end...]
             // (An ActiveX control's shape is named for the control, its number in o:spid.)
             let tagEnd = body.firstIndex(of: ">") ?? body.endIndex
             guard let id = _attr(body[..<tagEnd], "o:spid") ?? _attr(body[..<tagEnd], "id"),
-                  let s = id.range(of: "_s", options: .backwards) else { continue }
+                  let s = id.ranges(of: "_s").last else { continue }
             var shape = _VmlShape()
             if let v = _attr(body[..<tagEnd], "stroked") { shape.stroked = !["f", "false"].contains(v.lowercased()) }
             let style = _attr(body[..<tagEnd], "style") ?? ""
-            shape.hidden = style.replacingOccurrences(of: " ", with: "").contains("visibility:hidden")
+            shape.hidden = style.replacingAll(" ", with: "").containsSubstring("visibility:hidden")
             if let a = _between(body, "<x:Anchor>", "</x:Anchor>") {
                 // Left column, its offset, top row, its offset, then the far
                 // corner the same way; the offsets are screen pixels.
-                let n = a.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                let n = a.split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
                 if n.count == 8 {
                     shape.anchor = .twoCell(from: SheetMarker(col: Int(n[0]), colOff: n[1] * 0.75, row: Int(n[2]), rowOff: n[3] * 0.75),
                                             to: SheetMarker(col: Int(n[4]), colOff: n[5] * 0.75, row: Int(n[6]), rowOff: n[7] * 0.75))
                 }
             }
-            if let image = body.range(of: "<v:imagedata ") {
+            if let image = body.firstRange(of: "<v:imagedata ") {
                 let tag = body[image.upperBound...]
                 shape.imageRel = _attr(tag, "o:relid") ?? _attr(tag, "r:id")
             }
-            if let box = body.range(of: "<v:textbox"), let close = body[box.upperBound...].range(of: "</v:textbox>") {
+            if let box = body.firstRange(of: "<v:textbox"), let close = body[box.upperBound...].firstRange(of: "</v:textbox>") {
                 let inner = body[box.upperBound ..< close.lowerBound]
                 let content = inner[(inner.firstIndex(of: ">").map { inner.index(after: $0) } ?? inner.startIndex)...]
                 shape.text = _plain(content)
-                if let font = content.range(of: "<font ") {
+                if let font = content.firstRange(of: "<font ") {
                     let tag = content[font.upperBound...]
                     let tagClose = tag.firstIndex(of: ">") ?? tag.endIndex
                     shape.fontFace = _attr(tag[..<tagClose], "face")
                     shape.fontSize = _attr(tag[..<tagClose], "size").flatMap { Double($0) }.map { $0 / 20 }
                 }
-                shape.bold = content.contains("<b>"); shape.italic = content.contains("<i>"); shape.underline = content.contains("<u>")
-                if let div = content.range(of: "text-align:") {
+                shape.bold = content.containsSubstring("<b>"); shape.italic = content.containsSubstring("<i>"); shape.underline = content.containsSubstring("<u>")
+                if let div = content.firstRange(of: "text-align:") {
                     let v = content[div.upperBound...].prefix { $0.isLetter }
                     shape.align = v.prefix(1).uppercased() + v.dropFirst().lowercased()
                 }
             }
-            if let data = body.range(of: "<x:ClientData ") { shape.objectType = _attr(body[data.upperBound...], "ObjectType") ?? "" }
+            if let data = body.firstRange(of: "<x:ClientData ") { shape.objectType = _attr(body[data.upperBound...], "ObjectType") ?? "" }
             if let p = _between(body, "<x:PrintObject>", "</x:PrintObject>") {
-                shape.printed = !["false", "f", "0"].contains(p.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+                shape.printed = !["false", "f", "0"].contains(p.trimmingWhitespace().lowercased())
             }
-            shape.checked = _between(body, "<x:Checked>", "</x:Checked>").flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) } ?? 0
-            if let h = _between(body, "<x:TextHAlign>", "</x:TextHAlign>") { shape.align = h.trimmingCharacters(in: .whitespacesAndNewlines) }
+            shape.checked = _between(body, "<x:Checked>", "</x:Checked>").flatMap { Int($0.trimmingWhitespace()) } ?? 0
+            if let h = _between(body, "<x:TextHAlign>", "</x:TextHAlign>") { shape.align = h.trimmingWhitespace() }
             out[String(id[s.upperBound...])] = shape
         }
         return out
@@ -227,7 +227,7 @@ enum SheetObjectsXML {
     /// `name="value"` or `name='value'` in a run of tag text.
     private static func _attr(_ s: Substring, _ name: String) -> String? {
         var from = s.startIndex
-        while let r = s[from...].range(of: name + "=") {
+        while let r = s[from...].firstRange(of: name + "=") {
             // (Not the tail of a longer name: `id=` in `spid=`.)
             let boundary = r.lowerBound == s.startIndex || !(s[s.index(before: r.lowerBound)].isLetter || s[s.index(before: r.lowerBound)] == ":")
             let rest = s[r.upperBound...]
@@ -241,7 +241,7 @@ enum SheetObjectsXML {
     }
 
     private static func _between(_ s: Substring, _ open: String, _ close: String) -> String? {
-        guard let a = s.range(of: open), let b = s[a.upperBound...].range(of: close) else { return nil }
+        guard let a = s.firstRange(of: open), let b = s[a.upperBound...].firstRange(of: close) else { return nil }
         return String(s[a.upperBound ..< b.lowerBound])
     }
 
@@ -252,7 +252,7 @@ enum SheetObjectsXML {
             if ch == "<" { inTag = true } else if ch == ">" { inTag = false } else if !inTag { out.append(ch) }
         }
         for (entity, ch) in [("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&apos;", "'"), ("&#10;", " ")] {
-            out = out.replacingOccurrences(of: entity, with: ch)
+            out = out.replacingAll(entity, with: ch)
         }
         return out.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).joined(separator: " ")
     }

@@ -155,7 +155,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.16% mean=0.16%
 lo-n90255.pptx	summary pages=1 worst=0.33% mean=0.33%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=1.74% mean=1.74%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.14% mean=0.05%
+lo-numfmt.pptx	summary pages=9 worst=0.14% mean=0.04%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.25% mean=0.25%
 lo-ole.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -266,7 +266,7 @@ lo-tdf113818-swivel.pptx	summary pages=1 worst=0.39% mean=0.39%
 lo-tdf113822underline.pptx	summary pages=1 worst=0.47% mean=0.47%
 lo-tdf114821.pptx	summary pages=1 worst=1.44% mean=1.44%
 lo-tdf114845_rotateShape.pptx	summary pages=1 worst=0.65% mean=0.65%
-lo-tdf114848.pptx	summary pages=6 worst=15.71% mean=9.44%
+lo-tdf114848.pptx	summary pages=6 worst=15.53% mean=8.80%
 lo-tdf114913.pptx	summary pages=1 worst=0.16% mean=0.16%
 lo-tdf115394-zero.pptx	summary pages=1 worst=1.10% mean=1.10%
 lo-tdf115394.pptx	summary pages=5 worst=1.25% mean=0.98%
@@ -329,7 +329,7 @@ lo-tdf137675.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf138148.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-tdf140714.pptx	summary pages=1 worst=2.03% mean=2.03%
 lo-tdf140852.pptx	summary pages=1 worst=4.43% mean=4.43%
-lo-tdf140865Wordart3D.pptx	summary pages=1 worst=7.76% mean=7.76%
+lo-tdf140865Wordart3D.pptx	summary pages=1 worst=8.94% mean=8.94%
 lo-tdf141058-1.pptx	summary pages=1 worst=1.52% mean=1.52%
 lo-tdf141704.pptx	summary pages=7 worst=1.08% mean=0.69%
 lo-tdf142590.pptx	summary pages=3 worst=0.06% mean=0.05%
@@ -498,8 +498,8 @@ oox-shape-text-alignment.pptx	summary pages=1 worst=0.46% mean=0.46%
 oox-smartart-groupshape.pptx	summary pages=1 worst=0.09% mean=0.09%
 oox-table-shadow.pptx	summary pages=1 worst=0.68% mean=0.68%
 oox-tdf113187_arcTo_withoutReferences.pptx	summary pages=1 worst=0.02% mean=0.02%
-oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=4.22% mean=4.22%
-oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=3.30% mean=3.30%
+oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=4.83% mean=4.83%
+oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=3.71% mean=3.71%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
 oox-tdf131082.pptx	summary pages=1 worst=1.70% mean=1.70%
 oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=18.27% mean=18.27%

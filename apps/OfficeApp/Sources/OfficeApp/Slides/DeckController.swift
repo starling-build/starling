@@ -57,7 +57,7 @@ struct ShapeState: Equatable {
     var columns = 1
     var columnGap = 0.0
     var warp: TextWarp? = nil
-    var runLooks: [[RunLook?]] = []
+    var runLooks: [[RunLook]] = []
     var scene3d: Scene3D? = nil
     var lineReduction = 0.0
     var keptLook: KeptLook? = nil

@@ -1828,7 +1828,7 @@ private struct SlideContext {
         var columns = 1
         var columnGap = 0.0
         var warp: TextWarp? = nil
-        var runLooks: [[RunLook?]] = []
+        var runLooks: [[RunLook]] = []
     }
 
     /// The master text style a placeholder (or plain shape) draws from.
@@ -1938,7 +1938,7 @@ private struct SlideContext {
             }
         }
         let shapeIndent = listIndent ?? 18
-        var runLooks: [[RunLook?]] = []
+        var runLooks: [[RunLook]] = []
         var paragraphs: [RichParagraph] = []
         let allParagraphs = body?.all("a:p") ?? []
         for p in allParagraphs {
@@ -1991,10 +1991,12 @@ private struct SlideContext {
 
             var text = ""
             var runs: [Run] = []
-            var looks: [RunLook?] = []
+            var looks: [RunLook] = []
             func add(_ t: String, _ r: LevelStyle, _ rPr: XNode? = nil) {
                 guard !t.isEmpty else { return }
-                looks.append(_runLook(rPr))
+                var look = _runLook(rPr) ?? RunLook()
+                look.length = t.utf16.count
+                looks.append(look)
                 let s = r.filled(from: level)
                 var cs = CharStyle(bold: s.bold ?? false, italic: s.italic ?? false,
                                    underline: s.underline ?? false, strikethrough: s.strike ?? false,
@@ -2024,10 +2026,10 @@ private struct SlideContext {
             } else {
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
             }
-            runLooks.append(text.isEmpty ? [nil] : looks)
+            runLooks.append(looks)
         }
         // Looks matter only where some run has one.
-        if !runLooks.contains(where: { $0.contains { $0 != nil } }) { runLooks = [] }
+        if !runLooks.contains(where: { $0.contains { !$0.isPlain } }) { runLooks = [] }
         let warp: TextWarp? = (body?.first("a:bodyPr")?.first("a:prstTxWarp")).flatMap { w in
             guard let preset = w["prst"], preset != "textNoShape" else { return nil }
             let adjust = (w.first("a:avLst")?.all("a:gd") ?? []).compactMap { gd -> Double? in

@@ -55,8 +55,21 @@ final class WordArtTests: XCTestCase {
         let wave = try XCTUnwrap(WordArt.envelope(TextWarp(preset: "textWave1", adjust: [], xml: "")))
         for u in [0.0, 0.25, 0.6, 1.0] { XCTAssertEqual(wave(u).bottom - wave(u).top, 0.75, accuracy: 1e-9) }
         XCTAssertEqual(wave(0).top, wave(1).top, accuracy: 1e-9)
-        XCTAssertNil(WordArt.envelope(TextWarp(preset: "textRingInside", adjust: [], xml: "")))
-        XCTAssertTrue(WordArt.draws(TextWarp(preset: "textArchUp", adjust: [], xml: "")))
+        // A curve tapers over a level foot; a cascade climbs from its full height.
+        let curve = try XCTUnwrap(WordArt.envelope(TextWarp(preset: "textCurveDown", adjust: [50000], xml: "")))
+        XCTAssertEqual(curve(0).top, 0, accuracy: 1e-9)
+        XCTAssertEqual(curve(1).top, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(curve(0.3).bottom, 1, accuracy: 1e-9)
+        // Every bend PowerPoint offers is drawn, by one of the three ways.
+        for name in ["Plain", "Stop", "Triangle", "TriangleInverted", "Chevron", "ChevronInverted", "RingInside", "RingOutside",
+                     "ArchUp", "ArchDown", "Circle", "Button", "ArchUpPour", "ArchDownPour", "CirclePour", "ButtonPour",
+                     "CurveUp", "CurveDown", "CanUp", "CanDown", "Wave1", "Wave2", "DoubleWave1", "Wave4", "Inflate",
+                     "Deflate", "InflateBottom", "DeflateBottom", "InflateTop", "DeflateTop", "DeflateInflate",
+                     "DeflateInflateDeflate", "FadeRight", "FadeLeft", "FadeUp", "FadeDown", "SlantUp", "SlantDown",
+                     "CascadeUp", "CascadeDown"] {
+            XCTAssertTrue(WordArt.draws(TextWarp(preset: "text" + name, adjust: [], xml: "")), name)
+        }
+        XCTAssertFalse(WordArt.draws(TextWarp(preset: "textNoShape", adjust: [], xml: "")))
     }
 
     func testADepthAndACameraAreRead() throws {

@@ -437,8 +437,7 @@ size by something not found.
   at its own size. There are no glyph outlines to bend, so a character
   is drawn through the affine map of its own cell — exact along a path,
   and for the bends a letter leans and rides the curve without itself
-  curving. Not drawn (laid out as before): ring, the curves, fade,
-  stop, cascade and the rest.
+  curving. (The rest came the same day: see below.)
 - **A run's gradient or picture fill and its outline** (`a:rPr`'s
   `gradFill`, `blipFill`, `ln`) are read (`RunLook`, by run position)
   and drawn in WordArt, the fill as one across the whole word. This
@@ -468,12 +467,42 @@ from PowerPoint's cost more than small flat ones nowhere near
 (WordArtDefaultColor 6.3 → 8.5 with the slant now drawn, Arial Black
 standing in as Liberation Sans). Those six are up for that.
 
-Left: the bends above not drawn; the text of a 3D shape is drawn flat
+Left: the text of a 3D shape is drawn flat
 over the solid; a deck's saved copy keeps the warp but not a run's
 gradient or outline (they were never written); none of this was looked at in the
 editor, on screen; lo-tdf146223's 2×2
 JPEG backgrounds, which PowerPoint prints as one flat grey and this app
 as four pixels — the file is a LibreOffice regression case, left alone.
+
+**Every WordArt bend, 2026-10-12.** All forty presets are drawn now,
+fitted against PowerPoint's own printing of each: `test/corpus/pptx-wordart`
+is five decks made for it, eight bends a slide, and PowerPoint for
+Windows' export of them — the corpus has a dozen of the forty, and the
+first versions of the rest, written from what the names suggest, were
+wrong about four families:
+
+- **A pour** (Arch Up, Arch Down, Circle, Button Pour) is the text poured
+  between two arcs of the box's ellipse — stretched from the outer curve
+  in to half its radius, across the whole arc — not text along a path.
+- **A ring** is the text round a ring seen from the front: its first half
+  across the near side, the second coming back across the far side
+  mirrored; inside the ring the near side is the upper arc.
+- **Curve** tapers over a level foot; **cascade** runs from its full
+  height to the adjust's share of it; **deflate-inflate** and its three-
+  band sibling give one line the top band alone.
+- **The text is fitted by the letters there are**: with no descender in
+  it the baseline is the foot of the band ("Plain" fills its box, "Stop"
+  leaves room for its p).
+
+And: a run's look is found by where a character falls, not by the run's
+position — the document merges runs alike in what it knows, so
+"Double" + " Wave 1" was one run with two looks and drew black; text on a
+path is filled letter by letter, each with the whole gradient, where
+text fitted to the box shares one across it.
+
+Left: a bend's adjust values other than the default are read and used
+but were fitted at the default only; Button and the banded bends were
+seen with one line.
 
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
