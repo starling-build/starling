@@ -1,0 +1,4 @@
+module CStarlingConPTY {
+    umbrella "C:\\Users\\starling\\dev\\starling\\sdk\\Sources\\CStarlingConPTY\\include"
+    export *
+}

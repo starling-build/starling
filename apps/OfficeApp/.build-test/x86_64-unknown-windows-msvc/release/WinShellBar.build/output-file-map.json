@@ -1,0 +1,139 @@
+{
+  "": {
+    "dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\WinShellBar.d",
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\WinShellBar.o",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\master.swiftdeps"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\ActionCenter.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ActionCenter.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ActionCenter~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ActionCenter.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ActionCenter.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\Band.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Band.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Band~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Band.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Band.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\Banner.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Banner.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Banner~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Banner.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Banner.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\Desktop.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Desktop.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Desktop~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Desktop.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Desktop.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\Dock.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Dock.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Dock~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Dock.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Dock.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\DockBloc.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\DockBloc.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\DockBloc~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\DockBloc.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\DockBloc.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\Files.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Files.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Files~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Files.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Files.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\FilesBloc.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FilesBloc.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FilesBloc~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FilesBloc.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FilesBloc.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\FilesMenu.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FilesMenu.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FilesMenu~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FilesMenu.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FilesMenu.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\FluentIcons.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FluentIcons.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FluentIcons~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FluentIcons.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\FluentIcons.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\Hover.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Hover.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Hover~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Hover.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Hover.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\IconCache.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\IconCache.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\IconCache~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\IconCache.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\IconCache.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\Launcher.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Launcher.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Launcher~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Launcher.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Launcher.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\PreviewCache.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\PreviewCache.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\PreviewCache~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\PreviewCache.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\PreviewCache.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\RunDialog.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\RunDialog.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\RunDialog~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\RunDialog.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\RunDialog.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\Session.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Session.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Session~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Session.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Session.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\Settings.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Settings.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Settings~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Settings.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\Settings.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\SettingsBloc.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\SettingsBloc.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\SettingsBloc~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\SettingsBloc.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\SettingsBloc.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\ShellKeys.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ShellKeys.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ShellKeys~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ShellKeys.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ShellKeys.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\ShellScreen.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ShellScreen.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ShellScreen~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ShellScreen.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\ShellScreen.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\WinTheme.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\WinTheme.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\WinTheme~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\WinTheme.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\WinTheme.dia"
+  },
+  "C:\\Users\\starling\\dev\\starling\\sdk\\Examples\\WinShellBar\\main.swift": {
+    "object": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\main.swift.o",
+    "swiftmodule": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\main~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\main.swiftdeps",
+    "diagnostics": "C:\\Users\\starling\\dev\\starling\\apps\\OfficeApp\\.build-test\\x86_64-unknown-windows-msvc\\release\\WinShellBar.build\\main.dia"
+  }
+}

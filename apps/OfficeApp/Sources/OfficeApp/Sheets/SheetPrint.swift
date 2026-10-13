@@ -123,17 +123,18 @@ enum SheetPrintLayout {
         // Excel gives a sheet of nothing but merges its page.
         for m in ws.merges { take(m.top, m.left); take(m.bottom, m.right) }
         // A drawing prints whole, however it is anchored: every cell its
-        // frame touches (and not the one it only reaches the edge of).
+        // frame touches — the one its far corner only reaches the edge of
+        // too, which is the cell Excel's anchor names for that corner.
         for d in ws.drawings where !d.hidden {
             let f = ws.frame(d.anchor)
             guard f.width > 0, f.height > 0 else { continue }
-            let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width - 0.01, y: f.y + f.height - 0.01)
+            let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
             take(a.row, a.col); take(b.row, b.col)
         }
         for o in ws.objects where !o.screenOnly {
             let f = ws.frame(o.anchor)
             guard f.width > 0, f.height > 0 else { continue }
-            let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width - 0.01, y: f.y + f.height - 0.01)
+            let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
             take(a.row, a.col); take(b.row, b.col)
         }
         // A row formatted as a whole (a fill or borders on the row itself)

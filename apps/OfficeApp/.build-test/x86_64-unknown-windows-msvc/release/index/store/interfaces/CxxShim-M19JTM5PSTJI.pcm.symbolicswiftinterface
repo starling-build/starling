@@ -1,0 +1,3 @@
+// Swift interface for module 'CxxShim'
+public func __swift_interopStaticCast<From, To>(_ from: From) -> To
+

@@ -63,8 +63,8 @@ final class SheetsPrintTests: XCTestCase {
         ws.drawings = [SheetDrawing(name: "p", anchor: .twoCell(from: SheetMarker(col: 1, colOff: 0, row: 1, rowOff: 0),
                                                                  to: SheetMarker(col: 7, colOff: 0, row: 20, rowOff: 0)),
                                     kind: .picture(path: "x", data: Data()))]
-        // The cells the picture covers: not H or row 21, whose edge it only reaches.
-        XCTAssertEqual(SheetPrintLayout.usedArea(ws, book: book), CellRange("A1:G20"))
+        // The cells the picture covers, the one its far corner stands on too.
+        XCTAssertEqual(SheetPrintLayout.usedArea(ws, book: book), CellRange("A1:H21"))
     }
 }
 
