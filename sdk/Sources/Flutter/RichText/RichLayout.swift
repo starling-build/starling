@@ -367,6 +367,12 @@ public struct RichResolvedFace: Sendable {
     /// a scaled sans's .711.
     public var advances: [Double]? = nil
     public var boldAdvances: [Double]? = nil
+    /// The same for characters past those which the original face has
+    /// and its stand-in has not, by code point: the stand-in's fallback
+    /// draws them, and the line is set by the original's widths (Times
+    /// New Roman's Roman numerals, Ⅳ wider than an em).
+    public var otherAdvances: [UInt32: Double]? = nil
+    public var boldOtherAdvances: [UInt32: Double]? = nil
     /// How far below the top of its single line the face's baseline
     /// sits, in ems, as Word sets it (a Latin face's line gap goes above
     /// the ascent; an East Asian face's extra three tenths go half
@@ -2847,7 +2853,8 @@ public final class RichLayout {
             return (size(p.style.mark), true)
         }()
         func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil) -> [TextSpan] {
-            let latinFace = theme.wordRules ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, false) : nil
+            let latinFace = theme.wordRules
+                ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
             let hinted = (run.fontHint ?? named?.char.fontHint) == "eastAsia" || (latinFace?.isEastAsian ?? false)
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             let closes = _closesUpMarks(run, named, document)
@@ -2989,6 +2996,13 @@ public final class RichLayout {
                     if let table = s.fontWeight == .bold ? face.boldAdvances : face.advances, k < table.count, let px = s.fontSize, px > 0.5 {
                         let classScale = classed ? face.classScales.flatMap { kind < $0.count ? $0[kind] : nil } ?? 1 : 1
                         extra += table[k] * px / (face.sizeScale * classScale) - _glyphWidth(s, ch)
+                    }
+                } else if !ea, let face = latinFace, face.otherAdvances != nil, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value {
+                    // … and the width it gives one the stand-in lacks.
+                    let s = style(kind)
+                    if let w = (s.fontWeight == .bold ? face.boldOtherAdvances : face.otherAdvances)?[u], let px = s.fontSize, px > 0.5 {
+                        let classScale = classed ? face.classScales.flatMap { kind < $0.count ? $0[kind] : nil } ?? 1 : 1
+                        extra += w * px / (face.sizeScale * classScale) - _glyphWidth(s, ch)
                     }
                 }
                 if let following {
@@ -3652,9 +3666,16 @@ public final class RichLayout {
                     // over, two take one two thirds over, three one
                     // three quarters over (measured 2026-10-12).
                     let modern = (document.compatibilityMode ?? 12) >= 15
+                    // (Half an em of the character as it is set, its
+                    // run's spacing with it: 16pt text spaced -0.4 sets
+                    // an ideograph 15.2 apart and takes one 7.55 over,
+                    // not 7.65; spaced -1, 6.9 and not 7.1; unspaced,
+                    // 7.9 and not 8.1. Lab `sq`, 2026-10-13.)
+                    let wide = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
+                    let set = wide && !closesUp(a) ? boxes(a, a + 1) : em
                     let taken = modern
                         ? need / Double(max(1, all.count)) <= width - x + hair
-                        : x + min(lead, w) - width <= em / 2 + edge
+                        : x + min(lead, w) - width <= set / 2 + edge
                     if room > 0, taken, need <= room + hair {
                         let share = min(1, (need + 0.02) / room)
                         for mark in all { adjust[mark, default: 0] -= ems[mark] / 2 * share }

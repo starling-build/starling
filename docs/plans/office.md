@@ -1656,6 +1656,26 @@ fitter dropped the paragraph's tail).
   The two together: Chinese sample 70.8% -> 71.4% (median 88.7 ->
   88.9), POI 66.6 -> 66.7.
 
+- **Roman numerals in Times New Roman, and the squeeze in spaced
+  text (2026-10-13).** Both from one line of zh-6cd1befe, which
+  Word ends a character before ours. (1) A run that leaves "Ⅳ级" in
+  its Latin face sets the numeral in Times New Roman, which has
+  Ⅰ–Ⅻ and ⅰ–ⅻ of its own (Ⅰ a third of an em, Ⅳ 1.05); Arial,
+  Calibri and Cambria have none and Word falls back to an em-wide
+  East Asian glyph (lab `rn`, ten of each per fonts). Liberation
+  Serif has none either, so the fallback drew them an em wide.
+  `RichResolvedFace.otherAdvances` carries Times' widths by code
+  point, regular and bold, and the line is set by them. (The run's
+  Latin face is now looked up through Normal as its text style
+  already was — a run naming no font had the theme's.) (2) The
+  legacy rule that the next character is taken where it is "half
+  an em or less" over, the line's marks giving it, is half of the
+  character AS SET: lab `sq` (`body30.py`), two commas on the line,
+  left-aligned, mode 14 — 16pt spaced -0.4 (an ideograph 15.2
+  apart, the spacing counted twice where widths are balanced) takes
+  one 7.55 over and not 7.65; spaced -1, 6.9 and not 7.1; unspaced,
+  7.9 and not 8.1. zh-6cd1befe 32% -> 53%; Chinese sample 71.8%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

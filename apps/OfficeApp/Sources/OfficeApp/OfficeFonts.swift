@@ -294,6 +294,24 @@ enum OfficeFonts {
         return square
     }
 
+    // Times New Roman's Roman numerals, Ⅰ to Ⅻ and ⅰ to ⅻ (U+2160 and
+    // U+2170 on), in ems, regular and bold: Word's Times has them and
+    // sets them where a run of a Chinese document leaves its "Ⅳ级" in
+    // the Latin face; Liberation Serif has none, and what falls back
+    // for it draws them an em wide (measured 2026-10-13 from the face
+    // Word for Mac carries; a line of zh-6cd1befe with 0.3pt to spare
+    // took a character more than Word's).
+    private static func numerals(_ upper: [Double], _ lower: [Double]) -> [UInt32: Double] {
+        var table: [UInt32: Double] = [:]
+        for (k, w) in upper.enumerated() { table[0x2160 + UInt32(k)] = w }
+        for (k, w) in lower.enumerated() { table[0x2170 + UInt32(k)] = w }
+        return table
+    }
+    private static let timesNumerals = numerals([0.3330, 0.6465, 0.9595, 1.0513, 0.7222, 1.0474, 1.3604, 1.6733, 1.0527, 0.7222, 1.0479, 1.3608],
+                                                [0.2778, 0.5244, 0.7710, 0.7393, 0.5000, 0.7612, 1.0078, 1.2544, 0.7661, 0.5000, 0.7588, 1.0054])
+    private static let timesBoldNumerals = numerals([0.3892, 0.7646, 1.1401, 1.1113, 0.7222, 1.1089, 1.4844, 1.8599, 1.1123, 0.7222, 1.1123, 1.4878],
+                                                    [0.2778, 0.5537, 0.8296, 0.7588, 0.5000, 0.7778, 1.0537, 1.3296, 0.7734, 0.5000, 0.7705, 1.0464])
+
     private static let wordOnMac = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "mac"
 
     /// The theme's `faceResolver`: the shipped face for a name, and for
@@ -318,7 +336,12 @@ enum OfficeFonts {
             case cambria: baseline = 0.95
             default: baseline = 0.938
             }
-            return RichResolvedFace(family: clone, baseline: baseline)
+            var face = RichResolvedFace(family: clone, baseline: baseline)
+            if clone == serif {
+                face.otherAdvances = timesNumerals
+                face.boldOtherAdvances = timesBoldNumerals
+            }
+            return face
         }
         // (A name the table declares Latin still sets East Asian text
         // as the face it names.)
