@@ -49,6 +49,19 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(ChartPainter.label(0.3, percent: true), "30%")
     }
 
+    /// Bounds the file fixes are the axis's, its step ten intervals at
+    /// most (0 to 1 by 0.1); they survive the chart's own XML.
+    func testFixedBoundsAreTheAxis() throws {
+        let s = ChartPainter.fixedScale(auto: ChartPainter.scale(0, 1.02), min: 0, max: 1, step: nil)
+        XCTAssertEqual(s.lo, 0); XCTAssertEqual(s.hi, 1); XCTAssertEqual(s.step, 0.1, accuracy: 1e-12)
+        let open = ChartPainter.fixedScale(auto: ChartPainter.scale(0, 550), min: 300, max: nil, step: nil)
+        XCTAssertEqual(open.lo, 300); XCTAssertEqual(open.hi, 600, "the open end the automatic one")
+        XCTAssertEqual(ChartPainter.fixedScale(auto: ChartPainter.scale(0, 5), min: nil, max: nil, step: 2.5).hi, 7.5)
+        var c = Chart.sample(.column)
+        c.valueMin = 0; c.valueMax = 1; c.valueStep = 0.25
+        XCTAssertEqual(try reread(c), c)
+    }
+
     func testCellTypingIsOneUndoStep() {
         let deck = SlidesSample.make()
         let shape = deck.slides.flatMap(\.shapes).first { $0.chart != nil }!

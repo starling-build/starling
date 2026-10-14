@@ -910,6 +910,28 @@ gradient multiplied in. We drew it white. Now:
   paint white, which costs it 0.12 against a diagram laid out wrong
   anyway.
 
+**Charts under another master's theme; fixed axis bounds, 2026-10-14**
+(sweep 53: 1.8882 → 1.8871%; aascu cooper 7.61 → 7.11, aascu 5864
+11.45 → 11.29). aascu 5864's chart slides hang from a third master whose
+theme is Office's (blue, red, green, purple, aqua), while the deck's
+theme — the first slide's — is Concourse's; a series that follows the
+theme was drawn in Concourse's teal and red.
+
+- **A chart on a slide whose master has another theme takes that
+  theme's colours as its own** (`SlideContext.foreignTheme`), through
+  the path a theme override part already took: each series that names
+  a slot or follows the cycle gets its colour fixed at reading.
+- **`c:scaling` min and max and `c:majorUnit` are the value axis's**
+  (`Chart.valueMin`/`valueMax`/`valueStep`, written back). For fixed
+  bounds the step keeps to ten intervals at most — 0 to 1 by 0.1, as
+  PowerPoint's, where the automatic eight made it 0.2 — and bars past a
+  bound are cut at the plot's edge. Only this deck fixes them.
+
+Left on these charts: PowerPoint places the plot where `c:manualLayout`
+puts it (the inner plot at 12%/24%, 83% × 41% of the chart), and sets
+text this old chart leaves unsized at 10 pt with a bold title; ours
+fills the frame at 12 pt.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

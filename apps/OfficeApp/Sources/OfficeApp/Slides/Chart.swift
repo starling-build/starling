@@ -112,6 +112,11 @@ struct Chart: Equatable {
     var overlap: Int? = nil
     /// A doughnut's hole, in percent of its diameter (`c:holeSize`).
     var holeSize = 50
+    /// The value axis's bounds and step where the file fixes them
+    /// (`c:scaling/c:min`, `c:max`, `c:majorUnit`); nil is automatic.
+    var valueMin: Double? = nil
+    var valueMax: Double? = nil
+    var valueStep: Double? = nil
 
     var gap: Double { Double(gapWidth ?? (stacked ? 150 : 219)) / 100 }
     var overlapFraction: Double { Double(overlap ?? (stacked ? 100 : -27)) / 100 }
@@ -320,6 +325,11 @@ enum ChartXML {
             if let sz = run["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.categoryLabelSize = sz / 100 }
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
         }
+        if let scaling = valueAxis?.first("c:scaling") {
+            c.valueMin = scaling.first("c:min")?["val"].flatMap(Double.init)
+            c.valueMax = scaling.first("c:max")?["val"].flatMap(Double.init)
+        }
+        c.valueStep = valueAxis?.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
         if let fmt = valueAxis?.first("c:numFmt") {
             let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
             let source = plot.descendant("c:val")?.descendant("c:formatCode")?.text
@@ -481,7 +491,9 @@ enum ChartXML {
             let catPos = c.type == .bar ? "l" : "b", valPos = c.type == .bar ? "b" : "l"
             let tail = "<c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>"
             let format = c.percent ? "0%" : "General"
-            let valAx = "<c:valAx><c:axId val=\"500000002\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"\(valPos)\"/><c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>\(valTitle)<c:numFmt formatCode=\"\(format)\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr><c:crossAx val=\"500000001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(c.type == .scatter || c.type == .area ? "midCat" : "between")\"/></c:valAx>"
+            let bounds = (c.valueMax.map { "<c:max val=\"\($0)\"/>" } ?? "") + (c.valueMin.map { "<c:min val=\"\($0)\"/>" } ?? "")
+            let unit = c.valueStep.map { "<c:majorUnit val=\"\($0)\"/>" } ?? ""
+            let valAx = "<c:valAx><c:axId val=\"500000002\"/><c:scaling><c:orientation val=\"minMax\"/>\(bounds)</c:scaling><c:delete val=\"0\"/><c:axPos val=\"\(valPos)\"/><c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>\(valTitle)<c:numFmt formatCode=\"\(format)\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr><c:crossAx val=\"500000001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(c.type == .scatter || c.type == .area ? "midCat" : "between")\"/>\(unit)</c:valAx>"
             if c.type == .scatter {
                 plot += "<c:valAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"b\"/><c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"midCat\"/></c:valAx>"
             } else {
@@ -675,6 +687,30 @@ enum ChartPainter {
         return (floor(lo / step) * step, ceil(hi / step) * step, step)
     }
 
+    /// An axis with bounds or a step the file fixes; what it leaves open
+    /// is automatic. The step for fixed bounds keeps to ten intervals at
+    /// most, round numbers: aascu 5864's 0 to 1 goes by 0.1, as
+    /// PowerPoint's, where eight made it 0.2.
+    static func fixedScale(auto: (lo: Double, hi: Double, step: Double), min lo0: Double?, max hi0: Double?,
+                           step step0: Double?) -> (lo: Double, hi: Double, step: Double) {
+        var lo = lo0 ?? auto.lo, hi = hi0 ?? auto.hi
+        if hi <= lo { lo = auto.lo; hi = auto.hi }
+        var step = auto.step
+        if let s = step0 {
+            step = s
+        } else if lo0 != nil || hi0 != nil {
+            let rough = (hi - lo) / 10
+            let mag = pow(10, floor(log10(rough)))
+            let norm = rough / mag
+            step = (norm <= 1 + 1e-9 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
+        }
+        // Open ends rounded out to the step; at most a hundred marks.
+        if lo0 == nil { lo = floor(lo / step + 1e-9) * step }
+        if hi0 == nil { hi = ceil(hi / step - 1e-9) * step }
+        if (hi - lo) / step > 100 { step = (hi - lo) / 10 }
+        return (lo, hi, step)
+    }
+
     static func label(_ v: Double, percent: Bool) -> String {
         if percent { return "\(Int((v * 100).rounded()))%" }
         if abs(v - v.rounded()) < 1e-9 { return String(Int(v.rounded())) }
@@ -705,7 +741,10 @@ enum ChartPainter {
             lo = all.min() ?? 0; hi = all.max() ?? 1
         }
         let labelSize = c.valueLabelSize ?? 12
-        let sc = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi)
+        var sc = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi)
+        if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
+            sc = fixedScale(auto: sc, min: c.valueMin, max: c.valueMax, step: c.valueStep)
+        }
         var xs = (lo: 0.0, hi: Double(n), step: 1.0)
         if c.type == .scatter {
             let x = (0 ..< n).map { c.x($0) }
@@ -754,7 +793,7 @@ enum ChartPainter {
             let slot = (horizontal ? area.height : area.width) / Double(n)
             catLabels = c.categories.map { categoryText($0, catSize, horizontal ? area.width * 0.3 : max(slot - 2 * k, 8 * k)) }
         }
-        let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step / 2, by: sc.step))
+        let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step * 1e-6, by: sc.step))
         // In the axis's own number format where it has one: "1,600", and
         // an accounting format's "-" for nought. (Its padding is a cell's.)
         func valueLabel(_ v: Double) -> String {
@@ -845,6 +884,10 @@ enum ChartPainter {
             return t > 0 ? v / t : 0
         }
 
+        // Fixed bounds may cut a value off: what lies past them is cut at
+        // the plot's edge.
+        let clipped = c.valueMin != nil || c.valueMax != nil
+        if clipped { canvas.save(); canvas.clipRect(plot) }
         switch c.type {
         case .column, .bar:
             let slot = (horizontal ? plot.height : plot.width) / Double(n)
@@ -964,6 +1007,7 @@ enum ChartPainter {
         case .pie, .doughnut:
             break
         }
+        if clipped { canvas.restore() }
         for l in cellLabels {
             // Inside the end of its bar (`dLblPos inEnd`), in the series'
             // own label look.

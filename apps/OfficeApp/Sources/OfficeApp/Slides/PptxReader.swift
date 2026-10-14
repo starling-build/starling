@@ -439,6 +439,7 @@ struct PptxReader {
         }
 
         var deckTheme = DeckTheme()
+        var deckThemePart: String? = nil
         var slides: [SlideState] = []
         var nextId = 1
         func id() -> Int { defer { nextId += 1 }; return nextId }
@@ -459,10 +460,10 @@ struct PptxReader {
                     for (k, v) in o.attrs { colors.map[k] = v }
                 }
             }
-            if n == 0 { deckTheme = Self._deckTheme(theme, colors) }
+            if n == 0 { deckTheme = Self._deckTheme(theme, colors); deckThemePart = themePart }
             let ctx = SlideContext(package: package, part: part, slide: slide, layout: layout, master: master,
                                    colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
-                                   tableStyles: tableStyles)
+                                   tableStyles: tableStyles, foreignTheme: n > 0 && themePart != deckThemePart)
             var shapes: [ShapeState] = []
             if let tree = slide.first("p:cSld")?.first("p:spTree") {
                 ctx.shapes(in: tree, transform: nil, into: &shapes, id: id)
@@ -479,7 +480,8 @@ struct PptxReader {
                 for (ownerPart, xml) in owners {
                     guard let tree = xml.first("p:cSld")?.first("p:spTree") else { continue }
                     let octx = SlideContext(package: package, part: ownerPart, slide: xml, layout: layout, master: master,
-                                            colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images)
+                                            colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
+                                            foreignTheme: n > 0 && themePart != deckThemePart)
                     var found: [ShapeState] = []
                     octx.shapes(in: tree, transform: nil, into: &found, id: id)
                     decorations += found.filter { s in
@@ -798,6 +800,10 @@ private struct SlideContext {
     let images: PptxImages
     /// The deck's `a:tblStyle` elements by id.
     var tableStyles: [String: XNode] = [:]
+    /// The slide's master has a theme of its own, not the deck's (the
+    /// first slide's): what follows the theme is drawn against the deck's,
+    /// so a chart takes this one's colours as its own.
+    var foreignTheme = false
 
     // MARK: Placeholders
 
@@ -1703,7 +1709,9 @@ private struct SlideContext {
         // wherever the chart says `schemeClr` (tdf149985's greens, where
         // the deck's own accents are Office's blue and orange).
         var colors = colors
-        var overridden = false
+        // (So does one on a slide whose master has another theme: aascu
+        // 5864's charts under the Office theme, drawn in Concourse's.)
+        var overridden = foreignTheme
         if let over = package.rels(rel.target).first(where: { $0.kind == "themeOverride" && !$0.external }),
            let scheme = package.xml(over.target)?.descendant("a:clrScheme") {
             overridden = true
