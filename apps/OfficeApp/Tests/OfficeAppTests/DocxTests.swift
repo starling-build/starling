@@ -570,11 +570,15 @@ final class DocxTests: XCTestCase {
     /// keeps it where the paragraph itself begins with the break, and —
     /// before its 2013 layout only — under `w:pageBreakBefore`.
     func testSpaceBeforeAtAPageTop() {
-        func top(mode: Int, _ set: (inout RichParagraphStyle) -> Void) -> Double {
+        func top(mode: Int, after: Double = 0, _ set: (inout RichParagraphStyle) -> Void) -> Double {
             var x = RichParagraph(text: "two")
             x.style.pageBreakBefore = true
             set(&x.style)
-            var doc = RichDocument(paragraphs: [RichParagraph(text: "one"), x])
+            // (The page before ends with a paragraph of `after` points
+            // after, which the space kept at the next page's top is less.)
+            var one = RichParagraph(text: "one")
+            one.style.spaceAfter = after
+            var doc = RichDocument(paragraphs: [one, x])
             doc.compatibilityMode = mode
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
             theme.wordRules = true
@@ -592,6 +596,8 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(top(mode: 15) { $0.spaceBefore = 18; $0.pageBreakInline = true }, bare + 18, accuracy: 0.01, "kept under its own break character")
         XCTAssertEqual(top(mode: 15) { $0.spaceBefore = 18 }, bare, accuracy: 0.01, "page break before, the 2013 layout")
         XCTAssertEqual(top(mode: 14) { $0.spaceBefore = 18 }, bare + 18, accuracy: 0.01, "page break before, the layout before it")
+        XCTAssertEqual(top(mode: 14, after: 6) { $0.spaceBefore = 18 }, bare + 12, accuracy: 0.01, "less the space after that ended the page before")
+        XCTAssertEqual(top(mode: 14, after: 6) { $0.spaceBefore = 6 }, bare, accuracy: 0.01, "none of it where that is as much")
     }
 
     func testHiddenTextRoundTrip() throws {
