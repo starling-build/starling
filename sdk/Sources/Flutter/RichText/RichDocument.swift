@@ -914,6 +914,10 @@ public struct TableStyle: Hashable, Sendable {
     /// w:tblpPr, and w:tblOverlap after it): the editor lays the table
     /// out in the text's flow, and a save puts it back where it floated.
     public var keptPosition: String? = nil
+    /// How far below the text's place a floating table anchored to the
+    /// text stands (its w:tblpY under w:vertAnchor="text"), in points:
+    /// laid out in the flow, it starts that much lower.
+    public var floatOffsetY: Double? = nil
     /// The table's own `w:tblCellMar` when the editor's margins were
     /// taken from the cells instead (most of them stating a `w:tcMar`),
     /// with the margins that were current when it was read: written

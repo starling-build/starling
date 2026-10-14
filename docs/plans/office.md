@@ -2268,6 +2268,13 @@ fitter dropped the paragraph's tail).
   zh-64044a1d 34.2% -> 64.5% (101 pages), bug65649 6.0 -> 12.9;
   nothing down.
 
+- **A floating table anchored to the text stands its offset lower
+  (2026-10-14).** The editor lays a floating table out in the flow; one
+  anchored to the text (`w:vertAnchor="text"`) now starts its
+  `w:tblpY` below the text's place, in the flow and on the page.
+  zh-64044a1d's equipment list sat 4.35pt high. zh-e6d54ae4 52.1% ->
+  62.7%, zh-d68ac84a 76.6 -> 79.9, zh-64044a1d +0.6; nothing down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

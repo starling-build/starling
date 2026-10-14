@@ -1264,6 +1264,7 @@ public final class RichLayout {
             // The room a rule takes (`theme.tableRulesTakeRoom`): the
             // first row's top one, and every row's bottom one.
             let ts = document.tableStyles[table]
+            if theme.wordRules, let down = ts?.floatOffsetY { y += _px(down) }
             func rule(_ side: String, _ on: Bool?) -> Double {
                 // (Under Word's rules each cell carries its own row's
                 // rules in its margins — its own sides, the row above's,
@@ -2029,6 +2030,13 @@ public final class RichLayout {
                 break
             }
             if let c = _cells[i] {
+                // A floating table anchored to the text stands its offset
+                // below the text's place (zh-64044a1d's equipment list,
+                // 4.35pt under the line before it in Word's print).
+                if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
+                   let down = document.tableStyles[c.table]?.floatOffsetY {
+                    y += _px(down)
+                }
                 // A table row is one unbreakable block; every member gets the
                 // row's piece so its text paints on the row's page.
                 var j = i
