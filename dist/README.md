@@ -252,8 +252,9 @@ package, sharing nothing with it.
 `starling-office-0.1.0-macos-arm64.zip` — Starling Office for macOS, Apple
 silicon: Writer, Sheets and Slides in one `Starling Office.app`, the same suite
 as the Windows and Linux packages below. 27.9 MB, 216 entries, checksum in
-`SHA256SUMS`. Built from branch `office` at `534cfd92` — the Windows archive's
-`49f68ba8` plus the new icons, of which the bundle carries Writer's as its own
+`SHA256SUMS`. Built from branch `office` at `c2596b8c` — the commit of the
+Windows archive, with the badge in each app's title row its own icon — and of
+the three new icons the bundle carries Writer's as its own
 (`build/macos/Office.icns`, drawn from `build/office-gtk/starling-writer.svg`
 by `build/tools/svg-icns.sh`; one bundle has one icon, and Writer is what it
 opens to) — against the engine's `host_release_arm64`, which was rebuilt for this
@@ -270,8 +271,9 @@ workbook given as its argument opens in the right one, and `--slides` and
 macOS 26.6.2 VM made for the purpose (Tart, the `macos-tahoe-vanilla` image —
 no Xcode, no command line tools, no Swift). Its checksum was compared inside
 the guest, it was unzipped there, and `codesign --verify --deep --strict`
-passed. Writer, Sheets and Slides were each launched and stayed up, and the
-icon showed in the Finder and the Dock; with the build before the icon, a
+passed. Writer, Sheets and Slides were each launched and stayed up, each with
+its own badge in the title row, and the bundle's icon showed in the Finder and
+the Dock with the build before this one; with the build before the icon, a
 25-page .docx given as the argument opened in the window with its fonts. From the
 guest's command line the same binary printed that document to PDF, printed a
 48-slide deck to PDF and round-tripped it with every slide identical, and laid
