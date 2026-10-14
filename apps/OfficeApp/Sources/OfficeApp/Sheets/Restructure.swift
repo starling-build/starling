@@ -326,6 +326,31 @@ extension WorkbookController {
         return c
     }
 
+    /// The fill handle double-clicked: the selection filled down as far as
+    /// the column beside it (left, else right) has data, stopping above
+    /// anything already in the way — Excel's way of copying a formula down
+    /// a whole table. Returns false when there is nothing to go by.
+    @discardableResult
+    func autoFillDown() -> Bool {
+        let sel = selection
+        let ws = sheet
+        func filled(_ r: Int, _ c: Int) -> Bool {
+            c >= 0 && c < CellAddress.maxCols && !(ws.cells[CellAddress(row: r, col: c)]?.value.isEmpty ?? true)
+        }
+        let below = sel.bottom + 1
+        guard below < CellAddress.maxRows else { return false }
+        let guide = filled(below, sel.left - 1) ? sel.left - 1 : filled(below, sel.right + 1) ? sel.right + 1 : nil
+        guard let col = guide else { return false }
+        var last = sel.bottom
+        while last + 1 < CellAddress.maxRows, filled(last + 1, col),
+              !(sel.left ... sel.right).contains(where: { filled(last + 1, $0) }) {
+            last += 1
+        }
+        guard last > sel.bottom else { return false }
+        fillSeries(to: CellRange(top: sel.top, left: sel.left, bottom: last, right: sel.right))
+        return true
+    }
+
     /// The fill handle dragged from the selection to `target`: a series
     /// where the selection holds one (1, 2 → 3, 4; Jan → Feb; Item 1 →
     /// Item 2; dates by day), copies otherwise, formulas shifted.

@@ -152,6 +152,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// The last press on a header border (column or row, and which), for
     /// double-click autofit.
     private var _lastBorder: (axis: WorkbookController.Axis, index: Int, at: Double)? = nil
+    /// The last press on the fill handle (double-click fills down), and
+    /// where this one began: the fill follows the pointer only once it has
+    /// moved, since the handle's grip reaches past the selection's edge and
+    /// a click there used to fill the next cell over.
+    private var _lastFillPress: Double? = nil
+    private var _fillFrom: Offset? = nil
     let texts = _TextCache()
 
     private enum _Drag {
@@ -1209,6 +1215,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if edit == nil {
             let sel = rect(c.selection)
             if abs(p.dx - sel.right) <= 5 && abs(p.dy - sel.bottom) <= 5 {
+                let now = Date().timeIntervalSince1970
+                if let last = _lastFillPress, now - last < 0.4 {
+                    _lastFillPress = nil
+                    if !c.autoFillDown() { _w.onStatus("Nothing beside the selection to fill down along") }
+                    return
+                }
+                _lastFillPress = now
+                _fillFrom = p
                 _drag = .fill(target: c.selection)
                 return
             }
@@ -1414,6 +1428,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             c.sheet.rowHeights[row] = h / scale
             _repaint.notifyListeners()
         case .fill:
+            if let from = _fillFrom {
+                guard (p.dx - from.dx) * (p.dx - from.dx) + (p.dy - from.dy) * (p.dy - from.dy) >= 16 else { return }
+                _fillFrom = nil
+            }
             // Down/up or across, whichever the pointer has gone further in.
             let sel = c.selection
             let a = cell(atLocal: p)

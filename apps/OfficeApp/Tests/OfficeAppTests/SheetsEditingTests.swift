@@ -121,6 +121,21 @@ final class SheetsEditingTests: XCTestCase {
         XCTAssertEqual(c.input(a("F3")), "=A3")                   // a formula fills shifted
     }
 
+    func testFillHandleDoubleClickFillsAlongTheData() {
+        let c = book(["A1": "1", "A2": "2", "A3": "3", "A4": "4", "A6": "6", "B1": "=A1*10", "D1": "=C1+1", "D3": "x"])
+        c.select(a("B1"))
+        XCTAssertTrue(c.autoFillDown())
+        XCTAssertEqual(c.input(a("B4")), "=A4*10")              // down to A4, where A's run ends
+        XCTAssertEqual(c.sheet.value(a("B5")), .empty)
+        c.select(a("D1"))                                        // C is empty: nothing to go by
+        XCTAssertFalse(c.autoFillDown())
+        let e = book(["A1": "1", "A2": "2", "A3": "3", "A4": "4", "B1": "=A1", "B3": "kept"])
+        e.select(a("B1"))
+        XCTAssertTrue(e.autoFillDown())
+        XCTAssertEqual(e.input(a("B2")), "=A2")                  // stops above what is in the way
+        XCTAssertEqual(e.input(a("B3")), "kept")
+    }
+
     func testCopyAndCutPaste() {
         let c = book(["A1": "10", "A2": "=A1*2", "B5": "=A2+A1"])
         c.select(range: CellRange("A1:A2")!)
