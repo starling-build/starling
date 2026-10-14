@@ -197,3 +197,11 @@ zh-89385c94 from here.
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 Documents: zh-06c46ba9 (47%, Word's 72 pages).
 Known: page 5's body lines end two characters before Word's.
+Progress (Mac): mirrorIndents parity by `doNotFlipMirrorIndents`
+(5a7f5332), compound cell rules (this commit's sibling); page 5's
+figure is shapes with text in them that ours leaves out.
+
+Note for the Windows session: on the Mac, 2ffeece2 moved zh-9e08ed28
+from 56.7% to 47.4% (Word's 22 pages: 21 -> 23); the sweep that showed
+it held nothing else that touches that document.
+

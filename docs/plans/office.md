@@ -2339,6 +2339,15 @@ fitter dropped the paragraph's tail).
   The rule built earlier today was the second half alone.
   zh-06c46ba9 47.2% -> 48.6%; nothing down.
 
+- **A compound cell rule takes all of its room (2026-10-14).** A
+  thin line, a gap and a thick one take the width and the other two's:
+  Word prints zh-06c46ba9's 1.5pt `thinThickSmallGap` as a 0.72 line,
+  a 0.72 gap and a 1.44 line, and the table's row is 3pt taller than
+  ours was with the rule counted at 1.5. Small gaps add 1.5pt, medium
+  gaps double the width, large ones add 2.25 (the last two after
+  LibreOffice's table of Word's widths; only the small gap is in the
+  corpus). zh-06c46ba9 +0.4; nothing else has them.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

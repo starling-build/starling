@@ -2565,6 +2565,21 @@ public final class RichLayout {
     /// a character apart, this says which rule let it on.
     static let debugFit = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_FIT"]
 
+    /// The room a cell's rule of this style and width (points) takes:
+    /// a double line three widths; a thin line, a gap and a thick one
+    /// the width and the other two's — Word's print of zh-06c46ba9's
+    /// "thinThickSmallGap" at 1.5pt is a 0.72 line, a 0.72 gap and a
+    /// 1.44 line, 2.88 in all, and its rows are that much taller.
+    static func _ruleRoom(_ style: String?, _ width: Double) -> Double {
+        switch style {
+        case "double": return width * 3
+        case "thinThickSmallGap", "thickThinSmallGap": return width + 1.5
+        case "thinThickMediumGap", "thickThinMediumGap": return width * 2
+        case "thinThickLargeGap", "thickThinLargeGap": return width + 2.25
+        default: return width
+        }
+    }
+
     public var isPaged: Bool { pageSetup != nil }
     /// `_pages` holds one entry per column slot; a page has `columns` of them.
     public var pageCount: Int { isPaged ? max(1, (_pages.count + _columns - 1) / _columns) : 1 }
@@ -2881,7 +2896,7 @@ public final class RichLayout {
                     let tableSide = (side == "top" ? d.row > 0 : end < rows) ? "insideH" : side
                     let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
                     let width = said?.width ?? d.borderWidth ?? ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
-                    return _px(width * (style == "double" ? 3 : 1))
+                    return _px(Self._ruleRoom(style, width))
                 }
                 var below = 0.0
                 var top = rule(c, "top")
