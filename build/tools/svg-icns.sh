@@ -7,8 +7,11 @@
 # packs them. macOS only.
 #
 #   build/tools/svg-icns.sh build/office-gtk/starling-writer.svg build/macos/Office.icns
+#   build/tools/svg-icns.sh --png 180 IN.svg OUT.png     # one PNG, that many pixels square
 set -euo pipefail
-[ $# -eq 2 ] || { sed -n '2,10p' "$0"; exit 2; }
+PNG=""
+if [ "${1:-}" = --png ]; then PNG="$2"; shift 2; fi
+[ $# -eq 2 ] || { sed -n '2,11p' "$0"; exit 2; }
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 cat > "$TMP/draw.swift" <<'SWIFT'
 import AppKit
@@ -26,6 +29,7 @@ NSGraphicsContext.restoreGraphicsState()
 try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: a[2]))
 SWIFT
 swiftc -O -o "$TMP/draw" "$TMP/draw.swift" 2>/dev/null
+if [ -n "$PNG" ]; then "$TMP/draw" "$1" "$2" "$PNG"; exit 0; fi
 SET="$TMP/icon.iconset"; mkdir "$SET"
 for s in 16 32 128 256 512; do
     "$TMP/draw" "$1" "$SET/icon_${s}x${s}.png" "$s"

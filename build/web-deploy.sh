@@ -105,6 +105,16 @@ if [ "$APP" = OfficeApp ]; then
     esac
     if [ -n "$OFFICE_START" ]; then
         python3 "$REPO_ROOT/build/tools/office-web-start.py" "$WORK/site" "$OFFICE_START"
+        # The tab's icon: this app's own of the three (build/office-gtk),
+        # as the SVG for browsers that take one and a PNG for the rest
+        # and for a home-screen bookmark. The pages had none.
+        ICON="$REPO_ROOT/build/office-gtk/starling-$OFFICE_START.svg"
+        cp "$ICON" "$WORK/site/icon.svg"
+        "$REPO_ROOT/build/tools/svg-icns.sh" --png 180 "$ICON" "$WORK/site/icon-180.png"
+        sed -i '' 's|</title>|</title>\
+<link rel="icon" type="image/svg+xml" href="icon.svg">\
+<link rel="apple-touch-icon" href="icon-180.png">|' "$WORK/site/index.html"
+        grep -q 'rel="icon"' "$WORK/site/index.html" || { echo "error: index.html has no </title> to put the icon after" >&2; exit 1; }
     fi
 fi
 if [ -n "$HOST" ]; then echo "$HOST" > "$WORK/site/CNAME"; fi
