@@ -796,6 +796,24 @@ letting its height go to INF. That rule was read as "take the rest of
 the column", and an empty body ran to the bottom of the frame. It is
 leave to grow for the text; a size the constraints set is kept.
 
+**Org charts packed by their outlines, 2026-10-14** (sweep 48: 1.97 →
+1.93%; lo-smartart-org-chart 12.56 → 2.11, org-chart2 7.78 → 3.02,
+data-follow 6.16 → 0.67; nothing else moved). PowerPoint's boxes were
+166 × 83 where ours were 140 × 70, the same chart scaled less: its
+second manager, with no one under it, stands one gap beside the first
+manager's box — over the first one's staff — where ours stood past the
+whole of the first one's subtree, and the wider tree was scaled down
+more to fit. A hierarchy's siblings now come in as far as a gap from
+the shapes already placed at the heights they have shapes at
+(`layoutHierChild`, `shapeRects`).
+
+With it (sweep 49): **a box sized in font sizes and squeezed by the
+room it was given also counts as not fitting**, so the text shrinks.
+A box directly in a row is clipped to its slot, so the overflow never
+showed in the frame test (linear-rule-vert 4.38 → 4.01). Two tests:
+`testASiblingPacksAgainstTheOutlineNotTheBoundingBox`,
+`testFontSizedBoxesAreMillimetresAndShrinkToFit`.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

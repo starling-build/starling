@@ -195,6 +195,59 @@ final class DiagramTests: XCTestCase {
         XCTAssertLessThanOrEqual(b.map { $0.x + $0.w }.max() ?? 1000, 400.5)
     }
 
+    /// A second root with nothing under it stands one gap beside the first
+    /// root's box, over the first root's children — not past them
+    /// (lo-smartart-org-chart, as PowerPoint draws it).
+    func testASiblingPacksAgainstTheOutlineNotTheBoundingBox() throws {
+        let def = layout("""
+        <dgm:layoutNode name="hierChild1"><dgm:varLst><dgm:orgChart val="1"/><dgm:dir/></dgm:varLst>
+          <dgm:alg type="hierChild"/><dgm:shape/><dgm:presOf/>
+          <dgm:constrLst><dgm:constr type="w" for="des" forName="rootComposite" refType="w" fact="10"/><dgm:constr type="h" for="des" forName="rootComposite" refType="w" refFor="des" refForName="rootComposite" fact="0.5"/><dgm:constr type="sp" for="des" forName="hierRoot" refType="w" refFor="des" refForName="rootComposite" fact="0.2"/><dgm:constr type="sibSp" for="des" forName="hierChild2" refType="w" refFor="des" refForName="rootComposite" fact="0.2"/><dgm:constr type="sibSp" refType="w" refFor="des" refForName="rootComposite" fact="0.2"/></dgm:constrLst>
+          <dgm:forEach name="top" axis="ch" ptType="node"><dgm:forEach name="r" axis="self" ptType="node">
+            <dgm:layoutNode name="hierRoot"><dgm:alg type="hierRoot"/><dgm:shape/><dgm:presOf/>
+              <dgm:layoutNode name="rootComposite"><dgm:alg type="composite"/><dgm:shape/><dgm:presOf axis="self" ptType="node" cnt="1"/>
+                <dgm:constrLst><dgm:constr type="l" for="ch" forName="rootText"/><dgm:constr type="t" for="ch" forName="rootText"/><dgm:constr type="w" for="ch" forName="rootText" refType="w"/><dgm:constr type="h" for="ch" forName="rootText" refType="h"/></dgm:constrLst>
+                <dgm:layoutNode name="rootText"><dgm:alg type="tx"/><dgm:shape type="rect"/><dgm:presOf axis="self" ptType="node" cnt="1"/><dgm:constrLst/></dgm:layoutNode>
+              </dgm:layoutNode>
+              <dgm:layoutNode name="hierChild2"><dgm:alg type="hierChild"/><dgm:shape/><dgm:presOf/>
+                <dgm:forEach name="rep" axis="ch" ptType="nonAsst"><dgm:forEach name="again" ref="r"/></dgm:forEach>
+              </dgm:layoutNode>
+            </dgm:layoutNode>
+          </dgm:forEach></dgm:forEach>
+        </dgm:layoutNode>
+        """)
+        let tree = DiagramLayout.render(data: data(["A", ["B1", "B2"], "C"]), layout: def, colors: nil, style: nil,
+                                        frame: Rect.fromLTWH(0, 0, 600, 300))
+        let t = boxes(tree).filter { $0.prst == "rect" }
+        XCTAssertEqual(t.map(\.text), ["A", "B1", "B2", "C"])
+        guard t.count == 4 else { return }
+        let a = t[0], b2 = t[2], c = t[3]
+        XCTAssertEqual(c.y, a.y, accuracy: 0.01, "C on A's row")
+        XCTAssertEqual(c.x - (a.x + a.w), 0.2 * a.w, accuracy: 0.5, "one gap beside A's box")
+        XCTAssertLessThan(c.x, b2.x + b2.w, "over A's children, not past them")
+    }
+
+    /// A height given in font sizes is millimetres, and a layout that may
+    /// shrink its text does, to the largest whole size whose boxes fit:
+    /// 2 × 65 mm is 368.5 pt, too tall for 200; 2 × 35 mm, 198.4, fits.
+    func testFontSizedBoxesAreMillimetresAndShrinkToFit() throws {
+        let def = layout("""
+        <dgm:layoutNode name="row"><dgm:alg type="lin"/><dgm:shape/><dgm:presOf/>
+          <dgm:constrLst><dgm:constr type="w" for="ch" forName="node" refType="w" fact="0.3"/><dgm:constr type="primFontSz" for="ch" forName="node" val="65"/><dgm:constr type="h" for="ch" forName="node" refType="primFontSz" refFor="ch" refForName="node" fact="2"/></dgm:constrLst>
+          <dgm:ruleLst><dgm:rule type="primFontSz" for="ch" forName="node" val="5" fact="NaN" max="NaN"/></dgm:ruleLst>
+          <dgm:forEach name="n" axis="ch" ptType="node">
+            <dgm:layoutNode name="node"><dgm:alg type="tx"/><dgm:shape type="rect"/><dgm:presOf axis="desOrSelf" ptType="node"/><dgm:constrLst/></dgm:layoutNode>
+          </dgm:forEach>
+        </dgm:layoutNode>
+        """)
+        let tree = DiagramLayout.render(data: data(["a"]), layout: def, colors: nil, style: nil,
+                                        frame: Rect.fromLTWH(0, 0, 600, 200))
+        let b = try XCTUnwrap(boxes(tree).first)
+        XCTAssertEqual(b.h, 2 * 35 * 72 / 25.4, accuracy: 0.1)
+        XCTAssertEqual(b.w, 180, accuracy: 0.1, "the width its constraint gives, not scaled down")
+        XCTAssertEqual(tree?.all("p:sp").first?.descendant("a:rPr")?["sz"], "3500")
+    }
+
     /// The style label's colours: a scheme colour per shape, repeating.
     func testTheColourSchemeFillsTheShapes() throws {
         let def = layout("""

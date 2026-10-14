@@ -147,6 +147,9 @@ final class DgmPresNode {
     /// Sizes the node's own constraints set (not its parent's preference
     /// for it), which shrink the slot it was given.
     var selfSet: Set<String> = []
+    /// Its `w`/`h` given in font sizes: a box that came out smaller than
+    /// that was squeezed, and the layout's text should shrink instead.
+    var fontSized: Set<String> = []
     /// The node a size was taken from (a space 0.14 as wide as its
     /// neighbour follows the neighbour when that shrinks).
     var sizeRef: [String: String] = [:]
@@ -253,6 +256,18 @@ struct DiagramLayout {
             return (engine, root)
         }
         func fits(_ root: DgmPresNode) -> Bool {
+            // Nothing outside the frame, and no box sized in font sizes
+            // squeezed smaller than that by the room it was given.
+            func squeezed(_ n: DgmPresNode) -> Bool {
+                if n.shapeType != nil, !n.hideGeom {
+                    // (The size asked for: once laid out, `value` is the slot.)
+                    func asked(_ d: String) -> Double? { n.vals[d].map { min($0, n.caps[d] ?? .infinity) } }
+                    if n.fontSized.contains("h"), let h = asked("h"), n.rect.height < h - 0.5 { return true }
+                    if n.fontSized.contains("w"), let w = asked("w"), n.rect.width < w - 0.5 { return true }
+                }
+                return n.children.contains(where: squeezed)
+            }
+            if squeezed(root) { return false }
             guard let u = first.union(of: root.children) else { return true }
             return u.width <= box.width + 0.5 && u.height <= box.height + 0.5
         }
@@ -579,7 +594,10 @@ struct DiagramLayout {
                     // (lo-smartart-linear-rule). Read as points, every such
                     // box was 2.8 times too small and its text shrunk into it.
                     // (A margin is not: desTx's 0.3 of 65 pt is 19.5 pt in.)
-                    if refType.hasSuffix("FontSz"), Self.lengths.contains(type) { base *= 72 / 25.4 }
+                    if refType.hasSuffix("FontSz"), Self.lengths.contains(type) {
+                        base *= 72 / 25.4
+                        if op == "equ", type == "w" || type == "h" { t.fontSized.insert(type) }
+                    }
                     set(t, type, base * fact, op)
                     if t === node, op == "equ" { t.selfSet.insert(type) }
                     if ref !== t, op == "equ" { t.sizeRef[type] = ref.name }
@@ -1113,6 +1131,25 @@ struct DiagramLayout {
             layoutNode(c)
             let box = extent(of: [c]) ?? c.rect
             if box.width > 0 { c.rect = box }
+            if horizontal, !blocks.isEmpty {
+                // Side by side by their outlines, not their bounding boxes:
+                // a sibling comes in as far as a gap from the shapes
+                // already placed at the heights it has shapes at. An org
+                // chart's second manager, with no one under it, stands
+                // beside the first, over the first one's staff
+                // (lo-smartart-org-chart, as PowerPoint draws it).
+                let placed = blocks.flatMap(shapeRects), mine = shapeRects(c)
+                var need = -Double.infinity
+                for m in mine {
+                    for q in placed where m.top < q.bottom - 0.01 && q.top < m.bottom - 0.01 {
+                        need = max(need, q.right + gap - m.left)
+                    }
+                }
+                if need.isFinite, need < 0 {
+                    shift(c, Offset(need, 0))
+                    c.rect = extent(of: [c]) ?? c.rect
+                }
+            }
             cursor = (horizontal ? c.rect.right : c.rect.bottom) + gap
             blocks.append(c)
         }
@@ -1121,6 +1158,16 @@ struct DiagramLayout {
             // Mirrored order: the first child on the right.
             for b in blocks { shift(b, Offset(2 * (u.center.dx - b.rect.center.dx), 0)) }
         }
+    }
+
+    /// The boxes of the shapes drawn under `node` (itself included).
+    private func shapeRects(_ node: DgmPresNode) -> [Rect] {
+        var out: [Rect] = []
+        if node.shapeType != nil, !node.hideGeom, !node.isConnector, node.rect.width > 0, node.rect.height > 0 {
+            out.append(node.rect)
+        }
+        for c in node.children { out += shapeRects(c) }
+        return out
     }
 
     private func shift(_ node: DgmPresNode, _ d: Offset) {
