@@ -4348,7 +4348,15 @@ public final class RichLayout {
                     // 2026-10-13, left and justified, with and without
                     // kerning, cell margins and nine compatibility
                     // switches, none of which moved it.)
-                    let kept = hang > 0 || (legacy && inCell && !document.marksSitLeft && Self._hangingUnits.contains(units[tail]))
+                    // (… except the paragraph's own last mark, which gives
+                    // its half there too: lab `pe`, zh-89385c94's package,
+                    // Word for Windows — eight ideographs and a comma, a
+                    // full stop, a bracket, a quote, 、 or ； are taken up
+                    // to 7.0pt over at 14pt and not at 7.5 where they end
+                    // the paragraph, and not even 0.55 over where text
+                    // follows. Its cells end "納入課程教學參據。" so.)
+                    let endsParagraph = !units[(tail + 1)...].contains(where: { !isSpace($0) && $0 != 0x0A && $0 != 0x2028 })
+                    let kept = hang > 0 || (legacy && inCell && !document.marksSitLeft && Self._hangingUnits.contains(units[tail]) && !endsParagraph)
                     let all = (marks + own).filter { !kept || $0 != tail }
                     let given = legacy ? spaces + ownSpaces : []
                     // (A curly quote in a Latin face is as wide as it is.)
