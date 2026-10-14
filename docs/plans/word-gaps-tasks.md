@@ -108,6 +108,12 @@ Known: break-led headings came out at three different heights — likely
 the T4 rule (re-check after it); in
 zh-1a3c7aa0 the second (landscape) section starts pages earlier than in
 Word, and the odd-page footer stands 8pt lower than Word's.
+Progress (Windows box): zh-6d1afa56 16% -> 97.9% (line-opening marks,
+merged cells over a page foot, the blank page after an over-full page,
+with T4's rule); zh-1a3c7aa0 10% -> 29% (YaHei fallback, its footer's
+height, the odd/even blank page, the section mark's own page). Still
+open in zh-1a3c7aa0: from page 13 the annex tables run long (93 pages
+to Word's 90); even pages' "- 10 -" prints as "-10" in Word (its box).
 
 ### T6. Body pictures on the line grid — DONE (2026-10-14)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb
