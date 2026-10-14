@@ -1196,6 +1196,7 @@ public enum RichListNumbering {
     public static func labels(_ document: RichDocument) -> [String?] {
         var out: [String?] = Array(repeating: nil, count: document.paragraphs.count)
         var counters: [String: [Int]] = [:]
+        var restarted = Set<String>()
         let anonymous = ""
         for (i, p) in document.paragraphs.enumerated() {
             let s = p.style
@@ -1210,8 +1211,12 @@ public enum RichListNumbering {
                 if s.listId == nil { counters[anonymous] = nil }
                 continue
             }
-            let key = s.listId ?? anonymous
+            let key = s.listId.map { document.listCounterOf[$0] ?? $0 } ?? anonymous
             var c = counters[key] ?? Array(repeating: 0, count: 9)
+            if let id = s.listId, let start = document.listRestarts[id]?[lvl], !restarted.contains("\(id)|\(lvl)") {
+                restarted.insert("\(id)|\(lvl)")
+                c[lvl] = start - 1
+            }
             c[lvl] += 1
             for deeper in (lvl + 1) ..< 9 { c[deeper] = 0 }
             counters[key] = c
@@ -1707,6 +1712,15 @@ public struct RichDocument: Hashable, Sendable {
     /// Per list id, the label format of each level (Word's lvlText and
     /// numFmt); a level without one is "%n." in decimal.
     public var listFormats: [String: [Int: ListLevelFormat]] = [:]
+    /// Per list id, the counter it numbers on when that is not its own:
+    /// Word's lists that share one w:abstractNum share its numbers, so a
+    /// heading style's list and the explicit lists over the same
+    /// definition count as one (zh-64044a1d's 二、 after a restart in
+    /// another list, not 五、). Absent for the editor's own lists.
+    public var listCounterOf: [String: String] = [:]
+    /// Per list id, the levels it restarts the first time it is used, at
+    /// these numbers (Word's w:lvlOverride/w:startOverride).
+    public var listRestarts: [String: [Int: Int]] = [:]
     /// Parts of the file the editor does not model but a save must keep —
     /// Word's footnotes and endnotes, with their rels and what those
     /// reach — by package path. The body refers into them (`NoteReference`);

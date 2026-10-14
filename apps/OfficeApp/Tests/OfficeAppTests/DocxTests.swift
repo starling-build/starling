@@ -1788,6 +1788,25 @@ final class DocxTests: XCTestCase {
         XCTAssertNil(back.paragraphs[0].style.named)
     }
 
+    func testListsOverOneDefinitionShareTheirNumbers() throws {
+        // zh-64044a1d: heading 3 numbers through its style's list 3, an
+        // explicit list 33 over the same definition restarts at 一, and the
+        // next style-numbered heading reads 二 in Word, not 三.
+        func item(_ t: String, _ id: String) -> RichParagraph {
+            var p = RichParagraph(text: t); p.style.list = .numbered; p.style.listId = id; return p
+        }
+        var doc = RichDocument(paragraphs: [item("a", "3"), item("b", "3"), item("c", "33"), item("d", "3")])
+        doc.listCounterOf = ["3": "abstract:23", "33": "abstract:23"]
+        doc.listRestarts = ["33": [0: 1]]
+        XCTAssertEqual(RichListNumbering.labels(doc), ["1.", "2.", "1.", "2."])
+        // Without the shared definition each list counts alone.
+        var apart = doc; apart.listCounterOf = [:]; apart.listRestarts = [:]
+        XCTAssertEqual(RichListNumbering.labels(apart), ["1.", "2.", "1.", "3."])
+        // And a save keeps them one list in the file.
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "1.", "2."])
+    }
+
     func testDocxWrittenByWord() throws {
         // A real Microsoft Word document: BoringCrypto's FIPS security
         // policy (Google; "may be freely reproduced and distributed in its

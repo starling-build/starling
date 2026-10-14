@@ -5359,6 +5359,8 @@ public final class RichLayout {
         var sub = RichDocument(paragraphs: box.paragraphs)
         sub.styles = document.styles
         sub.listFormats = document.listFormats
+        sub.listCounterOf = document.listCounterOf
+        sub.listRestarts = document.listRestarts
         sub.usesEastAsianLayout = document.usesEastAsianLayout
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
@@ -5630,6 +5632,8 @@ public final class RichLayout {
         var sub = RichDocument(paragraphs: paragraphs)
         sub.styles = document.styles
         sub.listFormats = document.listFormats
+        sub.listCounterOf = document.listCounterOf
+        sub.listRestarts = document.listRestarts
         sub.tableColumns = document.tableColumns
         sub.tableStyles = document.tableStyles
         sub.lineGridPitch = section.last ? document.lineGridPitch : setup.lineGridPitch

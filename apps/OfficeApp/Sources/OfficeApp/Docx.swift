@@ -615,6 +615,8 @@ enum DocxFormat {
         // level's label format, which the document keeps per list id.
         var kindByNum: [String: [Int: ListKind]] = [:]
         var listFormats: [String: [Int: ListLevelFormat]] = [:]
+        var listCounterOf: [String: String] = [:]
+        var listRestarts: [String: [Int: Int]] = [:]
         if let numData = part("word/numbering.xml"), let numbering = XNode.parse(numData) {
             var abstract: [String: [Int: ListKind]] = [:]
             var abstractFormats: [String: [Int: ListLevelFormat]] = [:]
@@ -700,6 +702,13 @@ enum DocxFormat {
                 }
                 kindByNum[id] = levels
                 listFormats[id] = formats
+                // Lists over one definition share its numbers; a list's
+                // startOverride restarts a level the first time it is used.
+                listCounterOf[id] = "abstract:" + aid
+                for ov in n.all("w:lvlOverride") {
+                    guard let v = Int(ov.first("w:startOverride")?["w:val"] ?? "") else { continue }
+                    listRestarts[id, default: [:]][Int(ov["w:ilvl"] ?? "0") ?? 0] = v
+                }
             }
         }
 
@@ -1231,6 +1240,8 @@ enum DocxFormat {
         document.readFromFile = true
         document.fileFonts = _declaredFonts(docData).union(_declaredFonts(part("word/styles.xml")))
         document.listFormats = listFormats
+        document.listCounterOf = listCounterOf
+        document.listRestarts = listRestarts
         if let bg = root.first("w:background"), let frag = _keptFragment(bg, notes) {
             document.backgroundXML = frag.xml
             document.backgroundRels = frag.rels
@@ -3496,7 +3507,9 @@ enum DocxFormat {
             ZipEntry(name: "word/styles.xml", data: Data(_stylesPart(doc.styles, notes: !doc.keptParts.isEmpty, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
                                                                          characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds)
                 .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>").utf8)),
-            ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId).utf8)),
+            ZipEntry(name: "word/numbering.xml", data: Data(_numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId,
+                                                                                         counterOf: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listCounterOf[k].map { (v, $0) } }),
+                                                                                         restarts: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listRestarts[k].map { (v, $0) } })).utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
         ] + media + extraParts
         return try Zip.write(entries)
@@ -3730,7 +3743,8 @@ enum DocxFormat {
     /// decimal (numId 2), then one abstract per list the document has,
     /// carrying its level formats.
     private static func _numberingPart(_ kinds: [Int: ListKind], _ formats: [Int: [Int: ListLevelFormat]],
-                                       bulletId: Int, decimalId: Int) -> String {
+                                       bulletId: Int, decimalId: Int,
+                                       counterOf: [Int: String] = [:], restarts: [Int: [Int: Int]] = [:]) -> String {
         var bulletLevels = ""
         var decimalLevels = ""
         let bullets = ["\u{2022}", "o", "\u{25AA}"]
@@ -3742,10 +3756,16 @@ enum DocxFormat {
         }
         var extraAbstract = ""
         var extraNums = ""
+        // Lists the file had share one definition when they shared one
+        // there, so they still count as one list in Word; the first such
+        // list's levels are the definition, and another's differing level
+        // is an override of its own.
+        var leaderOf: [String: Int] = [:]
+        var leaderLevels: [Int: [String]] = [:]
         for numId in kinds.keys.sorted() where numId != bulletId && numId != decimalId {
-            let abstractId = numId + 1
-            var levels = ""
+            var lvls: [String] = []
             for i in 0 ..< 9 {
+                var levels = ""
                 let own = formats[numId]?[i]
                 let left = own?.indentLeft.map { Int(($0 * 20).rounded()) } ?? 720 * (i + 1)
                 let hang = own?.hanging.map { Int(($0 * 20).rounded()) } ?? 360
@@ -3769,9 +3789,23 @@ enum DocxFormat {
                     }
                     levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"\(f.start ?? 1)\"/><w:numFmt w:val=\"\(_esc(f.rawFormat ?? fmt))\"/>\(suff)<w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"\(_esc(f.justification ?? "left"))\"/><w:pPr>\(ind)</w:pPr>\(numRPr)</w:lvl>"
                 }
+                lvls.append(levels)
             }
-            extraAbstract += "<w:abstractNum w:abstractNumId=\"\(abstractId)\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(levels)</w:abstractNum>"
-            extraNums += "<w:num w:numId=\"\(numId)\"><w:abstractNumId w:val=\"\(abstractId)\"/></w:num>"
+            var leader = numId
+            if let key = counterOf[numId] {
+                if let l = leaderOf[key] { leader = l } else { leaderOf[key] = numId }
+            }
+            var overrides = ""
+            if leader == numId {
+                leaderLevels[numId] = lvls
+                extraAbstract += "<w:abstractNum w:abstractNumId=\"\(numId + 1)\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(lvls.joined())</w:abstractNum>"
+            }
+            for i in 0 ..< 9 {
+                let restart = restarts[numId]?[i].map { "<w:startOverride w:val=\"\($0)\"/>" } ?? ""
+                let own = leader != numId && leaderLevels[leader]?[i] != lvls[i] ? lvls[i] : ""
+                if !restart.isEmpty || !own.isEmpty { overrides += "<w:lvlOverride w:ilvl=\"\(i)\">\(restart)\(own)</w:lvlOverride>" }
+            }
+            extraNums += "<w:num w:numId=\"\(numId)\"><w:abstractNumId w:val=\"\(leader + 1)\"/>\(overrides)</w:num>"
         }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15\"><w:abstractNum w:abstractNumId=\"0\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(bulletLevels)</w:abstractNum><w:abstractNum w:abstractNumId=\"1\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(decimalLevels)</w:abstractNum>\(extraAbstract)<w:num w:numId=\"\(bulletId)\"><w:abstractNumId w:val=\"0\"/></w:num><w:num w:numId=\"\(decimalId)\"><w:abstractNumId w:val=\"1\"/></w:num>\(extraNums)</w:numbering>"
     }

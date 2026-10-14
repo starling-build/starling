@@ -2195,6 +2195,16 @@ fitter dropped the paragraph's tail).
   "(三) 災害…" at the stop, the line then holding "前" that ours carried
   down. form_footnotes 21.8% -> 46.0%, zh-64044a1d +0.3; nothing down.
 
+- **Lists over one definition share their numbers (2026-10-14).**
+  Word counts per `w:abstractNum`, not per `w:numId`: a heading style's
+  list and the explicit lists over the same definition number as one,
+  and a list's `w:startOverride` restarts its level the first time that
+  list is used. zh-64044a1d's heading 3 read 五、 where Word reads 二、
+  (list 33 restarts the shared count at 一, the style's list 3 goes on
+  from there). The writer keeps the sharing: lists that shared a
+  definition point at one, with their restarts and any differing level
+  as overrides. NumberingWOver 57.1% -> 100%; nothing down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
