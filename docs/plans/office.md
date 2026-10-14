@@ -1902,6 +1902,21 @@ fitter dropped the paragraph's tail).
   lie where Word's do, to 0.1pt. zh-a0e932c2 15.2% -> 22.7%; nothing
   else moved.
 
+- **A picture's line in a table cell keeps to the line grid
+  (2026-10-14).** zh-9c5d0c3f's road signs are 75pt pictures in cells
+  on an 18pt line grid; Word sets each picture's line at 90pt, the
+  extra above the picture, and the captions under them land within
+  0.3pt of Word's now (rows had been 15pt short, pictures 10pt high).
+  A picture paragraph is drawn from its line's ink top for that. Not
+  outside tables: zh-90e0cea8's 25pt picture in the body stays in
+  25.8pt at a page's foot in Word, where a snapped 31.2 went over —
+  yet snapping body pictures too took zh-e5709b89 from 91.1% to 96.8%,
+  so Word does snap some of them; not understood, left out. Also seen
+  and left: zh-a0e932c2's second section is three unequal columns
+  filled by column breaks with a one-column section after it on the
+  same page, and the layout has one column count for the document
+  (`pageSetup.columns`).
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

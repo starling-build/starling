@@ -2984,6 +2984,24 @@ public final class RichLayout {
         } else {
             _imageSize[i] = nil
         }
+        // A line holding a picture in a table cell keeps to the line grid
+        // too: as many whole pitches as it needs, the rest above the
+        // picture. (The engine sets no strut on such a line, so nothing
+        // snapped it: zh-9c5d0c3f's road signs, 75pt in a line of 90 on
+        // an 18pt grid, stood 10pt high in rows 15pt short. Outside a
+        // table Word leaves such a line as it is: zh-90e0cea8's 25pt
+        // picture stays in the 25.8pt left at a page's foot, where a
+        // snapped line of 31.2 went over.)
+        let inLine = p.image.map { $0.float == nil } ?? (p.inlineImages.values.contains { $0.float == nil } && painter.computeLineMetrics().count == 1)
+        if theme.wordRules, inLine, p.cell != nil, style.lineHeightPoints == nil,
+           style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch, pitch > 0 {
+            let px = _px(pitch)
+            let snapped = (bodyHeight / px - 0.002).rounded(.up) * px
+            if snapped > bodyHeight + 0.01 {
+                _inkShift[i] += snapped - bodyHeight
+                bodyHeight = snapped
+            }
+        }
         _heights[i] = (before + push + bodyHeight + after).rounded(.up)
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.
@@ -4318,7 +4336,8 @@ public final class RichLayout {
         if theme.wordRules, i < _floats.count, let float = _floats[i], !float.takesRoom, i < _floatImages.count, let image = _floatImages[i] {
             return _floatRect(float, image, g, i)
         }
-        return Rect.fromLTWH(g.textLeft, g.textTop, size.width, size.height)
+        // (Lower by its line's grid extra, `_layoutParagraph`.)
+        return Rect.fromLTWH(g.textLeft, g.inkTop, size.width, size.height)
     }
 
     // MARK: Geometry queries (call ensureLaidOut first)
