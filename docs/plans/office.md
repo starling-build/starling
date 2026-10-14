@@ -2166,6 +2166,40 @@ fitter dropped the paragraph's tail).
   hang at all (it needs the whole 36, and 31.2 of a 14pt one), where
   the Mac lab `gf` had it hang like one with text.
 
+- **A paragraph of one floating object alone is as tall as its mark's
+  line (2026-10-14).** zh-1a3c7aa0's footer holds its page number in
+  a text box, anchored in a 9pt run of an otherwise empty paragraph
+  whose mark is 14pt. Lab from the document's own package (Word for
+  Windows, whose Calibri and SimSun are the Mac's: its print put the
+  number at 88.4pt to the Mac's 88.3): the box's text stands 8.4pt
+  higher with the 14pt mark than with a 9pt one, and level with a 9pt
+  line once the paragraph has a letter of its own. The box hangs from
+  the line's top. The mark's look counted for several floating
+  objects and now does for one; the footers stand at Word's height.
+  The same labs confirmed the reader's rule for a styles part with no
+  `w:pPrDefault` (Word spaces it 8pt after, lines of 278/240, exactly).
+
+- **Under odd and even headers, a section numbered afresh opens on its
+  number's side (2026-10-14).** Lab `sec`, from the same package: with
+  `w:evenAndOddHeaders`, after page "1" a section restarting at 1
+  opens on the third page, the second left blank — no header, footer
+  or number; after "2" it opens next. After "3" a section from 1 opens
+  a page later, one numbered on or from 2 does not; after a page "2"
+  (section 1 numbered from 2) a section from 1 follows directly. So it
+  goes by the numbers: a first number of the page before's parity
+  leaves a blank page between. Without the setting, none.
+  `RichLayout._blankPages`. zh-799c91cd 43.2% -> 82.8% (Word's 13
+  pages, its page 8 blank). Built in c736c496 together with the rule
+  above (a split of the commit that went wrong); the two together took
+  the sample on Windows from 83.5% to 84.1%, nothing down.
+
+  Still open for zh-1a3c7aa0: a page break that ends a section ("[break]"
+  and the section's mark in one paragraph) keeps the mark on the page it
+  ends only where one line of the paragraph fits there; else the mark
+  takes a page of the old section (Word's page 11) — lab `lb`: in modes
+  12 and 15 the threshold moves with the room left and not with the
+  paragraph's space after.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
