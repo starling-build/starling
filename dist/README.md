@@ -294,19 +294,27 @@ recovery copy brings the work back on the next launch; ⌘W does nothing.
 
 `starling-office-0.1.0-windows-x86_64.zip` — Starling Office for Windows,
 x86_64: Writer, Sheets and Slides in one `OfficeApp.exe`, the same suite as
-the Linux packages below. 59.5 MB, 84 entries, checksum in `SHA256SUMS`.
-Built from branch `office` at `49f68ba8` — the Linux packages' `29defa16`
-plus one fix (F5 starts the slide show from wherever the keyboard is) —
-against this box's `host_release` engine (starling-engine checked out on
+the Linux packages below. 58.4 MB, 84 entries, checksum in `SHA256SUMS`.
+Built from branch `office` at `6ee67645` — the Linux packages' `29defa16`
+plus one fix (F5 starts the slide show from wherever the keyboard is) and the
+icon — against this box's `host_release` engine (starling-engine checked out on
 `starling` at `4ca0d35c`; the engine was not rebuilt for this), and staged by
-`sdk/tools/stage-windows.ps1 -Zip`, the single definition of the Windows
-layout: the exe beside its 35 DLLs (the Swift runtime, the Visual C++
+`sdk/tools/stage-windows.ps1 -Icon build\win\Office.ico -Zip`, the single
+definition of the Windows layout: the exe beside its 35 DLLs (the Swift runtime, the Visual C++
 runtime, the two engine libraries), the engine's `data/`, and the font and
 icon bundles. It extracts flat: unzip it into a folder of its own and run
 `OfficeApp.exe`. A document, deck or workbook given as its argument (or
 dropped on the exe) opens in the right app; `--slides` and `--sheets` start in
 those. Nothing is installed or registered, so double-clicking a `.docx` will
 not find it.
+
+**It has the suite's icon** — Writer's, from the new set, as the macOS bundle
+chose: on the file in Explorer, in the title bar and on the taskbar button.
+`build/win/Office.ico` is `build/office-gtk/starling-writer.svg` through
+`build/tools/svg-ico.py`, and staging writes it into the exe, since SwiftPM
+gives a Windows exe no icon at build time. That write drops the linker's COFF
+symbol table from the staged exe (7.7 MB; nothing loads from it), which is
+why this archive is a megabyte smaller than the one it replaces.
 
 **This exact archive was driven on a machine that had never seen a
 toolchain**: a Windows 11 Pro 26200 VM under Hyper-V, made for the purpose
@@ -317,7 +325,8 @@ typed into, typed into again after Backstage had been opened and closed, and
 saved; Slides was given a title and notes, its show started with F5 from the
 notes box, a slide added, and saved; Sheets summed two cells and was saved;
 each switch between the three went through the unsaved-changes question, and
-the window's close asked and then closed. The three saved files were brought
+the window's close asked and then closed. The icon was in the title bar and
+on the taskbar button there. The three saved files were brought
 back and read: the typed text, a two-slide deck with its notes, and the
 formula with its value. No crash event in the guest's log.
 
