@@ -927,10 +927,34 @@ theme was drawn in Concourse's teal and red.
   PowerPoint's, where the automatic eight made it 0.2 — and bars past a
   bound are cut at the plot's edge. Only this deck fixes them.
 
-Left on these charts: PowerPoint places the plot where `c:manualLayout`
-puts it (the inner plot at 12%/24%, 83% × 41% of the chart), and sets
-text this old chart leaves unsized at 10 pt with a bold title; ours
-fills the frame at 12 pt.
+Left on these charts then: the plot's place, and text this old chart
+leaves unsized — PowerPoint's 10 pt with a bold title, ours 12.
+
+**A chart's own look, as the file states it, 2026-10-14** (sweep 54:
+1.8871 → 1.8834%; aascu 5864 11.29 → 9.84, LIBRE_OFFICE-100610-0 5.80 →
+5.25; nothing else moved). LibreOffice's export of a survey deck and
+aascu's old charts say more about their look than we read:
+
+- **The plot stands where `c:manualLayout` puts it** (edge mode): the
+  plot itself for `layoutTarget inner`, else a box it shares with its
+  axis labels (`Chart.plotLayout`); a pie's area likewise.
+- **A pie's slices take their `c:dPt` colours** (`pointColors`, written
+  back), the legend's keys with them; a `dPt` that is the theme's own
+  cycle keeps following the theme. Under another master's theme the
+  cycle is fixed at reading, as series' colours are.
+- **The plot area's fill** (`c:plotArea/c:spPr`) under the plot — a
+  pie's, the square it stands in.
+- **An axis with `c:delete` has no labels and no room for them, and a
+  value axis with no `c:majorGridlines` no gridlines.** Both are written
+  back.
+- **Data labels in their number format**: the labels' own, else the
+  numbers' (`formatCode` "0": 80, where we wrote 79.63).
+- **No automatic title from a series with no name**: one unnamed
+  series titled the census chart "Series 1"; PowerPoint shows none.
+
+Left: 3-D (both decks' pies and bars are `view3D`, drawn flat), text
+the chart leaves unsized (10 pt in PowerPoint), and category labels
+PowerPoint turns 45° where they do not fit.
 
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page

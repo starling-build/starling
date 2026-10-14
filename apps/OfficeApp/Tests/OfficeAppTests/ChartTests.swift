@@ -62,6 +62,37 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(try reread(c), c)
     }
 
+    /// What an old chart states about its look: slices' own colours, a
+    /// plot's fill and place, axes deleted, no gridlines, its labels'
+    /// number format — and no title from a series with no name.
+    func testAChartsOwnLookIsRead() throws {
+        let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
+        let val = "<c:val><c:numRef><c:numCache><c:formatCode>0</c:formatCode><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>79.63</c:v></c:pt><c:pt idx=\"1\"><c:v>4</c:v></c:pt></c:numCache></c:numRef></c:val>"
+        let bar = """
+        <c:chartSpace \(ns)><c:chart><c:plotArea><c:layout><c:manualLayout><c:layoutTarget val="inner"/><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="0.1"/><c:y val="0.2"/><c:w val="0.8"/><c:h val="0.7"/></c:manualLayout></c:layout>
+        <c:barChart><c:barDir val="col"/><c:ser><c:idx val="0"/><c:order val="0"/><c:dLbls><c:showVal val="1"/></c:dLbls>\(val)</c:ser></c:barChart>
+        <c:catAx><c:delete val="1"/><c:axPos val="b"/></c:catAx><c:valAx><c:delete val="1"/><c:axPos val="l"/></c:valAx>
+        <c:spPr><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></c:spPr></c:plotArea></c:chart></c:chartSpace>
+        """
+        let c = try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(bar.utf8))), color: { _ in Color(0xFFD9D9D9) }))
+        XCTAssertNil(c.title, "a series with no name gives no title")
+        XCTAssertEqual(c.plotLayout, Rect.fromLTWH(0.1, 0.2, 0.8, 0.7))
+        XCTAssertTrue(c.plotLayoutInner)
+        XCTAssertTrue(c.valueAxisDeleted && c.categoryAxisDeleted)
+        XCTAssertFalse(c.valueGrid)
+        XCTAssertEqual(c.plotFill, Color(0xFFD9D9D9))
+        XCTAssertEqual(ChartPainter.dataLabel(c, 79.63), "80")
+        let pie = """
+        <c:chartSpace \(ns)><c:chart><c:plotArea><c:pieChart><c:ser><c:idx val="0"/><c:order val="0"/>
+        <c:dPt><c:idx val="0"/><c:spPr><a:solidFill><a:srgbClr val="5B9BD5"/></a:solidFill></c:spPr></c:dPt>
+        <c:dPt><c:idx val="1"/><c:spPr><a:solidFill><a:schemeClr val="accent2"/></a:solidFill></c:spPr></c:dPt>\(val)</c:ser></c:pieChart></c:plotArea></c:chart></c:chartSpace>
+        """
+        let p = try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(pie.utf8))), color: { _ in Color(0xFF5B9BD5) }))
+        XCTAssertEqual(p.pointColors, [0: Color(0xFF5B9BD5)], "the theme's own cycle keeps following the theme")
+        XCTAssertTrue(ChartXML.chartSpace(p).contains("<c:dPt><c:idx val=\"0\"/><c:bubble3D val=\"0\"/><c:spPr><a:solidFill><a:srgbClr val=\"5B9BD5\"/>"),
+                      "written back as its own colour")
+    }
+
     func testCellTypingIsOneUndoStep() {
         let deck = SlidesSample.make()
         let shape = deck.slides.flatMap(\.shapes).first { $0.chart != nil }!

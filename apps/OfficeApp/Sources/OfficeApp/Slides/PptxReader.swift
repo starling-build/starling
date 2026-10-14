@@ -1730,6 +1730,9 @@ private struct SlideContext {
             // cycle, is drawn against the deck's theme — which is not this
             // chart's. Each gets the colour it has in the chart's own.
             let accents = (1 ... 6).compactMap { colors.scheme("accent\($0)") }
+            if chart.type.isPie, accents.count == 6 {
+                for i in chart.categories.indices where chart.pointColors[i] == nil { chart.pointColors[i] = Chart.cycle(i, accents) }
+            }
             for i in chart.series.indices where chart.series[i].color == nil {
                 if let slot = chart.series[i].scheme { chart.series[i].color = colors.scheme(slot) }
                 else if accents.count == 6 { chart.series[i].color = Chart.cycle(i, accents) }

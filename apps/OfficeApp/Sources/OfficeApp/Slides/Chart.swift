@@ -117,6 +117,23 @@ struct Chart: Equatable {
     var valueMin: Double? = nil
     var valueMax: Double? = nil
     var valueStep: Double? = nil
+    /// The data labels' number format where it is not General: the
+    /// labels' own (`c:dLbls/c:numFmt`), else the numbers' (`formatCode`).
+    var labelFormat: String? = nil
+    /// Where the file places the plot (`c:plotArea/c:layout/c:manualLayout`
+    /// in edge mode): fractions of the chart's frame, and whether that is
+    /// the plot itself (`inner`) or the plot with its axis labels.
+    var plotLayout: Rect? = nil
+    var plotLayoutInner = false
+    /// A pie's slices in their own colours (`c:dPt`), by index.
+    var pointColors: [Int: Color] = [:]
+    /// The plot area's own fill (`c:plotArea/c:spPr`).
+    var plotFill: Color? = nil
+    /// The value axis draws its gridlines (`c:majorGridlines`).
+    var valueGrid = true
+    /// An axis the file deletes (`c:delete`): no labels, no room for them.
+    var valueAxisDeleted = false
+    var categoryAxisDeleted = false
 
     var gap: Double { Double(gapWidth ?? (stacked ? 150 : 219)) / 100 }
     var overlapFraction: Double { Double(overlap ?? (stacked ? 100 : -27)) / 100 }
@@ -200,8 +217,11 @@ enum ChartXML {
         let grouping = el.first("c:grouping")?["val"] ?? "standard"
         var categories: [String] = []
         var series: [ChartSeries] = []
+        var pointColors: [Int: Color] = [:]
+        var named = false
         for ser in el.all("c:ser") {
             let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series \(series.count + 1)"
+            if series.isEmpty { named = ser.first("c:tx") != nil }
             let cat = ser.first("c:cat") ?? ser.first("c:xVal")
             let val = ser.first("c:val") ?? ser.first("c:yVal")
             let names = cat.map(_points) ?? []
@@ -230,6 +250,14 @@ enum ChartXML {
                     s.labelSize = run["sz"].flatMap(Double.init).map { $0 / 100 }
                     s.labelBold = ["1", "true"].contains(run["b"] ?? "")
                     if let f = run.first("a:solidFill") { s.labelColor = color(f) }
+                }
+            }
+            if series.isEmpty {
+                for pt in ser.all("c:dPt") {
+                    // (The theme's own cycle is left to follow the theme.)
+                    if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
+                       let f = pt.first("c:spPr")?.first("a:solidFill"),
+                       !(f.first("a:schemeClr").map { _isCycle($0, i) } ?? false), let c = color(f) { pointColors[i] = c }
                 }
             }
             if let fill {
@@ -273,7 +301,10 @@ enum ChartXML {
             for layer in layers where titleColor == nil {
                 if let fill = layer.first("a:solidFill") { titleColor = color(fill) }
             }
-        } else if !deleted && series.count == 1 {
+        } else if !deleted && series.count == 1 && named {
+            // (A series with no name of its own gives no title: aascu
+            // 5864's census chart has none in PowerPoint, where ours read
+            // "Series 1".)
             title = series[0].name
         }
         var c = Chart(type: type, title: title, categories: categories, series: series)
@@ -325,6 +356,25 @@ enum ChartXML {
             if let sz = run["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.categoryLabelSize = sz / 100 }
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
         }
+        c.pointColors = pointColors
+        if let m = plot.first("c:layout")?.first("c:manualLayout"),
+           (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
+           let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
+           let w = m.first("c:w")?["val"].flatMap(Double.init), let h = m.first("c:h")?["val"].flatMap(Double.init),
+           w > 0.05, h > 0.05 {
+            c.plotLayout = Rect.fromLTWH(x, y, w, h)
+            c.plotLayoutInner = m.first("c:layoutTarget")?["val"] == "inner"
+        }
+        let labelFmt = el.first("c:dLbls")?.first("c:numFmt") ?? el.first("c:ser")?.first("c:dLbls")?.first("c:numFmt")
+        let labelCode = labelFmt.flatMap { ["1", "true"].contains($0["sourceLinked"] ?? "") ? nil : $0["formatCode"] }
+            ?? el.first("c:ser")?.first("c:val")?.descendant("c:formatCode")?.text
+        if let code = labelCode, !code.isEmpty, code.lowercased() != "general" { c.labelFormat = code }
+        if let f = plot.first("c:spPr")?.first("a:solidFill") { c.plotFill = color(f) }
+        if let valueAxis {
+            c.valueGrid = valueAxis.first("c:majorGridlines") != nil
+            c.valueAxisDeleted = ["1", "true"].contains(valueAxis.first("c:delete")?["val"] ?? "")
+        }
+        c.categoryAxisDeleted = ["1", "true"].contains(categoryAxis?.first("c:delete")?["val"] ?? "")
         if let scaling = valueAxis?.first("c:scaling") {
             c.valueMin = scaling.first("c:min")?["val"].flatMap(Double.init)
             c.valueMax = scaling.first("c:max")?["val"].flatMap(Double.init)
@@ -461,7 +511,8 @@ enum ChartXML {
             case .pie, .doughnut:
                 var dpts = ""
                 for p in 0 ..< n {
-                    dpts += "<c:dPt><c:idx val=\"\(p)\"/><c:bubble3D val=\"0\"/><c:spPr>\(_cycleFill(p))<a:ln w=\"19050\"><a:solidFill><a:schemeClr val=\"lt1\"/></a:solidFill></a:ln></c:spPr></c:dPt>"
+                    let own = c.pointColors[p].map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" }
+                    dpts += "<c:dPt><c:idx val=\"\(p)\"/><c:bubble3D val=\"0\"/><c:spPr>\(own ?? _cycleFill(p))<a:ln w=\"19050\"><a:solidFill><a:schemeClr val=\"lt1\"/></a:solidFill></a:ln></c:spPr></c:dPt>"
                 }
                 sers += "<c:ser>\(head)\(dpts)<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
             }
@@ -493,22 +544,23 @@ enum ChartXML {
             let format = c.percent ? "0%" : "General"
             let bounds = (c.valueMax.map { "<c:max val=\"\($0)\"/>" } ?? "") + (c.valueMin.map { "<c:min val=\"\($0)\"/>" } ?? "")
             let unit = c.valueStep.map { "<c:majorUnit val=\"\($0)\"/>" } ?? ""
-            let valAx = "<c:valAx><c:axId val=\"500000002\"/><c:scaling><c:orientation val=\"minMax\"/>\(bounds)</c:scaling><c:delete val=\"0\"/><c:axPos val=\"\(valPos)\"/><c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>\(valTitle)<c:numFmt formatCode=\"\(format)\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr><c:crossAx val=\"500000001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(c.type == .scatter || c.type == .area ? "midCat" : "between")\"/>\(unit)</c:valAx>"
+            let valAx = "<c:valAx><c:axId val=\"500000002\"/><c:scaling><c:orientation val=\"minMax\"/>\(bounds)</c:scaling><c:delete val=\"\(c.valueAxisDeleted ? 1 : 0)\"/><c:axPos val=\"\(valPos)\"/>\(c.valueGrid ? "<c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>" : "")\(valTitle)<c:numFmt formatCode=\"\(format)\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr><c:crossAx val=\"500000001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(c.type == .scatter || c.type == .area ? "midCat" : "between")\"/>\(unit)</c:valAx>"
             if c.type == .scatter {
                 plot += "<c:valAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"b\"/><c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"midCat\"/></c:valAx>"
             } else {
-                plot += "<c:catAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"\(catPos)\"/>\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/><c:noMultiLvlLbl val=\"0\"/></c:catAx>"
+                plot += "<c:catAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"\(c.categoryAxisDeleted ? 1 : 0)\"/><c:axPos val=\"\(catPos)\"/>\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/><c:noMultiLvlLbl val=\"0\"/></c:catAx>"
             }
             plot += valAx
         }
         let title = c.title.map {
             _rich($0, size: c.titleSize.map { Int(($0 * 100).rounded()) } ?? 1862, bold: c.titleBold, color: c.titleColor)
         } ?? ""
+        let plotFill = c.plotFill.map { "<c:spPr><a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill></c:spPr>" } ?? ""
         let legend = c.legend ? "<c:legend><c:legendPos val=\"\(c.legendPosition)\"/><c:overlay val=\"0\"/></c:legend>" : ""
         let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1200\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/><c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
+        <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/><c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)\(plotFill)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
         """
     }
 
@@ -634,7 +686,7 @@ enum ChartPainter {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
-                    p.color = pie ? Chart.cycle(e.i, theme.accents) : c.color(series: e.i, accents: theme.accents)
+                    p.color = pie ? c.pointColors[e.i] ?? Chart.cycle(e.i, theme.accents) : c.color(series: e.i, accents: theme.accents)
                     if c.type == .line {
                         p.style = .stroke
                         p.strokeWidth = 2.25 * k
@@ -652,10 +704,20 @@ enum ChartPainter {
             for line in lines { for e in line { e.tp.dispose() } }
         }
 
+        if pie, let l = c.plotLayout {
+            area = Rect.fromLTWH(r.left + l.left * r.width, r.top + l.top * r.height, l.width * r.width, l.height * r.height)
+        }
         if pie {
+            if let f = c.plotFill {
+                // A pie's plot is the square it stands in.
+                let p = Paint()
+                p.style = .fill
+                p.color = f
+                canvas.drawRect(Rect.fromCircle(center: area.center, radius: min(area.width, area.height) / 2), p)
+            }
             _pie(c, canvas, area, k: k, theme: theme, text: text)
         } else {
-            _axes(c, canvas, area, k: k, theme: theme, grid: grid, text: text,
+            _axes(c, canvas, area, frame: r, k: k, theme: theme, grid: grid, text: text,
                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold) })
         }
         canvas.restore()
@@ -711,6 +773,14 @@ enum ChartPainter {
         return (lo, hi, step)
     }
 
+    /// A data label: the value in the labels' number format where they
+    /// have one ("0": 80, where the plain number is 79.63).
+    static func dataLabel(_ c: Chart, _ v: Double) -> String {
+        guard let code = c.labelFormat else { return label(v, percent: false) }
+        let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
+        return shown.isEmpty ? label(v, percent: false) : shown
+    }
+
     static func label(_ v: Double, percent: Bool) -> String {
         if percent { return "\(Int((v * 100).rounded()))%" }
         if abs(v - v.rounded()) < 1e-9 { return String(Int(v.rounded())) }
@@ -720,7 +790,7 @@ enum ChartPainter {
         return s
     }
 
-    private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, k: Double, theme: DeckTheme,
+    private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, frame: Rect, k: Double, theme: DeckTheme,
                               grid: Color, text: (String, Double, Double) -> TextPainter,
                               categoryText: (String, Double, Double) -> TextPainter) {
         let n = c.categories.count
@@ -784,14 +854,23 @@ enum ChartPainter {
             tp.dispose()
         }
 
+        // Where the file places the plot: itself (`inner`), or a box the
+        // plot and its labels share — aascu 5864's census chart stands at
+        // 9%/3%, 91% × 76% of its frame, ours under a title band.
+        let placed = c.plotLayout.map {
+            Rect.fromLTWH(frame.left + $0.left * frame.width, frame.top + $0.top * frame.height,
+                          $0.width * frame.width, $0.height * frame.height)
+        }
+        if let placed, !c.plotLayoutInner { area = placed }
         // Tick labels: values along one axis, categories (or x values) along the other.
         let catSize = c.categoryLabelSize ?? 12
         let catLabels: [TextPainter]
         if c.type == .scatter {
             catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { categoryText(label($0, percent: false), catSize, .infinity) }
         } else {
-            let slot = (horizontal ? area.height : area.width) / Double(n)
-            catLabels = c.categories.map { categoryText($0, catSize, horizontal ? area.width * 0.3 : max(slot - 2 * k, 8 * k)) }
+            let along = placed.flatMap { c.plotLayoutInner ? $0 : nil } ?? area
+            let slot = (horizontal ? along.height : along.width) / Double(n)
+            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? area.width * 0.3 : max(slot - 2 * k, 8 * k)) }
         }
         let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step * 1e-6, by: sc.step))
         // In the axis's own number format where it has one: "1,600", and
@@ -801,9 +880,9 @@ enum ChartPainter {
             let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
             return shown.isEmpty ? label(v, percent: false) : shown
         }
-        let valueLabels = ticks.map { text(valueLabel($0), labelSize, .infinity) }
+        let valueLabels = ticks.map { text(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
         let lineH = valueLabels.first?.height ?? 12 * k
-        let plot: Rect
+        var plot: Rect
         if horizontal {
             let left = (catLabels.map(\.width).max() ?? 0) + 6 * k
             plot = Rect.fromLTRB(area.left + left, area.top + 2 * k, area.right - (valueLabels.last?.width ?? 0) / 2,
@@ -818,9 +897,16 @@ enum ChartPainter {
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2, area.right - right, area.bottom - bottom)
         }
+        if let placed, c.plotLayoutInner { plot = placed }
         guard plot.width > 4, plot.height > 4 else {
             for t in valueLabels + catLabels { t.dispose() }
             return
+        }
+        if let f = c.plotFill {
+            let p = Paint()
+            p.style = .fill
+            p.color = f
+            canvas.drawRect(plot, p)
         }
         func vpos(_ v: Double) -> Double {
             let t = (v - sc.lo) / (sc.hi - sc.lo)
@@ -834,10 +920,10 @@ enum ChartPainter {
             let p = vpos(v)
             let tp = valueLabels[i]
             if horizontal {
-                canvas.drawLine(Offset(p, plot.top), Offset(p, plot.bottom), gridPaint)
+                if c.valueGrid { canvas.drawLine(Offset(p, plot.top), Offset(p, plot.bottom), gridPaint) }
                 tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + 4 * k))
             } else {
-                canvas.drawLine(Offset(plot.left, p), Offset(plot.right, p), gridPaint)
+                if c.valueGrid { canvas.drawLine(Offset(plot.left, p), Offset(plot.right, p), gridPaint) }
                 tp.paint(canvas, Offset(plot.left - 6 * k - tp.width, p - tp.height / 2))
             }
         }
@@ -916,11 +1002,11 @@ enum ChartPainter {
                     if horizontal {
                         let top = centre + group / 2 - Double(j) * step - bar
                         rect = Rect.fromLTRB(min(p0, p1), top, max(p0, p1), top + bar)
-                        labels.append((label(raw, percent: false), Offset(c.stacked ? rect.center.dx : max(p0, p1) + 3 * k, rect.center.dy)))
+                        labels.append((dataLabel(c, raw), Offset(c.stacked ? rect.center.dx : max(p0, p1) + 3 * k, rect.center.dy)))
                     } else {
                         let left = centre - group / 2 + Double(j) * step
                         rect = Rect.fromLTRB(left, min(p0, p1), left + bar, max(p0, p1))
-                        labels.append((label(raw, percent: false), Offset(rect.center.dx, c.stacked ? rect.center.dy : min(p0, p1) - 8 * k)))
+                        labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy : min(p0, p1) - 8 * k)))
                     }
                     canvas.drawRect(rect, fill)
                     if let t = c.series[j].cellLabels[i] { cellLabels.append((t, rect, c.series[j])) }
@@ -941,7 +1027,7 @@ enum ChartPainter {
                     guard let raw = c.series[j].values[safe: i] ?? nil else { row.append(c.stacked ? base[i] : nil); continue }
                     let v = scaled(raw, i) + (c.stacked ? base[i] : 0)
                     row.append(v)
-                    labels.append((label(raw, percent: false), Offset(xAt(i), vpos(v) - 9 * k)))
+                    labels.append((dataLabel(c, raw), Offset(xAt(i), vpos(v) - 9 * k)))
                 }
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
                 tops.append(row)
@@ -1001,7 +1087,7 @@ enum ChartPainter {
                     guard let v = c.series[j].values[safe: i] ?? nil else { continue }
                     let x = plot.left + (c.x(i) - xs.lo) / (xs.hi - xs.lo) * plot.width
                     canvas.drawCircle(Offset(x, vpos(v)), max(1.5, 2.5 * k), fill)
-                    labels.append((label(v, percent: false), Offset(x, vpos(v) - 9 * k)))
+                    labels.append((dataLabel(c, v), Offset(x, vpos(v) - 9 * k)))
                 }
             }
         case .pie, .doughnut:
@@ -1054,7 +1140,7 @@ enum ChartPainter {
         let inner = Rect.fromCircle(center: centre, radius: hole)
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
-            let color = Chart.cycle(i, theme.accents)
+            let color = c.pointColors[i] ?? Chart.cycle(i, theme.accents)
             fill.color = color
             if hole > 0 {
                 let ring = Path()
@@ -1069,7 +1155,7 @@ enum ChartPainter {
             }
             let mid = angle + sweep / 2
             let at = hole > 0 ? (radius + hole) / 2 : radius * 0.7
-            labels.append((label(c.series[0].values[i] ?? 0, percent: false),
+            labels.append((dataLabel(c, c.series[0].values[i] ?? 0),
                            Offset(centre.dx + cos(mid) * at, centre.dy + sin(mid) * at), color))
             angle += sweep
         }
