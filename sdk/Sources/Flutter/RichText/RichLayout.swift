@@ -700,6 +700,10 @@ public final class RichLayout {
     /// How far each paragraph's last line on a page may reach past the
     /// page's foot (px; `RichTheme.gridOverhang`).
     private var _overhang: [Double] = []
+    /// The paragraphs set with their indents mirrored (`w:mirrorIndents`
+    /// on a page Word mirrors), by index; recomputed after paging.
+    private var _mirrored: Set<Int> = []
+    private var _mirrorPassing = false
     /// How far a paragraph's text is set down to clear an object that
     /// floats over its head and leaves its first line no room beside it
     /// (px; part of `_spaceBefore`).
@@ -888,6 +892,7 @@ public final class RichLayout {
                     if _wasCell[i] { _tablesDirty = true }
                 }
             case .inserted(let at, let n):
+                _mirrored.removeAll()
                 let at = min(at, _painters.count)
                 _painters.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _imageSize.insert(contentsOf: Array(repeating: nil, count: n), at: at)
@@ -917,6 +922,7 @@ public final class RichLayout {
                 _firstDirty = min(_firstDirty ?? at, at)
                 _lastDirty = Int.max
             case .removed(let at, let n):
+                _mirrored.removeAll()
                 let at = min(at, _painters.count)
                 let end = min(at + n, _painters.count)
                 for i in at ..< end { _painters[i]?.dispose() }
@@ -1042,6 +1048,30 @@ public final class RichLayout {
         _firstDirty = nil
         _lastDirty = 0
         mark("paginate")
+        // Indents that depend on the page: Word mirrors a paragraph's
+        // indents (`w:mirrorIndents`) on pages 1, 3, 5… and sets them as
+        // written on 2, 4… — zh-06c46ba9's first lines of 30.6pt end
+        // every line that much short of the right margin on odd pages.
+        // Laid out again where a paragraph's page says otherwise than
+        // last time, until nothing moves (a few passes at most).
+        if theme.wordRules, pageSetup != nil, !_mirrorPassing {
+            _mirrorPassing = true
+            defer { _mirrorPassing = false }
+            for _ in 0 ..< 4 {
+                var flips: [RichChange] = []
+                for (k, para) in document.paragraphs.enumerated() where para.style.eastAsian["w:mirrorIndents"] == "1" && para.cell == nil {
+                    guard k < _pieceStart.count, _pieceStart[k] < _allPieces.count else { continue }
+                    let odd = (_allPieces[_pieceStart[k]].page / _columns) % 2 == 0
+                    if odd != _mirrored.contains(k) {
+                        if odd { _mirrored.insert(k) } else { _mirrored.remove(k) }
+                        flips.append(.changed(k))
+                    }
+                }
+                if flips.isEmpty { break }
+                apply(flips, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
     }
 
     /// Where a table's first column starts: the text column's left edge,
@@ -2601,7 +2631,14 @@ public final class RichLayout {
     private func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         let style = p.style
         let wordList = _wordList(p, document)
-        let sides = _sideIndents(p, document)
+        var sides = _sideIndents(p, document)
+        // `w:mirrorIndents` on a page Word mirrors: the right indent is
+        // the left one and the first line's, the left the right one and
+        // a hanging indent's depth (measured: `office.md`).
+        if _mirrored.contains(i) {
+            let first = firstLineIndent(p, at: i, document)
+            sides = (left: sides.right + max(0, -first), right: sides.left + first)
+        }
         let ownLeft = wordList.map { _px($0.left) } ?? _px(sides.left)
         var left = wordList != nil ? ownLeft
             : ownLeft + (style.list != nil ? _px(_listIndents(p, document)?.left ?? theme.listIndent * Double(style.listLevel + 1)) : 0)

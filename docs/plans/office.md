@@ -2063,7 +2063,17 @@ fitter dropped the paragraph's tail).
   zh-6d1afa56 16.3% -> 35.9%, zh-64044a1d 27.1 -> 32.9; nothing down.
   Chinese sample 80.0%.
 
-Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
+- **`w:mirrorIndents`, built (2026-10-14).** The rule measured below
+  is now applied: after paging, a paragraph with the switch that lands
+  on page 1, 3, 5… is laid out again with its right indent the left one
+  and the first line's, its left the right one and a hanging indent's
+  depth, and paging runs again until no paragraph changes side (four
+  passes at most; a paragraph is placed by the page it starts on).
+  zh-06c46ba9's 687 such paragraphs mostly hang by their left indent,
+  where mirroring changes nearly nothing; its 0.7% comes from a blank
+  page 2 (task board T10). zh-e27cd8bf 97.0 -> 97.7; nothing else moved.
+
+Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
 indent to the left one plus the first line's (less a hanging one's)

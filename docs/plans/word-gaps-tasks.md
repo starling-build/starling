@@ -88,12 +88,11 @@ then a one-column continuous section on the same page. The layout has
 one column count for the whole document (`pageSetup.columns`, slots of
 `page * columns`). A larger change to pagination.
 
-### T3. `w:mirrorIndents`
-Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
-Documents: zh-06c46ba9 (0.7%, 687 paragraphs), one more in the sample.
-Known (`office.md`): on odd pages the left and right indents swap, with
-the first line's indent moving to the right. The indent depends on the
-page the paragraph lands on, so the layout must run again after paging.
+### T3. `w:mirrorIndents` — DONE (2026-10-14)
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb
+Built as measured (entry in `office.md`), with a relayout pass after
+paging. Moves little: zh-06c46ba9's paragraphs hang by their left
+indent. Its real gap is T10.
 
 ### T4. Heading spacing at a page's top — DONE (2026-10-14)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb
@@ -135,3 +134,15 @@ face model.
 ### T9. Nested tables with hidden text
 Owner: —
 Documents: zh-454e2e29 (49%), row 2.
+
+### T10. A section of one empty paragraph: a page or none?
+Owner: —
+Documents: zh-06c46ba9 (0.7%), against zh-9e08ed28.
+Known: zh-06c46ba9's cover section is followed by a section holding only
+an empty paragraph (titlePg, pgNumType start 1), then the contents.
+Word leaves page 2 blank for it; ours folds it away ("an empty
+paragraph that only ends a section takes no room"), so every page after
+is one early. zh-9e08ed28 has the same kind of section after a lone
+page break, and there Word gives it no page. A lab with the two
+contexts (after a section end on a full page; after a break mark) would
+tell the rule.
