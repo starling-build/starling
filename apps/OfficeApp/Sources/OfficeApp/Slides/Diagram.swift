@@ -712,8 +712,11 @@ struct DiagramLayout {
             // a thousand `w` — has no height to hand out: its children keep
             // the ones their constraints gave them.)
             let nominalH = node.vals["h"].map { $0 > 50 * max(1, node.rect.width) } ?? false
-            if unbounded("h"), !nominalH { h = max(h, min(c.caps["h"] ?? .infinity, node.rect.height - y)) }
-            if unbounded("w") { w = max(w, min(c.caps["w"] ?? .infinity, node.rect.width - x)) }
+            // (Not a size a constraint gave: that rule is leave to grow for
+            // its text, and hList1's empty body is its 1.22 × 65 mm in
+            // PowerPoint, not the rest of the column.)
+            if unbounded("h"), !nominalH, c.vals["h"] == nil { h = max(h, min(c.caps["h"] ?? .infinity, node.rect.height - y)) }
+            if unbounded("w"), c.vals["w"] == nil { w = max(w, min(c.caps["w"] ?? .infinity, node.rect.width - x)) }
             c.rect = Rect.fromLTWH(node.rect.left + x, node.rect.top + y, w, h)
             layoutNode(c)
             // A child that came out smaller than its slot keeps the

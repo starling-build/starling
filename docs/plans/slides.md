@@ -788,6 +788,14 @@ the corpus for the spacing):
 Left on missing-bullet: our text is 46 and 35 where PowerPoint's is 42
 and 33 — its fit is a step or two tighter than ours.
 
+**A size a constraint gave does not grow to fill, 2026-10-14** (sweep
+47: 2.00 → 1.97%; lo-fill-color-list 15.10 → 1.41, lo-smartart-dir
+1.76 → 0.65, nothing else moved). hList1's body is `1.22 ×
+primFontSz` — 224.8 pt at 65, exactly PowerPoint's — with a rule
+letting its height go to INF. That rule was read as "take the rest of
+the column", and an empty body ran to the bottom of the frame. It is
+leave to grow for the text; a size the constraints set is kept.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
