@@ -2175,6 +2175,18 @@ fitter dropped the paragraph's tail).
   none. zh-25c4de17 36.5% -> 100%; nothing else moved by it. Chinese
   sample 82.9%.
 
+- **A picture's line may hang its descent past the page's foot
+  (2026-10-14).** On a line grid the picture stands on the baseline
+  with its mark's descent under it (above); at a page's foot only the
+  picture and the grid's extra above it need the room — zh-90e0cea8's
+  last picture ends at its page's usable foot in Word's print, its
+  line 2.6pt past it. The descent is the paragraph's page-foot overhang
+  (`_overhang`), as a text line's grid extra is. zh-6d1afa56 41.1% ->
+  96.8% and Word's 63 pages (its picture paragraphs had each pushed a
+  page early); nothing down. zh-90e0cea8 itself still runs a page long:
+  ours starts that line about 2pt below Word's (task board T11).
+  Chinese sample 83.7%, 60 with Word's page count.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

@@ -150,5 +150,8 @@ Always a page, unless a page break just before is the same break
 ### T11. zh-90e0cea8: drift on its last page
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 Documents: zh-90e0cea8 (67%, 11 pages to Word's 10).
-Known: before its last picture, ours sits about 17.6pt below Word's on
-that page, so the picture goes over (T6 exposed it).
+Known: Word's last picture ends exactly at the page's usable foot, its
+line's descent past it; ours now allows that (entry in `office.md`),
+which took zh-6d1afa56 from 41% to 97% — note for T5's owner. This
+document still needs about 1.3pt more: ours starts the picture's line
+about 2pt below Word's, from drift earlier on that page. Open.

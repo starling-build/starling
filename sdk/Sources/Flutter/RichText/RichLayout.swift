@@ -3170,6 +3170,10 @@ public final class RichLayout {
                 _inkShift[i] += max(0, snapped - bodyHeight - descent)
                 bodyHeight = snapped
             }
+            // (At a page's foot the picture itself must fit; the descent
+            // under it may hang past: zh-90e0cea8's last picture ends at
+            // the foot of its page in Word's print, its line 2.6pt past.)
+            if p.image != nil, i < _overhang.count { _overhang[i] = max(_overhang[i], descent) }
         }
         _heights[i] = (before + push + bodyHeight + after).rounded(.up)
         // An empty paragraph that only ends a section stands for the
