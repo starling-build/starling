@@ -21,7 +21,8 @@ features, DOCX/PPTX/XLSX support, and platform status. File formats are mentione
 in the suite introduction rather than in a separate compatibility section.
 The browser apps are live. Desktop packages cover macOS Apple silicon, Windows
 x86_64 (portable ZIP), and Linux x86_64 (DEB and Flatpak). Download links in the
-navigation, hero, platforms section, and footer open `download.html`. It has
+navigation, hero, and footer open `download.html`. Platform details live on that
+page rather than in a separate landing section. It has
 platform icons, direct package links, and installation instructions. A small
 optional script highlights the browser's OS; iPhone, iPad (including desktop
 mode), Android, and ChromeOS instead get a browser-app link. OS detection does

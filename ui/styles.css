@@ -594,32 +594,6 @@ article {
   color: var(--accent);
   font-weight: 650;
 }
-.office-formats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 32px;
-  margin: 0 0 32px;
-}
-.office-formats > div {
-  border-top: 1px solid var(--line);
-  padding-top: 24px;
-}
-.office-formats dt {
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-.office-formats dt span {
-  display: block;
-  margin: 4px 0 12px;
-  font-size: 16px;
-  letter-spacing: 0;
-  color: var(--accent);
-}
-.office-formats dd {
-  margin: 0;
-  color: var(--muted);
-}
 .office-platforms {
   background: #f4f6fc;
 }
@@ -788,10 +762,6 @@ code {
   }
 }
 @media (max-width: 720px) {
-  .office-formats {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
-  }
   .sample-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: 32px;

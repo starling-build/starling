@@ -6,7 +6,7 @@ software factory: Terminal, Office, Desktop, and the shared SDK. Office and
 Desktop each have a separate page with product details and direct action links.
 
 - `index.html`: the software factory, applications, SDK, and open-source project.
-- `openoffice/index.html`: Writer, Slides, Sheets, app previews, direct editor links, and desktop platforms.
+- `openoffice/index.html`: Writer, Slides, Sheets, app previews, direct editor links, and a link to downloads.
 - `openoffice/download.html`: direct desktop downloads and installation steps, with optional OS detection in `download.js`.
 - `desktop/index.html`: desktop features, agent workspaces, 2D/3D views, film,
   and installation links. 3D is one feature of the broader desktop.
