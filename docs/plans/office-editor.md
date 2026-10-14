@@ -71,12 +71,22 @@ logs the traffic). Two engine bugs stood in the way: the runtime
 answered `flutter/keyevent` empty, which macOS reads as "handled", so no
 key ever reached the text-input plugin; and the host made the Flutter
 view first responder after the first attach, so the editable now
-re-sends `TextInput.show` on every click. Composition itself
-(Pinyin/Japanese, dead keys, press-and-hold) is still unverified: the
-driver can switch the input source but its posted keys arrived as plain
-letters, and a native control app could not be brought to the front to
-prove the harness. Needs a hand on the keyboard; until then IME stays
-opt-in. Companion to `office.md`,
+re-sends `TextInput.show` on every click. **2026-10-13, Pinyin seen working, IME on by default on macOS**
+(`STARLING_IME=0` turns it off; other hosts still opt in): the driver's
+posted keys do compose once the Pinyin source is selected through
+`TISSelectInputSource` (an `osascript` `keystroke` goes through the
+input method; the earlier run had switched the source but typed before
+it took). Four fixes it took: the key path declines every key while a
+composition is open (Enter had split the paragraph with the marked text
+still underlined); the editable sends `setEditableSizeAndTransform` +
+`setCaretRect` from its paint, without which the candidate strip sat at
+the screen's bottom-left corner; a local change while composing (a click
+elsewhere, a button) drops the composing range so the plugin discards
+its marked text and keys come back to the key path; and the `"\n"` the
+plugin puts into its own text before `performAction newline` is stripped
+in `_apply` (it had drawn as a blank line on top of the split). Still
+open: a pending ⌘B does not reach text the plugin inserts; Japanese and
+press-and-hold unverified; the Fluent `TextBox` has no connection. Companion to `office.md`,
 which tracks the suite; this one is only about the editing experience in
 Writer on macOS, which is where the user has asked for the focus. Nothing
 here is Linux, Windows or iOS.
@@ -101,10 +111,15 @@ Not there, in the order a writer meets them:
   writes `NSPasteboard` strings only; a rich paste works only within one
   controller (the last copied fragment). Nothing pasted from Word, Pages
   or a browser keeps its formatting, and nothing copied out carries any.
-- **No IME.** Keys arrive as `KeyData` through `onKeyData`; the Cocoa host
-  is not an `NSTextInputClient`, so composed input (Chinese, Japanese,
-  Korean), dead keys, and macOS press-and-hold accents cannot reach the
-  document.
+- **IME on macOS, as of 2026-10-13 — in the document only.** Pinyin
+  composition (underline, candidate strip under the caret, Space/digit
+  picks, Enter commits the raw letters, Escape cancels, Backspace and
+  arrows inside the marked text), dead keys and plain typing all go
+  through the text-input plugin and were seen on screen. Not yet: the
+  Fluent `TextBox` (Find, Link, Header/Footer, Sheets' cell editor and
+  filter), which still types from key events alone; Japanese and
+  press-and-hold are unverified (no hand on the keyboard); the web build
+  has no plugin behind the channel at all.
 - **Tables stop at rows.** No column insert/delete, no merged cells, no
   column resizing, no rectangular cell selection, no table tab.
 - **Links display but do nothing.** No Insert → Link, no ⌘K, no click.
@@ -223,7 +238,8 @@ in `RichEditable` (a composing range on the controller that layout draws
 and every edit replaces), `insertText`, dead keys, press-and-hold accents,
 the emoji picker (⌃⌘Space), and Kotoeri/Pinyin composition. `KeyData`
 keeps driving shortcuts and navigation. Verified with the Pinyin and
-Japanese input sources.
+Japanese input sources. **Pinyin done 2026-10-13** (see the status
+paragraph above); Japanese, press-and-hold and the `TextBox` remain.
 
 ### M6 — Tables
 

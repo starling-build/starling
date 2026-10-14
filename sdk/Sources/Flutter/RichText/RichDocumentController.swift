@@ -1009,7 +1009,10 @@ public final class RichDocumentController: ChangeNotifier {
         let para = document.paragraphs[index]
         let lo = max(0, min(range.lowerBound, para.length)), hi = max(lo, min(range.upperBound, para.length))
         edit(kind: .typing) {
-            let style = typingStyle ?? para.style(at: lo)
+            // Replacing text takes the style of what it replaces — an IME's
+            // commit keeps the style its marked text was typed in — and an
+            // insertion the style before it, as typing does.
+            let style = typingStyle ?? para.style(at: hi > lo ? lo + 1 : lo)
             if hi > lo { _deleteRange(in: index, lo ..< hi) }
             if !text.isEmpty {
                 perform(.insertText(RichPosition(paragraph: index, offset: lo), text,

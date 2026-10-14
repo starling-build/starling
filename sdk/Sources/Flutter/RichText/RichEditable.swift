@@ -357,6 +357,11 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         guard keyData.type == .down || keyData.type == .repeat else { return false }
         let c = _controller!
+        // While an input method composes, every key is its: Enter commits
+        // the candidate, Escape cancels, arrows move inside the marked text,
+        // Backspace shortens it. Taking Enter here split the paragraph with
+        // "zhong wen" still underlined (seen 2026-10-13 with Pinyin).
+        if _textInput?.isAttached == true, c.composingRange != nil { return false }
         let shift = _chords.shift
         let key = KeyChordTracker.named(keyData.logical)
         if let onShortcut = _w.onShortcut, _chords.primary || key == .escape,
@@ -982,6 +987,17 @@ public final class RichEditableState: State<StatefulWidget> {
             }
         }
         canvas.restore()
+        // The input method's candidate window follows the caret: the
+        // plugin gets the caret's box in the editable's own coordinates and
+        // the editable's transform to the view (without them it answers
+        // the window with a zero rect, which puts the candidates at the
+        // screen's bottom-left corner).
+        if let input = _textInput, input.isAttached, let c = caretRect,
+           let box = context?.findRenderObject() as? RenderBox {
+            let ancestor: RenderObject? = nil
+            input.setCaretRect(Rect.fromLTWH(c.left + _originX, c.top + pad.top - _scrollY, c.width, c.height),
+                               editableSize: size, transform: box.getTransformTo(ancestor))
+        }
 
         // A selected picture: its outline and eight handles.
         if focused, let box = _selectedImageBox() {

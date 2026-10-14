@@ -8,9 +8,12 @@
 // caret paragraph alone; every local change re-sends the editing state,
 // and every update from the plugin is diffed against the paragraph and
 // applied as a replacement, with the composing range kept for the
-// underline. Off unless STARLING_IME is set until it has been seen
-// working with an input source; with it on, typed characters come from
-// the plugin, so the key path must decline them (see RichEditable).
+// underline. On by default on macOS, where it has been seen working with
+// Pinyin, dead keys and plain typing (2026-10-13; STARLING_IME=0 turns it
+// off); elsewhere off unless STARLING_IME is set, because a host with no
+// text-input plugin behind the channel would type nothing at all: with
+// the connection on, typed characters come from the plugin, so the key
+// path declines them (see RichEditable).
 
 import FlutterSwiftBridge
 import Foundation
@@ -22,6 +25,8 @@ public final class RichTextInputConnection {
     /// The browser has no text-input plugin behind `flutter/textinput` yet:
     /// composed input there is a follow-up (docs/plans/wasm.md).
     public nonisolated(unsafe) static var enabled: Bool = false
+    #elseif os(macOS)
+    public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != "0"
     #else
     public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != nil
     #endif
@@ -31,6 +36,7 @@ public final class RichTextInputConnection {
     private unowned let _controller: RichDocumentController
     private var _attached = false
     private var _applying = false
+    private var _syncing = false
     private var _lastSent: (paragraph: Int, text: String, base: Int, extent: Int)? = nil
 
     public init(controller: RichDocumentController) {
@@ -83,10 +89,25 @@ public final class RichTextInputConnection {
         _send("TextInput.show", nil)
     }
 
+    /// Where the caret is, for the input method's candidate window: the
+    /// editable's size and transform to the view, and the caret's box in
+    /// the editable's coordinates. Sent only when something moved — the
+    /// editable calls this from every paint, blinks included.
+    public func setCaretRect(_ rect: Rect, editableSize: Size, transform: Matrix4) {
+        guard _attached else { return }
+        if let last = _lastCaret, last.rect == rect, last.size == editableSize, last.transform == transform { return }
+        _lastCaret = (rect, editableSize, transform)
+        _send("TextInput.setEditableSizeAndTransform",
+              ["width": editableSize.width, "height": editableSize.height, "transform": transform.storage])
+        _send("TextInput.setCaretRect", ["x": rect.left, "y": rect.top, "width": rect.width, "height": rect.height])
+    }
+    private var _lastCaret: (rect: Rect, size: Size, transform: Matrix4)? = nil
+
     /// Focus lost: let go of the plugin.
     public func detach() {
         guard _attached else { return }
         _attached = false
+        _lastCaret = nil
         _send("TextInput.clearClient", nil)
         _send("TextInput.hide", nil)
         MainActor.assumeIsolated { channelBuffers.clearListener(Self.channel) }
@@ -97,7 +118,16 @@ public final class RichTextInputConnection {
     /// Tell the plugin the caret paragraph's text and selection, when
     /// they differ from what it last heard.
     public func sync(force: Bool = false) {
-        guard _attached, !_applying else { return }
+        guard _attached, !_applying, !_syncing else { return }
+        _syncing = true
+        defer { _syncing = false }
+        // A local change while an input method composes — a click
+        // elsewhere, a toolbar button — ends the composition: the plugin
+        // discards its marked text on seeing no composing range, the
+        // underline goes, and the key path takes keys again. Left in place,
+        // the stale range kept declining keys, so End and Enter went to the
+        // plugin instead (seen 2026-10-13).
+        if _controller.composingRange != nil { _controller.composingRange = nil }
         let sel = _controller.selection
         let p = sel.focus.paragraph
         guard p < _controller.document.paragraphs.count else { return }
@@ -164,9 +194,23 @@ public final class RichTextInputConnection {
     /// common prefix and suffix, replace the middle, take its selection
     /// and composing range.
     private func _apply(_ state: [String: Any]) {
-        guard let text = state["text"] as? String else { return }
+        guard var text = state["text"] as? String else { return }
         let p = _controller.selection.focus.paragraph
         guard p < _controller.document.paragraphs.count, !_controller.document.paragraphs[p].isImage else { return }
+        // Before reporting the newline action the plugin puts a "\n" into
+        // its own text (a multiline client), and reports that text first.
+        // A paragraph holds no newline: it is dropped here, the selection
+        // pulled back over it, and the action that follows splits the
+        // paragraph at the caret. Kept, it drew as a blank line on top of
+        // the split.
+        var base = state["selectionBase"] as? Int ?? text.utf16.count
+        var extent = state["selectionExtent"] as? Int ?? text.utf16.count
+        if text.contains("\n") {
+            let u = Array(text.utf16)
+            base -= u[0 ..< min(max(base, 0), u.count)].filter { $0 == 10 }.count
+            extent -= u[0 ..< min(max(extent, 0), u.count)].filter { $0 == 10 }.count
+            text = String(decoding: u.filter { $0 != 10 }, as: UTF16.self)
+        }
         let old = Array(_controller.document.paragraphs[p].text.utf16)
         let new = Array(text.utf16)
         var prefix = 0
@@ -181,10 +225,19 @@ public final class RichTextInputConnection {
             _controller.replaceText(in: p, prefix ..< old.count - suffix, with: piece)
         }
         let length = new.count
-        let base = min(length, max(0, state["selectionBase"] as? Int ?? length))
-        let extent = min(length, max(0, state["selectionExtent"] as? Int ?? length))
+        base = min(length, max(0, base))
+        extent = min(length, max(0, extent))
+        // The plugin's edits are typing: a pending ⌘B outlives them, as it
+        // outlives a typed run. The selection it reports can differ from
+        // where the replacement left the caret — Pinyin rewrites "shij" as
+        // "shi j", so the diff inserts mid-text and the caret then jumps to
+        // the end — and that counted as a caret move, which drops the
+        // pending style: 世界 typed after ⌘B came out in the previous
+        // word's bold (seen 2026-10-13).
+        let pending = _controller.typingStyle
         _controller.selection = RichSelection(anchor: RichPosition(paragraph: p, offset: base),
                                               focus: RichPosition(paragraph: p, offset: extent))
+        _controller.typingStyle = pending
         let cb = state["composingBase"] as? Int ?? -1
         let ce = state["composingExtent"] as? Int ?? -1
         if cb >= 0, ce > cb, ce <= length {
