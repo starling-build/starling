@@ -2049,6 +2049,20 @@ fitter dropped the paragraph's tail).
   "-1-" is narrower than page 11's). Footers on zh-1a3c7aa0's odd pages
   still stand 8pt low. No line score moved (the match counts heights).
 
+- **Space before at a page's top is less the space after that ended
+  the page before (2026-10-14).** zh-64044a1d's headings, under
+  `w:pageBreakBefore` in mode 14, keep their space at a page's top but
+  stand 6pt higher than ours. Labs `hb`..`hm` (`body51.py`–`body53.py`)
+  found it by elimination: the grid pitch, settings, Normal's size, the
+  default face and language do not move it; the styles part does,
+  because the paragraph ending the page before is Body Text, 6pt after.
+  Word keeps the space before less that space after: 18pt keeps 12, 9
+  keeps 3, 6 or less none, at 12, 16 and 20pt; without the space after
+  it keeps all. Ours agrees to 0.1pt in both packages. This is likely
+  the "none, half or all" of zh-6d1afa56's headings noted above.
+  zh-6d1afa56 16.3% -> 35.9%, zh-64044a1d 27.1 -> 32.9; nothing down.
+  Chinese sample 80.0%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

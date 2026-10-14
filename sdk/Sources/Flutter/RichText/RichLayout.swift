@@ -2238,6 +2238,19 @@ public final class RichLayout {
             }
             while cursor < bottom - 0.01 {
                 if leavesLead, pageFresh, y < 0.01, page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
+                // (Space kept at a page's top is less the space after of
+                // the paragraph that ended the page before: the two are
+                // one gap to Word, and the part of it the last page left
+                // behind is not set again. A heading of 18pt before under
+                // `w:pageBreakBefore`, after Body Text's 6pt after, starts
+                // 12pt down; 9pt before, 3; 6 or less, none — at 12, 16
+                // and 20pt, labs `hd`..`hm`, 2026-10-14; without that
+                // after, all of it.)
+                else if theme.wordRules, !leavesLead, y < 0.01, page > 0, cursor <= top + 0.01, lead > 0.01,
+                        i > 0, _cells[i - 1] == nil {
+                    let prevAfter = _spacing(i - 1, document).after
+                    if prevAfter > 0.01 { cursor = min(bottom, top + min(lead, prevAfter)) }
+                }
                 let available = contentH - y
                 let rest = bottom - cursor
                 // (The last line may reach past the foot by its grid's

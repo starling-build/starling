@@ -88,17 +88,18 @@ Known (`office.md`): on odd pages the left and right indents swap, with
 the first line's indent moving to the right. The indent depends on the
 page the paragraph lands on, so the layout must run again after paging.
 
-### T4. Heading spacing at a page's top
-Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
-Documents: zh-64044a1d (27%, 119 pages to Word's 103).
-Known: after `pageBreakBefore` (mode < 15) a 16pt heading with space
-before 18 and after 9 sets the first body line 9pt lower than Word's.
-The rest of the page gap is not yet found.
+### T4. Heading spacing at a page's top — DONE (2026-10-14)
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb
+Space kept at a page's top is less the previous paragraph's space after
+(entry in `office.md`). zh-64044a1d 27 -> 33, zh-6d1afa56 16 -> 36.
+zh-64044a1d still runs 119 pages to Word's 103: the next difference is
+open for anyone.
 
 ### T5. zh-6d1afa56: headings led by breaks
 Owner: —
 Documents: zh-6d1afa56 (16%), zh-1a3c7aa0 (24%).
-Known: break-led headings come out at three different heights; in
+Known: break-led headings came out at three different heights — likely
+the T4 rule (re-check after it); in
 zh-1a3c7aa0 the second (landscape) section starts pages earlier than in
 Word, and the odd-page footer stands 8pt lower than Word's.
 
