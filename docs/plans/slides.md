@@ -1028,6 +1028,29 @@ says `a:tile`, and placed by its `fillRect`, as a shape's is — the
 paper texture was one sheet stretched over the chart — and the area's
 own line (`c:spPr/a:ln`, a 2.25 pt blue frame on both) is drawn.
 
+**Bullets on the baseline, Wingdings' round one at its size,
+2026-10-14** (sweep 59: 1.8667 → 1.8660%; five decks a little closer,
+45541 7.23 → 7.16, tdf126234 0.74 → 0.78). Measured on 45541's ink:
+PowerPoint's Wingdings "l" is 14.7 pt across at 26 pt (0.565 em), its
+foot 2.4 pt above the text's baseline; ours was 10.7 across and stood
+four points higher.
+
+- **A Slides marker stands on its first line's baseline** (the
+  `markersAtHang` branch of the layout hung it from the line's top):
+  26 decks by about 0.01 each.
+- **A stand-in bullet's own face and scale** (`bulletStandInFamily`,
+  `bulletStandInScale`, SDK, drawing only — `bulletFontFamily` and
+  `bulletScale` stay the file's and are what is saved). Wingdings'
+  round bullet, the commonest (46 decks), is Carlito's "●" at 1.23
+  times: Carlito's is 0.46 em across with its centre 0.295 above the
+  baseline, which at that scale is Wingdings' to half a point. (DejaVu's
+  "●" at its size sits 4 pt low: its centre is 0.265.)
+
+Tried and dropped: Calibri lines at the face's own 1.22 rather than
+1.2 — 60810's body is 17.1 pt a line at 14 pt in PowerPoint — made 39
+decks worse and 21 better (1.8667 → 1.8926). Whatever spaces 60810's
+lines, it is not the face.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

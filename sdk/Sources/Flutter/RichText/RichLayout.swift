@@ -5359,8 +5359,9 @@ public final class RichLayout {
             } else {
             var markerChar = p.runs[0].style
             if let c = p.style.bulletColor { markerChar.color = c }
-            if let f = p.style.bulletFontFamily { markerChar.fontFamily = f }
-            if let k = p.style.bulletScale {
+            if let f = p.style.bulletStandInFamily ?? p.style.bulletFontFamily { markerChar.fontFamily = f }
+            let k = (p.style.bulletScale ?? 1) * (p.style.bulletStandInScale ?? 1)
+            if k != 1 {
                 markerChar.fontSize = (markerChar.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize) * k
             }
             let markerStyle = theme.textStyle(for: markerChar, in: p.style, named: _named(p, document), normal: _normalChar(document), scale: scale, fontScale: fontScale)
@@ -5387,7 +5388,10 @@ public final class RichLayout {
                 // is at the text (indent 0) sits just before it instead.
                 marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
                 let hang = g.textLeft - slot + _px(p.style.firstLineIndent)
-                marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4), g.inkTop))
+                // On the first line's baseline, as PowerPoint sets it: from
+                // the line's top, a bullet at 80% stood four points high
+                // (45541's), and a stand-in face's glyph more.
+                marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4), top()))
             } else if theme.wordRules, !document.readFromFile {
                 // No level of its own yet: where the file it is saved to
                 // will hang it, half the indent back from the text.

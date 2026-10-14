@@ -475,6 +475,23 @@ final class RunCapsAndBulletTests: XCTestCase {
         XCTAssertTrue(out.contains("cap=\"all\""))
     }
 
+    /// Wingdings' round bullet is drawn in a face whose "●" is its size,
+    /// and the file's own bullet face and size are what is kept.
+    func testWingdingsRoundBulletIsDrawnAtItsOwnSize() throws {
+        let part = "<a:pPr marL=\"342900\" indent=\"-342900\"><a:buSzPct val=\"80000\"/><a:buFont typeface=\"Wingdings\" pitchFamily=\"2\" charset=\"2\"/><a:buChar char=\"l\"/></a:pPr>"
+        var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        let key = "ppt/slides/slide2.xml"
+        var slide = String(data: try XCTUnwrap(package.parts[key]), encoding: .utf8)!
+        let p = try XCTUnwrap(slide.range(of: "<a:p>"))
+        slide.replaceSubrange(p, with: "<a:p>" + part)
+        package.parts[key] = Data(slide.utf8)
+        let (read, _, _) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let para = try XCTUnwrap(read.slides[1].shapes.lazy.compactMap { $0.text?.paragraphs.first { $0.style.bulletText == "●" } }.first)
+        XCTAssertEqual(para.style.bulletStandInFamily, OfficeFonts.calibri)
+        XCTAssertEqual(para.style.bulletStandInScale ?? 0, 0.565 / 0.46, accuracy: 1e-9)
+        XCTAssertEqual(para.style.bulletScale ?? 0, 0.8, accuracy: 1e-9, "the file's size, as written back")
+    }
+
     func testAnEmptyListParagraphShowsNoMarkerInSlides() {
         func bytesDrawn(marking: Bool) -> Int {
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 18)

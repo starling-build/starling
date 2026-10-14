@@ -378,6 +378,13 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// The face the marker is set in (PowerPoint's `buFont`); nil is the
     /// text's. Arial's bullet is two thirds the width of Calibri's.
     public var bulletFontFamily: String? = nil
+    /// How a bullet that stands in for a symbol face's is drawn — its
+    /// face and how much larger than its size — where the stand-in's
+    /// glyph is not the symbol's size: Wingdings' round bullet is 0.565
+    /// of an em, the "●" drawn for it 0.46 in Carlito. Drawing only:
+    /// `bulletFontFamily` and `bulletScale` stay the file's.
+    public var bulletStandInFamily: String? = nil
+    public var bulletStandInScale: Double? = nil
     /// Which list this paragraph belongs to, for numbering: Word's numId.
     /// Items of one id number on across other paragraphs; nil items number
     /// as a run, restarting after an interruption.

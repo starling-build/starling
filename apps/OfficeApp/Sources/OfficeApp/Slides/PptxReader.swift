@@ -2190,6 +2190,14 @@ private struct SlideContext {
                    !["wingdings", "symbol", "webdings"].contains(where: { f.lowercased().hasPrefix($0) }) {
                     style.bulletFontFamily = _font(f)
                 }
+                // Wingdings' round bullet, the commonest of them (46 decks),
+                // is 0.565 of an em across and stands 0.09 above the
+                // baseline: Carlito's "●" at 1.23 times is that, where the
+                // text's own was three quarters of its size.
+                if level.bullet == .char, level.bulletFont?.lowercased() == "wingdings", style.bulletText == "●" {
+                    style.bulletStandInFamily = OfficeFonts.calibri
+                    style.bulletStandInScale = 0.565 / 0.46
+                }
                 // The file's own text edge (marL) and bullet offset (indent):
                 // the text placed where the file puts it, both written back
                 // as read. The layout indents a list by the shape's list
