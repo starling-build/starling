@@ -48,7 +48,7 @@ commit, with the sweep's number in the plan.
 PowerPoint's at the baseline — exact, not "small" — and `others.txt` the
 other decks that have a PowerPoint PDF (the eight without one are in
 neither). `matched-mupdf.txt` and `others-mupdf.txt` are the same split
-of `baseline-mupdf.tsv`: 61 matched and 492 others by MuPDF at sweep
+of `baseline-mupdf.tsv`: 62 matched and 491 others by MuPDF at sweep
 60, 48 and 505 by the Mac's baseline of sweep 27. The files are
 generated, never edited:
 
