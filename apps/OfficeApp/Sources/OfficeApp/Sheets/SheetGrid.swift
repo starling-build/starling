@@ -178,6 +178,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
     /// The fill handle's outline while it is dragged.
     private(set) var fillTarget: CellRange? = nil
+    /// The cells last copied or cut, framed with dashes until they are
+    /// pasted (a cut), Escape is pressed or the sheet is edited, as Excel
+    /// frames them: there was no sign of what ⌘V would paste.
+    private(set) var marquee: (sheet: Int, range: CellRange)? = nil
     /// The app's own clipboard: exact cells, formulas and formats.
     private static var _clip: WorkbookController.Clip? = nil
 
@@ -668,6 +672,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// Start editing the active cell: with `replace`, typing replaces it
     /// (Enter mode); otherwise the caret goes at the end of what is there.
     func beginEdit(replace: String? = nil) {
+        marquee = nil
         let a = controller.active
         // A locked cell on a protected sheet does not open for editing.
         if controller.protection() != nil && controller.isLocked(a) {
@@ -740,6 +745,32 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         guard w > ws.colWidth(a.col) else { return }
         ws.colWidths[a.col] = (w * 4).rounded(.up) / 4
         ws.widenedCols.insert(a.col)
+    }
+
+    /// A frame of dashes two pixels wide on a light underlay, drawn only
+    /// where it is in view (a whole column's frame is a million rows long).
+    private func _dashedFrame(_ canvas: any Canvas, _ r: Rect, view: Rect, ink: Color, under: Color) {
+        let p = Paint()
+        p.style = .fill
+        func line(_ fixed: Double, _ from: Double, _ to: Double, horizontal: Bool) {
+            let lo = horizontal ? view.left : view.top, hi = horizontal ? view.right : view.bottom
+            let flo = horizontal ? view.top : view.left, fhi = horizontal ? view.bottom : view.right
+            guard fixed >= flo - 1, fixed <= fhi + 1 else { return }
+            let a = max(from, lo), b = min(to, hi)
+            guard b > a else { return }
+            func bar(_ s: Double, _ e: Double) {
+                canvas.drawRect(horizontal ? Rect.fromLTRB(s, fixed - 1, e, fixed + 1) : Rect.fromLTRB(fixed - 1, s, fixed + 1, e), p)
+            }
+            p.color = under
+            bar(a, b)
+            p.color = ink
+            var x = from + ((a - from) / 8).rounded(.down) * 8
+            while x < b { bar(max(x, a), min(x + 4, b)); x += 8 }
+        }
+        line(r.top, r.left, r.right, horizontal: true)
+        line(r.bottom, r.left, r.right, horizontal: true)
+        line(r.left, r.top, r.bottom, horizontal: false)
+        line(r.right, r.top, r.bottom, horizontal: false)
     }
 
     func cancelEdit() {
@@ -1001,9 +1032,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             scrollY = max(0, scrollY + Double(d) * rows.def)
             reveal(c.active); return true
         case .function(2): beginEdit(); return true
-        case .delete: c.clearContents(); return true
+        case .delete: marquee = nil; c.clearContents(); return true
         case .backspace: beginEdit(replace: ""); return true
-        case .escape: return _w.onShortcut("\u{1B}", _chords)  // the shell closes its find bar
+        case .escape:
+            // Escape lets go of the copied cells first, as Excel's does.
+            if marquee != nil { marquee = nil; _repaint.notifyListeners(); return true }
+            return _w.onShortcut("\u{1B}", _chords)  // the shell closes its find bar
         default:
             if let t = _chords.typedText(k) {
                 if _ime?.isAttached == true { return false }
@@ -1072,6 +1106,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         Clipboard.setData(ClipboardData(text: text, html: html))
         // Inside the app a paste is exact; a cut moves on paste, as Excel's does.
         Self._clip = c.clip(cut: cut, text: text)
+        marquee = (c.activeSheet, r)
         _w.onStatus((cut ? "Cut " : "Copied ") + (r.rows > 1 || r.cols > 1 ? r.a1 : r.topLeft.a1) + (cut ? " — paste to move it" : ""))
         _repaint.notifyListeners()
     }
@@ -1091,7 +1126,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // there): paste the cells themselves.
                 if let clip = Self._clip, clip.text == text {
                     c.paste(clip)
-                    if clip.cut { Self._clip = nil }
+                    if clip.cut { Self._clip = nil; self.marquee = nil }
                     self.reveal(c.active)
                     return
                 }
@@ -1726,6 +1761,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             outline.color = dark ? Color(0xFFBDBDBD) : Color(0xFF616161)
             let r = rect(t)
             canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5, r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), outline)
+        }
+        // The copied cells' dashed frame.
+        if let m = marquee, m.sheet == controller.activeSheet {
+            let r = rect(m.range)
+            _dashedFrame(canvas, Rect.fromLTRB(r.left.rounded(), r.top.rounded(), r.right.rounded() - 1, r.bottom.rounded() - 1),
+                         view: Rect.fromLTRB(hw, hh, size.width, size.height), ink: accent, under: paper)
         }
         // Pictures and charts float over the cells and their selection, pane by pane.
         if !ws.drawings.isEmpty || !ws.objects.isEmpty {
