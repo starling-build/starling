@@ -33,6 +33,13 @@ no score. The loop that has worked:
    `LineHeightTests.testSingleSpacingIsTheFacesNaturalHeight`.
 6. One fix per commit; fetch and rebase on `office` before every push.
 
+On the Windows box the line match reads the PDFs with PyMuPDF (c4a931e5),
+and its numbers sit within a point or two of the Mac's once Chinese text
+falls back to YaHei (9ecd33ea) — before that every line drawn there was
+JhengHei UI and Yu Gothic UI, and the sample scored 59%. Build and run
+as in its memory notes: `STARLING_ENGINE_OUT` to link, the engine's
+out-dir on `PATH` and `STARLING_ICU` to run.
+
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
@@ -96,7 +103,7 @@ zh-64044a1d still runs 119 pages to Word's 103: the next difference is
 open for anyone.
 
 ### T5. zh-6d1afa56: headings led by breaks
-Owner: —
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box, Word for Windows only), from 2026-10-14
 Documents: zh-6d1afa56 (16%), zh-1a3c7aa0 (24%).
 Known: break-led headings came out at three different heights — likely
 the T4 rule (re-check after it); in
