@@ -1952,6 +1952,17 @@ fitter dropped the paragraph's tail).
   zh-90e0cea8 +2.8, zh-9e08ed28 +3.1, zh-e5709b89 +3.1, zh-6d1afa56
   +3.6; nothing down. Chinese sample 77.5%.
 
+- **`w:topLinePunct`: an opening mark at a paragraph's start gives up
+  its blank half (2026-10-14).** zh-2b955411's Body Text style says
+  `w:topLinePunct` (compress punctuation at a line's start) and its
+  settings compress punctuation; Word sets "（六） 对市属企业…" 8pt left
+  of its two-character indent at 16pt — the bracket's blank left half
+  gone — and the line takes one character more than ours did (its
+  "监"), which moved every line after. Done for the first line only
+  (`RichLayout._topLineSqueeze`); a line inside a paragraph that starts
+  with an opening mark is not, nor without the compression setting.
+  zh-2b955411 62.1% -> 90.2%; nothing else moved. Chinese sample 77.9%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
@@ -1970,6 +1981,6 @@ spaces give in a justified paragraph only, and by a rule not found
 
 Left, in the order the line match names them: tables (cell widths,
 vertical alignment), cover pages and frames in the
-body, page number formats and restarts per section, `w:topLinePunct`,
+body, `w:topLinePunct` inside a paragraph,
 drawn lines and shapes (a red rule under a letterhead), and whatever
 the next first-differing line turns out to be.

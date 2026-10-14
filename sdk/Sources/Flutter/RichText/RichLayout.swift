@@ -3456,9 +3456,26 @@ public final class RichLayout {
             // (Twice where the document balances its widths: see `_span`.)
             if document.balancesSpaceWidth { spacing *= 2 }
             let grid: Double = _grid(index, document).chars ?? 0
-            return chars / 100 * (size + spacing + grid)
+            return chars / 100 * (size + spacing + grid) - _topLineSqueeze(p, document)
         }
-        return p.style.firstLineIndent
+        return p.style.firstLineIndent - _topLineSqueeze(p, document)
+    }
+
+    /// What an opening mark at the paragraph's start gives up where the
+    /// paragraph compresses punctuation at a line's start (Word's
+    /// `w:topLinePunct`): its blank left half, in points. zh-2b955411's
+    /// "（六） 对…" in Body Text, which says so, starts 8pt left of its
+    /// two-character indent at 16pt, and the line takes one character
+    /// more (its "监"). Only where the settings compress punctuation.
+    /// (A line inside the paragraph that starts with such a mark is not
+    /// done: the first line is where the corpus has them.)
+    private func _topLineSqueeze(_ p: RichParagraph, _ document: RichDocument) -> Double {
+        guard theme.wordRules, p.style.eastAsian["w:topLinePunct"] == "1",
+              document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false,
+              let first = p.text.utf16.first, Self._openingUnits.contains(first) else { return 0 }
+        let named = _named(p, document)
+        let size: Double = p.runs.first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize
+        return size / 2
     }
 
     /// The sheet's entry for a paragraph: its style's, and for a plain
