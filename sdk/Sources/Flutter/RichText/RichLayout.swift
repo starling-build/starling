@@ -3847,6 +3847,13 @@ public final class RichLayout {
         let inCell = p.cell != nil
         let hangs = fitted && !inCell && p.style.eastAsian["w:overflowPunct"] != "0"
         let squeezes = fitted && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
+        // (From 2013's layout on a justified line's spaces give a quarter
+        // of themselves for a word that is over: Cambria at 14pt takes
+        // it 0.5pt over with one space and not 1.0, 1.5 with two and not
+        // 2.0, 3.0 with four and not 3.5, 6.0 with eight and not 6.5 —
+        // lab `js`, `body50.py`, 2026-10-14; zh-4b8e0abc's Indonesian
+        // lines take a word ours left for the next.)
+        let squeezesSpaces = !legacy && p.style.alignment == .justify
         let units = Array(p.text.utf16)
         // (Marks to hang or squeeze, or a letter or digit an automatic
         // space may stand beside.)
@@ -3856,7 +3863,7 @@ public final class RichLayout {
         // What each character's automatic space after it is.
         var gaps: [Int: Double] = [:]
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: width, lead: 0, adjust: tabs, autoSpaces: { gaps[$0] = $1 })
-        guard marked || !gaps.isEmpty else { return [:] }
+        guard marked || !gaps.isEmpty || (squeezesSpaces && units.contains(0x20)) else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
         // the other thing `_span` puts in, does the opposite).
@@ -3963,6 +3970,7 @@ public final class RichLayout {
         var lineWide = 0        // this line's characters, and whether it has spaces among them
         var lineOther = false
         var lineSpaced = false  // … or ends, so far, with one
+        var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
         for piece in pieces {
             let a = piece.a, last = piece.last, w = piece.w
             if lineSpaced, last > a { lineOther = true }
@@ -4137,11 +4145,22 @@ public final class RichLayout {
                         fits = true
                     }
                 }
+                if !fits, squeezesSpaces, !wordSpaces.isEmpty {
+                    let need = x + w - after - width
+                    let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4
+                    if need <= roomSpaces + hair {
+                        let each = (need + 0.02) / Double(wordSpaces.count)
+                        for space in wordSpaces { adjust[space.k, default: 0] -= each }
+                        if after > 0 { adjust[last - 1, default: 0] -= after }
+                        fits = true
+                    }
+                }
                 if fits {
                     // The line is full: whatever comes next starts another.
                     x = width
                     marks = []
                     spaces = []
+                    wordSpaces = []
                     if piece.hard { x = 0; opening = true; lineWide = 0; lineOther = false; lineSpaced = false }
                     continue
                 }
@@ -4150,6 +4169,7 @@ public final class RichLayout {
                 x = 0
                 marks = []
                 spaces = []
+                wordSpaces = []
                 lineWide = 0
                 lineOther = false
                 lineSpaced = false
@@ -4162,6 +4182,10 @@ public final class RichLayout {
             if last < piece.b, lineWide > 0 { lineSpaced = true }
             x += w + piece.trail
             opening = false
+            if squeezesSpaces, piece.trail > 0, last < piece.b {
+                let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
+                for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
+            }
             marks.append(contentsOf: own)
             spaces.append(contentsOf: ownSpaces)
             if after > 0 { spaces.append(last - 1) }
@@ -4169,6 +4193,7 @@ public final class RichLayout {
                 x = 0
                 marks = []
                 spaces = []
+                wordSpaces = []
                 opening = true
                 lineWide = 0
                 lineOther = false

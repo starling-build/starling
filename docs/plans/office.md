@@ -2006,6 +2006,19 @@ fitter dropped the paragraph's tail).
   before aligning it, so on odd pages ours still stands 94pt left of
   Word's. No line score moved.
 
+- **From 2013's layout on, a justified line's spaces give a quarter of
+  themselves (2026-10-14).** Lab `js` (`body50.py`, in zh-4b8e0abc's
+  mode-15 package): justified Cambria at 14pt, n spaces on the line, the
+  next word over by d (widths from Word's own Cambria, `strw.swift`).
+  Taken up to: n=1 0.5 (not 1.0), 2: 1.5 (not 2.0), 4: 3.0 (not 3.5),
+  8: 6.0 (not 6.5), 12: 8.0 and on — a quarter of each space, 0.77pt
+  of 3.09, with the line's last word's trailing space no part of it.
+  Ours, all 85 cases alike now. This is the rule the automatic-space
+  note below had not found for real spaces. The fitter now runs for a
+  justified mode-15 paragraph with spaces even where it has no East
+  Asian mark. zh-4b8e0abc (its Indonesian half) 52.3% -> 88.5%;
+  nothing else moved. Chinese sample 79.1%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
