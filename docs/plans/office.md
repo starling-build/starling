@@ -2369,6 +2369,22 @@ fitter dropped the paragraph's tail).
   LibreOffice's table of Word's widths; only the small gap is in the
   corpus). zh-06c46ba9 +0.4; nothing else has them.
 
+- **Footnotes are set at the foot of their pages (2026-10-14).** The
+  file's footnotes were kept for the save and never drawn. Now each is
+  read like the body (its own mark showing the number the body's mark
+  was given) and laid out at the text's width; paging gives up its
+  room, and the separator's, at the foot of the page its mark lands
+  on (a paragraph or row that goes over takes its notes along), and
+  the page paints Word's separator — a 0.72pt rule 144pt long in its
+  own empty paragraph — with the notes under it, the last ending where
+  the text area does. zh-06c46ba9's note on page 13 lands within half
+  a point of Word's. footnotes and table_footnote 50.0/66.7% -> 100%,
+  Bug54849 87.0 -> 91.3, form_footnotes +1.1, bug65649 +0.4.
+  zh-06c46ba9 49.0 -> 18.0: its pages to 16 match better, and from 17
+  on it is a page out — its table 4 is laid at the 100% it states,
+  where Word sets its grid, 11pt wider (task board T14); the notes'
+  missing room had hidden that.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

@@ -1232,8 +1232,49 @@ enum DocxFormat {
             currentCell = nil
             pendingPageBreak = false
         }
+        // The footnotes, each read like the body, its own mark showing
+        // the number the body's mark was given.
+        var footnoteParagraphs: [Int: [RichParagraph]] = [:]
+        var footnoteSeparator: [RichParagraph] = []
+        if notes.footnotes, let data = part("word/footnotes.xml"), let root = XNode.parse(data) {
+            let bodyParagraphs = paragraphs, bodyRels = rels, bodyInfo = notes.rels
+            rels = [:]
+            var info: [String: KeptRel] = [:]
+            if let relsData = part("word/_rels/footnotes.xml.rels"), let relsNode = XNode.parse(relsData) {
+                for r in relsNode.all("Relationship") {
+                    guard let id = r["Id"], let target = r["Target"] else { continue }
+                    rels[id] = target
+                    info[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
+                }
+            }
+            notes.rels = info
+            notes.inHeaderFooter = true
+            let saved = (notes.seenFootnotes, notes.seenEndnotes)
+            for note in root.all("w:footnote") {
+                guard let id = Int(note["w:id"] ?? "") else { continue }
+                let type = note["w:type"] ?? "normal"
+                guard type == "normal" || type == "separator" else { continue }
+                guard type == "separator" || notes.footnoteNumbers[id] != nil else { continue }
+                notes.currentNote = notes.footnoteNumbers[id]
+                paragraphs = []
+                currentCell = nil
+                pendingPageBreak = false
+                for child in note.children { walkBlock(child, indent: 0) }
+                if type == "separator" { footnoteSeparator = paragraphs } else { footnoteParagraphs[id] = paragraphs }
+            }
+            notes.currentNote = nil
+            (notes.seenFootnotes, notes.seenEndnotes) = saved
+            notes.inHeaderFooter = false
+            paragraphs = bodyParagraphs
+            rels = bodyRels
+            notes.rels = bodyInfo
+            currentCell = nil
+            pendingPageBreak = false
+        }
         var document = RichDocument(paragraphs: paragraphs)
         document.headerFooters = headerFooters
+        document.footnotes = footnoteParagraphs
+        document.footnoteSeparator = footnoteSeparator
         document.tableColumns = tableColumns
         document.tableStyles = tableStyles
         document.styles = sheet
@@ -1737,6 +1778,11 @@ enum DocxFormat {
     final class _Shared {
         let footnotes: Bool, endnotes: Bool
         fileprivate var seenFootnotes = 0, seenEndnotes = 0
+        /// The number each footnote's mark was given in the body, by id;
+        /// and, while a note's own text is read, its number for its
+        /// `w:footnoteRef`.
+        var footnoteNumbers: [Int: Int] = [:]
+        var currentNote: Int? = nil
         var rels: [String: KeptRel]
         /// Reading a header or footer part: its page fields stay fields
         /// (the layout fills them for each page).
@@ -2408,8 +2454,13 @@ enum DocxFormat {
                     if child["w:customMarkFollows"] == "1" || child["w:customMarkFollows"] == "true" {
                         addText("\u{200B}", mark)
                     } else {
-                        addText(String(notes.next(footnote: footnote)), mark)
+                        let n = notes.next(footnote: footnote)
+                        if footnote, !notes.inTextBox, notes.footnoteNumbers[id] == nil { notes.footnoteNumbers[id] = n }
+                        addText(String(n), mark)
                     }
+                case "w:footnoteRef":
+                    // A note's own mark, in the note: its number.
+                    if let n = notes.currentNote { addText(String(n), cs) }
                 default: break
                 }
             }

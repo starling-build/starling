@@ -1906,6 +1906,13 @@ public struct RichDocument: Hashable, Sendable {
     /// on each page while the editor's one-line text for them
     /// (`header`, `footer`) is still the file's.
     public var headerFooters: [RichHeaderFooter] = []
+    /// The file's footnotes, by the id the body's marks name
+    /// (`NoteReference.id`), read like the body for the layout to set
+    /// at the foot of the page each mark lands on; and the separator
+    /// Word draws above them (its `w:separator` note's paragraphs). The
+    /// file's part is still what a save writes back.
+    public var footnotes: [Int: [RichParagraph]] = [:]
+    public var footnoteSeparator: [RichParagraph] = []
     /// The number of the first page where the last section says one
     /// (`w:pgNumType w:start`), and how page numbers are written where it
     /// says that (`w:fmt`: "lowerRoman", "numberInDash"…).

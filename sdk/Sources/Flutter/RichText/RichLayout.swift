@@ -1707,6 +1707,8 @@ public final class RichLayout {
             _pages[0].reserveCapacity(32)
             _allPieces.removeAll(keepingCapacity: true)
         }
+        let oldNotes = _pageNotes
+        _pageNotes = _pageNotes.filter { $0.key < page }
         var prevContentH = contentH
         var prevY = 0.0   // how far down the page before was filled
         // The floating pictures on this page that text wraps round: page
@@ -1720,11 +1722,37 @@ public final class RichLayout {
         var markOnPage = false
         // A line on this page hangs past its foot (by its grid's overhang).
         var overfull = false
+        // Footnotes at this page's foot, whose room the page's text gives
+        // up (Word's, under its rules): the notes of the paragraph or row
+        // being set (`placing`, of paragraphs `placingRange`) go on with
+        // it to the next page where none of it stays on this one.
+        let notesOn = theme.wordRules && !document.footnotes.isEmpty && _columns == 1
+        var pageNotes: [Int] = []
+        var placing: [Int] = []
+        var placingRange = 0 ..< 0
+        func reserveNotes(_ ids: [Int]) {
+            guard notesOn else { return }
+            let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+            for id in ids where !pageNotes.contains(id) {
+                guard let note = _note(id, width: width, document) else { continue }
+                var room = note.height
+                if pageNotes.isEmpty { room += _note(-1, width: width, document)?.height ?? 0 }
+                contentH = max(1, contentH - room)
+                pageNotes.append(id)
+            }
+        }
         func newPage() {
             bands.removeAll()
             anchorRun.removeAll()
             markOnPage = false
             overfull = false
+            var carried: [Int] = []
+            if notesOn {
+                let stays = _pages[page].contains { placingRange.contains($0.paragraph) && !$0.repeated }
+                carried = stays ? [] : placing.filter { pageNotes.contains($0) }
+                _pageNotes[page] = pageNotes.filter { !carried.contains($0) }
+                pageNotes = []
+            }
             var fresh: [PagePiece] = []
             fresh.reserveCapacity(32)
             _pages.append(fresh)
@@ -1733,6 +1761,7 @@ public final class RichLayout {
             y = 0
             prevContentH = contentH
             openPage()
+            reserveNotes(carried)
         }
         _blankPages = _blankPages.filter { $0 < page / _columns }
         if restarted {
@@ -2064,7 +2093,20 @@ public final class RichLayout {
                 _allPieces.append(contentsOf: oldPieces[oldStart[i]...])
                 _pages[page].append(contentsOf: oldPages[page].filter { $0.paragraph >= i })
                 if page + 1 < oldPages.count { _pages.append(contentsOf: oldPages[(page + 1)...]) }
+                if notesOn {
+                    pageNotes = oldNotes[page] ?? pageNotes
+                    for (k, v) in oldNotes where k > page { _pageNotes[k] = v }
+                }
                 break
+            }
+            if notesOn {
+                var end = i + 1
+                if let c = _cells[i] { while end < count, let d = _cells[end], d.table == c.table, d.row == c.row { end += 1 } }
+                if placingRange != i ..< end {
+                    placingRange = i ..< end
+                    placing = placingRange.flatMap { _footnotes(in: $0, document) }
+                }
+                reserveNotes(placing)
             }
             if let c = _cells[i] {
                 // A floating table anchored to the text stands its offset
@@ -2548,6 +2590,7 @@ public final class RichLayout {
                 }
             }
         }
+        if notesOn { _pageNotes[page] = pageNotes }
         if _pages.count > 1 && _pages[_pages.count - 1].isEmpty { _pages.removeLast() }
         // Each page's top on the canvas, under the pages before it.
         let physicalPages = max(1, (_pages.count + _columns - 1) / _columns)
@@ -5543,6 +5586,58 @@ public final class RichLayout {
     /// Text boxes' own layouts, by attachment.
     private var _textBoxCache: [String: _HeaderFooter] = [:]
 
+    /// Footnotes' own layouts, by note and width; and the footnotes set
+    /// at the foot of each page, by physical page.
+    private var _noteCache: [String: _HeaderFooter] = [:]
+    private var _pageNotes: [Int: [Int]] = [:]
+
+    /// A sub-document of `paragraphs` that reads its settings from
+    /// `document`, laid out `width` wide.
+    private func _subLayout(_ paragraphs: [RichParagraph], _ document: RichDocument, width: Double) -> _HeaderFooter {
+        var sub = RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph()] : paragraphs)
+        sub.styles = document.styles
+        sub.listFormats = document.listFormats
+        sub.listCounterOf = document.listCounterOf
+        sub.listRestarts = document.listRestarts
+        sub.usesEastAsianLayout = document.usesEastAsianLayout
+        sub.characterSpacingControl = document.characterSpacingControl
+        sub.kernsPunctuation = document.kernsPunctuation
+        sub.balancesSpaceWidth = document.balancesSpaceWidth
+        sub.compatibilityMode = document.compatibilityMode
+        sub.hangsHalf = document.hangsHalf
+        sub.defaultLangXML = document.defaultLangXML
+        sub.htmlAutoSpacing = document.htmlAutoSpacing
+        sub.defaultTabStop = document.defaultTabStop
+        let layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
+        layout.scale = scale
+        layout.width = max(1, width)
+        layout.ensureLaidOut(sub)
+        return _HeaderFooter(layout: layout, document: sub)
+    }
+
+    /// Footnote `id` laid out `width` wide (pixels), or nil where the
+    /// file has no such note. id -1 is the separator above them.
+    private func _note(_ id: Int, width: Double, _ document: RichDocument) -> _HeaderFooter? {
+        let key = "\(id)|\(width)|\(scale)"
+        if let hit = _noteCache[key] { return hit }
+        let paragraphs: [RichParagraph]
+        if id == -1 { paragraphs = document.footnoteSeparator } else if let p = document.footnotes[id] { paragraphs = p } else { return nil }
+        let made = _subLayout(paragraphs, document, width: width)
+        if _noteCache.count > 512 { _noteCache.removeAll() }
+        _noteCache[key] = made
+        return made
+    }
+
+    /// The footnotes whose marks paragraph `i` holds, in its order.
+    private func _footnotes(in i: Int, _ document: RichDocument) -> [Int] {
+        guard i >= 0, i < document.paragraphs.count else { return [] }
+        var out: [Int] = []
+        for run in document.paragraphs[i].runs {
+            if let n = run.style.note, n.kind == .footnote, document.footnotes[n.id] != nil, !out.contains(n.id) { out.append(n.id) }
+        }
+        return out
+    }
+
     /// A text box's text, laid out at the box's width inside its insets.
     private func _textBox(_ image: ImageAttachment, _ document: RichDocument) -> _HeaderFooter? {
         guard theme.wordRules, let box = image.textBox else { return nil }
@@ -5956,6 +6051,37 @@ public final class RichLayout {
         }
     }
 
+    /// The footnotes set at page `p`'s foot: the separator — a rule
+    /// 144pt long in its own empty paragraph (Word's print: 0.72pt thick,
+    /// from the left margin) — and the notes under it, the last ending
+    /// where the page's text area does.
+    private func _paintFootnotes(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        guard theme.wordRules, let ids = _pageNotes[p], !ids.isEmpty, pageSetup != nil else { return }
+        let setup = pageSetup(forPage: p)
+        let width = _px(setup.contentWidth)
+        let notes = ids.compactMap { _note($0, width: width, document) }
+        guard !notes.isEmpty else { return }
+        let rect = pageRect(p)
+        let bottom = rect.bottom - _bodyInsets(page: p, document).bottom
+        let separator = _note(-1, width: width, document)
+        var top = bottom - notes.reduce(0.0) { $0 + $1.height } - (separator?.height ?? 0)
+        let left = rect.left + _pxMarginLeft(p)
+        if let separator {
+            let line = Paint()
+            line.color = theme.textColor
+            canvas.drawRect(Rect.fromLTWH(left, top + separator.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
+            top += separator.height
+        }
+        for note in notes {
+            canvas.save()
+            canvas.translate(left, top)
+            note.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: note.document,
+                              selection: nil, caret: nil)
+            canvas.restore()
+            top += note.height
+        }
+    }
+
     /// Paint everything intersecting `visible` (CANVAS space), the canvas
     /// already translated so canvas (0, 0) is at the origin. `caret` is in
     /// canvas space too. `pageBackground` paints each visible page's paper
@@ -5970,6 +6096,7 @@ public final class RichLayout {
             for p in firstPage ... lastPage {
                 pageBackground?(p, pageRect(p))
                 _paintHeaderFooter(p, canvas, document)
+                _paintFootnotes(p, canvas, document)
             }
         }
         // Three layers: table shading, the selection over it, then the text
