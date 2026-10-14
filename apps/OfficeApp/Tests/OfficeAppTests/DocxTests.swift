@@ -1737,6 +1737,7 @@ final class DocxTests: XCTestCase {
         // states none of its own.)
         var word = TableStyle(borders: false, headerRow: true, cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4)
         word.textOutdent = 5.4
+        word.textOutdentRight = 5.4
         XCTAssertEqual(back.document.tableStyles[id], word)
         // The default writes bordered, no header.
         doc.tableStyles = [:]
@@ -1744,6 +1745,7 @@ final class DocxTests: XCTestCase {
         let plainId = try XCTUnwrap(plain.document.paragraphs[0].cell?.table)
         var plainStyle = TableStyle(cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4)
         plainStyle.textOutdent = 5.4
+        plainStyle.textOutdentRight = 5.4
         XCTAssertEqual(plain.document.tableStyles[plainId], plainStyle)
     }
 

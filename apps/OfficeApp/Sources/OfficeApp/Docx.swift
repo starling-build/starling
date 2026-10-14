@@ -918,9 +918,13 @@ enum DocxFormat {
                 style.cellMarginLeft = margins.left
                 style.cellMarginBottom = margins.bottom
                 style.cellMarginRight = margins.right
-                if _cellMargins(node.first("w:tblPr")).left == nil {
-                    style.textOutdent = styled.under(defaultMargins).under(_Margins.word).left ?? 5.4
-                }
+                // (The table's own margins, else its style's, else Word's:
+                // what the layout sets a table out by before Word 2013's
+                // layout — a stated margin too, lab `tc` 2026-10-14.)
+                let own = _cellMargins(node.first("w:tblPr"))
+                let base = styled.under(defaultMargins).under(_Margins.word)
+                style.textOutdent = own.left ?? base.left ?? 5.4
+                style.textOutdentRight = own.right ?? base.right ?? 5.4
                 // The table's own margins, for the save: the cells keep
                 // their w:tcMar, and the cells that state none take these
                 // (drawing.docx zeroes its banner row's and leaves 5.25pt

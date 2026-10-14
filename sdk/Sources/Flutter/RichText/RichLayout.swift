@@ -1035,16 +1035,22 @@ public final class RichLayout {
     private func _tableLeft(_ table: String, _ document: RichDocument) -> Double {
         let sum = (_columnWidths[table] ?? []).reduce(0, +)
         let width = _tableFlowWidth[table] ?? self.width
-        // (Set out by its style's cell margin, as Word sets it: the first
-        // column's text then lines up with the paragraphs'.)
-        // (… and so is such a table's, by Word's 5.4.)
-        let stated = document.tableStyles[table]?.cellMarginLeft != nil
-        let outdent = theme.wordRules ? _px(stated ? document.tableStyles[table]?.textOutdent ?? 0 : 5.4) : 0
-        switch document.tableStyles[table]?.alignment ?? .left {
-        case .center: return theme.wordRules ? (width - sum) / 2 - outdent : max(0, ((width - sum) / 2).rounded(.down))
-        case .right: return theme.wordRules ? width - sum + outdent : max(0, (width - sum).rounded(.down))
-        default: return theme.wordRules ? _px(document.tableStyles[table]?.indent ?? 0) - outdent
-            : _px(document.tableStyles[table]?.indent ?? 0).rounded()
+        // Set out by its cell margin, as Word sets it before its 2013
+        // layout: a left-aligned table's edge stands its left cell margin
+        // left of its indent, so that the first column's text lines up
+        // with the paragraphs'; a right-aligned one its right margin past
+        // the right margin; a centred one is centred as it is. From
+        // compatibility mode 15 on the indent is the edge's place and
+        // nothing is set out (labs `tc` and `tc15`, 2026-10-14: zh-4c3793e8's
+        // centred table had been 5.4pt left of Word's).
+        let old = theme.wordRules && (document.compatibilityMode ?? 0) < 15
+        let style = document.tableStyles[table]
+        let left = old ? _px(style?.textOutdent ?? 5.4) : 0
+        let right = old ? _px(style?.textOutdentRight ?? 5.4) : 0
+        switch style?.alignment ?? .left {
+        case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
+        case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
+        default: return theme.wordRules ? _px(style?.indent ?? 0) - left : _px(style?.indent ?? 0).rounded()
         }
     }
 
@@ -3031,9 +3037,25 @@ public final class RichLayout {
                 }
                 if wideSpaces.contains(offset) {
                     // (Half an em and the run's own spacing once more,
-                    // as Word measures it: 8.31pt at 16pt spaced 0.15.)
+                    // as Word measures it: 8.31pt at 16pt spaced 0.15.
+                    // A face Word emboldens widens each character by its
+                    // spread, and the space, a half-width character,
+                    // by half of it — not by the whole, and not by the
+                    // Latin stand-in's once more: 5.72pt at 12pt in
+                    // 楷体_GB2312 bold spaced -0.2, where 6.02 wrapped a
+                    // line of zh-232090e0 that Word keeps; lab `sp`,
+                    // 2026-10-14.)
                     let s = style(kind)
+                    let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily
+                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, true)
+                    let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    let spread = bold ? own * theme.pixelsPerPoint * scale : 0
+                    // (The stand-in's spread is in the style's spacing,
+                    // which the engine applies and the line above adds
+                    // once more: off twice.)
                     extra += em / 2 - _spaceWidth(s) + (s.letterSpacing ?? 0)
+                        - 2 * spread * (latinFace?.boldSpread ?? 0) + spread * (eaFace?.boldSpread ?? 0) / 2
                 } else if !ea, let face = latinFace, face.advances != nil, ch.unicodeScalars.count == 1,
                           let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E {
                     // The width the original face gives this character
@@ -3787,6 +3809,17 @@ public final class RichLayout {
                     // (Without the automatic space after it, which is
                     // no part of the character.)
                     let set = wide && !closesUp(a) ? boxes(a, a + 1) - (gaps[a] ?? 0) : em
+                    // (Before 2013's layout a Latin word at the line's end
+                    // is taken in a cell whenever the marks and the
+                    // automatic spaces can give what it needs — "110.01.01"
+                    // 10.5 over, with a full-width colon and two such
+                    // spaces on the line, and not 11; an ideograph is taken
+                    // half its em over there as in the body. Lab `ovc`,
+                    // from zh-4c3793e8's timetable, 2026-10-14. In the body
+                    // the word keeps the half-em test: zh-e27cd8bf's "20"
+                    // and "2021" are taken by Word, and the body lab `ov`
+                    // could not say more — its natural widths were not
+                    // known to the point.)
                     let taken = modern
                         ? (!lineOther && lineWide > 1 && room > 0 && hang == 0
                             ? need * Double(lineWide - 1) * em / 64 <= room * (width - x + hair)
@@ -3794,15 +3827,22 @@ public final class RichLayout {
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)
                             : need / Double(max(1, all.count)) <= width - x + (all.count > 1 ? -_px(0.02) : hair))
-                        : x + min(lead, w) - width <= set / 2 + edge
+                        : (!wide && inCell) || x + min(lead, w) - width <= set / 2 + edge
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken)\n".utf8))
                     }
                     if room > 0, taken, need <= room + hair {
                         let share = min(1, (need + 0.02) / room)
-                        for mark in all { adjust[mark, default: 0] -= half(mark) * share }
-                        for k in given { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * share }
+                        // (The marks give first, and the automatic spaces
+                        // what is still needed: the colon of lab `ovc` is
+                        // set at its half, 7.0, and the two spaces at 2.63
+                        // of their 3.5, not all three at a share.)
+                        let markShare = given.isEmpty || markRoom <= 0 ? share : min(1, (need + 0.02) / markRoom)
+                        let spaceShare = given.isEmpty || markRoom <= 0 ? share
+                            : min(1, max(0, need + 0.02 - markRoom) / max(0.001, room - markRoom))
+                        for mark in all { adjust[mark, default: 0] -= half(mark) * markShare }
+                        for k in given { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * spaceShare }
                         // (What the marks cannot give of that fiftieth —
                         // where they give all they have — the last
                         // character does: the engine allows the line

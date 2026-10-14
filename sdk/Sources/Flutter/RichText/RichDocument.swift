@@ -940,10 +940,13 @@ public struct TableStyle: Hashable, Sendable {
     /// from nil: Word draws a table that states it with separate borders.
     public var cellSpacing: Double? = nil
     /// How far left of its place the table's edge stands so that its
-    /// first column's text lines up with the paragraphs' (points): Word
-    /// sets a table out by its style's left cell margin — unless the
-    /// table states cell margins of its own, and then not at all.
+    /// first column's text lines up with the paragraphs' (points): its
+    /// left cell margin — the table's own, else its style's, else
+    /// Word's 5.4 — in Word's layouts before 2013 (the layout decides:
+    /// `RichLayout._tableLeft`). And the right one, by which a
+    /// right-aligned table stands past the right margin.
     public var textOutdent: Double = 0
+    public var textOutdentRight: Double = 0
     /// The header row's fill (nil: a faint tint of the text colour).
     public var headerFill: Color? = nil
     /// Banded rows: every other body row filled with this, the rest with

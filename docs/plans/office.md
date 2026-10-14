@@ -1781,6 +1781,66 @@ fitter dropped the paragraph's tail).
   And with room enough in the commas Word draws the mark wholly
   inside the margin and hangs nothing.
 
+- **Where a table stands, by its alignment and the layout's age
+  (2026-10-14).** Labs `tc` (`body43.py` in zh-4c3793e8's package, no
+  compatibility mode) and `tc15` (the same in zh-84702a67's, mode 15):
+  ten tables, left, centred and right, with `w:tblInd` 108, 0 and
+  600, with and without a stated `w:tblCellMar` of 200. Before 2013's
+  layout a left-aligned table's edge stands its left cell margin —
+  the table's own where stated, else its style's, else 5.4 — left of
+  its indent, so that the first column's text lines up with the
+  paragraphs'; a right-aligned one stands its right margin past the
+  right margin; a centred one is centred as it is, and its indent
+  counts for nothing. In mode 15 nothing is set out: the indent is
+  the edge's place, left, centred or right. The code had set every
+  table out by its style's margin and none by a stated one, which
+  put zh-4c3793e8's centred timetable 5.4pt left of Word's (the
+  "table x offset" of the open list). All twenty cases now agree to
+  the point. `RichDocument.TableStyle.textOutdent` and
+  `textOutdentRight`, `RichLayout._tableLeft`.
+- **A space in an emboldened face is widened by half the spread
+  (2026-10-14).** zh-232090e0's form has a line of 45 spaces then
+  "申请时间:     年    月   日" in 楷体_GB2312 bold spaced -0.2, which
+  Word keeps on one line and ours broke before the 日: 57 spaces at
+  6.02 where Word's are 5.72. Lab `sp` (`body44.py`, twelve variants
+  of the line): Word's KaiTi ideographs are 12.23 apart at 12pt
+  unspaced — its fake bold's spread, which the stand-in models as
+  0.21 of spacing — and 11.83 spaced -0.2, the spacing taken twice
+  under `balanceSingleByteDoubleByteWidth` as known; its spaces are
+  6.12 unspaced and 5.72 spaced, that is half the em, HALF the
+  spread, and the spacing twice. Ours had added the stand-in's
+  spread to the space twice over (once in the style the engine
+  applies, once in the half-em correction that adds the style's
+  spacing again). 4.3% -> 82.6% of that document's lines, nothing
+  else moved. Not squeezed, this: with 46 spaces Word breaks, and
+  left, right, centred and justified all alike.
+- **In a cell, before 2013's layout, a Latin word at the line's end
+  is taken whenever the marks and the automatic spaces can give what
+  it needs (2026-10-14).** zh-4c3793e8's "服務專線：941025轉402
+  田小姐", 41 spaces, "110.01.01" at 8pt, in a cell of 523.45: 8.8pt
+  over, and Word sets it on one line with the full-width colon at its
+  half (7.0, the glyph drawn 3.5 to the left so that its ink keeps
+  its place) and each automatic space between a digit and an
+  ideograph at 2.63 of its 3.5. Lab `ovc` (`body47.py`): the word is
+  taken up to 10.5 over — the colon's half and the two spaces' halves
+  exactly — and not at 11; an ideograph in its place up to 7.5 and
+  not 8 (half its em, as in the body). The marks give first and the
+  spaces what is still needed; the code had given all a share. The
+  half-em test had been applied to the word too (4pt at 8pt), and
+  stays for the body: zh-e27cd8bf's "20" and "2021" are taken there
+  by Word within it, and the body lab `ov` (`body46.py`) was built
+  on natural widths that turned out several points short, so it
+  says nothing yet. zh-4c3793e8 47% -> 100%. Chinese sample 73.4% ->
+  75.3% (median 91.1, 27 at 95%+), the two documents and nothing
+  else; POI unchanged by the document (its mean reads 66.1 for a new
+  empty "zero-length" fixture scoring 0/0).
+  Not built from the same labs (`as`, `as-nc`, `as15`, `body45.py`):
+  the automatic space is a quarter of the em in every setting tried
+  — bold or not, 14 and 16pt, Arial or Times beside 標楷體, with and
+  without `compressPunctuation`, before and in mode 15 — and a
+  full-width colon, comma and full stop keep their em on a line that
+  fits; the 10.5 and 2.6 of the document were the squeeze alone.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
