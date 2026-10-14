@@ -10,9 +10,12 @@ The landing itself uses HTML/CSS and needs no JavaScript or WASM runtime.
 Product copy follows `docs/plans/office-overview.md` (2026-10-13): current editing
 features, DOCX/PPTX/XLSX support, compatibility testing, and platform status.
 Compatibility is described as ongoing work, not a guarantee of perfect fidelity.
-The browser apps are live; macOS can be built from source; Windows and Linux
-windowed apps are next, and iOS is being tested in the simulator. Keep this
-distinction when updating the page. The sample captions describe the pictured
+The browser apps are live. Desktop packages cover macOS Apple silicon, Windows
+x86_64 (portable ZIP), and Linux x86_64 (DEB and Flatpak). Download links in the
+navigation, hero, platforms section, and footer point to the public GitHub
+releases page, which provides published assets and installation instructions.
+Keep that stable destination rather than linking to temporary draft-release
+asset URLs. The sample captions describe the pictured
 files; the capability labels describe the broader apps.
 
 ## Local preview

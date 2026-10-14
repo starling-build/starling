@@ -38,6 +38,8 @@
         <nav aria-label="Main navigation">
           <a href="#apps">The apps</a><a href="#files">Your files</a
           ><a href="#platforms">Platforms</a
+          ><a href="https://github.com/starling-build/starling/releases"
+            >Download <span aria-hidden="true">↗</span></a
           ><a href="https://github.com/starling-build/starling"
             >GitHub <span aria-hidden="true">↗</span></a
           >
@@ -56,9 +58,17 @@
               suite.
             </p>
             <p class="hero-note">
-              Open, edit, and save DOCX, PPTX, and XLSX. Start in your browser.
+              Open, edit, and save DOCX, PPTX, and XLSX. In your browser or on
+              your desktop.
             </p>
-            <a class="button button-light" href="#apps">Explore the apps ↓</a>
+            <div class="actions">
+              <a
+                class="button button-light"
+                href="https://github.com/starling-build/starling/releases"
+                >Download Office ↗</a
+              >
+              <a class="text-link" href="#apps">Try the apps online ↓</a>
+            </div>
           </div>
           <div class="office-cover" aria-label="Office applications">
             <span class="cover-kicker">OPEN AN EXAMPLE. MAKE IT YOURS.</span
@@ -245,27 +255,45 @@
           <div class="split">
             <div>
               <p class="eyebrow">YOUR OFFICE, ACROSS DEVICES</p>
-              <h2>On the web.<br />Native on Mac.</h2>
+              <h2>On the web.<br />On your desktop.</h2>
             </div>
             <div>
               <p class="lead">
                 The same editing tools, document layouts, and file formats.
               </p>
               <p>
-                Open any of the three apps in your browser today. The suite also
-                runs as a native macOS app, built from the same Swift code.
-              </p>
-              <p class="fine">
-                Windows and Linux desktop apps are next. iOS is being tested in
-                the simulator.
+                Writer, Slides, and Sheets run together in one desktop app for
+                macOS, Windows, and Linux. Or open any of them in your browser,
+                with nothing to install.
               </p>
               <a
-                class="text-link"
-                href="https://github.com/starling-build/starling/tree/office/apps/OfficeApp#macos"
-                >Build the macOS app ↗</a
+                class="button"
+                href="https://github.com/starling-build/starling/releases"
+                >Download Office on GitHub ↗</a
               >
+              <p class="fine">
+                Find published downloads, installation instructions, and release
+                notes on GitHub.
+              </p>
             </div>
           </div>
+          <dl class="office-formats">
+            <div>
+              <dt>macOS <span>Apple silicon</span></dt>
+              <dd>A ZIP with the native Office app.</dd>
+            </div>
+            <div>
+              <dt>Windows <span>64-bit Intel / AMD</span></dt>
+              <dd>A portable ZIP. Extract it and open OfficeApp.exe.</dd>
+            </div>
+            <div>
+              <dt>Linux <span>64-bit Intel / AMD</span></dt>
+              <dd>
+                A DEB for Ubuntu and Debian, or a Flatpak for other
+                distributions.
+              </dd>
+            </div>
+          </dl>
         </div>
       </section>
       <section class="section open-banner">
@@ -296,6 +324,8 @@
         </div>
         <nav aria-label="Footer navigation">
           <a href="#apps">Office</a
+          ><a href="https://github.com/starling-build/starling/releases"
+            >Download Office ↗</a
           ><a href="https://starling.build/desktop/">Desktop</a
           ><a href="https://github.com/starling-build/starling"
             >Source on GitHub ↗</a
