@@ -180,8 +180,9 @@ point, below what our widths match Word's to: probably Word measures in
 twentieths (the indent as 586 twips, not 2 × 14.646). Not worth chasing
 without a model of Word's rounding.
 
-### T13. zh-89385c94: cell lines and a page's foot
+### T13. zh-89385c94: cell lines and a page's foot — DONE (2026-10-14)
 Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-14
+Result: 99.3% on Windows (2ffeece2, 3605f11c, with 37fdff4b).
 Documents: zh-89385c94 (16% on Windows).
 Known: page 2's cells take "考，" on a line Word ends a character
 earlier, and the page's foot holds one line more than Word's.

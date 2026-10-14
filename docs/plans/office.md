@@ -2242,6 +2242,27 @@ fitter dropped the paragraph's tail).
   an ideograph ("內政部(" / "警政署)"), which ours keeps with it. (The
   sweep carried f774a736 too.) Chinese sample on Windows 87.1%.
 
+- **In a table cell, a paragraph's last mark gives its half before
+  2013's layout (2026-10-14).** Under Taiwan's Chinese a closing mark
+  ending a cell's line keeps its width before mode 15 — not the
+  paragraph's own last mark. Lab `pe` (zh-89385c94's package, Word
+  for Windows): eight ideographs and ，。）」、； are taken up to 7.0pt
+  over at 14pt and not at 7.5 where they end the paragraph, and not
+  even 0.55 over where text follows. zh-89385c94 53.3% -> 99.3%,
+  zh-9e08ed28 50.0 -> 84.7, zh-06c46ba9 +6.6, zh-e6d54ae4 64.6 ->
+  82.7 with the next rule. Down: zh-64044a1d 73.8 -> 68.0, a line now
+  taken on a row whose third column starts 3.6pt left of Word's (a
+  table of percentage widths laid out automatically: T1).
+
+- **What of a parted row goes over is as tall as a merged cell's text
+  that went with it (2026-10-14).** zh-e6d54ae4's "（三）注重服務人員…" is
+  merged over two rows and the second parts over the page; the part
+  that goes over was as tall as its own one line, not the merged
+  cell's three carried beside it, and the next row stood over them.
+  A whole row at a page's top already counted such a cell
+  (`pageHeight`); a parted row's part now does. Chinese sample on
+  Windows 89.2%.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
