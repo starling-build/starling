@@ -110,7 +110,7 @@ zh-1a3c7aa0 the second (landscape) section starts pages earlier than in
 Word, and the odd-page footer stands 8pt lower than Word's.
 
 ### T6. Body pictures on the line grid
-Owner: —
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 Documents: zh-e5709b89 (+5.7 when body pictures were snapped),
 zh-90e0cea8 (−1 page when they were).
 Known: in table cells Word snaps a picture's line to whole pitches,
