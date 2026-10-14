@@ -146,3 +146,9 @@ Documents: zh-454e2e29 (49%), row 2.
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb
 Always a page, unless a page break just before is the same break
 (entry in `office.md`, lab `es`). zh-06c46ba9 0.7 -> 47.2.
+
+### T11. zh-90e0cea8: drift on its last page
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
+Documents: zh-90e0cea8 (67%, 11 pages to Word's 10).
+Known: before its last picture, ours sits about 17.6pt below Word's on
+that page, so the picture goes over (T6 exposed it).
