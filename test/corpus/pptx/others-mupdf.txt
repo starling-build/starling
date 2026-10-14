@@ -287,7 +287,6 @@ lo-tdf135953_SmartArt_textposition.pptx
 lo-tdf136830.pptx
 lo-tdf137367.pptx
 lo-tdf138148.pptx
-lo-tdf140714.pptx
 lo-tdf140852.pptx
 lo-tdf140865Wordart3D.pptx
 lo-tdf141058-1.pptx

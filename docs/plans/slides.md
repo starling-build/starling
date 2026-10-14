@@ -1051,6 +1051,13 @@ Tried and dropped: Calibri lines at the face's own 1.22 rather than
 decks worse and 21 better (1.8667 → 1.8926). Whatever spaces 60810's
 lines, it is not the face.
 
+**A picture cropped to a freeform, 2026-10-14** (sweep 60: 1.8660 →
+1.8486%; tdf140714 2.03 → 0.00, tdf153008 5.89 → 0.06, tdf156649 1.98 →
+0.20). A picture's `spPr` may outline it with `a:custGeom` — tdf153008's
+circle in four curves — and was drawn square. It is clipped to the
+outline's filled contours now (`customPath`, as a preset's
+`pictureGeometry` clips it), in both the picture and metafile paths.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

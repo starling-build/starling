@@ -460,6 +460,8 @@ final class SlidePainter: CustomPainter {
                 canvas.clipRect(r)
                 if let g = shape.pictureGeometry, !g.isLine {
                     canvas.clipPath(PresetGeometry.path(g.rawValue, in: r) ?? Self.geometryPath(g, r))
+                } else if let outline = shape.customPath {
+                    canvas.clipPath(Self.combinedPath(outline, r))
                 }
                 if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px) }
                 if shape.flipH || shape.flipV {
@@ -490,6 +492,8 @@ final class SlidePainter: CustomPainter {
                 if shape.pictureInset != .zero { canvas.clipRect(frame) }
                 if let g = shape.pictureGeometry, !g.isLine {
                     canvas.clipPath(PresetGeometry.path(g.rawValue, in: frame) ?? Self.geometryPath(g, frame))
+                } else if let outline = shape.customPath {
+                    canvas.clipPath(Self.combinedPath(outline, frame))
                 }
                 if let style = shape.fillStyle { paintFill(style, frame, canvas, cache: cache, pxPerPt: px) }
                 if shape.flipH || shape.flipV {

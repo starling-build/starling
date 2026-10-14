@@ -1449,6 +1449,9 @@ private struct SlideContext {
         s.flipV = xfrm?["flipV"] == "1"
         if let prst = el.first("p:spPr")?.first("a:prstGeom")?["prst"], prst != "rect" {
             s.pictureGeometry = ShapePreset(rawValue: prst)
+        } else if let geom = el.first("p:spPr")?.first("a:custGeom") {
+            // Or to a freeform outline (tdf153008's circle in four curves).
+            s.customPath = FreeformGeometry.parse(geom, width: frame.width * Pptx.emu, height: frame.height * Pptx.emu)
         }
         if let blip = el.first("p:blipFill")?.first("a:blip") {
             (s.pictureAlpha, s.pictureDuotone) = PptxReader.blipEffects(blip, colors: colors)
