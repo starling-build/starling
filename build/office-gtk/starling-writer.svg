@@ -1,8 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <rect x="48" y="24" width="176" height="208" rx="18" fill="#ffffff" stroke="#1e4f9e" stroke-width="6"/>
-  <rect x="72" y="62" width="128" height="12" rx="6" fill="#2b6cd4" opacity=".55"/>
-  <rect x="72" y="92" width="128" height="12" rx="6" fill="#2b6cd4" opacity=".4"/>
-  <rect x="72" y="122" width="128" height="12" rx="6" fill="#2b6cd4" opacity=".25"/>
-  <rect x="16" y="112" width="128" height="128" rx="22" fill="#2b6cd4"/>
-  <text x="80" y="208" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="92" fill="#ffffff">W</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Starling Writer</title>
+  <defs>
+    <linearGradient id="tile" x1="40" y1="16" x2="208" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4169F5"/>
+      <stop offset="1" stop-color="#2449DF"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#tile)"/>
+  <rect x="17" y="17" width="222" height="222" rx="47" fill="none" stroke="#1734AC" stroke-opacity=".28" stroke-width="2"/>
+  <path d="M76 56h76l36 36v108a12 12 0 0 1-12 12H76a12 12 0 0 1-12-12V68a12 12 0 0 1 12-12Z" fill="#102772" opacity=".2"/>
+  <path d="M76 48h76l36 36v108a12 12 0 0 1-12 12H76a12 12 0 0 1-12-12V60a12 12 0 0 1 12-12Z" fill="#FFFFFF"/>
+  <path d="M152 48v24a12 12 0 0 0 12 12h24Z" fill="#C6D5FF"/>
+  <rect x="84" y="96" width="44" height="12" rx="3" fill="#2449DF"/>
+  <path d="M88 128h76m-76 24h76m-76 24h48" fill="none" stroke="#6382E8" stroke-width="8" stroke-linecap="round"/>
 </svg>

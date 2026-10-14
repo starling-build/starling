@@ -1,8 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <rect x="48" y="24" width="176" height="208" rx="18" fill="#ffffff" stroke="#167542" stroke-width="6"/>
-  <rect x="72" y="62" width="128" height="12" rx="6" fill="#1f9d57" opacity=".55"/>
-  <rect x="72" y="92" width="128" height="12" rx="6" fill="#1f9d57" opacity=".4"/>
-  <rect x="72" y="122" width="128" height="12" rx="6" fill="#1f9d57" opacity=".25"/>
-  <rect x="16" y="112" width="128" height="128" rx="22" fill="#1f9d57"/>
-  <text x="80" y="208" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="92" fill="#ffffff">S</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Starling Sheets</title>
+  <defs>
+    <linearGradient id="tile" x1="40" y1="16" x2="208" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#229B70"/>
+      <stop offset="1" stop-color="#13794D"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#tile)"/>
+  <rect x="17" y="17" width="222" height="222" rx="47" fill="none" stroke="#095A3C" stroke-opacity=".28" stroke-width="2"/>
+  <rect x="48" y="64" width="160" height="144" rx="12" fill="#063F2D" opacity=".22"/>
+  <rect x="48" y="56" width="160" height="144" rx="12" fill="#FFFFFF"/>
+  <path d="M60 56h136a12 12 0 0 1 12 12v24H48V68a12 12 0 0 1 12-12Z" fill="#C6F0D9"/>
+  <path d="M48 92h160M100 92v108m54-108v108M48 128h160M48 164h160" fill="none" stroke="#5EA984" stroke-width="6"/>
+  <rect x="107" y="135" width="40" height="22" rx="3" fill="#13794D"/>
+  <path d="M68 74h12m34 0h12m34 0h12" fill="none" stroke="#13794D" stroke-width="6" stroke-linecap="round"/>
 </svg>
