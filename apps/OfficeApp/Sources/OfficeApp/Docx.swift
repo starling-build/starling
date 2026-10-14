@@ -1283,8 +1283,14 @@ enum DocxFormat {
             OfficeFonts.noteEmbedded(table.all("w:font").compactMap { font in
                 font.first("w:embedRegular") != nil || font.first("w:embedBold") != nil ? font["w:name"] : nil
             })
+            var alts: [String: String] = [:]
+            for font in table.all("w:font") {
+                if let name = font["w:name"], let alt = font.first("w:altName")?["w:val"], !alt.isEmpty { alts[name] = alt }
+            }
+            OfficeFonts.noteAltNames(alts)
         } else {
             OfficeFonts.noteEmbedded([])
+            OfficeFonts.noteAltNames([:])
         }
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }

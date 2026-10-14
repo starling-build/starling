@@ -121,6 +121,23 @@ enum OfficeFonts {
     /// does not unnote it, nor does it need to (the note only stops the
     /// fallback).
     nonisolated(unsafe) private static var embedded: Set<String> = []
+    /// The font table's `w:altName` for each East Asian name: the face
+    /// Word uses where it has none of the name's own. zh-64044a1d's
+    /// cover names 華康粗圓體, alternate 新細明體, and Word's print draws
+    /// PMingLiU — where ours took the YaHei this Word falls back to for
+    /// a name with no alternate, and the cover's seven 26pt lines came
+    /// out three pitches each instead of two (121 pages to Word's 103).
+    nonisolated(unsafe) private static var altNames: [String: String] = [:]
+    static func noteAltNames(_ names: [String: String]) {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        altNames = Dictionary(names.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
+    }
+    private static func altName(_ family: String) -> String? {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        return altNames[family.trimmingWhitespace().lowercased()]
+    }
     static func noteEmbedded(_ names: [String]) {
         declaredLock.lock()
         defer { declaredLock.unlock() }
@@ -313,6 +330,21 @@ enum OfficeFonts {
         // any of them. `OFFICE_WORD_FONTS=mac` does the same, so that a
         // print can be compared with that Word's; without it such a
         // name is taken for the square face its author had.
+        // (A name with an alternate the table gives is set in that,
+        // where the alternate is one Word has.)
+        // (Only for a name Word has no face for at all, and only to an
+        // alternate it has: 楷体_GB2312 is KaiTi to it whatever the table
+        // offers — zh-232090e0's 方正楷体_GBK — and 方正 names fall back.)
+        let wordHas = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
+                       "微软雅黑", "microsoft yahei", "幼圆", "全真楷書", "標楷", "方正", "小标宋"]
+        if wordOnMac, !isEmbedded(family), !wordHas.contains(where: { n.containsSubstring($0) }),
+           let alt = altName(family), alt.trimmingWhitespace().lowercased() != n {
+            let a = alt.trimmingWhitespace().lowercased()
+            let usable = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "mingliu", "細明體"]
+            if usable.contains(where: { a.containsSubstring($0) }), !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { a.containsSubstring($0) }) {
+                return eastAsianFace(alt)
+            }
+        }
         if wordOnMac, !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                            "幼圆", "全真楷書") || has("仿宋_gb2312", "方正", "小标宋", "標楷") {
             return yaHei

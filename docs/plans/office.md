@@ -2019,6 +2019,17 @@ fitter dropped the paragraph's tail).
   Asian mark. zh-4b8e0abc (its Indonesian half) 52.3% -> 88.5%;
   nothing else moved. Chinese sample 79.1%.
 
+- **A missing face's alternate name is used (2026-10-14).** The font
+  table's `w:altName` names the face Word sets a name in when it has
+  none of the name's own: zh-64044a1d's cover is 華康粗圓體, alternate
+  新細明體, and Word's print draws PMingLiU, its 26pt empty lines two
+  pitches each where the YaHei fallback made three. Only for a name
+  Word has no face for, and only to an alternate it has:
+  zh-232090e0's 楷体_GB2312 offers 方正楷体_GBK and Word draws KaiTi
+  (applied there too, it lost 13 points). `OfficeFonts.noteAltNames`.
+  zh-64044a1d 1.6% -> 20.9% (119 pages to Word's 103, was 121);
+  nothing else moved. Chinese sample 79.4%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
