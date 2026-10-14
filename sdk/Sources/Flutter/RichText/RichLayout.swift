@@ -1922,7 +1922,23 @@ public final class RichLayout {
                 // (With the line it opens with: 29.4 from the page's head.)
                 let stated = ts.rowsExactHeight.contains(c.row) || ts.rowHeights[c.row] == nil ? 0
                     : min(c.ownRowHeight, _px(ts.rowHeights[c.row]!) + max(0, c.rules - c.ruleBelow))
-                let rest = first ? c.ownRowHeight : max(stated, columns.map { max(0, $0.bottom - $0.cut) }.max() ?? 0)
+                // (And no shorter than a cell merged down into it whose
+                // text went over with it, as a whole row is not — see
+                // `pageHeight`: zh-e6d54ae4's "（三）注重服務人員…" is merged
+                // over two rows, the second parts over the page, and the
+                // part that goes over is one line of its own with three
+                // of the merged cell beside it; the next row stood over
+                // them.)
+                var carried = 0.0
+                if theme.wordRules, !first {
+                    for piece in _pages[page] where piece.part != .rules && piece.paragraph < i && !piece.repeated {
+                        let m = piece.paragraph
+                        guard let d = _cells[m], d.table == c.table, d.row < c.row, !d.vertical,
+                              (c.row ... c.row + c.ghostRows).contains(d.row + d.rowSpan - 1) else { continue }
+                        carried = max(carried, piece.pageY + (min(piece.flowBottom, _tops[m] + _heights[m]) - piece.flowTop) + d.pad.bottom - y)
+                    }
+                }
+                let rest = first ? c.ownRowHeight : max(stated, carried, columns.map { max(0, $0.bottom - $0.cut) }.max() ?? 0)
                 var fits = rest + ruleUnder(c) <= avail + 0.01
                 // A row is not begun where the height the file states
                 // for it has no room: it goes to the next page whole,
