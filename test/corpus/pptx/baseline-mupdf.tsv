@@ -22,7 +22,7 @@ SmartArt.pptx	summary pages=1 worst=0.00% mean=0.00%
 WithMaster.pptx	summary pages=2 worst=1.41% mean=1.24%
 aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=22.05% mean=7.61%
 aascu.org_workarea_downloadasset.aspx_id=5864.pptx	summary pages=34 worst=74.34% mean=12.98%
-ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=37.40% mean=16.27%
+ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=26.39% mean=12.29%
 alterman_security.pptx	summary pages=23 worst=12.44% mean=7.50%
 aptia.pptx	summary pages=9 worst=7.41% mean=4.09%
 at.ecodesign.www_downloads_Vertiefungsvortrag_elektronik.pptx	summary pages=34 worst=14.24% mean=4.15%
@@ -266,7 +266,7 @@ lo-tdf113818-swivel.pptx	summary pages=1 worst=0.39% mean=0.39%
 lo-tdf113822underline.pptx	summary pages=1 worst=0.47% mean=0.47%
 lo-tdf114821.pptx	summary pages=1 worst=1.43% mean=1.43%
 lo-tdf114845_rotateShape.pptx	summary pages=1 worst=0.65% mean=0.65%
-lo-tdf114848.pptx	summary pages=6 worst=15.86% mean=8.46%
+lo-tdf114848.pptx	summary pages=6 worst=18.40% mean=8.26%
 lo-tdf114913.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-tdf115394-zero.pptx	summary pages=1 worst=1.00% mean=1.00%
 lo-tdf115394.pptx	summary pages=5 worst=1.22% mean=0.96%
@@ -389,7 +389,7 @@ lo-tdf153008-srcRect-smallNegBound.pptx	summary pages=1 worst=5.89% mean=5.89%
 lo-tdf153036_resizedConnectorL.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-tdf153466.pptx	summary pages=1 worst=0.56% mean=0.56%
 lo-tdf154363.pptx	summary pages=1 worst=0.48% mean=0.48%
-lo-tdf154858.pptx	summary pages=1 worst=2.19% mean=2.19%
+lo-tdf154858.pptx	summary pages=1 worst=0.19% mean=0.19%
 lo-tdf156649.pptx	summary pages=1 worst=1.98% mean=1.98%
 lo-tdf156718.pptx	summary pages=1 worst=0.48% mean=0.48%
 lo-tdf156808.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -449,7 +449,7 @@ lo-tdf92222.pptx	summary pages=1 worst=0.53% mean=0.53%
 lo-tdf93097.pptx	summary pages=1 worst=0.04% mean=0.04%
 lo-tdf93830.pptx	summary pages=1 worst=4.39% mean=4.39%
 lo-tdf93868.pptx	summary pages=1 worst=1.89% mean=1.89%
-lo-tdf94238.pptx	summary pages=1 worst=2.27% mean=2.27%
+lo-tdf94238.pptx	summary pages=1 worst=0.99% mean=0.99%
 lo-tdf95932.pptx	summary pages=1 worst=0.27% mean=0.27%
 lo-tdf96061.pptx	summary pages=1 worst=0.22% mean=0.22%
 lo-tdf98477grow.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -461,7 +461,7 @@ lo-testShapeAutofit.pptx	summary pages=1 worst=0.32% mean=0.32%
 lo-trailing-paragraphs.pptx	summary pages=1 worst=0.09% mean=0.09%
 lo-trigger.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-vertical-bracket-list.pptx	summary pages=1 worst=1.57% mean=1.57%
-minimal-gradient-fill-issue.pptx	summary pages=1 worst=3.14% mean=3.14%
+minimal-gradient-fill-issue.pptx	summary pages=1 worst=3.30% mean=3.30%
 missing-blip-fill.pptx	summary pages=1 worst=0.45% mean=0.45%
 oox-Scene3d_cropped_image.pptx	summary pages=1 worst=1.43% mean=1.43%
 oox-Scene3d_isometricRightUp.pptx	summary pages=1 worst=3.91% mean=3.91%
@@ -502,7 +502,7 @@ oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=4.83% mean=4.83%
 oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=3.71% mean=3.71%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
 oox-tdf131082.pptx	summary pages=1 worst=1.67% mean=1.67%
-oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=18.28% mean=18.28%
+oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=18.12% mean=18.12%
 oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=12.50% mean=12.50%
 oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=20.70% mean=20.70%
 oox-tdf141463_GroupTransform.pptx	summary pages=1 worst=1.19% mean=1.19%

@@ -684,18 +684,28 @@ final class SlidePainter: CustomPainter {
             for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { m[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k] } } }
             return m
         }
-        let (colors, positions) = Self.linearLight(fill.stops, eased: fill.eased)
+        let (colors, positions) = fill.even && fill.path != nil ? (fill.stops.map(\.color), fill.stops.map(\.position))
+                                            : Self.linearLight(fill.stops, eased: fill.eased)
         if let path = fill.path, r.width > 0, r.height > 0 {
-            // From the fill-to point out to the farthest corner: circles,
-            // or (rect, shape) rings in the area's own proportions — the
-            // ellipse that stands in for PowerPoint's concentric boxes.
-            // PowerPoint stretches even a "circle" to the area's
-            // proportions (themes.pptx's radial slide is lit to all four
-            // edges alike), so every kind is a circle in a space squeezed
-            // to the area's aspect — y scaled by width/height — and its
-            // rings are ellipses.
+            // From the focus out to the circle through the area's four
+            // corners: a two-point gradient, its focus placed by the
+            // fill-to rectangle's insets — l / (l + r) across, t / (t + b)
+            // down, the rectangle's centre when it is a point (as it
+            // usually is). GeomLec1's background (l 65%, b 98%) starts at
+            // the top right corner and ends on that circle to within a
+            // third of a percent of PowerPoint's ramp everywhere; a circle
+            // round the rectangle's centre was grey where PowerPoint's is
+            // black. A focus outside the area (a theme's light from above
+            // the slide) is a circle round it out to the farthest corner,
+            // squeezed to the area's proportions as before.
             _ = path
             let f = fill.fillTo
+            let focus = Self.pathFocus(f), fx = focus.dx, fy = focus.dy
+            if (0 ... 1).contains(fx), (0 ... 1).contains(fy) {
+                return Gradient(radial: r.center, radius: max(1, hypot(r.width, r.height) / 2), colors: colors,
+                                colorStops: positions, matrix4: pre,
+                                focal: Offset(r.left + fx * r.width, r.top + fy * r.height), focalRadius: 0)
+            }
             let c = Offset(r.left + (f.left + f.right) / 2 * r.width, r.top + (f.top + f.bottom) / 2 * r.height)
             let corners = [Offset(r.left, r.top), Offset(r.right, r.top), Offset(r.left, r.bottom), Offset(r.right, r.bottom)]
             let sy = r.width / r.height
@@ -725,6 +735,14 @@ final class SlidePainter: CustomPainter {
                                 colors: colors, colorStops: positions)
             }
         }
+    }
+
+    /// Where a path gradient starts, in fractions of its area: the
+    /// fill-to rectangle's insets in proportion — l / (l + r) across,
+    /// t / (t + b) down — which is the rectangle itself when it is a point.
+    static func pathFocus(_ fillTo: Rect) -> Offset {
+        func ratio(_ a: Double, _ b: Double) -> Double { a + b > 1e-9 ? a / (a + b) : 0.5 }
+        return Offset(ratio(fillTo.left, 1 - fillTo.right), ratio(fillTo.top, 1 - fillTo.bottom))
     }
 
     /// A colour, gradient or picture filling `r`.

@@ -283,6 +283,16 @@ struct SlideFill: Equatable {
     /// modifiers. Why it tells them apart is not known; that it does is
     /// read off the ramps it stores (tdf105739, tdf109067).
     var eased = false
+    /// A stop is a theme colour under a modifier (`tint`, `shade`,
+    /// `satMod`…). A path gradient of such stops blends evenly in sRGB,
+    /// not in linear light, as PowerPoint's export blends it — GeomLec1's
+    /// dark background runs evenly from black to grey, and blended in
+    /// linear light it was pale for half its width. (A plain colour under
+    /// a modifier is not one: ImportWordArtGradient's alpha'd `srgbClr`
+    /// stops blend in linear light. Nor is a linear gradient: the 45541
+    /// decks' `gamma`/`shade`/`invGamma` bands were 3 points further
+    /// from PowerPoint blended evenly.)
+    var even = false
     /// `a:lin scaled="1"`: the angle is of the fill's unit square, so it
     /// stretches with the area — 45° runs corner to corner of a wide
     /// slide, its bands of colour lying along the other diagonal.

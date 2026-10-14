@@ -29,6 +29,24 @@ final class PainterFixTests: XCTestCase {
         XCTAssertNil(PptxReader.gradient(XNode.parse(Data("<a:gradFill \(ns)><a:lin ang=\"0\"/></a:gradFill>".utf8))!, colors: colors))
     }
 
+    /// A path gradient starts where its fill-to rectangle's insets put it
+    /// in proportion (GeomLec1's l 65%, b 98% is the top right corner),
+    /// and one of theme colours under modifiers blends evenly.
+    func testAPathGradientStartsWhereItsInsetsBalance() throws {
+        let focus = SlidePainter.pathFocus(Rect.fromLTRB(0.65, 0, 1, 0.02))
+        XCTAssertEqual(focus.dx, 1, accuracy: 1e-9)
+        XCTAssertEqual(focus.dy, 0, accuracy: 1e-9)
+        let point = SlidePainter.pathFocus(Rect.fromLTRB(0.3, 0.7, 0.3, 0.7))
+        XCTAssertEqual(point.dx, 0.3, accuracy: 1e-9, "a point is itself")
+        XCTAssertEqual(point.dy, 0.7, accuracy: 1e-9)
+        XCTAssertEqual(SlidePainter.pathFocus(Rect.fromLTRB(0, 0, 1, 1)).dx, 0.5, "no insets: the middle")
+        func read(_ stops: String) throws -> SlideFill {
+            try XCTUnwrap(PptxReader.gradient(XNode.parse(Data("<a:gradFill \(ns)><a:gsLst>\(stops)</a:gsLst><a:path path=\"circle\"/></a:gradFill>".utf8))!, colors: colors))
+        }
+        XCTAssertTrue(try read("<a:gs pos=\"0\"><a:schemeClr val=\"dk1\"><a:tint val=\"55000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"dk1\"/></a:gs>").even)
+        XCTAssertFalse(try read("<a:gs pos=\"0\"><a:srgbClr val=\"FFFF00\"><a:alpha val=\"70000\"/></a:srgbClr></a:gs><a:gs pos=\"100000\"><a:srgbClr val=\"0070C0\"/></a:gs>").even)
+    }
+
     func testAStretchedPicturesFillRectIsItsPlace() throws {
         let xml = "<a:blipFill \(ns)><a:blip/><a:stretch><a:fillRect l=\"55000\" t=\"56000\"/></a:stretch></a:blipFill>"
         let inset = PptxReader.stretchInset(XNode.parse(Data(xml.utf8))!)

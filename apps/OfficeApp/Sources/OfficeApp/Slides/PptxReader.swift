@@ -693,6 +693,9 @@ struct PptxReader {
         f.scaled = ["1", "true"].contains(g.first("a:lin")?["scaled"] ?? "")
         // Plain colours: no stop's colour carries a modifier (tint, satMod…).
         f.eased = !(g.first("a:gsLst")?.all("a:gs") ?? []).contains { gs in gs.children.contains { !$0.children.isEmpty } }
+        f.even = (g.first("a:gsLst")?.all("a:gs") ?? []).contains { gs in
+            gs.children.contains { $0.name == "a:schemeClr" && !$0.children.isEmpty }
+        }
         if let path = g.first("a:path") {
             f.path = path["path"].flatMap(SlideFill.GradientPath.init(rawValue:)) ?? .shape
             if let to = path.first("a:fillToRect") {

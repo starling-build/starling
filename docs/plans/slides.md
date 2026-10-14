@@ -859,6 +859,38 @@ line explain all three decks at once. recursion's root also stands over
 the wrong place (centred under 360 where PowerPoint centres it over its
 two children), as it did before.
 
+**A path gradient from its focus, 2026-10-14** (sweep 51: 1.917 →
+1.903%; GeomLec1 16.27 → 12.29, tdf154858 2.19 → 0.19, tdf94238 2.27 →
+0.99, tdf114848 8.46 → 8.26; minimal-gradient-fill-issue 3.14 → 3.30,
+below). GeomLec1's background is the theme's `path="circle"` fill with
+`fillToRect l=65% b=98%`, black at the edges, grey at the top right; ours
+was grey from edge to edge. Read off PowerPoint's page, the ramp is a
+**two-point gradient**: it starts at a focus and ends on the circle
+through the area's four corners, a true circle in points (squeezed to
+the area's proportions it was ten times further off). Over 2,005 grey
+pixels the model is within 0.003 of PowerPoint's ramp at the median,
+0.014 at the 90th percentile.
+
+- **The focus is the fill-to insets in proportion**: l / (l + r)
+  across, t / (t + b) down (`SlidePainter.pathFocus`). That is the
+  rectangle itself when it is a point, as almost every file has it;
+  GeomLec1's 65/0 and 0/98 make the top right corner, where the
+  rectangle's centre (82%, 1%) was 4 to 13 points of the ramp off. A
+  focus outside the area (a theme's light from above the slide,
+  `t=-80% b=180%`) keeps the circle round it as before — no deck has
+  shown which is right there.
+- **A path gradient of theme colours under modifiers blends evenly in
+  sRGB** (`SlideFill.even`): the black-to-grey ramp is a straight line
+  in PowerPoint's pixels, as tdf105739's work found for
+  lo-subtitle-animation-save and left. Plain colours, even under
+  modifiers (ImportWordArtGradient's alpha'd `srgbClr`), stay in linear
+  light, and so do linear gradients: the 45541 decks' `gamma`/`shade`/
+  `invGamma` bands went 7.4 → 10.6 blended evenly.
+
+minimal-gradient-fill-issue's corner radial has both stops at 50%, a
+hard edge PowerPoint draws soft; neither the old circle nor the new one
+draws it so.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
