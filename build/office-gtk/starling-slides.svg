@@ -1,19 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <title>Starling Slides</title>
   <defs>
-    <linearGradient id="tile" x1="40" y1="16" x2="208" y2="240" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F4804C"/>
-      <stop offset="1" stop-color="#DD572D"/>
+    <linearGradient id="body" x1="48" y1="88" x2="208" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E96395"/>
+      <stop offset="1" stop-color="#A82B68"/>
     </linearGradient>
   </defs>
-  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#tile)"/>
-  <rect x="17" y="17" width="222" height="222" rx="47" fill="none" stroke="#B83A20" stroke-opacity=".28" stroke-width="2"/>
-  <path d="M128 178v24m-32 0h64" fill="none" stroke="#79301D" stroke-width="10" stroke-linecap="round" opacity=".24"/>
-  <path d="M128 170v28m-32 0h64" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round"/>
-  <rect x="44" y="60" width="168" height="120" rx="12" fill="#79301D" opacity=".2"/>
-  <rect x="44" y="52" width="168" height="120" rx="12" fill="#FFFFFF"/>
-  <path d="M68 78h58" fill="none" stroke="#DD572D" stroke-width="8" stroke-linecap="round"/>
-  <rect x="68" y="126" width="24" height="26" rx="3" fill="#F4B69B"/>
-  <rect x="116" y="110" width="24" height="42" rx="3" fill="#ED8B60"/>
-  <rect x="164" y="94" width="24" height="58" rx="3" fill="#DD572D"/>
+  <!-- The same swept wing and folded face identify the Starling family. -->
+  <path d="M32 96 208 48v146a30 30 0 0 1-30 30H62a30 30 0 0 1-30-30Z" fill="url(#body)"/>
+  <path d="m32 96 96 32 80-80Z" fill="#A82B68" opacity=".42"/>
+  <path d="M20 92 236 20 160 120Z" fill="#FFC2D8"/>
+  <path d="m20 92 216-72-108 80Z" fill="#FFDCE7"/>
+  <path d="m128 100 32 20 76-100Z" fill="#E96395"/>
+  <rect x="76" y="138" width="96" height="54" rx="7" fill="none" stroke="#FFFFFF" stroke-width="8"/>
+  <path d="M94 176v-8m25 8v-16m25 16v-24" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round"/>
+  <path d="M124 192v14m-18 0h36" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
 </svg>

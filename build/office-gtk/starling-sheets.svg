@@ -1,17 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <title>Starling Sheets</title>
   <defs>
-    <linearGradient id="tile" x1="40" y1="16" x2="208" y2="240" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#229B70"/>
-      <stop offset="1" stop-color="#13794D"/>
+    <linearGradient id="body" x1="48" y1="88" x2="208" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2AABAB"/>
+      <stop offset="1" stop-color="#076876"/>
     </linearGradient>
   </defs>
-  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#tile)"/>
-  <rect x="17" y="17" width="222" height="222" rx="47" fill="none" stroke="#095A3C" stroke-opacity=".28" stroke-width="2"/>
-  <rect x="48" y="64" width="160" height="144" rx="12" fill="#063F2D" opacity=".22"/>
-  <rect x="48" y="56" width="160" height="144" rx="12" fill="#FFFFFF"/>
-  <path d="M60 56h136a12 12 0 0 1 12 12v24H48V68a12 12 0 0 1 12-12Z" fill="#C6F0D9"/>
-  <path d="M48 92h160M100 92v108m54-108v108M48 128h160M48 164h160" fill="none" stroke="#5EA984" stroke-width="6"/>
-  <rect x="107" y="135" width="40" height="22" rx="3" fill="#13794D"/>
-  <path d="M68 74h12m34 0h12m34 0h12" fill="none" stroke="#13794D" stroke-width="6" stroke-linecap="round"/>
+  <!-- The same swept wing and folded face identify the Starling family. -->
+  <path d="M32 96 208 48v146a30 30 0 0 1-30 30H62a30 30 0 0 1-30-30Z" fill="url(#body)"/>
+  <path d="m32 96 96 32 80-80Z" fill="#076876" opacity=".42"/>
+  <path d="M20 92 236 20 160 120Z" fill="#ADE7D8"/>
+  <path d="m20 92 216-72-108 80Z" fill="#CFF9E8"/>
+  <path d="m128 100 32 20 76-100Z" fill="#2AABAB"/>
+  <g fill="#FFFFFF">
+    <rect x="78" y="140" width="24" height="24" rx="3"/>
+    <rect x="112" y="140" width="24" height="24" rx="3"/>
+    <rect x="146" y="140" width="24" height="24" rx="3"/>
+    <rect x="78" y="174" width="24" height="24" rx="3"/>
+    <rect x="112" y="174" width="24" height="24" rx="3"/>
+    <rect x="146" y="174" width="24" height="24" rx="3" opacity=".45"/>
+  </g>
 </svg>

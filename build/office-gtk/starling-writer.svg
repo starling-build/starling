@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <title>Starling Writer</title>
   <defs>
-    <linearGradient id="tile" x1="40" y1="16" x2="208" y2="240" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4169F5"/>
-      <stop offset="1" stop-color="#2449DF"/>
+    <linearGradient id="body" x1="48" y1="88" x2="208" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8876EE"/>
+      <stop offset="1" stop-color="#5141B5"/>
     </linearGradient>
   </defs>
-  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#tile)"/>
-  <rect x="17" y="17" width="222" height="222" rx="47" fill="none" stroke="#1734AC" stroke-opacity=".28" stroke-width="2"/>
-  <path d="M76 56h76l36 36v108a12 12 0 0 1-12 12H76a12 12 0 0 1-12-12V68a12 12 0 0 1 12-12Z" fill="#102772" opacity=".2"/>
-  <path d="M76 48h76l36 36v108a12 12 0 0 1-12 12H76a12 12 0 0 1-12-12V60a12 12 0 0 1 12-12Z" fill="#FFFFFF"/>
-  <path d="M152 48v24a12 12 0 0 0 12 12h24Z" fill="#C6D5FF"/>
-  <rect x="84" y="96" width="44" height="12" rx="3" fill="#2449DF"/>
-  <path d="M88 128h76m-76 24h76m-76 24h48" fill="none" stroke="#6382E8" stroke-width="8" stroke-linecap="round"/>
+  <!-- The same swept wing and folded face identify the Starling family. -->
+  <path d="M32 96 208 48v146a30 30 0 0 1-30 30H62a30 30 0 0 1-30-30Z" fill="url(#body)"/>
+  <path d="m32 96 96 32 80-80Z" fill="#5141B5" opacity=".42"/>
+  <path d="M20 92 236 20 160 120Z" fill="#CFC7FF"/>
+  <path d="m20 92 216-72-108 80Z" fill="#E2DBFF"/>
+  <path d="m128 100 32 20 76-100Z" fill="#8876EE"/>
+  <path d="M80 148h72m-72 24h88m-88 24h56" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round"/>
 </svg>
