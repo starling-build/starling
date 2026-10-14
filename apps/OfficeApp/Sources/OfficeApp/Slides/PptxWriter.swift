@@ -1079,7 +1079,16 @@ enum PptxText {
         a += " dirty=\"0\""
         let color = c.color ?? s.color
         let font = PptxXML.escape(c.fontFamily ?? s.font ?? "Calibri", attribute: true)
-        return "<\(tag)\(a)><a:solidFill><a:srgbClr val=\"\(hex(color))\"/></a:solidFill>"
+        var shadow = ""
+        if let sh = c.shadow {
+            let dist = Int((hypot(sh.dx, sh.dy) * Pptx.emu).rounded())
+            var deg = atan2(sh.dy, sh.dx) * 180 / .pi
+            if deg < 0 { deg += 360 }
+            let alpha = sh.color.alpha < 255 ? "<a:alpha val=\"\(Int((Double(sh.color.alpha) / 255 * 100000).rounded()))\"/>" : ""
+            shadow = "<a:effectLst><a:outerShdw blurRad=\"\(Int((sh.blur * Pptx.emu).rounded()))\" dist=\"\(dist)\" dir=\"\(Int((deg * 60000).rounded()))\" algn=\"tl\">"
+                + "<a:srgbClr val=\"\(hex(sh.color))\">\(alpha)</a:srgbClr></a:outerShdw></a:effectLst>"
+        }
+        return "<\(tag)\(a)><a:solidFill><a:srgbClr val=\"\(hex(color))\"/></a:solidFill>\(shadow)"
             + "<a:latin typeface=\"\(font)\"/><a:cs typeface=\"\(font)\"/></\(tag)>"
     }
 

@@ -358,6 +358,19 @@ public final class RichTextTheme {
                 guard size > 0 else { return max(0.1, paragraph.lineSpacing - lineSpacingReduction) * natural / widen }
                 return lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: gridPitch).height / (size * widen)
             }(),
+            // (In points, as the file gives it, at the layout's scale.) A
+            // blurred shadow is drawn sharp at under half its strength: the
+            // engine's blur goes to PDF as a soft mask that Skia puts at the
+            // page's corner, so it was not there at all; and PowerPoint's
+            // 3 pt blur of a 2 pt stroke is 58% black at its darkest (45541,
+            // where nine faint copies spread over the blur came out wider
+            // and darker than its own).
+            shadows: px <= 0.01 ? nil : style.shadow.map { sh in
+                let k = pixelsPerPoint * scale
+                let a = Double(sh.color.alpha) / 255 * (sh.blur > 0 ? 0.45 : 1)
+                return [Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
+                               offset: Offset(sh.dx * k, sh.dy * k))]
+            },
             fontFeatures: disablesLigatures ? [FontFeature("liga", 0), FontFeature("clig", 0)] : nil,
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,

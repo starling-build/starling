@@ -76,6 +76,18 @@ public struct CharSwitches: OptionSet, Hashable, Sendable {
     public static let smallCaps = CharSwitches(rawValue: 32)
 }
 
+/// A shadow cast by a run's letters (PowerPoint's `a:outerShdw` on a
+/// run): its colour, where it falls in points, and how far it blurs.
+public struct CharShadow: Hashable, Sendable {
+    public var color: Color
+    public var dx: Double
+    public var dy: Double
+    public var blur: Double
+    public init(color: Color, dx: Double, dy: Double, blur: Double) {
+        self.color = color; self.dx = dx; self.dy = dy; self.blur = blur
+    }
+}
+
 public struct CharStyle: Hashable, Sendable {
     public var bold = false
     public var italic = false
@@ -131,6 +143,8 @@ public struct CharStyle: Hashable, Sendable {
     /// curly quotes, dashes and ellipses of Chinese text — in.
     public var hAnsiFontFamily: String? = nil
     public var fontHint: String? = nil
+    /// A shadow under the letters; nil for none.
+    public var shadow: CharShadow? = nil
     /// Run properties the editor does not draw by, as the file wrote
     /// them (`w:w` character scale, `w:position`, `w:bdr`, `w:lang`,
     /// `w:em`, `w:fitText`, `w:snapToGrid`): written back with the run.

@@ -956,6 +956,29 @@ Left: 3-D (both decks' pies and bars are `view3D`, drawn flat), text
 the chart leaves unsized (10 pt in PowerPoint), and category labels
 PowerPoint turns 45° where they do not fit.
 
+**Text shadows, 2026-10-14** (sweep 55: 1.8834 → 1.8821%; the three
+45541/45545 decks 7.4 → 7.2, alterman_security 7.50 → 7.25; nothing
+worse). 23 decks give runs an `a:effectLst/a:outerShdw` — 45541's
+master puts a black one three points down and right under every title
+and bullet — and we drew none.
+
+- **`CharStyle.shadow`** (SDK, `CharShadow`: colour, offset and blur in
+  points) is read from a run's or a level's effects, inherited through
+  the levels like the other run properties (an effect list with no
+  shadow turns it off), passed to the engine as a text shadow, and
+  written back as an `outerShdw`.
+- **Drawn sharp, at 45% of its strength where it is blurred.** The
+  engine's blurred text shadow reaches PDF as a soft mask that Skia
+  places at the page's corner: MuPDF and Poppler both showed nothing.
+  Nine faint sharp copies spread over the blur came out wider and
+  darker than PowerPoint's (whose 3 pt blur of a 2 pt stroke peaks at
+  58% black) and scored worse than no shadow; one copy at 45% scores
+  best of what was tried. A real blur, on screen and in PDF, wants the
+  soft mask fixed in the engine.
+- **A shadow cast on the ground is not drawn** (`sx`/`sy`/`kx`/`ky`
+  other than identity: tdf114848's perspective shadows): as a copy of
+  the letters it would stand up beside them.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

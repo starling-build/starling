@@ -51,6 +51,24 @@ final class WordArtTests: XCTestCase {
         XCTAssertEqual(shape.fillStyle?.overlay?.fill.color, Color(0xFF2DA2BF))
     }
 
+    /// A run's outer shadow is read (three points down and right), one
+    /// cast on the ground is not, and the shadow is written back.
+    func testARunsShadowIsReadAndWrittenBack() throws {
+        let shadow = "<a:effectLst><a:outerShdw blurRad=\"38100\" dist=\"38100\" dir=\"2700000\" algn=\"tl\"><a:srgbClr val=\"000000\"/></a:outerShdw></a:effectLst>"
+        let (state, theme, pkg) = try deck { slide in
+            let run = try XCTUnwrap(slide.range(of: "<a:rPr lang=\"en-US\""))
+            let end = try XCTUnwrap(slide.range(of: "</a:rPr>", range: run.upperBound ..< slide.endIndex))
+            slide.replaceSubrange(end, with: shadow + "</a:rPr>")
+        }
+        let run = try XCTUnwrap(state.slides[1].shapes.lazy.compactMap { $0.text?.paragraphs.lazy.flatMap(\.runs).first { $0.style.shadow != nil } }.first)
+        let sh = try XCTUnwrap(run.style.shadow)
+        XCTAssertEqual(sh.dx, 3 * cos(.pi / 4), accuracy: 1e-6)
+        XCTAssertEqual(sh.dy, 3 * sin(.pi / 4), accuracy: 1e-6)
+        XCTAssertEqual(sh.blur, 3, accuracy: 1e-6)
+        let again = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg)).0
+        XCTAssertNotNil(again.slides[1].shapes.lazy.compactMap { $0.text?.paragraphs.lazy.flatMap(\.runs).first { $0.style.shadow != nil } }.first)
+    }
+
     func testNoShapeIsNoWarp() throws {
         let (state, _, _) = try deck { slide in
             let fit = try XCTUnwrap(slide.range(of: "<a:normAutofit"))

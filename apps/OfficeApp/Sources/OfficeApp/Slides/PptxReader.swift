@@ -293,6 +293,10 @@ private struct LevelStyle {
     var baseline: Double?
     /// Character spacing in points (`spc`, hundredths of a point).
     var spc: Double?
+    /// `a:effectLst` on the run: its outer shadow (nil inside a list
+    /// that has none), and whether the list was there at all.
+    var shadow: CharShadow?
+    var shadowSet = false
 
     func filled(from lower: LevelStyle) -> LevelStyle {
         var s = self
@@ -316,6 +320,7 @@ private struct LevelStyle {
         s.color = s.color ?? lower.color
         s.baseline = s.baseline ?? lower.baseline
         s.spc = s.spc ?? lower.spc
+        if !s.shadowSet { s.shadow = lower.shadow; s.shadowSet = lower.shadowSet }
         return s
     }
 
@@ -398,6 +403,21 @@ private struct LevelStyle {
         s.spc = r["spc"].flatMap(Double.init).map { $0 / 100 }
         s.font = r.first("a:latin")?["typeface"]
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
+        if let effects = r.first("a:effectLst") {
+            // An outer shadow: `dist` along `dir` (60000ths of a degree,
+            // clockwise from the right), blurred by `blurRad` — 45541's
+            // titles and bullets, black three points down and right.
+            // (One cast on the ground — scaled or skewed, tdf114848's —
+            // is not drawn: as a copy of the letters it would stand up.)
+            s.shadowSet = true
+            if let sh = effects.first("a:outerShdw"), let c = colors.color(in: sh),
+               ["sx", "sy", "kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { k.hasPrefix("s") ? $0 == 100000 : $0 == 0 } ?? true }) {
+                let dist = (sh["dist"].flatMap(Double.init) ?? 0) / Pptx.emu
+                let dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
+                s.shadow = CharShadow(color: c, dx: dist * cos(dir), dy: dist * sin(dir),
+                                      blur: (sh["blurRad"].flatMap(Double.init) ?? 0) / Pptx.emu)
+            }
+        }
         return s
     }
 }
@@ -2170,6 +2190,7 @@ private struct SlideContext {
                                    color: s.color ?? tx1)
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
+                cs.shadow = s.shadow
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
                 text += t
                 runs.append(Run(length: t.utf16.count, style: cs))
