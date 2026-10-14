@@ -160,6 +160,19 @@ public static extern bool EndUpdateResourceW(IntPtr handle, bool discard);
     if (-not [StageWin.Res]::EndUpdateResourceW($h, (-not $ok)) -or -not $ok) {
         throw "stage-windows: could not write the icon into $exe"
     }
+    # UpdateResource rewrites the file's sections and DROPS what followed
+    # them: lld's COFF symbol table and its string table (7.7 MB of
+    # OfficeApp.exe). Nothing loads from those -- the loader ignores them,
+    # and the crash log does not read them -- but the file header is left
+    # naming a symbol table that is no longer there, its pointer now landing
+    # inside section data. Say "none" instead of leaving it dangling.
+    $pe = [IO.File]::ReadAllBytes($exe)
+    $coff = [BitConverter]::ToInt32($pe, 0x3C) + 4
+    $stream = [IO.File]::Open($exe, 'Open', 'Write')
+    try {
+        $stream.Position = $coff + 8          # PointerToSymbolTable, NumberOfSymbols
+        $stream.Write((New-Object byte[] 8), 0, 8)
+    } finally { $stream.Dispose() }
     Write-Host ("  icon {0} ({1} sizes) into {2}.exe" -f (Split-Path -Leaf $Icon), $count, $Product)
 }
 Get-ChildItem $build -Directory -Filter '*.resources' | ForEach-Object {
