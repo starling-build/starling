@@ -5757,10 +5757,18 @@ public final class RichLayout {
 
     /// A span with every stretch's extra height set half above and half
     /// below its text (`TextLeadingDistribution.even`).
+    /// (With a font feature no face has, which shaping ignores:
+    /// skparagraph's cache of shaped paragraphs tells text styles apart
+    /// by `equalsByFonts`, which never looks at the leading, and served
+    /// this paragraph's proportional layout back — every paragraph so
+    /// laid out but one after a different one. Font features it
+    /// compares.)
     private static func _evenLeading(_ span: InlineSpan) -> InlineSpan {
         guard let t = span as? TextSpan else { return span }
         return TextSpan(text: t.text, children: t.children?.map { _evenLeading($0) },
-                        style: t.style?.copyWith(leadingDistribution: .even), recognizer: t.recognizer, locale: t.locale)
+                        style: t.style.map { $0.copyWith(leadingDistribution: .even,
+                                                         fontFeatures: ($0.fontFeatures ?? []) + [FontFeature("zevn", 1)]) },
+                        recognizer: t.recognizer, locale: t.locale)
     }
 
     /// The height of one line of paragraph `i` in its mark's look, as if

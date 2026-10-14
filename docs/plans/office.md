@@ -2263,6 +2263,21 @@ fitter dropped the paragraph's tail).
   (`pageHeight`); a parted row's part now does. Chinese sample on
   Windows 89.2%.
 
+- **The engine's cache of shaped paragraphs ignores where the leading
+  goes (2026-10-14).** The even-leading layout of 21d7c218 came back
+  proportional for every paragraph but one laid out after a different
+  one: skparagraph's `ParagraphCache` tells text styles apart by
+  `equalsByFonts`, which never compares the half-leading flag and
+  takes heights a 4096th apart as one, so the paragraph's own
+  proportional layout, made first, was served again. Neither a height
+  a millionth more nor a root style's height (the bridge does not
+  carry it to the key) missed it; a font feature no face has
+  (`zevn`), which shaping ignores and the key compares, does. Labs
+  `gc`/`gc2`/`gcs`: every such paragraph 25.15 then 31.2 apart, as
+  Word's 25.1 and 31.2; zh-1a3c7aa0's chemical names within 0.2pt.
+  Anything else that sets `leadingDistribution` on a text style meets
+  the same cache.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
