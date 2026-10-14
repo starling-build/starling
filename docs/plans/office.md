@@ -1976,6 +1976,15 @@ fitter dropped the paragraph's tail).
   step). zh-e37f8d40 68.3% -> 92.8%, 14 pages; nothing else moved.
   Chinese sample 78.2%, 57 with Word's page count.
 
+- **A name declared Latin that Word has no face for is Calibri
+  (2026-10-14).** zh-a4b0f6ea's runs name "S宋体" for ASCII, which its
+  font table declares charset 00 (already read as Latin,
+  `OfficeFonts.declaredLatin`). Word's print draws those digits in
+  Calibri, 8.15pt at 16pt; ours fell to the Arial clone at 8.9, and
+  "〔2021〕" then needed 33.6pt of squeeze where its marks have 32, so
+  it went to the next line where Word keeps it. zh-a4b0f6ea 60.8% ->
+  71.9%; nothing else moved. Chinese sample 78.4%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

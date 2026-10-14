@@ -81,6 +81,11 @@ enum OfficeFonts {
                 || n.containsSubstring("baskerville") || n.containsSubstring("didot") {
                 return serif
             }
+            // (A name the font table declares Latin and Word has no face
+            // for — "S宋体" — Word sets in Calibri: zh-a4b0f6ea's digits
+            // are Calibri's 8.15pt at 16pt in its print, and Arial's 8.9
+            // pushed a "〔2021〕" off the line Word keeps it on.)
+            if isDeclaredLatin(family) { return calibri }
             return sans
         }
     }
