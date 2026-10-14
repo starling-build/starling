@@ -2608,7 +2608,12 @@ public final class RichLayout {
                     let said = Self._cellSide(d.bordersXML, side)
                     let end = d.row + d.rowSpan - 1
                     let tables = side == "top" ? (d.row == 0 ? ts.edges?.top : ts.edges?.insideH) : (end >= rows ? ts.edges?.bottom : ts.edges?.insideH)
-                    guard (side == "top" ? d.edges?.top : d.edges?.bottom) ?? tables ?? ts.borders else { return 0 }
+                    // (Where the cells rule the table, a side none of them
+                    // states is not ruled: the table and its style say
+                    // nothing, and Word draws nothing — zh-a0e932c2's
+                    // rows ruled only under every second one, and a
+                    // last column of no borders at all.)
+                    guard (side == "top" ? d.edges?.top : d.edges?.bottom) ?? tables ?? (ts.borders && !ts.bordersFromCells) else { return 0 }
                     let tableSide = (side == "top" ? d.row > 0 : end < rows) ? "insideH" : side
                     let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
                     let width = said?.width ?? d.borderWidth ?? ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
@@ -4723,7 +4728,7 @@ public final class RichLayout {
             // cell's: a side a cell states wins, then the table's side
             // for that position (outer or inside), then the switch.
             let ts = document.tableStyles[c.table]
-            let tableOn = ts?.borders ?? true
+            let tableOn = (ts?.borders ?? true) && !(theme.wordRules && ts?.bordersFromCells == true)
             let te = ts?.edges
             func on(_ cell: Bool?, _ table: Bool?) -> Bool { cell ?? table ?? tableOn }
             let stroke = Paint()

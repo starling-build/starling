@@ -1889,6 +1889,19 @@ fitter dropped the paragraph's tail).
   page 2). Chinese sample 76.1%, 55 with Word's page count; POI
   unchanged.
 
+- **Where the cells rule the table, a side no cell states is not
+  ruled (2026-10-14).** zh-a0e932c2's tables come from a PDF
+  converter: text rows with no rules alternate with rows 1.6pt high
+  whose cells rule their bottoms, and a last column of no borders at
+  all; neither the table nor its style says anything. Most cells state
+  borders, so the reader takes the table as ruled
+  (`TableStyle.bordersFromCells`), and every side a cell left unstated
+  then fell back to "ruled": a line above each thin row as well as
+  under it, each row a point taller, and the empty last column boxed.
+  Word draws only what the cells state. Page 1's fourteen rules now
+  lie where Word's do, to 0.1pt. zh-a0e932c2 15.2% -> 22.7%; nothing
+  else moved.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
