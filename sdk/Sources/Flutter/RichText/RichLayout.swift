@@ -2817,12 +2817,19 @@ public final class RichLayout {
             // its tallest and no more (a 14pt dash either side of a 9pt
             // page number): each face splits its height its own way,
             // and the engine would stack the deepest under the highest.
+            // (On a line grid, every line of such a paragraph: each is as
+            // many pitches as its tallest stretch takes, and Word's lines
+            // of 12pt 標楷體 with Times digits and brackets among them are
+            // two pitches each, where the engine stacked them 36 to 37.6
+            // apart — zh-64044a1d.)
+            let gridded = style.eastAsian["w:snapToGrid"] != "0" && style.lineHeightPoints == nil && _grid(i, document).pitch != nil
+            let lines = painter.computeLineMetrics().count
             if painter.strutStyle == nil, theme.wordRules, !inline.contains(where: { $0.image != nil }),
-               painter.computeLineMetrics().count == 1, let strut = _strut(span, tallest: true) {
+               lines == 1 || gridded, let strut = _strut(span, tallest: true) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 if !inline.isEmpty { held.setPlaceholderDimensions(inline.map { $0.dimensions }) }
                 held.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
-                if held.computeLineMetrics().count == 1 { return held }
+                if held.computeLineMetrics().count == lines { return held }
             }
             return painter
         }

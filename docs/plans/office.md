@@ -2030,6 +2030,15 @@ fitter dropped the paragraph's tail).
   zh-64044a1d 1.6% -> 20.9% (119 pages to Word's 103, was 121);
   nothing else moved. Chinese sample 79.4%.
 
+- **On a line grid, a paragraph of mixed heights keeps every line to
+  the grid (2026-10-14).** A paragraph whose runs snap to different
+  numbers of pitches (12pt 標楷體, two pitches in the YaHei model, with
+  Times digits and brackets, one) had no strut at all, and the engine
+  stacked its lines 36 to 37.6pt apart where Word's are 36 each. The
+  tallest run's strut, used so far for one-line paragraphs only, now
+  holds every line of a gridded paragraph. zh-64044a1d 20.9% -> 27.1%,
+  zh-15728c84 81.3 -> 89.4; nothing down. Chinese sample 79.6%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
