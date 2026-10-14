@@ -2305,6 +2305,13 @@ fitter dropped the paragraph's tail).
   -> 72.8%, bug65649 12.9 -> 18.3 (and Word's page count); nothing
   down.
 
+- **What of a parted row goes over is ruled across its top again
+  (2026-10-14).** The part of a row carried to the next page starts
+  under the row's top rule, as the row did: zh-89385c94's second page
+  opens on such a part and its lines stood 0.4pt above Word's, enough
+  that a row lower down kept a line at the foot that Word carries
+  over. zh-89385c94 16.3% -> 51.0%, zh-8e8d4c40 +1.2; nothing down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

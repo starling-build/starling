@@ -2021,6 +2021,10 @@ public final class RichLayout {
                 fresh = true
                 if repeats { repeatHeader(of: c.table, before: i) }
                 if c.row > 0 { continueSpans(into: i, c) }
+                // (What goes over is ruled across its top again, and its
+                // text stands below that rule as the row's did: zh-89385c94's
+                // second page, 0.4pt higher than Word's without it.)
+                if theme.wordRules { y += ruleUnder(c, parted: true) }
             }
             // (In paragraph order, the rules after their paragraph's text.)
             for k in i ..< j {
