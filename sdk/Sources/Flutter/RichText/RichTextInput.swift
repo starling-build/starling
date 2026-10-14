@@ -1,37 +1,27 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
-// The editable's connection to the platform's text-input plugin over
+// The rich editor's connection to the platform's text-input plugin over
 // `flutter/textinput` (JSON method codec), for what key events cannot
 // carry: composed input (Chinese, Japanese, Korean), dead keys, macOS
 // press-and-hold accents and the emoji picker. The client's text is the
 // caret paragraph alone; every local change re-sends the editing state,
 // and every update from the plugin is diffed against the paragraph and
 // applied as a replacement, with the composing range kept for the
-// underline. On by default on macOS, where it has been seen working with
-// Pinyin, dead keys and plain typing (2026-10-13; STARLING_IME=0 turns it
-// off); elsewhere off unless STARLING_IME is set, because a host with no
-// text-input plugin behind the channel would type nothing at all: with
-// the connection on, typed characters come from the plugin, so the key
-// path declines them (see RichEditable).
+// underline. The channel, the on/off switch and the listener's ownership
+// are TextInputChannel's (Widgets/TextInputConnection.swift), shared with
+// the plain fields' TextInputConnection.
 
 import FlutterSwiftBridge
 import Foundation
 
 public final class RichTextInputConnection {
-    public static let channel = "flutter/textinput"
-    /// Whether editables connect at all.
-    #if os(WASI)
-    /// The browser has no text-input plugin behind `flutter/textinput` yet:
-    /// composed input there is a follow-up (docs/plans/wasm.md).
-    public nonisolated(unsafe) static var enabled: Bool = false
-    #elseif os(macOS)
-    public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != "0"
-    #else
-    public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != nil
-    #endif
+    /// Whether editables connect at all (TextInputChannel.enabled).
+    public static var enabled: Bool {
+        get { TextInputChannel.enabled }
+        set { TextInputChannel.enabled = newValue }
+    }
 
-    private static var _nextClient = 1
     private let _clientId: Int
     private unowned let _controller: RichDocumentController
     private var _attached = false
@@ -41,40 +31,17 @@ public final class RichTextInputConnection {
 
     public init(controller: RichDocumentController) {
         _controller = controller
-        _clientId = Self._nextClient
-        Self._nextClient += 1
+        _clientId = TextInputChannel.nextClientId()
     }
 
     public var isAttached: Bool { _attached }
 
     /// Focus gained: become the platform's text-input client.
-    private static let _debug = ProcessInfo.processInfo.environment["STARLING_IME_DEBUG"] != nil
-    private static func _log(_ s: String) { if _debug { FileHandle.standardError.write(Data(("[ime] " + s + "\n").utf8)) } }
-
     public func attach() {
-        guard Self.enabled, !_attached else { return }
-        Self._log("attach sender=\(PlatformDispatcher.instance.platformMessageSender != nil)")
+        guard TextInputChannel.available, !_attached else { return }
         _attached = true
-        MainActor.assumeIsolated {
-            channelBuffers.setListener(Self.channel) { [weak self] data, reply in
-                self?._handle(data)
-                reply(nil)
-            }
-        }
-        let config: [String: Any] = [
-            "inputType": ["name": "TextInputType.multiline", "signed": Self._null, "decimal": Self._null],
-            "inputAction": "TextInputAction.newline",
-            "readOnly": false,
-            "obscureText": false,
-            "autocorrect": false,
-            "enableSuggestions": false,
-            "enableDeltaModel": false,
-            "textCapitalization": "TextCapitalization.none",
-            "keyboardAppearance": "Brightness.light",
-            "enableIMEPersonalizedLearning": true,
-            "enableInteractiveSelection": true,
-        ]
-        _send("TextInput.setClient", [_clientId, config])
+        TextInputChannel.listen(owner: self) { [weak self] data in self?._handle(data) }
+        _send("TextInput.setClient", [_clientId, TextInputChannel.config(multiline: true)])
         sync(force: true)
         _send("TextInput.show", nil)
     }
@@ -110,7 +77,7 @@ public final class RichTextInputConnection {
         _lastCaret = nil
         _send("TextInput.clearClient", nil)
         _send("TextInput.hide", nil)
-        MainActor.assumeIsolated { channelBuffers.clearListener(Self.channel) }
+        TextInputChannel.unlisten(owner: self)
         _lastSent = nil
         _controller.composingRange = nil
     }
@@ -157,26 +124,14 @@ public final class RichTextInputConnection {
     // MARK: Incoming
 
     private func _handle(_ data: Data?) {
-        #if os(WASI)
-        return
-        #else
-        guard let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let method = json["method"] as? String else { return }
-        Self._log("recv \(method) \(String(data: data, encoding: .utf8)?.prefix(200) ?? "")")
-        let args = json["args"]
+        guard let (method, client, payload) = TextInputChannel.decode(data), client == _clientId else { return }
         switch method {
         case "TextInputClient.updateEditingState":
-            guard let list = args as? [Any], list.count >= 2, (list[0] as? Int) == _clientId,
-                  let state = list[1] as? [String: Any] else { return }
-            _apply(state)
+            if let state = payload as? [String: Any] { _apply(state) }
         case "TextInputClient.updateEditingStateWithTag":
-            guard let list = args as? [Any], list.count >= 2, (list[0] as? Int) == _clientId,
-                  let states = list[1] as? [String: Any], let state = states.values.first as? [String: Any] else { return }
-            _apply(state)
+            if let states = payload as? [String: Any], let state = states.values.first as? [String: Any] { _apply(state) }
         case "TextInputClient.performAction":
-            guard let list = args as? [Any], list.count >= 2, (list[0] as? Int) == _clientId,
-                  let action = list[1] as? String else { return }
-            if action == "TextInputAction.newline" {
+            if payload as? String == "TextInputAction.newline" {
                 _controller.composingRange = nil
                 _controller.insertParagraphBreak()
                 sync(force: true)
@@ -184,10 +139,10 @@ public final class RichTextInputConnection {
         case "TextInputClient.onConnectionClosed":
             _attached = false
             _controller.composingRange = nil
+            TextInputChannel.unlisten(owner: self)
         default:
             break
         }
-        #endif
     }
 
     /// The plugin's whole state for the paragraph: diff against ours by
@@ -250,23 +205,5 @@ public final class RichTextInputConnection {
 
     // MARK: Outgoing
 
-    /// JSON `null` for the method codec (`NSNull` is legacy Foundation,
-    /// which the web build does not link).
-    private static var _null: Any {
-        #if os(WASI)
-        return Optional<Int>.none as Any
-        #else
-        return NSNull()
-        #endif
-    }
-
-    private func _send(_ method: String, _ args: Any?) {
-        #if !os(WASI)
-        var body: [String: Any] = ["method": method]
-        body["args"] = args ?? Self._null
-        guard let data = try? JSONSerialization.data(withJSONObject: body) else { return }
-        Self._log("send \(method) sender=\(PlatformDispatcher.instance.platformMessageSender != nil) \(String(data: data, encoding: .utf8)?.prefix(160) ?? "")")
-        PlatformDispatcher.instance.sendPlatformMessage(Self.channel, data) { _ in }
-        #endif
-    }
+    private func _send(_ method: String, _ args: Any?) { TextInputChannel.send(method, args) }
 }

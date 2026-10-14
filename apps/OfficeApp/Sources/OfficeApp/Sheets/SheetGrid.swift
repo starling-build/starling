@@ -127,9 +127,16 @@ final class SheetGrid: StatefulWidget {
     override func createState() -> State<StatefulWidget> { SheetGridState() }
 }
 
-final class SheetGridState: State<StatefulWidget> {
+final class SheetGridState: State<StatefulWidget>, TextInputClient {
     let focus = FocusNode(debugLabel: "sheet grid")
     private let _chords = KeyChordTracker()
+    /// The platform's text-input plugin, for composed input (Chinese…),
+    /// dead keys and press-and-hold accents: attached while the grid has
+    /// focus. Its edits open the cell as typing does; with it attached the
+    /// typed characters arrive from it and `_key` declines them.
+    private var _ime: TextInputConnection? = nil
+    /// The input method's marked text in the editor, underlined.
+    private var _composing: Range<Int>? = nil
     private let _repaint = ChangeNotifier()
     private var _painter: _GridPainter! = nil
     private weak var _box: RenderBox?
@@ -320,7 +327,13 @@ final class SheetGridState: State<StatefulWidget> {
         super.initState()
         _painter = _GridPainter(state: self, repaint: _repaint)
         focus.onKeyData = { [weak self] k in self?._key(k) ?? false }
-        focus.onFocusChange = { [weak self] _ in self?._chords.reset(); self?._repaint.notifyListeners() }
+        focus.onFocusChange = { [weak self] focused in
+            guard let self else { return }
+            self._chords.reset()
+            if focused { self._ime?.attach() } else { self._ime?.detach() }
+            self._repaint.notifyListeners()
+        }
+        if TextInputChannel.enabled { _ime = TextInputConnection(client: self) }
         // The sheet in front now: a change of sheet resets the scroll, and the
         // first notification must not read as one (it reset a scrolled view
         // under the first click).
@@ -330,6 +343,8 @@ final class SheetGridState: State<StatefulWidget> {
     }
 
     override func dispose() {
+        _ime?.detach()
+        _ime = nil
         controller.removeListeners(owner: self)
         focus.dispose()
         texts.clear()
@@ -658,6 +673,7 @@ final class SheetGridState: State<StatefulWidget> {
         reveal(a)
         _w.onEditText(text)
         _repaint.notifyListeners()
+        _ime?.sync()
     }
 
     /// Put the editor's text into the cell. Returns false if nothing was being edited.
@@ -665,7 +681,9 @@ final class SheetGridState: State<StatefulWidget> {
     func commitEdit() -> Bool {
         guard let e = edit else { return false }
         edit = nil
+        _composing = nil
         _pointRef = nil
+        _ime?.sync()
         var text = String(e.text)
         // Excel closes the parentheses a formula left open.
         if text.hasPrefix("=") {
@@ -701,7 +719,9 @@ final class SheetGridState: State<StatefulWidget> {
     func cancelEdit() {
         guard edit != nil else { return }
         edit = nil
+        _composing = nil
         _pointRef = nil
+        _ime?.sync()
         _w.onEditText(nil)
         _repaint.notifyListeners()
     }
@@ -712,6 +732,37 @@ final class SheetGridState: State<StatefulWidget> {
         edit!.text = Array(s)
         edit!.caret = edit!.text.count
         _repaint.notifyListeners()
+        _ime?.sync()
+    }
+
+    // MARK: Text input (IME)
+
+    /// The editor as the plugin sees it: nothing while no cell is open.
+    var textInputValue: TextEditingValue {
+        get {
+            guard let e = edit else { return TextEditingValue(text: "", selection: TextSelection(offset: 0)) }
+            let c = _composing.map { TextRange(start: $0.lowerBound, end: $0.upperBound) } ?? TextRange.empty
+            return TextEditingValue(text: String(e.text), selection: TextSelection(offset: e.caret), composing: c)
+        }
+        set {
+            if edit == nil {
+                // The first character typed opens the cell, replacing it,
+                // as it does from the key path.
+                if newValue.text.isEmpty { return }
+                beginEdit(replace: "")
+                guard edit != nil else { _ime?.sync(force: true); return }
+            }
+            var e = edit!
+            e.text = Array(newValue.text)
+            let sel = newValue.selection
+            e.caret = sel.isValid ? min(max(0, sel.extentOffset), e.text.count) : e.text.count
+            edit = e
+            let c = newValue.composing
+            _composing = c.isValid && !c.isCollapsed ? max(0, c.start) ..< min(c.end, e.text.count) : nil
+            _pointRef = nil
+            _w.onEditText(String(e.text))
+            _repaint.notifyListeners()
+        }
     }
 
     private func _insert(_ s: String) {
@@ -755,6 +806,18 @@ final class SheetGridState: State<StatefulWidget> {
     private func _key(_ k: KeyData) -> Bool {
         if _chords.track(k) { return false }
         guard k.type != .up else { return false }
+        // While an input method composes, every key is its: Enter commits
+        // the candidate, Escape cancels, arrows move inside the marked
+        // text, Backspace shortens it.
+        if _ime?.isComposing == true { return false }
+        let handled = _keyUnchorded(k)
+        // What the key did to the editor, the plugin hears (a key the
+        // plugin had — typed text — it reported itself).
+        if handled { _ime?.sync() }
+        return handled
+    }
+
+    private func _keyUnchorded(_ k: KeyData) -> Bool {
         // A double click is two clicks with nothing between them.
         _lastClick = nil
         let named = KeyChordTracker.named(k.logical)
@@ -831,7 +894,13 @@ final class SheetGridState: State<StatefulWidget> {
             case .end: e.caret = e.text.count; edit = e; _repaint.notifyListeners(); return true
             case .function(2): e.enterMode.toggle(); edit = e; return true
             default:
-                if let t = _chords.typedText(k) { _pointRef = nil; _insert(t); return true }
+                if let t = _chords.typedText(k) {
+                    // With the text-input plugin connected the characters
+                    // arrive from it (composed, accented, or plain);
+                    // declining the key is what lets the plugin have it.
+                    if _ime?.isAttached == true { return false }
+                    _pointRef = nil; _insert(t); return true
+                }
                 return false
             }
         }
@@ -870,7 +939,10 @@ final class SheetGridState: State<StatefulWidget> {
         case .backspace: beginEdit(replace: ""); return true
         case .escape: return _w.onShortcut("\u{1B}", _chords)  // the shell closes its find bar
         default:
-            if let t = _chords.typedText(k) { beginEdit(replace: t); return true }
+            if let t = _chords.typedText(k) {
+                if _ime?.isAttached == true { return false }
+                beginEdit(replace: t); return true
+            }
             return false
         }
     }
@@ -2193,11 +2265,23 @@ final class SheetGridState: State<StatefulWidget> {
         canvas.save()
         canvas.clipRect(box.deflate(1))
         if !text.isEmpty { tp.paint(canvas, Offset(box.left + pad, ty.rounded())) }
+        // The input method's marked text, underlined.
+        if let c = _composing, c.upperBound <= e.text.count, c.lowerBound < c.upperBound {
+            let x0 = c.lowerBound == 0 ? 0 : texts.painter(String(e.text[0 ..< c.lowerBound]), style).width
+            let x1 = texts.painter(String(e.text[0 ..< c.upperBound]), style).width
+            p.color = ink
+            canvas.drawRect(Rect.fromLTWH(box.left + pad + x0, ty + tp.height - 1, x1 - x0, 1), p)
+        }
         // The caret.
         let before = e.caret == 0 ? 0 : texts.painter(String(e.text[0 ..< e.caret]), style).width
         p.color = ink
         canvas.drawRect(Rect.fromLTWH((box.left + pad + before).rounded(), ty + 1, 1.5, max(1, tp.height - 2)), p)
         canvas.restore()
+        // Where the caret is, for the input method's candidate window.
+        if let ime = _ime, ime.isAttached, let rb = _box ?? (context?.findRenderObject() as? RenderBox) {
+            ime.setCaretRect(Rect.fromLTWH(box.left + pad + before, ty, 1.5, tp.height),
+                             editableSize: size, transform: rb.getTransformTo(nil as RenderObject?))
+        }
     }
 }
 

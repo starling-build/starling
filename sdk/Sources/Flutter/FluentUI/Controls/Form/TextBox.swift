@@ -165,7 +165,7 @@ public class FluentTextBox: StatefulWidget {
 
 // MARK: - _TextBoxState
 
-class _TextBoxState: State<StatefulWidget> {
+class _TextBoxState: State<StatefulWidget>, TextInputClient {
     private var textBox: FluentTextBox {
         return widget as! FluentTextBox
     }
@@ -211,6 +211,12 @@ class _TextBoxState: State<StatefulWidget> {
     /// Last text seen, so onChanged only fires for text (not caret) changes.
     private var _lastText: String = ""
 
+    /// The platform's text-input plugin, for composed input (Chinese,
+    /// Japanese…), dead keys and press-and-hold accents: attached while
+    /// focused. With it attached the typed characters arrive from the
+    /// plugin and the key path declines them (see `_handleKey`).
+    private var _ime: TextInputConnection? = nil
+
     /// Listener callback reference for the controller.
     private let _controllerListener: VoidCallback = {}
     private var _boundListener: VoidCallback?
@@ -225,6 +231,7 @@ class _TextBoxState: State<StatefulWidget> {
             self?._onControllerChanged()
         }
         _effectiveController.addListener(_boundListener!)
+        if TextInputChannel.enabled { _ime = TextInputConnection(client: self) }
 
         _focusNode.onFocusChange = { [weak self] focused in
             guard let self = self else { return }
@@ -234,6 +241,7 @@ class _TextBoxState: State<StatefulWidget> {
             self.textBox.onFocusChanged?(focused)
             // The key-ups of modifiers held as focus left go elsewhere.
             if !focused { self._commandDown = false; self._shiftDown = false }
+            if focused, !self.textBox.readOnly, self.textBox.enabled { self._ime?.attach() } else { self._ime?.detach() }
             if focused {
                 self._startCaretBlink()
                 // A focused field on a touch device has to ask for the keys.
@@ -261,6 +269,8 @@ class _TextBoxState: State<StatefulWidget> {
 
     override func dispose() {
         _stopCaretBlink()
+        _ime?.detach()
+        _ime = nil
         Self._tabPeers.removeAll { $0.state == nil || $0.state === self }
         _focusNode.dispose()
         if let listener = _boundListener {
@@ -346,6 +356,10 @@ class _TextBoxState: State<StatefulWidget> {
         guard textBox.enabled else { return false }
 
         let controller = _effectiveController
+        // While an input method composes, every key is its: Enter commits
+        // the candidate, Escape cancels, arrows move inside the marked
+        // text, Backspace shortens it.
+        if _ime?.isComposing == true { return false }
 
         // A chord with the platform's command key (⌘, Ctrl elsewhere) is a
         // command, never text: Select All here; anything else is offered to
@@ -403,11 +417,41 @@ class _TextBoxState: State<StatefulWidget> {
            !character.isEmpty,
            let scalar = character.unicodeScalars.first,
            scalar.value >= 0x20, scalar.value != 0x7F {
+            // With the text-input plugin connected the characters arrive
+            // from it (composed, accented, or plain); declining the key
+            // here is what lets the plugin have it.
+            if _ime?.isAttached == true { return false }
             controller.insertText(character)
             return true
         }
 
         return false
+    }
+
+    // MARK: - Text input (IME)
+
+    var textInputValue: TextEditingValue {
+        get { _effectiveController.value }
+        set { _effectiveController.value = newValue }
+    }
+
+    /// The caret's place for the input method's candidate window: the
+    /// field's box from the previous layout (fine: a moved box re-reports
+    /// on its next rebuild) and the caret's x from the text before it.
+    private func _reportCaret(_ context: any BuildContext, style: TextStyle, padding: EdgeInsets) {
+        guard let ime = _ime, ime.isAttached,
+              let box = context.findRenderObject() as? RenderBox, box.hasSize else { return }
+        let text = _effectiveController.text
+        let sel = _effectiveController.selection
+        let at = sel.isValid ? Swift.min(Swift.max(0, sel.extentOffset), text.count) : text.count
+        var x = padding.left
+        if at > 0 {
+            let painter = TextPainter(text: TextSpan(text: String(text.prefix(at)), style: style), textDirection: .ltr)
+            painter.layout()
+            x += painter.width
+        }
+        ime.setCaretRect(Rect.fromLTWH(x, padding.top, 1, box.size.height - padding.top - padding.bottom),
+                         editableSize: box.size, transform: box.getTransformTo(nil))
     }
 
     // MARK: - Caret Blink
@@ -454,7 +498,7 @@ class _TextBoxState: State<StatefulWidget> {
         // start, because the blink is armed on focus and focus did not move.
         let wasDrawn = oldTextBox.enabled && !oldTextBox.readOnly
         if _isFocused && wasDrawn != _caretIsDrawn {
-            if _caretIsDrawn { _startCaretBlink() } else { _stopCaretBlink() }
+            if _caretIsDrawn { _startCaretBlink(); _ime?.attach() } else { _stopCaretBlink(); _ime?.detach() }
         }
         if textBox.controller !== oldTextBox.controller {
             if let listener = _boundListener {
@@ -470,6 +514,10 @@ class _TextBoxState: State<StatefulWidget> {
     }
 
     private func _onControllerChanged() {
+        // A local change (typed, deleted, set by the app) reaches the
+        // plugin; the plugin's own edits are already its (the connection
+        // ignores the sync while applying).
+        _ime?.sync()
         let text = _effectiveController.text
         if text != _lastText {
             _lastText = text
@@ -596,6 +644,28 @@ class _TextBoxState: State<StatefulWidget> {
                     textContent = SizedBox(width: 0, height: 0)
                 }
             }
+        } else if _ime?.isComposing == true, !textBox.obscureText {
+            // An input method's marked text is underlined, as everywhere
+            // on the platform. The caret glyph sits inside the string at
+            // the caret, so the range shifts past it.
+            let cr = _effectiveController.value.composing
+            let c = Swift.max(0, Swift.min(cr.start, visibleText.count)) ..< Swift.max(0, Swift.min(cr.end, visibleText.count))
+            let sel = _effectiveController.selection
+            let caretAt = (isFocused && !textBox.readOnly && sel.isValid && sel.isCollapsed && sel.baseOffset >= 0)
+                ? Swift.min(sel.baseOffset, visibleText.count) : Int.max
+            let start = Swift.min(c.lowerBound + (caretAt <= c.lowerBound ? 1 : 0), textWithCursor.count)
+            let end = Swift.min(c.upperBound + (caretAt <= c.upperBound ? 1 : 0), textWithCursor.count)
+            let s = textWithCursor
+            let i0 = s.index(s.startIndex, offsetBy: start), i1 = s.index(s.startIndex, offsetBy: end)
+            textContent = Text(
+                rich: TextSpan(children: [
+                    TextSpan(text: String(s[..<i0]), style: effectiveTextStyle),
+                    TextSpan(text: String(s[i0..<i1]), style: effectiveTextStyle.copyWith(decoration: .underline)),
+                    TextSpan(text: String(s[i1...]), style: effectiveTextStyle),
+                ]),
+                overflow: .clip,
+                maxLines: textBox.maxLines
+            )
         } else {
             textContent = Text(
                 textWithCursor,
@@ -604,6 +674,7 @@ class _TextBoxState: State<StatefulWidget> {
                 maxLines: textBox.maxLines
             )
         }
+        if isFocused { _reportCaret(context, style: effectiveTextStyle, padding: effectivePadding) }
 
         // Build the inner row with optional prefix/suffix
         var rowChildren: [Widget] = []
@@ -680,6 +751,7 @@ class _TextBoxState: State<StatefulWidget> {
                 ? { [self] in
                     _focusNode.requestFocus()
                     _effectiveController.moveCursorToEnd()
+                    _ime?.show()
                 }
                 : nil,
             forceEnabled: isEnabled

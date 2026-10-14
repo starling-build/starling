@@ -86,7 +86,15 @@ its marked text and keys come back to the key path; and the `"\n"` the
 plugin puts into its own text before `performAction newline` is stripped
 in `_apply` (it had drawn as a blank line on top of the split). Still
 open: a pending ⌘B does not reach text the plugin inserts; Japanese and
-press-and-hold unverified; the Fluent `TextBox` has no connection. Companion to `office.md`,
+press-and-hold unverified. **2026-10-14, the plain fields too:** the
+channel's listener ownership, the on/off switch and the client config
+moved to `TextInputChannel` (`Widgets/TextInputConnection.swift`), and a
+`TextInputConnection` for plain fields takes the plugin's whole state as
+a `TextEditingValue` (characters, converted from the plugin's UTF-16).
+The Fluent `TextBox` and Sheets' in-cell editor are its clients: Pinyin
+seen composing in a cell (underline, candidates under the caret, the
+formula bar mirroring), in the formula bar and in Writer's Find box, with
+an emoji pick landing whole. Companion to `office.md`,
 which tracks the suite; this one is only about the editing experience in
 Writer on macOS, which is where the user has asked for the focus. Nothing
 here is Linux, Windows or iOS.
@@ -111,13 +119,13 @@ Not there, in the order a writer meets them:
   writes `NSPasteboard` strings only; a rich paste works only within one
   controller (the last copied fragment). Nothing pasted from Word, Pages
   or a browser keeps its formatting, and nothing copied out carries any.
-- **IME on macOS, as of 2026-10-13 — in the document only.** Pinyin
-  composition (underline, candidate strip under the caret, Space/digit
-  picks, Enter commits the raw letters, Escape cancels, Backspace and
-  arrows inside the marked text), dead keys and plain typing all go
-  through the text-input plugin and were seen on screen. Not yet: the
-  Fluent `TextBox` (Find, Link, Header/Footer, Sheets' cell editor and
-  filter), which still types from key events alone; Japanese and
+- **IME on macOS, as of 2026-10-14.** Pinyin composition (underline,
+  candidate strip under the caret, Space/digit picks, Enter commits the
+  raw letters, Escape cancels, Backspace and arrows inside the marked
+  text), dead keys and plain typing all go through the text-input plugin
+  and were seen on screen — in the document (10-13), and in the Fluent
+  `TextBox` (Find, Link, Header/Footer, the formula bar, Sheets' filter)
+  and Sheets' in-cell editor (10-14). Not yet: Japanese and
   press-and-hold are unverified (no hand on the keyboard); the web build
   has no plugin behind the channel at all.
 - **Tables stop at rows.** No column insert/delete, no merged cells, no
