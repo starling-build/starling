@@ -1500,6 +1500,12 @@ private struct SlideContext {
         let firstColPart = pr?["firstCol"] == "1" ? style.flatMap { _tablePart($0, "a:firstCol") } : nil
         let lastColPart = pr?["lastCol"] == "1" ? style.flatMap { _tablePart($0, "a:lastCol") } : nil
         if let c = whole?.textColor { base.color = c }
+        // The table style's face over the deck's default text: every
+        // built-in style names the theme's minor font (`fontRef idx=
+        // "minor"`), so a table set in it where the deck's default text
+        // says Arial — the AES deck's Verdana tables, which wrapped a
+        // word or two later in Arial.
+        base.font = whole?.font ?? (style == nil ? "+mn-lt" : base.font)
         let rowCount = tbl.all("a:tr").count
         var paragraphs: [RichParagraph] = []
         for (r, tr) in tbl.all("a:tr").enumerated() {
@@ -1575,6 +1581,7 @@ private struct SlideContext {
                 var look = base
                 if style != nil {
                     for p in regional {
+                        if let f = p.font { look.font = f }
                         if let b = p.bold { look.bold = b }
                         if let c = p.textColor { look.color = c }
                     }
@@ -1609,6 +1616,12 @@ private struct SlideContext {
                         style.list = level.bullet == .char ? .bullet : .numbered
                         style.listLevel = p.first("a:pPr")?["lvl"].flatMap(Int.init) ?? 0
                         style.indentLeft = max(18, level.marL ?? 0)
+                        // The cell's own bullet, as a shape's: the AES
+                        // tables' "•" at every level, where the layout's
+                        // own drew "◦" below the first.
+                        if level.bullet == .char { style.bulletText = level.bulletGlyph }
+                        style.bulletColor = level.bulletColor
+                        style.bulletScale = level.bulletScale
                     default:
                         break
                     }
@@ -1916,6 +1929,8 @@ private struct SlideContext {
         var bold: Bool? = nil
         var borders: Bool? = nil
         var borderColor: Color? = nil
+        /// `a:tcTxStyle`'s face: a theme slot (`fontRef idx`) or a name.
+        var font: String? = nil
     }
 
     private func _tablePart(_ style: XNode, _ name: String) -> TablePartStyle? {
@@ -1956,6 +1971,8 @@ private struct SlideContext {
         if let tx = part.first("a:tcTxStyle") {
             r.textColor = colors.color(in: tx)
             switch tx["b"] { case "on": r.bold = true; case "off": r.bold = false; default: break }
+            if let idx = tx.first("a:fontRef")?["idx"] { r.font = idx == "major" ? "+mj-lt" : "+mn-lt" }
+            if let name = tx.first("a:font")?.first("a:latin")?["typeface"] { r.font = name }
         }
         return r
     }

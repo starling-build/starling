@@ -979,6 +979,27 @@ and bullet — and we drew none.
   other than identity: tdf114848's perspective shadows): as a copy of
   the letters it would stand up beside them.
 
+**Table text in the table style's face, with its own bullets,
+2026-10-14** (sweep 56: 1.8821 → 1.8787%; the AES conference deck 9.49 →
+8.25, bug68703 3.48 → 3.11, bug62513 −0.13, customGeo −0.14; nothing
+worse among the 55 decks with tables). The AES deck's tables are Verdana
+in PowerPoint, where its default text style says Arial and we set them
+in Arial, a word or two wider a line.
+
+- **A table style's `tcTxStyle` face** (`fontRef idx`, or a named
+  `a:font`) is its cells' text's, over the deck's default text style;
+  a built-in style the deck does not define is the theme's minor font,
+  as every one PowerPoint ships says.
+- **A cell paragraph's own bullet** — its character, colour and size —
+  as a shape's: the AES tables' "•" at every level, where the layout's
+  own drew "◦" below the first.
+
+Also looked at, and left: Divino_Revelado (14.3%) is a truncated zip;
+PowerPoint repairs it into eleven blank pages and we draw what is in
+it. The tdf139618 WordArt trio's bends are PowerPoint's to a few
+points; what costs is Arial Black, for which no free face of its weight
+is shipped (the shared font code the Writer session is changing).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

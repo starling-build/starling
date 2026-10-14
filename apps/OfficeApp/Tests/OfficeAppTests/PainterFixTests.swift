@@ -153,8 +153,10 @@ final class PainterFixTests: XCTestCase {
         var slide = String(data: package.parts[part]!, encoding: .utf8)!
         slide = slide.replacingOccurrences(of: " b=\"1\"", with: "")
             .replacingOccurrences(of: "<a:solidFill><a:srgbClr val=\"FFFFFF\"/></a:solidFill>", with: "")
+        // (And the runs' own faces: the style's minor font is what is left.)
+        slide = slide.replacingOccurrences(of: #"<a:(latin|cs) typeface="[^"]*"/>"#, with: "", options: .regularExpression)
         package.parts[part] = Data(slide.utf8)
-        let (state, _, _) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let (state, theme, _) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
         let table = try XCTUnwrap(state.slides.flatMap(\.shapes).first { $0.kind == .table })
         let doc = try XCTUnwrap(table.text)
         let style = try XCTUnwrap(doc.tableStyles.values.first)
@@ -165,6 +167,7 @@ final class PainterFixTests: XCTestCase {
         let header = try XCTUnwrap(doc.paragraphs.first?.runs.first?.style)
         XCTAssertEqual(header.color, Color(0xFFFFFF00))
         XCTAssertEqual(header.bold, false, "the style says the header is not bold")
+        XCTAssertEqual(doc.paragraphs.last?.runs.first?.style.fontFamily, theme.bodyFont, "the style's fontRef: the theme's minor font")
     }
 }
 
