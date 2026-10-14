@@ -2192,6 +2192,23 @@ public final class RichLayout {
             let st0 = document.paragraphs[i].style
             let endsSection = theme.wordRules && bottom - top < 0.01 && st0.sectionXML != nil && st0.sectionBreaksPage == true
             let breakIsTheSections = endsSection && st0.breakEndsPrevious && !st0.pageBreakInline
+            // A page break and the section's mark in one paragraph (the
+            // break carried to the paragraph after, `breakEndsPrevious`):
+            // the mark stays on the page the break ends where a line of
+            // the paragraph fits there; else it takes a page of the
+            // section it ends, and the next section the page after. Lab
+            // `lb`, from zh-1a3c7aa0's package, modes 12 and 15: under a
+            // filler leaving R points the next section opens on page 2
+            // from R = 43 and on page 3 below it, whatever the paragraph's
+            // space after — its footer took 27.4 of that, leaving one
+            // 15.6pt line; with the paragraph's exact 28.9pt line, from
+            // R = 65 and not at 56. zh-1a3c7aa0's page 11.
+            if theme.wordRules, endsSection, resumeCursor == nil, y > 0.01, _columns == 1, i + 1 < count,
+               document.paragraphs[i + 1].style.breakEndsPrevious, _pageBreak[i + 1],
+               !document.paragraphs[i + 1].style.pageBreakInline,
+               contentH - y < _markLineHeight(i, document) - 0.01 {
+                newPage()
+            }
             if _pageBreak[i] && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
                 // (A page the line before hung past the foot of has no
                 // room for the break's own line: that line takes a page
@@ -5516,6 +5533,24 @@ public final class RichLayout {
         canvas.rotate(image.rotation * Double.pi / 180)
         canvas.drawImageRect(decoded, src, Rect.fromLTWH(-w / 2, -h / 2, w, h), Paint())
         canvas.restore()
+    }
+
+    /// The height of one line of paragraph `i` in its mark's look, as if
+    /// it held nothing else (px).
+    private func _markLineHeight(_ i: Int, _ document: RichDocument) -> Double {
+        let p = document.paragraphs[i]
+        var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
+        mark.inlineImage = nil
+        var style = p.style
+        style.lineCollapsed = false
+        let empty = RichParagraph(text: "\u{FFFC}", runs: [Run(length: 1, style: mark)], style: style)
+        let width = max(1, _flowWidth(i))
+        let (span, held, _) = _span(for: empty, at: i, document, textWidth: width)
+        let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: _strut(span))
+        if !held.isEmpty { probe.setPlaceholderDimensions(held.map { $0.dimensions }) }
+        probe.layout(minWidth: 0, maxWidth: width)
+        defer { probe.dispose() }
+        return probe.height
     }
 
     /// Whether paragraph `i` holds nothing but floating objects: its

@@ -2193,12 +2193,20 @@ fitter dropped the paragraph's tail).
   above (a split of the commit that went wrong); the two together took
   the sample on Windows from 83.5% to 84.1%, nothing down.
 
-  Still open for zh-1a3c7aa0: a page break that ends a section ("[break]"
-  and the section's mark in one paragraph) keeps the mark on the page it
-  ends only where one line of the paragraph fits there; else the mark
-  takes a page of the old section (Word's page 11) — lab `lb`: in modes
-  12 and 15 the threshold moves with the room left and not with the
-  paragraph's space after.
+- **A page break with a section's mark keeps the mark on its page only
+  where a line fits (2026-10-14).** "[break]" and the section's mark in
+  one paragraph (zh-1a3c7aa0's end of section 1): the mark stays on the
+  page the break ends where one line of the paragraph fits there; else
+  it takes a page of the section it ends, and the next section opens
+  after it. Lab `lb` (the document's package, modes 12 and 15): under
+  a filler leaving R points the next section opens on page 2 from R =
+  43, page 3 below — whatever the space after; the footer took 27.4 of
+  R, leaving one 15.6pt line — and with the paragraph's own exact 28.9pt
+  line, from R = 65 and not at 56. The reader folds the break onto the
+  next paragraph (`breakEndsPrevious`) and the mark has no height, so
+  the line is measured in its look (`_markLineHeight`). zh-1a3c7aa0
+  now has Word's pages 10 to 13 (the mark's page 11, the odd/even
+  blank 12, the annex from 13): 24.6% -> 29.2%; nothing else moved.
 
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
