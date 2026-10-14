@@ -685,6 +685,10 @@ public struct ImageAttachment: Hashable, Sendable {
     /// room for it in the line, and none above and below unless it
     /// `takesRoom`. nil for an object in the line.
     public var float: ImageFloat? = nil
+    /// The picture's turn, in degrees clockwise (`a:xfrm rot` / 60000):
+    /// its size is the unturned one, and it turns about its centre.
+    /// Laid out and drawn for a floating picture only.
+    public var rotation: Double = 0
     /// For a text box: the text inside it, which the layout sets in the
     /// box (a page number in a footer's text box, a letterhead's lines).
     /// The box itself — its outline, its fill — stays the kept markup's.

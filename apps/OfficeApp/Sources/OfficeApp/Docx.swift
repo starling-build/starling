@@ -2213,6 +2213,11 @@ enum DocxFormat {
                 // editor shows the picture in the line.
                 att.data = data
                 att.name = target.lastPathComponent
+                // (Turned, a photo taken sideways: a quarter turn makes
+                // its box as tall as it was wide — zh-37b6536f.)
+                if let rot = drawing.descendant("a:graphic")?.descendant("a:xfrm")?["rot"].flatMap({ Double($0) }) {
+                    att.rotation = rot / 60000
+                }
                 addInline(att)
                 return
             }

@@ -1841,6 +1841,33 @@ fitter dropped the paragraph's tail).
   full-width colon, comma and full stop keep their em on a line that
   fits; the 10.5 and 2.6 of the document were the squeeze alone.
 
+- **Floating pictures that text wraps round (2026-10-14).**
+  zh-37b6536f's report has five photographs anchored in empty
+  paragraphs (`wrapTight`, `behindDoc`), and ours drew each as a strip
+  one line tall, with the text running over where they should be.
+  From Word's print, image box by image box (PyMuPDF), six rules:
+  (1) a paragraph shown whole is not clipped to its lines when it
+  carries a floating object; (2) a paragraph with less than an em
+  beside the pictures over any of its first line, either side, goes
+  below them — beside one photo 377pt wide eleven empty paragraphs
+  stand in the 43pt left over; (3) a paragraph whose own picture would
+  run past the page's foot goes to the next page with it; (4) a
+  picture that would lie over one already on the page stands to its
+  right; (5) two pictures in one paragraph that fill the column
+  between them set its line under both; (6) where pictures leave no
+  room for the lines of the picture-only paragraphs that anchor them,
+  those lines go under them, one after another, while the pictures
+  stay where their paragraphs first stood. A paragraph of nothing but
+  floating objects is as tall as one of a single floating picture
+  (in its mark's look), and a picture turned a quarter (`a:xfrm rot`)
+  is laid out and drawn turned about its centre. Page 2 now matches
+  Word's to half a point, pictures and text. zh-37b6536f 14.6% ->
+  30.8% (its page 3 chart is not drawn), shapes-with-text 12.5 ->
+  37.5, 60316 66.7 -> 81.8, zh-799c91cd 42.6 -> 43.0; nothing down.
+  Chinese sample 75.6%. `RichLayout._paginate` (`bands`,
+  `anchorRun`), `_wrapBoxes`, `_floatShift`/`_floatShiftY`,
+  `_drawPicture`.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

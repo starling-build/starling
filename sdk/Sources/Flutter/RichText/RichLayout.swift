@@ -589,6 +589,12 @@ public final class RichLayout {
     /// A picture paragraph's float, when its picture is anchored.
     private var _floats: [ImageFloat?] = []
     private var _floatImages: [ImageAttachment?] = []
+    /// How far pagination moved a floating picture to the right, clear of
+    /// one already on its page (by image id; `_paginate`).
+    private var _floatShift: [String: Double] = [:]
+    /// … and up, where its paragraph's line was moved down under the
+    /// pictures and the picture stays where the paragraph first stood.
+    private var _floatShiftY: [String: Double] = [:]
 
     /// Table cells: per paragraph, the row's top and height (for borders and
     /// hit-testing) and the column geometry; nil for ordinary paragraphs.
@@ -1596,7 +1602,15 @@ public final class RichLayout {
         }
         var prevContentH = contentH
         var prevY = 0.0   // how far down the page before was filled
+        // The floating pictures on this page that text wraps round: page
+        // y, and x from the column's edge.
+        var bands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
+        // The paragraphs of nothing but floating pictures set on this
+        // page since the last with text (`_anchorsOnly`).
+        var anchorRun: [Int] = []
         func newPage() {
+            bands.removeAll()
+            anchorRun.removeAll()
             var fresh: [PagePiece] = []
             fresh.reserveCapacity(32)
             _pages.append(fresh)
@@ -2038,6 +2052,102 @@ public final class RichLayout {
             // is on the page once, as it is in the flow.
             if i > 0, _cells[i - 1] == nil, y > 0.01, resumeCursor == nil {
                 y -= min(y, max(0, _tops[i - 1] + _heights[i - 1] - top))
+            }
+            // Pictures that text wraps round (2026-10-14, zh-37b6536f's
+            // photographs, from Word's print):
+            // - a paragraph with less than an em beside the pictures over
+            //   its top, either side, goes below them — empty ones too: a
+            //   row of two photos across the column has the next anchor
+            //   under it, where beside one narrower photo eleven empty
+            //   paragraphs stand in the 43pt left over;
+            // - a paragraph whose own picture would run past the page's
+            //   foot goes to the next page with it;
+            // - a picture that would lie over one already on the page
+            //   stands to its right (the second of two photos of a row,
+            //   anchored 10pt left of the column, is drawn beside the
+            //   first).
+            if theme.wordRules, resumeCursor == nil, _cells[i] == nil {
+                let column = _flowWidth(i)
+                let gap = _px(9)
+                let em = _px(document.paragraphs[i].runs.first?.style.fontSize ?? theme.fontSize)
+                // (Over any of the line, not only its top: an empty
+                // anchor's line that a photo starts 16pt down went under
+                // the photo in Word's print.)
+                func noRoom(at at: Double, height: Double = 0, _ extra: [(top: Double, bottom: Double, left: Double, right: Double)]) -> Double? {
+                    let over = (bands + extra).filter { $0.top < at + max(0.02, height) - 0.01 && $0.bottom > at + 0.01 }
+                    guard !over.isEmpty else { return nil }
+                    // The widest stretch of the column no picture covers.
+                    var spans = over.map { (max(0, $0.left - gap), min(column, $0.right + gap)) }.sorted { $0.0 < $1.0 }
+                    var widest = 0.0, edge = 0.0
+                    for s in spans { widest = max(widest, s.0 - edge); edge = max(edge, s.1) }
+                    widest = max(widest, column - edge)
+                    spans.removeAll()
+                    return widest < em ? over.map(\.bottom).min() : nil
+                }
+                var guardSteps = 0
+                while let below = noRoom(at: y, []), guardSteps < 20 { y = below; guardSteps += 1 }
+                if y > contentH - 0.01 { newPage() }
+                var mine = _wrapBoxes(i)
+                for box in mine { if let dy = _floatShiftY[box.id] { _floatShiftY[box.id] = nil; let r = box.rect; mine = mine.map { $0.id == box.id ? ($0.id, Rect.fromLTWH(r.left, r.top - dy, r.width, r.height)) : $0 } } }
+                if !mine.isEmpty {
+                    if y > 0.01, mine.contains(where: { y + $0.rect.bottom - top > contentH + 0.5 }) { newPage() }
+                    var placed: [(top: Double, bottom: Double, left: Double, right: Double)] = []
+                    for box in mine {
+                        var r = (top: y + box.rect.top - top, bottom: y + box.rect.bottom - top, left: box.rect.left, right: box.rect.right)
+                        let before = _floatShift[box.id] ?? 0
+                        r.left -= before; r.right -= before
+                        var shift = 0.0
+                        for b in bands + placed where b.top < r.bottom - 0.5 && b.bottom > r.top + 0.5
+                            && b.left < r.right + shift - 0.5 && b.right > r.left + shift + 0.5 && r.left + shift < b.right {
+                            shift = max(shift, b.right - r.left)
+                        }
+                        _floatShift[box.id] = shift > 0.5 ? shift : nil
+                        r.left += shift; r.right += shift
+                        placed.append(r)
+                    }
+                    bands += placed
+                }
+                // Lines of picture-only paragraphs that the pictures now
+                // leave no room — this one's and those just above it —
+                // go under them, one after another; their pictures stay
+                // where their paragraphs first stood. (Word's print of
+                // zh-37b6536f: two photos anchored in two empty
+                // paragraphs, the second moved clear of the first, and
+                // both empty lines under the pair, the text after them.)
+                if _anchorsOnly(i, document) {
+                    anchorRun.append(i)
+                    func lineTop(_ k: Int) -> Double? {
+                        if k == i { return y + _spaceBefore[k] }
+                        guard let piece = _pages[page].last(where: { $0.paragraph == k && $0.part == .all }) else { return nil }
+                        return piece.pageY + (_tops[k] + _spaceBefore[k] - piece.flowTop)
+                    }
+                    func lineHeight(_ k: Int) -> Double { _heights[k] - _spaceBefore[k] }
+                    if let first = anchorRun.firstIndex(where: { k in lineTop(k).map { noRoom(at: $0, height: lineHeight(k), []) != nil } ?? false }),
+                       var at = lineTop(anchorRun[first]) {
+                        var steps = 0
+                        while let below = noRoom(at: at, height: lineHeight(anchorRun[first]), []), steps < 20 { at = below; steps += 1 }
+                        for k in anchorRun[first...] {
+                            guard let old = lineTop(k) else { continue }
+                            let delta = at - old
+                            at += lineHeight(k)
+                            guard delta > 0.01 else { continue }
+                            for image in document.paragraphs[k].inlineImages.values { _floatShiftY[image.id] = -delta }
+                            if let image = document.paragraphs[k].image { _floatShiftY[image.id] = -delta }
+                            if k == i {
+                                y += delta
+                            } else {
+                                for n in _pages[page].indices where _pages[page][n].paragraph == k {
+                                    let moved = _pages[page][n]
+                                    _pages[page][n] = PagePiece(paragraph: moved.paragraph, flowTop: moved.flowTop, flowBottom: moved.flowBottom,
+                                                                page: moved.page, pageY: moved.pageY + delta)
+                                    if let m = _allPieces.lastIndex(of: moved) { _allPieces[m] = _pages[page][n] }
+                                }
+                            }
+                        }
+                    }
+                } else if !document.paragraphs[i].text.isEmpty {
+                    anchorRun.removeAll()
+                }
             }
             var cursor = resumeCursor ?? top
             resumeCursor = nil
@@ -2727,6 +2837,24 @@ public final class RichLayout {
         if theme.wordRules, p.cell == nil {
             let column = _flowWidth(i)
             let firstLine = max(0, lead) + (left - (frameLeft ?? 0))
+            // (Together, too: two photos side by side that fill the
+            // column between them set an empty anchor's line under both,
+            // where either alone leaves room — zh-37b6536f's first row.)
+            var spans: [(Double, Double, Double)] = []
+            let em0 = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
+            for image in p.inlineImages.values {
+                guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
+                      float.horizontalFrom != "page", float.horizontalAlign == nil else { continue }
+                let w = _px(image.width)
+                spans.append((_px(float.x) - _px(9), _px(float.x) + w + _px(9), _px(float.y) + _px(image.height)))
+            }
+            if spans.count > 1 {
+                let sorted = spans.sorted { $0.0 < $1.0 }
+                var widest = 0.0, edge = firstLine
+                for s in sorted { widest = max(widest, s.0 - edge); edge = max(edge, s.1) }
+                widest = max(widest, column - max(0, lead) - right - edge)
+                if widest < em0 { push = max(push, sorted.map(\.2).max() ?? 0) }
+            }
             for image in p.inlineImages.values {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
                       float.horizontalFrom != "page" else { continue }
@@ -2746,6 +2874,30 @@ public final class RichLayout {
         if i < _floatPush.count { _floatPush[i] = push }
         _spaceBefore[i] = before + push
         var bodyHeight = painter.height
+        // A paragraph of nothing but floating objects stands as one of a
+        // single floating picture does (25pt in zh-37b6536f, where the
+        // two photos' 0-high places made a line of 0.8, and the next
+        // photo stood 30pt above Word's).
+        if theme.wordRules, p.image == nil, !p.inlineImages.isEmpty, !p.text.isEmpty,
+           p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }),
+           p.inlineImages.values.allSatisfy({ $0.float.map { !$0.takesRoom } ?? false }) {
+            // (As a paragraph of one floating picture is laid out — its
+            // character in the objects' run, with no object in it: the
+            // height Word gives such a line, 25pt where a line of text
+            // is 29.)
+            // (The paragraph mark's look: the objects' runs may carry none.)
+            var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
+            mark.inlineImage = nil
+            var empty = RichParagraph(text: "\u{FFFC}", runs: [Run(length: 1, style: mark)], style: p.style)
+            empty.cell = p.cell
+            let (span, held, _) = _span(for: empty, at: nil, document, textWidth: textWidth)
+            let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr,
+                                    strutStyle: held.contains(where: { $0.image != nil }) ? nil : _strut(span))
+            if !held.isEmpty { probe.setPlaceholderDimensions(held.map { $0.dimensions }) }
+            probe.layout(minWidth: 0, maxWidth: max(1, textWidth))
+            bodyHeight = max(bodyHeight, probe.height)
+            probe.dispose()
+        }
         // A tab at the paragraph's end whose stop lies past the right
         // edge of the text goes to a line of its own, as Word sets it —
         // minutes typed with a tab after each full stop are a line
@@ -4615,10 +4767,7 @@ public final class RichLayout {
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
             if _decoded[image.id] == nil { _paintOutline(image, box, canvas) }
             if let decoded = _decoded[image.id] {
-                let paint = Paint()
-                canvas.drawImageRect(decoded,
-                                     Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height)),
-                                     box, paint)
+                _drawPicture(decoded, image, box, canvas)
             } else if let inside = _textBox(image, document), let text = image.textBox {
                 // A text box: its text, set inside it.
                 canvas.save()
@@ -4810,7 +4959,7 @@ public final class RichLayout {
                 }
                 let paint = Paint()
                 if let decoded = _decoded[image.id] {
-                    canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height)), rect, paint)
+                    _drawPicture(decoded, image, rect, canvas)
                 } else if let inside = _textBox(image, document), let text = image.textBox {
                     canvas.save()
                     canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
@@ -4916,7 +5065,65 @@ public final class RichLayout {
         if float.horizontalAlign == nil, float.horizontalFrom == "character" { x = g.textLeft + _px(float.x) }
         let pushed = i < _floatPush.count ? _floatPush[i] : 0
         let y = g.textTop - pushed + (float.verticalAlign == nil && ["paragraph", "line"].contains(float.verticalFrom) ? _px(float.y) : 0)
-        return Rect.fromLTWH(x, y, w, h)
+        let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
+        // (Turned a quarter, about its centre: as tall as it is wide.
+        // Word's print of zh-37b6536f puts a photo of 236.8 by 222.4
+        // turned 90° in a box of 222.4 by 236.8 with the same centre.)
+        guard Self._quarterTurned(image) else { return box }
+        let c = box.center
+        return Rect.fromLTWH(c.dx - h / 2, c.dy - w / 2, h, w)
+    }
+
+    /// Whether a floating picture is turned by an odd number of quarters.
+    static func _quarterTurned(_ image: ImageAttachment) -> Bool {
+        let r = (image.rotation.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
+        return abs(r - 90) < 1 && image.float != nil
+    }
+
+    /// A decoded picture into its box, turned as the file turns it: the
+    /// box is the turned one, and the picture is drawn unturned about
+    /// the same centre and then turned.
+    private func _drawPicture(_ decoded: Image, _ image: ImageAttachment, _ box: Rect, _ canvas: any Canvas) {
+        let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
+        guard image.float != nil, abs(image.rotation) > 0.01 else {
+            canvas.drawImageRect(decoded, src, box, Paint())
+            return
+        }
+        let c = box.center
+        let (w, h) = Self._quarterTurned(image) ? (box.height, box.width) : (box.width, box.height)
+        canvas.save()
+        canvas.translate(c.dx, c.dy)
+        canvas.rotate(image.rotation * Double.pi / 180)
+        canvas.drawImageRect(decoded, src, Rect.fromLTWH(-w / 2, -h / 2, w, h), Paint())
+        canvas.restore()
+    }
+
+    /// Whether paragraph `i` holds nothing but floating objects: its
+    /// line is empty, and its objects stand where its anchor puts them.
+    private func _anchorsOnly(_ i: Int, _ document: RichDocument) -> Bool {
+        guard i < document.paragraphs.count, _cells[i] == nil else { return false }
+        let p = document.paragraphs[i]
+        if let image = p.image { return image.float.map { !$0.takesRoom } ?? false }
+        return !p.inlineImages.isEmpty && !p.text.isEmpty && p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC }
+            && p.inlineImages.values.allSatisfy { $0.float.map { !$0.takesRoom } ?? false }
+    }
+
+    /// The pictures paragraph `i` anchors that text wraps round (Word's
+    /// square, tight and through wrapping, placed from the paragraph):
+    /// each one's id and box in the flow, x from the column's edge.
+    private func _wrapBoxes(_ i: Int) -> [(id: String, rect: Rect)] {
+        guard theme.wordRules, i < count, _cells[i] == nil, _painters[i] != nil else { return [] }
+        var images: [ImageAttachment] = []
+        if i < _floatImages.count, let image = _floatImages[i] { images.append(image) }
+        if i < _inline.count { images += _inline[i] }
+        let g = geometry(i)
+        var out: [(id: String, rect: Rect)] = []
+        for image in images {
+            guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil,
+                  ["paragraph", "line"].contains(float.verticalFrom), float.horizontalFrom != "page", !image.data.isEmpty else { continue }
+            out.append((image.id, _floatRect(float, image, g, i)))
+        }
+        return out
     }
 
     /// How far paragraph `i`'s text starts from its column's left edge
@@ -5214,7 +5421,17 @@ public final class RichLayout {
                         if bottom < visible.top || top > visible.bottom { continue }
                         canvas.save()
                         let lines = shading ? nil : _linesPainter(piece, document)
-                        if lines != nil {
+                        // A paragraph shown whole that carries a floating
+                        // object is not cut to its own lines: the object
+                        // stands where its anchor puts it, below or above
+                        // them — four photos anchored to empty paragraphs
+                        // were each a strip one line tall (zh-37b6536f).
+                        let i = piece.paragraph
+                        let whole = piece.flowTop <= _tops[i] + 0.5 && piece.flowBottom >= _tops[i] + _heights[i] - 0.5
+                        let floats = theme.wordRules && !shading && whole && piece.part == .all
+                            && ((i < _floatImages.count && _floatImages[i] != nil)
+                                || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
+                        if lines != nil || floats {
                             // Its own lines and no others: nothing to cut off above or below.
                             canvas.clipRect(Rect.fromLTRB(clipL, top - 10_000, clipR, bottom + 10_000))
                         } else {
