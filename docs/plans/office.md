@@ -2073,6 +2073,22 @@ fitter dropped the paragraph's tail).
   where mirroring changes nearly nothing; its 0.7% comes from a blank
   page 2 (task board T10). zh-e27cd8bf 97.0 -> 97.7; nothing else moved.
 
+- **A section of one empty paragraph has a page (2026-10-14).** Lab
+  `es` (`body54.py`), in zh-06c46ba9's and zh-9e08ed28's packages,
+  six cases each: a section holding only an empty paragraph takes a
+  page of its own, left blank, whether the section before ends in a
+  text paragraph or an empty one, and two such sections take two
+  pages. A page break just before a section's end is that same break:
+  the empty paragraph ending the section stays on the page the break
+  ends. This replaces the rule above that a lone page break's mark
+  holds its page before mode 15 (zh-9e08ed28 is the second case, and
+  zh-ae655121's no blank page is the same break), and the old "an
+  empty paragraph that only ends a section takes no room" as far as
+  pages go. zh-06c46ba9 0.7% -> 47.2% (Word's 72 pages), zh-9e08ed28
+  +0.4; bug65649 5.5 -> 3.9, its page 95 now starts as Word's 94 does
+  (the page before it already drifts). Chinese sample 80.7%, 58 with
+  Word's page count.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

@@ -135,14 +135,7 @@ face model.
 Owner: —
 Documents: zh-454e2e29 (49%), row 2.
 
-### T10. A section of one empty paragraph: a page or none?
-Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
-Documents: zh-06c46ba9 (0.7%), against zh-9e08ed28.
-Known: zh-06c46ba9's cover section is followed by a section holding only
-an empty paragraph (titlePg, pgNumType start 1), then the contents.
-Word leaves page 2 blank for it; ours folds it away ("an empty
-paragraph that only ends a section takes no room"), so every page after
-is one early. zh-9e08ed28 has the same kind of section after a lone
-page break, and there Word gives it no page. A lab with the two
-contexts (after a section end on a full page; after a break mark) would
-tell the rule.
+### T10. A section of one empty paragraph: a page or none? — DONE (2026-10-14)
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb
+Always a page, unless a page break just before is the same break
+(entry in `office.md`, lab `es`). zh-06c46ba9 0.7 -> 47.2.

@@ -1683,9 +1683,8 @@ public final class RichLayout {
         // The paragraphs of nothing but floating pictures set on this
         // page since the last with text (`_anchorsOnly`).
         var anchorRun: [Int] = []
-        // A break character's paragraph mark stands on the page it opens,
-        // even where the reader folded that paragraph into the next one
-        // of no height (`breakEndsPrevious`): the page is not empty.
+        // A paragraph of no height that ends a section stands on its page:
+        // the page is not empty (see the section rule in the loop).
         var markOnPage = false
         func newPage() {
             bands.removeAll()
@@ -2096,20 +2095,22 @@ public final class RichLayout {
             let bottom = top + _heights[i]
             // (One of no height takes its place on the page all the same.)
             if bottom - top < 0.01 { pageFresh = false }
-            if _pageBreak[i] && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
+            // A section of one empty paragraph has a page of its own, and
+            // the next section starts on the page after it — Word leaves
+            // that page blank (zh-06c46ba9's page 2). A page break just
+            // before a section's end is that same break, not a second one:
+            // the empty paragraph that ends the section stays on the page
+            // the break ends. Lab `es` (`body54.py`), in two packages,
+            // 2026-10-14, all six cases; it replaces a mode-14 rule for
+            // zh-9e08ed28 (which is the second case) and accounts for
+            // zh-ae655121 too.
+            let st0 = document.paragraphs[i].style
+            let endsSection = theme.wordRules && bottom - top < 0.01 && st0.sectionXML != nil && st0.sectionBreaksPage == true
+            let breakIsTheSections = endsSection && st0.breakEndsPrevious && !st0.pageBreakInline
+            if _pageBreak[i] && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
                 newPage()
             }
-            // (zh-9e08ed28, mode 14: a page break alone in its paragraph,
-            // then a section's end, then another: Word leaves the page the
-            // break opens blank but for that mark, and starts the next
-            // section on the page after — the body began a page early.
-            // From 2013's layout on the mark stays on the break's line:
-            // zh-ae655121, mode 15, has no blank page there.)
-            if theme.wordRules, (document.compatibilityMode ?? 12) < 15,
-               bottom - top < 0.01, _pageBreak[i], document.paragraphs[i].style.breakEndsPrevious,
-               document.paragraphs[i].style.sectionBreaksPage == true {
-                markOnPage = true
-            }
+            if endsSection { markOnPage = true }
             // Kept with what follows (Word's `w:keepNext`, a heading's):
             // this paragraph, any kept run after it, and the start of
             // what follows them go to the next page together when this
