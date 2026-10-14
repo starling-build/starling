@@ -249,6 +249,48 @@ libinput is a package error rather than a crash on launch. It runs on any
 desktop — GNOME, KDE, Wayland or X11 — and installs cleanly beside the desktop
 package, sharing nothing with it.
 
+`starling-office-0.1.0-windows-x86_64.zip` — Starling Office for Windows,
+x86_64: Writer, Sheets and Slides in one `OfficeApp.exe`, the same suite as
+the Linux packages below. 59.5 MB, 84 entries, checksum in `SHA256SUMS`.
+Built from branch `office` at `49f68ba8` — the Linux packages' `29defa16`
+plus one fix (F5 starts the slide show from wherever the keyboard is) —
+against this box's `host_release` engine (starling-engine checked out on
+`starling` at `4ca0d35c`; the engine was not rebuilt for this), and staged by
+`sdk/tools/stage-windows.ps1 -Zip`, the single definition of the Windows
+layout: the exe beside its 35 DLLs (the Swift runtime, the Visual C++
+runtime, the two engine libraries), the engine's `data/`, and the font and
+icon bundles. It extracts flat: unzip it into a folder of its own and run
+`OfficeApp.exe`. A document, deck or workbook given as its argument (or
+dropped on the exe) opens in the right app; `--slides` and `--sheets` start in
+those. Nothing is installed or registered, so double-clicking a `.docx` will
+not find it.
+
+**This exact archive was driven on a machine that had never seen a
+toolchain**: a Windows 11 Pro 26200 VM under Hyper-V, made for the purpose
+from a stock ISO — no Swift, no Visual Studio, no Visual C++ redistributable,
+the software display at 1024x768 and 100%. Its checksum was compared inside
+the guest, then it was unzipped and run from the folder alone. Writer was
+typed into, typed into again after Backstage had been opened and closed, and
+saved; Slides was given a title and notes, its show started with F5 from the
+notes box, a slide added, and saved; Sheets summed two cells and was saved;
+each switch between the three went through the unsaved-changes question, and
+the window's close asked and then closed. The three saved files were brought
+back and read: the typed text, a two-slide deck with its notes, and the
+formula with its value. No crash event in the guest's log.
+
+**What was not done.** The Office unit tests were not run for this build —
+the test script is Linux-shaped and has not been run on the Windows box.
+Print and inserting pictures were not exercised. The longer passes of the day
+(every ribbon tab, the corpus opened in the window: 30 documents, 28 decks
+and 30 workbooks without a crash or a hang) were on the dev box and on
+earlier builds, not this archive.
+
+Known: the slide show plays inside the window (full screen is wired for
+macOS only); `Opacity` between 0 and 1 draws nothing in at least one place on
+Windows — hidden slides' thumbnails work around it — and the cause is not
+known; the window's close asks about unsaved changes here and on no other
+host yet. Unsigned, like the shell: SmartScreen will warn on first run.
+
 `starling-office_0.1.0_amd64.deb` and `starling-office_0.1.0_x86_64.flatpak` —
 Starling Office for Linux x86_64: Writer, Sheets and Slides, one binary that
 reads and writes .docx, .xlsx and .pptx. 65 / 59 MB, checksums in
