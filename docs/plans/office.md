@@ -1963,6 +1963,19 @@ fitter dropped the paragraph's tail).
   with an opening mark is not, nor without the compression setting.
   zh-2b955411 62.1% -> 90.2%; nothing else moved. Chinese sample 77.9%.
 
+- **A face the file embeds is set as itself (2026-10-14).** zh-e37f8d40
+  carries six faces in its package (`word/fonts/*.odttf`, named by
+  `w:embedRegular` in the font table), 仿宋_GB2312 among them, and this
+  Word's print draws FangSong_GB2312 — not the YaHei it falls back to
+  for that name elsewhere. Its ASCII brackets are half an em; YaHei's
+  are a third, so a line of ours took a character more and the
+  document ran 17 pages to Word's 14. Such a name now keeps the
+  author's square face model under `OFFICE_WORD_FONTS=mac`
+  (`OfficeFonts.noteEmbedded`). The faces themselves are not loaded
+  (deobfuscating the .odttf and registering it would be the next
+  step). zh-e37f8d40 68.3% -> 92.8%, 14 pages; nothing else moved.
+  Chinese sample 78.2%, 57 with Word's page count.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

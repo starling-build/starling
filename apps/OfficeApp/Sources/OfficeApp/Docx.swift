@@ -1280,6 +1280,11 @@ enum DocxFormat {
                 charsets[name] = charset
             }
             if !charsets.isEmpty { OfficeFonts.noteFontTable(charsets) }
+            OfficeFonts.noteEmbedded(table.all("w:font").compactMap { font in
+                font.first("w:embedRegular") != nil || font.first("w:embedBold") != nil ? font["w:name"] : nil
+            })
+        } else {
+            OfficeFonts.noteEmbedded([])
         }
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }

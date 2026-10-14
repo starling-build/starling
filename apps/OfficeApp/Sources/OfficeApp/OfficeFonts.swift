@@ -106,6 +106,27 @@ enum OfficeFonts {
     ]
 
     /// Takes a file's font table: each name and its `w:charset`.
+    /// The East Asian faces a file carries in it (`w:embedRegular` in
+    /// its font table). Word sets those in the face itself, not in the
+    /// YaHei it falls back to for a name it lacks: zh-e37f8d40 embeds
+    /// 仿宋_GB2312, and Word's print draws FangSong_GB2312, its ASCII
+    /// half an em wide — a line of ours took one character more beside
+    /// YaHei's narrower brackets. Kept per name, like the charsets: a
+    /// file that embeds a face notes it; another that names it without
+    /// does not unnote it, nor does it need to (the note only stops the
+    /// fallback).
+    nonisolated(unsafe) private static var embedded: Set<String> = []
+    static func noteEmbedded(_ names: [String]) {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        embedded = Set(names.map { $0.trimmingWhitespace().lowercased() })
+    }
+    private static func isEmbedded(_ family: String) -> Bool {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        return embedded.contains(family.trimmingWhitespace().lowercased())
+    }
+
     static func noteFontTable(_ charsets: [String: String]) {
         declaredLock.lock()
         defer { declaredLock.unlock() }
@@ -287,7 +308,7 @@ enum OfficeFonts {
         // any of them. `OFFICE_WORD_FONTS=mac` does the same, so that a
         // print can be compared with that Word's; without it such a
         // name is taken for the square face its author had.
-        if wordOnMac, !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
+        if wordOnMac, !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                            "幼圆", "全真楷書") || has("仿宋_gb2312", "方正", "小标宋", "標楷") {
             return yaHei
         }
