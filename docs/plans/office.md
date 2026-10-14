@@ -2127,6 +2127,17 @@ fitter dropped the paragraph's tail).
   5.5, 3.6 and 3.6 — under the line's own sum, over the 16pt one.
   zh-84702a67 back to 93.3% (the rule above had taken it to 91.1).
 
+- **A merged cell whose rows part over a page is aligned in the rows
+  on its page (2026-10-14).** zh-6d1afa56's "工程建设项目招标投标信息"
+  is centred and merged over rows 5 and 6; row 6 goes to the next
+  page, and Word centres the four lines in row 5. Ours centred them
+  over both rows, 40pt low, and two went over the page's foot. The
+  text is lifted by what the rows left behind would have given it
+  (half for centred, all for bottom), its shading and rules staying
+  put (`RichLayout._paginate`, `lift`). zh-232090e0 82.6% -> 93.5%,
+  zh-abe7e063 +3.6, zh-90e0cea8 +1.9, zh-e029cf49 98.5 -> 100;
+  nothing down. Chinese sample on Windows 81.8%.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

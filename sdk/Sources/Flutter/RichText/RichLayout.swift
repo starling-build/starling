@@ -2085,11 +2085,52 @@ public final class RichLayout {
                     i = j
                     continue
                 }
+                // A cell merged down, centred or set at the bottom, whose
+                // rows do not all fit on this page is set in the rows that
+                // do: zh-6d1afa56's "工程建设项目招标投标信息" spans rows 5
+                // and 6, row 6 goes to the next page, and Word centres the
+                // four lines in row 5 — where centring them over both put
+                // them 40pt low, half of them over the page's foot.
+                var lift: [Int: Double] = [:]
+                if theme.wordRules, (i ..< j).contains(where: { _cells[$0]!.rowSpan > 1 }) {
+                    // The rows below, as tall as each stands, while they fit.
+                    var heights: [Int: Double] = [c.row: c.ownRowHeight]
+                    var n = j
+                    while n < count, let d = _cells[n], d.table == c.table {
+                        if heights[d.row] == nil { heights[d.row] = d.ownRowHeight }
+                        n += 1
+                    }
+                    var column: [Int: (first: Int, last: Int)] = [:]
+                    for k in i ..< j { let d = _cells[k]!; column[d.column] = (column[d.column]?.first ?? k, k) }
+                    for (_, g) in column {
+                        let d = _cells[g.first]!
+                        guard d.rowSpan > 1, !d.vertical, d.verticalAlign == "center" || d.verticalAlign == "bottom" else { continue }
+                        var part = 0.0, r = c.row
+                        while r < c.row + d.rowSpan, let h = heights[r], part + h <= contentH - y + 0.01 { part += h; r += 1 }
+                        guard part > 0, part < d.rowHeight - 0.01 else { continue }
+                        // (What it was given to spare over the whole span:
+                        // above its text and below it, less its margins.)
+                        let free = (_tops[g.first] - c.rowTop) + (c.rowTop + d.rowHeight - _tops[g.last] - _heights[g.last])
+                            - d.pad.top - d.pad.bottom
+                        let up = min(max(0, free), d.rowHeight - part) * (d.verticalAlign == "center" ? 0.5 : 1)
+                        for k in g.first ... g.last { lift[k] = up }
+                    }
+                }
                 for k in i ..< j {
                     // A cell spanning rows paints through every row it covers.
                     let bottom = _cells[k]!.rowSpan > 1 ? c.rowTop + _cells[k]!.rowHeight : rowBottom
-                    add(PagePiece(paragraph: k, flowTop: c.rowTop, flowBottom: bottom,
-                                  page: page, pageY: y))
+                    guard let up = lift[k], up > 0.01 else {
+                        add(PagePiece(paragraph: k, flowTop: c.rowTop, flowBottom: bottom, page: page, pageY: y))
+                        continue
+                    }
+                    // (Its text lifted, its shading and rules where they were.)
+                    var text = PagePiece(paragraph: k, flowTop: c.rowTop + up, flowBottom: bottom, page: page, pageY: y)
+                    text.part = .text
+                    add(text)
+                    var rules = PagePiece(paragraph: k, flowTop: c.rowTop, flowBottom: bottom, page: page, pageY: y)
+                    rules.part = .rules
+                    rules.inner = true
+                    add(rules)
                 }
                 y += c.ownRowHeight
                 if y > contentH - 0.01 { newPage() }
