@@ -109,13 +109,11 @@ the T4 rule (re-check after it); in
 zh-1a3c7aa0 the second (landscape) section starts pages earlier than in
 Word, and the odd-page footer stands 8pt lower than Word's.
 
-### T6. Body pictures on the line grid
-Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
-Documents: zh-e5709b89 (+5.7 when body pictures were snapped),
-zh-90e0cea8 (−1 page when they were).
-Known: in table cells Word snaps a picture's line to whole pitches,
-extra above. In the body it does for some documents and not others; the
-difference is not found.
+### T6. Body pictures on the line grid — DONE (2026-10-14)
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb
+Snapped in the body as in cells (lab `pg`, entry in `office.md`).
+zh-90e0cea8 now runs a page long from drift earlier on its last page
+(ours 17.6pt below Word's there): open for anyone.
 
 ### T7. zh-abe7e063, zh-25c4de17, zh-799c91cd, zh-190d730c
 Owner: —

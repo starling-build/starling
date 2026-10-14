@@ -2089,6 +2089,18 @@ fitter dropped the paragraph's tail).
   (the page before it already drifts). Chinese sample 80.7%, 58 with
   Word's page count.
 
+- **A picture's line keeps to the line grid in the body too
+  (2026-10-14).** Lab `pg` (zh-90e0cea8's own picture paragraph, 25pt,
+  on its 15.6pt grid): Word's line is 31.2pt, two such 62.4, and under
+  `w:snapToGrid` off 25.5; the picture stands on the line's baseline
+  with its mark's descent (3.4pt) under it. The cells-only rule above
+  had come from zh-90e0cea8's page foot, which turned out to be drift
+  earlier on that page (Word has 12pt to spare there, ours sat 17.6pt
+  lower). Text in the lab now within 0.1pt of Word's, pictures 0.8.
+  zh-e5709b89 94.2% -> 100%, zh-9c5d0c3f 53.8 -> 55.9 (now Word's 7
+  pages); zh-90e0cea8 keeps its score and runs a page long (that
+  drift). Chinese sample 80.8%.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

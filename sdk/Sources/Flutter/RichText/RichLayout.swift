@@ -3086,21 +3086,24 @@ public final class RichLayout {
         } else {
             _imageSize[i] = nil
         }
-        // A line holding a picture in a table cell keeps to the line grid
-        // too: as many whole pitches as it needs, the rest above the
-        // picture. (The engine sets no strut on such a line, so nothing
-        // snapped it: zh-9c5d0c3f's road signs, 75pt in a line of 90 on
-        // an 18pt grid, stood 10pt high in rows 15pt short. Outside a
-        // table Word leaves such a line as it is: zh-90e0cea8's 25pt
-        // picture stays in the 25.8pt left at a page's foot, where a
-        // snapped line of 31.2 went over.)
+        // A line holding a picture keeps to the line grid too: as many
+        // whole pitches as it needs, the rest above the picture. (The
+        // engine sets no strut on such a line, so nothing snapped it:
+        // zh-9c5d0c3f's road signs, 75pt in a line of 90 on an 18pt grid,
+        // stood 10pt high in rows 15pt short. In the body as in a cell —
+        // lab `pg`, 2026-10-14: zh-90e0cea8's 25pt picture takes a line
+        // of 31.2, two of them 62.4, and under `w:snapToGrid` off 25.5.)
         let inLine = p.image.map { $0.float == nil } ?? (p.inlineImages.values.contains { $0.float == nil } && painter.computeLineMetrics().count == 1)
-        if theme.wordRules, inLine, p.cell != nil, style.lineHeightPoints == nil,
+        if theme.wordRules, inLine, style.lineHeightPoints == nil,
            style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch, pitch > 0 {
             let px = _px(pitch)
-            let snapped = (bodyHeight / px - 0.002).rounded(.up) * px
+            // (A picture paragraph's picture stands on the line's
+            // baseline, the descent of its mark's text under it: Word's
+            // 25pt picture ends 3.4pt above its 31.2pt line's foot.)
+            let descent = p.image != nil ? (painter.computeLineMetrics().first?.descent ?? 0) : 0
+            let snapped = ((bodyHeight + descent) / px - 0.002).rounded(.up) * px
             if snapped > bodyHeight + 0.01 {
-                _inkShift[i] += snapped - bodyHeight
+                _inkShift[i] += max(0, snapped - bodyHeight - descent)
                 bodyHeight = snapped
             }
         }
