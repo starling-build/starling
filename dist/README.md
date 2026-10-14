@@ -295,8 +295,9 @@ recovery copy brings the work back on the next launch; ⌘W does nothing.
 `starling-office-0.1.0-windows-x86_64.zip` — Starling Office for Windows,
 x86_64: Writer, Sheets and Slides in one `OfficeApp.exe`, the same suite as
 the Linux packages below. 58.4 MB, 84 entries, checksum in `SHA256SUMS`.
-Built from branch `office` at `6ee67645` — the Linux packages' `534cfd92`
-plus the exe's icon — against this box's `host_release` engine (starling-engine checked out on
+Built from branch `office` at `c2596b8c` — the Linux packages' `534cfd92`
+plus the exe's icon and the badge in the title row drawn as each app's own
+icon — against this box's `host_release` engine (starling-engine checked out on
 `starling` at `4ca0d35c`; the engine was not rebuilt for this), and staged by
 `sdk/tools/stage-windows.ps1 -Icon build\win\Office.ico -Zip`, the single
 definition of the Windows layout: the exe beside its 35 DLLs (the Swift runtime, the Visual C++
@@ -313,7 +314,10 @@ chose: on the file in Explorer, in the title bar and on the taskbar button.
 `build/tools/svg-ico.py`, and staging writes it into the exe, since SwiftPM
 gives a Windows exe no icon at build time. That write drops the linker's COFF
 symbol table from the staged exe (7.7 MB; nothing loads from it), which is
-why this archive is a megabyte smaller than the one it replaces.
+why this archive is a megabyte smaller than the first one checked in here.
+Inside the window, the badge at the left of the title row is each app's own
+icon (Writer's, Sheets' or Slides'), where the Linux and macOS packages
+beside this one, built before that change, still show a lettered tile.
 
 **This exact archive was driven on a machine that had never seen a
 toolchain**: a Windows 11 Pro 26200 VM under Hyper-V, made for the purpose
@@ -325,7 +329,7 @@ saved; Slides was given a title and notes, its show started with F5 from the
 notes box, a slide added, and saved; Sheets summed two cells and was saved;
 each switch between the three went through the unsaved-changes question, and
 the window's close asked and then closed. The icon was in the title bar and
-on the taskbar button there. The three saved files were brought
+on the taskbar button there, and each app's badge was its own. The three saved files were brought
 back and read: the typed text, a two-slide deck with its notes, and the
 formula with its value. No crash event in the guest's log.
 
