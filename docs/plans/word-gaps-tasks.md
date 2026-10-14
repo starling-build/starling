@@ -185,3 +185,10 @@ Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-14
 Documents: zh-89385c94 (16% on Windows).
 Known: page 2's cells take "考，" on a line Word ends a character
 earlier, and the page's foot holds one line more than Word's.
+Note from the Mac session (37fdff4b, pushed before this claim was
+seen — sorry for the overlap): the extra line at page 2's foot came
+from the carried-over row part at the page's top, which stood 0.4pt
+above Word's for want of its top rule; with that, zh-89385c94 went
+16.3% -> 51.0% on the Mac. The "考，" line break is untouched and
+yours, as is the rest of the document. The Mac session will stay off
+zh-89385c94 from here.
