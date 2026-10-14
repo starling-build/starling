@@ -1188,7 +1188,15 @@ public final class RichLayout {
                     // margin too where Word's rules are followed: a form
                     // 482pt wide in a 439pt column, set out to the left by
                     // its indent, keeps its columns.)
-                    if let pct = ts.widthPercent { scale = (theme.wordRules ? width * pct / 100 : min(width, width * pct / 100)) / _px(sum) }
+                    if let pct = ts.widthPercent {
+                        scale = (theme.wordRules ? width * pct / 100 : min(width, width * pct / 100)) / _px(sum)
+                        // (An autofit table whose grid — Word's own last
+                        // fit of it — is wider than its share keeps the
+                        // grid: zh-06c46ba9's table 4 says 100% of 415.6pt
+                        // and Word sets its 426.4pt grid, columns where the
+                        // grid has them.)
+                        if theme.wordRules, !ts.fixedLayout, scale < 1 { scale = 1 }
+                    }
                     else if let w = ts.width { scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum) }
                     // (A fixed layout keeps its grid, past the margin too:
                     // zh-454e2e29's 482pt in a column of 468, whose second

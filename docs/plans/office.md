@@ -2385,6 +2385,17 @@ fitter dropped the paragraph's tail).
   where Word sets its grid, 11pt wider (task board T14); the notes'
   missing room had hidden that.
 
+- **An autofit table keeps a grid wider than its share (2026-10-14).**
+  A table that says it is a share of the column (`w:tblW` in pct) and
+  is not fixed, whose grid is wider than that share, keeps the grid:
+  the grid is Word's own last fit of it. zh-06c46ba9's table 4 says
+  100% of 415.6pt and Word sets its 426.4pt grid, columns where the
+  grid has them; scaled down to 415.6, its cells wrapped a line more
+  and page 17 on went a page out. A grid narrower than the share is
+  still stretched to it. zh-06c46ba9 18.0% -> 74.8%, zh-69bbcc3c +1.6,
+  zh-f94d11c5 -0.6 (its columns 1pt over, some nearer Word's and some
+  further). Word's autofit proper is task T1.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
