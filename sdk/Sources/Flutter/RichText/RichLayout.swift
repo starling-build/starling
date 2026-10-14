@@ -4258,6 +4258,7 @@ public final class RichLayout {
         var lineOther = false
         var lineSpaced = false  // … or ends, so far, with one
         var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
+        var breaks: [(end: Int, opener: Range<Int>, over: Double)] = []   // where a line ended because what followed was over
         for piece in pieces {
             let a = piece.a, last = piece.last, w = piece.w
             if lineSpaced, last > a { lineOther = true }
@@ -4458,6 +4459,11 @@ public final class RichLayout {
                 }
             }
             if !fits {
+                // (Where this line ended, and by how much what opens the
+                // next was over: see `breaks` below.)
+                if last > a, let end = (0 ..< a).last(where: { !isSpace(units[$0]) }) {
+                    breaks.append((end, a ..< piece.b, x + w - after - width))
+                }
                 x = 0
                 marks = []
                 spaces = []
@@ -4506,6 +4512,18 @@ public final class RichLayout {
                 lineOther = false
                 lineSpaced = false
             }
+        }
+        // What opens a line and gives some of itself there (a mark of
+        // it squeezed for the line's sake) must not then fit the line
+        // before, which the engine would let it: zh-89385c94's cell line
+        // "考，並研提興利防弊" is 0.55 over and its comma gives 0.57, so
+        // the engine took "考，" back onto "核清查及追蹤管", where Word
+        // ends the line. The line before's last character is widened
+        // by the difference and a quarter point (the engine's widths
+        // are not the probe's to the hundredth), less than it spared.
+        for b in breaks {
+            let given = b.opener.reduce(0.0) { $0 - min(0, adjust[$1] ?? 0) }
+            if given > b.over - _px(0.25) { adjust[b.end, default: 0] += given - b.over + _px(0.25) }
         }
         // (With the tabs' widths, which the paragraph is laid out by.)
         guard !adjust.isEmpty else { return [:] }

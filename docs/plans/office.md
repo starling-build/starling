@@ -2226,6 +2226,22 @@ fitter dropped the paragraph's tail).
   justified in the body, first on its page, still comes out 28.55
   apart in ours (another path lays it out).
 
+- **What opens a line and gives some of itself there stays off the
+  line before (2026-10-14).** The fitter plans zh-89385c94's cell
+  lines as Word sets them — "核清查及追蹤管" and then "考，並研提興利防弊",
+  0.55pt over with its comma giving 0.57 — but the narrowed "考，" then
+  fitted the line before, and the engine took it there. The line
+  before's last character is now widened by the difference and a
+  quarter point (the planned line had the room). Lab `hc` (the cell
+  alone): ours line for line as Word's. zh-d68ac84a 43.5% -> 81.4%,
+  zh-e6d54ae4 52.8 -> 64.6, zh-64044a1d 65.5 -> 73.8, zh-89385c94
+  +0.5; zh-9e08ed28 60.0 -> 50.0, though its cell "財產局)、財政部(關務署)"
+  now breaks as Word's where it had not: the row is a line taller, as
+  Word's is, and the pages after it part from Word's at the next cell
+  that breaks elsewhere — Word ends a line with a half-width "(" before
+  an ideograph ("內政部(" / "警政署)"), which ours keeps with it. (The
+  sweep carried f774a736 too.) Chinese sample on Windows 87.1%.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
