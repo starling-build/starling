@@ -192,3 +192,8 @@ above Word's for want of its top rule; with that, zh-89385c94 went
 16.3% -> 51.0% on the Mac. The "考，" line break is untouched and
 yours, as is the rest of the document. The Mac session will stay off
 zh-89385c94 from here.
+
+### T14. zh-06c46ba9: body lines two characters short from page 5
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
+Documents: zh-06c46ba9 (47%, Word's 72 pages).
+Known: page 5's body lines end two characters before Word's.
