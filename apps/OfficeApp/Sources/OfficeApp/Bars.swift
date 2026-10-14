@@ -40,10 +40,10 @@ final class TitleRow: StatelessWidget {
         return ColoredBox(color: OfficeAppearance.titleBar,
             child: Padding(padding: EdgeInsets(left: 16, top: 10, right: 16, bottom: 10), child: Row(
                 crossAxisAlignment: .center, children: [
-                    DecoratedBox(decoration: BoxDecoration(color: white,
-                        borderRadius: BorderRadius.all(Radius(circular: 6))),
-                        child: SizedBox(width: 30, height: 32, child: Center(child: Text(session.kind == .document ? "W" : "S",
-                            style: Flutter.TextStyle(color: OfficeAppearance.brand, fontSize: 20, fontWeight: .w600))))),
+                    // The app's own icon (OfficeLogo.swift), where a lettered
+                    // tile stood: "W", and "S" for Sheets and Slides alike.
+                    SizedBox(width: 32, height: 32, child: CustomPaint(
+                        painter: OfficeLogoPainter(kind: session.kind), child: SizedBox(expand: ()))),
                     Chrome.gap(10),
                     Text(session.kind.appName, style: titleStyle),
                     Chrome.gap(24),
