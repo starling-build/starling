@@ -214,6 +214,9 @@ struct DiagramLayout {
     let style: XNode?
     private var forEachByName: [String: XNode] = [:]
     private var nextOrder = 0
+    /// No font size is set above this (points): how a layout's
+    /// `primFontSz` rule shrinks the text, and every size tied to it.
+    private var fontCap = Double.infinity
 
     init?(data: XNode, layout: XNode, colors: XNode?, style: XNode?) {
         guard let model = DgmModel(data) else { return nil }
@@ -233,12 +236,41 @@ struct DiagramLayout {
     /// The diagram as a `p:spTree` of `p:sp` elements in EMU, the frame's
     /// origin at 0,0.
     static func render(data: XNode, layout: XNode, colors: XNode?, style: XNode?, frame: Rect) -> XNode? {
-        guard var engine = DiagramLayout(data: data, layout: layout, colors: colors, style: style),
+        guard let first = DiagramLayout(data: data, layout: layout, colors: colors, style: style),
               let rootDef = layout.first("dgm:layoutNode") else { return nil }
-        let root = engine.build(rootDef, point: engine.model.root, iter: (0, 1), parent: nil)
-        root.rect = Rect.fromLTWH(0, 0, frame.width, frame.height)
-        engine.layoutNode(root)
-        engine.fit(root, into: Rect.fromLTWH(0, 0, frame.width, frame.height))
+        let box = Rect.fromLTWH(0, 0, frame.width, frame.height)
+        func laidOut(fontCap: Double) -> (DiagramLayout, DgmPresNode) {
+            var engine = first
+            engine.fontCap = fontCap
+            let root = engine.build(rootDef, point: engine.model.root, iter: (0, 1), parent: nil)
+            root.rect = box
+            engine.layoutNode(root)
+            return (engine, root)
+        }
+        func fits(_ root: DgmPresNode) -> Bool {
+            guard let u = first.union(of: root.children) else { return true }
+            return u.width <= box.width + 0.5 && u.height <= box.height + 0.5
+        }
+        var (engine, root) = laidOut(fontCap: .infinity)
+        // A layout that lets its text shrink (`rule type="primFontSz"`,
+        // down to the rule's value) and does not fit at its own sizes is
+        // laid out again at the largest whole font size that does: what
+        // PowerPoint does, keeping the widths its algorithms give, where
+        // scaling the whole tree down narrowed every box with the text
+        // (hList1 at 31 pt, hProcess3 at 50 — both PowerPoint's). If no
+        // size fits, the sizes do not decide the fit (an org chart drawn
+        // at ten times its frame), and the tree is scaled as before.
+        if !fits(root), let floor = Self.fontFloor(layout) {
+            var lo = Int(floor.rounded(.up)), hi = 64
+            var best: (DiagramLayout, DgmPresNode)? = nil
+            while lo <= hi {
+                let mid = (lo + hi) / 2
+                let attempt = laidOut(fontCap: Double(mid))
+                if fits(attempt.1) { best = attempt; lo = mid + 1 } else { hi = mid - 1 }
+            }
+            if let best { (engine, root) = best }
+        }
+        engine.fit(root, into: box)
         #if !os(WASI)
         if ProcessInfo.processInfo.environment["STARLING_DIAGRAM_DEBUG"] != nil {
             func dump(_ n: DgmPresNode, _ d: Int) {
@@ -260,6 +292,21 @@ struct DiagramLayout {
         }
         #endif
         return engine.emit(root)
+    }
+
+    /// The smallest font size a layout's rules let its text shrink to, or
+    /// nil when it has no such rule.
+    private static func fontFloor(_ layout: XNode) -> Double? {
+        var floor: Double? = nil
+        func walk(_ n: XNode) {
+            if n.name == "dgm:rule", let t = n["type"], t == "primFontSz" || t == "secFontSz" {
+                let v = n["val"].flatMap(Double.init) ?? 5
+                floor = min(floor ?? v, v.isFinite ? max(1, v) : 5)
+            }
+            n.children.forEach(walk)
+        }
+        walk(layout)
+        return floor
     }
 
     // MARK: - Building the presentation tree
@@ -475,6 +522,11 @@ struct DiagramLayout {
 
     // MARK: - Constraints
 
+    /// The constraint types that are lengths on the diagram (margins are not).
+    private static let lengths: Set<String> = ["w", "h", "l", "t", "r", "b", "ctrX", "ctrY",
+                                               "lOff", "tOff", "rOff", "bOff", "ctrXOff", "ctrYOff",
+                                               "wOff", "hOff", "diam", "sp", "sibSp", "secSibSp", "begPad", "endPad"]
+
     private func targets(_ node: DgmPresNode, for scope: String?, name: String?, ptType: String?) -> [DgmPresNode] {
         var list: [DgmPresNode]
         switch scope ?? "self" {
@@ -490,11 +542,13 @@ struct DiagramLayout {
         return list
     }
 
-    private func applyConstraints(_ node: DgmPresNode, selfOnly: Bool = false) {
+    private func applyConstraints(_ node: DgmPresNode, selfOnly: Bool = false, proportionCapsOnly: Bool = false) {
         for c in node.constraints {
             guard let type = c["type"] else { continue }
             let scope = c["for"] ?? "self"
             if selfOnly && scope != "self" { continue }
+            if proportionCapsOnly && !(scope == "self" && c["op"] == "lte" && c["refFor"] == nil
+                                       && ["w", "h"].contains(type) && ["w", "h"].contains(c["refType"] ?? "")) { continue }
             let fact = c["fact"].flatMap(Double.init) ?? 1
             let op = c["op"] ?? "equ"
             let ts = targets(node, for: scope, name: c["forName"], ptType: c["ptType"])
@@ -505,7 +559,20 @@ struct DiagramLayout {
                     // The referred node: the first match, or the target itself
                     // when the reference names its own kind (h = 0.6 w).
                     let ref = refs.first { $0 === t } ?? refs.first ?? node
-                    guard let base = ref.value(refType) ?? (refType == "primFontSz" ? 65 : nil), base.isFinite else { continue }
+                    // A sibling measured from is held to its own proportions
+                    // first: hList1's body starts under a heading capped at
+                    // 0.4 of its width, not under the height the font asked
+                    // for. (Only those: hProcess3's text is capped by a user
+                    // variable that PowerPoint lets it outgrow.)
+                    if ref !== t, ref !== node, !ref.laidOut { applyConstraints(ref, proportionCapsOnly: true) }
+                    guard var base = ref.value(refType) ?? (refType == "primFontSz" ? min(65, fontCap) : nil), base.isFinite else { continue }
+                    // A size or place given as a multiple of a font size is
+                    // that many millimetres: hProcess3's arrow is twice its
+                    // 50 pt text, and 100 mm tall in PowerPoint's export
+                    // (lo-smartart-linear-rule). Read as points, every such
+                    // box was 2.8 times too small and its text shrunk into it.
+                    // (A margin is not: desTx's 0.3 of 65 pt is 19.5 pt in.)
+                    if refType.hasSuffix("FontSz"), Self.lengths.contains(type) { base *= 72 / 25.4 }
                     set(t, type, base * fact, op)
                     if t === node, op == "equ" { t.selfSet.insert(type) }
                     if ref !== t, op == "equ" { t.sizeRef[type] = ref.name }
@@ -550,6 +617,7 @@ struct DiagramLayout {
     }
 
     private func set(_ t: DgmPresNode, _ type: String, _ v: Double, _ op: String) {
+        let v = type.hasSuffix("FontSz") ? min(v, fontCap) : v
         switch op {
         case "lte":
             t.caps[type] = min(t.caps[type] ?? v, v)
@@ -1333,8 +1401,8 @@ struct DiagramLayout {
         let base = n.point.depth
         let bullets = n.variable("bulletEnabled") == "1"
         let startLevel = Int(n.params["stBulletLvl"] ?? "1") ?? 1
-        let prim = n.value("primFontSz") ?? 65
-        let sec = n.value("secFontSz") ?? prim
+        let prim = min(n.value("primFontSz") ?? 65, fontCap)
+        let sec = min(n.value("secFontSz") ?? prim, fontCap)
         var paragraphs: [XNode] = []
         var listed = false
         for p in points {

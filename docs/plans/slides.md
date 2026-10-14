@@ -712,6 +712,53 @@ now, 2 pt above its and up to 3 pt left, which is the plot's doing: its
 left edge is 4 pt out and the gap under the axis 3 pt short. Left in
 this chart: that, the oval over the last bar, and the shadow.
 
+**One deck at a time: tdf152070, its tiled background, 2026-10-14**
+(7.61 → 2.69; sweep 44: the only deck that moved). A picture tiled at
+60% across and 70% down, the grid moved 35 pt right and 40.5 down. Read
+off PowerPoint's page: every triangle 69.7 pt apart across and 48.7
+down, the first at the offset. Only `sx` was read, for both directions,
+and `tx`, `ty` and `algn` not at all. `SlideFill.tileScaleY`,
+`tileOffset`, `tileAlign` (`PptxReader.tile`, for a background, a
+shape and WordArt alike): one tile placed by the alignment within the
+area, moved by the offset, the rest laid edge to edge from it both
+ways. Within half a point of PowerPoint's now; what is left is how the
+JPEG's thin lines are smoothed. `flip` (every corpus deck says `none`)
+is not drawn.
+
+**Diagrams laid out here: sizes from a font size, 2026-10-14** (sweep
+45; of the 35 decks whose diagram this app lays out, mean 4.41 →
+3.80). Found through lo-vertical-bracket-list, whose text was 16 pt in
+a 36 pt box where PowerPoint's is 65 pt in a 111 pt one.
+
+- **A length that is a multiple of a font size is in millimetres.**
+  hProcess3's arrow is `2 × primFontSz` and, at PowerPoint's 50 pt,
+  283.5 pt tall: 100 mm. Read as points, every such box was 2.8 times
+  too small and its text was shrunk to fit it. A margin is not: desTx's
+  `lMarg` of 0.3 at 65 pt sets its text 19.5 pt in.
+- **A layout that lets its text shrink does so until it fits.** With a
+  `primFontSz` rule, a layout that overflows its frame at its own sizes
+  is laid out again at the largest whole font size that fits (down to
+  the rule's value), keeping the widths its algorithms give; the tree
+  was scaled down instead, narrowing every box with the text. hList1
+  (lo-smartart-dir) at 31 pt and hProcess3 at 50 are PowerPoint's own.
+  A layout that fits at no size — an org chart drawn at ten times its
+  frame — is scaled as before.
+- **A box measured from another is held to that one's proportions
+  first.** hList1's body starts under its heading, capped at 0.4 of its
+  width; it started under the height the font asked for, a gap between
+  them. Only a cap of `w` or `h` by the node's own other side: hProcess3's
+  text is capped by a user variable (`userT`) that PowerPoint lets it
+  outgrow.
+
+Bracket list 6.75 → 1.58, linear-rule 9.17 → 0.48, dir 4.30 → 1.75,
+linear-rule-vert 7.60 → 4.38, vertical-box-list 8.85 → 5.88,
+fill-color-list 17.03 → 15.10. One worse: accent-process (process3)
+6.04 → 9.25. PowerPoint sets it at 34 pt, and its body box is 1.6 × 34
+mm as the layout says; the frame alone allows 55, so something else
+brings it down — a fit of the text in its heading, perhaps, but no
+reading of the margins found gives 34. Its old 31 pt was the old units'
+accident.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
