@@ -54,6 +54,8 @@ struct ShapeState: Equatable {
     var autofit = false
     var fontScale = 1.0
     var insetsFollowFont = false
+    var sizeGroup: String? = nil
+    var shapeInsets = EdgeInsets.zero
     var noWrap = false
     var columns = 1
     var columnGap = 0.0
@@ -1125,6 +1127,8 @@ final class DeckController: ChangeNotifier {
                    keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
+        st.sizeGroup = s.sizeGroup
+        st.shapeInsets = s.shapeInsets
         st.noWrap = s.noWrap
         st.columns = s.columns
         st.columnGap = s.columnGap
@@ -1182,10 +1186,13 @@ final class DeckController: ChangeNotifier {
                 // one size — the smallest any of them needed — as PowerPoint
                 // keeps a diagram's nodes alike (`primFontSz op="equ"`, which
                 // every built-in layout asks of its nodes).
-                var smallest: [Double: Double] = [:]
-                func nominal(_ r: SlideShape) -> Double? {
+                // (By the layout's own grouping where it names one: the
+                // shapes one `op="equ"` constraint ties together.)
+                var smallest: [String: Double] = [:]
+                func nominal(_ r: SlideShape) -> String? {
                     guard r.autofit, r.insetsFollowFont else { return nil }
-                    return r.text?.document.paragraphs.first?.runs.first?.style.fontSize
+                    if let g = r.sizeGroup { return "g" + g }
+                    return (r.text?.document.paragraphs.first?.runs.first?.style.fontSize).map { "s\($0)" }
                 }
                 for r in shape.rendered { if let n = nominal(r) { smallest[n] = min(smallest[n] ?? 1, r.fontScale) } }
                 for r in shape.rendered { if let n = nominal(r), let s = smallest[n] { r.fontScale = s } }
@@ -1207,6 +1214,8 @@ final class DeckController: ChangeNotifier {
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont
+        shape.sizeGroup = st.sizeGroup
+        shape.shapeInsets = st.shapeInsets
         shape.noWrap = st.noWrap
         shape.columns = st.columns
         shape.columnGap = st.columnGap

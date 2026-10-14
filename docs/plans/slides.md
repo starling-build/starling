@@ -814,6 +814,51 @@ showed in the frame test (linear-rule-vert 4.38 → 4.01). Two tests:
 `testASiblingPacksAgainstTheOutlineNotTheBoundingBox`,
 `testFontSizedBoxesAreMillimetresAndShrinkToFit`.
 
+**Diagrams laid out here: cycleMatrix, and fitting as PowerPoint fits,
+2026-10-14** (sweep 50: 1.93 → 1.92%; cycle-matrix 7.21 → 2.61,
+table-list 2.13 → 0.67, font-size 1.91 → 1.10, maxdepth 1.05 → 0.62,
+picture-strip 3.87 → 3.22, vertical-block-list 1.09 → 0.59, background
+0.96 → 0.45, org-chart 2.11 → 1.81, missing-bullet 3.74 → 3.54; two
+worse by 0.2, below). Found through lo-smartart-cycle-matrix, whose
+quadrants were flat slabs with bulleted text in a corner:
+
+- **A fixed aspect re-applies the constraints** inside the square it
+  cut: the quadrants are 0.433 of the circle each way (138.6 pt square
+  in PowerPoint's), not of the slot before it was squared.
+- **An edge offset moves a box whose size is given**, rather than
+  stretching it (`lOff`… with `w`/`h` set): the quadrants stand 1% off
+  the middle and keep their size.
+- **A half-turned shape is mirrored both ways**, not across only — one
+  mirror put the third quadrant's curve and text in the wrong corner.
+- **A quarter-turned shape keeps its text upright**, as a second
+  shape over the box its text area turned to (`shape` returns both).
+- **Levels count from the shallowest point the shape shows**: the
+  quadrants show their node's children, each a first level — centred,
+  unbulleted, at the first size. Bullets start at the second level
+  unless `stBulletLvl` says otherwise.
+- **`op="equ"` font sizes group by the constraint**, not by the size
+  the text was set at (`starling:sizeGroup`): the quadrants end at 43
+  together and the side boxes at 12, where one smallest size for the
+  whole diagram made them all 16. A size equal to another's joins that
+  one's group.
+- **Text shrinks by whole points to the rule's 5**, not by the text
+  box's 7.5% steps, and paragraph spacing shrinks with it.
+- **A shape's geometry inset stays when the font margins shrink**: an
+  oval's inscribed box, a chevron's notch (`SlideShape.shapeInsets`).
+  Scaled with the margins, the text was fitted to more room than the
+  shape has — 53 pt in center-cycle's circle where PowerPoint's is 49,
+  52 in maxdepth's chevrons where it is 45; both now PowerPoint's.
+- **The fit is measured to a twentieth of a point**: in whole points a
+  64.8 pt line counted as 64.
+
+Worse: data-follow 0.67 → 0.89 and recursion 2.23 → 2.42 — both now 59
+pt where PowerPoint has 58 (they were 55 by the old steps). At 59 the
+line is 63.7 pt in a room of 64.3, so PowerPoint asks for slightly more
+than our measure does; neither the margins unscaled nor the face's 1.22
+line explain all three decks at once. recursion's root also stands over
+the wrong place (centred under 360 where PowerPoint centres it over its
+two children), as it did before.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

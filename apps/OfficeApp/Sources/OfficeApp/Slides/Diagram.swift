@@ -150,6 +150,9 @@ final class DgmPresNode {
     /// Its `w`/`h` given in font sizes: a box that came out smaller than
     /// that was squeezed, and the layout's text should shrink instead.
     var fontSized: Set<String> = []
+    /// The shapes one `op="equ"` font-size constraint ties together end at
+    /// one size; this names the constraint (nil: none ties it).
+    var sizeGroup: String? = nil
     /// The node a size was taken from (a space 0.14 as wide as its
     /// neighbour follows the neighbour when that shrinks).
     var sizeRef: [String: String] = [:]
@@ -573,6 +576,24 @@ struct DiagramLayout {
                                        && ["w", "h"].contains(type) && ["w", "h"].contains(c["refType"] ?? "")) { continue }
             let fact = c["fact"].flatMap(Double.init) ?? 1
             let op = c["op"] ?? "equ"
+            if type.hasSuffix("FontSz"), c["op"] == "equ" {
+                // Every shape under it is of the group, whatever its point
+                // type: cycleMatrix's quadrants end at 43 together and its
+                // side boxes at 12, where one smallest size for all the
+                // diagram's 65 pt text made them all 16.
+                // (Keyed by the constraint, not the node that holds it: an org
+                // chart's every box repeats one definition, and all end at
+                // PowerPoint's one 30 pt.)
+                var group = "\(ObjectIdentifier(c).hashValue)"
+                // Equal to another shape's size: one group with that shape
+                // (process3's text under its heading, both PowerPoint's 34).
+                if let refType = c["refType"], refType.hasSuffix("FontSz"), c["refFor"] != nil || c["refForName"] != nil {
+                    let refs = targets(node, for: c["refFor"], name: c["refForName"], ptType: nil)
+                    if let g = refs.lazy.compactMap(\.sizeGroup).first { group = g }
+                    for r in refs { r.sizeGroup = group }
+                }
+                for t in targets(node, for: scope, name: c["forName"], ptType: nil) { t.sizeGroup = group }
+            }
             let ts = targets(node, for: scope, name: c["forName"], ptType: c["ptType"])
             if ts.isEmpty { continue }
             if let refType = c["refType"] {
@@ -686,7 +707,14 @@ struct DiagramLayout {
             // A fixed aspect (a radial diagram's square), centred.
             var w = node.rect.width, h = node.rect.height
             if w / h > ar { w = h * ar } else { h = w / ar }
-            node.rect = Rect.fromCenter(center: node.rect.center, width: w, height: h)
+            if abs(w - node.rect.width) > 0.01 || abs(h - node.rect.height) > 0.01 {
+                node.rect = Rect.fromCenter(center: node.rect.center, width: w, height: h)
+                // Its children's sizes are of the square, not of the slot it
+                // was cut from: cycleMatrix's quadrants are 0.433 of the
+                // circle each way, and were 208 × 139 where PowerPoint's are
+                // 138.6 square.
+                applyConstraints(node)
+            }
         }
         switch node.algType {
         case "lin": layoutLinear(node)
@@ -719,10 +747,16 @@ struct DiagramLayout {
             if let t = c.vals["t"], let b = c.vals["b"], c.vals["h"] == nil { h = b - t }
             if let l = c.vals["l"] { x = l } else if let cx = c.vals["ctrX"] { x = cx - w / 2 } else if let r = c.vals["r"] { x = r - w }
             if let t = c.vals["t"] { y = t } else if let cy = c.vals["ctrY"] { y = cy - h / 2 } else if let b = c.vals["b"] { y = b - h }
-            if let o = c.vals["lOff"] { x += o; w -= o }
-            if let o = c.vals["rOff"] { w += o }
-            if let o = c.vals["tOff"] { y += o; h -= o }
-            if let o = c.vals["bOff"] { h += o }
+            // An edge's offset moves that edge — or, where the size is given
+            // and the box hangs from one edge, the whole box: cycleMatrix's
+            // quadrants keep their 0.433 and stand 1% off the middle, as
+            // PowerPoint's 138.6-point squares do.
+            let fixedW = c.vals["w"] != nil && !(c.vals["l"] != nil && c.vals["r"] != nil)
+            let fixedH = c.vals["h"] != nil && !(c.vals["t"] != nil && c.vals["b"] != nil)
+            if let o = c.vals["lOff"] { x += o; if !fixedW { w -= o } }
+            if let o = c.vals["rOff"] { if fixedW { x += o } else { w += o } }
+            if let o = c.vals["tOff"] { y += o; if !fixedH { h -= o } }
+            if let o = c.vals["bOff"] { if fixedH { y += o } else { h += o } }
             // A rule letting a size grow without bound (`val="INF"`) lets it
             // take what is left of the composite, within its own cap.
             func unbounded(_ type: String) -> Bool { c.rules.contains { $0["type"] == type && $0["val"] == "INF" } }
@@ -1268,22 +1302,23 @@ struct DiagramLayout {
         var counts: [String: Int] = [:]
         for (_, lbl) in labelled { counts[lbl, default: 0] += 1 }
         var seen: [String: Int] = [:]
-        var shapes: [(Int, Int, Int, XNode)] = []
+        var shapes: [(Int, Int, Int, Int, XNode)] = []
         var id = 100
         for (i, (n, lbl)) in labelled.enumerated() {
             let idx = model.pres[n.point.id + "|" + n.name]?["presStyleIdx"].flatMap(Int.init) ?? seen[lbl, default: 0]
             let cnt = model.pres[n.point.id + "|" + n.name]?["presStyleCnt"].flatMap(Int.init) ?? counts[lbl, default: 1]
             seen[lbl, default: 0] += 1
-            guard let sp = shape(n, look: look(lbl, index: idx, count: cnt), id: id, root: root) else { continue }
+            let sps = shape(n, look: look(lbl, index: idx, count: cnt), id: id, root: root)
+            guard !sps.isEmpty else { continue }
             id += 1
             // `zOrderOff` moves a shape that many places in the stack (-1:
             // behind the shape before it; -99999: behind everything).
             // A shape moved onto another's place goes past it, the way it
             // was heading: +1 lands above the next shape, not still under it
             // (accent-process's label, which was behind its own box).
-            shapes.append((i + n.zOrderOff, n.zOrderOff.signum(), i, sp))
+            for (k, sp) in sps.enumerated() { shapes.append((i + n.zOrderOff, n.zOrderOff.signum(), i, k, sp)) }
         }
-        for (_, _, _, sp) in shapes.sorted(by: { ($0.0, $0.1, $0.2) < ($1.0, $1.1, $1.2) }) { tree.children.append(sp) }
+        for s in shapes.sorted(by: { ($0.0, $0.1, $0.2, $0.3) < ($1.0, $1.1, $1.2, $1.3) }) { tree.children.append(s.4) }
         return tree
     }
 
@@ -1294,7 +1329,9 @@ struct DiagramLayout {
         return "node\(max(1, n.point.depth))"
     }
 
-    private func shape(_ n: DgmPresNode, look: Look, id: Int, root: DgmPresNode) -> XNode? {
+    /// The shape for `n` — and, when it is turned a quarter round, its text
+    /// as a second, upright shape over where its text area turned to.
+    private func shape(_ n: DgmPresNode, look: Look, id: Int, root: DgmPresNode) -> [XNode] {
         let sp = XNode(name: "p:sp", attrs: [:])
         let nvSpPr = XNode(name: "p:nvSpPr", attrs: [:])
         nvSpPr.children = [XNode(name: "p:cNvPr", attrs: ["id": String(id), "name": n.name]),
@@ -1304,10 +1341,13 @@ struct DiagramLayout {
         sp.children.append(spPr)
         var r = n.rect
         var rot = n.shapeRot + n.rotation
-        var flipH = false
+        var flipH = false, flipV = false
         if abs(abs(n.shapeRot) - 180) < 0.01 {
             // Turned round: mirrored instead, so its text stays upright.
+            // (Both ways: one mirror is not a half turn — cycleMatrix's third
+            // quadrant had its curve and its text in the wrong corner.)
             flipH = true
+            flipV = true
             rot -= n.shapeRot
         } else if abs(abs(n.shapeRot) - 90) < 0.01 {
             // Turned on its side: the box the definition sized is the
@@ -1325,7 +1365,7 @@ struct DiagramLayout {
             // A line from the parent's shape to the child's, bent halfway —
             // or, for a child hanging below, down from the parent's middle
             // and across to the child's side.
-            guard let (a, b) = connectorEnds(n, root: root) else { return nil }
+            guard let (a, b) = connectorEnds(n, root: root) else { return [] }
             var from = Offset(a.center.dx, a.bottom)
             if (n.params["endPts"] ?? "").hasPrefix("mid"), abs(b.center.dx - a.center.dx) > 1 {
                 let right = b.center.dx >= a.center.dx
@@ -1365,10 +1405,11 @@ struct DiagramLayout {
             }
             geometry.children = [av]
         }
-        guard r.width > 0.01 || r.height > 0.01 else { return nil }
+        guard r.width > 0.01 || r.height > 0.01 else { return [] }
         var xfrmAttrs: [String: String] = [:]
         if rot != 0 { xfrmAttrs["rot"] = String(Self.whole(rot * 60000)) }
         if flipH { xfrmAttrs["flipH"] = "1" }
+        if flipV { xfrmAttrs["flipV"] = "1" }
         let xfrm = XNode(name: "a:xfrm", attrs: xfrmAttrs)
         xfrm.children = [XNode(name: "a:off", attrs: ["x": Self.emu(r.left), "y": Self.emu(r.top)]),
                          XNode(name: "a:ext", attrs: ["cx": Self.emu(max(0, r.width)), "cy": Self.emu(max(0, r.height))])]
@@ -1419,8 +1460,43 @@ struct DiagramLayout {
         font.children = [look.text.map(clone) ?? XNode(name: "a:schemeClr", attrs: ["val": "lt1"])]
         style.children.append(font)
         sp.children.append(style)
-        if n.algType == "tx", let body = textBody(n) { sp.children.append(body) }
-        return sp
+        guard n.algType == "tx", let body = textBody(n) else { return [sp] }
+        let turn = rot.truncatingRemainder(dividingBy: 360)
+        guard abs(abs(turn.truncatingRemainder(dividingBy: 180)) - 90) < 0.01, geometry.name == "a:prstGeom" else {
+            sp.children.append(body)
+            return [sp]
+        }
+        // Turned a quarter round: PowerPoint keeps the text upright, in the
+        // box its text area turned to (cycleMatrix's quadrants, a vertical
+        // block list's side tabs), where the reader turns a shape's text
+        // with it.
+        var tr = Rect.fromLTRB(0, 0, 1, 1)
+        if let prst = geometry["prst"], let g = PresetGeometry.geometry(prst, width: r.width * 12700, height: r.height * 12700,
+                                                                         adjustments: PresetGeometry.adjustments(geometry)),
+           let t = g.textRect { tr = t }
+        let a = turn * .pi / 180, c = r.center
+        let lt = Offset(r.left + tr.left * r.width, r.top + tr.top * r.height)
+        let rb = Offset(r.left + tr.right * r.width, r.top + tr.bottom * r.height)
+        let turned = [lt, Offset(rb.dx, lt.dy), rb, Offset(lt.dx, rb.dy)].map { p -> Offset in
+            let dx = p.dx - c.dx, dy = p.dy - c.dy
+            return Offset(c.dx + dx * cos(a) - dy * sin(a), c.dy + dx * sin(a) + dy * cos(a))
+        }
+        let box = Rect.fromLTRB(turned.map(\.dx).min()!, turned.map(\.dy).min()!, turned.map(\.dx).max()!, turned.map(\.dy).max()!)
+        let tx = XNode(name: "p:sp", attrs: [:])
+        let tnv = XNode(name: "p:nvSpPr", attrs: [:])
+        tnv.children = [XNode(name: "p:cNvPr", attrs: ["id": String(id + 100000), "name": n.name + " text"]),
+                        XNode(name: "p:cNvSpPr", attrs: [:]), XNode(name: "p:nvPr", attrs: [:])]
+        let tPr = XNode(name: "p:spPr", attrs: [:])
+        let txf = XNode(name: "a:xfrm", attrs: [:])
+        txf.children = [XNode(name: "a:off", attrs: ["x": Self.emu(box.left), "y": Self.emu(box.top)]),
+                        XNode(name: "a:ext", attrs: ["cx": Self.emu(box.width), "cy": Self.emu(box.height)])]
+        let rectGeom = XNode(name: "a:prstGeom", attrs: ["prst": "rect"])
+        rectGeom.children = [XNode(name: "a:avLst", attrs: [:])]
+        let noLine = XNode(name: "a:ln", attrs: [:])
+        noLine.children = [XNode(name: "a:noFill", attrs: [:])]
+        tPr.children = [txf, rectGeom, XNode(name: "a:noFill", attrs: [:]), noLine]
+        tx.children = [tnv, tPr, clone(style), body]
+        return [sp, tx]
     }
 
     /// The shapes a connector joins: the text shapes presenting the
@@ -1462,30 +1538,36 @@ struct DiagramLayout {
     private func textBody(_ n: DgmPresNode) -> XNode? {
         let points = n.presOf.filter { $0.text != nil }
         guard !points.isEmpty else { return nil }
-        let base = n.point.depth
+        // Levels count from the shallowest point the shape shows, not from
+        // the point it stands for: cycleMatrix's quadrants show their
+        // node's children, each the quadrant's first level — 43 pt,
+        // centred, no bullet in PowerPoint, where they were bulleted at the
+        // second size, top left.
+        let top = points.map(\.depth).min() ?? n.point.depth
         let bullets = n.variable("bulletEnabled") == "1"
-        let startLevel = Int(n.params["stBulletLvl"] ?? "1") ?? 1
+        // Bullets from the second level unless the algorithm says otherwise
+        // (`stBulletLvl="1"`: the bracket list's "•A", alone in its shape).
+        let startLevel = Int(n.params["stBulletLvl"] ?? "2") ?? 2
         let prim = min(n.value("primFontSz") ?? 65, fontCap)
-        // A shape that shows its own point's text and its children's sets
-        // the children's at 78% of its own, when nothing says otherwise:
-        // PowerPoint's 51 under 65 (lo-smartart-bullet-list) and 33 under
-        // 42 (lo-smartart-missing-bullet). Children shown alone are its
-        // first size.
-        let ownText = points.contains { $0.depth == base }
-        let sec = min(n.value("secFontSz") ?? (ownText ? prim * 0.78 : prim), fontCap)
+        // A lower level under a higher one, in one shape, is 78% of its size
+        // when nothing says otherwise: PowerPoint's 51 under 65
+        // (lo-smartart-bullet-list) and 33 under 42 (lo-smartart-missing-
+        // bullet).
+        let sec = min(n.value("secFontSz") ?? prim * 0.78, fontCap)
         var paragraphs: [XNode] = []
         var listed = false
         for p in points {
-            let level = max(0, p.depth - base)
-            if level > 0 { listed = true }
+            let level = max(0, p.depth - top)
+            let bulleted = bullets && level + 1 >= startLevel
+            if level > 0 || bulleted { listed = true }
             for para in p.text?.all("a:p") ?? [] {
                 let runs = para.children.filter { ["a:r", "a:fld", "a:br"].contains($0.name) }
                 if runs.allSatisfy({ $0.name == "a:br" || ($0.first("a:t")?.text ?? "").isEmpty }) && points.count > 1 { continue }
                 let out = XNode(name: "a:p", attrs: [:])
                 let pPr = XNode(name: "a:pPr", attrs: [:])
                 if level > 0 { pPr.attrs["lvl"] = String(min(8, level)) }
-                if bullets && level >= startLevel {
-                    pPr.attrs["marL"] = String(171450 * level)
+                if bulleted {
+                    pPr.attrs["marL"] = String(171450 * (level + 2 - startLevel))
                     pPr.attrs["indent"] = "-171450"
                     pPr.children = [XNode(name: "a:buChar", attrs: ["char": "•"])]
                 } else {
@@ -1531,6 +1613,7 @@ struct DiagramLayout {
         let bodyPr = XNode(name: "a:bodyPr", attrs: ["anchor": anchor, "wrap": "square", "starling:insScale": "1",
                                                      "lIns": Self.emu(n.value("lMarg") ?? inset), "tIns": Self.emu(n.value("tMarg") ?? inset),
                                                      "rIns": Self.emu(n.value("rMarg") ?? inset), "bIns": Self.emu(n.value("bMarg") ?? inset)])
+        if let g = n.sizeGroup { bodyPr.attrs["starling:sizeGroup"] = g }
         bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])]
         body.children = [bodyPr, XNode(name: "a:lstStyle", attrs: [:])] + paragraphs
         return body

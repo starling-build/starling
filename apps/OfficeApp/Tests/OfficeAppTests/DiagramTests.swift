@@ -142,16 +142,22 @@ final class DiagramTests: XCTestCase {
         """)
         let tree = DiagramLayout.render(data: data(["a", "b", "c", "d"]), layout: def, colors: nil, style: nil,
                                         frame: Rect.fromLTWH(0, 0, 400, 400))
+        // A shape turned a quarter round keeps its text upright, in a
+        // shape of its own over it.
+        let sps = tree!.all("p:sp")
+        let arrows = sps.filter { !($0.descendant("p:cNvPr")?["name"] ?? "").hasSuffix(" text") }
         let b = boxes(tree)
-        XCTAssertEqual(b.map(\.text), ["a", "b", "c", "d"])
-        let cx = b.map { $0.x + $0.w / 2 }, cy = b.map { $0.y + $0.h / 2 }
+        XCTAssertEqual(b.map(\.text).filter { !$0.isEmpty }, ["a", "b", "c", "d"])
+        let ab = b.enumerated().filter { !(sps[$0.offset].descendant("p:cNvPr")?["name"] ?? "").hasSuffix(" text") }.map(\.element)
+        let cx = ab.map { $0.x + $0.w / 2 }, cy = ab.map { $0.y + $0.h / 2 }
         XCTAssertEqual(cx[0], 200, accuracy: 1, "a at the top")
         XCTAssertLessThan(cy[0], cy[1])
         XCTAssertGreaterThan(cx[1], cx[0] + 50, "b to the right")
         XCTAssertEqual(cy[2], 400 - cy[0], accuracy: 1, "c at the bottom, mirrored")
         XCTAssertLessThan(cx[3], cx[0] - 50, "d to the left")
-        let rots = tree!.all("p:sp").map { $0.descendant("a:xfrm")?["rot"] ?? "0" }
+        let rots = arrows.map { $0.descendant("a:xfrm")?["rot"] ?? "0" }
         XCTAssertEqual(rots, ["0", "5400000", "10800000", "16200000"], "turned along the path")
+        XCTAssertEqual(sps.count, 6, "b and d have their text upright beside them")
     }
 
     /// A hierarchy: the root centred above its children, side by side, and
@@ -246,6 +252,21 @@ final class DiagramTests: XCTestCase {
         XCTAssertEqual(b.h, 2 * 35 * 72 / 25.4, accuracy: 0.1)
         XCTAssertEqual(b.w, 180, accuracy: 0.1, "the width its constraint gives, not scaled down")
         XCTAssertEqual(tree?.all("p:sp").first?.descendant("a:rPr")?["sz"], "3500")
+    }
+
+    /// A diagram's margins shrink with its text; the share of the insets
+    /// that is the shape's own text rectangle (an oval's inscribed box)
+    /// does not.
+    func testTheGeometrysInsetStaysWhenTheMarginsShrink() {
+        let shape = SlideShape(id: 1, name: "Oval", kind: .geometry(.ellipse), frame: Rect.fromLTWH(0, 0, 200, 200),
+                               text: nil, textTheme: nil)
+        shape.insets = EdgeInsets(left: 35, top: 35, right: 35, bottom: 35)
+        shape.shapeInsets = EdgeInsets(left: 29, top: 29, right: 29, bottom: 29)
+        shape.insetsFollowFont = true
+        shape.fontScale = 0.5
+        XCTAssertEqual(shape.drawInsets.left, 29 + 6 * 0.5, accuracy: 1e-9)
+        shape.insetsFollowFont = false
+        XCTAssertEqual(shape.drawInsets.left, 35)
     }
 
     /// The style label's colours: a scheme colour per shape, repeating.

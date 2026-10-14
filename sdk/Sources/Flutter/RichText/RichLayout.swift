@@ -571,6 +571,12 @@ public final class RichLayout {
     public var fontScale: Double = 1.0 {
         didSet { if fontScale != oldValue { invalidateAll() } }
     }
+    /// The space before and after paragraphs shrinks with `fontScale` too:
+    /// a SmartArt shape's spacing is a share of its line, and PowerPoint
+    /// sets it smaller with the text it fits (an office diagram's list).
+    public var spacingFollowsFont = false {
+        didSet { if spacingFollowsFont != oldValue { invalidateAll() } }
+    }
     public var scale: Double = 1.0 {
         didSet { if scale != oldValue { invalidateAll() } }
     }
@@ -2598,7 +2604,8 @@ public final class RichLayout {
                 spaceBefore = max(0, spaceBefore - spaceAfter(a))
             }
         }
-        return (skipBefore ? 0 : _px(spaceBefore), skipAfter ? 0 : _px(spaceAfter(style)))
+        let k = spacingFollowsFont ? fontScale : 1
+        return (skipBefore ? 0 : _px(spaceBefore * k), skipAfter ? 0 : _px(spaceAfter(style) * k))
     }
 
     /// The sheet's Normal look, for `RichTextTheme.textStyle`.

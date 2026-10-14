@@ -383,6 +383,13 @@ final class SlideShape {
     /// A diagram's margins are fractions of its font size: they shrink
     /// with the text when it is fitted.
     var insetsFollowFont = false
+    /// A diagram laid out here: the shapes that end at one size
+    /// (`starling:sizeGroup`, from the layout's `op="equ"` constraints).
+    var sizeGroup: String? = nil
+    /// The part of `insets` that is the geometry's text rectangle (an
+    /// oval's inscribed box, a chevron's notch): it stays when margins that
+    /// follow the font shrink with it.
+    var shapeInsets = EdgeInsets.zero
     /// `bodyPr wrap="none"`: lines break only where the text says, however
     /// narrow the box — the text runs past its edges, from the side its
     /// first paragraph is aligned to. (Drawn so; the editor still wraps.)
@@ -403,10 +410,14 @@ final class SlideShape {
     /// line spacing to fit (0.2 = lines at 80%); the theme carries it.
     var lineReduction = 0.0
     /// The insets as drawn: scaled with the text when they follow it.
-    var drawInsets: EdgeInsets {
-        guard insetsFollowFont, fontScale != 1 else { return insets }
-        return EdgeInsets(left: insets.left * fontScale, top: insets.top * fontScale,
-                          right: insets.right * fontScale, bottom: insets.bottom * fontScale)
+    var drawInsets: EdgeInsets { insets(atFontScale: fontScale) }
+    /// The insets with the text at `k` of its size: the margins that follow
+    /// the font scaled by it, the geometry's share kept.
+    func insets(atFontScale k: Double) -> EdgeInsets {
+        guard insetsFollowFont, k != 1 else { return insets }
+        let g = shapeInsets
+        return EdgeInsets(left: g.left + (insets.left - g.left) * k, top: g.top + (insets.top - g.top) * k,
+                          right: g.right + (insets.right - g.right) * k, bottom: g.bottom + (insets.bottom - g.bottom) * k)
     }
     /// Shown greyed in an empty placeholder until it is typed into.
     var prompt: String?

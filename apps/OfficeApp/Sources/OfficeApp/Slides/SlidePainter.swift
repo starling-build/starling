@@ -118,19 +118,43 @@ final class SlideTextCache {
     /// are whole, as PowerPoint lays it out).
     static func autofitScale(_ shape: SlideShape, wholeWords: Bool = false) -> Double {
         guard let text = shape.text, let theme = shape.textTheme else { return 1 }
-        for scale in autofitSteps {
-            let k = shape.insetsFollowFont ? scale : 1
-            let room = shape.frame.height - (shape.insets.top + shape.insets.bottom) * k
-            let width = max(1, shape.frame.width - (shape.insets.left + shape.insets.right) * k)
+        func fits(_ scale: Double) -> Bool {
+            // (The geometry's share of the insets stays: an oval's text
+            // was fitted to a box wider than its inscribed one, 53 pt where
+            // PowerPoint's is 49.)
+            let ins = shape.insets(atFontScale: scale)
+            let room = shape.frame.height - ins.top - ins.bottom
+            let width = max(1, shape.frame.width - ins.left - ins.right)
+            // Measured at a twentieth of a point where the margins follow
+            // the font: lines laid out in whole points round 64.8 down to
+            // 64, and a diagram's text came out a point larger than
+            // PowerPoint's (59 where its own is 58).
+            let res = shape.insetsFollowFont ? 20.0 : 1
             let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
-            layout.scale = 1 / theme.pixelsPerPoint
+            layout.scale = res / theme.pixelsPerPoint
             layout.fontScale = scale
-            layout.width = width
+            layout.spacingFollowsFont = shape.insetsFollowFont
+            layout.width = width * res
             layout.ensureLaidOut(text.document)
-            if layout.totalHeight <= room + 0.5, !wholeWords || widestWord(text.document, theme, scale: scale) <= width + 0.5 {
-                return scale
-            }
+            let height = layout.totalHeight / res
+            return height <= room + 0.5 / res && (!wholeWords || widestWord(text.document, theme, scale: scale) <= width + 0.5)
         }
+        // A diagram laid out here (its margins follow its font) shrinks by
+        // whole points down to its rule's 5 pt, as PowerPoint sets its
+        // text — 43, 30, 12 — not by the 7.5% steps of a text box's
+        // autofit, which stop at a quarter (cycleMatrix's side boxes were
+        // 16 where PowerPoint's are 12).
+        if shape.insetsFollowFont, wholeWords,
+           let nominal = text.document.paragraphs.first?.runs.first?.style.fontSize, nominal > 5 {
+            if fits(1) { return 1 }
+            var lo = 5, hi = Int(nominal.rounded(.down)) - 1, best = 5
+            while lo <= hi {
+                let mid = (lo + hi) / 2
+                if fits(Double(mid) / nominal) { best = mid; lo = mid + 1 } else { hi = mid - 1 }
+            }
+            return Double(best) / nominal
+        }
+        for scale in autofitSteps where fits(scale) { return scale }
         return autofitSteps.last!
     }
 
@@ -165,6 +189,7 @@ final class SlideTextCache {
             let l = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
             l.scale = scale
             l.fontScale = shape.fontScale
+            l.spacingFollowsFont = shape.insetsFollowFont
             l.width = w
             if shape.columns > 1, !shape.noWrap {
                 // Columns are the layout's pages: one "page" the size of

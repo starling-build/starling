@@ -1165,6 +1165,7 @@ private struct SlideContext {
         st.fontScale = text.fontScale
         st.lineReduction = text.lineReduction
         st.insetsFollowFont = text.insetsFollowFont
+        st.sizeGroup = text.sizeGroup
         st.noWrap = text.noWrap
         st.columns = text.columns
         st.columnGap = text.columnGap
@@ -1216,6 +1217,8 @@ private struct SlideContext {
                                                adjustments: PresetGeometry.adjustments(spPr?.first("a:prstGeom"))) {
                 st.customPath = g
                 if txBox == nil, let box = g.textRect {
+                    st.shapeInsets = EdgeInsets(left: box.left * frame.width, top: box.top * frame.height,
+                                                right: (1 - box.right) * frame.width, bottom: (1 - box.bottom) * frame.height)
                     st.insets = EdgeInsets(left: st.insets.left + box.left * frame.width,
                                            top: st.insets.top + box.top * frame.height,
                                            right: st.insets.right + (1 - box.right) * frame.width,
@@ -1952,6 +1955,8 @@ private struct SlideContext {
         /// The insets are fractions of the font size (a diagram's margins)
         /// and shrink with it.
         var insetsFollowFont = false
+        /// A diagram laid out here: the shapes that end at one size.
+        var sizeGroup: String? = nil
         /// `bodyPr wrap="none"`.
         var noWrap = false
         /// `bodyPr numCol` and `spcCol` (points).
@@ -2181,7 +2186,7 @@ private struct SlideContext {
             if level0.bullet == .char { style.list = .bullet }
             paragraphs = [RichParagraph(text: "", style: style)]
         }
-        return TextBody(document: RichDocument(paragraphs: paragraphs), anchor: anchor, insets: insets,
+        var body0 = TextBody(document: RichDocument(paragraphs: paragraphs), anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,
                         color: level0.color ?? tx1 ?? Color(0xFF000000),
                         listIndent: shapeIndent,
@@ -2192,6 +2197,8 @@ private struct SlideContext {
                         columns: max(1, min(16, attr("numCol").flatMap(Int.init) ?? 1)),
                         columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0,
                         warp: warp, runLooks: runLooks)
+        body0.sizeGroup = body?.first("a:bodyPr")?["starling:sizeGroup"]
+        return body0
     }
 
     /// A run's WordArt look: a gradient or picture fill, no fill, an
