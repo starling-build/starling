@@ -136,7 +136,7 @@ Owner: —
 Documents: zh-454e2e29 (49%), row 2.
 
 ### T10. A section of one empty paragraph: a page or none?
-Owner: —
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 Documents: zh-06c46ba9 (0.7%), against zh-9e08ed28.
 Known: zh-06c46ba9's cover section is followed by a section holding only
 an empty paragraph (titlePg, pgNumType start 1), then the contents.
