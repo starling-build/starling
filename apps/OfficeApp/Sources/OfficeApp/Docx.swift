@@ -1686,7 +1686,11 @@ enum DocxFormat {
         }
         if let cols = sect.first("w:cols") {
             if let n = Int(cols["w:num"] ?? ""), n > 1 { setup.columns = n }
-            if let space = Double(cols["w:space"] ?? "") { setup.columnGap = space / 20 }
+            // (Unequal columns state their gaps on each w:col: zh-25c4de17's
+            // two say 425 there and nothing on w:cols, and Word sets them
+            // 21.25pt apart — Word's 36pt default made each 7.4pt narrower
+            // and its questions wrap a line early.)
+            if let space = Double(cols["w:space"] ?? cols.first("w:col")?["w:space"] ?? "") { setup.columnGap = space / 20 }
         }
         if let grid = sect.first("w:docGrid") {
             if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {

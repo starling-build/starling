@@ -128,8 +128,7 @@ Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
   each). Open.
 - zh-190d730c: its first difference is a scorer artefact (a justified
   line drawn out of order splits PDFKit's line). Not looked at further.
-- zh-25c4de17: two-column exam, a line changes column on page 2. Not
-  looked at yet.
+- zh-25c4de17: done (the column gap stated on w:col), 36.5 -> 100.
 
 ### T8. Load embedded fonts
 Owner: —

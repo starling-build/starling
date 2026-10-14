@@ -2166,6 +2166,15 @@ fitter dropped the paragraph's tail).
   hang at all (it needs the whole 36, and 31.2 of a 14pt one), where
   the Mac lab `gf` had it hang like one with text.
 
+- **Unequal columns state their gap on each `w:col` (2026-10-14).**
+  zh-25c4de17's two columns are `w:equalWidth="0"` with
+  `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
+  reader took Word's 36pt default gap, so each column came out 7.4pt
+  narrower and question 16 wrapped "赠。" where Word squeezes it onto
+  one line. The first `w:col`'s gap now stands where `w:cols` states
+  none. zh-25c4de17 36.5% -> 100%; nothing else moved by it. Chinese
+  sample 82.9%.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
