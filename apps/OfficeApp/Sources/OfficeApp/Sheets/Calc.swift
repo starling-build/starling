@@ -871,7 +871,9 @@ enum InputParser {
         let dash = t.split(separator: "-")
         if dash.count == 3, dash[0].count == 4, dash.allSatisfy({ $0.allSatisfy { $0.isNumber } && !$0.isEmpty }),
            let y = Int(dash[0]), let m = Int(dash[1]), let d = Int(dash[2]), _valid(y, m, d) {
-            return (ExcelDate.serial(y, m, d), "yyyy-mm-dd")
+            // Shown in the short-date form, as Excel's en-US default turns
+            // it (and as 2026-03-04 is too wide for a default column).
+            return (ExcelDate.serial(y, m, d), "m/d/yyyy")
         }
         // d-mmm-yyyy, d mmm yyyy.
         let words = t.split(whereSeparator: { $0 == "-" || $0 == " " })

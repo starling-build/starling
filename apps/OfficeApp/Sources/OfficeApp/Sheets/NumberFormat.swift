@@ -267,6 +267,11 @@ enum NumberFormat {
         return (out, color)
     }
 
+    /// A date or time format ("m/d/yyyy", "h:mm AM/PM"), by its first section.
+    static func isDateTime(_ code: String) -> Bool {
+        _isDate(_stripColor(_sections(code).first ?? code).0)
+    }
+
     private static func _isDate(_ s: String) -> Bool {
         var inQuote = false
         var prev: Character = " "

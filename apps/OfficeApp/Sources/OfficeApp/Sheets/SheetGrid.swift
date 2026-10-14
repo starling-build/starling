@@ -706,7 +706,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 verdict = v.message
             }
         }
-        if text != controller.input(e.cell) { controller.setInput(text, at: e.cell) }
+        if text != controller.input(e.cell) { controller.setInput(text, at: e.cell); _widenForNumber(e.cell) }
         if let verdict { _w.onStatus(verdict) }
         if let v = controller.sheet.cells[e.cell]?.value, case .text(let s) = v, s.hasPrefix("="), text.hasPrefix("=") {
             _w.onStatus("There's a problem with this formula")
@@ -714,6 +714,22 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         _w.onEditText(nil)
         _repaint.notifyListeners()
         return true
+    }
+
+    /// A date or formatted number typed into a column still at its default
+    /// width widens the column to show it, as Excel does, rather than
+    /// ######## (=TODAY() in a fresh sheet). General numbers shorten
+    /// instead, and a column given a width keeps it.
+    private func _widenForNumber(_ a: CellAddress) {
+        let c = controller, ws = c.sheet
+        guard ws.colWidths[a.col] == nil || ws.widenedCols.contains(a.col), let cell = ws.cells[a], case .number = cell.value else { return }
+        let st = c.book.style(cell.style)
+        guard st.numberFormat != "General", !c.sheet.merges.contains(where: { $0.contains(a) && $0.cols > 1 }) else { return }
+        let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+        let w = (texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom) / scale + 1.5
+        guard w > ws.colWidth(a.col) else { return }
+        ws.colWidths[a.col] = (w * 4).rounded(.up) / 4
+        ws.widenedCols.insert(a.col)
     }
 
     func cancelEdit() {
@@ -1306,6 +1322,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if axis == .cols {
                     // An empty column goes back to the sheet's default width.
                     if let w = best[t] { ws.colWidths[t] = (w * 4).rounded(.up) / 4 } else { ws.colWidths[t] = nil }
+                    ws.widenedCols.remove(t)
                 } else {
                     if let h = best[t] { ws.rowHeights[t] = (h * 4).rounded(.up) / 4 } else { ws.rowHeights[t] = nil }
                 }

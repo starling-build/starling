@@ -109,6 +109,9 @@ final class Worksheet {
     /// Column widths and row heights in points, where not the default.
     var colWidths: [Int: Double] = [:] { didSet { layoutVersion &+= 1 } }
     var rowHeights: [Int: Double] = [:] { didSet { layoutVersion &+= 1 } }
+    /// Columns widened only to show a typed date or number: still Excel's
+    /// "not set by hand", so the next one that does not fit widens them again.
+    var widenedCols: Set<Int> = []
     var freezeRows = 0
     var freezeCols = 0
     var merges: [CellRange] = []
@@ -269,6 +272,7 @@ final class Worksheet {
         s.spilled = spilled
         s.colAttrRuns = colAttrRuns
         s.colWidthChars = colWidthChars
+        s.widenedCols = widenedCols
         s.defaultColWidthChars = defaultColWidthChars
         s.digitWidth = digitWidth
         s.fittedRows = fittedRows

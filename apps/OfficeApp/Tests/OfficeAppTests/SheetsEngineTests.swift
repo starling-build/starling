@@ -372,6 +372,21 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(NumberFormat.display(v(c, "A2"), "$#,##0.00").text, "$3.50")
     }
 
+    func testFormulaTakesImpliedFormat() {
+        let c = book(["A1": "1/2/2026", "A2": "12:30", "A3": "2026-03-04", "B1": "$3.50", "B2": "4"])
+        c.setInputs([(CellAddress("C1")!, "=TODAY()"), (CellAddress("C2")!, "=A1+7"), (CellAddress("C3")!, "=B1*B2"),
+                     (CellAddress("C4")!, "=COUNT(A1:A3)"), (CellAddress("C5")!, "=A1*2"), (CellAddress("C6")!, "=SUM(B1:B2)")])
+        func fmt(_ s: String) -> String { c.style(at: CellAddress(s)!).numberFormat }
+        XCTAssertEqual(fmt("C1"), "m/d/yyyy")
+        XCTAssertEqual(fmt("C2"), "m/d/yyyy")       // a date plus days is a date
+        XCTAssertEqual(fmt("C3"), "$#,##0.00")      // dollars times a count is dollars
+        XCTAssertEqual(fmt("C4"), "General")
+        XCTAssertEqual(fmt("C5"), "General")        // a date times two is not a date
+        XCTAssertEqual(fmt("C6"), "$#,##0.00")
+        XCTAssertEqual(fmt("A3"), "m/d/yyyy")
+        XCTAssertEqual(c.input(CellAddress("A2")!), "12:30:00 PM")
+    }
+
     func testCtrlArrowEdges() {
         let c = book(["A1": "1", "A2": "2", "A3": "3", "A6": "6"])
         XCTAssertEqual(c.edge(from: CellAddress("A1")!, rows: 1, cols: 0), CellAddress("A3"))

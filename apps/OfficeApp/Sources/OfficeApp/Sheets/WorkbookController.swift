@@ -269,7 +269,11 @@ final class WorkbookController: ChangeNotifier {
             // A date shows as a date in the bar, a percent as a percent.
             if fmt.containsSubstring("%") { return NumberFormat.full(n * 100) + "%" }
             if NumberFormat.format(n, fmt).text != NumberFormat.general(n), fmt.lowercased().containsSubstring("y") || fmt.lowercased().containsSubstring("d") {
-                return NumberFormat.format(n, fmt.containsSubstring("h") ? "m/d/yyyy h:mm" : "m/d/yyyy").text
+                return NumberFormat.format(n, fmt.containsSubstring("h") ? "m/d/yyyy h:mm:ss AM/PM" : "m/d/yyyy").text
+            }
+            // A time of day as Excel's bar shows it, 12:30:00 PM — not 0.520833333333333.
+            if n >= 0, n < 1, NumberFormat.isDateTime(fmt), !fmt.containsSubstring("[") {
+                return NumberFormat.format(n, "h:mm:ss AM/PM").text
             }
             return NumberFormat.full(n)
         }
@@ -279,6 +283,46 @@ final class WorkbookController: ChangeNotifier {
     /// Type `text` into `a` (Enter in the cell or the formula bar).
     func setInput(_ text: String, at a: CellAddress) {
         setInputs([(a, text)])
+    }
+
+    /// The format Excel gives a formula typed into a General cell: a date
+    /// for TODAY() and DATE(…), date and time for NOW(), a time for TIME(…);
+    /// and the format of the first cell it reads when that is a date (on
+    /// + and −) or money — =A1+7 on a date is a date, =B2*C2 on dollars is
+    /// dollars. Without it TODAY() showed 46309.
+    func _impliedFormat(_ f: FormulaExpr, _ ws: Worksheet) -> String? {
+        func cellFormat(_ r: FormulaRef) -> String? {
+            guard r.start.row != nil, r.start.col != nil else { return nil }
+            let target = r.sheet.flatMap { n in book.sheets.first { $0.name.lowercased() == n.lowercased() } } ?? ws
+            let a = r.range.topLeft
+            return book.style(target.cells[a]?.style ?? target.defaultStyle(at: a)).numberFormat
+        }
+        func walk(_ e: FormulaExpr, dates: Bool) -> String? {
+            switch e {
+            case .paren(let x), .negate(let x), .plus(let x): return walk(x, dates: dates)
+            case .ref(let r):
+                guard let fmt = cellFormat(r), fmt != "General" else { return nil }
+                if NumberFormat.isDateTime(fmt) { return dates ? fmt : nil }
+                return fmt.containsSubstring("$") || fmt.containsSubstring("€") || fmt.containsSubstring("£") ? fmt : nil
+            case .binary(let op, let l, let r):
+                switch op {
+                case .add, .sub: return walk(l, dates: dates) ?? walk(r, dates: dates)
+                case .mul, .div: return walk(l, dates: false) ?? walk(r, dates: false)
+                default: return nil
+                }
+            case .call(let name, let args):
+                switch name.uppercased() {
+                case "TODAY", "DATE", "DATEVALUE", "EDATE", "EOMONTH", "WORKDAY", "WORKDAY.INTL": return "m/d/yyyy"
+                case "NOW": return "m/d/yyyy h:mm"
+                case "TIME", "TIMEVALUE": return "h:mm AM/PM"
+                case "SUM", "AVERAGE", "MIN", "MAX", "MEDIAN", "ROUND", "ROUNDUP", "ROUNDDOWN", "ABS":
+                    return args.first.flatMap { walk($0, dates: name.uppercased() != "SUM") }
+                default: return nil
+                }
+            default: return nil
+            }
+        }
+        return walk(f, dates: true)
     }
 
     /// Several cells in one step (paste, fill, Ctrl+Enter).
@@ -312,9 +356,15 @@ final class WorkbookController: ChangeNotifier {
                 }
             } else {
                 do {
-                    cell.formula = try Formula.parse(text)
+                    let f = try Formula.parse(text)
+                    cell.formula = f
                     cell.dynamic = true          // as in Excel 365: an array result spills
                     cell.value = .empty
+                    if book.style(cell.style).numberFormat == "General", let fmt = _impliedFormat(f, ws) {
+                        var st = book.style(cell.style)
+                        st.numberFormat = fmt
+                        cell.style = book.styleIndex(st)
+                    }
                 } catch {
                     // Excel refuses the entry; we keep it as text so nothing typed is lost.
                     cell.formula = nil
@@ -445,7 +495,7 @@ final class WorkbookController: ChangeNotifier {
     /// step restores what was there when the drag began.
     func setColumnWidth(_ col: Int, _ w: Double, from: Double? = nil) {
         if let from { sheet.colWidths[col] = from }
-        structural { sheet.colWidths[col] = max(0, w) }
+        structural { sheet.colWidths[col] = max(0, w); sheet.widenedCols.remove(col) }
     }
 
     func setRowHeight(_ row: Int, _ h: Double, from: Double? = nil) {
