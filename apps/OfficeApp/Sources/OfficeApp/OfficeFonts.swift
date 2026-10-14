@@ -507,6 +507,14 @@ enum OfficeFonts {
         if let symbols = TerminalFontLoader.registerSymbolFallback() {
             RichTextTheme.glyphFallback = [symbols]
         }
+        #if os(Windows)
+        // Chinese text, named as on macOS: left to the platform, the
+        // engine picks a face per run from its first character, and a
+        // run of a lone "〕" came out in Yu Gothic UI, whose brackets are
+        // half an em — a line of zh-1a3c7aa0 then had room for a digit
+        // Word's has not. YaHei is the face Word for Mac sets these in.
+        RichTextTheme.glyphFallback.append("Microsoft YaHei")
+        #endif
         #else
         // Chinese text is drawn by the system's face, which the engine
         // finds character by character — and finds in its regular weight
