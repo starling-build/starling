@@ -411,6 +411,9 @@ final class SlideShape {
     /// `a:ln/a:prstDash`: the outline's dash pattern ("dash", "sysDot"…);
     /// nil for a solid line.
     var outlineDash: String? = nil
+    /// `a:effectLst/a:outerShdw` (or the theme's, through `effectRef`):
+    /// a blurred copy of the outline cast under the shape.
+    var shadow: CharShadow? = nil
     /// The part of `insets` that is the geometry's text rectangle (an
     /// oval's inscribed box, a chevron's notch): it stays when margins that
     /// follow the font shrink with it.

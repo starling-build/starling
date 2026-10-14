@@ -446,6 +446,37 @@ final class SlidePainter: CustomPainter {
             canvas.rotate(-scene.rev * .pi / 180)
             canvas.translate(-c.dx, -c.dy)
         }
+        // (Not for a shape filled with a picture: its shadow is the shadow
+        // of what the picture paints — tdf128596's ticks on nothing — and
+        // the outline's showed grey through the gaps.)
+        if let sh = shape.shadow, shape.picture != nil || shape.fill != nil || shape.fillStyle != nil,
+           shape.fillStyle?.image == nil {
+            // The outline's blurred copy, where the shadow falls: offset on
+            // the page, not turned with the shape (rotWithShape="0", as
+            // PowerPoint writes its shadows).
+            let outline: Path
+            if let g = shape.pictureGeometry ?? shape.preset ?? shape.inheritedPreset, !g.isLine {
+                outline = PresetGeometry.path(g.rawValue, in: r) ?? Self.geometryPath(g, r)
+            } else if let free = shape.opaque?.freeform ?? shape.customPath {
+                outline = Self.combinedPath(free, r)
+            } else {
+                outline = Path()
+                outline.addRect(r)
+            }
+            let a = -shape.rotation * .pi / 180
+            let dx = (sh.dx * cos(a) - sh.dy * sin(a)) * px, dy = (sh.dx * sin(a) + sh.dy * cos(a)) * px
+            let p = Paint()
+            p.style = .fill
+            p.isAntiAlias = true
+            // As see-through as a plain fill is.
+            let through = shape.picture == nil && shape.fillStyle == nil ? Double(shape.fill?.alpha ?? 255) / 255 : 1
+            p.color = sh.color.withOpacity(Double(sh.color.alpha) / 255 * through)
+            if sh.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, sh.blur * px / 2) }
+            canvas.save()
+            canvas.translate(dx, dy)
+            canvas.drawPath(outline, p)
+            canvas.restore()
+        }
         if let image = shape.picture {
             if let metafile = cache.metafile(image) {
                 // A WMF or EMF, as vectors: the whole picture placed so that

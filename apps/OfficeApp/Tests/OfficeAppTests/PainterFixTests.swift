@@ -520,6 +520,27 @@ final class RunCapsAndBulletTests: XCTestCase {
         XCTAssertEqual(read.slides[1].shapes.filter(\.invisible).count, 1)
     }
 
+    /// A shape's own outer shadow is read; one cast on the ground is not.
+    func testAShapesShadowIsRead() throws {
+        func read(_ effect: String) throws -> [ShapeState] {
+            var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+            let key = "ppt/slides/slide2.xml"
+            var slide = String(data: try XCTUnwrap(package.parts[key]), encoding: .utf8)!
+            let end = try XCTUnwrap(slide.range(of: "</p:spPr>"))
+            slide.replaceSubrange(end, with: "<a:solidFill><a:srgbClr val=\"4472C4\"/></a:solidFill><a:effectLst>\(effect)</a:effectLst></p:spPr>")
+            package.parts[key] = Data(slide.utf8)
+            let (state, _, _) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+            return state.slides[1].shapes
+        }
+        let cast = try read("<a:outerShdw blurRad=\"50800\" dist=\"38100\" dir=\"5400000\" algn=\"t\" rotWithShape=\"0\"><a:prstClr val=\"black\"><a:alpha val=\"40000\"/></a:prstClr></a:outerShdw>")
+        let sh = try XCTUnwrap(cast.lazy.compactMap(\.shadow).first)
+        XCTAssertEqual(sh.dx, 0, accuracy: 1e-9)
+        XCTAssertEqual(sh.dy, 3, accuracy: 1e-9, "three points straight down")
+        XCTAssertEqual(sh.blur, 4, accuracy: 1e-9)
+        let ground = try read("<a:outerShdw blurRad=\"50800\" dist=\"38100\" dir=\"5400000\" sy=\"23000\" kx=\"-1200000\"><a:prstClr val=\"black\"/></a:outerShdw>")
+        XCTAssertTrue(ground.allSatisfy { $0.shadow == nil })
+    }
+
     func testAnEmptyListParagraphShowsNoMarkerInSlides() {
         func bytesDrawn(marking: Bool) -> Int {
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 18)

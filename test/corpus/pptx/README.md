@@ -48,8 +48,8 @@ commit, with the sweep's number in the plan.
 PowerPoint's at the baseline — exact, not "small" — and `others.txt` the
 other decks that have a PowerPoint PDF (the eight without one are in
 neither). `matched-mupdf.txt` and `others-mupdf.txt` are the same split
-of `baseline-mupdf.tsv`: 66 matched and 487 others by MuPDF at sweep
-61, 48 and 505 by the Mac's baseline of sweep 27. The files are
+of `baseline-mupdf.tsv`: 67 matched and 486 others by MuPDF at sweep
+62, 48 and 505 by the Mac's baseline of sweep 27. The files are
 generated, never edited:
 
     python3 test/pptx-corpus-groups.py      # after writing a sweep over a baseline
@@ -74,7 +74,7 @@ text-heavy decks score about a point lower. So `baseline.tsv` is the Mac's, and
 `baseline-mupdf.tsv` is MuPDF's, from Windows, against the same
 PowerPoint PDFs. The same sweep 27 scored both ways, 2026-10-11: mean
 2.95% by MuPDF where the Mac has 3.01%, 418 of 553 decks within 0.15 of
-each other. (The file holds sweep 61, 1.83%, run on Linux 2026-10-14; sweeps 28 to 61 have no Mac
+each other. (The file holds sweep 62, 1.81%, run on Linux 2026-10-14; sweeps 28 to 62 have no Mac
 run yet, and 33 moves the text of most decks, so the Mac's `baseline.tsv`
 and `matched.txt` want a sweep there before they are compared with.)
 Compare a sweep with the baseline of its own rasteriser. The decks furthest apart are

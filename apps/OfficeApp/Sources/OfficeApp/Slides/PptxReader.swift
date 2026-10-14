@@ -110,10 +110,13 @@ struct PptxTheme {
     /// The format scheme's fill styles (`a:fillStyleLst`), which a shape's
     /// style refers to by index with its own colour as `phClr`.
     var fillStyles: [XNode] = []
+    /// Its effect styles (`a:effectStyleLst`), referred to the same way.
+    var effectStyles: [XNode] = []
 
     init(_ root: XNode?) {
         guard let root, let elements = root.descendant("a:themeElements") else { return }
         fillStyles = elements.first("a:fmtScheme")?.first("a:fillStyleLst")?.children ?? []
+        effectStyles = elements.first("a:fmtScheme")?.first("a:effectStyleLst")?.children ?? []
         if let scheme = elements.first("a:clrScheme") {
             for child in scheme.children {
                 let name = String(child.name.drop { $0 != ":" }.dropFirst())
@@ -410,15 +413,23 @@ private struct LevelStyle {
             // (One cast on the ground — scaled or skewed, tdf114848's —
             // is not drawn: as a copy of the letters it would stand up.)
             s.shadowSet = true
-            if let sh = effects.first("a:outerShdw"), let c = colors.color(in: sh),
-               ["sx", "sy", "kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { k.hasPrefix("s") ? $0 == 100000 : $0 == 0 } ?? true }) {
-                let dist = (sh["dist"].flatMap(Double.init) ?? 0) / Pptx.emu
-                let dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
-                s.shadow = CharShadow(color: c, dx: dist * cos(dir), dy: dist * sin(dir),
-                                      blur: (sh["blurRad"].flatMap(Double.init) ?? 0) / Pptx.emu)
-            }
+            s.shadow = outerShadow(effects, colors)
         }
         return s
+    }
+
+    /// An effect list's outer shadow: `dist` along `dir` (60000ths of a
+    /// degree, clockwise from the right), blurred by `blurRad`. One cast
+    /// on the ground — scaled or skewed — is nil: drawn as a copy of the
+    /// outline it would stand up.
+    static func outerShadow(_ effects: XNode?, _ colors: ColorContext) -> CharShadow? {
+        guard let sh = effects?.first("a:outerShdw"), let c = colors.color(in: sh),
+              ["sx", "sy", "kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { k.hasPrefix("s") ? $0 == 100000 : $0 == 0 } ?? true })
+        else { return nil }
+        let dist = (sh["dist"].flatMap(Double.init) ?? 0) / Pptx.emu
+        let dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
+        return CharShadow(color: c, dx: dist * cos(dir), dy: dist * sin(dir),
+                          blur: (sh["blurRad"].flatMap(Double.init) ?? 0) / Pptx.emu)
     }
 }
 
@@ -1218,6 +1229,7 @@ private struct SlideContext {
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.outlineDash = PptxReader.dash(spPr?.first("a:ln")) ?? inheritedDash
+        st.shadow = _shapeShadow(spPr, style)
         st.fillStyle = fillStyle
         if let o = spPr?.first("a:effectLst")?.first("a:fillOverlay"),
            var base = fillStyle ?? fill.map({ SlideFill(color: $0) }) {
@@ -1476,6 +1488,7 @@ private struct SlideContext {
             }
         }
         if let b = el.first("p:blipFill") { s.pictureInset = PptxReader.stretchInset(b) }
+        s.shadow = _shapeShadow(el.first("p:spPr"), el.first("p:style"))
         // A fill of its own, behind the picture (showing through its
         // transparent parts and around one padded by a negative crop).
         if let pr = el.first("p:spPr") {
@@ -2004,6 +2017,19 @@ private struct SlideContext {
             if let name = tx.first("a:font")?.first("a:latin")?["typeface"] { r.font = name }
         }
         return r
+    }
+
+    /// A shape's or picture's outer shadow: its own effects', or — saying
+    /// none — its style's theme effect (`effectRef`, the referred colour
+    /// as `phClr`), as Office 2007's themes give every shape one.
+    private func _shapeShadow(_ spPr: XNode?, _ style: XNode?) -> CharShadow? {
+        if let own = spPr?.first("a:effectLst") { return LevelStyle.outerShadow(own, colors) }
+        if spPr?.first("a:effectDag") != nil { return nil }
+        guard let ref = style?.first("a:effectRef"), let idx = ref["idx"].flatMap(Int.init), idx > 0,
+              theme.effectStyles.indices.contains(idx - 1) else { return nil }
+        var c = colors
+        c.placeholder = colors.color(in: ref)
+        return LevelStyle.outerShadow(theme.effectStyles[idx - 1].first("a:effectLst"), c)
     }
 
     private func _frameLabel(_ el: XNode) -> String {

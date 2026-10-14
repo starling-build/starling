@@ -1075,6 +1075,27 @@ outline and every shape was treated alike for:
   hidden_group_shape 4.88 → 0.00, tdf147586 1.37 → 1.11,
   tdf169496_hidden_graphic 0.23 → 0.03.
 
+**Shape shadows, 2026-10-14** (sweep 62: 1.8280 → 1.8123%; twenty decks
+closer — effectOrder 3.66 → 1.67, tdf125551 4.07 → 2.49, shape-blur-effect
+1.25 → 0.15, 54542_cropped_bitmap 1.80 → 0.89 — customGeo +0.34 and
+tdf152606 +0.07). A shape's or picture's `a:outerShdw` was not drawn;
+14 decks give one directly, 8 more through their theme's effect style
+(`effectRef`, Office 2007's themes shadow every shape).
+
+- **`SlideShape.shadow`** (the SDK's `CharShadow`), read from the
+  shape's own effect list or, with none, its style's theme effect with
+  the referred colour as `phClr` (`PptxTheme.effectStyles`); one cast
+  on the ground (scaled or skewed) is left out, as for text.
+- **Drawn as the outline's blurred copy** (a mask-filter blur of half
+  the blur radius — which, unlike a text shadow's, reaches PDF where it
+  belongs), offset on the page whatever the shape's turn, faded with a
+  translucent plain fill.
+- **Not under a picture fill**: its shadow is of what the picture
+  paints (tdf128596's ticks on nothing went 3 → 29 with the outline's).
+
+Left: glow and soft edges (6 and 4 decks), inner shadows, and shadows
+of shapes with no fill (PowerPoint shadows their text or line).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
