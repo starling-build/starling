@@ -491,45 +491,14 @@ article {
   color: var(--ink);
   background: #fff;
 }
-.office-cover {
-  background: #fff;
-  color: #172b48;
-  padding: 32px;
-  border-radius: 12px;
-  box-shadow: 0 20px 50px #12289b33;
-}
-.cover-kicker {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: #657592;
-  margin-bottom: 14px;
-}
-.office-cover > a {
+.app-heading {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 25px 0;
-  text-decoration: none;
+  gap: 16px;
+  margin-bottom: 24px;
 }
-.office-cover > a + a {
-  border-top: 1px solid #e2e7f0;
-}
-.office-cover strong {
-  display: block;
-  font-size: 22px;
-  line-height: 1.35;
-  letter-spacing: -0.035em;
-}
-.office-cover a div > span {
-  font-size: 15px;
-  display: block;
-  color: #506080;
-  margin-top: 8px;
-}
-.office-cover a:hover strong {
-  text-decoration: underline;
+.app-heading .eyebrow {
+  margin: 0;
 }
 .section-nav {
   display: grid;
@@ -813,12 +782,6 @@ code {
   .product-directory p {
     font-size: 15px;
   }
-  .office-cover {
-    padding: 24px;
-  }
-  .office-cover strong {
-    font-size: 20px;
-  }
   .desktop-intro {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -940,12 +903,6 @@ code {
   .section-nav a span {
     font-size: 14px;
   }
-  .office-cover {
-    padding: 24px;
-  }
-  .office-cover strong {
-    font-size: 21px;
-  }
   .feature-grid {
     grid-template-columns: 1fr;
     gap: 18px;
@@ -1015,12 +972,6 @@ code {
   }
   .section-nav a span {
     margin: 0;
-  }
-  .office-cover > a {
-    gap: 14px;
-  }
-  .office-cover strong {
-    font-size: 19px;
   }
   .app-icon {
     width: 48px;

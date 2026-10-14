@@ -5,9 +5,11 @@ familiar Office files. Each app has a short introduction, capability labels,
 a document preview, one suggestion to try, and an Open button. Both
 the button and the preview open the editor with the pictured example ready to
 edit. There are no PDF or source-file download controls on the landing page.
+The hero introduces the suite and links to downloads and the app sections.
+Sample links live in each app section, without a duplicate hero panel.
 The landing itself uses HTML/CSS and needs no JavaScript or WASM runtime.
 
-The landing cards, Office header, and download-page header use the murmuration
+The app section headings, Office header, and download-page header use the murmuration
 icons in `ui/img/office/`. These are exact copies of the native application
 icons in `build/office-gtk/starling-{writer,slides,sheets}.svg`; update the web
 copies when those designs change. Writer's icon also represents the suite in
