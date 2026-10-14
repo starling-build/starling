@@ -295,9 +295,8 @@ recovery copy brings the work back on the next launch; ⌘W does nothing.
 `starling-office-0.1.0-windows-x86_64.zip` — Starling Office for Windows,
 x86_64: Writer, Sheets and Slides in one `OfficeApp.exe`, the same suite as
 the Linux packages below. 58.4 MB, 84 entries, checksum in `SHA256SUMS`.
-Built from branch `office` at `6ee67645` — the Linux packages' `29defa16`
-plus one fix (F5 starts the slide show from wherever the keyboard is) and the
-icon — against this box's `host_release` engine (starling-engine checked out on
+Built from branch `office` at `6ee67645` — the Linux packages' `534cfd92`
+plus the exe's icon — against this box's `host_release` engine (starling-engine checked out on
 `starling` at `4ca0d35c`; the engine was not rebuilt for this), and staged by
 `sdk/tools/stage-windows.ps1 -Icon build\win\Office.ico -Zip`, the single
 definition of the Windows layout: the exe beside its 35 DLLs (the Swift runtime, the Visual C++
@@ -346,7 +345,8 @@ host yet. Unsigned, like the shell: SmartScreen will warn on first run.
 `starling-office_0.1.0_amd64.deb` and `starling-office_0.1.0_x86_64.flatpak` —
 Starling Office for Linux x86_64: Writer, Sheets and Slides, one binary that
 reads and writes .docx, .xlsx and .pptx. 65 / 59 MB, checksums in
-`SHA256SUMS`. Built from branch `office` at `29defa16` in the windowed GTK
+`SHA256SUMS`. Built from branch `office` at `534cfd92` (the starling-flock icons, on the
+applications menu) in the windowed GTK
 configuration against the engine's `host_release`, and packaged by
 `build/package-office-gtk.sh` and `build/package-office-flatpak.sh` — the
 second lays out the tree the first staged, so the two carry the same binaries.
