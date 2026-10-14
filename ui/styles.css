@@ -293,17 +293,10 @@ article {
   font-family: ui-monospace, monospace;
   font-size: 27px;
 }
-.writer-icon {
-  background: #2449df;
-  color: #fff;
-}
-.slides-icon {
-  background: #ce4826;
-  color: #fff;
-}
-.sheets-icon {
-  background: #13794d;
-  color: #fff;
+.app-icon.office-app-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 0;
 }
 .desktop-icon {
   background: #b16940;
@@ -1033,6 +1026,10 @@ code {
     width: 48px;
     height: 55px;
     font-size: 30px;
+  }
+  .app-icon.office-app-icon {
+    width: 56px;
+    height: 56px;
   }
   .product-directory {
     padding-inline: 20px;

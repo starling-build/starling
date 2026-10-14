@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Starling Sheets</title>
+  <defs>
+    <linearGradient id="sky" x1="40" y1="20" x2="200" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#164A50"/>
+      <stop offset="1" stop-color="#102A35"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#sky)"/>
+  <rect x="17" y="17" width="222" height="222" rx="47" fill="none" stroke="#8494AE" stroke-opacity=".22" stroke-width="2"/>
+  <!-- A sweeping flock of individual starlings is the shared suite motif. -->
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#DBFFEE" transform="translate(206.1 111.9) rotate(-8.7) scale(1.525)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#63CECC" transform="translate(50.5 120.0) rotate(-22.8) scale(1.324)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#8CE2D5" transform="translate(133.1 39.7) rotate(16.3) scale(1.225)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#B6F3E0" transform="translate(112.9 69.5) rotate(0.2) scale(1.458)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#8CE2D5" transform="translate(101.4 46.4) rotate(5.0) scale(1.478)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#B6F3E0" transform="translate(144.0 74.4) rotate(7.0) scale(1.409)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#B6F3E0" transform="translate(167.8 76.1) rotate(-6.9) scale(1.335)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#8CE2D5" transform="translate(153.8 46.2) rotate(1.0) scale(1.219)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#8CE2D5" transform="translate(94.8 97.1) rotate(-1.0) scale(1.227)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#63CECC" transform="translate(56.1 94.9) rotate(2.1) scale(1.160)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#63CECC" transform="translate(82.8 64.8) rotate(10.7) scale(1.479)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#B6F3E0" transform="translate(183.9 102.1) rotate(-15.3) scale(1.374)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#B6F3E0" transform="translate(187.9 64.0) rotate(-9.8) scale(1.413)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#63CECC" transform="translate(80.9 112.8) rotate(3.1) scale(1.177)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#B6F3E0" transform="translate(203.7 82.9) rotate(-19.4) scale(1.151)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#B6F3E0" transform="translate(129.8 91.0) rotate(-3.8) scale(1.320)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#B6F3E0" transform="translate(162.1 97.3) rotate(5.0) scale(1.564)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#63CECC" transform="translate(66.9 79.9) rotate(-6.5) scale(1.199)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#63CECC" transform="translate(37.6 137.6) rotate(-23.6) scale(1.210)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#B6F3E0" transform="translate(169.0 56.9) rotate(-14.1) scale(1.159)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#8CE2D5" transform="translate(130.6 58.0) rotate(8.9) scale(1.210)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#DBFFEE" transform="translate(217.4 94.4) rotate(-12.7) scale(1.160)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#DBFFEE" transform="translate(198.0 38.0) rotate(-21.7) scale(1.143)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#DBFFEE" transform="translate(216.0 46.0) rotate(-3.5) scale(1.000)"/>
+  <path d="M152 170h48v40h-48Zm24 0v40m-24-20h48" fill="none" stroke="#C6F3DF" stroke-width="5" stroke-linejoin="round"/>
+</svg>

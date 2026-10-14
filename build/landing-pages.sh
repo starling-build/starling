@@ -8,11 +8,12 @@ if [ -e "$OUT" ]; then
     echo "error: output already exists: $OUT (choose a fresh directory)" >&2
     exit 1
 fi
-mkdir -p "$OUT/starling/desktop" "$OUT/office"
+mkdir -p "$OUT/starling/desktop" "$OUT/office/img"
 cp "$ROOT/ui/index.html" "$ROOT/ui/styles.css" "$ROOT/ui/main.js" "$ROOT/ui/CNAME" "$OUT/starling/"
 cp -R "$ROOT/ui/img" "$ROOT/ui/video" "$OUT/starling/"
 cp "$ROOT/ui/desktop/index.html" "$OUT/starling/desktop/"
-cp "$ROOT/ui/openoffice/index.html" "$ROOT/ui/openoffice/favicon.svg" "$ROOT/ui/styles.css" "$OUT/office/"
+cp "$ROOT/ui/openoffice/index.html" "$ROOT/ui/styles.css" "$OUT/office/"
+cp -R "$ROOT/ui/img/office" "$OUT/office/img/"
 cp "$ROOT/ui/openoffice/download.html" "$ROOT/ui/openoffice/download.css" "$ROOT/ui/openoffice/download.js" "$OUT/office/"
 cp -R "$ROOT/ui/openoffice/images" "$OUT/office/"
 printf 'openoffice.starling.build\n' > "$OUT/office/CNAME"
@@ -35,6 +36,9 @@ for site in [root / 'starling', root / 'office']:
             if (site / asset).exists():
                 version = hashlib.sha256((site / asset).read_bytes()).hexdigest()[:12]
                 source = source.replace(f'{asset}"', f'{asset}?v={version}"')
+        for icon in (site / 'img' / 'office').glob('*.svg'):
+            version = hashlib.sha256(icon.read_bytes()).hexdigest()[:12]
+            source = source.replace(f'{icon.name}"', f'{icon.name}?v={version}"')
         for app in ['writer', 'slides', 'sheets']:
             source = source.replace(f'href="apps/{app}/"', f'href="https://{app}.starling.build/"')
             source = source.replace(f'href="openoffice/apps/{app}/"', f'href="https://{app}.starling.build/"')

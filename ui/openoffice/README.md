@@ -7,6 +7,13 @@ the button and the preview open the editor with the pictured example ready to
 edit. There are no PDF or source-file download controls on the landing page.
 The landing itself uses HTML/CSS and needs no JavaScript or WASM runtime.
 
+The landing cards, Office header, and download-page header use the murmuration
+icons in `ui/img/office/`. These are exact copies of the native application
+icons in `build/office-gtk/starling-{writer,slides,sheets}.svg`; update the web
+copies when those designs change. Writer's icon also represents the suite in
+the header and browser tab, matching the desktop bundle. Both site packages
+include the shared icons, with content hashes in their URLs to refresh caches.
+
 Product copy follows `docs/plans/office-overview.md` (2026-10-13): current editing
 features, DOCX/PPTX/XLSX support, compatibility testing, and platform status.
 Compatibility is described as ongoing work, not a guarantee of perfect fidelity.

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Starling Slides</title>
+  <defs>
+    <linearGradient id="sky" x1="40" y1="20" x2="200" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#512B43"/>
+      <stop offset="1" stop-color="#261A30"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#sky)"/>
+  <rect x="17" y="17" width="222" height="222" rx="47" fill="none" stroke="#8494AE" stroke-opacity=".22" stroke-width="2"/>
+  <!-- A sweeping flock of individual starlings is the shared suite motif. -->
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#F5AECC" transform="translate(132.9 89.2) rotate(-2.1) scale(1.504)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFD0E2" transform="translate(201.2 80.4) rotate(-11.3) scale(1.299)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#ED8BB3" transform="translate(52.5 111.8) rotate(-23.1) scale(1.209)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#ED8BB3" transform="translate(85.7 126.0) rotate(11.9) scale(1.476)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFE9F1" transform="translate(174.2 34.9) rotate(-4.7) scale(1.169)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#F5AECC" transform="translate(152.8 53.1) rotate(-10.0) scale(1.277)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFD0E2" transform="translate(173.5 74.7) rotate(7.8) scale(1.263)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#F5AECC" transform="translate(120.5 71.8) rotate(10.7) scale(1.261)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#ED8BB3" transform="translate(90.4 95.1) rotate(5.5) scale(1.368)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFE9F1" transform="translate(196.1 44.5) rotate(0.2) scale(1.457)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#F5AECC" transform="translate(63.5 136.9) rotate(-18.8) scale(1.565)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#F5AECC" transform="translate(108.6 135.6) rotate(5.7) scale(1.274)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFD0E2" transform="translate(124.7 115.2) rotate(-8.4) scale(1.272)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#ED8BB3" transform="translate(35.2 95.4) rotate(-12.7) scale(1.423)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#F5AECC" transform="translate(83.1 146.9) rotate(-3.9) scale(1.296)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#F5AECC" transform="translate(147.9 73.7) rotate(4.5) scale(1.243)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFD0E2" transform="translate(213.9 62.7) rotate(-23.9) scale(1.525)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#ED8BB3" transform="translate(110.8 100.0) rotate(1.3) scale(1.400)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#ED8BB3" transform="translate(70.7 108.6) rotate(-20.0) scale(1.167)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFD0E2" transform="translate(133.1 55.5) rotate(-1.5) scale(1.248)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFD0E2" transform="translate(178.3 56.2) rotate(-6.1) scale(1.240)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#F5AECC" transform="translate(157.9 91.9) rotate(-7.5) scale(1.248)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#F5AECC" transform="translate(155.8 33.5) rotate(-1.3) scale(1.186)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFE9F1" transform="translate(219.6 86.6) rotate(-33.1) scale(1.163)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFD0E2" transform="translate(198.0 38.0) rotate(-16.4) scale(1.143)"/>
+  <path d="M-7-4C-4-4-2-2 0 0 2-3 5-4 7-3L3 2 0 4-3 1Z" fill="#FFE9F1" transform="translate(216.0 46.0) rotate(-4.3) scale(1.000)"/>
+  <path d="M148 171h54v34h-54Zm27 34v10m-13 0h26" fill="none" stroke="#FFE0E8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
