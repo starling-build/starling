@@ -2101,6 +2101,32 @@ fitter dropped the paragraph's tail).
   pages); zh-90e0cea8 keeps its score and runs a page long (that
   drift). Chinese sample 80.8%.
 
+- **On Windows, Chinese text falls back to YaHei (2026-10-14).** Left
+  to the platform, the engine picks a face per run from its first
+  character: a paragraph's ideographs came out in JhengHei UI and a run
+  of a lone "〕" in Yu Gothic UI, whose brackets are half an em, so
+  lines had room Word's have not. `OfficeFonts` now names YaHei after
+  the symbol face, as macOS names PingFang. The Windows box's line
+  match (PyMuPDF, `test/docx-line-match.py`) went from 58.8% to 80.3%
+  on the sample — within a point of the Mac's from then on.
+
+- **An opening mark a line starts with keeps its blank half
+  (2026-10-14).** Without `w:topLinePunct` Word squeezes no opening
+  bracket at a line's start. Lab `ls`, printed by Word for Windows
+  (`test/docx-word-pdf.ps1`) in 宋体 16pt: "（" and 25 ideographs 4 or
+  6pt over break before the last in modes 14 and 15, body and cell,
+  indented or not, exactly as a line with no mark does; zh-6d1afa56's
+  9pt cells left "公" 1.8pt over for the next line where ours let the
+  "《" give. zh-6d1afa56 36.1% -> 41.1%.
+
+- **The mode-15 squeeze test counts the line in its own characters'
+  ems (2026-10-14).** The stretch the marks are weighed against is a
+  sixty-fourth of an em per gap, and was counted at the size of the
+  character being taken. zh-84702a67's 16pt line has twenty characters
+  at 10.5pt, and Word takes "“建" 18.2pt over with ）。、， giving 5.5,
+  5.5, 3.6 and 3.6 — under the line's own sum, over the 16pt one.
+  zh-84702a67 back to 93.3% (the rule above had taken it to 91.1).
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
