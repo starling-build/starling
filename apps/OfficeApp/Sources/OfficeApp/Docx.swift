@@ -1656,6 +1656,10 @@ enum DocxFormat {
         var setup = PageSetup(width: w / 20, height: h / 20)
         setup.orientStated = sz["w:orient"] != nil
         if let t = sect.first("w:titlePg"), !_isOff(t) { setup.titlePage = true }
+        if let num = sect.first("w:pgNumType") {
+            setup.pageNumberStart = Int(num["w:start"] ?? "")
+            setup.pageNumberFormat = num["w:fmt"]
+        }
         if let mar = sect.first("w:pgMar") {
             setup.marginTop = Double(mar["w:top"] ?? "1440").map { abs($0) / 20 } ?? 72
             setup.marginBottom = Double(mar["w:bottom"] ?? "1440").map { abs($0) / 20 } ?? 72

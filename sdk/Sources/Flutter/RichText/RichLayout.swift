@@ -466,6 +466,11 @@ public struct PageSetup: Hashable, Sendable {
     /// Whether the section's first page has a header and footer of its
     /// own (`w:titlePg`). The last section's is `RichDocument.titlePage`.
     public var titlePage = false
+    /// Where the section numbers its pages from (`w:pgNumType w:start`;
+    /// nil: on from the section before) and how (`w:fmt`). The last
+    /// section's are `RichDocument.pageNumberStart`/`pageNumberFormat`.
+    public var pageNumberStart: Int? = nil
+    public var pageNumberFormat: String? = nil
 
     public init(width: Double, height: Double, marginTop: Double = 72,
                 marginBottom: Double = 72, marginLeft: Double = 72,
@@ -5231,8 +5236,8 @@ public final class RichLayout {
     private var _headerFooterSource: [RichHeaderFooter] = []
 
     /// A page number as the document writes them.
-    private func _pageNumber(_ n: Int, _ document: RichDocument) -> String {
-        switch document.pageNumberFormat {
+    private func _pageNumber(_ n: Int, _ document: RichDocument, format: String? = nil) -> String {
+        switch format ?? document.pageNumberFormat {
         case "lowerRoman": return ListNumberFormat.lowerRoman.string(n)
         case "upperRoman": return ListNumberFormat.upperRoman.string(n)
         case "lowerLetter": return ListNumberFormat.lowerLetter.string(n)
@@ -5240,6 +5245,37 @@ public final class RichLayout {
         case "numberInDash": return "- \(n) -"
         default: return String(n)
         }
+    }
+
+    /// Page `p`'s number: on from the page before, unless its section
+    /// starts on it and says where to number from (Word's
+    /// `w:pgNumType w:start` per section — zh-9e08ed28's body is page 1
+    /// after a cover and two pages of contents, which were 8).
+    private func _pageNumberOf(_ p: Int, _ document: RichDocument) -> Int {
+        func start(_ section: (index: Int, last: Bool)) -> Int? {
+            section.last ? document.pageNumberStart
+                : (section.index < _sectionSetups.count ? _sectionSetups[section.index].pageNumberStart : nil)
+        }
+        guard _sectionSetups.count > 1 else { return p + (document.pageNumberStart ?? 1) }
+        var number = 0
+        var previous = -1
+        for q in 0 ... max(0, p) {
+            let section = _headerFooterSection(q)
+            if q == 0 || section.index != previous {
+                number = start(section) ?? (q == 0 ? 1 : number + 1)
+            } else {
+                number += 1
+            }
+            previous = section.index
+        }
+        return number
+    }
+
+    /// How page `p`'s section writes its numbers.
+    private func _pageNumberFormat(_ p: Int, _ document: RichDocument) -> String? {
+        let section = _headerFooterSection(p)
+        if section.last || section.index >= _sectionSetups.count { return document.pageNumberFormat }
+        return _sectionSetups[section.index].pageNumberFormat
     }
 
     /// The section page `p` is of, as `RichHeaderFooter.section` counts
@@ -5269,7 +5305,7 @@ public final class RichLayout {
             _headerFooterCache = [:]
             _headerFooterSource = document.headerFooters
         }
-        let number = p + (document.pageNumberStart ?? 1)
+        let number = _pageNumberOf(p, document)
         let type = _titlePage(p, document) ? "first" : document.evenAndOddHeaders && number % 2 == 0 ? "even" : "default"
         let section = _headerFooterSection(p)
         guard let source = document.headerFooters.first(where: {
@@ -5283,7 +5319,7 @@ public final class RichLayout {
             }
         }
         let setup = pageSetup(forPage: p)
-        let shown = _pageNumber(number, document)
+        let shown = _pageNumber(number, document, format: _pageNumberFormat(p, document))
         let count = String(pageCount ?? self.pageCount)
         let key = "\(kind.rawValue)|\(type)|\(section.index)|\(shown)|\(count)|\(setup.contentWidth)|\(setup.lineGridPitch ?? 0)|\(scale)"
         if let hit = _headerFooterCache[key] { return hit }

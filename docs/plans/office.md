@@ -1943,6 +1943,15 @@ fitter dropped the paragraph's tail).
   there it added two). zh-9e08ed28 19.0% -> 53.0% (22 pages to Word's
   21 now, from later on); nothing else moved. Chinese sample 77.3%.
 
+- **Page numbers restart per section (2026-10-14).** Each section's
+  `w:pgNumType` (`w:start`, `w:fmt`) is read into its page setup; a
+  page's number goes on from the page before unless its section
+  starts on it and says where from, and its section's format writes
+  it. Only the last section's had been read, applied to the whole
+  document: zh-9e08ed28's body said page 8 where Word's says 1.
+  zh-90e0cea8 +2.8, zh-9e08ed28 +3.1, zh-e5709b89 +3.1, zh-6d1afa56
+  +3.6; nothing down. Chinese sample 77.5%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
