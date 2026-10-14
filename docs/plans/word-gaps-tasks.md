@@ -199,10 +199,17 @@ Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 Documents: zh-06c46ba9 (47%, Word's 72 pages).
 Known: page 5's body lines end two characters before Word's.
 Progress (Mac): mirrorIndents parity by `doNotFlipMirrorIndents`
-(5a7f5332), compound cell rules (this commit's sibling); page 5's
-figure is shapes with text in them that ours leaves out.
+(5a7f5332), compound cell rules (91ca3fcf), footnotes laid out
+(c7ffdfc9), an autofit grid wider than its share kept (fc60d952):
+47% -> 74.8%. Page 5's figure is SmartArt (word/diagrams), drawn as an
+empty box; the only such document in the corpus.
 
 Note for the Windows session: on the Mac, 2ffeece2 moved zh-9e08ed28
 from 56.7% to 47.4% (Word's 22 pages: 21 -> 23); the sweep that showed
 it held nothing else that touches that document.
+
+Note for the Windows session (Mac sweep, clean baseline either side):
+62ba13ec + 9491b2ba together moved zh-64044a1d 72.8% -> 67.1% while
+taking zh-9e08ed28 47.4 -> 81.0, zh-e6d54ae4 64.2 -> 82.4 and
+zh-89385c94 53.1 -> 98.9.
 
