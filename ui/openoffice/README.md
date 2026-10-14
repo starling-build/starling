@@ -12,11 +12,20 @@ features, DOCX/PPTX/XLSX support, compatibility testing, and platform status.
 Compatibility is described as ongoing work, not a guarantee of perfect fidelity.
 The browser apps are live. Desktop packages cover macOS Apple silicon, Windows
 x86_64 (portable ZIP), and Linux x86_64 (DEB and Flatpak). Download links in the
-navigation, hero, platforms section, and footer point to the public GitHub
-releases page, which provides published assets and installation instructions.
-Keep that stable destination rather than linking to temporary draft-release
-asset URLs. The sample captions describe the pictured
-files; the capability labels describe the broader apps.
+navigation, hero, platforms section, and footer open `download.html`. It has
+platform icons, direct package links, and installation instructions. A small
+optional script highlights the browser's OS; iPhone, iPad (including desktop
+mode), Android, and ChromeOS instead get a browser-app link. OS detection does
+not assume CPU architecture or a Linux distribution. All platforms remain
+available, including with JavaScript disabled.
+
+Version 0.1.0 downloads currently use immutable public `dist/` URLs at commit
+`f5f0e2760ab29568ba28d15b2d9e5786b9f845d8`, matching the release assets. The GitHub
+release is still a draft; do not use its temporary `untagged-*` asset URLs.
+Once published, these links can move to the versioned release assets. When
+updating downloads, verify all four files, their architecture, size, and install
+instructions. The sample captions describe the pictured files; the capability
+labels describe the broader apps.
 
 ## Local preview
 
@@ -46,7 +55,7 @@ example. Both local preview and `build/web-deploy.sh` use this helper. For
 OfficeApp, the default deployment opens the brief, `--args --slides` opens the
 four-slide presentation, and `--args --sheets` opens the budget.
 
-`build/landing-pages.sh` packages only the landing and preview images. It rewrites
+`build/landing-pages.sh` packages the landing, download page, and preview images. It rewrites
 the local editor links to `writer.starling.build`, `slides.starling.build`, and
 `sheets.starling.build`; generated runtimes and editable files are not included
 in the landing package. Publish updated app builds as well as the landing to

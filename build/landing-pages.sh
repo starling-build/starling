@@ -13,6 +13,7 @@ cp "$ROOT/ui/index.html" "$ROOT/ui/styles.css" "$ROOT/ui/main.js" "$ROOT/ui/CNAM
 cp -R "$ROOT/ui/img" "$ROOT/ui/video" "$OUT/starling/"
 cp "$ROOT/ui/desktop/index.html" "$OUT/starling/desktop/"
 cp "$ROOT/ui/openoffice/index.html" "$ROOT/ui/openoffice/favicon.svg" "$ROOT/ui/styles.css" "$OUT/office/"
+cp "$ROOT/ui/openoffice/download.html" "$ROOT/ui/openoffice/download.css" "$ROOT/ui/openoffice/download.js" "$OUT/office/"
 cp -R "$ROOT/ui/openoffice/images" "$OUT/office/"
 printf 'openoffice.starling.build\n' > "$OUT/office/CNAME"
 touch "$OUT/starling/.nojekyll" "$OUT/office/.nojekyll"
@@ -30,6 +31,10 @@ for site in [root / 'starling', root / 'office']:
         source = html.read_text().replace('styles.css"', f'styles.css?v={css}"')
         if js:
             source = source.replace('main.js"', f'main.js?v={js}"')
+        for asset in ['download.css', 'download.js']:
+            if (site / asset).exists():
+                version = hashlib.sha256((site / asset).read_bytes()).hexdigest()[:12]
+                source = source.replace(f'{asset}"', f'{asset}?v={version}"')
         for app in ['writer', 'slides', 'sheets']:
             source = source.replace(f'href="apps/{app}/"', f'href="https://{app}.starling.build/"')
             source = source.replace(f'href="openoffice/apps/{app}/"', f'href="https://{app}.starling.build/"')

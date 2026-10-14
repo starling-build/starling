@@ -1,0 +1,100 @@
+.download-hero h1 {
+  font-size: clamp(44px, 5.5vw, 76px);
+}
+.download-hero .hero-note {
+  max-width: 720px;
+  margin-bottom: 0;
+}
+#browser-option {
+  margin-top: 24px;
+}
+.download-section {
+  padding-block: 56px;
+}
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  align-items: stretch;
+}
+.download-card {
+  position: relative;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 52px 28px 28px;
+  background: #fff;
+  font-size: 16px;
+}
+.download-card[data-detected] {
+  border-color: var(--accent);
+  box-shadow: 0 8px 28px #2941bd12;
+}
+.download-match {
+  position: absolute;
+  top: 16px;
+  left: 28px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.platform-icon {
+  display: block;
+  width: 52px;
+  height: 52px;
+  fill: currentColor;
+  margin-bottom: 24px;
+}
+.download-card h2 {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+.download-meta {
+  font-size: 14px;
+  color: var(--muted);
+}
+.download-buttons {
+  display: grid;
+  gap: 12px;
+  margin-block: 28px;
+}
+.download-buttons .button {
+  gap: 10px;
+  padding-inline: 12px;
+  font-size: 15px;
+}
+.download-buttons svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.download-card > :last-child {
+  margin-bottom: 0;
+}
+.download-footnote {
+  margin: 24px 0 0;
+}
+.download-install {
+  align-items: start;
+}
+.download-install h2 {
+  font-size: 32px;
+}
+.download-install pre {
+  padding: 20px;
+  background: #e8ecf6;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+@media (max-width: 1050px) {
+  .download-grid {
+    grid-template-columns: 1fr;
+  }
+}
