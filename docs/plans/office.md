@@ -1985,6 +1985,15 @@ fitter dropped the paragraph's tail).
   it went to the next line where Word keeps it. zh-a4b0f6ea 60.8% ->
   71.9%; nothing else moved. Chinese sample 78.4%.
 
+- **A paragraph's space after stays at the page's foot (2026-10-14).**
+  Where a paragraph's last line fits a page and its space after does
+  not, pagination had cut under the line and carried the space to the
+  next page's top, setting what followed that much low: zh-a4b0f6ea's
+  page 8 heading 8pt below Word's. Word leaves the space behind.
+  zh-a4b0f6ea 71.9% -> 78.4%, zh-c3dd22c4 94.5 -> 100, zh-6d1afa56
+  +0.9 (a page nearer Word's count), and in the POI set Bug51170 16.2
+  -> 32.5; nothing down. Chinese sample 78.6%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

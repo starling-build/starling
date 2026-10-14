@@ -2283,6 +2283,16 @@ public final class RichLayout {
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: cut,
                                                   page: page, pageY: y))
                     cursor = cut
+                    // (Where the cut is under the paragraph's last line,
+                    // what is left is its space after: Word leaves that at
+                    // the page's foot, and the next page starts with the
+                    // next paragraph — carried over, it set zh-a4b0f6ea's
+                    // page 8 heading 8pt low.)
+                    if theme.wordRules, let lastLine = cuts!.last, cut >= lastLine - 0.01 {
+                        cursor = bottom
+                        y = contentH
+                        break
+                    }
                     newPage()
                 } else if y > 0.01 {
                     // Nothing fits in what is left of this page: start a new one.
