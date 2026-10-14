@@ -1931,6 +1931,18 @@ fitter dropped the paragraph's tail).
   Word's to the point (the loss is drift elsewhere in it). Chinese
   sample 76.8%, 57 with Word's page count; POI unchanged.
 
+- **A lone page break's mark holds its page before 2013's layout
+  (2026-10-14).** zh-9e08ed28 (mode 14) has, after its contents page,
+  a paragraph of nothing but a page break, then an empty paragraph
+  ending a section, then another. Word leaves page 4 blank but for the
+  break's paragraph mark and starts the body on page 5; the reader
+  folds the break into the zero-height section end, the page counted
+  as empty, and the body began on page 4. The folded mark now holds the
+  page. Not from mode 15 on, where the mark stays on the break's line:
+  zh-ae655121 has the same three paragraphs and no blank page (applied
+  there it added two). zh-9e08ed28 19.0% -> 53.0% (22 pages to Word's
+  21 now, from later on); nothing else moved. Chinese sample 77.3%.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

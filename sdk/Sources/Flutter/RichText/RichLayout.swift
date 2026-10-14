@@ -1642,9 +1642,14 @@ public final class RichLayout {
         // The paragraphs of nothing but floating pictures set on this
         // page since the last with text (`_anchorsOnly`).
         var anchorRun: [Int] = []
+        // A break character's paragraph mark stands on the page it opens,
+        // even where the reader folded that paragraph into the next one
+        // of no height (`breakEndsPrevious`): the page is not empty.
+        var markOnPage = false
         func newPage() {
             bands.removeAll()
             anchorRun.removeAll()
+            markOnPage = false
             var fresh: [PagePiece] = []
             fresh.reserveCapacity(32)
             _pages.append(fresh)
@@ -2050,8 +2055,19 @@ public final class RichLayout {
             let bottom = top + _heights[i]
             // (One of no height takes its place on the page all the same.)
             if bottom - top < 0.01 { pageFresh = false }
-            if _pageBreak[i] && (y > 0 || !_pages[page].isEmpty) && resumeCursor == nil {
+            if _pageBreak[i] && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
                 newPage()
+            }
+            // (zh-9e08ed28, mode 14: a page break alone in its paragraph,
+            // then a section's end, then another: Word leaves the page the
+            // break opens blank but for that mark, and starts the next
+            // section on the page after — the body began a page early.
+            // From 2013's layout on the mark stays on the break's line:
+            // zh-ae655121, mode 15, has no blank page there.)
+            if theme.wordRules, (document.compatibilityMode ?? 12) < 15,
+               bottom - top < 0.01, _pageBreak[i], document.paragraphs[i].style.breakEndsPrevious,
+               document.paragraphs[i].style.sectionBreaksPage == true {
+                markOnPage = true
             }
             // Kept with what follows (Word's `w:keepNext`, a heading's):
             // this paragraph, any kept run after it, and the start of
