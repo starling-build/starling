@@ -2,6 +2,7 @@
 #
 #   tools\stage-windows.ps1 -PackagePath ..\apps\TerminalApp -Product TerminalApp
 #                           [-Out C:\dist\TerminalApp] [-Configuration release] [-Zip]
+#                           [-Icon ..uild\win\Office.ico]
 #
 # This is the single definition of the Windows app layout, the counterpart of
 # build/stage.sh on Linux. Change assembly HERE, never in a packaging step that
@@ -35,6 +36,7 @@ param(
     [string]$Out = '',
     [string]$EngineOut = '',
     [string]$SwiftRuntime = '',
+    [string]$Icon = '',
     [switch]$Zip
 )
 $ErrorActionPreference = 'Stop'
@@ -112,6 +114,54 @@ Remove-Item $Out -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $Out -Force | Out-Null
 
 Copy-Item (Join-Path $build "$Product.exe") $Out -Force
+
+# -Icon FILE.ico: the icon goes INTO the staged exe, as resource 1. SwiftPM
+# has no resource-script step on Windows, so there is nothing at build time
+# to give an exe an icon; the staged copy is edited instead (the build's own
+# exe is left as it was). Explorer shows the first icon group of a file, and
+# FlutterWin32's window class loads resource 1 for the title bar and the
+# taskbar button, so one .ico covers all three. build/tools/svg-ico.py makes
+# the .ico from an SVG.
+if ($Icon) {
+    if (-not (Test-Path $Icon)) { throw "stage-windows: no icon at $Icon" }
+    Add-Type -Namespace StageWin -Name Res -MemberDefinition @'
+[DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+public static extern IntPtr BeginUpdateResourceW(string file, bool deleteExisting);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool UpdateResourceW(IntPtr handle, IntPtr type, IntPtr name, ushort lang, byte[] data, uint size);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool EndUpdateResourceW(IntPtr handle, bool discard);
+'@
+    $ico = [IO.File]::ReadAllBytes((Resolve-Path $Icon).Path)
+    $count = [BitConverter]::ToUInt16($ico, 4)
+    if ([BitConverter]::ToUInt16($ico, 2) -ne 1 -or $count -lt 1) { throw "stage-windows: $Icon is not an .ico" }
+    $exe = Join-Path $Out "$Product.exe"
+    $h = [StageWin.Res]::BeginUpdateResourceW($exe, $false)
+    if ($h -eq [IntPtr]::Zero) { throw "stage-windows: cannot open $exe for its icon" }
+    # RT_GROUP_ICON's directory is the file's with a resource id where the
+    # file has an offset: 6 bytes of header, then 14 per image instead of 16.
+    $group = New-Object IO.MemoryStream
+    $group.Write($ico, 0, 6)
+    $ok = $true
+    for ($i = 0; $i -lt $count; $i++) {
+        $entry = 6 + 16 * $i
+        $size = [BitConverter]::ToUInt32($ico, $entry + 8)
+        $offset = [BitConverter]::ToUInt32($ico, $entry + 12)
+        $image = New-Object byte[] $size
+        [Array]::Copy($ico, $offset, $image, 0, $size)
+        # RT_ICON = 3, one resource per image, ids from 1.
+        $ok = $ok -and [StageWin.Res]::UpdateResourceW($h, [IntPtr]3, [IntPtr]($i + 1), 0, $image, $size)
+        $group.Write($ico, $entry, 12)
+        $group.Write([BitConverter]::GetBytes([uint16]($i + 1)), 0, 2)
+    }
+    $bytes = $group.ToArray()
+    # RT_GROUP_ICON = 14, as resource 1.
+    $ok = $ok -and [StageWin.Res]::UpdateResourceW($h, [IntPtr]14, [IntPtr]1, 0, $bytes, $bytes.Length)
+    if (-not [StageWin.Res]::EndUpdateResourceW($h, (-not $ok)) -or -not $ok) {
+        throw "stage-windows: could not write the icon into $exe"
+    }
+    Write-Host ("  icon {0} ({1} sizes) into {2}.exe" -f (Split-Path -Leaf $Icon), $count, $Product)
+}
 Get-ChildItem $build -Directory -Filter '*.resources' | ForEach-Object {
     Copy-Item $_.FullName $Out -Recurse -Force
 }

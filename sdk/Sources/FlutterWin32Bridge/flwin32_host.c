@@ -870,6 +870,18 @@ FlWin32Host* flwin32_host_create(const char* title,
   wc.lpfnWndProc = host_wnd_proc;
   wc.hInstance = instance;
   wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
+  // The exe's own icon, if it carries one (resource 1, which is what
+  // tools/stage-windows.ps1 -Icon writes and what Explorer shows for the
+  // file): without it on the class, the title bar and the taskbar button
+  // show the generic application icon even when the file has a proper one.
+  // An exe with no icon resource gets NULL from both calls, and the default.
+  HMODULE exe = GetModuleHandleW(NULL);
+  wc.hIcon = (HICON)LoadImageW(exe, MAKEINTRESOURCEW(1), IMAGE_ICON,
+                               GetSystemMetrics(SM_CXICON),
+                               GetSystemMetrics(SM_CYICON), LR_SHARED);
+  wc.hIconSm = (HICON)LoadImageW(exe, MAKEINTRESOURCEW(1), IMAGE_ICON,
+                                 GetSystemMetrics(SM_CXSMICON),
+                                 GetSystemMetrics(SM_CYSMICON), LR_SHARED);
   // BLACK, not COLOR_WINDOW, and this is user-visible.
   //
   // The class brush is what Windows paints over any part of the window that
