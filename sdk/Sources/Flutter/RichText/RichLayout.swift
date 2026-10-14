@@ -620,6 +620,8 @@ public final class RichLayout {
     /// How far pagination moved a floating picture to the right, clear of
     /// one already on its page (by image id; `_paginate`).
     private var _floatShift: [String: Double] = [:]
+    /// A text box's width where it takes its text's (`RichTextBox.fitsText`).
+    private var _fitWidths: [String: Double] = [:]
     /// Whether the page this layout is drawn for is a left-hand (even)
     /// one: a header's or footer's, where an object aligned "outside"
     /// stands at the left.
@@ -5108,6 +5110,7 @@ public final class RichLayout {
                     // A floating object, from its paragraph by its place:
                     // a picture, or a text box's text; one that cannot
                     // be drawn is left out.
+                    if image.textBox?.fitsText == true { _ = _textBox(image, document) }
                     rect = _floatRect(float, image, g, i)
                     if _decoded[image.id] == nil {
                         _paintOutline(image, rect, canvas)
@@ -5198,6 +5201,22 @@ public final class RichLayout {
         layout.scale = scale
         layout.width = max(1, _px(image.width - box.insetLeft - box.insetRight))
         layout.ensureLaidOut(sub)
+        // (A box that takes its text's width: as wide as its longest
+        // line — zh-1a3c7aa0's footer page number, in a 144pt box set
+        // to fit its text and centred, stands at the page's middle in
+        // Word's print, where the whole box centred put it 65pt left.)
+        if box.fitsText {
+            var natural = 0.0
+            for k in 0 ..< sub.paragraphs.count {
+                let painter = layout.geometry(k).painter
+                for line in painter.computeLineMetrics() { natural = max(natural, line.width + (layout.geometry(k).textLeft)) }
+            }
+            if natural > 0, natural < layout.width - 0.5 {
+                layout.width = natural.rounded(.up) + 1
+                layout.ensureLaidOut(sub)
+            }
+            _fitWidths["\(image.id)|\(box.hashValue)"] = layout.width + _px(box.insetLeft + box.insetRight)
+        }
         let made = _HeaderFooter(layout: layout, document: sub)
         if _textBoxCache.count > 256 { _textBoxCache.removeAll() }
         _textBoxCache[key] = made
@@ -5209,7 +5228,7 @@ public final class RichLayout {
     /// or the paragraph, or set left, centre or right in the column (or
     /// the page, where `frameMargins` says how far that reaches).
     private func _floatRect(_ float: ImageFloat, _ image: ImageAttachment, _ g: ParagraphGeometry, _ i: Int) -> Rect {
-        let w = _px(image.width), h = _px(image.height)
+        let w = min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity), h = _px(image.height)
         // The band it is placed in, from the paragraph's column edge.
         let column = _flowWidth(i)
         var bandLeft = g.textLeft - _textLeftInColumn(i), bandWidth = column

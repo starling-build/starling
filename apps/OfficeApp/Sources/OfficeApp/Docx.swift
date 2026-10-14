@@ -2192,11 +2192,15 @@ enum DocxFormat {
                 if inside.contains(where: { !$0.text.isEmpty }) {
                     var box = RichTextBox(paragraphs: inside)
                     if let body = node.descendant("wps:bodyPr") {
+                        box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         if let v = Double(body["lIns"] ?? "") { box.insetLeft = v / 12700 }
                         if let v = Double(body["tIns"] ?? "") { box.insetTop = v / 12700 }
                         if let v = Double(body["rIns"] ?? "") { box.insetRight = v / 12700 }
                         if let v = Double(body["bIns"] ?? "") { box.insetBottom = v / 12700 }
-                    } else if let inset = node.descendant("v:textbox")?["inset"] {
+                    } else if let textbox = node.descendant("v:textbox"), let inset = textbox["inset"] {
+                        let shapeStyle = (node.name == "v:shape" ? node : node.descendant("v:shape"))?["style"] ?? ""
+                        box.fitsText = shapeStyle.containsSubstring("mso-wrap-style:none")
+                            && (textbox["style"] ?? "").containsSubstring("mso-fit-shape-to-text:t")
                         let parts = inset.split(separator: ",", omittingEmptySubsequences: false).map { _length(String($0).trimmingWhitespace()) }
                         if parts.count > 0, let v = parts[0] { box.insetLeft = v }
                         if parts.count > 1, let v = parts[1] { box.insetTop = v }

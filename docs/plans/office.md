@@ -2003,8 +2003,7 @@ fitter dropped the paragraph's tail).
   (`RichLayout.leftHandPage`, set per page number); a body object
   aligned so is laid out once and keeps the odd side. Not done: that
   box is `wrap="none"` with `spAutoFit`, which Word shrinks to its text
-  before aligning it, so on odd pages ours still stands 94pt left of
-  Word's. No line score moved.
+  before aligning it — done the same day, below.
 
 - **From 2013's layout on, a justified line's spaces give a quarter of
   themselves (2026-10-14).** Lab `js` (`body50.py`, in zh-4b8e0abc's
@@ -2038,6 +2037,17 @@ fitter dropped the paragraph's tail).
   tallest run's strut, used so far for one-line paragraphs only, now
   holds every line of a gridded paragraph. zh-64044a1d 20.9% -> 27.1%,
   zh-15728c84 81.3 -> 89.4; nothing down. Chinese sample 79.6%.
+
+- **A text box set to fit its text takes the text's width (2026-10-14).**
+  `wrap="none"` with `a:spAutoFit` (VML: `mso-wrap-style:none` with
+  `mso-fit-shape-to-text:t`): Word shrinks the box to its longest line
+  and then places it. zh-1a3c7aa0's page numbers sit in a 144pt box
+  centred on the margin, and stand at the page's middle in Word's print
+  (x 291) where ours centred the whole box (226); zh-a4b0f6ea's, aligned
+  outside, now stand 472/80 as Word's. `RichTextBox.fitsText`,
+  measured per filled box (`_fitWidths`, keyed by its content: page 1's
+  "-1-" is narrower than page 11's). Footers on zh-1a3c7aa0's odd pages
+  still stand 8pt low. No line score moved (the match counts heights).
 
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

@@ -238,6 +238,10 @@ public struct RichTextBox: Hashable, Sendable {
     public var insetTop = 3.6
     public var insetRight = 7.2
     public var insetBottom = 3.6
+    /// The box takes its text's width (`wrap="none"` with `spAutoFit`,
+    /// or VML's `mso-wrap-style:none` with `mso-fit-shape-to-text`):
+    /// Word shrinks it to the text before it places it.
+    public var fitsText = false
     public init(paragraphs: [RichParagraph]) { self.paragraphs = paragraphs }
 }
 
