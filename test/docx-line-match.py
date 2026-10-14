@@ -17,8 +17,9 @@ it drops at the first paragraph that does not — which is what to fix next.
     test/docx-line-match.py ~/starling-doc-check/app zh-3550    # one: where it first parts from Word
     test/docx-line-match.py ~/starling-doc-check/app zh-3550 30 # … and 30 lines from there
 
-Needs a Mac (PDFKit reads the lines: test/pdf-text.swift, compiled into
-WORK on first use). Compatibility forms are folded (NFKC), since a PDF's
+On a Mac PDFKit reads the lines (test/pdf-text.swift, compiled into WORK on
+first use); anywhere else PyMuPDF does, into the same rows — so compare
+scores from the same kind of machine, as with the page diff. Compatibility forms are folded (NFKC), since a PDF's
 text names the glyph and the two sides' fonts name some ideographs apart.
 """
 import os
@@ -31,8 +32,27 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WORD = os.path.join(HERE, "corpus", "docx", "word")
 
 
+def mupdf_text(pdf):
+    """pdf-text.swift's rows from PyMuPDF: "p<page> <y> <x> <text>", y up
+    from the page's foot to the line's bottom, spaces dropped."""
+    import pymupdf
+    out = []
+    with pymupdf.open(pdf) as d:
+        for i, page in enumerate(d):
+            h = page.rect.height
+            for b in page.get_text("dict")["blocks"]:
+                for l in b.get("lines", []):
+                    t = "".join(s["text"] for s in l["spans"]).replace(" ", "")
+                    x0, _, _, y1 = l["bbox"]
+                    out.append(f"p{i + 1}	{round(h - y1)}	{round(x0)}	{t}")
+    return out
+
+
 def lines(tool, pdf):
-    out = subprocess.run([tool, pdf], capture_output=True, text=True).stdout.splitlines()
+    if tool:
+        out = subprocess.run([tool, pdf], capture_output=True, text=True).stdout.splitlines()
+    else:
+        out = mupdf_text(pdf)
     rows = []
     for l in out:
         p = l.split("\t")
@@ -80,11 +100,12 @@ def main():
     if len(sys.argv) < 2:
         print(__doc__)
         return 2
+    sys.stdout.reconfigure(encoding="utf-8")  # (a Windows console's code page has no ideographs)
     work = os.path.expanduser(sys.argv[1])
     key = sys.argv[2] if len(sys.argv) > 2 else None
     count = int(sys.argv[3]) if len(sys.argv) > 3 else 12
-    tool = os.path.join(work, "pdf-text")
-    if not os.access(tool, os.X_OK):
+    tool = os.path.join(work, "pdf-text") if sys.platform == "darwin" else None
+    if tool and not os.access(tool, os.X_OK):
         subprocess.run(["swiftc", "-O", "-o", tool, os.path.join(HERE, "pdf-text.swift")], check=True)
     results = []
     for f in sorted(os.listdir(os.path.join(work, "pdf"))):
