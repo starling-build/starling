@@ -17,8 +17,8 @@ the header and browser tab, matching the desktop bundle. Both site packages
 include the shared icons, with content hashes in their URLs to refresh caches.
 
 Product copy follows `docs/plans/office-overview.md` (2026-10-13): current editing
-features, DOCX/PPTX/XLSX support, compatibility testing, and platform status.
-Compatibility is described as ongoing work, not a guarantee of perfect fidelity.
+features, DOCX/PPTX/XLSX support, and platform status. File formats are mentioned
+in the suite introduction rather than in a separate compatibility section.
 The browser apps are live. Desktop packages cover macOS Apple silicon, Windows
 x86_64 (portable ZIP), and Linux x86_64 (DEB and Flatpak). Download links in the
 navigation, hero, platforms section, and footer open `download.html`. It has
