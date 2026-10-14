@@ -4038,6 +4038,7 @@ public final class RichLayout {
         var spaces: [Int] = []  // this line's characters with an automatic space after them
         var opening = true      // nothing on the line yet
         var lineWide = 0        // this line's characters, and whether it has spaces among them
+        var lineEms = 0.0       // … and their ems, summed
         var lineOther = false
         var lineSpaced = false  // … or ends, so far, with one
         var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
@@ -4183,7 +4184,12 @@ public final class RichLayout {
                     // known to the point.)
                     let taken = modern
                         ? (!lineOther && lineWide > 1 && room > 0 && hang == 0
-? need * Double(lineWide - 1) * em / 64 <= room * (width - x + hair)
+                            // (A sixty-fourth of each gap's em: of the line's
+                            // characters as they are sized. zh-84702a67 sets
+                            // twenty of a 16pt line's 33 at 10.5pt, and Word
+                            // takes "“建" 18.2 over with four marks giving
+                            // 26.5 — over by the 16pt sum, under by theirs.)
+                            ? need * lineEms * Double(lineWide - 1) / Double(lineWide) / 64 <= room * (width - x + hair)
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)
@@ -4231,7 +4237,7 @@ public final class RichLayout {
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; opening = true; lineWide = 0; lineOther = false; lineSpaced = false }
+                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false }
                     continue
                 }
             }
@@ -4241,6 +4247,7 @@ public final class RichLayout {
                 spaces = []
                 wordSpaces = []
                 lineWide = 0
+                lineEms = 0
                 lineOther = false
                 lineSpaced = false
             }
@@ -4258,7 +4265,7 @@ public final class RichLayout {
             // (Spaces a line opens with are no characters of it, and
             // those it ends with stretch nothing.)
             for k in a ..< last {
-                if isSpace(units[k]) { if lineWide > 0 { lineOther = true } } else { lineWide += 1 }
+                if isSpace(units[k]) { if lineWide > 0 { lineOther = true } } else { lineWide += 1; lineEms += ems[k] }
             }
             if last < piece.b, lineWide > 0 { lineSpaced = true }
             x += w + piece.trail
@@ -4279,6 +4286,7 @@ public final class RichLayout {
                 wordSpaces = []
                 opening = true
                 lineWide = 0
+                lineEms = 0
                 lineOther = false
                 lineSpaced = false
             }
