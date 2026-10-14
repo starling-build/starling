@@ -113,7 +113,7 @@ Known: break-led headings came out at three different heights — likely
 the T4 rule (re-check after it); in
 zh-1a3c7aa0 the second (landscape) section starts pages earlier than in
 Word, and the odd-page footer stands 8pt lower than Word's.
-Progress (Windows box): zh-6d1afa56 16% -> 97.9% (line-opening marks,
+Progress (Windows box), paused for T13: zh-6d1afa56 16% -> 97.9% (line-opening marks,
 merged cells over a page foot, the blank page after an over-full page,
 with T4's rule); zh-1a3c7aa0 10% -> 29% (YaHei fallback, its footer's
 height, the odd/even blank page, the section mark's own page). Still
@@ -180,3 +180,8 @@ point, below what our widths match Word's to: probably Word measures in
 twentieths (the indent as 586 twips, not 2 × 14.646). Not worth chasing
 without a model of Word's rounding.
 
+### T13. zh-89385c94: cell lines and a page's foot
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-14
+Documents: zh-89385c94 (16% on Windows).
+Known: page 2's cells take "考，" on a line Word ends a character
+earlier, and the page's foot holds one line more than Word's.
