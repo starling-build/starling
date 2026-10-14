@@ -1994,6 +1994,18 @@ fitter dropped the paragraph's tail).
   +0.9 (a page nearer Word's count), and in the POI set Bug51170 16.2
   -> 32.5; nothing down. Chinese sample 78.6%.
 
+- **"Outside" and "inside" follow the page (2026-10-14).** An object
+  aligned `outside` stands at the page's outer edge — the right on an
+  odd page, the left on an even one — and `inside` at the other; ours
+  took them as right and left on every page. zh-a4b0f6ea's footers
+  hold the page number in a text box aligned outside: page 10's now
+  stands at the left, as in Word's print. Done for headers and footers
+  (`RichLayout.leftHandPage`, set per page number); a body object
+  aligned so is laid out once and keeps the odd side. Not done: that
+  box is `wrap="none"` with `spAutoFit`, which Word shrinks to its text
+  before aligning it, so on odd pages ours still stands 94pt left of
+  Word's. No line score moved.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

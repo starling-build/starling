@@ -620,6 +620,10 @@ public final class RichLayout {
     /// How far pagination moved a floating picture to the right, clear of
     /// one already on its page (by image id; `_paginate`).
     private var _floatShift: [String: Double] = [:]
+    /// Whether the page this layout is drawn for is a left-hand (even)
+    /// one: a header's or footer's, where an object aligned "outside"
+    /// stands at the left.
+    public var leftHandPage = false
     /// … and up, where its paragraph's line was moved down under the
     /// pictures and the picture stays where the paragraph first stood.
     private var _floatShiftY: [String: Double] = [:]
@@ -5184,10 +5188,16 @@ public final class RichLayout {
             bandWidth += _px(margins.0 + margins.1)
         }
         var x: Double
-        switch float.horizontalAlign {
+        // ("Outside" is the page's outer edge — the right on an odd page,
+        // the left on an even one — and "inside" the other: zh-a4b0f6ea's
+        // page numbers, in a box aligned outside, stand left on page 10
+        // and right on 11 in Word's print.)
+        let outside = leftHandPage ? "left" : "right", inside = leftHandPage ? "right" : "left"
+        let align = float.horizontalAlign == "outside" ? outside : float.horizontalAlign == "inside" ? inside : float.horizontalAlign
+        switch align {
         case "center": x = bandLeft + (bandWidth - w) / 2
-        case "right", "outside": x = bandLeft + bandWidth - w
-        case "left", "inside": x = bandLeft
+        case "right": x = bandLeft + bandWidth - w
+        case "left": x = bandLeft
         default: x = bandLeft + _px(float.x)
         }
         if float.horizontalAlign == nil, float.horizontalFrom == "character" { x = g.textLeft + _px(float.x) }
@@ -5348,7 +5358,7 @@ public final class RichLayout {
         let setup = pageSetup(forPage: p)
         let shown = _pageNumber(number, document, format: _pageNumberFormat(p, document))
         let count = String(pageCount ?? self.pageCount)
-        let key = "\(kind.rawValue)|\(type)|\(section.index)|\(shown)|\(count)|\(setup.contentWidth)|\(setup.lineGridPitch ?? 0)|\(scale)"
+        let key = "\(kind.rawValue)|\(type)|\(section.index)|\(shown)|\(number % 2)|\(count)|\(setup.contentWidth)|\(setup.lineGridPitch ?? 0)|\(scale)"
         if let hit = _headerFooterCache[key] { return hit }
         // The paragraphs with this page's number and the count in their
         // fields — and those of the text boxes among them, where a page
@@ -5415,6 +5425,7 @@ public final class RichLayout {
         layout.scale = scale
         layout.floatsFrames = true
         layout.frameMargins = (setup.marginLeft + setup.gutter, setup.marginRight)
+        layout.leftHandPage = number % 2 == 0
         layout.width = _px(setup.contentWidth)
         layout.ensureLaidOut(sub)
         let made = _HeaderFooter(layout: layout, document: sub)
