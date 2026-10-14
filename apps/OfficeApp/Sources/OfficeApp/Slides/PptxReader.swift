@@ -1180,6 +1180,7 @@ private struct SlideContext {
                 }
             }
         }
+        var inheritedDash: String? = nil
         if ph != nil, spPr?.first("a:ln") == nil, style?.first("a:lnRef") == nil {
             for node in [inherited.layout, inherited.master] {
                 guard let ln = node?.first("p:spPr")?.first("a:ln") else { continue }
@@ -1187,6 +1188,9 @@ private struct SlideContext {
                 if let f = ln.first("a:solidFill") {
                     outline = colors.color(in: f)
                     outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? outlineWidth
+                    // And its dash (ShapeLineProperties' title, dotted by
+                    // its layout).
+                    inheritedDash = PptxReader.dash(ln)
                 }
                 break
             }
@@ -1213,7 +1217,7 @@ private struct SlideContext {
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
-        st.outlineDash = PptxReader.dash(spPr?.first("a:ln"))
+        st.outlineDash = PptxReader.dash(spPr?.first("a:ln")) ?? inheritedDash
         st.fillStyle = fillStyle
         if let o = spPr?.first("a:effectLst")?.first("a:fillOverlay"),
            var base = fillStyle ?? fill.map({ SlideFill(color: $0) }) {
