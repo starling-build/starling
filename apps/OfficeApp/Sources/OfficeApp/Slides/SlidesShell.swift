@@ -84,6 +84,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private let _thumbScroll = ScrollController()
     private var _thumbShown = -1
     private var _thumbRetries = 0
+    private var _f5Token: Int? = nil
     private let _sorterScroll = ScrollController()
     private var _sorterShown = -1
     private var _sorterPosition: ObjectIdentifier? = nil
@@ -159,6 +160,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _search.dispose()
         _thumbScroll.dispose()
         _sorterScroll.dispose()
+        if let token = _f5Token { FocusManager.instance.removeKeyInterceptor(token) }
         super.dispose()
     }
 
@@ -172,6 +174,20 @@ final class SlidesShellState: State<StatefulWidget> {
             return self._deckFocus
         }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
+        // F5 starts the show wherever the keyboard is — in a title being
+        // typed, the notes, a field — not only when the deck itself has it
+        // (PowerPoint's F5 does not care what you were doing). Taken ahead
+        // of the focused node; the deck's own F5 below stays for its Shift
+        // and Alt forms.
+        if let token = _f5Token { FocusManager.instance.removeKeyInterceptor(token) }
+        _f5Token = FocusManager.instance.addKeyInterceptor { [weak self] key in
+            guard let self, self.mounted, key.type == .down,
+                  KeyChordTracker.named(key.logical) == .function(5),
+                  self._backstage == nil, self._show == nil, !self._headerFooter,
+                  FocusManager.instance.focusedNode !== self._deckFocus else { return false }
+            self._startShow(at: 0)
+            return true
+        }
         session.onNewKind = { [weak self] kind in
             guard let self else { return }
             if kind == .presentation { self._newDeck() } else { self._w.onSwitch(kind, nil) }
