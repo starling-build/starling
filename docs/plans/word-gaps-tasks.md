@@ -89,7 +89,7 @@ one column count for the whole document (`pageSetup.columns`, slots of
 `page * columns`). A larger change to pagination.
 
 ### T3. `w:mirrorIndents`
-Owner: —
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 Documents: zh-06c46ba9 (0.7%, 687 paragraphs), one more in the sample.
 Known (`office.md`): on odd pages the left and right indents swap, with
 the first line's indent moving to the right. The indent depends on the
