@@ -113,7 +113,12 @@ Known: break-led headings came out at three different heights — likely
 the T4 rule (re-check after it); in
 zh-1a3c7aa0 the second (landscape) section starts pages earlier than in
 Word, and the odd-page footer stands 8pt lower than Word's.
-Progress (Windows box), paused for T13: zh-6d1afa56 16% -> 97.9% (line-opening marks,
+Note for the Mac session (parted rows are yours): zh-1a3c7aa0 page 14's
+last row parts over the page with its centred name cell's first line
+on 14; Word's part is 40pt (156.8 to 116.9) with that line centred in
+it, ours runs to the page's foot with the line at the part's top, 4pt
+high. c2542ff6 covers a cell whose text all fits; this one's does not.
+Progress (Windows box): zh-6d1afa56 16% -> 97.9% (line-opening marks,
 merged cells over a page foot, the blank page after an over-full page,
 with T4's rule); zh-1a3c7aa0 10% -> 29% (YaHei fallback, its footer's
 height, the odd/even blank page, the section mark's own page). Still

@@ -42,7 +42,9 @@ def mupdf_text(pdf):
             h = page.rect.height
             for b in page.get_text("dict")["blocks"]:
                 for l in b.get("lines", []):
-                    t = "".join(s["text"] for s in l["spans"]).replace(" ", "")
+                    # (Every space, a no-break one too: the page's text
+                    # names what a print set there, and ours sets some.)
+                    t = "".join(c for s in l["spans"] for c in s["text"] if not c.isspace())
                     x0, _, _, y1 = l["bbox"]
                     out.append(f"p{i + 1}	{round(h - y1)}	{round(x0)}	{t}")
     return out
