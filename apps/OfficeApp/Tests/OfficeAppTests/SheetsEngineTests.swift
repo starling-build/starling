@@ -387,6 +387,13 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(c.input(CellAddress("A2")!), "12:30:00 PM")
     }
 
+    func testALineBreakTurnsWrapOn() {
+        let c = book(["A1": "first\nsecond", "A2": "one line"])
+        XCTAssertTrue(c.style(at: CellAddress("A1")!).wrap)
+        XCTAssertFalse(c.style(at: CellAddress("A2")!).wrap)
+        XCTAssertEqual(v(c, "A1"), .text("first\nsecond"))
+    }
+
     func testCtrlArrowEdges() {
         let c = book(["A1": "1", "A2": "2", "A3": "3", "A6": "6"])
         XCTAssertEqual(c.edge(from: CellAddress("A1")!, rows: 1, cols: 0), CellAddress("A3"))

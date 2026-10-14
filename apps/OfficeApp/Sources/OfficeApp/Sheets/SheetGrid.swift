@@ -843,6 +843,28 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let named = KeyChordTracker.named(k.logical)
         let c = controller
 
+        // ⌃; today's date, ⌃⇧; the time, typed into the cell as Excel puts
+        // them (the editor opens with it, as if typed).
+        if _chords.control || _chords.primary, k.logical == 0x3B || k.logical == 0x3A {
+            let now = ExcelDate.now()
+            let text = _chords.shift || k.logical == 0x3A
+                ? NumberFormat.format(now - now.rounded(.down), "h:mm AM/PM").text
+                : NumberFormat.format(now.rounded(.down), "m/d/yyyy").text
+            if edit != nil { _pointRef = nil; _insert(text) } else { beginEdit(replace: text) }
+            return true
+        }
+        // ⇧Space the selection's whole rows, ⌃Space its whole columns, both
+        // the sheet — not a space typed into the cell.
+        if edit == nil, k.logical == 0x20, _chords.shift || _chords.control || _chords.primary {
+            let sel = c.selection
+            let rows = _chords.shift, cols = _chords.control || _chords.primary
+            c.select(range: CellRange(top: cols ? 0 : sel.top, left: rows ? 0 : sel.left,
+                                      bottom: cols ? CellAddress.maxRows - 1 : sel.bottom,
+                                      right: rows ? CellAddress.maxCols - 1 : sel.right),
+                     active: c.active)
+            return true
+        }
+
         // Chords first.
         if _chords.primary, let letter = KeyChordTracker.letter(k.logical) {
             switch letter {
@@ -870,6 +892,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
         if var e = edit {
             switch named {
+            case .enter where _chords.alt:
+                // Alt+Enter: a line break inside the cell, as Excel's (which
+                // turns its Wrap Text on; setInputs does).
+                _pointRef = nil; _insert("\n"); return true
             case .enter where _chords.control || (_chords.primary && !_chords.shift):
                 // ⌃↩ / ⌘↩: what was typed goes into every selected cell.
                 let text = String(e.text)
@@ -954,6 +980,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let last = c.sheet.usedExtent
             c.select(last, extend: _chords.shift)
             reveal(last); return true
+        case .pageDown where _chords.control || _chords.primary, .pageUp where _chords.control || _chords.primary:
+            // ⌃PgDn / ⌃PgUp: the next or previous sheet shown, as Excel's.
+            let sheets = c.book.sheets
+            let step = named == .pageDown ? 1 : -1
+            var j = c.activeSheet + step
+            while sheets.indices.contains(j), sheets[j].hidden { j += step }
+            if sheets.indices.contains(j) { c.activeSheet = j }
+            return true
         case .pageDown, .pageUp:
             let rowsPerPage = max(1, Int((size.height - headerHeight) / max(1, rows.def)) - 1)
             let d = named == .pageDown ? rowsPerPage : -rowsPerPage
