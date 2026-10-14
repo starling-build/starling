@@ -4183,7 +4183,7 @@ public final class RichLayout {
                     // known to the point.)
                     let taken = modern
                         ? (!lineOther && lineWide > 1 && room > 0 && hang == 0
-                            ? need * Double(lineWide - 1) * em / 64 <= room * (width - x + hair)
+? need * Double(lineWide - 1) * em / 64 <= room * (width - x + hair)
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)
@@ -4244,6 +4244,17 @@ public final class RichLayout {
                 lineOther = false
                 lineSpaced = false
             }
+            // (An opening mark a line starts with keeps its blank half:
+            // squeezing it there is what `w:topLinePunct` asks for, and
+            // without it a 9pt cell line of "《" and ten ideographs
+            // leaves the eleventh, 1.8pt over, for the next line —
+            // zh-6d1afa56's tables, mode 14. Lab `ls` (Word for Windows,
+            // 宋体 16pt, 2026-10-14): "（" and 25 ideographs 4 or 6pt over
+            // break before the last in modes 14 and 15, in the body and
+            // a cell, indented or not, as a line with no mark does. With
+            // `w:topLinePunct` the first line's is given up before the
+            // fit, `_topLineSqueeze`.)
+            let lineOpener = lineWide == 0 ? (a ..< last).first { !isSpace(units[$0]) } : nil
             // (Spaces a line opens with are no characters of it, and
             // those it ends with stretch nothing.)
             for k in a ..< last {
@@ -4256,7 +4267,9 @@ public final class RichLayout {
                 let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
                 for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
             }
-            marks.append(contentsOf: own)
+            marks.append(contentsOf: own.filter { k in
+                k != lineOpener || !(Self._openingUnits.contains(units[k]) || (wideQuote(k) && (units[k] == 0x201C || units[k] == 0x2018)))
+            })
             spaces.append(contentsOf: ownSpaces)
             if after > 0 { spaces.append(last - 1) }
             if piece.hard {
