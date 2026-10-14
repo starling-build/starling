@@ -243,6 +243,29 @@ public final class RichTextTheme {
         return lineBox(size: size, natural: natural, baseline: t, in: paragraph, gridPitch: gridPitch).baseline
     }
 
+    /// How far below the page's foot a line on a line grid may reach and
+    /// still be set there, in points: Word centres the text's natural
+    /// height in the pitches it takes, and the line fits where the room
+    /// left reaches the foot of that natural height — the grid's extra
+    /// below it may hang past the margin. Measured 2026-10-14 (lab
+    /// `gf2`, YaHei bold, 1.72 em, on an 18pt grid): 16pt in 36 fits in
+    /// 32 and not 31.75 (31.76 by this), 20pt in 36 in 36 and not 35
+    /// (35.2), 28pt in 54 in 52 and not 50 (51.1), 12pt in 36 never in
+    /// 18. 0 off the grid, or with a height the paragraph states.
+    public func gridOverhang(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
+                             eastAsian: Bool, gridPitch: Double?) -> Double {
+        guard let pitch = gridPitch, pitch > 0, paragraph.lineHeightPoints == nil else { return 0 }
+        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return 0 }
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
+        let natural = face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
+        let h = lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: pitch).height
+        return max(0, (h - natural * size) / 2)
+    }
+
     /// Resolve a run's style inside a paragraph to an engine TextStyle, at
     /// `scale` (zoom, 1.0 = 100%).
     ///
@@ -663,6 +686,9 @@ public final class RichLayout {
     /// What each paragraph's text is drawn lower by than the engine set
     /// it, so that its baselines are Word's (see `RichTextTheme.lineBox`).
     private var _inkShift: [Double] = []
+    /// How far each paragraph's last line on a page may reach past the
+    /// page's foot (px; `RichTheme.gridOverhang`).
+    private var _overhang: [Double] = []
     /// How far a paragraph's text is set down to clear an object that
     /// floats over its head and leaves its first line no room beside it
     /// (px; part of `_spaceBefore`).
@@ -798,6 +824,7 @@ public final class RichLayout {
         _textWidth = Array(repeating: 0, count: n)
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
+        _overhang = Array(repeating: 0, count: n)
         _floatPush = Array(repeating: 0, count: n)
         _leadWidth = Array(repeating: 0, count: n)
         _leaders = Array(repeating: [], count: n)
@@ -862,6 +889,7 @@ public final class RichLayout {
                 _textWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inkShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _overhang.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _floatPush.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leadWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _leaders.insert(contentsOf: Array(repeating: [], count: n), at: at)
@@ -892,6 +920,7 @@ public final class RichLayout {
                 _textWidth.removeSubrange(at ..< end)
                 _spaceBefore.removeSubrange(at ..< end)
                 _inkShift.removeSubrange(at ..< end)
+                _overhang.removeSubrange(at ..< end)
                 _floatPush.removeSubrange(at ..< end)
                 _leadWidth.removeSubrange(at ..< end)
                 _leaders.removeSubrange(at ..< end)
@@ -1092,6 +1121,11 @@ public final class RichLayout {
                     // its indent, keeps its columns.)
                     if let pct = ts.widthPercent { scale = (theme.wordRules ? width * pct / 100 : min(width, width * pct / 100)) / _px(sum) }
                     else if let w = ts.width { scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum) }
+                    // (A fixed layout keeps its grid, past the margin too:
+                    // zh-454e2e29's 482pt in a column of 468, whose second
+                    // column then holds "個案事實" on one line, as Word's
+                    // print has it.)
+                    else if theme.wordRules, ts.fixedLayout { scale = 1 }
                 }
                 widths[c.table] = pts.map { (_px($0) * scale).rounded(.down) }
             } else {
@@ -2179,7 +2213,10 @@ public final class RichLayout {
                 if leavesLead, pageFresh, y < 0.01, page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
                 let available = contentH - y
                 let rest = bottom - cursor
-                if rest <= available + 0.01 {
+                // (The last line may reach past the foot by its grid's
+                // overhang.)
+                let overhang = theme.wordRules && i < _overhang.count ? _overhang[i] : 0
+                if rest <= available + 0.01 + overhang {
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: bottom,
                                                   page: page, pageY: y))
                     y += rest
@@ -2197,7 +2234,7 @@ public final class RichLayout {
                 }
                 // The lowest cut that still fits.
                 var cut: Double? = nil
-                for c in cuts! where c > cursor + 0.01 && c - cursor <= available + 0.01 { cut = c }
+                for c in cuts! where c > cursor + 0.01 && c - cursor <= available + 0.01 + overhang { cut = c }
                 // Word's rules for where a paragraph may part: not at all
                 // (`w:keepLines`), or — its widow and orphan control,
                 // which is on unless the paragraph says otherwise — with
@@ -2821,6 +2858,16 @@ public final class RichLayout {
             }
             if let target = theme.baseline(for: lead.0, in: style, named: named, eastAsian: lead.1, gridPitch: pitch) {
                 _inkShift[i] = _px(target) - line.baseline
+            }
+        }
+        if i < _overhang.count {
+            _overhang[i] = 0
+            if theme.wordRules, p.image == nil, p.cell == nil, style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch {
+                let named = _named(p, document)
+                // (An empty paragraph's line is its mark's.)
+                let look = p.text.isEmpty ? (style.mark ?? p.runs.first?.style ?? CharStyle()) : p.runs[0].style
+                let ea = p.text.isEmpty || p.text.contains { Self.isEastAsian($0, hinted: false) }
+                _overhang[i] = _px(theme.gridOverhang(for: look, in: style, named: named, eastAsian: ea, gridPitch: pitch))
             }
         }
         _painters[i] = painter

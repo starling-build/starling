@@ -1868,6 +1868,27 @@ fitter dropped the paragraph's tail).
   `anchorRun`), `_wrapBoxes`, `_floatShift`/`_floatShiftY`,
   `_drawPicture`.
 
+- **A fixed-layout table keeps its grid past the margin, and a grid
+  line may hang below the page's foot (2026-10-14).** zh-454e2e29's
+  form is 482pt of `w:tblLayout fixed` columns in a 468pt column; ours
+  scaled them to fit, which wrapped "個案事實" in its header and moved
+  every column 13pt left of Word's. Word keeps them (a table stating
+  its width already did). And the empty paragraph under that table
+  went to page 2 in ours, 35pt down, where Word keeps it on page 1 in
+  32.7pt: lab `gf`/`gf2` (`body48.py`, `body49.py`) — a filler of
+  exact height leaves R points, then one line of bold 標楷體 (YaHei,
+  1.72 em here) on an 18pt line grid. The line fits where R reaches
+  the foot of its natural height centred in its pitches, (h + n) / 2:
+  16pt in 36 at 32 and not 31.75 (31.76), 20pt in 36 at 36 and not 35
+  (35.2), 28pt in 54 at 52 and not 50 (51.1), 12pt in 36 never at 18;
+  an empty line as one with text. Both labs agree case for case.
+  `RichTheme.gridOverhang`, `RichLayout._overhang`. zh-454e2e29 24.7%
+  -> 49.3%, zh-69bbcc3c 54.6 -> 68.7 (44 pages to Word's 45, was 43),
+  zh-84702a67 +0.9, zh-e029cf49 +0.8; zh-25c4de17 38.7 -> 36.5 with its
+  page count now Word's and page 1 whole (a line changes column on
+  page 2). Chinese sample 76.1%, 55 with Word's page count; POI
+  unchanged.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
