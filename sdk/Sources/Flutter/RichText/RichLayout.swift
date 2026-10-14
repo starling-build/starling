@@ -2830,7 +2830,16 @@ public final class RichLayout {
                 end = _px(wl.first) + spaced.width
                 spaced.dispose()
             default:
-                if wl.first < 0, end <= 0.01 {
+                // (A tab stop of the paragraph's own between the number's
+                // end and the indent takes the text first: zh-64044a1d's
+                // heading 4 has a stop at 840 twips and its hanging indent
+                // at 851, and Word starts "(三) 災害…" at the stop — the
+                // line then holds one character more.)
+                let ownStop = theme.wordRules
+                    ? style.tabStops.map { _px($0.position) }.sorted().first(where: { $0 > ownLeft + end + 0.01 && $0 < ownLeft - 0.01 }) : nil
+                if let stop = ownStop {
+                    end = stop - ownLeft
+                } else if wl.first < 0, end <= 0.01 {
                     end = 0
                 } else {
                     // (No default stops at all — `w:defaultTabStop` 0, as

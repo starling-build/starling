@@ -2187,6 +2187,14 @@ fitter dropped the paragraph's tail).
   ours starts that line about 2pt below Word's (task board T11).
   Chinese sample 83.7%, 60 with Word's page count.
 
+- **A list number's tab goes to the paragraph's own stop first
+  (2026-10-14).** Where a hanging number ends before the indent, the
+  text starts at the first tab stop of the paragraph's own past the
+  number, and only without one at the indent: zh-64044a1d's heading 4
+  has a stop at 840 twips and its hanging indent at 851, and Word starts
+  "(三) 災害…" at the stop, the line then holding "前" that ours carried
+  down. form_footnotes 21.8% -> 46.0%, zh-64044a1d +0.3; nothing down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
