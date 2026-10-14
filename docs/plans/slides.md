@@ -1058,6 +1058,23 @@ circle in four curves — and was drawn square. It is clipped to the
 outline's filled contours now (`customPath`, as a preset's
 `pictureGeometry` clips it), in both the picture and metafile paths.
 
+**Dashed lines; hidden shapes, 2026-10-14** (sweep 61: 1.8486 →
+1.8298%; 66 decks now match exactly, from 62). Two things every
+outline and every shape was treated alike for:
+
+- **`a:prstDash`** (`outlineDash`, shapes and connectors): the outline
+  cut into the pattern's pieces in widths of the line, as DrawingML
+  gives them — dash 4·3, dot 1·3, lgDash 8·3, dashDot 4·3·1·3 and its
+  long and double kinds, sysDash 3·1, sysDot 1·1, sysDashDot 3·1·1·1,
+  sysDashDotDot 3·1·1·1·1·1 (`SlidePainter.dashPattern`). Twelve decks;
+  presetDashDot 3.40 → 0.00, tdf134053_dashdot 2.26 → 0.74, group-rot and
+  tdf126741 to 0.00. Not yet: a table cell's dashed rules
+  (tableBorderLineStyle) and `a:custDash`.
+- **`cNvPr hidden="1"`**, on a shape or its group, is kept and not drawn
+  (`invisible`, as a footer its layout has no place for):
+  hidden_group_shape 4.88 → 0.00, tdf147586 1.37 → 1.11,
+  tdf169496_hidden_graphic 0.23 → 0.03.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

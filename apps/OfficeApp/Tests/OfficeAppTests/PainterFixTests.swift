@@ -508,6 +508,18 @@ final class RunCapsAndBulletTests: XCTestCase {
         XCTAssertTrue(SlidePainter.dashed(line, nil, width: 2) === line, "solid: the path itself")
     }
 
+    /// A shape hidden itself, or by its group, is read and kept but not drawn.
+    func testAHiddenShapeIsNotDrawn() throws {
+        var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        let key = "ppt/slides/slide2.xml"
+        var slide = String(data: try XCTUnwrap(package.parts[key]), encoding: .utf8)!
+        let nv = try XCTUnwrap(slide.range(of: "<p:nvSpPr><p:cNvPr id=\""))
+        slide.replaceSubrange(nv, with: "<p:nvSpPr><p:cNvPr hidden=\"1\" id=\"")
+        package.parts[key] = Data(slide.utf8)
+        let (read, _, _) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        XCTAssertEqual(read.slides[1].shapes.filter(\.invisible).count, 1)
+    }
+
     func testAnEmptyListParagraphShowsNoMarkerInSlides() {
         func bytesDrawn(marking: Bool) -> Int {
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 18)

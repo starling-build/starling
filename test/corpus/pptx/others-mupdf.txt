@@ -111,9 +111,7 @@ lo-formatting-bullet-indent.pptx
 lo-forum-mso-de-138303.pptx
 lo-glue_point_leaving_directions.pptx
 lo-greysscale-graphic.pptx
-lo-group-rot.pptx
 lo-group.pptx
-lo-hidden_group_shape.pptx
 lo-hyperlinkOnImage.pptx
 lo-hyperlinktest.pptx
 lo-layout-clrmap-override.pptx
@@ -147,7 +145,6 @@ lo-pic-placeholder-with-text.pptx
 lo-picture-placeholder-one-layout.pptx
 lo-predefined-table-style.pptx
 lo-presLeftAlign.pptx
-lo-presetDashDot.pptx
 lo-rightToLeftParagraph.pptx
 lo-shape-blur-effect.pptx
 lo-shape-glow-effect.pptx
@@ -257,7 +254,6 @@ lo-tdf125554.pptx
 lo-tdf125573_FontWorkScaleX.pptx
 lo-tdf126234.pptx
 lo-tdf126324.pptx
-lo-tdf126741.pptx
 lo-tdf127129.pptx
 lo-tdf127237.pptx
 lo-tdf127964.pptx

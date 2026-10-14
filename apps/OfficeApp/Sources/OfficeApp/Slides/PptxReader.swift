@@ -876,6 +876,9 @@ private struct SlideContext {
             guard var s else { return }
             s.fileId = el.descendant("p:cNvPr")?["id"].flatMap(Int.init)
             s.group = group
+            // Hidden (`cNvPr hidden="1"`), itself or by its group: in the
+            // file, and not drawn — lo-hidden_group_shape's red square.
+            if group?.hidden == true || el.descendant("p:cNvPr")?["hidden"] == "1" { s.invisible = true }
             // A member filled by its group (`a:grpFill`): drawn in the
             // group's colour; still the shape that was read, so a save
             // keeps its element (and the group's fill with it).

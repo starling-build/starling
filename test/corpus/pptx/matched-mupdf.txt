@@ -10,6 +10,8 @@ lo-animation-sound-external.pptx
 lo-bnc591147.pptx
 lo-connector-shape-animations.pptx
 lo-crop-to-shape.pptx
+lo-group-rot.pptx
+lo-hidden_group_shape.pptx
 lo-layout-own-background.pptx
 lo-loopNoPause.pptx
 lo-master-and-eleven-layouts.pptx
@@ -20,6 +22,7 @@ lo-narration.pptx
 lo-onemaster-twolayouts.pptx
 lo-picture-placeholder-custom-prompt.pptx
 lo-pres-with-notes.pptx
+lo-presetDashDot.pptx
 lo-tdf103473.pptx
 lo-tdf103792.pptx
 lo-tdf103876.pptx
@@ -34,6 +37,7 @@ lo-tdf112280.pptx
 lo-tdf112333.pptx
 lo-tdf112633.pptx
 lo-tdf113163.pptx
+lo-tdf126741.pptx
 lo-tdf128952.pptx
 lo-tdf130058.pptx
 lo-tdf134174.pptx
