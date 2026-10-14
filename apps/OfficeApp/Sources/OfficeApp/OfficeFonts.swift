@@ -422,6 +422,9 @@ enum OfficeFonts {
         if eastAsian {
             var face = RichResolvedFace(family: substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? 1.0 / 57 : 0,
                                         baseline: ea.baseline)
+            // (A square face's symbols are an em; YaHei's, JhengHei's and
+            // DengXian's — the faces with Latin widths of their own — are not.)
+            face.fullWidthSymbols = ea.latinAdvances == nil
             face.scaledHeight = ea.scaledHeight
             face.scaledBaseline = ea.scaledBaseline
             return face

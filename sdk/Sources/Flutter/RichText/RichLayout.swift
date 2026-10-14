@@ -412,6 +412,11 @@ public struct RichResolvedFace: Sendable {
     /// dots both scripts claim are then its full-width ones, whatever
     /// the run's hint.
     public var isEastAsian: Bool
+    /// East Asian symbols (■□●○◆, arrows, box drawing) are an em wide
+    /// in this face, as in the square faces Word has (SimSun, SimHei,
+    /// KaiTi, FangSong, MingLiU); a proportional one (YaHei) sets its own
+    /// widths — ○ at 0.6 em.
+    public var fullWidthSymbols = false
 
     public init(family: String, sizeScale: Double = 1, naturalHeight: Double? = nil, boldSpread: Double = 0,
                 classScales: [Double]? = nil, baseline: Double? = nil, isEastAsian: Bool = false) {
@@ -3402,6 +3407,18 @@ public final class RichLayout {
                 // showed: zh-457a8d62 lost a character a line.)
                 if !ea, document.balancesSpaceWidth, let g = grid, g != 0, ch != " ", let following, following != " " {
                     extra -= _px(g) / 2
+                }
+                // A symbol an East Asian run sets in its own face (■□●○
+                // ◆△※, the circled numbers, arrows) is an em wide there, as
+                // every such face draws it; the face drawing it here may
+                // be a Latin fallback's narrower glyph — zh-abe7e063's ■
+                // came out 6.04pt at 10pt where Word's SimSun sets 10, and
+                // a table cell's line took a character Word wraps.
+                if ea, let u = ch.unicodeScalars.first?.value, u >= 0x2190, u <= 0x266F,
+                   theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.fullWidthSymbols == true {
+                    let g = _glyphWidth(style(kind), ch)
+                    if g > 0.5, g < em - 0.01 { extra += em - g }
                 }
                 if wideSpaces.contains(offset) {
                     // (Half an em and the run's own spacing once more,

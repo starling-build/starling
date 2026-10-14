@@ -117,9 +117,19 @@ zh-90e0cea8 now runs a page long from drift earlier on its last page
 
 ### T7. zh-abe7e063, zh-25c4de17, zh-799c91cd, zh-190d730c
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
-Not looked at this round. zh-190d730c's first difference is a scorer
-artefact (a justified line drawn out of order); zh-25c4de17 is a
-two-column exam where a line changes column on page 2.
+- zh-abe7e063: done (symbols an em in square faces), 32.8 -> 91.7.
+- zh-799c91cd: page 1 drifts about 2.5pt low by its foot, so its last
+  line goes over. Word's 12pt lines step 20.64/20.4 (a 0.24pt raster,
+  mean 20.58 = YaHei's 1.3198 em x 1.3); ours a steady 20.65. Tried
+  and reverted: the tallest-run strut for every multi-line paragraph
+  (no change here, two documents lost 24-32 points) and YaHei's height
+  1.72 -> 1.7157 (no change here, slightly negative overall). Not the
+  list label, the Latin run nor the 「」 quotes (tested by removing
+  each). Open.
+- zh-190d730c: its first difference is a scorer artefact (a justified
+  line drawn out of order splits PDFKit's line). Not looked at further.
+- zh-25c4de17: two-column exam, a line changes column on page 2. Not
+  looked at yet.
 
 ### T8. Load embedded fonts
 Owner: —

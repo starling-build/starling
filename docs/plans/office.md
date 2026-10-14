@@ -2138,6 +2138,18 @@ fitter dropped the paragraph's tail).
   zh-abe7e063 +3.6, zh-90e0cea8 +1.9, zh-e029cf49 98.5 -> 100;
   nothing down. Chinese sample on Windows 81.8%.
 
+- **Symbols are an em wide in a square face (2026-10-14).** In an
+  East Asian run, ■□●○◆, arrows and box drawing (U+2190–U+266F) are as
+  wide as the face Word sets them in makes them: SimSun (and the other
+  square faces Word has) an em — zh-abe7e063's ■□● at 10pt are 10pt
+  apart in Word's print — and YaHei its own widths, ○ at 0.6 em
+  (zh-457a8d62, zh-7dc3afad). Ours drew them from a Latin fallback at
+  0.6 em in every face, so a table cell's line in zh-abe7e063 took a
+  character Word wraps. `RichResolvedFace.fullWidthSymbols`, set for the
+  faces with no Latin widths of their own. zh-abe7e063 32.8% -> 91.7%
+  (Word's 13 pages), zh-232090e0 +2.2; nothing down. Applied to every
+  face it took zh-457a8d62 from 95% to 20%. Chinese sample 81.8%.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
