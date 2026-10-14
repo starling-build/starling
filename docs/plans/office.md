@@ -2328,6 +2328,17 @@ fitter dropped the paragraph's tail).
   that a row lower down kept a line at the foot that Word carries
   over. zh-89385c94 16.3% -> 51.0%, zh-8e8d4c40 +1.2; nothing down.
 
+- **Which pages `w:mirrorIndents` mirrors turns on a compatibility
+  switch (2026-10-14).** With `doNotFlipMirrorIndents` among the
+  file's compatibility settings (Word 2010's files on), the indents are
+  as written on odd pages and mirrored on even ones — lab `mirch1`, in
+  zh-06c46ba9's package: a first line of 28pt ends every line that
+  much short on page 2, not on page 1, with `w:firstLineChars` or
+  `w:firstLine` alike. Without it Word flips that: zh-e27cd8bf (no
+  compatibility mode) ends its lines 30.6pt short on pages 17 and 19.
+  The rule built earlier today was the second half alone.
+  zh-06c46ba9 47.2% -> 48.6%; nothing down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

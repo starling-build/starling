@@ -1073,9 +1073,13 @@ public final class RichLayout {
         _lastDirty = 0
         mark("paginate")
         // Indents that depend on the page: Word mirrors a paragraph's
-        // indents (`w:mirrorIndents`) on pages 1, 3, 5… and sets them as
-        // written on 2, 4… — zh-06c46ba9's first lines of 30.6pt end
-        // every line that much short of the right margin on odd pages.
+        // indents (`w:mirrorIndents`) on pages 2, 4… and sets them as
+        // written on 1, 3… where the file's compatibility settings say
+        // `doNotFlipMirrorIndents` (lab `mirch1`, in zh-06c46ba9's
+        // package: a first line of 28pt ends every line that much short
+        // of the right margin on page 2, not on page 1); without it, the
+        // other way round (zh-e27cd8bf's first lines of 30.6pt end its
+        // lines short on pages 17 and 19, not 18).
         // Laid out again where a paragraph's page says otherwise than
         // last time, until nothing moves (a few passes at most).
         if theme.wordRules, pageSetup != nil, !_mirrorPassing {
@@ -1085,9 +1089,9 @@ public final class RichLayout {
                 var flips: [RichChange] = []
                 for (k, para) in document.paragraphs.enumerated() where para.style.eastAsian["w:mirrorIndents"] == "1" && para.cell == nil {
                     guard k < _pieceStart.count, _pieceStart[k] < _allPieces.count else { continue }
-                    let odd = (_allPieces[_pieceStart[k]].page / _columns) % 2 == 0
-                    if odd != _mirrored.contains(k) {
-                        if odd { _mirrored.insert(k) } else { _mirrored.remove(k) }
+                    let mirrors = (_allPieces[_pieceStart[k]].page / _columns) % 2 == (document.flipsMirrorIndents ? 0 : 1)
+                    if mirrors != _mirrored.contains(k) {
+                        if mirrors { _mirrored.insert(k) } else { _mirrored.remove(k) }
                         flips.append(.changed(k))
                     }
                 }

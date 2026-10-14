@@ -1852,6 +1852,11 @@ public struct RichDocument: Hashable, Sendable {
     /// Word's `w:useAltKinsokuLineBreakRules`: a closing mark hangs past
     /// the margin by half an em at most, not by all of itself.
     public var hangsHalf = false
+    /// Whether `w:mirrorIndents` paragraphs are mirrored on odd pages
+    /// (Word's older, flipped reading) — true unless the file's
+    /// compatibility settings say `doNotFlipMirrorIndents`, when even
+    /// pages are mirrored and odd ones set as written.
+    public var flipsMirrorIndents = true
     /// Whether "automatic" paragraph spacing is the web's: 14 points,
     /// and between two paragraphs the larger of the one's space after
     /// and the other's before rather than both, with none before the
