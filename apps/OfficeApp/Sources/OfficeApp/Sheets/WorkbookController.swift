@@ -350,6 +350,60 @@ final class WorkbookController: ChangeNotifier {
         if refuses("formatCells") { return }
         let r = range ?? selection
         let ws = sheet
+        // Whole rows or columns: the format goes on the row or column, as
+        // Excel keeps it (<row s=…>, <col style=…>), so cells typed there
+        // later take it — not into a cell for every column of a row, which
+        // made a bold header row 16,384 cells and a 44 KB file.
+        let wholeRows = r.left == 0 && r.right >= CellAddress.maxCols - 1
+        let wholeCols = r.top == 0 && r.bottom >= CellAddress.maxRows - 1
+        if wholeRows || wholeCols {
+            structural {
+                if wholeCols {
+                    var c = r.left
+                    while c <= r.right {
+                        let old = ws.colStyle(c) ?? 0
+                        var st = book.style(old)
+                        change(&st)
+                        let new = book.styleIndex(st)
+                        var hi = c
+                        while hi < r.right, (ws.colStyle(hi + 1) ?? 0) == old { hi += 1 }
+                        ws.colAttrRuns.append((c, hi, ["style": String(new)]))
+                        c = hi + 1
+                    }
+                }
+                // A formatted row outranks its columns, so on the whole
+                // sheet the rows already formatted change too (and only
+                // those: not a million rows each given a style).
+                let rowsToStyle = !wholeRows ? []
+                    : wholeCols ? ws.rowAttrs.keys.filter { ws.rowStyle($0) != nil }
+                    : Array(r.top ... r.bottom)
+                for row in rowsToStyle {
+                    var st = book.style(ws.rowStyle(row) ?? 0)
+                    change(&st)
+                    ws.rowAttrs[row, default: [:]]["s"] = String(book.styleIndex(st))
+                    ws.rowAttrs[row]?["customFormat"] = "1"
+                }
+                // Columns (not the whole sheet) crossing a formatted row: the
+                // row's format outranks the column's there, so the crossing
+                // gets a cell of its own, as Excel writes it — else a bold
+                // header row kept D1 bold and ⌘B on column D never took.
+                if wholeCols && !wholeRows {
+                    for row in ws.rowAttrs.keys where ws.rowStyle(row) != nil {
+                        for col in r.left ... r.right where ws.cells[CellAddress(row: row, col: col)] == nil {
+                            var cell = Cell(input: "")
+                            cell.style = ws.rowStyle(row)!
+                            ws.cells[CellAddress(row: row, col: col)] = cell
+                        }
+                    }
+                }
+                for a in ws.cells.keys where r.contains(a) {
+                    var st = book.style(ws.cells[a]!.style)
+                    change(&st)
+                    ws.cells[a]!.style = book.styleIndex(st)
+                }
+            }
+            return
+        }
         var before: [CellAddress: Cell?] = [:]
         // Formatting a huge range (a whole column) touches only cells that exist
         // plus the visible block the user selected; Excel stores column styles,
@@ -369,7 +423,23 @@ final class WorkbookController: ChangeNotifier {
         _record(sheet: activeSheet, before: before, recalc: false)
     }
 
-    func style(at a: CellAddress) -> CellStyle { book.style(sheet.cells[a]?.style ?? 0) }
+    /// Bold, italic, wrap… on a selection: every cell gets the opposite of
+    /// the active cell's, as Excel does — not each cell flipped on its own,
+    /// which turned a half-bold selection inside out.
+    func toggleStyle(_ key: WritableKeyPath<CellStyle, Bool>) {
+        let on = !style(at: active)[keyPath: key]
+        setStyle { $0[keyPath: key] = on }
+    }
+
+    /// Left, centre, right: on, or back to General when the active cell
+    /// already has it.
+    func toggleAlign(_ a: CellStyle.HAlign) {
+        let to: CellStyle.HAlign = style(at: active).hAlign == a ? .general : a
+        setStyle { $0.hAlign = to }
+    }
+
+    /// An empty cell in a formatted row or column shows its format.
+    func style(at a: CellAddress) -> CellStyle { book.style(sheet.cells[a]?.style ?? sheet.defaultStyle(at: a)) }
 
     /// `from` is the width before a live drag changed it, so the undo
     /// step restores what was there when the drag began.

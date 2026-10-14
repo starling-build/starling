@@ -73,10 +73,10 @@ extension Ribbon {
             ]),
             Chrome.vgap(4),
             Chrome.row([
-                Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)".keys, st.bold, fluent) { wb.setStyle { $0.bold.toggle() } },
-                Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)".keys, st.italic, fluent) { wb.setStyle { $0.italic.toggle() } },
-                Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)".keys, st.underline, fluent) { wb.setStyle { $0.underline.toggle() } },
-                Chrome.toggle(FluentSystemIcons.textStrikethrough, "Strikethrough", st.strike, fluent) { wb.setStyle { $0.strike.toggle() } },
+                Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)".keys, st.bold, fluent) { wb.toggleStyle(\.bold) },
+                Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)".keys, st.italic, fluent) { wb.toggleStyle(\.italic) },
+                Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)".keys, st.underline, fluent) { wb.toggleStyle(\.underline) },
+                Chrome.toggle(FluentSystemIcons.textStrikethrough, "Strikethrough", st.strike, fluent) { wb.toggleStyle(\.strike) },
                 Chrome.gap(4),
                 Chrome.menu(nil, Icon(FluentSystemIcons.grid, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary), fluent, [
                     ("All Borders", { wb.setStyle { $0.borders = .init(top: true, left: true, bottom: true, right: true) } }),
@@ -95,18 +95,18 @@ extension Ribbon {
         let alignment = Chrome.group("Alignment", fluent, [Chrome.rows([
             Chrome.row([
                 Chrome.toggle(FluentSystemIcons.alignLeft, "Align Left", st.hAlign == .left, fluent) {
-                    wb.setStyle { $0.hAlign = $0.hAlign == .left ? .general : .left }
+                    wb.toggleAlign(.left)
                 },
                 Chrome.toggle(FluentSystemIcons.alignCenter, "Center", st.hAlign == .center, fluent) {
-                    wb.setStyle { $0.hAlign = $0.hAlign == .center ? .general : .center }
+                    wb.toggleAlign(.center)
                 },
                 Chrome.toggle(FluentSystemIcons.alignRight, "Align Right", st.hAlign == .right, fluent) {
-                    wb.setStyle { $0.hAlign = $0.hAlign == .right ? .general : .right }
+                    wb.toggleAlign(.right)
                 },
             ]),
             Chrome.vgap(4),
             Chrome.row([
-                Chrome.textToggle("Wrap Text", st.wrap, fluent, style: fluent.typography.caption) { wb.setStyle { $0.wrap.toggle() } },
+                Chrome.textToggle("Wrap Text", st.wrap, fluent, style: fluent.typography.caption) { wb.toggleStyle(\.wrap) },
                 Chrome.textToggle("Merge & Center", wb.sheet.merges.contains(wb.selection), fluent, style: fluent.typography.caption) { wb.toggleMerge() },
                 Chrome.menu(Text("Vertical", style: fluent.typography.caption), nil, fluent, [
                     ("Top", { wb.setStyle { $0.vAlign = .top } }),

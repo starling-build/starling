@@ -832,9 +832,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 c.select(range: CellRange(top: 0, left: 0, bottom: CellAddress.maxRows - 1, right: CellAddress.maxCols - 1),
                          active: c.active)
                 return true
-            case "b" where edit == nil: c.setStyle { $0.bold.toggle() }; return true
-            case "i" where edit == nil: c.setStyle { $0.italic.toggle() }; return true
-            case "u" where edit == nil: c.setStyle { $0.underline.toggle() }; return true
+            case "b" where edit == nil: c.toggleStyle(\.bold); return true
+            case "i" where edit == nil: c.toggleStyle(\.italic); return true
+            case "u" where edit == nil: c.toggleStyle(\.underline); return true
             case "c" where edit == nil: copySelection(cut: false); return true
             case "x" where edit == nil: copySelection(cut: true); return true
             case "d" where edit == nil: c.fillDown(); return true
@@ -928,6 +928,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case .home:
             c.select(CellAddress(row: _chords.primary || _chords.control ? 0 : c.active.row, col: 0), extend: _chords.shift)
             reveal(c.active); return true
+        case .end where _chords.primary || _chords.control:
+            // ⌃End: the last cell in use — the bottom row and right column
+            // that hold anything, as Excel's.
+            let last = c.sheet.usedExtent
+            c.select(last, extend: _chords.shift)
+            reveal(last); return true
         case .pageDown, .pageUp:
             let rowsPerPage = max(1, Int((size.height - headerHeight) / max(1, rows.def)) - 1)
             let d = named == .pageDown ? rowsPerPage : -rowsPerPage
