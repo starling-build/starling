@@ -2208,6 +2208,24 @@ fitter dropped the paragraph's tail).
   now has Word's pages 10 to 13 (the mark's page 11, the odd/even
   blank 12, the annex from 13): 24.6% -> 29.2%; nothing else moved.
 
+- **On a line grid, a line with none of the tallest stretch keeps its
+  own pitches, each stretch centred in them (2026-10-14).** Lab `gc`
+  (zh-1a3c7aa0's package, Word for Windows): a chemical name in a
+  table cell, its first line all Arial and the rest with YaHei among
+  it — Word's baselines 25.0 and then 31.2 apart, a line of 18.1 (the
+  1.159 multiple of a 15.6 pitch) and then two pitches. The tallest
+  run's strut (02e1c405) held every line to 31.2; left to the engine
+  the heights come out right but each stretch's extra height is split
+  by its ascent and descent, and YaHei's baseline sat 6pt low. Such a
+  paragraph is now laid out with even leading (`_evenLeading`): 25.15
+  and 31.2. zh-1a3c7aa0 29.2% -> 70.7% (90 pages, Word's count; its
+  annex had run three long). The sweep also carried two of the Mac's
+  commits (f67d5ba6, c2542ff6): zh-64044a1d 34.3 -> 65.5, zh-69bbcc3c
+  71.3 -> 87.5, zh-15728c84 +1.1 moved with both; nothing down.
+  Chinese sample on Windows 86.4%. Not understood: the same paragraph
+  justified in the body, first on its page, still comes out 28.55
+  apart in ours (another path lays it out).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

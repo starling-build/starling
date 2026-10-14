@@ -3059,7 +3059,28 @@ public final class RichLayout {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 if !inline.isEmpty { held.setPlaceholderDimensions(inline.map { $0.dimensions }) }
                 held.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
-                if held.computeLineMetrics().count == lines { return held }
+                if held.computeLineMetrics().count == lines {
+                    // (Unless a line holds none of the tallest stretch: it
+                    // is as tall as its own stretches make it, each set in
+                    // the middle of its pitches. Each of zh-1a3c7aa0's
+                    // chemical names opens with a line of Arial alone,
+                    // and Word's next baseline, among ideographs, is 25.0
+                    // below it and those after 31.2 apart, in a table cell
+                    // as in the body; ours were 31.2 each, and the annex
+                    // ran three pages long. The engine splits a stretch's
+                    // extra height by its ascent and descent, which sets
+                    // YaHei's baseline 6pt low in two pitches: half above
+                    // and half below is Word's.)
+                    if lines > 1, gridded, let pitch = _grid(i, document).pitch, let size = strut.fontSize, let h = strut.height,
+                       painter.computeLineMetrics().contains(where: { $0.height < size * h - _px(pitch) / 2 }) {
+                        let even = TextPainter(text: Self._evenLeading(span), textAlign: align,
+                                               textDirection: style.rightToLeft ? .rtl : .ltr)
+                        if !inline.isEmpty { even.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+                        even.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
+                        return even.computeLineMetrics().count == lines ? even : painter
+                    }
+                    return held
+                }
             }
             return painter
         }
@@ -5560,6 +5581,14 @@ public final class RichLayout {
         canvas.rotate(image.rotation * Double.pi / 180)
         canvas.drawImageRect(decoded, src, Rect.fromLTWH(-w / 2, -h / 2, w, h), Paint())
         canvas.restore()
+    }
+
+    /// A span with every stretch's extra height set half above and half
+    /// below its text (`TextLeadingDistribution.even`).
+    private static func _evenLeading(_ span: InlineSpan) -> InlineSpan {
+        guard let t = span as? TextSpan else { return span }
+        return TextSpan(text: t.text, children: t.children?.map { _evenLeading($0) },
+                        style: t.style?.copyWith(leadingDistribution: .even), recognizer: t.recognizer, locale: t.locale)
     }
 
     /// The height of one line of paragraph `i` in its mark's look, as if
