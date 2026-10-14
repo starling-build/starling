@@ -29,10 +29,9 @@ mode), Android, and ChromeOS instead get a browser-app link. OS detection does
 not assume CPU architecture or a Linux distribution. All platforms remain
 available, including with JavaScript disabled.
 
-Version 0.1.0 downloads currently use immutable public `dist/` URLs at commit
-`5c3f320dcc50b74f9f058b373200144ec4929208`, matching the release assets. The GitHub
-release is still a draft; do not use its temporary `untagged-*` asset URLs.
-Once published, these links can move to the versioned release assets. When
+Version 0.1.0 downloads link directly to the published GitHub release assets
+under `releases/download/office-v0.1.0/`. The release-notes link opens that
+specific version. When
 updating downloads, verify all four files, their architecture, size, and install
 instructions. The sample captions describe the pictured files; the capability
 labels describe the broader apps.
