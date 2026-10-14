@@ -37,6 +37,20 @@ final class WordArtTests: XCTestCase {
         XCTAssertEqual(again.slides[1].shapes.first { $0.warp != nil }?.warp?.preset, "textInflate")
     }
 
+    /// `a:fillOverlay`: a second fill blended over the shape's own (the
+    /// Concourse theme's corner, a texture multiplied by a blue gradient).
+    func testAFillOverlayIsReadOverTheFill() throws {
+        let (state, _, _) = try deck { slide in
+            let end = try XCTUnwrap(slide.range(of: "</p:spPr>"))
+            slide.replaceSubrange(end, with: "<a:solidFill><a:srgbClr val=\"FFFFFF\"/></a:solidFill><a:effectLst><a:fillOverlay blend=\"mult\">"
+                + "<a:solidFill><a:srgbClr val=\"2DA2BF\"/></a:solidFill></a:fillOverlay></a:effectLst></p:spPr>")
+        }
+        let shape = try XCTUnwrap(state.slides[1].shapes.first { $0.fillStyle?.overlay != nil })
+        XCTAssertEqual(shape.fillStyle?.color, Color(0xFFFFFFFF), "the shape's own fill under it")
+        XCTAssertEqual(shape.fillStyle?.overlay?.blend, "mult")
+        XCTAssertEqual(shape.fillStyle?.overlay?.fill.color, Color(0xFF2DA2BF))
+    }
+
     func testNoShapeIsNoWarp() throws {
         let (state, _, _) = try deck { slide in
             let fit = try XCTUnwrap(slide.range(of: "<a:normAutofit"))

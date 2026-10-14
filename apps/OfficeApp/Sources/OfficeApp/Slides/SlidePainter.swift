@@ -747,6 +747,27 @@ final class SlidePainter: CustomPainter {
 
     /// A colour, gradient or picture filling `r`.
     static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache, pxPerPt: Double = 1) {
+        if let overlay = fill.overlay {
+            // The fill and its overlay in a layer of their own, the overlay
+            // blended into the fill alone, not into what lies behind it.
+            var base = fill
+            base.overlay = nil
+            canvas.saveLayer(r, Paint())
+            paintFill(base, r, canvas, cache: cache, pxPerPt: pxPerPt)
+            let blend = Paint()
+            switch overlay.blend {
+            case "mult": blend.blendMode = .multiply
+            case "screen": blend.blendMode = .screen
+            case "darken": blend.blendMode = .darken
+            case "lighten": blend.blendMode = .lighten
+            default: blend.blendMode = .srcOver
+            }
+            canvas.saveLayer(r, blend)
+            paintFill(overlay.fill, r, canvas, cache: cache, pxPerPt: pxPerPt)
+            canvas.restore()
+            canvas.restore()
+            return
+        }
         let p = Paint()
         p.style = .fill
         p.color = fill.color ?? Color(0xFFFFFFFF)
@@ -756,7 +777,9 @@ final class SlidePainter: CustomPainter {
             // transparent must not make the whole gradient so.
             p.color = Color(0xFFFFFFFF)
         }
-        canvas.drawRect(r, p)
+        // A picture fill has nothing under it: one drawn half transparent
+        // shows what lies behind, not white (the Concourse theme's corner).
+        if fill.image == nil || fill.color != nil || p.shader != nil { canvas.drawRect(r, p) }
         if let image = fill.image, let decoded = cache.image(image) {
             let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
             let paint = imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone)

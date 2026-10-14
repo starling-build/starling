@@ -254,8 +254,20 @@ struct SlideTransition: Equatable {
 }
 
 /// A slide's (or a shape's) fill: a colour, a gradient, or a picture.
+/// `a:effectLst/a:fillOverlay`: a second fill laid over a shape's own,
+/// blended into it (`mult`, `screen`, `darken`, `lighten`, `over`).
+final class FillOverlay: Equatable {
+    let fill: SlideFill
+    let blend: String
+    init(fill: SlideFill, blend: String) { self.fill = fill; self.blend = blend }
+    static func == (a: FillOverlay, b: FillOverlay) -> Bool { a.fill == b.fill && a.blend == b.blend }
+}
+
 struct SlideFill: Equatable {
     var color: Color? = nil
+    /// Laid over the fill and blended into it (the Concourse theme's
+    /// corner: a pale texture multiplied by a blue gradient).
+    var overlay: FillOverlay? = nil
     var image: ImageAttachment? = nil
     /// The picture's transparency (`a:alphaModFix`) and duotone recolouring
     /// (`a:duotone`: the two colours luminance maps between).

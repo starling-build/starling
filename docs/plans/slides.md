@@ -891,6 +891,25 @@ minimal-gradient-fill-issue's corner radial has both stops at 50%, a
 hard edge PowerPoint draws soft; neither the old circle nor the new one
 draws it so.
 
+**A fill overlay, and nothing under a picture fill, 2026-10-14** (sweep
+52: 1.903 → 1.888%; GeomLec1 12.29 → 8.17, aascu 5864 12.98 → 11.45,
+backgrounds 4.73 → 2.03; picture-strip +0.12, below). The Concourse
+theme's corner is a right triangle filled with a pale texture at half
+alpha and `effectLst/fillOverlay blend="mult"` over it — a blue
+gradient multiplied in. We drew it white. Now:
+
+- **`a:fillOverlay` is a second fill on `SlideFill.overlay`**, read
+  from the shape's effects over its own fill (a gradient or a colour)
+  and painted in a layer with the fill: the overlay blended into the
+  fill alone (`mult`, `screen`, `darken`, `lighten`; otherwise over),
+  then the two onto the slide. Two decks use it, both this theme.
+- **A picture fill has nothing under it.** `paintFill` drew the fill's
+  colour first, white when it had none, so a picture at half alpha was
+  half white instead of half what lies behind; backgrounds' tiled
+  textures were the same. picture-strip's empty picture frames no longer
+  paint white, which costs it 0.12 against a diagram laid out wrong
+  anyway.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

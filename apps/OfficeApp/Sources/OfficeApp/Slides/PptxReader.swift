@@ -1179,6 +1179,16 @@ private struct SlideContext {
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.fillStyle = fillStyle
+        if let o = spPr?.first("a:effectLst")?.first("a:fillOverlay"),
+           var base = fillStyle ?? fill.map({ SlideFill(color: $0) }) {
+            var over: SlideFill? = nil
+            if let g = o.first("a:gradFill") { over = PptxReader.gradient(g, colors: colors) }
+            else if let f = o.first("a:solidFill"), let c = colors.color(in: f) { over = SlideFill(color: c) }
+            if let over {
+                base.overlay = FillOverlay(fill: over, blend: o["blend"] ?? "over")
+                st.fillStyle = base
+            }
+        }
         // A gradient that stays put when its shape turns (`rotWithShape`
         // off — tdf125551's chevrons, turned a quarter, shade top to
         // bottom still): its angle counted back by the shape's turn.
