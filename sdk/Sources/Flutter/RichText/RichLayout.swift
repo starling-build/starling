@@ -1921,6 +1921,7 @@ public final class RichLayout {
                     return false
                 }
                 var next = columns.map(\.cut)
+                var setWhole: [Int: Double] = [:]   // column → pageY of flow 0, for one set whole in this part
                 if !fits {
                     // (Every cell with something left must take some of
                     // it: where one cannot — a paragraph that may not
@@ -1929,7 +1930,23 @@ public final class RichLayout {
                     var moved = false, stuck = false
                     for (n, column) in columns.enumerated() {
                         let limit = column.cut + avail - ruleUnder(c, parted: true) + 0.01
-                        if column.bottom <= limit {
+                        let d0 = _cells[column.members[0]]!
+                        let blockTop = _tops[column.members[0]]
+                        let blockBottom = _tops[column.members[column.members.count - 1]] + _heights[column.members[column.members.count - 1]]
+                        let room = avail - ruleUnder(c, parted: true) - d0.pad.top - d0.pad.bottom - (blockBottom - blockTop)
+                        if theme.wordRules, column.cut <= c.rowTop + 0.01, column.bottom > limit, d0.rowSpan == 1, !d0.vertical,
+                           d0.verticalAlign == "center" || d0.verticalAlign == "bottom", room >= -0.01 {
+                            // A centred cell (or one set at the bottom)
+                            // whose text all fits the row's part on this
+                            // page is set there, in that part: zh-64044a1d's
+                            // "警政組" stands midway between the two lines
+                            // of its neighbour that Word keeps on the page,
+                            // where centring it in the whole row put it
+                            // over the foot and sent the row over whole.
+                            setWhole[n] = y + d0.pad.top + max(0, room) * (d0.verticalAlign == "center" ? 0.5 : 1) - blockTop
+                            next[n] = max(column.cut, rowBottom)
+                            moved = true
+                        } else if column.bottom <= limit {
                             // (All that is left of this cell is on this page.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
@@ -1963,6 +1980,15 @@ public final class RichLayout {
                 rules.append(rule)
                 _pages[page].append(rule)
                 for (n, column) in columns.enumerated() {
+                    if let at = setWhole[n] {
+                        for k in column.members {
+                            var piece = PagePiece(paragraph: k, flowTop: _tops[k], flowBottom: _tops[k] + _heights[k], page: page, pageY: at + _tops[k])
+                            piece.part = .text
+                            pieces[k, default: []].append(piece)
+                            _pages[page].append(piece)
+                        }
+                        continue
+                    }
                     for k in column.members {
                         let top = _tops[k], bottom = top + _heights[k]
                         let lo = max(top, column.cut), hi = fits ? bottom : min(bottom, next[n])

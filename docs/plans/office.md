@@ -2239,6 +2239,17 @@ fitter dropped the paragraph's tail).
   definition point at one, with their restarts and any differing level
   as overrides. NumberingWOver 57.1% -> 100%; nothing down.
 
+- **A centred cell parts with its row, set in the row's part on the
+  page (2026-10-14).** Where a row is parted at a page's foot, a cell
+  centred (or set at the bottom) whose text all fits the row's part on
+  the page is set in that part: zh-64044a1d's "警政組" stands midway
+  between the two lines of its neighbour Word keeps on page 20.
+  Centred over the whole row, its line lay past the foot, the row could
+  not part, and went over whole. zh-69bbcc3c 69.3% -> 86.0% (and
+  Word's page count), bug59058 18.9 -> 30.4, bug65649 3.9 -> 6.0,
+  zh-15728c84 +1.0, zh-64044a1d +0.7; zh-1a3c7aa0 23.6 -> 23.0 (two
+  pages adrift of Word's already by page 15; more of its rows part).
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
