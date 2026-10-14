@@ -65,6 +65,10 @@ struct DgmModel {
     var points: [String: DgmPoint] = [:]
     /// Presentation properties by "\(data point id)|\(layout node name)".
     var pres: [String: XNode] = [:]
+    /// A presentation point's own shape properties, by the same key: what
+    /// the user set on that one shape (lo-smartart-missing-bullet's frame,
+    /// filled with tx2 over the colour scheme's tint of accent1).
+    var presSpPr: [String: XNode] = [:]
 
     init?(_ data: XNode) {
         var points: [String: DgmPoint] = [:]
@@ -76,6 +80,7 @@ struct DgmModel {
             if type == "pres" {
                 if let pr = pt.first("dgm:prSet"), let assoc = pr["presAssocID"], let name = pr["presName"] {
                     pres[assoc + "|" + name] = pr
+                    if let sp = pt.first("dgm:spPr"), !sp.children.isEmpty { presSpPr[assoc + "|" + name] = sp }
                 }
                 continue
             }
@@ -522,6 +527,8 @@ struct DiagramLayout {
 
     // MARK: - Constraints
 
+    private static let margins: Set<String> = ["lMarg", "tMarg", "rMarg", "bMarg"]
+
     /// The constraint types that are lengths on the diagram (margins are not).
     private static let lengths: Set<String> = ["w", "h", "l", "t", "r", "b", "ctrX", "ctrY",
                                                "lOff", "tOff", "rOff", "bOff", "ctrXOff", "ctrYOff",
@@ -593,6 +600,10 @@ struct DiagramLayout {
             } else if c["val"] == "INF" {
                 // No bound at all: the contents' size, and any room to spare.
                 for t in ts { t.unbounded.insert(type) }
+            } else if c["val"] == nil, Self.margins.contains(type) {
+                // A margin named with no value is the schema's 0 — not the
+                // default a margin no constraint names gets (`textBody`).
+                for t in ts { set(t, type, 0, op) }
             }
         }
     }
@@ -735,10 +746,12 @@ struct DiagramLayout {
 
     /// The box the children take up, spaces included (what a container
     /// is, for its own parent to place): a space is real room, even if
-    /// nothing is drawn in it.
+    /// nothing is drawn in it. So is a shape drawn as nothing (`hideGeom`):
+    /// pList2's invisiNode holds the top of each item, and left out, the
+    /// item was centred in its row 8 pt above PowerPoint's.
     private func extent(of nodes: [DgmPresNode]) -> Rect? {
         var r: Rect? = nil
-        for c in nodes where !c.hideGeom && !(c.isConnector && c.rect.isEmpty) {
+        for c in nodes where !(c.isConnector && c.rect.isEmpty) {
             let box: Rect?
             if c.shapeType == nil && !c.isSpace {
                 // A line knows its own run (spaces included) once laid out.
@@ -1311,7 +1324,8 @@ struct DiagramLayout {
                          XNode(name: "a:ext", attrs: ["cx": Self.emu(max(0, r.width)), "cy": Self.emu(max(0, r.height))])]
         spPr.children = [xfrm, geometry]
         // Fill and line: the point's own, else the colour scheme's.
-        let own = n.presOf.first?.spPr ?? n.point.spPr
+        // (The presentation point's first: it is this shape's alone.)
+        let own = model.presSpPr[n.point.id + "|" + n.name] ?? n.presOf.first?.spPr ?? n.point.spPr
         let fillNames = ["a:noFill", "a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill"]
         if n.hideGeom {
             spPr.children.append(XNode(name: "a:noFill", attrs: [:]))
@@ -1402,7 +1416,13 @@ struct DiagramLayout {
         let bullets = n.variable("bulletEnabled") == "1"
         let startLevel = Int(n.params["stBulletLvl"] ?? "1") ?? 1
         let prim = min(n.value("primFontSz") ?? 65, fontCap)
-        let sec = min(n.value("secFontSz") ?? prim, fontCap)
+        // A shape that shows its own point's text and its children's sets
+        // the children's at 78% of its own, when nothing says otherwise:
+        // PowerPoint's 51 under 65 (lo-smartart-bullet-list) and 33 under
+        // 42 (lo-smartart-missing-bullet). Children shown alone are its
+        // first size.
+        let ownText = points.contains { $0.depth == base }
+        let sec = min(n.value("secFontSz") ?? (ownText ? prim * 0.78 : prim), fontCap)
         var paragraphs: [XNode] = []
         var listed = false
         for p in points {
@@ -1421,6 +1441,16 @@ struct DiagramLayout {
                 } else {
                     pPr.children = [XNode(name: "a:buNone", attrs: [:])]
                 }
+                // Lines at 90%, and 35% after a first-level paragraph, 15%
+                // after a lower one: every paragraph of PowerPoint's own
+                // diagram drawings in the corpus (369 of 371).
+                func pct(_ name: String, _ v: Int) -> XNode {
+                    let n = XNode(name: name, attrs: [:])
+                    n.children = [XNode(name: "a:spcPct", attrs: ["val": String(v)])]
+                    return n
+                }
+                pPr.children.insert(contentsOf: [pct("a:lnSpc", 90000), pct("a:spcBef", 0),
+                                                 pct("a:spcAft", level > 0 ? 15000 : 35000)], at: 0)
                 out.children = [pPr]
                 for run in runs {
                     let r = clone(run)
@@ -1445,9 +1475,12 @@ struct DiagramLayout {
         let body = XNode(name: "p:txBody", attrs: [:])
         // (The margins are fractions of the font size; `starling:insScale`
         // tells the reader they shrink with the text.)
+        // A margin no constraint names is 0.56 of the font size: PowerPoint's
+        // own drawing of pList2 has 256032 EMU (20.2 pt) round 36 pt text.
+        let inset = 0.56 * prim
         let bodyPr = XNode(name: "a:bodyPr", attrs: ["anchor": anchor, "wrap": "square", "starling:insScale": "1",
-                                                     "lIns": Self.emu(n.value("lMarg") ?? 0), "tIns": Self.emu(n.value("tMarg") ?? 0),
-                                                     "rIns": Self.emu(n.value("rMarg") ?? 0), "bIns": Self.emu(n.value("bMarg") ?? 0)])
+                                                     "lIns": Self.emu(n.value("lMarg") ?? inset), "tIns": Self.emu(n.value("tMarg") ?? inset),
+                                                     "rIns": Self.emu(n.value("rMarg") ?? inset), "bIns": Self.emu(n.value("bMarg") ?? inset)])
         bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])]
         body.children = [bodyPr, XNode(name: "a:lstStyle", attrs: [:])] + paragraphs
         return body

@@ -759,6 +759,35 @@ brings it down — a fit of the text in its heading, perhaps, but no
 reading of the margins found gives 34. Its old 31 pt was the old units'
 accident.
 
+**Diagrams laid out here: their text, 2026-10-14** (sweep 46: corpus 2.03 → 2.00%, 21 decks closer, four further by 0.1 or less; the 34
+decks whose diagram this app lays out, mean 4.08 → 3.60). Found through
+lo-smartart-missing-bullet (14.60 → 3.74), a pList2 whose frame was
+pale where PowerPoint's is navy, its items 8 pt high and its text 60 pt
+where PowerPoint's is 42 and 33. Read where PowerPoint saved its own
+drawing of a diagram (lo-smartart-rotation2's pList2; every drawing in
+the corpus for the spacing):
+
+- **A presentation point's own `spPr` is that shape's**, over the colour
+  scheme and over the data point's: the frame is `tx2` at 90%, set on
+  that one shape. `DgmModel.presSpPr`.
+- **A shape drawn as nothing still takes room.** pList2's `invisiNode`
+  (`hideGeom`) holds the top of each item; left out of the item's
+  extent, the item was centred 8.4 pt too high.
+- **Children's text under their parent's, in one shape, is 78% of it**
+  when nothing names a second size: 33 under 42 here, 51 under 65 in
+  lo-smartart-bullet-list. Children shown alone take the first size
+  (the bracket list's 65).
+- **A margin no constraint names is 0.56 of the font size** — 256032
+  EMU round 36 pt text in PowerPoint's drawing; a margin a constraint
+  names with no value is 0, as the schema says.
+- **Lines at 90%, 35% after a first-level paragraph and 15% after a
+  lower one** — 369 of the 371 paragraphs of PowerPoint's own diagram
+  drawings in the corpus. Seventeen decks closer, three further by
+  about 0.1.
+
+Left on missing-bullet: our text is 46 and 35 where PowerPoint's is 42
+and 33 — its fit is a step or two tighter than ours.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
