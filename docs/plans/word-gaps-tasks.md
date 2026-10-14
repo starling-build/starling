@@ -116,7 +116,7 @@ zh-90e0cea8 now runs a page long from drift earlier on its last page
 (ours 17.6pt below Word's there): open for anyone.
 
 ### T7. zh-abe7e063, zh-25c4de17, zh-799c91cd, zh-190d730c
-Owner: —
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 Not looked at this round. zh-190d730c's first difference is a scorer
 artefact (a justified line drawn out of order); zh-25c4de17 is a
 two-column exam where a line changes column on page 2.
