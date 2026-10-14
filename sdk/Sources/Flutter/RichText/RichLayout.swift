@@ -3468,7 +3468,16 @@ public final class RichLayout {
         var left = p.style.indentLeft, right = p.style.indentRight
         guard theme.wordRules, !p.style.eastAsian.isEmpty else { return (left, right) }
         let unit = (document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize) / 100
-        if let c = Double(p.style.eastAsian["w:leftChars"] ?? p.style.eastAsian["w:startChars"] ?? ""), c != 0 { left = c * unit }
+        // (With a hanging indent in characters the count is from where
+        // the first line hangs: the left indent is the count and the
+        // hanging one together — as `w:left` beside them says in 420 of
+        // the sample's 422 such paragraphs. zh-89385c94's cells say
+        // leftChars -45 and hangingChars 280 at 14pt: text at 33.8pt
+        // from the margin, the first line at -5.4.)
+        if let c = Double(p.style.eastAsian["w:leftChars"] ?? p.style.eastAsian["w:startChars"] ?? ""), c != 0 {
+            left = c * unit
+            if let h = Double(p.style.eastAsian["w:hangingChars"] ?? ""), h > 0 { left += max(0, -firstLineIndent(p, document)) }
+        }
         if let c = Double(p.style.eastAsian["w:rightChars"] ?? p.style.eastAsian["w:endChars"] ?? ""), c != 0 { right = c * unit }
         return (left, right)
     }

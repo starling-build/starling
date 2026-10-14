@@ -1917,6 +1917,20 @@ fitter dropped the paragraph's tail).
   same page, and the layout has one column count for the document
   (`pageSetup.columns`).
 
+- **A left indent in characters counts from where the first line
+  hangs (2026-10-14).** Where a paragraph states `w:hangingChars`, its
+  `w:leftChars` is measured from the hanging line, and the left indent
+  is the two together: `w:left` beside them is exactly that sum in 420
+  of the sample's 422 such paragraphs (and plain `leftChars × unit` in
+  every one without). zh-89385c94's cells say leftChars -45 with
+  hangingChars 280 at 14pt, `left` 676: Word sets the text 33.8pt in,
+  the first line 5.4pt out, where ours had both 39.2pt further left.
+  zh-33aa9899 81.6% -> 98.6%, zh-9e08ed28 3.0 -> 19.0 (its page count
+  now Word's), zh-89385c94 11.3 -> 16.3 (likewise), zh-e37f8d40 +0.6;
+  zh-e6d54ae4 56.4 -> 52.1 with its line starts on pages 2-3 now
+  Word's to the point (the loss is drift elsewhere in it). Chinese
+  sample 76.8%, 57 with Word's page count; POI unchanged.
+
 Measured and not built: **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
