@@ -1541,6 +1541,9 @@ public final class RichLayout {
     private var _sectionOf: [Int] = []
     /// Each page's section, and each page's top on the canvas.
     private var _pageSection: [Int] = []
+    /// Pages left blank so that a section opens on its number's side
+    /// (`_paginate`): they have no number, header or footer.
+    private var _blankPages: Set<Int> = []
     private var _pageTops: [Double] = []
     /// Where each page's text starts below its top (pixels): the top
     /// margin, or under a taller header.
@@ -1713,6 +1716,7 @@ public final class RichLayout {
             prevContentH = contentH
             openPage()
         }
+        _blankPages = _blankPages.filter { $0 < page / _columns }
         if restarted {
             // (The page restarted on keeps its section.)
             let insets = _bodyInsets(page: page / _columns, document)
@@ -2174,6 +2178,22 @@ public final class RichLayout {
                    overfull || y > contentH + 0.01 {
                     newPage()
                 }
+                newPage()
+            }
+            // Under odd and even headers, a section that numbers its pages
+            // afresh opens on its first number's side: where that number
+            // is odd as the page before's was (or even as it was), Word
+            // leaves a page blank, with no header or footer, between them.
+            // Lab `sec` (zh-1a3c7aa0's package, Word for Windows,
+            // 2026-10-14): after page "1" a section from 1 opens on the
+            // third page, after "2" on the second; after "3" a section from
+            // 1 opens a page later and one numbered on, or from 2, does not;
+            // without `w:evenAndOddHeaders` none does.
+            if theme.wordRules, document.evenAndOddHeaders, _columns == 1, resumeCursor == nil, i > 0, page > 0,
+               y < 0.01, _pages[page].isEmpty, i < _sectionOf.count, _sectionOf[i] != _sectionOf[i - 1],
+               let first = _sectionNumberStart(_sectionOf[i], document),
+               (first - _pageNumberOf(page - 1, document)) % 2 == 0 {
+                _blankPages.insert(page)
                 newPage()
             }
             if endsSection { markOnPage = true }
@@ -3105,9 +3125,14 @@ public final class RichLayout {
         // single floating picture does (25pt in zh-37b6536f, where the
         // two photos' 0-high places made a line of 0.8, and the next
         // photo stood 30pt above Word's).
-        if theme.wordRules, p.image == nil, !p.inlineImages.isEmpty, !p.text.isEmpty,
-           p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }),
-           p.inlineImages.values.allSatisfy({ $0.float.map { !$0.takesRoom } ?? false }) {
+        // (One floating object alone, too: zh-1a3c7aa0's footer is a
+        // page number's text box in a 9pt run, its mark 14pt, and Word's
+        // line is the mark's — the box, which hangs from the line's top,
+        // stood 8.3pt low on every page.)
+        if theme.wordRules,
+           p.image.map({ $0.float.map { !$0.takesRoom } ?? false }) ?? (!p.inlineImages.isEmpty && !p.text.isEmpty
+               && p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC })
+               && p.inlineImages.values.allSatisfy({ $0.float.map { !$0.takesRoom } ?? false })) {
             // (As a paragraph of one floating picture is laid out — its
             // character in the objects' run, with no object in it: the
             // height Word gives such a line, 25pt where a line of text
@@ -5520,7 +5545,7 @@ public final class RichLayout {
         guard _sectionSetups.count > 1 else { return p + (document.pageNumberStart ?? 1) }
         var number = 0
         var previous = -1
-        for q in 0 ... max(0, p) {
+        for q in 0 ... max(0, p) where !_blankPages.contains(q) || q == 0 {
             let section = _headerFooterSection(q)
             if q == 0 || section.index != previous {
                 number = start(section) ?? (q == 0 ? 1 : number + 1)
@@ -5530,6 +5555,12 @@ public final class RichLayout {
             previous = section.index
         }
         return number
+    }
+
+    /// Where section `index` numbers its pages from, if it says.
+    private func _sectionNumberStart(_ index: Int, _ document: RichDocument) -> Int? {
+        index >= _sectionSetups.count - 1 ? document.pageNumberStart
+            : (index < _sectionSetups.count ? _sectionSetups[index].pageNumberStart : nil)
     }
 
     /// How page `p`'s section writes its numbers.
@@ -5551,7 +5582,7 @@ public final class RichLayout {
     /// page a header and footer of its own.
     private func _titlePage(_ p: Int, _ document: RichDocument) -> Bool {
         let section = _headerFooterSection(p)
-        guard p == 0 || _headerFooterSection(p - 1).index != section.index else { return false }
+        guard p == 0 || _headerFooterSection(p - 1).index != section.index || _blankPages.contains(p - 1) else { return false }
         return section.last ? document.titlePage : pageSetup(forPage: p).titlePage
     }
 
@@ -5560,7 +5591,7 @@ public final class RichLayout {
     /// was edited, or holds tabs, whose stops only that form sets).
     private func _headerFooter(_ kind: KeptHeaderFooter.Kind, page p: Int, _ document: RichDocument,
                                pageCount: Int? = nil) -> _HeaderFooter? {
-        guard theme.wordRules, !document.headerFooters.isEmpty else { return nil }
+        guard theme.wordRules, !document.headerFooters.isEmpty, !_blankPages.contains(p) else { return nil }
         if document.headerFooters != _headerFooterSource {
             for hf in _headerFooterCache.values { hf.layout.invalidateAll() }
             _headerFooterCache = [:]
@@ -5679,7 +5710,8 @@ public final class RichLayout {
     /// at the page setup's distances from the paper's edges, as Word
     /// places them. The file's own, where it has them, as it wrote them.
     private func _paintHeaderFooter(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
-        guard pageSetup != nil else { return }
+        // (A page left blank for a section's side has neither.)
+        guard pageSetup != nil, !_blankPages.contains(p) else { return }
         let setup = pageSetup(forPage: p)
         let rect = pageRect(p)
         let n = pageCount
