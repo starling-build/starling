@@ -2266,16 +2266,22 @@ public final class RichLayout {
             // what follows them go to the next page together when this
             // page has no room for all of it.
             // The run is moved from its start only, and whole: a member
-            // after the first stays with the one before it, and a run
-            // taller than a page is set as it falls (zh-64044a1d's
-            // headings 3 and 4 all keep with the next, from heading 1;
-            // capped at eight and weighed again at each member, the run
-            // put one item on each page where Word fills them).
+            // after the first stays with the one before it, so a run that
+            // starts a page is set from there as it falls, however long
+            // (zh-64044a1d's headings 3 and 4 all keep with the next,
+            // from heading 1; capped at eight and weighed again at each
+            // member, the run put one item on each page where Word fills
+            // them). A run that starts lower goes over when it does not
+            // fit what is left, though no page could hold it: Word sets
+            // zh-64044a1d's "五、名詞定義" and its run of thirty items on
+            // a new page under half a page of room.
             if theme.wordRules, resumeCursor == nil, y > 0.01, document.paragraphs[i].style.keepNext,
-               !(i > 0 && _cells[i - 1] == nil && document.paragraphs[i - 1].style.keepNext) {
+               // (A table's row whose text keeps with the next carries
+               // the run through: bug65649's place-and-date table.)
+               !(i > 0 && document.paragraphs[i - 1].style.keepNext) {
                 var need = 0.0
                 var k = i
-                while k < count, _cells[k] == nil, document.paragraphs[k].style.keepNext, need <= contentH + 0.01 {
+                while k < count, _cells[k] == nil, document.paragraphs[k].style.keepNext, need <= contentH - y + 0.01 {
                     need += _heights[k]
                     k += 1
                 }
@@ -2295,7 +2301,7 @@ public final class RichLayout {
                         }
                     }
                 }
-                if need <= contentH + 0.01, need > contentH - y + 0.01 { newPage() }
+                if need > contentH - y + 0.01 { newPage() }
             }
             // The space it shares with the paragraph above (`_sharedSpace`)
             // is on the page once, as it is in the flow.

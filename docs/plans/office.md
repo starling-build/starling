@@ -2275,6 +2275,18 @@ fitter dropped the paragraph's tail).
   zh-64044a1d's equipment list sat 4.35pt high. zh-e6d54ae4 52.1% ->
   62.7%, zh-d68ac84a 76.6 -> 79.9, zh-64044a1d +0.6; nothing down.
 
+- **A run kept with the next goes over from a page's middle whatever
+  its length (2026-10-14).** Correcting the entry two above: a run
+  that starts below the page's top goes to the next page when it does
+  not fit what is left, though no page could hold it, and only a run
+  that starts the page is set as it falls. Word sets zh-64044a1d's
+  "五、名詞定義" and its run of eleven paragraphs on a new page under
+  half a page of room. A kept table row carries the run through:
+  bug65649's place-and-date table sits between its title and its
+  preamble, all kept, and the title starts the page. zh-64044a1d 65.1%
+  -> 72.8%, bug65649 12.9 -> 18.3 (and Word's page count); nothing
+  down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
