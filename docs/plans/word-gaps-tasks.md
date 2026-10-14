@@ -66,6 +66,11 @@ Each has its entry in `office.md`.
 - Font-table `w:altName` for faces Word lacks (551ad92d)
 - Gridded multi-line paragraphs use the tallest strut (02e1c405)
 - Fit-to-text text boxes shrink to their text (92c1b88a)
+- Lists over one definition share their numbers (c2ec89d9)
+- A centred cell is set in its parted row's part on the page (c2542ff6)
+- Kept runs: moved from their start, carried through kept table rows,
+  over from a page's middle whatever their length (f67d5ba6, f774a736)
+- Text-anchored floating tables stand their `tblpY` lower (dd1ad844)
 
 ## Open tasks
 
@@ -161,3 +166,17 @@ line's descent past it; ours now allows that (entry in `office.md`),
 which took zh-6d1afa56 from 41% to 97% — note for T5's owner. This
 document still needs about 1.3pt more: ours starts the picture's line
 about 2pt below Word's, from drift earlier on that page. Open.
+
+### T12. Squeezing marks to fit a character: the limit on a character grid
+Owner: none. Documents: zh-d68ac84a (80%, first parting page 10).
+Found (labs `pqgrid1`–`6`, `pqkin1`–`3`, `pqvar1`, `pqthr1` in
+`~/starling-word-check/lab`, 2026-10-14): Word squeezes 。、，（） alike
+on a grid of `linesAndChars` with negative `w:charSpace`, and its
+first-line indent does not stop it. On the real paragraph Word takes
+"学" with the line made 0.1pt wider and leaves it at the stated width;
+our fitter puts that line 7.318pt over against a limit of 7.323 plus a
+0.045 tolerance, and takes it. The difference is under a hundredth of a
+point, below what our widths match Word's to: probably Word measures in
+twentieths (the indent as 586 twips, not 2 × 14.646). Not worth chasing
+without a model of Word's rounding.
+
