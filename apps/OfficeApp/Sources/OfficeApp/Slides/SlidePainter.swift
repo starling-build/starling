@@ -579,7 +579,7 @@ final class SlidePainter: CustomPainter {
                     p.isAntiAlias = true
                     p.strokeWidth = max(0.5, shape.outlineWidth * px)
                     p.color = line
-                    canvas.drawPath(path, p)
+                    canvas.drawPath(Self.dashed(path, shape.outlineDash, width: p.strokeWidth), p)
                 }
             }
             if mirrored { canvas.restore() }
@@ -635,7 +635,21 @@ final class SlidePainter: CustomPainter {
             p.isAntiAlias = true
             p.strokeWidth = max(0.5, shape.outlineWidth * px)
             p.color = line
-            if shape.preset?.isLine == true {
+            if let dash = shape.outlineDash {
+                // Dashed: the outline's path cut into the pattern's pieces.
+                let outline: Path
+                if shape.preset?.isLine == true {
+                    outline = Path()
+                    outline.moveTo(r.left, r.top)
+                    outline.lineTo(r.right, r.bottom)
+                } else if let path {
+                    outline = path
+                } else {
+                    outline = Path()
+                    outline.addRect(r)
+                }
+                canvas.drawPath(Self.dashed(outline, dash, width: p.strokeWidth), p)
+            } else if shape.preset?.isLine == true {
                 canvas.drawLine(Offset(r.left, r.top), Offset(r.right, r.bottom), p)
             } else if let path {
                 canvas.drawPath(path, p)
@@ -747,6 +761,42 @@ final class SlidePainter: CustomPainter {
     static func pathFocus(_ fillTo: Rect) -> Offset {
         func ratio(_ a: Double, _ b: Double) -> Double { a + b > 1e-9 ? a / (a + b) : 0.5 }
         return Offset(ratio(fillTo.left, 1 - fillTo.right), ratio(fillTo.top, 1 - fillTo.bottom))
+    }
+
+    /// A preset dash's pieces, on and off by turns, in widths of its line
+    /// (DrawingML's: "dash" 4 on 3 off, "sysDot" 1 and 1, …).
+    static func dashPattern(_ name: String?) -> [Double]? {
+        switch name {
+        case "dot": return [1, 3]
+        case "dash": return [4, 3]
+        case "lgDash": return [8, 3]
+        case "dashDot": return [4, 3, 1, 3]
+        case "lgDashDot": return [8, 3, 1, 3]
+        case "lgDashDotDot": return [8, 3, 1, 3, 1, 3]
+        case "sysDash": return [3, 1]
+        case "sysDot": return [1, 1]
+        case "sysDashDot": return [3, 1, 1, 1]
+        case "sysDashDotDot": return [3, 1, 1, 1, 1, 1]
+        default: return nil
+        }
+    }
+
+    /// `path` cut into the dash `name`'s pieces for a line `width` wide —
+    /// the path itself for a solid line. Each contour starts on a dash.
+    static func dashed(_ path: Path, _ name: String?, width: Double) -> Path {
+        guard let pattern = dashPattern(name), width > 0 else { return path }
+        let pieces = pattern.map { $0 * width }
+        let out = Path()
+        for metric in path.computeMetrics() {
+            var at = 0.0, i = 0
+            while at < metric.length {
+                let len = pieces[i % pieces.count]
+                if i % 2 == 0 { out.addPath(metric.extractPath(at, min(metric.length, at + len)), Offset.zero) }
+                at += len
+                i += 1
+            }
+        }
+        return out
     }
 
     /// A colour, gradient or picture filling `r`.

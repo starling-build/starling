@@ -492,6 +492,22 @@ final class RunCapsAndBulletTests: XCTestCase {
         XCTAssertEqual(para.style.bulletScale ?? 0, 0.8, accuracy: 1e-9, "the file's size, as written back")
     }
 
+    /// A preset dash cuts a line into its pieces, in widths of the line.
+    func testADashedLineIsCutIntoThePatternsPieces() {
+        XCTAssertEqual(SlidePainter.dashPattern("dash"), [4, 3])
+        XCTAssertEqual(SlidePainter.dashPattern("sysDashDotDot"), [3, 1, 1, 1, 1, 1])
+        XCTAssertNil(SlidePainter.dashPattern("solid"))
+        let line = Path()
+        line.moveTo(0, 0)
+        line.lineTo(70, 0)
+        let dashed = SlidePainter.dashed(line, "dash", width: 2)
+        // 8 on, 6 off over 70: five dashes.
+        let pieces = Array(dashed.computeMetrics())
+        XCTAssertEqual(pieces.count, 5)
+        XCTAssertEqual(pieces.map(\.length).reduce(0, +), 40, accuracy: 0.01)
+        XCTAssertTrue(SlidePainter.dashed(line, nil, width: 2) === line, "solid: the path itself")
+    }
+
     func testAnEmptyListParagraphShowsNoMarkerInSlides() {
         func bytesDrawn(marking: Bool) -> Int {
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 18)

@@ -55,6 +55,7 @@ struct ShapeState: Equatable {
     var fontScale = 1.0
     var insetsFollowFont = false
     var sizeGroup: String? = nil
+    var outlineDash: String? = nil
     var shapeInsets = EdgeInsets.zero
     var noWrap = false
     var columns = 1
@@ -1128,6 +1129,7 @@ final class DeckController: ChangeNotifier {
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
         st.sizeGroup = s.sizeGroup
+        st.outlineDash = s.outlineDash
         st.shapeInsets = s.shapeInsets
         st.noWrap = s.noWrap
         st.columns = s.columns
@@ -1215,6 +1217,7 @@ final class DeckController: ChangeNotifier {
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont
         shape.sizeGroup = st.sizeGroup
+        shape.outlineDash = st.outlineDash
         shape.shapeInsets = st.shapeInsets
         shape.noWrap = st.noWrap
         shape.columns = st.columns

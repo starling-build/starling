@@ -408,6 +408,9 @@ final class SlideShape {
     /// A diagram laid out here: the shapes that end at one size
     /// (`starling:sizeGroup`, from the layout's `op="equ"` constraints).
     var sizeGroup: String? = nil
+    /// `a:ln/a:prstDash`: the outline's dash pattern ("dash", "sysDot"…);
+    /// nil for a solid line.
+    var outlineDash: String? = nil
     /// The part of `insets` that is the geometry's text rectangle (an
     /// oval's inscribed box, a chevron's notch): it stays when margins that
     /// follow the font shrink with it.

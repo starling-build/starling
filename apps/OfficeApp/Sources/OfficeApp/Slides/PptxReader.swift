@@ -730,6 +730,12 @@ struct PptxReader {
         return f
     }
 
+    /// A line's preset dash (`a:prstDash`), nil for solid.
+    static func dash(_ ln: XNode?) -> String? {
+        guard let v = ln?.first("a:prstDash")?["val"], v != "solid" else { return nil }
+        return v
+    }
+
     /// `a:stretch/a:fillRect` in a blip fill: where the picture sits, as
     /// fractions inset from each edge.
     static func stretchInset(_ blipFill: XNode) -> EdgeInsets {
@@ -1204,6 +1210,7 @@ private struct SlideContext {
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
+        st.outlineDash = PptxReader.dash(spPr?.first("a:ln"))
         st.fillStyle = fillStyle
         if let o = spPr?.first("a:effectLst")?.first("a:fillOverlay"),
            var base = fillStyle ?? fill.map({ SlideFill(color: $0) }) {
@@ -1359,6 +1366,7 @@ private struct SlideContext {
         st.sourceXML = PptxXML.serialize(el)
         st.sourcePart = part
         st.keptLine = KeptLine(line: frame, box: box, outline: color, width: width)
+        st.outlineDash = PptxReader.dash(el.first("p:spPr")?.first("a:ln"))
         return st
     }
 
