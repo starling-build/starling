@@ -1697,10 +1697,13 @@ public final class RichLayout {
         // A paragraph of no height that ends a section stands on its page:
         // the page is not empty (see the section rule in the loop).
         var markOnPage = false
+        // A line on this page hangs past its foot (by its grid's overhang).
+        var overfull = false
         func newPage() {
             bands.removeAll()
             anchorRun.removeAll()
             markOnPage = false
+            overfull = false
             var fresh: [PagePiece] = []
             fresh.reserveCapacity(32)
             _pages.append(fresh)
@@ -2160,6 +2163,17 @@ public final class RichLayout {
             let endsSection = theme.wordRules && bottom - top < 0.01 && st0.sectionXML != nil && st0.sectionBreaksPage == true
             let breakIsTheSections = endsSection && st0.breakEndsPrevious && !st0.pageBreakInline
             if _pageBreak[i] && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
+                // (A page the line before hung past the foot of has no
+                // room for the break's own line: that line takes a page
+                // of its own, and the break ends that one too — a blank
+                // page. Lab `gf` replayed in Word for Windows, 2026-10-14:
+                // a 16pt line on 36pt of grid kept 31.75 to 35pt above the
+                // foot, then "[break]测试", sets 测试 on page 3; with 36pt
+                // left, on page 2. zh-6d1afa56's empty page 23.)
+                if theme.wordRules, document.paragraphs[i].style.pageBreakInline, !document.paragraphs[i].style.columnBreak,
+                   overfull || y > contentH + 0.01 {
+                    newPage()
+                }
                 newPage()
             }
             if endsSection { markOnPage = true }
@@ -2340,6 +2354,9 @@ public final class RichLayout {
                 // overhang.)
                 let overhang = theme.wordRules && i < _overhang.count ? _overhang[i] : 0
                 if rest <= available + 0.01 + overhang {
+                    // (The line, not its space after: that may stand past the foot.)
+                    if rest > available + 0.01, case let g = geometry(i), let line = Self._lineBottoms(g.painter).last,
+                       g.textTop + line - cursor > available + 0.01 { overfull = true }
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: bottom,
                                                   page: page, pageY: y))
                     y += rest
@@ -2382,6 +2399,7 @@ public final class RichLayout {
                     }
                 }
                 if let cut {
+                    if cut - cursor > available + 0.01 { overfull = true }
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: cut,
                                                   page: page, pageY: y))
                     cursor = cut

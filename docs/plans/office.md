@@ -2150,6 +2150,22 @@ fitter dropped the paragraph's tail).
   (Word's 13 pages), zh-232090e0 +2.2; nothing down. Applied to every
   face it took zh-457a8d62 from 95% to 20%. Chinese sample 81.8%.
 
+- **After a line that hangs past the foot, a page break at a
+  paragraph's start leaves a blank page (2026-10-14).** Lab `gf`
+  replayed in Word for Windows (16pt bold YaHei on an 18pt grid after
+  an exact-height filler, then "[break]测试"): with 31.75 to 35pt left
+  the line stays, hanging past the foot, and 测试 is on page 3 — the
+  break's own line takes page 2 and the break ends it; with 36 left,
+  page 2. A break's line otherwise needs no room (lab `pb`: 20pt left
+  under a 30pt line, 测试 on page 2 in modes 14 and 15). zh-6d1afa56
+  ends a table 28.5pt above the foot, then an empty 14pt paragraph
+  (two 15.6pt pitches) and "[break]（五）…": Word's page 23 is blank.
+  `overfull` in `_paginate`. zh-6d1afa56 41.3% -> 97.9%, 63 pages as
+  Word's; nothing else moved. Chinese sample on Windows 82.7%.
+  Seen and not built: in Word for Windows an *empty* line does not
+  hang at all (it needs the whole 36, and 31.2 of a 14pt one), where
+  the Mac lab `gf` had it hang like one with text.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
