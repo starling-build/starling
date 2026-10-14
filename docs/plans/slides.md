@@ -1021,6 +1021,13 @@ the size within a paragraph and 1.22 between paragraphs in
 PowerPoint with no spacing in the file, and lo-tdf98603's Hebrew
 (FrankRuehl, and PowerPoint reads a paragraph `rtl="0"` right to left).
 
+**A chart area's tiled picture and outline, 2026-10-14** (sweep 58:
+1.8724 → 1.8667%; chart-texture-bg 6.38 → 4.35, chart-picture-bg 5.55 →
+4.40). The chart area's picture fill is tiled at its own size when it
+says `a:tile`, and placed by its `fillRect`, as a shape's is — the
+paper texture was one sheet stretched over the chart — and the area's
+own line (`c:spPr/a:ln`, a 2.25 pt blue frame on both) is drawn.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

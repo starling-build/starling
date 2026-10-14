@@ -44,9 +44,9 @@ bug65551.pptx	summary pages=1 worst=0.03% mean=0.03%
 bug65673.pptx	summary pages=1 worst=0.27% mean=0.27%
 bug68703.pptx	summary pages=1 worst=3.11% mean=3.11%
 ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst=9.40% mean=4.43%
-chart-picture-bg.pptx	summary pages=1 worst=5.55% mean=5.55%
+chart-picture-bg.pptx	summary pages=1 worst=4.40% mean=4.40%
 chart-slide-bg.pptx	summary pages=1 worst=4.39% mean=4.39%
-chart-texture-bg.pptx	summary pages=1 worst=6.38% mean=6.38%
+chart-texture-bg.pptx	summary pages=1 worst=4.35% mean=4.35%
 clusterfuzz-testcase-minimized-POIXSLFFuzzer-4986044400861184.pptx	summary pages=23 worst=100.00% mean=95.89%
 clusterfuzz-testcase-minimized-POIXSLFFuzzer-5611274456596480.pptx	summary pages=1 worst=61.55% mean=61.55%
 clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages=1 worst=0.64% mean=0.64%

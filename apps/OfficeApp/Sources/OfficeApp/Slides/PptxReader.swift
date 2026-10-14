@@ -1788,9 +1788,20 @@ private struct SlideContext {
                package.parts[img.target] != nil {
                 var f = SlideFill(image: images.attachment(img.target, package))
                 (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
+                f.imageInset = PptxReader.stretchInset(b)
+                // Tiled as a shape's picture fill is (chart-texture-bg's
+                // paper at its own size, where it was one sheet stretched).
+                if b.first("a:tile") != nil {
+                    PptxReader.tile(b.first("a:tile"), image: package.parts[img.target], into: &f)
+                }
                 st.fillStyle = f
             } else if let f = pr.first("a:solidFill"), let c = colors.color(in: f) {
                 st.fillStyle = SlideFill(color: c)
+            }
+            // The chart area's outline.
+            if let ln = pr.first("a:ln"), !ln.has("a:noFill"), let f = ln.first("a:solidFill"), let c = colors.color(in: f) {
+                st.outline = c
+                st.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
             }
         }
         return st
