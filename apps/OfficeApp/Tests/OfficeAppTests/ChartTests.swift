@@ -93,6 +93,22 @@ final class ChartTests: XCTestCase {
                       "written back as its own colour")
     }
 
+    /// A chart's own text size is its labels' and legend's, and an
+    /// unsized title's is 1.2 of it, bold where nothing says otherwise.
+    func testTheChartsTextSizeSetsItsText() throws {
+        let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
+        let xml = """
+        <c:chartSpace \(ns)><c:chart><c:title><c:overlay val="0"/></c:title><c:plotArea><c:barChart><c:barDir val="bar"/>
+        <c:ser><c:idx val="0"/><c:order val="0"/><c:tx><c:v>Sales</c:v></c:tx><c:val><c:numRef><c:numCache><c:ptCount val="1"/><c:pt idx="0"><c:v>8</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser>
+        </c:barChart></c:plotArea></c:chart><c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="1800"/></a:pPr></a:p></c:txPr></c:chartSpace>
+        """
+        let c = try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(xml.utf8))), color: { _ in nil }))
+        XCTAssertEqual(c.textSize, 18)
+        XCTAssertNil(c.titleSize, "the title's own size is unsaid: 1.2 of the chart's when drawn")
+        XCTAssertTrue(c.titleBold)
+        XCTAssertEqual(try reread(c).textSize, 18, "written back")
+    }
+
     func testCellTypingIsOneUndoStep() {
         let deck = SlidesSample.make()
         let shape = deck.slides.flatMap(\.shapes).first { $0.chart != nil }!

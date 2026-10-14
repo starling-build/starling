@@ -1000,6 +1000,27 @@ it. The tdf139618 WordArt trio's bends are PowerPoint's to a few
 points; what costs is Arial Black, for which no free face of its weight
 is shipped (the shared font code the Writer session is changing).
 
+**A chart's own text size, 2026-10-14** (sweep 57: 1.8787 → 1.8724%;
+bar-chart 4.72 → 2.91, pie-chart 4.67 → 3.01, line-chart and
+scatter-chart within 0.03). POI's five chart decks give the chart
+space a text size (`c:chartSpace/c:txPr` 18 pt) and nothing else;
+PowerPoint sets every label and the legend at 18 and the title, which
+says nothing, at 22 bold. We set them at 12 and the title at 18.6.
+
+- **`Chart.textSize`** is the labels', legend's and data labels' size
+  where their own is unsaid, and an unsized title is 1.2 of it,
+  rounded (21.6 → 22); written back in the chart space's text.
+- **A title is bold where nothing says** — its runs, its paragraph, its
+  own text or the chart's. aascu 5864's titles (14 and 12 pt, no `b`)
+  are bold in PowerPoint too.
+
+Left: tdf147586 says 12 everywhere and PowerPoint shows 10.5 and 10 —
+the chart is drawn smaller than its text by something not found.
+Also looked at and left: lo-tdf169524's body, whose lines are 1.08 of
+the size within a paragraph and 1.22 between paragraphs in
+PowerPoint with no spacing in the file, and lo-tdf98603's Hebrew
+(FrankRuehl, and PowerPoint reads a paragraph `rtl="0"` right to left).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

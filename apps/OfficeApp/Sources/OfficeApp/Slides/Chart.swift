@@ -127,6 +127,10 @@ struct Chart: Equatable {
     var plotLayoutInner = false
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
+    /// The chart's own text size (`c:chartSpace/c:txPr`) where it is not
+    /// the usual 12: what its labels and legend are set in when they say
+    /// nothing, and an unsized title 1.2 times it.
+    var textSize: Double? = nil
     /// The plot area's own fill (`c:plotArea/c:spPr`).
     var plotFill: Color? = nil
     /// The value axis draws its gridlines (`c:majorGridlines`).
@@ -297,7 +301,9 @@ enum ChartXML {
             let layers = ([run] + defaults).compactMap { $0 }
             // (18.62 pt is the default, PowerPoint's and what this app writes.)
             titleSize = layers.lazy.compactMap { $0["sz"].flatMap(Double.init) }.first.flatMap { $0 == 1862 ? nil : $0 / 100 }
-            titleBold = layers.lazy.compactMap { $0["b"] }.first.map { $0 == "1" || $0 == "true" } ?? false
+            // (Bold where nothing says: the five decks of an 18 pt chart
+            // whose title says nothing show it bold at 22.)
+            titleBold = (layers + [space.first("c:txPr")?.descendant("a:defRPr")].compactMap { $0 }).lazy.compactMap { $0["b"] }.first.map { $0 == "1" || $0 == "true" } ?? true
             for layer in layers where titleColor == nil {
                 if let fill = layer.first("a:solidFill") { titleColor = color(fill) }
             }
@@ -307,7 +313,9 @@ enum ChartXML {
             // "Series 1".)
             title = series[0].name
         }
+        let spaceRun = space.first("c:txPr")?.descendant("a:defRPr")
         var c = Chart(type: type, title: title, categories: categories, series: series)
+        if let sz = spaceRun?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.textSize = sz / 100 }
         c.titleSize = titleSize
         c.titleBold = titleBold
         c.titleColor = titleColor
@@ -557,7 +565,7 @@ enum ChartXML {
         } ?? ""
         let plotFill = c.plotFill.map { "<c:spPr><a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill></c:spPr>" } ?? ""
         let legend = c.legend ? "<c:legend><c:legendPos val=\"\(c.legendPosition)\"/><c:overlay val=\"0\"/></c:legend>" : ""
-        let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1200\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
+        let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"\(Int(((c.textSize ?? 12) * 100).rounded()))\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/><c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)\(plotFill)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
@@ -626,7 +634,7 @@ enum ChartPainter {
             // In the file's size, weight and colour where it gives them,
             // each line centred.
             let tp = TextPainter(text: TextSpan(text: title, style: Flutter.TextStyle(
-                color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? 18.6) * k),
+                color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? 18.6) * k),
                 fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain, fontFamily: font)),
                 textAlign: .center, textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: max(1, area.width))
@@ -641,7 +649,7 @@ enum ChartPainter {
         if c.legend {
             let names = pie ? c.categories : c.series.map(\.name)
             // In the legend's own size, its keys and gaps in proportion.
-            let size = c.legendSize ?? 12, m = size / 12
+            let size = c.legendSize ?? c.textSize ?? 12, m = size / 12
             var entries = names.enumerated().map { (i: $0.offset, tp: text($0.element, size)) }
             let key = 7 * k * m, gap = 4 * k * m, spacing = 12 * k * m
             // Beside the plot (`legendPos` r, l, tr): a column, an entry to
@@ -810,7 +818,7 @@ enum ChartPainter {
             let all = c.series.flatMap { $0.values.compactMap { $0 } }
             lo = all.min() ?? 0; hi = all.max() ?? 1
         }
-        let labelSize = c.valueLabelSize ?? 12
+        let labelSize = c.valueLabelSize ?? c.textSize ?? 12
         var sc = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             sc = fixedScale(auto: sc, min: c.valueMin, max: c.valueMax, step: c.valueStep)
@@ -863,7 +871,7 @@ enum ChartPainter {
         }
         if let placed, !c.plotLayoutInner { area = placed }
         // Tick labels: values along one axis, categories (or x values) along the other.
-        let catSize = c.categoryLabelSize ?? 12
+        let catSize = c.categoryLabelSize ?? c.textSize ?? 12
         let catLabels: [TextPainter]
         if c.type == .scatter {
             catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { categoryText(label($0, percent: false), catSize, .infinity) }
@@ -1109,7 +1117,7 @@ enum ChartPainter {
         }
         if c.dataLabels {
             for (s, at) in labels {
-                let tp = text(s, 12, .infinity)
+                let tp = text(s, c.textSize ?? 12, .infinity)
                 let dx = horizontal && !c.stacked ? 0 : tp.width / 2
                 tp.paint(canvas, Offset(at.dx - dx, at.dy - tp.height / 2))
                 tp.dispose()
@@ -1165,7 +1173,7 @@ enum ChartPainter {
                 let v = wedge.value
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
-                    color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, 12 * k),
+                    color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.textSize ?? 12) * k),
                     fontFamily: OfficeFonts.substitute(theme.bodyFont))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
