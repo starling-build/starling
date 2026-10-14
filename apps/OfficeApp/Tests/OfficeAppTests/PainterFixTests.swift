@@ -233,6 +233,24 @@ final class PresetGeometryTests: XCTestCase {
         jpg[13] = 0
         XCTAssertNil(PptxReader.imageDPI(Data(jpg)), "unit 0 is an aspect ratio, not a resolution")
     }
+
+    /// tdf152070: a tile 60% across and 70% down, aligned top left and
+    /// moved 35 pt right and 40.5 down; `algn="t"` is the top middle.
+    func testATilesScaleAlignmentAndOffsetAreRead() {
+        let tile = XNode.parse(Data("<a:tile \(ns) tx=\"444500\" ty=\"514350\" sx=\"60000\" sy=\"70000\" flip=\"none\" algn=\"tl\"/>".utf8))
+        var f = SlideFill()
+        PptxReader.tile(tile, image: nil, into: &f)
+        XCTAssertTrue(f.tiled)
+        XCTAssertEqual(f.tileScale, 0.6 * 96 / 144, accuracy: 1e-9)
+        XCTAssertEqual(f.tileScaleY, 0.7 * 96 / 144, accuracy: 1e-9)
+        XCTAssertEqual(f.tileOffset, Offset(35, 40.5))
+        XCTAssertEqual(f.tileAlign, Offset(0, 0))
+        PptxReader.tile(XNode.parse(Data("<a:tile \(ns) algn=\"t\"/>".utf8)), image: nil, into: &f)
+        XCTAssertEqual(f.tileAlign, Offset(0.5, 0))
+        XCTAssertEqual(f.tileOffset, Offset(0, 0))
+        PptxReader.tile(nil, image: nil, into: &f)
+        XCTAssertEqual(f.tileScaleY, 96 / 144, accuracy: 1e-9, "a bare blip tiles at its own size")
+    }
 }
 
 /// Table cells turned, margined and lined as the file has them

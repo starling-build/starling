@@ -606,19 +606,41 @@ struct PptxReader {
             // (tdf128596's sheet of ticks, which was one tick stretched).
             let tileNode = b.first("a:tile") ?? (b.first("a:stretch") == nil ? XNode(name: "a:tile", attrs: [:]) : nil)
             if let tile = tileNode {
-                f.tiled = true
-                // At the picture's own resolution (its declared dpi) times
-                // `sx`. One that declares none comes out at 144 dpi — as
-                // measured against PowerPoint's (for Mac) export of
-                // lo-page_transparent_bitmap, a 94 px PNG drawn 47 pt wide;
-                // its pixels taken as a Retina screen's, it seems.
-                let dpi = package.parts[rel.target].flatMap(Self.imageDPI) ?? 144
-                f.tileScale = (tile["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
+                Self.tile(tile, image: package.parts[rel.target], into: &f)
             }
             f.imageInset = Self.stretchInset(b)
             return f
         }
         return nil
+    }
+
+    /// A picture fill's `a:tile` (or nil for a bare `a:blip`, which tiles
+    /// with the defaults): its scale, alignment and offset, into `f`.
+    static func tile(_ tile: XNode?, image: Data?, into f: inout SlideFill) {
+        f.tiled = true
+        // At the picture's own resolution (its declared dpi) times `sx` and
+        // `sy`. One that declares none comes out at 144 dpi — as measured
+        // against PowerPoint's (for Mac) export of
+        // lo-page_transparent_bitmap, a 94 px PNG drawn 47 pt wide; its
+        // pixels taken as a Retina screen's, it seems.
+        let dpi = image.flatMap(imageDPI) ?? 144
+        f.tileScale = (tile?["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
+        f.tileScaleY = (tile?["sy"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
+        // `tx`/`ty` in EMU, after the alignment (tdf152070: the grid starts
+        // 35 pt in and 40.5 down, as its 444500 and 514350 say).
+        f.tileOffset = Offset((tile?["tx"].flatMap(Double.init) ?? 0) / 12700,
+                              (tile?["ty"].flatMap(Double.init) ?? 0) / 12700)
+        switch tile?["algn"] ?? "tl" {
+        case "t": f.tileAlign = Offset(0.5, 0)
+        case "tr": f.tileAlign = Offset(1, 0)
+        case "l": f.tileAlign = Offset(0, 0.5)
+        case "ctr": f.tileAlign = Offset(0.5, 0.5)
+        case "r": f.tileAlign = Offset(1, 0.5)
+        case "bl": f.tileAlign = Offset(0, 1)
+        case "b": f.tileAlign = Offset(0.5, 1)
+        case "br": f.tileAlign = Offset(1, 1)
+        default: f.tileAlign = Offset(0, 0)
+        }
     }
 
     /// The resolution a picture declares, in dots per inch: a PNG's `pHYs`,
@@ -1066,9 +1088,7 @@ private struct SlideContext {
             (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
             f.imageInset = PptxReader.stretchInset(b)
             if b.first("a:tile") != nil || b.first("a:stretch") == nil {
-                f.tiled = true
-                let dpi = package.parts[rel.target].flatMap(PptxReader.imageDPI) ?? 144
-                f.tileScale = (b.first("a:tile")?["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
+                PptxReader.tile(b.first("a:tile"), image: package.parts[rel.target], into: &f)
             }
             fillStyle = f
         } else if spPr?.has("a:grpFill") == true {
@@ -2189,9 +2209,7 @@ private struct SlideContext {
             var f = SlideFill(image: images.attachment(rel.target, package))
             (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
             if b.first("a:tile") != nil || b.first("a:stretch") == nil {
-                f.tiled = true
-                let dpi = package.parts[rel.target].flatMap(PptxReader.imageDPI) ?? 144
-                f.tileScale = (b.first("a:tile")?["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
+                PptxReader.tile(b.first("a:tile"), image: package.parts[rel.target], into: &f)
             }
             look.fill = f; any = true
         }

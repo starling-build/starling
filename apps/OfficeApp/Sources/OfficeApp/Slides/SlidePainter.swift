@@ -718,16 +718,20 @@ final class SlidePainter: CustomPainter {
             let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
             let paint = imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone)
             let tw = max(1, Double(decoded.width) * 0.75 * fill.tileScale * pxPerPt)
-            let th = max(1, Double(decoded.height) * 0.75 * fill.tileScale * pxPerPt)
+            let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
             // A tile larger than the area in both directions is a photo
             // marked "tile": PowerPoint shows it fitted, not cropped.
             if fill.tiled, tw < r.width || th < r.height {
-                // At the picture's own size (96/in) times the tile scale.
+                // At the picture's own size (96/in) times the tile scale,
+                // from the one tile the alignment and offset place, back
+                // to the area's top left edge and on past its bottom right.
+                let x0 = r.left + (r.width - tw) * fill.tileAlign.dx + fill.tileOffset.dx * pxPerPt
+                let y0 = r.top + (r.height - th) * fill.tileAlign.dy + fill.tileOffset.dy * pxPerPt
                 canvas.save()
                 canvas.clipRect(r)
-                var y = r.top
+                var y = y0 - ((y0 - r.top) / th).rounded(.up) * th
                 while y < r.bottom {
-                    var x = r.left
+                    var x = x0 - ((x0 - r.left) / tw).rounded(.up) * tw
                     while x < r.right {
                         canvas.drawImageRect(decoded, src, Rect.fromLTWH(x, y, tw, th), paint)
                         x += tw

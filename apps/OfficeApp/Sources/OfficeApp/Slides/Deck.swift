@@ -261,10 +261,16 @@ struct SlideFill: Equatable {
     /// (`a:duotone`: the two colours luminance maps between).
     var imageAlpha = 1.0
     var duotone: [Color]? = nil
-    /// `a:tile`: the picture repeats at its own size (times `tileScale`)
-    /// instead of stretching.
+    /// `a:tile`: the picture repeats at its own size (times `tileScale`
+    /// across and `tileScaleY` down) instead of stretching. One tile is
+    /// put at `tileAlign` within the area — fractions of the room left
+    /// over, so (0.5, 0) is `algn="t"`, the top middle — then moved by
+    /// `tileOffset` (points), and the rest are laid edge to edge from it.
     var tiled = false
     var tileScale = 1.0
+    var tileScaleY = 1.0
+    var tileAlign = Offset(0, 0)
+    var tileOffset = Offset(0, 0)
     /// Gradient stops (position 0...1, colour) and the direction, degrees
     /// clockwise from left-to-right.
     var stops: [GradientStop] = []

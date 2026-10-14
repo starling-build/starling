@@ -178,8 +178,11 @@ enum WordArt {
                     // A picture: tiled at its own size, or stretched over the area.
                     let w = Double(decoded.width), h = Double(decoded.height)
                     let sx = fill.tiled ? 0.75 * fill.tileScale * px : area.width / max(1, w)
-                    let sy = fill.tiled ? 0.75 * fill.tileScale * px : area.height / max(1, h)
-                    let own = [sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, 1, 0, area.left, area.top, 0, 1]
+                    let sy = fill.tiled ? 0.75 * fill.tileScaleY * px : area.height / max(1, h)
+                    // A tile's grid starts where its alignment and offset put one tile.
+                    let ox = fill.tiled ? (area.width - w * sx) * fill.tileAlign.dx + fill.tileOffset.dx * px : 0
+                    let oy = fill.tiled ? (area.height - h * sy) * fill.tileAlign.dy + fill.tileOffset.dy * px : 0
+                    let own = [sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, 1, 0, area.left + ox, area.top + oy, 0, 1]
                     var local = [Double](repeating: 0, count: 16)
                     for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { local[c * 4 + r] += inv[k * 4 + r] * own[c * 4 + k] } } }
                     if let shader = try? ImageShader(decoded, .repeated, .repeated, local, filterQuality: .medium) {
