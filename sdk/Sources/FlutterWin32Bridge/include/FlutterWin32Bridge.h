@@ -1080,6 +1080,18 @@ int32_t flwin32_clipboard_set_text(const char* text);
 // -1 if `out` is too small (retry with a larger buffer).
 int32_t flwin32_clipboard_get_text(char* out, int32_t out_size);
 
+// Several flavours in one write: begin (opens and empties the clipboard),
+// put each, end. `format` NULL is plain text, given as UTF-8 bytes; any
+// other is a registered format by name ("HTML Format", "Rich Text Format",
+// "PNG") and its bytes go on as given. begin and put return 1 on success.
+int32_t flwin32_clipboard_begin(void);
+int32_t flwin32_clipboard_put(const char* format, const uint8_t* bytes, int32_t len);
+void flwin32_clipboard_end(void);
+
+// A registered format's bytes, as stored. Returns the count copied, 0 when
+// the clipboard has none, or minus the size needed when `out` is too small.
+int32_t flwin32_clipboard_get_format(const char* format, uint8_t* out, int32_t out_size);
+
 // ── window management ───────────────────────────────────────────────────────
 //
 // Starling on Windows cannot own other people's pixels — DWM is not

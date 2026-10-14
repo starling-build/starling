@@ -13,9 +13,14 @@
  * Wayland and GTK backends there is no owner to ask, nothing to wait on, and
  * no way for another process to stall a paste -- which is why this is
  * synchronous and needs no thread of its own.
+ *
+ * Rich flavours (HTML, RTF, PNG) are plain bytes under a registered format
+ * name; CF_HTML's header is written and stripped on the Swift side
+ * (Win32ClipboardProvider.swift), where strings are easier.
  */
 
 #include <windows.h>
+#include <string.h>
 
 #include "include/FlutterWin32Bridge.h"
 
@@ -53,6 +58,80 @@ int32_t flwin32_clipboard_set_text(const char* text) {
     }
     CloseClipboard();
     return 1;
+}
+
+/* Several flavours at once: begin (open + empty), put each, end (close).
+ * Office, browsers and mail clients each take the richest they read --
+ * "HTML Format" for a table with its formatting, "Rich Text Format", "PNG" --
+ * and plain text is there for everything else. */
+static int fl_clip_open = 0;
+
+int32_t flwin32_clipboard_begin(void) {
+    if (fl_clip_open) return 1;
+    if (!OpenClipboard(NULL)) return 0;
+    EmptyClipboard();
+    fl_clip_open = 1;
+    return 1;
+}
+
+static int32_t fl_clip_put_block(UINT format, const void* bytes, SIZE_T len) {
+    HGLOBAL block = GlobalAlloc(GMEM_MOVEABLE, len ? len : 1);
+    if (!block) return 0;
+    void* dst = GlobalLock(block);
+    if (!dst) { GlobalFree(block); return 0; }
+    if (len) memcpy(dst, bytes, len);
+    GlobalUnlock(block);
+    /* Ownership passes to the clipboard on success only (see set_text). */
+    if (!SetClipboardData(format, block)) { GlobalFree(block); return 0; }
+    return 1;
+}
+
+int32_t flwin32_clipboard_put(const char* format, const uint8_t* bytes, int32_t len) {
+    if (!fl_clip_open || len < 0) return 0;
+    if (!format) {
+        /* Plain text: UTF-8 bytes in, UTF-16 with a terminator out. */
+        int wlen = MultiByteToWideChar(CP_UTF8, 0, (const char*)bytes, len, NULL, 0);
+        if (wlen < 0) return 0;
+        WCHAR* w = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, ((SIZE_T)wlen + 1) * sizeof(WCHAR));
+        if (!w) return 0;
+        if (wlen) MultiByteToWideChar(CP_UTF8, 0, (const char*)bytes, len, w, wlen);
+        w[wlen] = 0;
+        int32_t ok = fl_clip_put_block(CF_UNICODETEXT, w, ((SIZE_T)wlen + 1) * sizeof(WCHAR));
+        HeapFree(GetProcessHeap(), 0, w);
+        return ok;
+    }
+    UINT id = RegisterClipboardFormatA(format);
+    if (!id) return 0;
+    return fl_clip_put_block(id, bytes, (SIZE_T)len);
+}
+
+void flwin32_clipboard_end(void) {
+    if (!fl_clip_open) return;
+    CloseClipboard();
+    fl_clip_open = 0;
+}
+
+int32_t flwin32_clipboard_get_format(const char* format, uint8_t* out, int32_t out_size) {
+    if (!format) return 0;
+    UINT id = RegisterClipboardFormatA(format);
+    if (!id || !IsClipboardFormatAvailable(id)) return 0;
+    if (!OpenClipboard(NULL)) return 0;
+    HANDLE handle = GetClipboardData(id);
+    if (!handle) { CloseClipboard(); return 0; }
+    SIZE_T size = GlobalSize(handle);
+    const uint8_t* src = (const uint8_t*)GlobalLock(handle);
+    int32_t result;
+    if (!src || size == 0 || size > 0x7FFFFFFF) {
+        result = 0;
+    } else if (!out || (SIZE_T)out_size < size) {
+        result = -(int32_t)size;     /* caller retries with this many bytes */
+    } else {
+        memcpy(out, src, size);
+        result = (int32_t)size;
+    }
+    if (src) GlobalUnlock(handle);
+    CloseClipboard();
+    return result;
 }
 
 int32_t flwin32_clipboard_get_text(char* out, int32_t out_size) {
