@@ -2250,6 +2250,16 @@ fitter dropped the paragraph's tail).
   zh-15728c84 +1.0, zh-64044a1d +0.7; zh-1a3c7aa0 23.6 -> 23.0 (two
   pages adrift of Word's already by page 15; more of its rows part).
 
+- **A run kept with the next moves from its start, and only when it
+  fits a page (2026-10-14).** Word moves a run of `w:keepNext`
+  paragraphs to the next page from its first member, and sets a run
+  taller than a page as it falls. Ours capped the run at eight and
+  weighed it again at every member, so zh-64044a1d (headings 3 and 4
+  inherit keep-with-next from heading 1, and its procedures are
+  nothing but) put one item on each page: 119 pages to Word's 103.
+  zh-64044a1d 34.2% -> 64.5% (101 pages), bug65649 6.0 -> 12.9;
+  nothing down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

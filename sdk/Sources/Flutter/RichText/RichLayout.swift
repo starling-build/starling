@@ -2227,10 +2227,17 @@ public final class RichLayout {
             // this paragraph, any kept run after it, and the start of
             // what follows them go to the next page together when this
             // page has no room for all of it.
-            if theme.wordRules, resumeCursor == nil, y > 0.01, document.paragraphs[i].style.keepNext {
+            // The run is moved from its start only, and whole: a member
+            // after the first stays with the one before it, and a run
+            // taller than a page is set as it falls (zh-64044a1d's
+            // headings 3 and 4 all keep with the next, from heading 1;
+            // capped at eight and weighed again at each member, the run
+            // put one item on each page where Word fills them).
+            if theme.wordRules, resumeCursor == nil, y > 0.01, document.paragraphs[i].style.keepNext,
+               !(i > 0 && _cells[i - 1] == nil && document.paragraphs[i - 1].style.keepNext) {
                 var need = 0.0
                 var k = i
-                while k < count, _cells[k] == nil, document.paragraphs[k].style.keepNext, k - i < 8 {
+                while k < count, _cells[k] == nil, document.paragraphs[k].style.keepNext, need <= contentH + 0.01 {
                     need += _heights[k]
                     k += 1
                 }
