@@ -59,6 +59,24 @@ final class SheetsTableTests: XCTestCase {
         XCTAssertTrue(xml.containsSubstring("<tableStyleInfo name=\"TableStyleMedium2\""))
     }
 
+    func testTypingBesideATableGrowsIt() throws {
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try withTable()))
+        c.setInput("1", at: CellAddress("D11")!)          // the row below
+        c.growTable(toInclude: CellAddress("D11")!)
+        XCTAssertEqual(c.sheet.tables.first?.ref, CellRange("D3:J11"))
+        c.setInput("Clang (64)", at: CellAddress("K3")!)  // the column to the right
+        c.growTable(toInclude: CellAddress("K3")!)
+        XCTAssertEqual(c.sheet.tables.first?.ref, CellRange("D3:K11"))
+        XCTAssertEqual(c.sheet.tables.first?.columnIds.count, 8)
+        c.undo()                                          // the growth first, as Excel
+        XCTAssertEqual(c.sheet.tables.first?.ref, CellRange("D3:J11"))
+        XCTAssertEqual(c.input(CellAddress("K3")!), "Clang (64)")
+        c.setInput("x", at: CellAddress("M20")!)          // nowhere near: nothing
+        c.growTable(toInclude: CellAddress("M20")!)
+        XCTAssertEqual(c.sheet.tables.first?.ref, CellRange("D3:J11"))
+    }
+
     func testUntouchedTableIsWrittenAsItWas() throws {
         let data = try withTable()
         let saved = try Zip.read(try Xlsx.write(try Xlsx.read(data)))

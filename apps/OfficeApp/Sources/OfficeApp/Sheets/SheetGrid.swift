@@ -706,7 +706,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 verdict = v.message
             }
         }
-        if text != controller.input(e.cell) { controller.setInput(text, at: e.cell); _widenForNumber(e.cell) }
+        if text != controller.input(e.cell) {
+            controller.setInput(text, at: e.cell)
+            _widenForNumber(e.cell)
+            controller.growTable(toInclude: e.cell)
+        }
         if let verdict { _w.onStatus(verdict) }
         if let v = controller.sheet.cells[e.cell]?.value, case .text(let s) = v, s.hasPrefix("="), text.hasPrefix("=") {
             _w.onStatus("There's a problem with this formula")

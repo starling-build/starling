@@ -493,10 +493,11 @@ final class CalcEngine {
     }
 
     /// Call it: the arguments, evaluated where the call is, become the
-    /// parameters in the body's scope. Excel's recursion limit is 1024.
+    /// parameters in the body's scope. Excel's recursion limit is 1024, or
+    /// less where the stack runs out first (Windows; StackRoom.swift).
     private func _callLambda(_ lambda: (params: [String], body: FormulaExpr), _ args: [FormulaExpr], _ ctx: EvalContext) -> EvalValue {
         guard args.count == lambda.params.count else { return .error(.value) }
-        guard ctx.lambdaDepth < 1024 else { return .error(.num) }
+        guard ctx.lambdaDepth < 1024, !StackRoom.low() else { return .error(.num) }
         var scope = ctx
         scope.lambdaDepth += 1
         for (p, a) in zip(lambda.params, args) { scope.locals[p] = evaluate(a, ctx) }

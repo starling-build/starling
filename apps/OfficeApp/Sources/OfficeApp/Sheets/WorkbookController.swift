@@ -285,6 +285,34 @@ final class WorkbookController: ChangeNotifier {
         setInputs([(a, text)])
     }
 
+    /// Something typed in the row just below a table, or the column just
+    /// right of it, joins the table, as Excel's AutoCorrect has it ("include
+    /// new rows and columns in table"): the banding and the structured
+    /// references follow. Its own undo step, so the first ⌘Z takes back the
+    /// growth and leaves the entry, as in Excel. Not past a totals row, and
+    /// not into another table.
+    func growTable(toInclude a: CellAddress) {
+        let ws = sheet
+        guard !(ws.cells[a]?.value.isEmpty ?? true) else { return }
+        for (i, t) in ws.tables.enumerated() {
+            var r = t.ref
+            let below = !t.totalsRow && a.row == r.bottom + 1 && a.col >= r.left && a.col <= r.right
+            let right = a.col == r.right + 1 && a.row >= r.top && a.row <= r.bottom
+            guard below || right else { continue }
+            if below { r.bottom += 1 } else { r.right += 1 }
+            let added = below ? CellRange(top: r.bottom, left: r.left, bottom: r.bottom, right: r.right)
+                              : CellRange(top: r.top, left: r.right, bottom: r.bottom, right: r.right)
+            guard !ws.tables.enumerated().contains(where: { $0.offset != i && $0.element.ref.intersects(added) }),
+                  !ws.merges.contains(where: { $0.intersects(added) }) else { return }
+            structural {
+                ws.tables[i].ref = r
+                if right { ws.tables[i].columnIds.append(nil) }
+                ws.tables[i].edited = true
+            }
+            return
+        }
+    }
+
     /// The format Excel gives a formula typed into a General cell: a date
     /// for TODAY() and DATE(…), date and time for NOW(), a time for TIME(…);
     /// and the format of the first cell it reads when that is a date (on

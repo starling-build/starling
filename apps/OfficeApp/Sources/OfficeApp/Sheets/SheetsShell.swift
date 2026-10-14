@@ -483,7 +483,18 @@ final class SheetsShellState: State<StatefulWidget> {
             }
             let label = Text(ws.name, style: (on ? fluent.typography.bodyStrong : fluent.typography.body)?.copyWith(
                 color: on ? accent : fluent.resources.textFillColorPrimary))
-            tabs.append(FlatButton(
+            // A right click opens the sheet menu for that tab, as Excel's
+            // tabs do; it had nothing.
+            tabs.append(Listener(
+                onPointerDown: { [weak self] e in
+                    guard let self, e.buttons & kSecondaryMouseButton != 0, let context = self.context else { return }
+                    _ = self._grid?.commitEdit()
+                    self.wb.activeSheet = i
+                    self._syncBars()
+                    let items: [MenuFlyoutItemBase] = self._sheetMenu(i).map { text, action in MenuFlyoutItem(text: Text(text), onPressed: action) }
+                    self._contextMenu.showFlyout(in: context, at: e.position) { _ in MenuFlyout(items: items) }
+                },
+                child: FlatButton(
                 child: Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0), child: Column(
                     mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
                         label,
@@ -491,28 +502,33 @@ final class SheetsShellState: State<StatefulWidget> {
                         SizedBox(width: 24, height: 2, child: ColoredBox(color: on ? accent : Color(0x00000000), child: SizedBox(expand: ()))),
                     ])),
                 tip: on ? "Double-click to rename" : nil, checked: on, width: nil, height: 28,
-                action: { [weak self] in self?._tabClicked(i) }))
+                action: { [weak self] in self?._tabClicked(i) })))
         }
         tabs.append(Chrome.icon(FluentSystemIcons.add, "New sheet", fluent) { [weak self] in self?.wb.addSheet() })
-        let active = wb.activeSheet
-        var sheetMenu: [(String, () -> Void)] = [
-            ("Rename Sheet", { [weak self] in self?._startRename(active) }),
-            ("Insert Sheet", { [weak self] in self?.wb.addSheet() }),
-            ("Delete Sheet", { [weak self] in self?.wb.deleteSheet(active) }),
-            ("Hide Sheet", { [weak self] in self?.wb.hideSheet(active) }),
-        ]
-        // Hidden sheets can be shown again; very hidden ones only by code, as in Excel.
-        for (i, ws) in wb.book.sheets.enumerated() where ws.hidden && !ws.veryHidden {
-            sheetMenu.append(("Unhide “\(ws.name)”", { [weak self] in self?.wb.unhideSheet(i) }))
-        }
         tabs.append(Chrome.menu(nil, Icon(FluentSystemIcons.moreHorizontal, size: Chrome.iconSize,
-                                          color: fluent.resources.textFillColorPrimary), fluent, sheetMenu))
+                                          color: fluent.resources.textFillColorPrimary), fluent, _sheetMenu(wb.activeSheet)))
         return DecoratedBox(
             decoration: BoxDecoration(
                 color: fluent.resources.solidBackgroundFillColorBase,
                 border: Border(top: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
             child: Padding(padding: EdgeInsets(left: 8, top: 1, right: 8, bottom: 1), child: Row(
                 crossAxisAlignment: .center, children: tabs)))
+    }
+
+    /// What can be done to sheet `i`: the tab's right-click menu and the
+    /// "…" beside the tabs.
+    private func _sheetMenu(_ i: Int) -> [(String, () -> Void)] {
+        var menu: [(String, () -> Void)] = [
+            ("Rename Sheet", { [weak self] in self?._startRename(i) }),
+            ("Insert Sheet", { [weak self] in self?.wb.addSheet() }),
+            ("Delete Sheet", { [weak self] in self?.wb.deleteSheet(i) }),
+            ("Hide Sheet", { [weak self] in self?.wb.hideSheet(i) }),
+        ]
+        // Hidden sheets can be shown again; very hidden ones only by code, as in Excel.
+        for (j, ws) in wb.book.sheets.enumerated() where ws.hidden && !ws.veryHidden {
+            menu.append(("Unhide “\(ws.name)”", { [weak self] in self?.wb.unhideSheet(j) }))
+        }
+        return menu
     }
 
     private func _tabClicked(_ i: Int) {
