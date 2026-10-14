@@ -249,6 +249,37 @@ libinput is a package error rather than a crash on launch. It runs on any
 desktop — GNOME, KDE, Wayland or X11 — and installs cleanly beside the desktop
 package, sharing nothing with it.
 
+`starling-office_0.1.0_amd64.deb` and `starling-office_0.1.0_x86_64.flatpak` —
+Starling Office for Linux x86_64: Writer, Sheets and Slides, one binary that
+reads and writes .docx, .xlsx and .pptx. 65 / 59 MB, checksums in
+`SHA256SUMS`. Built from branch `office` at `29defa16` in the windowed GTK
+configuration against the engine's `host_release`, and packaged by
+`build/package-office-gtk.sh` and `build/package-office-flatpak.sh` — the
+second lays out the tree the first staged, so the two carry the same binaries.
+
+The **.deb** is for Ubuntu and Debian: `sudo apt install ./starling-office_0.1.0_amd64.deb`
+puts three entries on the applications menu, and its dependencies were computed
+by `dpkg-shlibdeps`. Everything bundled needs only glibc 2.38. The **.flatpak**
+is a single-file bundle for everything else — `flatpak install --user
+starling-office_0.1.0_x86_64.flatpak`, then `flatpak run build.starling.Office`.
+It names the GNOME 49 runtime, which comes from Flathub, and carries libinput,
+mtdev and libwacom itself because the engine links libinput and the runtime
+has none. It is not on Flathub.
+
+**Both files here were driven on machines that had never seen a toolchain**,
+after the last fix went in: the .deb on a clean Ubuntu 24.04 cloud image, the
+Flatpak on a clean Fedora 43 one. In each, all three apps were typed into,
+their right-click menu opened and closed with Escape, and a file saved through
+Save As — then the saved .docx, .xlsx and .pptx were unzipped and read: the
+typed text, the formulas with their values, and a two-slide deck. Those runs
+were on X11 (Xvfb inside the guest). Wayland was covered separately, with the
+.deb's tree as a client of the live Starling desktop; the Flatpak has not been
+run on a Wayland session.
+
+Known and cosmetic: started from a terminal, it prints `libxml2.so.2: no
+version information available` several times — the toolchain's
+libFoundationXML against the bundled libxml2 — and runs normally.
+
 Everything it loads lives in `/usr/lib/starling-terminal`: the engine libraries,
 `libFlutterShared`, the Swift runtime closure, the font resource bundles and
 `data/icudtl.dat`. No flutter_assets — the Swift runtime never reads them.
