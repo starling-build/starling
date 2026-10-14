@@ -249,6 +249,45 @@ libinput is a package error rather than a crash on launch. It runs on any
 desktop — GNOME, KDE, Wayland or X11 — and installs cleanly beside the desktop
 package, sharing nothing with it.
 
+`starling-office-0.1.0-macos-arm64.zip` — Starling Office for macOS, Apple
+silicon: Writer, Sheets and Slides in one `Starling Office.app`, the same suite
+as the Windows and Linux packages below. 26.6 MB, 214 entries, checksum in
+`SHA256SUMS`. Built from branch `office` at `49f68ba8` — the Windows archive's
+commit — against the engine's `host_release_arm64`, which was rebuilt for this
+(starling-engine on `starling` at `4ca0d35c`: the library on disk dated from
+30 September and lacked a function the app now calls, so the bundle would not
+link), and assembled by `build/macos-app.sh OfficeApp --zip`: the framework
+and the bridge in `Contents/Frameworks`, the engine's data and the font bundles
+in `Contents/Resources`, every absolute rpath removed, and the archive checked
+to verify after a plain unzip. Unzip it and open the app; a document, deck or
+workbook given as its argument opens in the right one, and `--slides` and
+`--sheets` start in those.
+
+**This exact archive was run on a machine that had never seen a toolchain**: a
+macOS 26.6.2 VM made for the purpose (Tart, the `macos-tahoe-vanilla` image —
+no Xcode, no command line tools, no Swift). Its checksum was compared inside
+the guest, it was unzipped there, and `codesign --verify --deep --strict`
+passed. Writer, Sheets and Slides were each launched and stayed up; a 25-page
+.docx given as the argument opened in the window with its fonts. From the
+guest's command line the same binary printed that document to PDF, printed a
+48-slide deck to PDF and round-tripped it with every slide identical, and laid
+out a workbook. No crash report in the guest.
+
+**What was not done.** Nothing was typed or clicked inside the guest: the
+keyboard and pointer passes of the day — the three checklists, every ribbon
+tab, real files paged through — were on the dev box (macOS 27) with the
+development build, not this archive. And the guest image ships with Gatekeeper
+switched off, so that it opened says nothing about a downloaded copy on an
+ordinary Mac: the bundle is ad-hoc signed and not notarised, and will be
+refused there until the quarantine flag is removed (see the Gatekeeper section
+above).
+
+Known: in Slides, opening the font or size box on the Home tab aborts the app
+about one time in two (a heap error in the renderer while it builds a shader;
+old — it reproduces with a 1 October build on a 30 September engine — and not
+found); closing the window or ⌘Q with unsaved changes does not ask, though the
+recovery copy brings the work back on the next launch; ⌘W does nothing.
+
 `starling-office-0.1.0-windows-x86_64.zip` — Starling Office for Windows,
 x86_64: Writer, Sheets and Slides in one `OfficeApp.exe`, the same suite as
 the Linux packages below. 59.5 MB, 84 entries, checksum in `SHA256SUMS`.
