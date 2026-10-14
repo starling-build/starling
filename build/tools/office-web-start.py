@@ -18,10 +18,12 @@ def configure(site: Path, app: str) -> None:
     name = EXAMPLES[app]
     page = site / 'index.html'
     html = page.read_text()
+    example = ROOT / 'web/office/examples' / name
+    example_version = hashlib.sha256(example.read_bytes()).hexdigest()[:16]
     # Use Office's normal file-opening path and the host's startup-file bridge.
     # The first argument chooses the correct editor from the file extension.
     config = ('args: ' + json.dumps([name]) + ',\n    initialFiles: '
-              + json.dumps([{'name': name, 'url': 'examples/' + name}]) + ',')
+              + json.dumps([{'name': name, 'url': 'examples/' + name + '?v=' + example_version}]) + ',')
     html = re.sub(r'\s*initialFiles: \[[^\n]*\],', '', html)
     html, count = re.subn(r'args: \[[^\n]*\],', lambda _: config, html)
     if count != 1:
@@ -39,7 +41,7 @@ def configure(site: Path, app: str) -> None:
         r"(?P<prefix>from\s*['\"]\./)(?P<asset>starling\.js)(?:\?[^'\"]*)?(?P<quote>['\"])",
         version, html)
     (site / 'examples').mkdir(exist_ok=True)
-    shutil.copy2(ROOT / 'web/office/examples' / name, site / 'examples' / name)
+    shutil.copy2(example, site / 'examples' / name)
     page.write_text(html)
 
 if __name__ == '__main__':

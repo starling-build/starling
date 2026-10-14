@@ -63,7 +63,7 @@ extension; File → New remains the ordinary blank-document action.
 `build/tools/office-web-start.py` configures a staged app page and copies its
 example. Both local preview and `build/web-deploy.sh` use this helper. For
 OfficeApp, the default deployment opens the brief, `--args --slides` opens the
-four-slide presentation, and `--args --sheets` opens the budget.
+nine-slide presentation, and `--args --sheets` opens the budget.
 
 `build/landing-pages.sh` packages the landing, download page, and preview images. It rewrites
 the local editor links to `writer.starling.build`, `slides.starling.build`, and
@@ -78,9 +78,9 @@ python3 test/office-examples-web.py
 ```
 
 This drives Chrome, checks each example's name, saves through the editor, and
-checks that the resulting presentation has four slides and a chart, and that
-the budget retains its values, formulas, and chart. Use `--slides-url` and
-`--sheets-url` to check staged sites first. The test uses temporary browser
+checks that the handbook, nine-slide deck, and five-tab workbook preserve their
+feature content. Use `--writer-url`, `--slides-url`, and `--sheets-url` to check
+staged sites first. The test uses temporary browser
 profiles and downloads; it does not touch user documents.
 
 Publish the `office/` package to `starling-build/openoffice` (`main`, GitHub Pages),
@@ -89,11 +89,14 @@ site, not Office. Packaging does not deploy anything.
 
 ## Preview images
 
-`images/*-sample.png` show the fictional community-garden examples rendered by
-Office at revision `0975eb0c`. They are document output, not mock UI. Writer shows
-headings, lists, and a table; Slides shows an editable chart and has speaker
-notes; Sheets has formulas, filters, and a chart. Keep the pictures synchronized
-with `web/office/examples/` when updating the examples.
+`images/*-sample.png` show the first page/slide/sheet of the fictional garden
+showcases, rendered by Office itself with `build/tools/office-example-previews.py`.
+Writer previews the handbook's picture, headings, and lists; Slides previews a
+column chart; Sheets previews its budget table, conditional formats, and chart.
+The documents contain more features on subsequent pages and tabs. See
+`web/office/README.md` for the coverage map and regeneration commands. Keep these
+images, HTML dimensions/captions, and `web/office/examples/` synchronized. Packaged
+preview URLs include content hashes so returning visitors get the new images.
 
 The old `slides/`, `slides.js`, and product-local `styles.css` remain legacy
 presentation samples and are not part of the website build.

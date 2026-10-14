@@ -39,6 +39,9 @@ for site in [root / 'starling', root / 'office']:
         for icon in (site / 'img' / 'office').glob('*.svg'):
             version = hashlib.sha256(icon.read_bytes()).hexdigest()[:12]
             source = source.replace(f'{icon.name}"', f'{icon.name}?v={version}"')
+        for preview in (site / 'images').glob('*-sample.png'):
+            version = hashlib.sha256(preview.read_bytes()).hexdigest()[:12]
+            source = source.replace(f'{preview.name}"', f'{preview.name}?v={version}"')
         for app in ['writer', 'slides', 'sheets']:
             source = source.replace(f'href="apps/{app}/"', f'href="https://{app}.starling.build/"')
             source = source.replace(f'href="openoffice/apps/{app}/"', f'href="https://{app}.starling.build/"')
