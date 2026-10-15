@@ -878,6 +878,10 @@ final class SlidePainter: CustomPainter {
     /// A preset dash's pieces, on and off by turns, in widths of its line
     /// (DrawingML's: "dash" 4 on 3 off, "sysDot" 1 and 1, …).
     static func dashPattern(_ name: String?) -> [Double]? {
+        if let name, name.hasPrefix("cust:") {
+            let widths = name.dropFirst(5).split(separator: ",").compactMap { Double($0) }.map { max(0.05, $0) }
+            return widths.count >= 2 ? widths : nil
+        }
         switch name {
         case "dot": return [1, 3]
         case "dash": return [4, 3]

@@ -800,6 +800,15 @@ struct PptxReader {
 
     /// A line's preset dash (`a:prstDash`), nil for solid.
     static func dash(_ ln: XNode?) -> String? {
+        // A custom dash (`a:custDash`), its stops in thousandths of a
+        // percent of the width: "cust:" and the widths, on and off by turns.
+        if let cust = ln?.first("a:custDash") {
+            let widths = cust.all("a:ds").flatMap { ds in
+                [ds["d"], ds["sp"]].map { ($0.flatMap(Double.init) ?? 0) / 100000 }
+            }
+            guard widths.contains(where: { $0 > 0 }) else { return nil }
+            return "cust:" + widths.map { String($0) }.joined(separator: ",")
+        }
         guard let v = ln?.first("a:prstDash")?["val"], v != "solid" else { return nil }
         return v
     }

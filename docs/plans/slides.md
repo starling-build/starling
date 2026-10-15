@@ -1382,6 +1382,11 @@ the frame. Growing only children with an INF *rule*, not an INF
 negative space's `op="lte"` caps (−0.82 × the parent box) are what
 PowerPoint does not follow, and they are the thing to look at.
 
+**A custom dash, 2026-10-15** (slide-section-test 0.14 → 0.13). A
+line's `a:custDash` — its stops in thousandths of a percent of the
+line's width — was drawn solid; it is a dash of its own now
+("cust:2.99,1.01", on and off by turns, in widths).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
