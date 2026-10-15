@@ -1317,6 +1317,19 @@ to PowerPoint's print: contrast c scales about the middle by 1 + c
 pixel whose luminance is under the threshold black and the rest white
 (a 74% grey under a 75% threshold black, a 76% one white).
 
+**A broken archive's later entries, 2026-10-15** (the fuzzer's deck
+4986… 95.89 → 28.97). A file with no central directory was salvaged
+from its local headers front to back, stopping at the first entry that
+would not read; that deck has 77 entries, some with damaged names or
+streams, and stopped after one slide. The scan now skips a bad entry
+and goes on at the next local header, an entry whose size only a data
+descriptor gives running to the next header; an entry cut short by the
+end of the file is still lost. 19 of PowerPoint's 23 slides come back
+(the others' names are scrambled — `ppp/slides/slide10.xml`). Shared:
+documents and workbooks salvage the same way. Left: 5611…'s diagram,
+whose frame lost its `a:ext` to the fuzzer and which PowerPoint still
+draws.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

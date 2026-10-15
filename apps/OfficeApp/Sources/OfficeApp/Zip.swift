@@ -74,30 +74,56 @@ enum Zip {
     }
 
     /// The complete entries of an archive whose central directory is gone,
-    /// read front to back from their local headers; stops at the first one
-    /// cut short, or whose size only a trailing data descriptor gives.
+    /// read front to back from their local headers. An entry that is cut
+    /// short, damaged or of a size only a trailing data descriptor gives is
+    /// skipped, and the scan goes on at the next local header — as
+    /// PowerPoint repairs such a file (the fuzzer's deck 4986… comes back
+    /// as 23 slides, 5611…'s diagram as its four boxes; stopping at the
+    /// first bad entry kept one slide, and none).
     private static func _salvage(_ bytes: [UInt8]) throws -> [ZipEntry] {
         var entries: [ZipEntry] = []
-        var p = 0
-        scan: while p + 30 <= bytes.count, u32(bytes, p) == 0x04034B50 {
+        var seen = Set<String>()
+        func next(after q: Int) -> Int? {
+            var i = max(0, q)
+            while i + 4 <= bytes.count {
+                if bytes[i] == 0x50, bytes[i + 1] == 0x4B, bytes[i + 2] == 0x03, bytes[i + 3] == 0x04 { return i }
+                i += 1
+            }
+            return nil
+        }
+        var at = next(after: 0)
+        while let p = at, p + 30 <= bytes.count {
             let flags = u16(bytes, p + 6)
             let method = u16(bytes, p + 8)
-            let csize = Int(u32(bytes, p + 18))
+            var csize = Int(u32(bytes, p + 18))
             let usize = Int(u32(bytes, p + 22))
             let nameLen = Int(u16(bytes, p + 26))
             let extraLen = Int(u16(bytes, p + 28))
             let dataStart = p + 30 + nameLen + extraLen
-            guard flags & 0x8 == 0, dataStart + csize <= bytes.count else { break scan }
+            guard dataStart <= bytes.count else { break }
+            // An entry cut short by the end of the file is lost.
+            if flags & 0x8 == 0, csize > 0, dataStart + csize > bytes.count { break }
+            // A size the header does not give: up to the next entry's header.
+            if flags & 0x8 != 0 || csize == 0 {
+                csize = (next(after: dataStart) ?? bytes.count) - dataStart
+                if flags & 0x8 != 0, csize >= 16 { csize -= 16 }
+            }
             let name = String(decoding: bytes[(p + 30) ..< (p + 30 + nameLen)], as: UTF8.self)
-            let raw = Data(bytes[dataStart ..< dataStart + csize])
+            let raw = Data(bytes[dataStart ..< min(bytes.count, dataStart + csize)])
+            var data: Data? = nil
             switch method {
-            case 0: entries.append(ZipEntry(name: name, data: raw))
-            case 8:
-                guard let data = try? inflate(raw, expected: usize) else { break scan }
-                entries.append(ZipEntry(name: name, data: data))
+            case 0: data = raw
+            // (A damaged header's size is not trusted to size the buffer.)
+            case 8: data = try? inflate(raw, expected: min(usize, raw.count * 8 + 4096))
             default: break
             }
-            p = dataStart + csize
+            if let data, !seen.contains(name) {
+                entries.append(ZipEntry(name: name, data: data))
+                seen.insert(name)
+                at = next(after: dataStart + csize)
+            } else {
+                at = next(after: p + 4)
+            }
         }
         guard !entries.isEmpty else { throw ZipError.notAZip }
         return entries
