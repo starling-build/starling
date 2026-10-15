@@ -484,3 +484,26 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   ours; the footer then stands taller and every body page ends 35pt
   short from p26. A body lab of the same paragraph (lab `oi`) wraps in
   Word too, so the footer's case turns on something not yet found.
+- Windows box, 2026-10-15, for the Mac (two of the references differ
+  from Windows Word, so only the Mac's Word can lab them):
+  bib-chernigovka (0%, 16 pages to 15): Windows Word prints it exactly
+  as ours does — 16 pages, "МБУ «МЦБ»" at y 767, every page's lines
+  matching (2026-10-15, its own print, and with the page border
+  removed, made single, or at a 4pt space). The Mac's reference sets
+  every page's text 18pt lower and ends each page two rows sooner. Its
+  only unusual part is the art page border (`mapleMuffins`, sz 12,
+  space 24, offsetFrom page) — likely how the Mac's Word places text
+  under an art border. zh-8e8d4c40 (87.1%, a page short): Word's Mac
+  print sets 標楷體 in YaHei, and its compatibility ideographs
+  (U+F900–FAFF, Big5 leftovers: 料 U+F9BE, 狀 U+F9FA, 行 U+FA08) that
+  YaHei lacks in NotoSansSC-Thin — or as YaHei's empty box (零, 金, 領)
+  where Noto has none; a line holding a Noto glyph is ~0.9pt taller,
+  and page 5 runs out a line early. Five more references show the Noto
+  fallback (zh-06c46ba9, zh-64044a1d, zh-7dc3afad, zh-89385c94,
+  zh-ae655121). Noto Sans SC is not on the Windows box; its coverage of
+  U+F900–FAFF and its line on the Mac would let the layout do the same.
+- Windows box: drawing.docx's "12.04.2006 - Cbonds" article heads HTML
+  tables nested three deep (1 row, 394 characters). Letting a nested
+  block hold blocks to three deep (tried, not kept) set it 5pt high and
+  21pt left of Word's (x 34.8 to 55.7): a box's tables are placed
+  without Word's outdent and cell spacing at each level.
