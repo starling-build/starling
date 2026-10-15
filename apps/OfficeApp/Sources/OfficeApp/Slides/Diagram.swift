@@ -1446,6 +1446,9 @@ struct DiagramLayout {
                 else { ln.children = [XNode(name: "a:noFill", attrs: [:])] }
                 spPr.children.append(ln)
             }
+            // The point's own effects (fill-color-list's shadow under
+            // each heading).
+            if let e = own?.first("a:effectLst") { spPr.children.append(clone(e)) }
         }
         // The style: references with the scheme's colours, the text's colour.
         let style = XNode(name: "p:style", attrs: [:])

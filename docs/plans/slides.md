@@ -1405,6 +1405,12 @@ Taking t² for every path gradient of theme colours made GeomLec1 +5.07,
 tdf94238 +3.69 and tdf114848 +2.34 and did not register on themes'
 score. What sets the curve is not known.
 
+**A diagram point's own effects, 2026-10-15** (fill-color-list 1.41 →
+0.07). A SmartArt laid out here took a point's own fill and line from
+its `dgm:spPr` but not its `a:effectLst`; fill-color-list's headings
+each carry a shadow there, which PowerPoint draws. The effects go into
+the shape now, and the shape's shadow is drawn as any other's.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
