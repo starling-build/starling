@@ -145,6 +145,16 @@ Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 - zh-190d730c: its first difference is a scorer artefact (a justified
   line drawn out of order splits PDFKit's line). Not looked at further.
 - zh-25c4de17: done (the column gap stated on w:col), 36.5 -> 100.
+zh-799c91cd's page-1 drift found (Mac, 2026-10-14): the second line of
+"（二）共同申請人同意由" stands 21.55pt under the first where Word's is
+20.64 — its first line holds two runs of eight spaces in Times New
+Roman (no hint); a copy without them sets 20.65. Word sizes the line by
+its text. Two fixes tried and reverted: spaces set in the East Asian
+face at Times' width (zh-33aa9899 98.6 -> 39.2, zh-e37f8d40 -15), and
+spaces at a line height of 1.0 (zh-c3dd22c4 100 -> 14, zh-4b8e0abc
+-31). Other documents' lines depend on what such runs do now; the rule
+has to say which spaces Word leaves out of the line's height (at the
+line's end? between East Asian text?), from a lab.
 
 ### T8. Load embedded fonts
 Owner: —
