@@ -1647,6 +1647,15 @@ private struct SlideContext {
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
                     switch level.algn { case "ctr": style.alignment = .center; case "r": style.alignment = .right; default: break }
+                    // Its spacing, as a text box's paragraph has it (aptia's
+                    // cells, 6 pt before each paragraph, sat that much high).
+                    let size = runs.first?.style.fontSize ?? level.size ?? 18
+                    if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints { style.lineHeightPoints = pts }
+                    // (None before a cell's first paragraph, as none before a
+                    // body's: aptia's empty first line and the text under it
+                    // both say 6 pt, and the text is 6 lower, not 12.)
+                    style.spaceBefore = cellParas.isEmpty ? 0 : level.beforePoints ?? (level.beforePercent.map { $0 * size * 1.2 } ?? 0)
+                    style.spaceAfter = level.afterPoints ?? (level.afterPercent.map { $0 * size * 1.2 } ?? 0)
                     // A bulleted cell paragraph. In a cell the layout puts
                     // the text at `indentLeft` and the bullet in the 18 pt
                     // slot before it (no per-level indent), so the text edge
