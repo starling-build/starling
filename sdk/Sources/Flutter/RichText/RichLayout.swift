@@ -5887,8 +5887,11 @@ public final class RichLayout {
                   ["paragraph", "line"].contains(float.verticalFrom), float.horizontalFrom != "page",
                   // (A chart, drawn or not, takes its room like a picture:
                   // zh-37b6536f's caption stands under its 145pt chart; so
-                  // does any object the app draws, `drawsObject`.)
-                  !image.data.isEmpty || Self.drawsObject?(image) == true
+                  // does any object the app draws, `drawsObject`, and a
+                  // text box with text in it — bib-chernigovka's cover
+                  // title, a 475pt box wrapped square, has the year under
+                  // it at the page's foot and the calendar from page 2.)
+                  !image.data.isEmpty || Self.drawsObject?(image) == true || image.textBox != nil
                     || (image.textBox == nil && image.sourceXML?.containsSubstring("drawingml/2006/chart") == true) else { continue }
             out.append((image.id, _floatRect(float, image, g, i)))
         }

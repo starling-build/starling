@@ -2308,6 +2308,17 @@ fitter dropped the paragraph's tail).
   67.1% -> 69.7% with the charts: Headers, 59030 and TestTableCellA
   -> 100%; nothing down. Chinese sample 90.6%.
 
+- **A text box takes its room as a floating picture does
+  (2026-10-14).** bib-chernigovka's cover title is a 475 by 376pt text
+  box wrapped square, wider than the column: Word sets the paragraphs
+  after its anchor below it, the year at the page's foot and the
+  calendar from page 2. Ours wrapped round pictures and charts only, so
+  the year stood under the anchor and the calendar began on page 1.
+  Word for Windows prints the cover as ours now does (the year at 97.5pt
+  above the foot, ours 95); Word for Mac's print has the whole page 21pt
+  lower, which neither page border nor anything else in the lab
+  explains. No document moved by 0.3% either way.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
