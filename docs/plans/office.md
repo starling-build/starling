@@ -2732,6 +2732,19 @@ fitter dropped the paragraph's tail).
   Word's, the last one then ending beside its footer's page number
   (next entry).
 
+- **A footer's frames that stand above it keep the body clear
+  (2026-10-15).** A footer's framed page number floats: it takes no
+  room in the footer, and stands where the frame says from the text it
+  is anchored to. zh-6cd1befe's stands 11.75pt above the footer's
+  empty paragraph (`w:y="-235"`), and in Word's print the body ends
+  above it: page 48's last row, which would end beside the number,
+  opens page 49. The body's foot now clears what a footer's frames
+  rise above its first line, up to 36pt (a frame far up the page Word
+  wraps the body round, which this does not model). With the cell
+  margins above, zh-6cd1befe 93.3% -> 97.0; Chinese sample 96.79 ->
+  96.87 over both (the Mac's commits of the same sweeps aside); POI
+  unchanged by either.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

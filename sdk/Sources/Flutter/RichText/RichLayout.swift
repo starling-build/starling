@@ -6664,6 +6664,16 @@ public final class RichLayout {
         let layout: RichLayout
         let document: RichDocument
         var height: Double { layout.totalHeight }
+        /// How far its floating frames stand above its first line
+        /// (pixels, 0 where none does): they take no room in its flow.
+        var frameRise: Double {
+            guard layout.floatsFrames else { return 0 }
+            var rise = 0.0
+            for (i, p) in document.paragraphs.enumerated() where p.style.frame != nil && p.cell == nil && i < layout._tops.count {
+                rise = max(rise, -(layout._tops[i] + layout._spaceBefore[i]))
+            }
+            return rise
+        }
     }
 
     /// Set on a header's or footer's own layout: its framed paragraphs
@@ -7189,7 +7199,13 @@ public final class RichLayout {
             top = max(top, _px(setup.headerDistance) + header.height)
         }
         if let footer = _headerFooter(.footer, page: p, document, pageCount: 1) {
-            bottom = max(bottom, _px(setup.footerDistance) + footer.height)
+            // (Its frames too, where they stand above it — a page number
+            // set 11.75pt up from the footer's empty paragraph keeps the
+            // body clear of it in Word's print: zh-6cd1befe's last row on
+            // page 48, which would end beside the number, opens page 49.
+            // Not one far up the page: Word wraps the body round that.)
+            let rise = footer.frameRise
+            bottom = max(bottom, _px(setup.footerDistance) + footer.height + (rise <= _px(36) ? rise : 0))
         }
         return (top, bottom)
     }
