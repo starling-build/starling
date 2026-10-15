@@ -5499,7 +5499,19 @@ public final class RichLayout {
                             // twenty of a 16pt line's 33 at 10.5pt, and Word
                             // takes "“建" 18.2 over with four marks giving
                             // 26.5 — over by the 16pt sum, under by theirs.)
-                            ? need * lineEms * Double(lineWide - 1) / Double(lineWide) / 64 <= room * (width - x + hair)
+                            // (And the line's automatic spaces, whole: it would
+                            // stretch at those too. Lab `dg6` (Word 16, mode 15,
+                            // SimSun 16pt, justified): lines of ideographs and
+                            // digit runs, each boundary a 4pt space, take the
+                            // next ideograph 9.0pt over with two commas and four
+                            // spaces and not 9.5, 10.0 and not 10.5 with two
+                            // spaces, 10.5 and not 11 with four commas, 7.5 and
+                            // not 8 with eight spaces, 4.5 and not 5 with no
+                            // mark at all — each space giving half of itself;
+                            // ours took them all to 13. On a character grid the
+                            // digits carry the grid's room and no such space.)
+                            ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
+                                <= room * (width - x + hair)
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)

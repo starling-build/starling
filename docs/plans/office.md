@@ -2778,6 +2778,24 @@ fitter dropped the paragraph's tail).
   than the quarter lab `js` measured — and the colon in "kesehatan:"
   half a point; not built.)
 
+- **A line's automatic spaces are stretch too (2026-10-15).** The test
+  from 2013's layout on weighs what the marks give against what the
+  line would stretch, a sixty-fourth of an em at each gap; the
+  automatic spaces between ideographs and Latin gave half of themselves
+  to the room but nothing to the stretch. Lab `dg6` (Word 16, mode 15,
+  SimSun 16pt, justified, a quarter-em space at each digit boundary):
+  two commas and four spaces take the next ideograph 9.0pt over and
+  not 9.5; two spaces 10.0 and not 10.5; four commas 10.5 and not 11;
+  eight spaces 7.5 and not 8; one comma 7.0 and not 7.5; no mark 4.5
+  and not 5. Ours took them all to 13. Counting the line's automatic
+  spaces whole in its stretch matches 124 of the lab's 126 lines (two
+  stop half a point short). On a character grid the digits carry the
+  grid's room and no such space, so zh-457a8d62's lines are as they
+  were. With the comma above: zh-4b8e0abc 96.6% -> 99.6, zh-84702a67
+  97.3 -> 98.2; Chinese sample 97.03 -> 97.09; POI unchanged. (Alone,
+  zh-4b8e0abc's "同" went down a line as in Word's print, onto a page
+  already a line long — 89.7 until the comma.)
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
