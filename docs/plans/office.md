@@ -3715,6 +3715,19 @@ fitter dropped the paragraph's tail).
   before "（盖章）" and leaves 444, the width Word gives the span (plus
   margins, 454.5). The cap lies between 477 and 525pt of table; what
   sets it is the next lab (vary the page's text width and margins).
+  Then (labs `cap1800/1000/2600`, `caplong`, `sp2`): there is no cap —
+  the page's margins change nothing, and 16 more no-break spaces widen
+  the span by exactly their 192pt. Word's AUTOFIT MEASURE treats a run
+  of ordinary spaces that follows a no-break space as joined to both
+  neighbours: "nbsp×30 + 26 spaces + 年" sizes the cell as one 528pt
+  piece, "(年 nbsp nbsp 3 spaces)×12" as one 630pt piece, while spaces
+  between ideographs or Latin words part as ever. Its LINE BREAKING does
+  not (lab `sp1`: in a 120pt cell the stamp line wraps at those
+  spaces) — tried as a line-break rule, it made ours part "（盖|章）"
+  instead, reverted. So T1 needs its own min-content measure (a cell's
+  longest piece under that rule, plus margins and indents), then the
+  rule above: that cell exactly that wide, the rest down to their own
+  minimum, the table no narrower than its stated width.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
