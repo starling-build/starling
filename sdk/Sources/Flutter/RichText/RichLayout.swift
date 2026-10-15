@@ -3817,6 +3817,18 @@ public final class RichLayout {
                     start = after
                     afterHeld = true
                     heldKind = kind
+                } else if ea, theme.wordRules, let cjk = Self._cjkSymbolFamily, Self._cjkSymbols.contains(ch) {
+                    // (A dash or an ellipsis in East Asian text is the
+                    // CJK face's glyph, with its metrics: the Latin
+                    // stand-in the East Asian style is built on has one
+                    // too, and its ascent and descent split the em
+                    // otherwise, so a line with it grew — zh-90e0cea8's
+                    // header "DB 37/T 4497—2022" stood 1.1pt taller than
+                    // Word's, and its pages' text that much lower.)
+                    flush(i)
+                    let s = style(kind)
+                    spans.append(TextSpan(text: String(ch), style: (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)))
+                    start = after
                 } else if extra != 0 {
                     flush(i)
                     let s = style(kind)
@@ -4807,6 +4819,15 @@ public final class RichLayout {
     /// stand together — a closing mark before any of either kind, an
     /// opening mark before another opening one (measured from Word 16's
     /// prints; the question mark and the curly quotes take no part).
+    /// Symbols an East Asian run draws from the CJK face itself (see
+    /// `styled`), and the face: the Mac's PingFang, the engine's own
+    /// fallback for CJK text there; nil where no face is known.
+    private static let _cjkSymbols: Set<Character> = ["\u{2014}", "\u{2015}", "\u{2026}", "\u{2013}", "\u{2500}", "\u{2501}"]
+    #if os(macOS)
+    private static let _cjkSymbolFamily: String? = "PingFang SC"
+    #else
+    private static let _cjkSymbolFamily: String? = nil
+    #endif
     private static let _closingMarks: Set<Character> = ["，", "。", "、", "；", "：", "！", "）", "》", "」", "』", "】", "〕", "〉", "｝", "］", "．"]
     private static let _openingMarks: Set<Character> = ["（", "《", "「", "『", "【", "〔", "〈", "｛", "［"]
 

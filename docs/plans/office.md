@@ -2632,6 +2632,21 @@ fitter dropped the paragraph's tail).
   T11 — the 黑体/宋体 header's "—" drawn from Liberation Sans). The
   drop is that drift surfacing, not this rule.
 
+- **A dash or an ellipsis in East Asian text is the CJK face's glyph
+  (2026-10-14).** The East Asian style is built on the Latin stand-in
+  (Liberation Sans) with the CJK glyphs from the engine's fallback; a
+  symbol the stand-in has — "—", "―", "…", "–", "─" — came from it,
+  with an ascent and descent that split the em otherwise than the CJK
+  face's, and a line with it grew. On a Mac such a symbol in an East
+  Asian run is now set in PingFang (the fallback itself, named), so its
+  metrics are the CJK face's. zh-9c5d0c3f 55.9% -> 66.7%; nothing
+  down. (Setting the whole East Asian style's family to PingFang was
+  tried first: every hinted ASCII character then took PingFang's
+  widths, and zh-457a8d62 fell to 19.9%.) zh-90e0cea8's header, the
+  case that pointed here, did not move — its "—" is now the CJK
+  face's, and the line still stands 1.09pt under Word's; T11 stays
+  open with that.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

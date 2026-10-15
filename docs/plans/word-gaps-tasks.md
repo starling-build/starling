@@ -201,6 +201,16 @@ glyphs from the system fallback; a glyph the stand-in has (U+2014)
 comes from it with its metrics. The fix is in the face resolver: an
 East Asian style whose family is a real CJK face, so its symbols and
 their metrics are that face's.
+Tried (Mac, 2026-10-14): the East Asian style's family set to PingFang
+SC outright. The header's "—" then comes from the CJK face, zh-799c91cd
+91.2 -> 96.0 and zh-9c5d0c3f 55.9 -> 66.7 — but every ASCII character
+in an East Asian-hinted run comes from PingFang too, at its own widths:
+zh-457a8d62 94.7 -> 19.9 (its "(許志堅子)" parens), zh-06c46ba9 -7.3,
+zh-7dc3afad -4.0. Reverted; the narrow version (only the dashes and
+ellipsis routed to the CJK face) is in — zh-9c5d0c3f 55.9 -> 66.7 — and
+zh-90e0cea8's header line still stands 1.09pt under Word's with its "—"
+from the CJK face. So the drift is not the dash: the 黑体 run's mono
+stand-in (Liberation Mono at 5/6, baseline 1.005) is the next suspect.
 
 ### T12. Squeezing marks to fit a character: the limit on a character grid
 Owner: none. Documents: zh-d68ac84a (80%, first parting page 10).
