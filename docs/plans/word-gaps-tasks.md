@@ -356,6 +356,13 @@ Note from the Mac (2026-10-14): 49beaff9 (dashes and ellipses in East
 Asian runs set in the CJK face) moved zh-9c5d0c3f 55.9% -> 66.7% on the
 Mac — found through T11, not taken from this task; what is left of it
 is yours.
+Windows box, 2026-10-15: its signs now stand centred in their cells
+(c69db236) and the tables where Word sets them (2ff0daed: before 2013's
+layout a spaced table is set out by its first cell's text inset). Still
+open: in a row of signs the 69.8pt one under "at least" 19.2 (3.75pt
+before) makes its cell's content ~17pt taller than the 75pt one's in
+ours, ~5pt in Word's print — the picture-on-grid rule under "at
+least"; and captions wrap a character differently in a few cells.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
@@ -561,9 +568,7 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   only their first box.
   bug57031 p12 — its two-line "Note:" row (an HTML table with 15-twip
   cell spacing and margins) goes whole to page 12 in Word and parts 1+1
-  in ours; and Word sets that table's first-column text exactly at the
-  margin (72.0), where a lab table of the same spacing and margins
-  (`cso`, any compat mode) sets it m + 2s + half a line in. zh-2b955411
+  in ours. (Its text at the margin: settled by 2ff0daed.) zh-2b955411
   — three cells of `w:textDirection` tbLrV/tbRlV (upright stacked
   ideographs), read as horizontal or turned. PageSpecificHeadFoot p2 —
   its footer's table floats (`w:tblpPr`, 1 twip under the paragraph
