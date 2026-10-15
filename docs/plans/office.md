@@ -2836,6 +2836,26 @@ fitter dropped the paragraph's tail).
   Latin ones too; ours spreads it over the East Asian gaps alone. And
   zh-04f73697's "本署海巡118報案專線" is a hair: 118.91pt in a cell
   Word gives 118.8 — autofit, T1.)
+- **A kept paragraph's footnotes wait for the first paragraph after it
+  that does not keep (2026-10-15).** Labs `fn44`, `fn44k`, `fn44k2`,
+  `fn44k3` in bug65649's package (44 one-line paragraphs, the first two
+  with its footnotes 1 and 2, then its 4-line keep-together 3.7 and
+  3.8): with the filler unkept, Word reserves both notes at once and
+  3.7 goes over whole; with every paragraph keeping with the next, the
+  page fills with text to its foot and both notes stand at the NEXT
+  page's foot; with the chain ending at 3.8, the notes take what is
+  left under it — footnote 1 parted over the pages, footnote 2 whole
+  on the next. So a kept paragraph's notes are not reserved; at the
+  first unkept paragraph they are, in order, and one that does not fit
+  what is left of the page goes to the next page's foot with those
+  after it (not parted: Word parts it, ours sends it over whole, so
+  `fn44k2` holds three more body lines on its first page than Word,
+  and `fn44k3` sets 3.7 — kept together, unkept with the next — a page
+  later; Word sets that one before the notes and parts footnote 1
+  under it). bug65649 keeps every clause with the next: its page 3 is
+  now Word's, 3.7 whole and 3.8's first line above footnote 1, footnote
+  2 at page 4's foot under its reference on page 3; 32.5% -> 37.5 at
+  Word's 176 pages. Nothing else in the sample has both.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

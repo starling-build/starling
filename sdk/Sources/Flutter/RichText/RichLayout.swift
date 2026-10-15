@@ -1759,13 +1759,36 @@ public final class RichLayout {
         var pageNotes: [Int] = []
         var placing: [Int] = []
         var placingRange = 0 ..< 0
-        func reserveNotes(_ ids: [Int]) {
+        // The notes of paragraphs that keep with the next, whose room
+        // Word reserves only when the first paragraph after them that
+        // does not keep is set (labs `fn44`, `fn44k`, `fn44k2`, `fn44k3`
+        // from bug65649's package, Word 16, 2026-10-15: with its filler
+        // unkept both notes stand at the page's foot and the 4-line
+        // paragraph that no longer fits goes over; with every paragraph
+        // kept the page fills with text and both notes go to the next
+        // page's foot; with the chain ending at the paragraph, that one
+        // is set and the notes take what is left — the first parted
+        // over the pages, the second whole on the next). A note that
+        // does not fit what is left goes to the next page, and those
+        // after it with it (bug65649's page 3: the whole file keeps,
+        // and footnote 2 stands at page 4's foot under 3.7 whole and
+        // 3.8's first line; ours had sent 3.7 over). Parting a note
+        // over two pages is not done: it goes over whole.
+        var pendingNotes: [Int] = []
+        func reserveNotes(_ ids: [Int], deferring: Bool = false) {
             guard notesOn else { return }
             let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+            var deferred = false
             for id in ids where !pageNotes.contains(id) {
+                if deferred { if !pendingNotes.contains(id) { pendingNotes.append(id) }; continue }
                 guard let note = _note(id, width: width, document) else { continue }
                 var room = note.height
                 if pageNotes.isEmpty { room += _note(-1, width: width, document)?.height ?? 0 }
+                if deferring, room > contentH - y + 0.01 {
+                    deferred = true
+                    if !pendingNotes.contains(id) { pendingNotes.append(id) }
+                    continue
+                }
                 contentH = max(1, contentH - room)
                 pageNotes.append(id)
             }
@@ -1781,6 +1804,11 @@ public final class RichLayout {
                 carried = stays ? [] : placing.filter { pageNotes.contains($0) }
                 _pageNotes[page] = pageNotes.filter { !carried.contains($0) }
                 pageNotes = []
+                // (The notes still waiting for an unkept paragraph go
+                // over too, after those carried, in the file's order.)
+                for id in pendingNotes where !carried.contains(id) { carried.append(id) }
+                pendingNotes = []
+                carried.sort()
             }
             var fresh: [PagePiece] = []
             fresh.reserveCapacity(32)
@@ -2157,7 +2185,16 @@ public final class RichLayout {
                     placingRange = i ..< end
                     placing = placingRange.flatMap { _footnotes(in: $0, document) }
                 }
-                reserveNotes(placing)
+                if _cells[i] == nil, document.paragraphs[i].style.keepNext {
+                    for id in placing where !pendingNotes.contains(id) && !pageNotes.contains(id) { pendingNotes.append(id) }
+                } else if pendingNotes.isEmpty {
+                    reserveNotes(placing)
+                } else {
+                    var ids = pendingNotes
+                    pendingNotes = []
+                    for id in placing where !ids.contains(id) { ids.append(id) }
+                    reserveNotes(ids, deferring: true)
+                }
             }
             if let c = _cells[i] {
                 // A floating table anchored to the text stands its offset
@@ -2683,7 +2720,12 @@ public final class RichLayout {
                 }
             }
         }
-        if notesOn { _pageNotes[page] = pageNotes }
+        if notesOn {
+            // (Notes still waiting at the end — every paragraph kept to
+            // the last — stand at the last page's foot.)
+            if !pendingNotes.isEmpty { reserveNotes(pendingNotes); pendingNotes = [] }
+            _pageNotes[page] = pageNotes
+        }
         if _pages.count > 1 && _pages[_pages.count - 1].isEmpty { _pages.removeLast() }
         // Each page's top on the canvas, under the pages before it.
         let physicalPages = max(1, (_pages.count + _columns - 1) / _columns)
