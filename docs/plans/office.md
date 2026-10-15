@@ -3796,6 +3796,28 @@ fitter dropped the paragraph's tail).
   Tried and left: holding lines of near-equal run heights (Times "at
   least" 15 and Cambria 15.24) to the taller as one strut — Word's mixed
   reference lines are 15.2 and ours 15.5, but it cost bug59058 a point.
+- **Leads measured and left (2026-10-15, late).** Each needs a Word lab
+  or a deeper model; none is a quick rule.
+  - Mixed faces on one line (bug59058's references: Times "at least"
+    15pt with Cambria 15.24): Word's line is the largest ascent plus the
+    largest descent of the faces, with the minimum applied to the line —
+    15.2; ours gives each run its own "at least" height, which the
+    engine splits by each font's own ratio, and the line comes out
+    15.45 (lab `mx3`/`mx4`: removing the Cambria runs gives 15.0). A
+    near-equal-height strut was tried twice and loses elsewhere. This is
+    what keeps bug59058 a page long.
+  - bib-chernigovka p15: an autofit two-column table whose 51.1pt first
+    column (7.5pt margins, outset borders, 0.75 spacing) holds "90 лет"
+    in bold 12pt on one line in ours and two in Word's — a third of a
+    point either way.
+  - bug57031 p11: the lower SAS table runs 2.7pt short by the page's
+    foot (gaps between its tables, not its rows: Word's rows alternate
+    21.1/21.4, ours 21.3, same mean), so a two-line "Note:" cell row is
+    split there where Word carries it.
+  - zh-e061a08e p1 (T16's lead): the framed page number is NOT it — its
+    10pt line is shorter than the empty 12pt footer paragraph's 15.6;
+    Word's footer top and ours agree (51.6pt up) and our last body line
+    overlaps it by 0.2pt. A page-foot tolerance question.
 - **Lead, not taken: a page-anchored floating table that Word breaks
   after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
   the rest of the table, which would fit, goes to page 21 in Word's
