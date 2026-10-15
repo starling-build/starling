@@ -3466,6 +3466,7 @@ public final class RichLayout {
         // them for the break a space allows.
         let heldSpaces = held
         var afterHeld = false
+        var heldKind: Int? = nil   // the held spaces' style kind, for the break after them
         if theme.wordRules, document.balancesSpaceWidth || document.usesEastAsianLayout, p.text.utf16.contains(0x20) {
             var at = 0
             var run: [Int] = []
@@ -3625,7 +3626,12 @@ public final class RichLayout {
                 // the engine breaks on neither side of a quote.
                 if afterHeld, ch != " " {
                     flush(i)
-                    spans.append(TextSpan(text: "\u{200B}", style: style(current ?? kind)))
+                    // (In the held spaces' own style, not the East Asian
+                    // text's after them: there its glyph is the Latin base
+                    // family's, whose ascent and descent split the em
+                    // otherwise than the CJK face's, and the line grew
+                    // 0.9pt at 12pt — zh-799c91cd's page 1 lost a line.)
+                    spans.append(TextSpan(text: "\u{200B}", style: style(heldKind ?? current ?? kind)))
                     inserts.append(offset)
                     afterHeld = false
                 } else if breaksAtQuotes, let b = before, Self._breaksBetween(b, ch) {
@@ -3745,6 +3751,7 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
                     start = after
                     afterHeld = true
+                    heldKind = kind
                 } else if extra != 0 {
                     flush(i)
                     let s = style(kind)

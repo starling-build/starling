@@ -2517,6 +2517,22 @@ fitter dropped the paragraph's tail).
   back. POI's Numbering 25.0% -> 100% with the entry above; nothing
   else moved.
 
+- **The break after held spaces is in the spaces' own style
+  (2026-10-14).** The zero-width space the layout puts after a run of
+  spaces it holds (a justified paragraph's, beside East Asian text)
+  took the East Asian style of the text after it; its glyph then came
+  from that style's Latin base family, whose ascent and descent split
+  the em otherwise than the CJK face's, and the line with both grew
+  0.9pt at 12pt. zh-799c91cd's "（二）共同申請人同意由" (two runs of
+  eight Times New Roman spaces, justified) set its second line 21.55
+  under the first where Word has 20.64; lab `spl1`/`spl2`: one space,
+  letters, hinted spaces, no-break spaces, or left alignment did not
+  do it, two plain spaces did. Giving every inserted zero-width
+  character a 1pt flat style instead inflated strutted lines
+  everywhere (30 documents down) — only this one site is changed.
+  Nothing down; zh-799c91cd's page 1 is now 1pt out, not 2.5 (Word's
+  12pt YaHei lines step 20.64/20.4 on its 0.24pt raster, ours 20.65).
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
