@@ -2765,6 +2765,19 @@ fitter dropped the paragraph's tail).
   zh-457a8d62's "35筆…都更案)，" (a character grid, automatic spaces)
   leaves "經" 12.44 over, which this now takes.
 
+- **A Latin comma hangs at a line's end (2026-10-15).** In a justified
+  paragraph of East Asian layout, from 2013's layout on, a line may end
+  with a Latin comma past the margin, all of it. Lab `hc2` (Word 16,
+  mode 15, Cambria 14, ~/starling-doc-check/lab/hc2): "…di karantina
+  pusat," is taken 9.5pt over and not 10, "…pusat" without the comma
+  7.0 and not 7.5 — the comma's 2.87 the difference; the spaces give
+  the rest. zh-4b8e0abc's Indonesian answer ends "pusat," 2.7pt past
+  the margin in Word's print, where ours left the word for the next
+  line and its page ran a line long. (That lab also finds the line's
+  seven spaces giving about a third of each, 7.0 and not 7.5 — more
+  than the quarter lab `js` measured — and the colon in "kesehatan:"
+  half a point; not built.)
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

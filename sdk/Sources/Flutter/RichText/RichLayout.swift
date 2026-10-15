@@ -5354,7 +5354,14 @@ public final class RichLayout {
                 let holdsFinal = (document.keptSettings["w:noLineBreaksBefore"]?.containsSubstring("w:lang=\"zh-TW\"") ?? false)
                     && (document.compatibilityMode ?? 12) < 15
                     && tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
-                let hang = hangs && !holdsFinal && Self._hangingUnits.contains(units[tail]) && (squeezes || !document.hangsHalf)
+                // (From 2013's layout on a Latin comma hangs too, whole:
+                // lab `hc2` (Word 16, mode 15, Cambria 14 in a justified
+                // paragraph of East Asian layout) takes "pusat," 9.5pt
+                // over and not 10, "pusat" 7.0 and not 7.5 — the comma's
+                // 2.87 the difference; zh-4b8e0abc's Indonesian line ends
+                // "pusat," 2.7pt past the margin in Word's print.)
+                let latinComma = !legacy && units[tail] == 0x2C
+                let hang = hangs && !holdsFinal && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     ? min(ems[tail] * (closesUp(tail) || document.hangsHalf ? 0.5 : 1), boxes(tail, tail + 1)) : 0
                 // (No hair over the hang: lab `hc`, a two-character indent
                 // and 28 ideographs and "。" on zh-d68ac84a's grid, the
@@ -5535,7 +5542,8 @@ public final class RichLayout {
                     }
                 }
                 if !fits, !opening, squeezesSpaces, !wordSpaces.isEmpty {
-                    let need = x + w - after - width
+                    // (Less what its last mark hangs.)
+                    let need = x + w - after - width - hang
                     let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
@@ -5552,6 +5560,7 @@ public final class RichLayout {
                         let each = (need + 0.02) / Double(wordSpaces.count)
                         for space in wordSpaces { adjust[space.k, default: 0] -= each }
                         if after > 0 { adjust[last - 1, default: 0] -= after }
+                        if hang > 0 { adjust[tail, default: 0] -= hang }
                         fits = true
                     }
                 }
