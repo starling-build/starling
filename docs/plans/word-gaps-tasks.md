@@ -286,4 +286,12 @@ Owner: none — notes for whoever takes them.
   fits Word's sixth page's two lines on page 5). Word's lines sit on a
   0.24pt raster with the fraction accumulated; emulating that rounding
   in paging would settle these, and is the only thing that would.
+- zh-799c91cd p2 "各執1份為憑。" (Mac, 2026-10-14): under `w:kinsoku` 0
+  Word wraps the "。" alone though the line's six marks have 36pt to
+  give, yet on the line above it squeezes to keep "公" — so kinsoku off
+  does not switch compression off (tried: zh-9e08ed28 81.8 -> 67.2,
+  reverted). What it changes is which piece is judged: the mark alone
+  (12pt over, more than its half em) rather than "憑。" together. The
+  fitter would need, for such paragraphs, to test a closing mark as its
+  own piece against the half-em rule. Six documents carry the switch.
 
