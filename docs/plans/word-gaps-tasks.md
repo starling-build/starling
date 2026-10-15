@@ -85,8 +85,13 @@ the columns 34.5/187.7/110.4/156.5pt, wider than `tblW` and the text
 column. Word's autofit algorithm (content minimum and maximum widths)
 needs labs; nothing built.
 
-### T2. Per-section column layouts
-Owner: —
+### T2. Per-section column layouts — narrow case DONE (2026-10-15)
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box)
+A section of columns filled by column breaks and followed by a
+continuous section is read as a borderless table row (office.md):
+zh-a0e932c2 22.6 -> 100%, zh-6cd1befe 85.2 -> 93.3. Still open: a
+section of columns that runs over whole pages (zh-6cd1befe's seventh
+section, two columns) is set in one column.
 Documents: zh-a0e932c2 (23%, 7 pages to Word's 5).
 Known: a section of three unequal columns filled by column breaks,
 then a one-column continuous section on the same page. The layout has

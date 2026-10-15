@@ -2514,6 +2514,22 @@ fitter dropped the paragraph's tail).
   21 of 22 lines). Still open on its page 5: a 69.8pt sign under the
   same spacing takes no fifth pitch in Word (3.4pt over it, not 14.7).
 
+- **A section of columns before a continuous one is a row
+  (2026-10-15).** The layout has one column count for the whole
+  document, so a section of columns that a continuous section follows
+  on the same page — its columns filled by column breaks — took a page
+  a column. Such a section is now read as a row of a borderless table:
+  a cell a column, the gaps as columns of their own, widths from its
+  `w:cols`. The section's end stays a top-level paragraph, empty (it
+  takes no room, as an empty section end takes none in Word — a copy of
+  zh-a0e932c2's in the last column had set what follows 12pt low), so
+  the sections count as before; the markup is kept and written back
+  (`KeptTable`, id "kc…") while the text is unchanged. zh-a0e932c2's
+  "12 | 大肠菌群 | GB 4789.3 大肠菌群平板计数法": 22.6% -> 100%, Word's 5
+  pages; zh-6cd1befe's "附件3" beside its title: 85.2 -> 93.3, Word's 59
+  pages. Chinese sample 92.91 -> 94.2. A section of columns over whole
+  pages (zh-6cd1befe's seventh) is still set in one column.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

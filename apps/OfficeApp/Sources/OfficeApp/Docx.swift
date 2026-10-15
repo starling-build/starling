@@ -733,6 +733,10 @@ enum DocxFormat {
         var cellChar = CharStyle()   // the table style's look for the first row's runs
         var keptTables: [String: KeptTable] = [:]
         var keptTableCount = 0
+        /// Each top-level body paragraph's own `w:p`, while the body is read
+        /// (the column sections read as table rows keep their markup).
+        var bodyNodes: [Int: XNode] = [:]
+        var recordingBody = true
         /// A paragraph style's chain laid over `base` — the table style's
         /// paragraph props inside a cell: Word puts the table style under
         /// the paragraph style, so a style that sets only "after" keeps the
@@ -804,10 +808,12 @@ enum DocxFormat {
         func walkBlock(_ node: XNode, indent: Double, depth: Int = 0) {
             switch node.name {
             case "w:p":
+                let first = paragraphs.count
                 for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
                                      currentCell != nil ? { id in chainOver(id, cellBase, cellRootBase) } : nil) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
+                if recordingBody, currentCell == nil { for k in first ..< paragraphs.count { bodyNodes[k] = node } }
             case "w:tbl" where currentCell != nil && depth < maxNesting && _nestingDepth(node) == 1
                                 && unwrapped(node, "w:tr").count <= 15 && textLength(node) <= 600:
                 // A small table in a cell, with none in it, is a table of
@@ -1203,6 +1209,93 @@ enum DocxFormat {
             }
         }
         for child in body.children { walkBlock(child, indent: 0) }
+        recordingBody = false
+        // A section of columns that a continuous section follows on the
+        // same page, its columns filled by column breaks, is set as a row
+        // of a borderless table: one cell a column, the columns' gaps
+        // between them — the layout has one column count for the whole
+        // document. zh-a0e932c2's "12 | 大肠菌群 | GB 4789.3 大肠菌群
+        // 平板计数法" row of three unequal columns had taken a page a
+        // column. The section's end stays a top-level paragraph of its
+        // own, empty (it takes no room), so the sections count as they
+        // did; the markup is kept for the save (`KeptTable`, id "kc…").
+        do {
+            var out: [RichParagraph] = []
+            out.reserveCapacity(paragraphs.count + 8)
+            var start = 0
+            for (i, para) in paragraphs.enumerated() {
+                out.append(para)
+                guard para.cell == nil, para.style.sectionXML != nil else { continue }
+                defer { start = i + 1 }
+                guard para.style.sectionBreaksPage == false, let sx = para.style.sectionXML,
+                      let gaps = _sectionColumns(sx, para.style.sectionPage), gaps.count > 1,
+                      paragraphs[start ... i].allSatisfy({ $0.cell == nil }) else { continue }
+                var columns: [[RichParagraph]] = [[]]
+                for k in start ... i {
+                    var q = paragraphs[k]
+                    if k > start, q.style.columnBreak, q.style.pageBreakBefore {
+                        columns.append([])
+                        q.style.pageBreakBefore = false
+                        q.style.columnBreak = false
+                        q.style.breakEndsPrevious = false
+                        q.style.breakRunPropertiesXML = nil
+                    }
+                    columns[columns.count - 1].append(q)
+                }
+                guard columns.count == gaps.count, (start ... i).allSatisfy({ bodyNodes[$0] != nil }) else { continue }
+                out.removeLast(i - start + 1)
+                tableCount += 1
+                let id = "t\(tableCount)"
+                keptTableCount += 1
+                let kid = "kc\(keptTableCount)"
+                var widths: [Double] = []
+                let firstOut = out.count
+                // (The section's end: its text in the cell, its break
+                // after the table — and an empty one not in the cell at
+                // all, as it takes no room in Word: zh-a0e932c2's put a
+                // line under "法" and the table after the row 12pt low.)
+                if let last = columns[columns.count - 1].last, last.text.isEmpty, last.image == nil, columns[columns.count - 1].count > 1 {
+                    columns[columns.count - 1].removeLast()
+                }
+                for (c, column) in columns.enumerated() {
+                    for var q in column {
+                        q.style.sectionXML = nil; q.style.sectionRels = []; q.style.sectionPage = nil; q.style.sectionBreaksPage = nil
+                        q.cell = CellRef(table: id, row: 0, column: c * 2)
+                        out.append(q)
+                    }
+                    widths.append(gaps[c].width)
+                    if c < columns.count - 1 {
+                        var gap = RichParagraph(style: column.last?.style ?? RichParagraphStyle())
+                        gap.style.sectionXML = nil; gap.style.sectionPage = nil; gap.style.sectionBreaksPage = nil
+                        gap.cell = CellRef(table: id, row: 0, column: c * 2 + 1)
+                        out.append(gap)
+                        widths.append(gaps[c].space)
+                    }
+                }
+                var mark = RichParagraph(style: para.style)
+                mark.style.pageBreakBefore = false
+                mark.style.columnBreak = false
+                mark.style.breakEndsPrevious = false
+                mark.style.breakRunPropertiesXML = nil
+                out.append(mark)
+                tableColumns[id] = widths
+                var ts = TableStyle()
+                ts.borders = false
+                ts.cellMarginTop = 0; ts.cellMarginLeft = 0; ts.cellMarginBottom = 0; ts.cellMarginRight = 0
+                tableStyles[id] = ts
+                var xml = "", kept: [KeptRel] = []
+                var seenNodes = Set<ObjectIdentifier>()
+                for k in start ... i {
+                    let node = bodyNodes[k]!
+                    guard seenNodes.insert(ObjectIdentifier(node)).inserted, let frag = _keptFragment(node, notes) else { continue }
+                    xml += frag.xml
+                    for r in frag.rels where !kept.contains(where: { $0.id == r.id }) { kept.append(r) }
+                }
+                for k in firstOut ..< out.count { out[k].keptTable = kid }
+                keptTables[kid] = KeptTable(xml: xml, rels: kept, texts: out[firstOut...].map(\.text))
+            }
+            paragraphs = out
+        }
         // The caret must be able to leave a table that ends the document.
         if paragraphs.isEmpty || paragraphs.last?.cell != nil { paragraphs.append(RichParagraph()) }
         // The kept headers and footers again as paragraphs, read like the
@@ -2660,6 +2753,26 @@ enum DocxFormat {
 
     /// How deep `w:tbl` elements nest under `node` (iterative; a fuzzer's
     /// 5,000-level table must not recurse).
+    /// A section's columns from its `w:cols` (`sectionXML`), each one's
+    /// width and the gap after it in points — the file's own where its
+    /// columns are unequal, else equal shares of the text width. Nil for
+    /// one column.
+    static func _sectionColumns(_ sectionXML: String, _ page: PageSetup?) -> [(width: Double, space: Double)]? {
+        guard let sect = XNode.parse(Data(sectionXML.utf8)), let cols = sect.name == "w:cols" ? sect : sect.descendant("w:cols") else { return nil }
+        let num = Int(cols["w:num"] ?? "1") ?? 1
+        guard num > 1 else { return nil }
+        let space = (Double(cols["w:space"] ?? "") ?? 720) / 20
+        let own = cols.children.filter { $0.name == "w:col" }
+        if cols["w:equalWidth"].map({ $0 == "0" || $0 == "false" || $0 == "off" }) ?? false, own.count == num {
+            return own.map { ((Double($0["w:w"] ?? "") ?? 0) / 20, (Double($0["w:space"] ?? "") ?? 0) / 20) }
+        }
+        guard let page else { return nil }
+        let text = page.width - page.marginLeft - page.marginRight
+        let width = (text - space * Double(num - 1)) / Double(num)
+        guard width > 0 else { return nil }
+        return (0 ..< num).map { k in (width, k < num - 1 ? space : 0) }
+    }
+
     static func _nestingDepth(_ node: XNode) -> Int {
         var deepest = 0
         var stack: [(XNode, Int)] = [(node, 0)]
@@ -3457,6 +3570,18 @@ enum DocxFormat {
 
         var i = 0
         while i < doc.paragraphs.count {
+            // A section of columns read as a table row (the reader does
+            // that after the body walk) goes back as it was while its
+            // text is.
+            if let kid = doc.paragraphs[i].keptTable, kid.hasPrefix("kc"), let kept = doc.keptTables[kid] {
+                var end = i
+                while end < doc.paragraphs.count, doc.paragraphs[end].keptTable == kid { end += 1 }
+                if doc.paragraphs[i ..< end].map(\.text) == kept.texts {
+                    body += keptFragmentXML(kept.xml, kept.rels)
+                    i = end
+                    continue
+                }
+            }
             if doc.paragraphs[i].cell != nil {
                 let t = tableXML(from: i)
                 body += t.xml
