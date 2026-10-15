@@ -278,6 +278,10 @@ Left: radar charts (Slides reads none; chartex's stays a grey box).
 ### T17. zh-9c5d0c3f: road-sign table rows
 Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-14
 Documents: zh-9c5d0c3f (54%).
+Note from the Mac (2026-10-14): 49beaff9 (dashes and ellipses in East
+Asian runs set in the CJK face) moved zh-9c5d0c3f 55.9% -> 66.7% on the
+Mac — found through T11, not taken from this task; what is left of it
+is yours.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
