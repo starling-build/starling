@@ -534,7 +534,10 @@ struct PptxReader {
                         if case .placeholder = s.kind { return false }
                         // An object this app cannot draw is a labelled box on
                         // a slide, but nothing in its backdrop.
-                        if case .opaque(let o) = s.kind, o.freeform == nil { return false }
+                        // (One drawn from its members — a turned group, a
+                        // diagram — is drawn: tdf149865's layout stripe is a
+                        // group turned a quarter.)
+                        if case .opaque(let o) = s.kind, o.freeform == nil, o.rendering.isEmpty { return false }
                         return s.phType == nil && s.phIdx == nil
                     }
                 }

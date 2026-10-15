@@ -1180,6 +1180,13 @@ the first run's size times `buSzPct` — so 28 pt text has a 20 pt
 picture, and tdf90626's 47% of 32 pt and 151% of 10 pt are both
 10.7 pt; its foot on the baseline.
 
+**A layout's turned group is drawn, 2026-10-14** (sweep 67: 1.7500 →
+1.7474%; tdf149865 2.43 → 1.32, themes 2.59 → 2.33, alterman −0.06).
+A master's or layout's own shapes behind a slide left out every object
+kept whole — a group turned or mirrored, a diagram — as if it could not
+be drawn; those drawn from their members (`rendering`) are drawn now.
+tdf149865's coloured stripe across the top is a group turned a quarter.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
