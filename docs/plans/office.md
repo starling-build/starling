@@ -3478,6 +3478,24 @@ fitter dropped the paragraph's tail).
   counted the cells' empty paragraphs either way (which the missing
   margins had hidden). zh-a4b0f6ea's page-18 form 10pt short is fixed,
   +0.6; nothing else moved against a clean baseline.
+- **A background brings a header and a footer (2026-10-15).** A document
+  with `w:background` (never printed) and no header part is laid out by
+  Word as if it had one: labs `bg1`/`bg2` (bib-chernigovka's package) —
+  with the background Word's print holds two empty header marks (45.8,
+  59.3) and a footer mark (803.5) and the body runs 85.7 to 783.8 down
+  the page; without it, no marks and 68.2 to 793. The header is a line
+  in Word's built-in Header style (Normal, single, nothing after) and
+  then a Normal paragraph with its spacing (the body starts under its
+  10pt after); the footer is the one Header-style line. The importer now
+  adds such phantom parts to the layout's headers and footers only (the
+  file's own are what a save writes). bib-chernigovka 0% -> 90.3, Word's
+  16 pages; 61991 and 51921-Word-Crash067 carry the same marks but their
+  margins already hold them. The art page border it also has changes
+  nothing (lab `pb1`).
+- **Lead, not taken: a page-anchored floating table that Word breaks
+  after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
+  the rest of the table, which would fit, goes to page 21 in Word's
+  print, and the text under it stays on page 20.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

@@ -1339,7 +1339,21 @@ enum DocxFormat {
             func paragraphsOf(_ path: String) -> [RichParagraph] {
                 if let hit = read[path] { return hit }
                 read[path] = []
-                guard let data = part(path), let node = XNode.parse(data) else { return [] }
+                // (A phantom part — see below — is Word's empty header or
+                // footer: its built-in style, Normal set single with
+                // nothing after.)
+                // (A header's first line is in that style and its second
+                // in Normal, spacing and all: Word's two marks stand 13.5pt
+                // apart at 11pt, and its body starts 11.9pt under the
+                // second's line — Normal's 1.15 lines and 10pt after. A
+                // footer is the one line in that style: as Normal, the
+                // page held a line fewer than Word's.)
+                let phantom: Data? = path.hasPrefix("phantom:") ? Data((
+                    "<w:\(path.hasSuffix("header") ? "hdr" : "ftr") xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+                    + "<w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr></w:p>"
+                    + (path.hasSuffix("header") ? "<w:p/>" : "")
+                    + "</w:\(path.hasSuffix("header") ? "hdr" : "ftr")>").utf8) : nil
+                guard let data = phantom ?? part(path), let node = XNode.parse(data) else { return [] }
                 // (Their theme font references too: zh-a4b0f6ea's page
                 // numbers are `majorEastAsia`, 宋体, in a footer.)
                 _resolveThemeFonts(node, theme)
@@ -1372,6 +1386,22 @@ enum DocxFormat {
                     if !made.isEmpty {
                         headerFooters.append(RichHeaderFooter(kind: hf.kind, type: hf.type, paragraphs: made, section: numbered ? s : nil))
                     }
+                }
+            }
+            // A document with a background (`w:background`, never
+            // printed) is laid out by Word as if it had a header of two
+            // empty paragraphs and a footer of one wherever it has none: lab
+            // `bg1`/`bg2` (bib-chernigovka's package, Word 16,
+            // 2026-10-15) — with the background Word's print holds two
+            // empty header marks and a footer mark and the body runs
+            // 85.7 to 783.8 down the page; without it, no marks and 68.2
+            // to 793. bib-chernigovka matched none of Word's lines, each
+            // page's text 18 to 50pt higher than Word's. (So do 61991
+            // and 51921-Word-Crash067, whose margins happen to hold it.)
+            if root.first("w:background") != nil {
+                for kind in [KeptHeaderFooter.Kind.header, .footer] where !headerFooters.contains(where: { $0.kind == kind }) {
+                    let made = paragraphsOf(kind == .header ? "phantom:header" : "phantom:footer")
+                    if !made.isEmpty { headerFooters.append(RichHeaderFooter(kind: kind, type: "default", paragraphs: made)) }
                 }
             }
             paragraphs = bodyParagraphs
