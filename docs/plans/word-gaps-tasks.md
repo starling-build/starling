@@ -171,6 +171,14 @@ line's descent past it; ours now allows that (entry in `office.md`),
 which took zh-6d1afa56 from 41% to 97% — note for T5's owner. This
 document still needs about 1.3pt more: ours starts the picture's line
 about 2pt below Word's, from drift earlier on that page. Open.
+Progress (Mac): numFmt "none" levels (297b0f60) took it 67.5% -> 88.5%.
+Left: page 10's text runs 0.54pt below Word's from the top, and the
+last picture then misses the foot. The cause is the header: style 63,
+ascii 黑体 / hAnsi 宋体, and its "—" is SimSun in Word's print but
+Liberation Sans in ours (a taller ascent: the header's baseline 1.09pt
+lower). Routing hAnsi characters to an East Asian hAnsi face works (it
+resolves 宋体) but our 宋体 stand-in has no U+2014 and falls back to
+Liberation Sans all the same — tried and reverted, no score moved.
 
 ### T12. Squeezing marks to fit a character: the limit on a character grid
 Owner: none. Documents: zh-d68ac84a (80%, first parting page 10).
