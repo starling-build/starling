@@ -1584,6 +1584,13 @@ slices each cast a three-quarter pie, a grey slab over the chart. They
 take the evaluated path now (its filled parts as one, so a can's lid
 does not cut a hole in it).
 
+**Linked text, 2026-10-15** (the 21 decks with a link: tdf148966 2.23
+→ 1.83, customGeo −0.04, eight more a little; tdf137367 +0.30, its
+three links now coloured and underlined as PowerPoint draws them,
+the underline a pixel off). A run with `hlinkClick` was drawn as plain
+text; it is underlined now, in the theme's `hlink` colour unless the
+link keeps the text's own (`ahyp:hlinkClr val="tx"`).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

@@ -462,6 +462,13 @@ private struct LevelStyle {
         s.font = r.first("a:latin")?["typeface"]
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
         if let h = r.first("a:highlight") { s.highlight = colors.color(in: h) }
+        if let link = r.first("a:hlinkClick") {
+            // Linked text: underlined, in the theme's link colour over its
+            // own — unless the link says to keep the text's (`hlinkClr
+            // val="tx"`, PowerPoint 2019's). customGeo's resources page.
+            s.underline = true
+            if link.descendant("ahyp:hlinkClr")?["val"] != "tx", let c = colors.scheme("hlink") { s.color = c }
+        }
         if let effects = r.first("a:effectLst") {
             // An outer shadow: `dist` along `dir` (60000ths of a degree,
             // clockwise from the right), blurred by `blurRad` — 45541's
