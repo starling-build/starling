@@ -3022,6 +3022,20 @@ fitter dropped the paragraph's tail).
   state list (29 rows, 0.75pt outset lines) had a row more on its
   page 4 than Word's: 45.8% -> 47.2, still a page short. A row ruled
   so has its bottom line in its own height and asks nothing under it.
+- **The space after and the space before share their room across a
+  paragraph border too (2026-10-15).** Labs `sp`, `sp2`, `sp3` in
+  bug59058's package (Word 16, 12pt text on 15pt lines): 9pt after
+  over 9pt before is 24.00 between the lines — 15 and the one 9;
+  18 over 9, 9 over 18, 12 over 6 and 6 over 12 all take the larger
+  alone; and a bottom line on the first paragraph or a top one on the
+  second changes nothing of that, adding only its own width and
+  `w:space` — 24.48 for a top line, 25.44 for a bottom and a top,
+  28.56 for a line 4pt off, 33.36 for two. Ours had kept the two
+  spaces whole across a border (`_sharedSpace`'s guard from
+  b388f95c, an assumption), so bug59058's "Abstract" — ruled under,
+  9pt after — stood 9pt further from its body than Word sets it, and
+  page 24 lost its last line, the page after it a line out of step:
+  47.2% -> 52.1, and Word's 52 pages (POI 104 of 111 page counts).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

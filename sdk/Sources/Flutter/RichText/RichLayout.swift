@@ -3060,8 +3060,15 @@ public final class RichLayout {
     private func _sharedSpace(_ i: Int, _ document: RichDocument) -> Double {
         guard theme.collapsesParagraphSpacing, !document.addsParagraphSpacing,
               i > 0, i < document.paragraphs.count, _cells[i] == nil, _cells[i - 1] == nil else { return 0 }
-        let above = document.paragraphs[i - 1].style, style = document.paragraphs[i].style
-        guard above.borders?.bottom == nil, style.borders?.top == nil, !style.pageBreakBefore else { return 0 }
+        let style = document.paragraphs[i].style
+        // (Across a paragraph's border too: lab `sp3` in bug59058's
+        // package, Word 16, 2026-10-15 — 9pt after over 9pt before is
+        // 9 between the lines' 15, a bottom line on the first or a top
+        // one on the second adds its own width and `w:space` and no
+        // more: 24.00, 24.48, 25.44 with both, 28.56 with a line 4pt
+        // off. bug59058's "Abstract", ruled under, had its 9 and the
+        // body's 9 both, and page 24 lost its last line.)
+        guard !style.pageBreakBefore else { return 0 }
         return min(_spacing(i - 1, document).after, _spacing(i, document).before).rounded(.down)
     }
 
