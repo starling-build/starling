@@ -72,6 +72,33 @@ Each has its entry in `office.md`.
   over from a page's middle whatever their length (f67d5ba6, f774a736)
 - Text-anchored floating tables stand their `tblpY` lower (dd1ad844)
 
+## Done on 2026-10-15 (session 01Xgpbk5jLzrCcB28yZBzYHN, Mac, starling-ios worktree)
+
+Each has its entry in `office.md`; every one swept against a clean
+baseline at the same tip, nothing down.
+
+- Embedded East Asian faces drawn (T8, 12684c7f); exported PDFs' text
+  reads ideographs, not radicals (starling-engine a0cbed78)
+- A no-break space is an em in a square face (c7c1610a)
+- Theme fonts by script, and in headers/footers/footnotes (7a5bf43c):
+  zh-1a3c7aa0 78.0 -> 91.7
+- A header's/footer's fit-to-text box keeps its first page's width
+  (36ecdfb8): zh-a4b0f6ea +6, zh-5901e2b0 -> 100
+- "At least" rows add their cells' margins; hidden-mark empty cells ask
+  nothing (afe8a68e)
+- A document background brings a phantom header and footer (b18da088):
+  bib-chernigovka 0 -> 90.3
+- A line of spaces and tabs is its mark's line (f4cc1940):
+  IllustrativeCases 76 -> 100
+- A shape's text in its preset's text rectangle (78eabee3):
+  shapes-with-text 37.5 -> 62.5
+
+Leads measured and left (office.md): T1 autofit (released); text in
+group shapes (5 files); a page-anchored floating table Word breaks
+after its first row (zh-a4b0f6ea p20); frames with wrap="around" let the
+next paragraph flow beside them (lab fr1; only 2 files have body frames);
+drawing's nested HTML tables (flattened, T9's limit).
+
 ## Open tasks
 
 Two sessions now share the Mac and its one Word. Word prints (labs,
