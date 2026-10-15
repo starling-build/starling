@@ -3335,7 +3335,11 @@ public final class RichLayout {
         // its own, so each is widened by what its stop needs.
         var tabs: [Int: Double] = [:]
         _leaders[i] = []
-        if theme.wordRules, !style.rightToLeft, p.text.utf16.contains(0x09) {
+        // (PowerPoint's the same way: its stops from the text's left, the
+        // hanging indent first, then `defTabSz` apart — HowWeRefactor's
+        // quotes, their first line at the indent and "– Martin Fowler" at
+        // the seventh inch, PowerPoint's print to a tenth of a point.)
+        if theme.wordRules || theme.markersAtHang, !style.rightToLeft, p.text.utf16.contains(0x09) {
             let (probeSpan, probeInline, probeInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead)
             let probe = TextPainter(text: probeSpan, textAlign: .left, textDirection: .ltr)
             if !probeInline.isEmpty { probe.setPlaceholderDimensions(probeInline.map { $0.dimensions }) }
@@ -3355,14 +3359,23 @@ public final class RichLayout {
             let units = Array(p.text.utf16)
             let stops = style.tabStops.sorted { $0.position < $1.position }
             let step = _px(document.defaultTabStop ?? 36)
+            // `wraps`: where the lines the column wraps the paragraph into
+            // start (PowerPoint's, measured below); a tab on such a line
+            // is measured from the line's own start, at the indent.
+            func measure(_ wraps: [Int]) {
+            tabs = [:]
+            _leaders[i] = []
             var shift = 0.0
             var lastTab = 0
+            var base: Double? = nil
             for (t, u) in units.enumerated() where u == 0x09 {
                 // (A line break since the last tab: the line starts over.)
                 if units[lastTab ..< t].contains(where: { $0 == 0x0A || $0 == 0x2028 }) { shift = 0 }
+                if let w = wraps.last(where: { $0 > lastTab && $0 <= t }) { shift = 0; base = edge(w) }
                 lastTab = t
                 let at = edge(t), after = edge(t + 1)
-                let x = ownLeft + at + shift          // from the column's left
+                // from the column's left
+                let x = base.map { ownLeft + at - $0 + shift } ?? ownLeft + at + shift
                 let own = after - at
                 var stop: (x: Double, alignment: TabStop.Alignment, leader: String?)? = nil
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 }) { stop = (_px(s.position), s.alignment, s.leader) }
@@ -3395,6 +3408,26 @@ public final class RichLayout {
                     _leaders[i].append((t, ch))
                 }
             }
+            }
+            measure([])
+            // PowerPoint's tabs on the lines the paragraph wraps into, as
+            // laid out with the tabs so far: measured again from where
+            // each line starts until the lines stop moving (HowWeRefactor's
+            // "– Martin Fowler", on the third line of its quote).
+            if theme.markersAtHang {
+                var wraps: [Int] = []
+                for _ in 0 ..< 3 {
+                    let (s1, in1, ins1) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: tabs)
+                    let trial = TextPainter(text: s1, textAlign: .left, textDirection: .ltr)
+                    if !in1.isEmpty { trial.setPlaceholderDimensions(in1.map { $0.dimensions }) }
+                    trial.layout(minWidth: textWidth, maxWidth: textWidth)
+                    let found = Array(_lineStarts(trial, _OffsetMap(lead: lead != 0 ? 1 : 0, inserts: ins1), count: units.count).dropFirst())
+                    trial.dispose()
+                    if found == wraps { break }
+                    wraps = found
+                    measure(wraps)
+                }
+            }
             probe.dispose()
         }
         // (In a justified paragraph each such tab is set as a held
@@ -3404,6 +3437,16 @@ public final class RichLayout {
         // Word for Windows: "1.1.<tab>" with a stop at 1418 twips starts
         // its text at the stop justified or not; ours, justified, 15pt
         // short — bug65649's every numbered clause.)
+        // (A slide paragraph that opens with a tab: the tab's widening goes
+        // into the first line's indent box instead. The engine sets a
+        // character's added spacing half before it, and at the start of a
+        // line that moved the whole line on — HowWeRefactor's quotes
+        // started 10.8pt right of their indent.)
+        if theme.markersAtHang, p.text.utf16.first == 0x09, let e = tabs[0], e != 0 {
+            lead += e
+            tabs[0] = nil
+            _leadWidth[i] = lead
+        }
         let tabsHeld: Set<Int> = theme.wordRules && style.alignment == .justify ? Set(tabs.keys) : []
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: tabs, held: tabsHeld)
         _inserts[i] = inserts

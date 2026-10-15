@@ -20,9 +20,9 @@ OverlappingRelations.pptx	summary pages=4 worst=0.56% mean=0.36%
 SampleShow.pptx	summary pages=2 worst=2.12% mean=1.52%
 SmartArt.pptx	summary pages=1 worst=0.00% mean=0.00%
 WithMaster.pptx	summary pages=2 worst=1.41% mean=1.24%
-aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=14.15% mean=5.75%
+aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=14.07% mean=5.73%
 aascu.org_workarea_downloadasset.aspx_id=5864.pptx	summary pages=34 worst=74.34% mean=9.45%
-ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=14.40% mean=8.15%
+ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=14.40% mean=8.10%
 alterman_security.pptx	summary pages=23 worst=12.03% mean=7.18%
 aptia.pptx	summary pages=9 worst=6.93% mean=3.50%
 at.ecodesign.www_downloads_Vertiefungsvortrag_elektronik.pptx	summary pages=34 worst=8.85% mean=3.55%
@@ -43,7 +43,7 @@ bug65523.pptx	summary pages=1 worst=0.28% mean=0.28%
 bug65551.pptx	summary pages=1 worst=0.03% mean=0.03%
 bug65673.pptx	summary pages=1 worst=0.27% mean=0.27%
 bug68703.pptx	summary pages=1 worst=2.71% mean=2.71%
-ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst=8.91% mean=4.10%
+ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst=7.72% mean=4.05%
 chart-picture-bg.pptx	summary pages=1 worst=2.69% mean=2.69%
 chart-slide-bg.pptx	summary pages=1 worst=2.35% mean=2.35%
 chart-texture-bg.pptx	summary pages=1 worst=2.27% mean=2.27%
@@ -53,8 +53,8 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=3.81% mean=3.81%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=22.28% mean=7.11%
-ececapstonespring2012.pptx	summary pages=24 worst=3.28% mean=1.99%
+customGeo.pptx	summary pages=48 worst=22.28% mean=7.09%
+ececapstonespring2012.pptx	summary pages=24 worst=3.22% mean=1.96%
 highlight-test-case.pptx	summary pages=1 worst=0.96% mean=0.96%
 layouts.pptx	summary pages=10 worst=1.59% mean=0.65%
 line-chart.pptx	summary pages=1 worst=3.09% mean=3.09%
@@ -139,7 +139,7 @@ lo-media-placeholder.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-mirrored-graphic.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-multicol.pptx	summary pages=1 worst=0.27% mean=0.27%
 lo-multiplelayoutfooter.pptx	summary pages=1 worst=0.02% mean=0.02%
-lo-n778859.pptx	summary pages=1 worst=0.87% mean=0.87%
+lo-n778859.pptx	summary pages=1 worst=0.75% mean=0.75%
 lo-n80340.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-n821567.pptx	summary pages=1 worst=3.38% mean=3.38%
 lo-n828390.pptx	summary pages=1 worst=0.11% mean=0.11%
@@ -225,7 +225,7 @@ lo-tcPr-vert-roundtrip.pptx	summary pages=1 worst=0.82% mean=0.82%
 lo-tdf100065.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-tdf100926.pptx	summary pages=1 worst=0.68% mean=0.68%
 lo-tdf100926_ODP.pptx	summary pages=1 worst=0.68% mean=0.68%
-lo-tdf102261_testParaTabStopDefaultDistance.pptx	summary pages=1 worst=0.27% mean=0.27%
+lo-tdf102261_testParaTabStopDefaultDistance.pptx	summary pages=1 worst=0.23% mean=0.23%
 lo-tdf103347.pptx	summary pages=3 worst=0.11% mean=0.11%
 lo-tdf103473.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf103477.pptx	summary pages=1 worst=0.72% mean=0.72%
@@ -277,7 +277,7 @@ lo-tdf119087.pptx	summary pages=1 worst=0.32% mean=0.32%
 lo-tdf119118.pptx	summary pages=1 worst=1.03% mean=1.03%
 lo-tdf119187.pptx	summary pages=3 worst=0.69% mean=0.51%
 lo-tdf119649.pptx	summary pages=1 worst=0.34% mean=0.34%
-lo-tdf120028.pptx	summary pages=1 worst=1.09% mean=1.09%
+lo-tdf120028.pptx	summary pages=1 worst=0.96% mean=0.96%
 lo-tdf120573.pptx	summary pages=1 worst=0.01% mean=0.01%
 lo-tdf123090.pptx	summary pages=1 worst=0.17% mean=0.17%
 lo-tdf123684.pptx	summary pages=1 worst=0.69% mean=0.69%

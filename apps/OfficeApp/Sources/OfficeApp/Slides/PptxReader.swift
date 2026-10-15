@@ -319,6 +319,9 @@ private struct LevelStyle {
     var highlight: Color?
     /// `a:buBlip`: the picture bullet, resolved from the part it is in.
     var bulletPicture: ImageAttachment?
+    /// `a:tabLst` (points from the text's left edge) and `defTabSz`.
+    var tabs: [TabStop]?
+    var defTab: Double?
 
     func filled(from lower: LevelStyle) -> LevelStyle {
         var s = self
@@ -344,6 +347,8 @@ private struct LevelStyle {
         s.spc = s.spc ?? lower.spc
         if !s.shadowSet { s.shadow = lower.shadow; s.shadowSet = lower.shadowSet }
         s.highlight = s.highlight ?? lower.highlight
+        s.tabs = s.tabs ?? lower.tabs
+        s.defTab = s.defTab ?? lower.defTab
 
         return s
     }
@@ -382,6 +387,15 @@ private struct LevelStyle {
             s.bullet = .char
             s.bulletChar = "\u{200B}"
             s.bulletPicture = blip.first("a:blip")?["r:embed"].flatMap { picture?($0) }
+        }
+        s.defTab = p["defTabSz"].flatMap(Double.init).map { $0 / Pptx.emu }
+        if let list = p.first("a:tabLst") {
+            s.tabs = list.all("a:tab").compactMap { t in
+                guard let pos = t["pos"].flatMap(Double.init) else { return nil }
+                let align: TabStop.Alignment
+                switch t["algn"] { case "ctr": align = .center; case "r": align = .right; case "dec": align = .decimal; default: align = .left }
+                return TabStop(position: pos / Pptx.emu, alignment: align)
+            }
         }
         if let r = p.first("a:defRPr") { s = run(r, colors).filled(from: s) }
         return s
@@ -2414,6 +2428,7 @@ private struct SlideContext {
                 style.indentLeft = level.marL ?? 0
                 style.firstLineIndent = level.indent ?? 0
             }
+            if let tabs = level.tabs { style.tabStops = tabs }
 
             var text = ""
             var runs: [Run] = []
@@ -2472,7 +2487,11 @@ private struct SlideContext {
             if level0.bullet == .char { style.list = .bullet }
             paragraphs = [RichParagraph(text: "", style: style)]
         }
-        var body0 = TextBody(document: RichDocument(paragraphs: paragraphs), anchor: anchor, insets: insets,
+        // Tabs go to the next stop a default distance apart (`defTabSz`,
+        // an inch unless the level says otherwise) from the text's left.
+        var bodyDocument = RichDocument(paragraphs: paragraphs)
+        bodyDocument.defaultTabStop = level0.defTab ?? 72
+        var body0 = TextBody(document: bodyDocument, anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,
                         color: level0.color ?? tx1 ?? Color(0xFF000000),
                         listIndent: shapeIndent,

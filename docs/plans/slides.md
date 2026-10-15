@@ -1330,6 +1330,25 @@ documents and workbooks salvage the same way. Left: 5611…'s diagram,
 whose frame lost its `a:ext` to the fuzzer and which PowerPoint still
 draws.
 
+**Tab stops, 2026-10-15** (sweep 75: 1.5945 → 1.5937%; eight decks
+closer — tdf120028 −0.13, n778859 −0.12, HowWeRefactor −0.05 — none
+further). A tab in slide text was the engine's own: no stops at all.
+The reader takes `a:tabLst` (left, centre, right, decimal) and
+`defTabSz` (an inch unless a level says otherwise) now, and the layout
+sets tabs as it does Word's: the paragraph's own stops, the hanging
+indent first, then the default stops — all measured from the text's
+left edge. PowerPoint's print of HowWeRefactor's quotes, to a tenth of
+a point: the first line's tab to the indent (70.1), "bursts. ⇥⇥– Martin
+Fowler" at the sixth and seventh inch (475.2, 547.2). Two things
+Slides-only in the layout: a tab on a line the paragraph wraps onto is
+measured from that line's start, the lines found by laying the
+paragraph out with the tabs so far until they stop moving (the probe is
+one long line, and a third line's tab had been placed as if it ended
+the first); and a paragraph that opens with a tab puts the tab's
+widening into the first line's indent box, since the engine sets
+added spacing half before a character and at a line's start that moved
+the line (10.8 pt).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
