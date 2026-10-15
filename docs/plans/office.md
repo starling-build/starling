@@ -2779,6 +2779,28 @@ fitter dropped the paragraph's tail).
   not have — which had happened to step a layout one page ahead of
   Word's since page 131 back into its numbering. The fix after takes
   that page where Word does, and the count is Word's again.
+- **A table row whose first paragraph breaks the page before it opens
+  a page (2026-10-15).** A section break on the paragraph before a
+  table, the next section opening on a new page, or `w:pageBreakBefore`
+  on the row's first paragraph: Word sets the row at a page's head (a
+  break character inside a cell it ignores). Ours consulted a
+  paragraph's break only outside a row — the importer had put the
+  section's break on the table's first paragraph all along — so the
+  table ran on. Lab `sectbl` (bug65649's package: a `continuous`
+  section's last paragraph "Record of tests:" before a table, the next
+  section `nextPage`): Word's table on page 2, ours on 1; the same with
+  the section break the plain next-page kind, or `w:pageBreakBefore` in
+  the first cell instead. bug65649's test-record table ("Ведомость
+  проведения испытаний ИС:", page 131) was the first of its pages a
+  page short: 17.7% -> 21.9, 176 pages as Word's. zh-454e2e29 6 -> 7
+  pages at 49.3 (a page-break paragraph before its statistics table:
+  Word's page 4 opens on the table too; the pages before it have other
+  faults). zh-6cd1befe 86.4 -> 85.8, 59 -> 60 pages: Word opens page 53
+  on the second table of 附件3 as the break asks, and ours reaches that
+  table two rows later — 附件3's section is two unequal columns (T2),
+  "附件3" in a 1272-twip column with the title beside it on Word's page
+  51, which ours sets a page apart, so the first table ends on page 53
+  and the break now costs the page.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

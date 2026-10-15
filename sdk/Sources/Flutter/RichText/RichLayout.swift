@@ -2173,6 +2173,18 @@ public final class RichLayout {
                 while j < count, let d = _cells[j], d.table == c.table, d.row == c.row { j += 1 }
                 let rowBottom = c.rowTop + c.ownRowHeight
                 resumeCursor = nil   // a row restarts whole
+                // A row whose first paragraph breaks the page before it
+                // opens a page as a paragraph's break would: the section
+                // break on the paragraph before the table (its next
+                // section opening on a new page), or the file's own
+                // w:pageBreakBefore in the cell. A break character inside
+                // a cell Word ignores. (Lab `sectbl` from bug65649's
+                // package: the test record's table on its own page.)
+                if c.firstInRow, _pageBreak[i], !document.paragraphs[i].style.pageBreakInline,
+                   !(document.paragraphs[i].style.breakEndsPrevious && i > 0 && document.paragraphs[i - 1].cell != nil),
+                   y > 0.01 || !_pages[page].isEmpty {
+                    newPage()
+                }
                 // (At a page's top the table goes on: its header row
                 // again, and the cells merged down from above.)
                 func goOn() {

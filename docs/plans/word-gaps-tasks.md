@@ -352,3 +352,15 @@ zh-8e8d4c40 88.8 -> 87.1 in that commit's own sweep, each a single page
 foot that Word's 0.24pt raster decides, and are explained in its
 office.md entry. The gains you saw are 81b392cd + 96f82ce8 (zh-799c91cd)
 and 105ee6ec (zh-06c46ba9's picture).
+
+### Note from the Mac (2026-10-15)
+Two layout fixes pushed: keep-with-next as Word's cascade (a run moves
+only where a page's foot falls at a member's end with the next's first
+lines not fitting; a section-ending member ends the run — zh-64044a1d
+73.1 -> 87.1, 103 pages as Word's), and a table row whose first
+paragraph carries a page break opens a page (the section break on the
+paragraph before a table had been dropped at the row — bug65649 17.7 ->
+21.9, 176 pages as Word's; lab `sectbl`). zh-6cd1befe lost a page
+(59 -> 60) to the latter only because of T2: 附件3's two unequal columns
+(a 1272-twip column for "附件3", the title beside it) put its title a
+page down, so that document is T2's best test now, with zh-a0e932c2.
