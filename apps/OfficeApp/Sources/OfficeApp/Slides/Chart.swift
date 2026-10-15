@@ -384,6 +384,13 @@ enum ChartXML {
                     if let f = run.first("a:solidFill") { s.labelColor = color(f) }
                 }
             }
+            // The labels' own look where they give one (aascu 5864's
+            // census chart: 14 pt bold), the chart type's labels' else.
+            if s.labelSize == nil, let run = (ser.first("c:dLbls") ?? el.first("c:dLbls"))?.first("c:txPr")?.descendant("a:defRPr") {
+                s.labelSize = run["sz"].flatMap(Double.init).map { $0 / 100 }
+                s.labelBold = ["1", "true"].contains(run["b"] ?? "")
+                if let f = run.first("a:solidFill") { s.labelColor = color(f) }
+            }
             if series.isEmpty {
                 for pt in ser.all("c:dPt") {
                     // (The theme's own cycle is left to follow the theme.)
@@ -1334,7 +1341,7 @@ enum ChartPainter {
         }
         for t in valueLabels + catLabels { t.dispose() }
 
-        var labels: [(String, Offset)] = []
+        var labels: [(String, Offset, Int)] = []
         // Labels from cells, each with the bar it stands in the end of.
         var cellLabels: [(text: String, bar: Rect, series: ChartSeries)] = []
         let fill = Paint()
@@ -1382,11 +1389,11 @@ enum ChartPainter {
                     if horizontal {
                         let top = centre + group / 2 - Double(j) * step - bar
                         rect = Rect.fromLTRB(min(p0, p1), top, max(p0, p1), top + bar)
-                        labels.append((dataLabel(c, raw), Offset(c.stacked ? rect.center.dx : max(p0, p1) + 3 * k, rect.center.dy)))
+                        labels.append((dataLabel(c, raw), Offset(c.stacked ? rect.center.dx : max(p0, p1) + 3 * k, rect.center.dy), j))
                     } else {
                         let left = centre - group / 2 + Double(j) * step
                         rect = Rect.fromLTRB(left, min(p0, p1), left + bar, max(p0, p1))
-                        labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy : min(p0, p1) - 8 * k)))
+                        labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy : min(p0, p1) - 8 * k), j))
                     }
                     canvas.drawRect(rect, fill)
                     if c.barView != nil {
@@ -1463,7 +1470,7 @@ enum ChartPainter {
                     guard let raw = c.series[j].values[safe: i] ?? nil else { row.append(c.stacked ? base[i] : nil); continue }
                     let v = scaled(raw, i) + (c.stacked ? base[i] : 0)
                     row.append(v)
-                    labels.append((dataLabel(c, raw), Offset(xAt(i), vpos(v) - 9 * k)))
+                    labels.append((dataLabel(c, raw), Offset(xAt(i), vpos(v) - 9 * k), j))
                 }
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
                 tops.append(row)
@@ -1523,7 +1530,7 @@ enum ChartPainter {
                     guard let v = c.series[j].values[safe: i] ?? nil else { continue }
                     let x = plot.left + (c.x(i) - xs.lo) / (xs.hi - xs.lo) * plot.width
                     canvas.drawCircle(Offset(x, vpos(v)), max(1.5, 2.5 * k), fill)
-                    labels.append((dataLabel(c, v), Offset(x, vpos(v) - 9 * k)))
+                    labels.append((dataLabel(c, v), Offset(x, vpos(v) - 9 * k), j))
                 }
             }
         case .pie, .doughnut, .radar:
@@ -1544,8 +1551,18 @@ enum ChartPainter {
             tp.dispose()
         }
         if c.dataLabels {
-            for (s, at) in labels {
-                let tp = text(s, c.baseTextSize, .infinity)
+            for (s, at, j) in labels {
+                // In the series' own label look where it has one.
+                let ser = c.series[j]
+                let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil ? text(s, c.baseTextSize, .infinity)
+                    : { () -> TextPainter in
+                        let t = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
+                            color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
+                            fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: ser.labelBold ? .bold : .normal,
+                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))), textDirection: .ltr)
+                        t.layout(minWidth: 0, maxWidth: .infinity)
+                        return t
+                    }()
                 let dx = horizontal && !c.stacked ? 0 : tp.width / 2
                 tp.paint(canvas, Offset(at.dx - dx, at.dy - tp.height / 2))
                 tp.dispose()

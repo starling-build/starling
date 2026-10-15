@@ -1699,6 +1699,16 @@ every list). The shared numbering rules (Word's) are untouched.
 Sweep 86, 2026-10-15: 1.3976% over the 553 decks (from 1.4984 at sweep
 83 this morning), the baseline written whole again; 84 decks exact.
 
+**Data labels in their own look, 2026-10-15** (aascu 5864 8.84 →
+8.85; the chart decks otherwise unchanged). A series' labels'
+`c:txPr` was read only for labels taken from cells; aascu's census
+chart says 14 pt bold for its value labels, which PowerPoint shows and
+we drew at the chart's 10. Read for every series (or the chart type's
+`c:dLbls`) now, and the column, bar, line and scatter labels drawn in
+it. The page scores the same: its axis runs 0–90 by tens in
+PowerPoint's print, 0–100 by twenties here, so the bars stand lower
+and the labels with them — the size-dependent step still open below.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
