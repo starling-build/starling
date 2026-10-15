@@ -1666,6 +1666,15 @@ title and no legend stands in its whole frame: PowerPoint's ring is
 (the only such pie in the corpus; ones with a title or legend keep the
 margin).
 
+**A picture fill casts its picture's shadow, 2026-10-15** (tdf128596
+3.00 → 0.12, tdf112209 0.56 → 0.11; the four decks with a shadowed
+picture fill, none worse). A shape filled with a picture had no shadow
+at all (its outline's showed grey through the gaps). PowerPoint casts
+the shadow of what the picture paints — tdf128596's tiled ticks each
+with a soft one, which is what makes them read bold — and so does this
+now: the fill drawn again through a layer tinted to the shadow's colour
+and blurred, offset under the shape.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

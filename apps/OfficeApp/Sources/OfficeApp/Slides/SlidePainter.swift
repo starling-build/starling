@@ -488,6 +488,20 @@ final class SlidePainter: CustomPainter {
             canvas.translate(dx, dy)
             canvas.drawPath(outline, p)
             canvas.restore()
+        } else if let sh = shape.shadow, let style = shape.fillStyle, style.image != nil, shape.picture == nil {
+            // A shape filled with a picture casts the shadow of what the
+            // picture paints: tdf128596's ticks, each with its own soft
+            // shadow, which is what makes them read bold in PowerPoint.
+            let a = -shape.rotation * .pi / 180
+            let dx = (sh.dx * cos(a) - sh.dy * sin(a)) * px, dy = (sh.dx * sin(a) + sh.dy * cos(a)) * px
+            let layer = Paint()
+            layer.colorFilter = ColorFilter(mode: sh.color, .srcIn)
+            if sh.blur > 0 { layer.imageFilter = ImageFilterFactory.blur(sigmaX: sh.blur * px / 2, sigmaY: sh.blur * px / 2) }
+            canvas.saveLayer(r.inflate(sh.blur * px * 2 + abs(dx) + abs(dy)), layer)
+            canvas.translate(dx, dy)
+            canvas.clipPath(effectOutline())
+            paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+            canvas.restore()
         }
         if let rad = shape.glowRadius, rad > 0, let color = shape.glowColor {
             // A glow: the outline grown by its radius and blurred, behind
