@@ -1727,6 +1727,16 @@ whose first strong letter is Hebrew or Arabic is now put in visual
 order — reversed, with any stretch of Latin letters and digits in it
 reading forwards. (Mirrored brackets are not swapped.)
 
+**TIFF pictures, 2026-10-15** (ArtisticEffectSample 25.84 → 1.63;
+bug65228's small TIFF unchanged). The image codec reads no TIFF, so
+ArtisticEffectSample's slide-wide photograph (an uncompressed RGBA
+TIFF behind its layout) was drawn as nothing. `Tiff.swift` reads a
+baseline TIFF's first image — 8-bit grey, RGB or RGBA, in strips,
+uncompressed, PackBits or LZW (with the horizontal predictor) — and
+hands the codec its pixels as a BMP. The part is kept as it was for a
+save; only the drawing changes. (JPEG XR, `.wdp`, is still undrawn:
+bug65523 and tdf112633 carry one each.)
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

@@ -682,4 +682,29 @@ final class MetafileTests: XCTestCase {
         XCTAssertFalse(red(1, 0))
         XCTAssertTrue(red(4, 0))
     }
+
+    /// A TIFF (which the image codec does not read) re-wrapped as a BMP:
+    /// an uncompressed 2×1 RGB strip and the same in PackBits.
+    func testTiffAsBmp() throws {
+        func tiff(compression: Int, strip: [UInt8]) -> [UInt8] {
+            var b: [UInt8] = [0x49, 0x49, 42, 0, 8, 0, 0, 0]
+            let tags: [(Int, Int, Int)] = [(256, 3, 2), (257, 3, 1), (258, 3, 8), (259, 3, compression), (262, 3, 2),
+                                           (273, 4, 8 + 2 + 9 * 12 + 4), (277, 3, 3), (278, 3, 1), (279, 4, strip.count)]
+            b += [UInt8(tags.count), 0]
+            for (tag, type, v) in tags {
+                b += [UInt8(tag & 0xFF), UInt8(tag >> 8), UInt8(type), 0, 1, 0, 0, 0]
+                b += [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), 0, 0]
+            }
+            b += [0, 0, 0, 0]
+            return b + strip
+        }
+        let pixels: [UInt8] = [255, 0, 0, 0, 0, 255]
+        for t in [tiff(compression: 1, strip: pixels), tiff(compression: 32773, strip: [5] + pixels)] {
+            XCTAssertTrue(Tiff.isTiff(t))
+            let bmp = try XCTUnwrap(Tiff.bmp(t))
+            XCTAssertEqual(Array(bmp[0 ..< 2]), [0x42, 0x4D])
+            // Top-down BGRA: red, then blue.
+            XCTAssertEqual(Array(bmp[(14 + 108)...]), [0, 0, 255, 255, 255, 0, 0, 255])
+        }
+    }
 }

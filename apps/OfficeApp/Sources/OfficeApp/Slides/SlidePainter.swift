@@ -46,7 +46,9 @@ final class SlideTextCache {
         }
         if _decoding.contains(attachment.id) || _undecodable.contains(attachment.id) { return nil }
         _decoding.insert(attachment.id)
-        let bytes = [UInt8](attachment.data)
+        var bytes = [UInt8](attachment.data)
+        // (A TIFF, which the codec does not read, as the BMP of its pixels.)
+        if Tiff.isTiff(bytes), let bmp = Tiff.bmp(bytes) { bytes = bmp }
         let id = attachment.id
         Task { @MainActor [weak self] in
             var decoded: Image? = nil
@@ -79,7 +81,9 @@ final class SlideTextCache {
         let id = attachment.id
         guard _images[id] == nil, !_undecodable.contains(id), !Metafile.isMetafile(attachment.data) else { return }
         var decoded: Image? = nil
-        if let codec = try? await instantiateImageCodec([UInt8](attachment.data)) {
+        var bytes = [UInt8](attachment.data)
+        if Tiff.isTiff(bytes), let bmp = Tiff.bmp(bytes) { bytes = bmp }
+        if let codec = try? await instantiateImageCodec(bytes) {
             decoded = (try? await codec.getNextFrame())?.image
             codec.dispose()
         }
