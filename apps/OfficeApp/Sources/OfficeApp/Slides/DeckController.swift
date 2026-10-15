@@ -54,6 +54,8 @@ struct ShapeState: Equatable {
     var keptPicture: KeptPicture? = nil
     var autofit = false
     var fontScale = 1.0
+    /// A chart's own drawing (`c:userShapes`), drawn over it, never written.
+    var chartDrawing: [ShapeState] = []
     var insetsFollowFont = false
     var sizeGroup: String? = nil
     var outlineDash: String? = nil
@@ -1149,6 +1151,7 @@ final class DeckController: ChangeNotifier {
         st.warp = s.warp
         st.runLooks = s.runLooks
         st.scene3d = s.scene3d
+        if case .chart = s.kind { st.chartDrawing = s.rendered.map(_state) }
         return st
     }
 
@@ -1212,6 +1215,8 @@ final class DeckController: ChangeNotifier {
                 for r in shape.rendered { if let n = nominal(r) { smallest[n] = min(smallest[n] ?? 1, r.fontScale) } }
                 for r in shape.rendered { if let n = nominal(r), let s = smallest[n] { r.fontScale = s } }
             }
+        } else if case .chart = st.kind, !st.chartDrawing.isEmpty {
+            if shape.rendered.map(_state) != st.chartDrawing { shape.rendered = st.chartDrawing.map(_make) }
         } else if !shape.rendered.isEmpty {
             shape.rendered = []
         }

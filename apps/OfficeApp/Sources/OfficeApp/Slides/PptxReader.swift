@@ -2038,6 +2038,45 @@ private struct SlideContext {
                 st.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
             }
         }
+        // The chart's own drawing (`c:userShapes`): shapes placed in the
+        // chart's frame by fractions of it, or by an offset and size —
+        // tdf149985's grey oval over its last bar. Drawn over the chart,
+        // never written (the chart part keeps them).
+        if let us = package.rel(rel.target, kind: "chartUserShapes"), let drawing = package.xml(us.target) {
+            func renamed(_ n: XNode) -> XNode {
+                let name = n.name.hasPrefix("cdr:") ? "p:" + n.name.dropFirst(4) : n.name
+                let c = XNode(name: name, attrs: n.attrs)
+                c.text = n.text
+                c.children = n.children.map(renamed)
+                return c
+            }
+            func at(_ n: XNode?) -> Offset? {
+                guard let x = n?.first("cdr:x").flatMap({ Double($0.text) }), let y = n?.first("cdr:y").flatMap({ Double($0.text) }) else { return nil }
+                return Offset(x, y)
+            }
+            for anchor in drawing.children {
+                let target: Rect
+                if anchor.name == "cdr:relSizeAnchor", let a = at(anchor.first("cdr:from")), let b = at(anchor.first("cdr:to")) {
+                    target = Rect.fromLTRB(frame.left + a.dx * frame.width, frame.top + a.dy * frame.height,
+                                           frame.left + b.dx * frame.width, frame.top + b.dy * frame.height)
+                } else if anchor.name == "cdr:absSizeAnchor", let a = at(anchor.first("cdr:from")),
+                          let cx = anchor.first("cdr:ext")?["cx"].flatMap(Double.init), let cy = anchor.first("cdr:ext")?["cy"].flatMap(Double.init) {
+                    target = Rect.fromLTWH(frame.left + a.dx * frame.width, frame.top + a.dy * frame.height, cx / Pptx.emu, cy / Pptx.emu)
+                } else { continue }
+                guard let child = anchor.children.first(where: { ["cdr:sp", "cdr:grpSp", "cdr:cxnSp"].contains($0.name) }) else { continue }
+                let shape = renamed(child)
+                // Its own box (the group's, or the shape's), laid onto the anchor's.
+                let own = (shape.first("p:spPr") ?? shape.first("p:grpSpPr"))?.first("a:xfrm").flatMap(_xfrmRect)
+                let map: (Rect) -> Rect = { r in
+                    guard let own, own.width > 0, own.height > 0 else { return target }
+                    let sx = target.width / own.width, sy = target.height / own.height
+                    return Rect.fromLTWH(target.left + (r.left - own.left) * sx, target.top + (r.top - own.top) * sy, r.width * sx, r.height * sy)
+                }
+                let tree = XNode(name: "p:spTree", attrs: [:])
+                tree.children = [shape]
+                shapes(in: tree, transform: map, into: &st.chartDrawing, id: id)
+            }
+        }
         return st
     }
 

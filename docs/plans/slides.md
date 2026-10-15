@@ -1675,6 +1675,14 @@ with a soft one, which is what makes them read bold — and so does this
 now: the fill drawn again through a layer tinted to the shadow's colour
 and blurred, offset under the shape.
 
+**A chart's own drawing, 2026-10-15** (tdf149985 3.57 → 1.87; aascu
+5864's two unchanged, the chart decks unchanged). Shapes a chart part
+carries in its `c:userShapes` drawing — tdf149985's grey oval and
+"$1.4B" over its last bar — were not read. They are now: each anchor
+(`relSizeAnchor` by fractions of the chart's frame, `absSizeAnchor` by
+offset and size) places its shape there, drawn over the chart and
+never written (the chart part keeps them).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

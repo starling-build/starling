@@ -598,6 +598,13 @@ final class SlidePainter: CustomPainter {
             if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation) }
             ChartPainter.paint(chart, canvas, r, pxPerPt: px, theme: theme)
         }
+        if shape.chart != nil {
+            // The chart's own drawing, over it.
+            for sub in shape.rendered {
+                paintShape(sub, canvas, pxPerPt: px, cache: cache, theme: theme, text: text, slide: slide, backdrop: backdrop,
+                           placeholders: placeholders)
+            }
+        }
         if shape.fillsWithBackground, let backdrop, let slide {
             // A window onto the slide's background, in the shape's outline.
             canvas.save()
