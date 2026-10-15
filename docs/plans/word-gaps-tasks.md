@@ -168,9 +168,14 @@ Known: `word/fonts/*.odttf`, obfuscated with the `w:fontKey` GUID
 (XOR of the first 32 bytes). Not loaded; the name only keeps the square
 face model.
 
-### T9. Nested tables with hidden text
-Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-15
-Documents: zh-454e2e29 (49%), row 2.
+### T9. Nested tables with hidden text — DONE (2026-10-15)
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box)
+Documents: zh-454e2e29 (49%), row 2. Now 96.1%: a cell centres its text
+with the text boxes anchored in it (ada8880e), two lines in one
+(`w:combine`, 37a4a534), and a small nested table set as a table, a
+block in its cell (223b723e). Still flattened: nested tables over 15
+rows or 600 characters (a block cannot part across pages; 60329's
+protocol is one), and any that nest further (drawing).
 
 ### T10. A section of one empty paragraph: a page or none? — DONE (2026-10-14)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb
@@ -406,3 +411,14 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   foot needs room for the line under it (`ruleNext`); 44a57fd4: cell
   text keeps clear of its side lines. STARLING_RICHTEXT_ROWS=<page>
   traces rows.
+
+### Note from the Windows box (2026-10-15, later)
+- 94f80fef's Chart.swift crashed the Windows toolchain's optimizer (Swift
+  6.2.3: "Lexical borrows of SILBoxTypes must be of vars or captures"
+  in ChartPainter._axes, exception 3). 32d4ab0d settles the two tuple
+  `var`s the closures capture into `let`s; please keep such captures
+  constant there.
+- Sweeps here that carried 44a57fd4 (a cell's text clear of its side
+  lines): zh-f94d11c5 87.7 -> 99.6, bug65649 43.3 -> 54.0, zh-e061a08e
+  93.7 -> 93.0; and ef56a9f1 (contextual spacing): zh-06c46ba9 83.4 ->
+  80.9, bug65649 32.9 -> 43.3.
