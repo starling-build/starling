@@ -698,6 +698,9 @@ public final class RichLayout {
         /// … and how much of that is the table's bottom rule, which a
         /// cell that reaches the last row carries.
         var ruleBelow: Double = 0
+        /// The line drawn under the row where it ends a page: the next
+        /// row's top one, or this row's own bottom one.
+        var ruleNext: Double = 0
         /// Rows after this cell's that have no paragraph of their own
         /// (every cell of them merged down from above), whose height
         /// `ownRowHeight` takes in: the row's edges are drawn round both.
@@ -1911,7 +1914,13 @@ public final class RichLayout {
         // where there are none.) The table's last row has its own.
         func ruleUnder(_ c: _CellGeo, parted: Bool = false) -> Double {
             guard theme.wordRules else { return 0 }
-            return c.ruleBelow > 0 && !parted ? 0 : max(0, c.rules - c.ruleBelow)
+            // (The line drawn under the row where it ends a page whole:
+            // see `ruleNext`. A row with the table's bottom line in its
+            // own height asks nothing more; a parted row's piece keeps
+            // asking its own top line's width, as before — zh-e061a08e's
+            // page 4 parts a row under a thicker line at Word's line.)
+            if c.ruleBelow > 0 && !parted { return 0 }
+            return parted ? max(0, c.rules - c.ruleBelow) : max(0, c.ruleNext)
         }
         func cellCuts(_ k: Int) -> [Double] {
             let g = geometry(k)
@@ -2273,6 +2282,13 @@ public final class RichLayout {
                     return continued ? max(c.ownRowHeight - c.stretched, need) : c.ownRowHeight
                 }
                 var shown = pageHeight()
+                // (`STARLING_RICHTEXT_ROWS=<page>` prints each row as it
+                // is set on that page: where it stands, what is left,
+                // and what it asks.)
+                if let traced = Self.debugRows, traced == page + 1 {
+                    let line = "row \(c.row) of \(c.table) at \(i): y \(y / _px(1))pt of \(contentH / _px(1)), shown \(shown / _px(1)), own \(c.ownRowHeight / _px(1)), rule under \(ruleUnder(c) / _px(1)), top \(atTop)\n"
+                    FileHandle.standardError.write(Data(line.utf8))
+                }
                 wentOver = false
                 if theme.wordRules, shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
                     if y > contentH - 0.01 { newPage() }
@@ -2778,6 +2794,9 @@ public final class RichLayout {
     /// a character apart, this says which rule let it on. Every such
     /// paragraph's width against its column's, too.
     static let debugFit = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_FIT"]
+    /// `STARLING_RICHTEXT_ROWS=<page>`: each table row set on that page,
+    /// to stderr (see `_paginate`).
+    static let debugRows = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_ROWS"].flatMap { Int($0) }
 
     /// The room a cell's rule of this style and width (points) takes:
     /// a double line three widths; a thin line, a gap and a thick one
@@ -3131,6 +3150,7 @@ public final class RichLayout {
             // between every two rows, 31pt apart for rows 30 high.)
             var rules = 0.0
             var ruleBelow = 0.0
+            var ruleNext = 0.0
             // (A table with no style of its own — one made in the editor
             // — is ruled like one whose file says nothing more than
             // that it is ruled.)
@@ -3188,6 +3208,21 @@ public final class RichLayout {
                     below = bottom
                 }
                 ruleBelow = below
+                // The line under the row where it ends a page — the next
+                // row's top one, or its own bottom one — which Word gives
+                // room to before it sets the row there: bug65649's
+                // estimate tables pair a 24.65pt row with a 13.85pt unit
+                // row under it, ruled only above each pair, and the last
+                // unit row on page 26 (0.6pt of room left, its line 0.75)
+                // opens Word's page 27; ours had set it at the foot.
+                if c.row + c.rowSpan - 1 < rows {
+                    ruleNext = rule(c, "bottom")
+                    var k = i + 1
+                    while k < count, let d = document.paragraphs[k].cell, d.table == c.table, d.row <= c.row + c.rowSpan {
+                        if d.row == c.row + c.rowSpan { ruleNext = max(ruleNext, rule(d, "top")) }
+                        k += 1
+                    }
+                }
                 // Cell spacing (`w:tblCellSpacing`): s round every cell's
                 // text and s more at the table's edges — Word for Windows,
                 // lab `cs` (one-line rows at s of 0, 0.75 and 5pt): each
@@ -3207,6 +3242,7 @@ public final class RichLayout {
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
                                  colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges,
                                  verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, rules: rules, ruleBelow: ruleBelow, borders: c.borders)
+            _cells[i]!.ruleNext = ruleNext
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
             if c.textDirection != .horizontal {

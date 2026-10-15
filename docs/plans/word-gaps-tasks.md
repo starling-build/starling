@@ -389,3 +389,9 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   f80dee36 in between; its remaining misses are pdf-text grouping of
   "4.2.1.<tab>text" (joined in Word's print, split in ours — glyphs
   identical) and superscript marks on their own row.
+- Mac, 2026-10-15, later: 44a57fd4 — a cell's text keeps clear of its
+  side lines (left edge at margin + line/2, never inside the line; right
+  inset margin − line/2; labs cb/cb2/cb3). Every zero-margin bordered
+  table changes under it. bug65649 53.8%, zh-f94d11c5 98.5. Also
+  39c92254 (a left tab shrinks to a stop nearer than the engine's 3pt
+  tab) and 4c40b3e4 (break after hyphen before digit, non-EA only).

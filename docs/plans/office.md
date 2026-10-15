@@ -2955,6 +2955,22 @@ fitter dropped the paragraph's tail).
   holds — Word's cell is that hair wider, a percentage width) and
   zh-53fa3030 97.8 -> 97.4 (its page 3 cell now wraps "民政業務" alone
   as Word's does; the loss is further on).
+- **A row set whole at a page's foot has room for the line under it
+  (2026-10-15).** bug65649's estimate tables pair a 24.65pt row with
+  a 13.85pt unit row ("м") under it, ruled only above each pair; on
+  page 26 the last unit row has 0.6pt of room left under it, and
+  Word opens page 27 with it. The row baselines are Word's to 0.1pt
+  all the way down the page (PyMuPDF), so what Word asks is the
+  0.75pt line it draws under a row that ends a page — the next row's
+  top one, or the row's own bottom one — and ours had asked the row's
+  own top line again, which a unit row has not. `ruleNext` is
+  resolved beside the rules above and below; a parted row's piece
+  keeps asking its own top line's width as before (zh-e061a08e's
+  page 4 parts a row under a thicker line exactly where Word does,
+  and asking the thicker line there lost a line: 91.0 -> 89.0 in the
+  first try). `STARLING_RICHTEXT_ROWS=<page>` now prints each row set
+  on a page — where it stands, what is left, what it asks — which is
+  how this was found. bug65649 53.8% -> 58.1.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
