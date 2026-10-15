@@ -2679,6 +2679,22 @@ fitter dropped the paragraph's tail).
   4.3pt close. zh-69bbcc3c 90.6% -> 90.7 (its page 17 whole); nothing
   else moved.
 
+- **An autofit table keeps a grid one margin wider on each side
+  (2026-10-15).** A table of no stated width that Word fitted to the
+  column is saved with a grid as wide as the column and its cells'
+  side margins — it stands out by a margin on each side. Ours scaled
+  any grid wider than the column down to it, so every column of such a
+  table came out a margin's share narrower: zh-69bbcc3c's plan tables,
+  708.7pt in a column of 697.9 in Word's print, wrapped "序号" at 15pt
+  in a cell of 29.4. Twenty-one tables in ten of the corpus' documents
+  are 1.9 to 10.8pt over in this way; such a grid is now kept (wider
+  still, it is scaled as before — none in the corpus is). Chinese
+  sample 96.21 -> 96.69: zh-8e8d4c40 87.1 -> 98.9, zh-7dc3afad 93.1 ->
+  99.0, zh-69bbcc3c 90.7 -> 98.2 (two of its cells by the Mac's
+  a5508aca, in the same sweep), zh-5901e2b0 97.1 -> 100, zh-a4b0f6ea
+  84.6 -> 88.3, zh-06c46ba9 +0.6, zh-84702a67 +0.4; POI 76.78 ->
+  76.82 (Bug54849 91.3 -> 95.7); nothing down.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

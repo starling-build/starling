@@ -1236,6 +1236,15 @@ public final class RichLayout {
                     // column then holds "個案事實" on one line, as Word's
                     // print has it.)
                     else if theme.wordRules, ts.fixedLayout { scale = 1 }
+                    // (So does an autofit one of no stated width whose grid
+                    // is wider by no more than its cells' side margins —
+                    // Word's own fit of a table filling the column, set out
+                    // by a margin on each side: zh-69bbcc3c's plan tables
+                    // are 708.7pt in a column of 697.9 in Word's print, and
+                    // ours, scaled to the column, wrapped "序号" at 15pt in
+                    // a cell of 29.4.)
+                    else if theme.wordRules,
+                            _px(sum) <= width + _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4)) + 1 { scale = 1 }
                 }
                 // (Whole pixels, down — from a hair over: 63.5pt is 1270px
                 // at the print's scale, which the scale's 4/3 times 15
