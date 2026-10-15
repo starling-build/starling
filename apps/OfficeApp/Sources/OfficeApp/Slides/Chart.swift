@@ -1135,7 +1135,10 @@ enum ChartPainter {
         // a tuple `var` that the closures below capture — "Lexical
         // borrows of SILBoxTypes must be of vars or captures" — and the
         // release build dies with exception 3.)
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi)
+        // (A value axis with no labels takes up to ten steps: aascu 5864's
+        // census chart, its axis deleted, runs 0–90 by tens in
+        // PowerPoint's print, where eight would make it 0–100 by twenties.)
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi, intervals: c.valueAxisDeleted ? 10 : 8)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }

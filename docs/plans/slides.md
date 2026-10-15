@@ -1709,6 +1709,16 @@ it. The page scores the same: its axis runs 0–90 by tens in
 PowerPoint's print, 0–100 by twenties here, so the bars stand lower
 and the labels with them — the size-dependent step still open below.
 
+**A value axis with no labels takes up to ten steps, 2026-10-15**
+(scores unchanged). aascu's census chart deletes its value axis and
+runs 0–90 by tens in PowerPoint's print (nine steps); the eight-step
+rule made it 0–100 by twenties. With no labels to space, ten are
+allowed now, and its bars stand at PowerPoint's heights. The only
+other deleted value axes (LIBRE_OFFICE-100610's) come out the same
+either way. The page still scores alike: its 3-D wall sets the bars
+off to the right in PowerPoint's print, and ours stand from the plot's
+left edge.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
