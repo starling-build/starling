@@ -268,6 +268,20 @@ public struct RichTextBox: Hashable, Sendable {
     /// The box is as tall as what is in it lays out (a nested table),
     /// not as `ImageAttachment.height` says.
     public var growsToFit = false
+    /// The boxes after the first in a group of them (`wpg:wgp`): where
+    /// each one's paragraphs start in `paragraphs`, and its place in the
+    /// group in points — its top, its height, and whether its text
+    /// stands at its foot (`anchor="b"`).
+    public struct Part: Hashable, Sendable {
+        public var first: Int
+        public var top: Double
+        public var height: Double
+        public var atFoot: Bool
+        public init(first: Int, top: Double, height: Double, atFoot: Bool) {
+            self.first = first; self.top = top; self.height = height; self.atFoot = atFoot
+        }
+    }
+    public var parts: [Part] = []
     public init(paragraphs: [RichParagraph]) { self.paragraphs = paragraphs }
 }
 

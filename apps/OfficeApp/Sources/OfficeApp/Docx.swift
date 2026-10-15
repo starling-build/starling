@@ -2569,17 +2569,45 @@ enum DocxFormat {
                 }
                 notes.fields = []
                 var inside: [RichParagraph] = []
-                var stack = Array(content.children.reversed())
-                while let n = stack.popLast() {
-                    if n.name == "w:p" {
-                        for b in _paragraphs(n, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, cellChar, nil) { inside.append(b.paragraph) }
-                    } else if n.name != "w:tbl" {
-                        stack.append(contentsOf: n.children.reversed())
+                func read(_ content: XNode) {
+                    var stack = Array(content.children.reversed())
+                    while let n = stack.popLast() {
+                        if n.name == "w:p" {
+                            for b in _paragraphs(n, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, cellChar, nil) { inside.append(b.paragraph) }
+                        } else if n.name != "w:tbl" {
+                            stack.append(contentsOf: n.children.reversed())
+                        }
+                    }
+                }
+                read(content)
+                // (A group of text boxes one above another, as wide as
+                // the group: each box's text from its own place in it.
+                // 60316's résumé sidebar is a name box over an address box
+                // whose text stands at its foot; only the first was read.)
+                var parts: [RichTextBox.Part] = []
+                if let group = node.descendant("wpg:wgp") {
+                    let boxes = group.all("wps:wsp").filter { $0.descendant("w:txbxContent") != nil }
+                    let gx = group.first("wpg:grpSpPr")?.first("a:xfrm")
+                    let ext = Double(gx?.first("a:ext")?["cy"] ?? "") ?? 0, chExt = Double(gx?.first("a:chExt")?["cy"] ?? "") ?? 0
+                    let k = chExt > 0 && ext > 0 ? ext / chExt : 1
+                    let widths = boxes.map { Double($0.first("wps:spPr")?.first("a:xfrm")?.first("a:ext")?["cx"] ?? "") ?? -1 }
+                    let lefts = boxes.map { Double($0.first("wps:spPr")?.first("a:xfrm")?.first("a:off")?["x"] ?? "") ?? -1 }
+                    if boxes.count > 1, boxes[0].descendant("w:txbxContent") === content,
+                       Set(widths).count == 1, Set(lefts).count == 1, widths[0] > 0 {
+                        for b in boxes.dropFirst() {
+                            let xfrm = b.first("wps:spPr")?.first("a:xfrm")
+                            let first = inside.count
+                            read(b.descendant("w:txbxContent")!)
+                            parts.append(RichTextBox.Part(first: first, top: (Double(xfrm?.first("a:off")?["y"] ?? "") ?? 0) * k / 12700,
+                                                          height: (Double(xfrm?.first("a:ext")?["cy"] ?? "") ?? 0) * k / 12700,
+                                                          atFoot: b.first("wps:bodyPr")?["anchor"] == "b"))
+                        }
                     }
                 }
                 notes.inTextBox = false
                 if inside.contains(where: { !$0.text.isEmpty }) {
                     var box = RichTextBox(paragraphs: inside)
+                    box.parts = parts
                     if let body = node.descendant("wps:bodyPr") {
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         if let v = Double(body["lIns"] ?? "") { box.insetLeft = v / 12700 }

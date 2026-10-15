@@ -6980,10 +6980,28 @@ public final class RichLayout {
             sub.lineGridPitch = document.lineGridPitch
             sub.characterGridSpace = document.characterGridSpace
         }
-        let layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
+        var layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
         layout.width = max(1, _px(image.width - box.insetLeft - box.insetRight))
         layout.ensureLaidOut(sub)
+        // (The later boxes of a group, each from its own place in it:
+        // its first paragraph set down to where the box stands, or to
+        // where its text reaches the box's foot.)
+        for (n, part) in box.parts.enumerated() where part.first < sub.paragraphs.count && part.first < layout._tops.count {
+            let end = n + 1 < box.parts.count ? box.parts[n + 1].first : sub.paragraphs.count
+            let top = layout._tops[part.first]
+            let bottom = end < layout._tops.count ? layout._tops[end] : layout.totalHeight
+            var want = _px(part.top - box.insetTop)
+            if part.atFoot { want += _px(part.height) - (bottom - top) }
+            let delta = want - top
+            guard delta > 0.01 else { continue }
+            sub.paragraphs[part.first].style.spaceBefore += delta / _px(1)
+            let width = layout.width
+            layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
+            layout.scale = scale
+            layout.width = width
+            layout.ensureLaidOut(sub)
+        }
         // (A box that takes its text's width: as wide as its longest
         // line — zh-1a3c7aa0's footer page number, in a 144pt box set
         // to fit its text and centred, stands at the page's middle in
@@ -7573,7 +7591,7 @@ public final class RichLayout {
                                 || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
                         if lines != nil || floats {
                             // Its own lines and no others: nothing to cut off above or below.
-                            canvas.clipRect(Rect.fromLTRB(clipL, top - 10_000, clipR, bottom + 10_000))
+                            canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + 1_000_000))
                         } else {
                             // The window moves with the text: a paragraph drawn
                             // above its line box (`baselineShift`) would

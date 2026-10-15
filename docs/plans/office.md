@@ -3601,6 +3601,18 @@ fitter dropped the paragraph's tail).
   lines held "90 лет" on one line in ours, where Word's print wraps it
   and every row of the calendar stands a line taller. bib-chernigovka
   90.3 -> 99.6; nothing else moved.
+- **A group of text boxes is read whole (2026-10-15).** A drawing
+  group (`wpg:wgp`) of text boxes one above another, all as wide as the
+  group, now gives every box's text. Each later box's text is set from
+  its own place in the group, or up from its foot where it is anchored
+  there (`RichTextBox.parts`). 60316's résumé sidebar is a name box over
+  an address box anchored at its foot, and only the first was read.
+  Found on the way: a paragraph carrying a floating object clipped its
+  painting 10,000 pixels above and below, meant as unbounded. At the
+  PDF's 20 pixels a point that is 500pt, which cut off the foot of a
+  page-tall box. 60316 81.8 -> 97.0; nothing else moved. Groups whose
+  boxes stand side by side or differ in width are left as before
+  (shapes-with-text).
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the
