@@ -157,7 +157,9 @@ final class DiagramTests: XCTestCase {
         XCTAssertLessThan(cx[3], cx[0] - 50, "d to the left")
         let rots = arrows.map { $0.descendant("a:xfrm")?["rot"] ?? "0" }
         XCTAssertEqual(rots, ["0", "5400000", "10800000", "16200000"], "turned along the path")
-        XCTAssertEqual(sps.count, 6, "b and d have their text upright beside them")
+        XCTAssertEqual(sps.count, 7, "b, c and d have their text upright beside them")
+        let cText = try XCTUnwrap(sps.first { $0.descendant("p:cNvPr")?["name"]?.hasSuffix(" text") == true && $0.descendant("a:t")?.text == "c" })
+        XCTAssertNil(cText.descendant("a:xfrm")?["rot"], "turned half round, its text is not on its head")
     }
 
     /// A hierarchy: the root centred above its children, side by side, and

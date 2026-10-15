@@ -1461,8 +1461,14 @@ struct DiagramLayout {
         style.children.append(font)
         sp.children.append(style)
         guard n.algType == "tx", let body = textBody(n) else { return [sp] }
-        let turn = rot.truncatingRemainder(dividingBy: 360)
-        guard abs(abs(turn.truncatingRemainder(dividingBy: 180)) - 90) < 0.01, geometry.name == "a:prstGeom" else {
+        var turn = rot.truncatingRemainder(dividingBy: 360)
+        if turn < 0 { turn += 360 }
+        let quarter = abs(turn - 90) < 0.01 || abs(turn - 270) < 0.01
+        // Turned past a quarter (and not a half, which is mirrored): the
+        // text the other way up, so it never stands on its head —
+        // smartart-rotation's arrows at 120° and 240° read at -60° and 60°.
+        let headDown = turn > 90.01 && turn < 269.99
+        guard quarter || headDown, geometry.name == "a:prstGeom" else {
             sp.children.append(body)
             return [sp]
         }
@@ -1481,13 +1487,20 @@ struct DiagramLayout {
             let dx = p.dx - c.dx, dy = p.dy - c.dy
             return Offset(c.dx + dx * cos(a) - dy * sin(a), c.dy + dx * sin(a) + dy * cos(a))
         }
-        let box = Rect.fromLTRB(turned.map(\.dx).min()!, turned.map(\.dy).min()!, turned.map(\.dx).max()!, turned.map(\.dy).max()!)
+        var box = Rect.fromLTRB(turned.map(\.dx).min()!, turned.map(\.dy).min()!, turned.map(\.dx).max()!, turned.map(\.dy).max()!)
+        var textTurn = 0.0
+        if !quarter {
+            // The text area itself, turned half a round less about where
+            // its centre went.
+            box = Rect.fromCenter(center: box.center, width: rb.dx - lt.dx, height: rb.dy - lt.dy)
+            textTurn = turn - 180
+        }
         let tx = XNode(name: "p:sp", attrs: [:])
         let tnv = XNode(name: "p:nvSpPr", attrs: [:])
         tnv.children = [XNode(name: "p:cNvPr", attrs: ["id": String(id + 100000), "name": n.name + " text"]),
                         XNode(name: "p:cNvSpPr", attrs: [:]), XNode(name: "p:nvPr", attrs: [:])]
         let tPr = XNode(name: "p:spPr", attrs: [:])
-        let txf = XNode(name: "a:xfrm", attrs: [:])
+        let txf = XNode(name: "a:xfrm", attrs: textTurn != 0 ? ["rot": String(Self.whole(textTurn * 60000))] : [:])
         txf.children = [XNode(name: "a:off", attrs: ["x": Self.emu(box.left), "y": Self.emu(box.top)]),
                         XNode(name: "a:ext", attrs: ["cx": Self.emu(box.width), "cy": Self.emu(box.height)])]
         let rectGeom = XNode(name: "a:prstGeom", attrs: ["prst": "rect"])
