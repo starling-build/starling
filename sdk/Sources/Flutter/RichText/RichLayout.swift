@@ -4635,7 +4635,29 @@ public final class RichLayout {
                 // (And not at all under those rules where the document
                 // compresses no punctuation: the half that hangs is the
                 // mark's own, given up.)
-                let hang = hangs && Self._hangingUnits.contains(units[tail]) && (squeezes || !document.hangsHalf)
+                // (A mark that ends the paragraph neither hangs nor gives
+                // its own half, where the document names its own characters
+                // that may not start a line — `w:noLineBreaksBefore`; the
+                // line's other marks may still give for it. Labs `hang1`–
+                // `hang6` in zh-ae3d78ee's package, 2026-10-14: "…你花最多的。"
+                // over by 1 to 15pt goes to the next line as "的。" with a
+                // "？" — which never gives — as the line's only other mark,
+                // whatever the alignment, spacing, face or kerning; with a
+                // "，" on the line it is taken, the comma giving; with text
+                // after the mark in the paragraph it hangs in every case.
+                // Documents without the list hang a paragraph's last mark
+                // as any other — zh-5901e2b0's, zh-7dc3afad's — and the
+                // rule without the condition cost them 50 points each; so
+                // do those with the Simplified list (zh-a4b0f6ea, `zh-CN`,
+                // 81.7% to 30.2 under it) and those with the Traditional
+                // list from Word 2013's layout on (zh-4b8e0abc, mode 15,
+                // whose final marks Word hangs by 3.5pt). It holds for the
+                // `zh-TW` list before that layout: zh-ae3d78ee (mode 14)
+                // 84.4% to 100, zh-64044a1d (mode 11) +5.6.)
+                let holdsFinal = (document.keptSettings["w:noLineBreaksBefore"]?.containsSubstring("w:lang=\"zh-TW\"") ?? false)
+                    && (document.compatibilityMode ?? 12) < 15
+                    && tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
+                let hang = hangs && !holdsFinal && Self._hangingUnits.contains(units[tail]) && (squeezes || !document.hangsHalf)
                     ? min(ems[tail] * (closesUp(tail) || document.hangsHalf ? 0.5 : 1), boxes(tail, tail + 1)) : 0
                 if hang > 0, over <= hang + hair {
                     // (All of it, the hair too: the engine has none.)
@@ -4669,7 +4691,7 @@ public final class RichLayout {
                     // the paragraph, and not even 0.55 over where text
                     // follows. Its cells end "納入課程教學參據。" so.)
                     let endsParagraph = !units[(tail + 1)...].contains(where: { !isSpace($0) && $0 != 0x0A && $0 != 0x2028 })
-                    let kept = hang > 0 || (legacy && inCell && !document.marksSitLeft && Self._hangingUnits.contains(units[tail]) && !endsParagraph)
+                    let kept = hang > 0 || holdsFinal || (legacy && inCell && !document.marksSitLeft && Self._hangingUnits.contains(units[tail]) && !endsParagraph)
                     let all = (marks + own).filter { !kept || $0 != tail }
                     let given = legacy ? spaces + ownSpaces : []
                     // (A curly quote in a Latin face is as wide as it is.)

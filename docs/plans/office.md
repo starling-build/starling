@@ -2724,6 +2724,23 @@ fitter dropped the paragraph's tail).
   Word carries to page 9. zh-90e0cea8 83.9% -> 92.3%; nothing down.
   Its page 8 now matches Word's top and foot to a tenth of a point.
 
+- **A paragraph's last mark neither hangs nor gives its own half, under
+  the Traditional Chinese no-break list before Word 2013's layout
+  (2026-10-14).** Labs `hang1`–`hang6` in zh-ae3d78ee's package (a
+  `w:noLineBreaksBefore` list for `zh-TW`, mode 14): "…你花最多的。" over
+  by 1 to 15pt goes to the next line as "的。" with a "？" — which never
+  gives — as the line's only other mark, whatever the alignment, line
+  spacing, face or kerning; with a "，" on the line the comma gives and
+  the mark is taken; with text after the mark in the paragraph it hangs
+  in every case. Ours hung it by 4.7pt, and page 28 on ran a line
+  short. Only under that list and before mode 15: documents without a
+  list hang a last mark as any other (zh-5901e2b0, zh-7dc3afad — the
+  unconditioned rule cost them 50 points each), so does the Simplified
+  list (zh-a4b0f6ea, `zh-CN`, 81.7% to 30.2 under it) and the
+  Traditional one from mode 15 on (zh-4b8e0abc, whose last marks Word
+  hangs by 3.5pt). zh-ae3d78ee 84.4% -> 100%, zh-64044a1d 67.5 -> 73.1;
+  nothing down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
