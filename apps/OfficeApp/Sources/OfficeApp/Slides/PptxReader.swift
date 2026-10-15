@@ -2278,7 +2278,7 @@ private struct SlideContext {
         <a:ea typeface="+mj-ea"/><a:cs typeface="+mj-cs"/></a:defRPr></a:lvl1pPr></p:titleStyle>
         """.utf8))
     private static let builtInContentStyle = MiniXML.parse(Array("""
-        <p:bodyStyle><a:lvl1pPr><a:lnSpc><a:spcPct val="90000"/></a:lnSpc><a:spcBef><a:spcPts val="1000"/></a:spcBef>\
+        <p:bodyStyle><a:lvl1pPr><a:lnSpc><a:spcPct val="90000"/></a:lnSpc>\
         <a:defRPr sz="2800"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill>\
         <a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/><a:cs typeface="+mn-cs"/></a:defRPr></a:lvl1pPr></p:bodyStyle>
         """.utf8))

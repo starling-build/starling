@@ -1527,6 +1527,14 @@ mark (`a:endParaRPr sz`) to say it; we took the level's instead, so
 alterman's 24 pt blank lines under a 28 pt level were 1.3 pt taller a
 gap each, and the slide drifted down by its paragraphs.
 
+**No space before a content placeholder's paragraphs, 2026-10-15**
+(tdf169524 7.23 → 3.43). The built-in style for a master with no text
+styles (above, 2026-10-14) gave a content placeholder's first level
+the body's 10 pt before each paragraph. tdf169524's "line pitch
+mystery" was that: every first-level paragraph 10 pt further down than
+PowerPoint's print, which has none. Taken out for the content style;
+the subtitle's has one paragraph and says nothing either way.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
