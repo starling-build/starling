@@ -2087,7 +2087,7 @@ public final class RichLayout {
                         let blockTop = _tops[column.members[0]]
                         let blockBottom = _tops[column.members[column.members.count - 1]] + _heights[column.members[column.members.count - 1]]
                         let room = avail - ruleUnder(c, parted: true) - d0.pad.top - d0.pad.bottom - (blockBottom - blockTop)
-                        if theme.wordRules, column.cut <= c.rowTop + 0.01, column.bottom > limit, d0.rowSpan == 1, !d0.vertical,
+                        if theme.wordRules, column.cut <= c.rowTop + 0.01, d0.rowSpan == 1, !d0.vertical,
                            d0.verticalAlign == "center" || d0.verticalAlign == "bottom", room >= -0.01 {
                             // A centred cell (or one set at the bottom)
                             // whose text all fits the row's part on this
@@ -2096,6 +2096,11 @@ public final class RichLayout {
                             // of its neighbour that Word keeps on the page,
                             // where centring it in the whole row put it
                             // over the foot and sent the row over whole.
+                            // Wherever centring in the whole row would put
+                            // it, too: zh-1a3c7aa0's row numbers "65" (p22)
+                            // and "127" (p51) stand midway in the row's part
+                            // on the page in Word's print, 25pt above where
+                            // the whole row's middle put them.
                             setWhole[n] = y + d0.pad.top + max(0, room) * (d0.verticalAlign == "center" ? 0.5 : 1) - blockTop
                             next[n] = max(column.cut, rowBottom)
                             moved = true
@@ -2108,6 +2113,31 @@ public final class RichLayout {
                             moved = true
                         } else {
                             stuck = true
+                        }
+                    }
+                    // (The part on this page is as tall as what its other
+                    // cells keep here — their last kept line and their
+                    // margin — not the room to the page's foot: Word
+                    // draws the part's bottom rule there and centres in
+                    // it. zh-1a3c7aa0's "65" on p22, 5pt low when centred
+                    // to the foot.)
+                    if theme.wordRules, !setWhole.isEmpty, columns.allSatisfy({ $0.cut <= c.rowTop + 0.01 }) {
+                        let kept = columns.indices.filter { setWhole[$0] == nil }.map { n -> Double in
+                            let column = columns[n]
+                            let end = next[n] >= rowBottom - 0.01 ? column.bottom : next[n] + _cells[column.members[0]]!.pad.bottom
+                            return end - column.cut
+                        }
+                        if let part = kept.max(), part < avail {
+                            for (n, _) in setWhole {
+                                let column = columns[n]
+                                let d0 = _cells[column.members[0]]!
+                                let blockTop = _tops[column.members[0]]
+                                let blockBottom = _tops[column.members[column.members.count - 1]] + _heights[column.members[column.members.count - 1]]
+                                let room = part - d0.pad.top - d0.pad.bottom - (blockBottom - blockTop)
+                                if room >= -0.01 {
+                                    setWhole[n] = y + d0.pad.top + max(0, room) * (d0.verticalAlign == "center" ? 0.5 : 1) - blockTop
+                                }
+                            }
                         }
                     }
                     if stuck, !fresh { moved = false }
