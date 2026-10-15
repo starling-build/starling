@@ -1535,6 +1535,13 @@ mystery" was that: every first-level paragraph 10 pt further down than
 PowerPoint's print, which has none. Taken out for the content style;
 the subtitle's has one paragraph and says nothing either way.
 
+Tried and dropped, 2026-10-15: a blurred text shadow drawn as the
+paragraph's text again, in the shadow's colour through a blurred layer
+(the 45541 trio, every line shadowed 3 pt down-right, blur 3 pt). Skia's
+PDF output rasterises each such layer — the three decks' PDFs went to
+2.8 MB — and at sigma = blur / 2 the shadow came out wider and darker
+than PowerPoint's tight one: 6.78 → 8.53. The sharp 45% copy stays.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
