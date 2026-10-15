@@ -4484,6 +4484,16 @@ public final class RichLayout {
                     symbolLevel = true
                 }
             }
+            // (A number set larger than the text — its level's own size —
+            // makes the first line as tall as a line of that size, by the
+            // same zero-width space. bug65649's "3.1.1." in 14pt over 12pt
+            // text: its first lines stand 15.9pt under the line above in
+            // Word's print, the others 13.8.)
+            if theme.wordRules, let size = _levelNumberSize(p, document),
+               size > (p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) + 0.01 {
+                leadChar.fontSize = size
+                symbolLevel = true
+            }
             let style = theme.textStyle(for: leadChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
             children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
             inline.append((nil, PlaceholderDimensions(size: Size(lead, 0.01), alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: 0.01)))
@@ -4951,10 +4961,22 @@ public final class RichLayout {
         return marker
     }
 
+    /// The size, in points, a Word list level gives its number
+    /// (`w:sz` in the level's run properties), if it says one.
+    private func _levelNumberSize(_ p: RichParagraph, _ document: RichDocument) -> Double? {
+        guard p.style.list != nil,
+              let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+              let r = xml.range(of: "<w:sz w:val=\"") else { return nil }
+        return Double(xml[r.upperBound...].prefix { $0 != "\"" }).map { $0 / 2 }
+    }
+
     /// A list paragraph's marker, laid out at its own width.
     private func _marker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String, strut: StrutStyle?) -> TextPainter {
         var markerChar = p.runs[0].style
         if let c = p.style.bulletColor { markerChar.color = c }
+        // (The level's own size, where it says one: bug65649's "3.1.1."
+        // is 14pt over 12pt text in Word's print.)
+        if theme.wordRules, let size = _levelNumberSize(p, document) { markerChar.fontSize = size }
         if let k = p.style.bulletScale {
             markerChar.fontSize = (markerChar.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize) * k
         }

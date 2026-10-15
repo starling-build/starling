@@ -3504,6 +3504,14 @@ fitter dropped the paragraph's tail).
   among them), checkboxes 66.7 -> 100; nothing down. (No `w:between`
   line yet: a group that names one would draw it between.)
   bug65649 67.8% -> 79.0; nothing else moved (clean A/B, n201 vs n200).
+- **A list number takes its level's own size (2026-10-15).** A level's
+  `w:sz` sets its number, and a number larger than the text makes the
+  first line as tall as a line of that size. bug65649's "3.1.1." is 14pt
+  over 12pt text, and its first lines stand 15.9pt under the line above
+  in Word's print where the others stand 13.8. Ours drew the number at
+  the text's size and the lines uniform. The line's height arrives by
+  the zero-width space the Symbol bullets already use (a placeholder box
+  sets no height). bug65649 96.4 -> 99.7; nothing else moved.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the
