@@ -1503,6 +1503,14 @@ and margins at the font size (or the size its text states) do not fit
 variable (linear-rule's hProcess3) PowerPoint lets the text outgrow,
 and with every cap counted that deck went +2.87.
 
+**An empty row takes no room, 2026-10-15** (smartart-children 6.92 →
+3.42; no other diagram deck moves). hierarchy4 hangs a row (`lin`) of
+children under every node, empty under a leaf. Measured, an empty
+container counted as the whole height offered, so a node's column
+asked for its box plus a frame's height of nothing, and the boxes
+above came out a third of PowerPoint's. A `lin` with no children and
+no shape measures nought now.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

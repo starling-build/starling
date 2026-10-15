@@ -679,6 +679,10 @@ struct DiagramLayout {
         applyConstraints(c, selfOnly: true)
         if let v = c.vals[dim], v.isFinite { return min(v, c.caps[dim] ?? .infinity) }
         if c.isSpace || c.isConnector { return 0 }
+        // (A container with nothing in it — hierarchy4's row of children
+        // under a node that has none — takes no room: counted as the whole
+        // height, it left the boxes above a third of theirs.)
+        if c.shapeType == nil, c.children.isEmpty, c.algType == "lin" { return 0 }
         if c.shapeType != nil || c.children.isEmpty { return min(avail, c.caps[dim] ?? .infinity) }
         let dir = c.params["linDir"] ?? "fromL"
         let along = c.algType == "lin" && ((dim == "w") == (dir == "fromL" || dir == "fromR"))
