@@ -3195,7 +3195,15 @@ public final class RichLayout {
             }
             probe.dispose()
         }
-        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: tabs)
+        // (In a justified paragraph each such tab is set as a held
+        // space — a no-break one, the break after it a zero-width space:
+        // the engine's justifying sets every space of a line, tabs
+        // included, to its one step, and the widening was lost. Lab `tj`,
+        // Word for Windows: "1.1.<tab>" with a stop at 1418 twips starts
+        // its text at the stop justified or not; ours, justified, 15pt
+        // short — bug65649's every numbered clause.)
+        let tabsHeld: Set<Int> = theme.wordRules && style.alignment == .justify ? Set(tabs.keys) : []
+        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: tabs, held: tabsHeld)
         _inserts[i] = inserts
         // A right-to-left paragraph runs from the right, and its "left"
         // (Word's start) is the right edge.
@@ -3279,7 +3287,7 @@ public final class RichLayout {
         let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs)
         if !fit.isEmpty {
             painter.dispose()
-            painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit).0)
+            painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
         }
         // The engine's justifying sets every space of a line to the one
         // step it puts between ideographs, and the two spaces after
@@ -3293,7 +3301,7 @@ public final class RichLayout {
             let starts = _lineStarts(painter, _map(i), count: p.text.utf16.count)
             let hold = starts.count > 1 ? _spacesToHold(p, lineStarts: Set(starts)) : []
             if !hold.isEmpty {
-                let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit, held: hold)
+                let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit, held: hold.union(tabsHeld))
                 let again = laidOut(span)
                 if _lineStarts(again, _OffsetMap(lead: _lead(i), inserts: inserts), count: p.text.utf16.count) == starts {
                     painter.dispose()

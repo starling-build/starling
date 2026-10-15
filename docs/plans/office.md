@@ -2424,6 +2424,17 @@ fitter dropped the paragraph's tail).
   (2026-10-14).** The format has no such type; Word prints 60293's
   "ODD_PAGE_HEADER" on its third page, where ours had none.
 
+- **A tab keeps its stop in a justified line (2026-10-14).** The
+  engine's justifying sets every whitespace character of a line to its
+  one step, the tab's widening (`tabs`) with it: bug65649's numbered
+  clauses ("1.1.<tab>По Контракту…", a stop at 1418 twips) started
+  their text 15pt short of the stop wherever the line was justified,
+  and at it where the line ended in a break. Lab `tj` (Word for
+  Windows): the text is at the stop justified or not, in Latin and
+  Cyrillic. A widened tab in a justified paragraph is now set as a held
+  space — a no-break space as wide, a zero-width space after it for
+  the break.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
