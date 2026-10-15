@@ -171,8 +171,15 @@ the held spaces, in the East Asian style, whose glyph came from the
 Latin base family; and then YaHei's 1.715-em pitch. zh-799c91cd 82.3%
 -> 91.2%.
 
-### T8. Load embedded fonts
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree), from 2026-10-15
+### T8. Load embedded fonts — DONE (2026-10-15)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+East Asian embedded faces are loaded and drawn (office.md);
+zh-e37f8d40 94.0 -> 96.6, nothing else moved. Latin embedded faces are
+left to the clones on purpose. Found on the way and fixed in the engine
+(a0cbed78): exported PDFs' text read radicals (⼈⺠) for ideographs in
+every Chinese document. zh-e37f8d40's remaining misses: a line Word
+does not squeeze to take "民" (p3, compressPunctuation, mode 14) and
+table header cells.
 Documents: zh-e37f8d40 (already 92.8% with the square model),
 saut_page.
 Known: `word/fonts/*.odttf`, obfuscated with the `w:fontKey` GUID

@@ -3203,6 +3203,33 @@ fitter dropped the paragraph's tail).
   and U+2025 whichever kind the layout counts them, and U+2022 in an
   East Asian run. zh-190d730c 43.4% -> 97.8; zh 91.5 -> 92.3; nothing
   down.
+- **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
+  `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
+  whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
+  bytes from its last hex pair to its first (ECMA-376 part 1, 17.8.1).
+  Word for Mac draws those faces — zh-e37f8d40's print is in the
+  FangSong_GB2312, SimHei, KaiTi_GB2312 and FangSong it carries — and
+  ours drew PingFang for all of them. The importer now loads each
+  embedded East Asian face (`OfficeFonts.loadEmbedded`) under a family
+  named by its bytes, because a file saves a subset (that 仿宋_GB2312
+  holds 656 characters, its 楷体_GB2312 22) and two files' subsets
+  under one name would mix; the resolver draws an East Asian run in it,
+  and what the subset lacks falls back as before. The measure is
+  unchanged: an embedded name keeps the square model it already had
+  (`isEmbedded`). The Latin faces a file embeds (saut_page's Times and
+  Arial) are left to the clones, which match Word's to the unit.
+  zh-e37f8d40 94.0% -> 96.6 (the text layer groups as Word's now);
+  nothing else moved.
+- **Exported PDFs read 人民, not ⼈⺠ (2026-10-15, starling-engine
+  a0cbed78).** A CJK face often draws a radical and its ideograph with
+  one glyph, and Skia's ToUnicode keeps the lowest code point for a
+  glyph, so text copied or searched in our PDFs came back as Kangxi or
+  supplement radicals — every Chinese document, by the hundreds.
+  `WritePdf` now gives the text runs holding such glyphs their UTF-8
+  with the ideograph (Unicode's EquivalentUnifiedIdeograph table) and
+  Skia writes those glyphs as ActualText. The line match had forgiven
+  radicals all along, so no score moved for it; PyMuPDF and PDFKit now
+  both read the real characters.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

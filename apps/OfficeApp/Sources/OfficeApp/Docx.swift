@@ -1483,6 +1483,26 @@ enum DocxFormat {
             OfficeFonts.noteEmbedded(table.all("w:font").compactMap { font in
                 font.first("w:embedRegular") != nil || font.first("w:embedBold") != nil ? font["w:name"] : nil
             })
+            // The East Asian faces themselves (only those: the Latin ones
+            // a file embeds are Word's own, which the shipped clones match
+            // to the unit), drawn in their own glyphs.
+            var faceTargets: [String: String] = [:]
+            if let relRoot = part("word/_rels/fontTable.xml.rels").flatMap(XNode.parse) {
+                for r in relRoot.all("Relationship") {
+                    if let id = r["Id"], let target = r["Target"] { faceTargets[id] = target }
+                }
+            }
+            var faces: [String: String] = [:]
+            for font in table.all("w:font") {
+                guard let name = font["w:name"], OfficeFonts.isEastAsianFace(name),
+                      let embed = font.first("w:embedRegular") ?? font.first("w:embedBold"),
+                      let rid = embed["r:id"], let key = embed["w:fontKey"], let target = faceTargets[rid] else { continue }
+                let path = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
+                guard let raw = part(path), let data = OfficeFonts.deobfuscate(raw, key: key),
+                      let family = OfficeFonts.loadEmbedded(data) else { continue }
+                faces[name] = family
+            }
+            OfficeFonts.noteEmbeddedFaces(faces)
             var alts: [String: String] = [:]
             var entries: [String: OfficeFonts.FontEntry] = [:]
             for font in table.all("w:font") {
@@ -1497,6 +1517,7 @@ enum DocxFormat {
             OfficeFonts.noteFontEntries(entries)
         } else {
             OfficeFonts.noteEmbedded([])
+            OfficeFonts.noteEmbeddedFaces([:])
             OfficeFonts.noteAltNames([:])
             OfficeFonts.noteFontEntries([:])
         }

@@ -2335,4 +2335,18 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(body.runs.contains { $0.style.italic })
         XCTAssertNotNil(back.pageSetup)
     }
+
+    /// An embedded font part: its first 32 bytes XORed with the
+    /// `w:fontKey` GUID's 16 bytes, read from the GUID's last hex pair to
+    /// its first (ECMA-376 part 1, 17.8.1) — the order that turned all six
+    /// of zh-e37f8d40's parts back into TrueType (`00 01 00 00`).
+    func testEmbeddedFontPartIsDeobfuscatedByItsKey() throws {
+        let key = "{01014A78-CABC-4EF0-12AC-5CD89AEFDE01}"
+        let out = try XCTUnwrap(OfficeFonts.deobfuscate(Data(count: 40), key: key))
+        let expected: [UInt8] = [0x01, 0xDE, 0xEF, 0x9A, 0xD8, 0x5C, 0xAC, 0x12, 0xF0, 0x4E, 0xBC, 0xCA, 0x78, 0x4A, 0x01, 0x01]
+        XCTAssertEqual(Array(out.prefix(16)), expected)
+        XCTAssertEqual(Array(out[16 ..< 32]), expected)
+        XCTAssertEqual(Array(out.suffix(8)), [UInt8](repeating: 0, count: 8), "only the first 32 bytes are keyed")
+        XCTAssertNil(OfficeFonts.deobfuscate(Data(count: 40), key: "{not-a-guid}"))
+    }
 }

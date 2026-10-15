@@ -322,6 +322,76 @@ enum OfficeFonts {
         return embedded.contains(family.trimmingWhitespace().lowercased())
     }
 
+    /// The East Asian faces a file embeds, loaded: each name the file
+    /// gives it and the family it is registered as. Word draws such a
+    /// name in the file's own face — zh-e37f8d40's print is in the
+    /// FangSong_GB2312, SimHei and KaiTi_GB2312 it carries — where ours
+    /// drew the platform's (PingFang) for every one. The measure stays
+    /// the square model `eastAsianFace` gives an embedded name; the face
+    /// changes what is drawn, not where.
+    nonisolated(unsafe) private static var embeddedFaces: [String: String] = [:]
+    nonisolated(unsafe) private static var loadedEmbedded: Set<String> = []
+
+    /// Notes the faces a file embeds (name to registered family).
+    static func noteEmbeddedFaces(_ faces: [String: String]) {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        embeddedFaces = Dictionary(faces.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
+    }
+    private static func embeddedFamily(_ family: String) -> String? {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        return embeddedFaces.isEmpty ? nil : embeddedFaces[family.trimmingWhitespace().lowercased()]
+    }
+
+    /// Loads one embedded face (`word/fonts/*.odttf`, already
+    /// de-obfuscated) and returns the family it is drawn as. Named by its
+    /// bytes, not by the file's name for it: a file saves a SUBSET of the
+    /// face (zh-e37f8d40's 仿宋_GB2312 holds 656 characters, its
+    /// 楷体_GB2312 22), and two files' subsets under one name would be
+    /// one family whose glyphs come from either. Loaded once per process.
+    static func loadEmbedded(_ data: Data) -> String? {
+        guard data.count > 12 else { return nil }
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in data {
+            hash = (hash ^ UInt64(byte)) &* 0x100_0000_01b3
+        }
+        let family = "Starling Embedded " + String(hash, radix: 16)
+        declaredLock.lock()
+        let loaded = loadedEmbedded.contains(family)
+        declaredLock.unlock()
+        if loaded { return family }
+        let ok = data.withUnsafeBytes { raw -> Bool in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return false }
+            return family.withCString { flutter.swift_bridge.LoadFontFromList(base, data.count, $0) }
+        }
+        guard ok else { return nil }
+        declaredLock.lock()
+        loadedEmbedded.insert(family)
+        declaredLock.unlock()
+        return family
+    }
+
+    /// An embedded font part's bytes as a font: ECMA-376 part 1, 17.8.1 —
+    /// the first 32 bytes are XORed with the `w:fontKey` GUID, its 32 hex
+    /// digits read as 16 bytes from the last pair to the first.
+    static func deobfuscate(_ data: Data, key: String) -> Data? {
+        let hex = Array(key.unicodeScalars.filter { ("0" ... "9").contains($0) || ("a" ... "f").contains($0) || ("A" ... "F").contains($0) })
+        guard hex.count == 32, data.count >= 32 else { return nil }
+        var keyBytes: [UInt8] = []
+        for i in 0 ..< 16 {
+            let pair = String(String.UnicodeScalarView(hex[30 - 2 * i ..< 32 - 2 * i]))
+            guard let byte = UInt8(pair, radix: 16) else { return nil }
+            keyBytes.append(byte)
+        }
+        var out = data
+        for i in 0 ..< 32 {
+            let index = out.startIndex + i
+            out[index] ^= keyBytes[i % 16]
+        }
+        return out
+    }
+
     static func noteFontTable(_ charsets: [String: String]) {
         declaredLock.lock()
         defer { declaredLock.unlock() }
@@ -616,7 +686,9 @@ enum OfficeFonts {
         // as the face it names.)
         let ea = own || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) ? eastAsianFace(family) : square
         if eastAsian {
-            var face = RichResolvedFace(family: substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? 1.0 / 57 : 0,
+            // (An embedded face draws its own characters; what its subset
+            // lacks falls back as before.)
+            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? 1.0 / 57 : 0,
                                         baseline: ea.baseline)
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
