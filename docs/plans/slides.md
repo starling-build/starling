@@ -1752,6 +1752,17 @@ here put a short last line at the start of the row; the snake's `off`
 parameter, "ctr" by default and in both decks, centres it under the
 lines above, as PowerPoint draws the fifth box alone under two.
 
+**A diagram's quarter-turned box with upright text, 2026-10-15**
+(tdf145528_SmartArt_Matrix 3.36 → 2.93, smartart-rotated-text 0.72 →
+0.45, n862510_2 1.56 → 1.31; the other diagram decks unchanged). A
+SmartArt drawing turns a box a quarter and its text frame back
+(`dsp:txXfrm rot`), and gives that frame upright: the matrix's "Writer"
+(box 270°, text 90°) and "Draw". Only the half turn was understood, so
+these read sideways. Such a shape is now drawn as two: its outline
+turned, and its text as an upright box of its own in the frame given —
+a diagram's drawing is never written, so the split costs nothing on a
+save.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

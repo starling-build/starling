@@ -65,6 +65,11 @@ struct ShapeState: Equatable {
     var glowColor: Color? = nil
     var softEdge: Double? = nil
     var shapeInsets = EdgeInsets.zero
+    /// A diagram shape turned a quarter whose text frame is turned back
+    /// upright: that frame, and the text's own insets — drawn as a box of
+    /// its own over the shape (never written; a diagram's drawing is not).
+    var uprightBox: Rect? = nil
+    var uprightInsets = EdgeInsets.zero
     var noWrap = false
     var columns = 1
     var columnGap = 0.0

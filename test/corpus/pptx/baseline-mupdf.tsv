@@ -147,7 +147,7 @@ lo-n828390_2.pptx	summary pages=1 worst=0.29% mean=0.29%
 lo-n828390_3.pptx	summary pages=1 worst=0.56% mean=0.56%
 lo-n83889.pptx	summary pages=1 worst=0.48% mean=0.48%
 lo-n862510_1.pptx	summary pages=1 worst=0.13% mean=0.13%
-lo-n862510_2.pptx	summary pages=1 worst=1.56% mean=1.56%
+lo-n862510_2.pptx	summary pages=1 worst=1.31% mean=1.31%
 lo-n862510_4.pptx	summary pages=1 worst=0.35% mean=0.35%
 lo-n90190.pptx	summary pages=1 worst=0.53% mean=0.53%
 lo-n90223.pptx	summary pages=1 worst=0.15% mean=0.15%
@@ -348,7 +348,7 @@ lo-tdf144616.pptx	summary pages=2 worst=0.33% mean=0.17%
 lo-tdf144917.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf144918.pptx	summary pages=3 worst=0.32% mean=0.21%
 lo-tdf145162.pptx	summary pages=1 worst=0.76% mean=0.76%
-lo-tdf145528_SmartArt_Matrix.pptx	summary pages=1 worst=3.36% mean=3.36%
+lo-tdf145528_SmartArt_Matrix.pptx	summary pages=1 worst=2.93% mean=2.93%
 lo-tdf146223.pptx	summary pages=2 worst=50.01% mean=37.40%
 lo-tdf146731.pptx	summary pages=1 worst=0.53% mean=0.53%
 lo-tdf147121.pptx	summary pages=1 worst=0.07% mean=0.07%
@@ -538,7 +538,7 @@ sample.pptx	summary pages=2 worst=1.56% mean=1.30%
 sample_pptx_grouping_issues.pptx	summary pages=1 worst=1.11% mean=1.11%
 scatter-chart.pptx	summary pages=1 worst=2.32% mean=2.32%
 shapes.pptx	summary pages=6 worst=2.40% mean=0.94%
-smartart-rotated-text.pptx	summary pages=1 worst=0.72% mean=0.72%
+smartart-rotated-text.pptx	summary pages=1 worst=0.45% mean=0.45%
 smartart-simple.pptx	summary pages=1 worst=3.55% mean=3.55%
 table-with-different-font-colors.pptx	summary pages=2 worst=1.75% mean=1.48%
 table-with-no-theme.pptx	summary pages=1 worst=0.85% mean=0.85%

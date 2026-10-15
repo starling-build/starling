@@ -1420,6 +1420,15 @@ private struct SlideContext {
         let txBox = sp.first("p:txXfrm").flatMap(_xfrmRect)
         if let txBox {
             let tr = transform?(txBox) ?? txBox
+            // A quarter turn the text frame turns back (tdf145528's matrix:
+            // "Writer" in a box turned 270° with its text at 90°): the text
+            // stands upright in the frame as given, the shape turned.
+            let back = (sp.first("p:txXfrm")?["rot"].flatMap(Double.init) ?? 0) / 60000
+            let quarter = abs(abs(st.rotation.truncatingRemainder(dividingBy: 180)) - 90) < 0.01
+            if quarter, abs((st.rotation + back).truncatingRemainder(dividingBy: 360)) < 0.01, sp["modelId"] != nil {
+                st.uprightBox = tr
+                st.uprightInsets = st.insets
+            }
             st.insets = EdgeInsets(left: st.insets.left + (tr.left - frame.left), top: st.insets.top + (tr.top - frame.top),
                                    right: st.insets.right + (frame.right - tr.right),
                                    bottom: st.insets.bottom + (frame.bottom - tr.bottom))
@@ -2190,6 +2199,31 @@ private struct SlideContext {
                                colors: colors, theme: theme, defaults: defaults, slideSize: slideSize, images: images)
         var out: [ShapeState] = []
         ctx.shapes(in: tree, transform: { r in r.shift(Offset(frame.left, frame.top)) }, into: &out, id: id)
+        out = out.flatMap { s -> [ShapeState] in
+            guard let box = s.uprightBox, s.text != nil else { return [s] }
+            var shape = s
+            shape.text = nil
+            shape.uprightBox = nil
+            var text = s
+            text.id = id()
+            text.kind = .textBox
+            text.frame = box
+            text.rotation = 0
+            text.flipH = false
+            text.flipV = false
+            text.fill = nil
+            text.fillStyle = nil
+            text.outline = nil
+            text.customPath = nil
+            text.shadow = nil
+            text.glowRadius = nil
+            text.softEdge = nil
+            text.scene3d = nil
+            text.shapeInsets = .zero
+            text.insets = s.uprightInsets
+            text.uprightBox = nil
+            return [shape, text]
+        }
         // A preset this app has no outline for is drawn as a box, which
         // serves for the rounded and snipped rectangles diagrams favour but
         // not for a gear (gear6, gear9): those are left out.
