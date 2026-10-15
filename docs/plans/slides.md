@@ -1479,6 +1479,17 @@ dropped: `{793D81CF…}` (tdf135843_insideH's undefined style) built in as
 rows ruled and columns not — +1.85 there, its rows still the wrong
 height; that deck stays undrawn-ruled.
 
+**Line spacing over single, 2026-10-15** (sweep 81: 1.5301 →
+1.5267%; tdf137367 −0.80, bug68703 −0.33, tdf51340 −0.26,
+TextFittingStored −0.14, 60810 −0.07, none further). The rule that
+PowerPoint takes all of a spacing's change above the line held for
+spacing under single (the masters' 90%) and was applied over single
+too, where it does not: at 150% PowerPoint puts 0.70 of the extra above
+tdf137367's first 40 pt line and 0.72 above bug68703's 11 pt cells —
+the engine's own proportional share (0.75) — and ours stood 7.3 and
+1.9 pt low. `baselineShift` is nought over single now (shared SDK,
+Slides-only path: Word's is nought already).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

@@ -139,7 +139,12 @@ public final class RichTextTheme {
     public func baselineShift(for style: CharStyle, in paragraph: RichParagraphStyle) -> Double {
         guard let single = singleLineHeight, paragraph.lineHeightPoints == nil else { return 0 }
         let multiple = max(0.1, paragraph.lineSpacing - lineSpacingReduction)
-        guard multiple != 1 else { return 0 }
+        // (Over single, PowerPoint shares the extra out above and below
+        // as the engine does — 0.70 of it above the first line at 150% in
+        // tdf137367's 40 pt Calibri, 0.72 in bug68703's 11 pt cells, the
+        // engine's own share 0.75; all of it above had them 7.3 and 1.9
+        // pt low.)
+        guard multiple < 1 else { return 0 }
         let family = (style.fontFamily ?? fontFamily).map { fontFamilyResolver?($0) ?? $0 }
         return (multiple - 1) * single * descentShare(family: family, bold: style.bold, italic: style.italic)
     }
