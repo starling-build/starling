@@ -1510,6 +1510,14 @@ container counted as the whole height offered, so a node's column
 asked for its box plus a frame's height of nothing, and the boxes
 above came out a third of PowerPoint's. A `lin` with no children and
 no shape measures nought now.
+Left: its widths. PowerPoint's columns are as wide as their row of
+children — boxes 110 pt, gaps 9 and 19, its heading 227 over the row,
+which is the layout's widths (480 each, spaces 0.168 and half that)
+with each heading at least its row (`txOne w ≥ horzOne w`, `op="gte"`)
+scaled into the frame. Letting a frame-sized row measure its contents
+gets 0.75 there and breaks linear-rule, continuous-block-process and
+table-list (+14 to +25): the `gte` has to be met where the engine
+measures, not in general.
 
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
