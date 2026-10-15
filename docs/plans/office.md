@@ -2758,6 +2758,27 @@ fitter dropped the paragraph's tail).
   Traditional one from mode 15 on (zh-4b8e0abc, whose last marks Word
   hangs by 3.5pt). zh-ae3d78ee 84.4% -> 100%, zh-64044a1d 67.5 -> 73.1;
   nothing down.
+- **A kept paragraph asks only that the next's first lines stand on
+  its page (2026-10-15).** Word's keep-with-next cascades back through
+  a run of kept paragraphs — zh-64044a1d's headings 1 to 4 all keep,
+  so every run reaches to its chapter's end — but the run moves, from
+  its first member, only where a page's foot falls at a member's end
+  with the next member's start not fitting after it: its first line,
+  two under widow control, all of a short or kept-together paragraph,
+  a row. A foot that falls inside a member's own lines breaks no keep
+  (Word fills page 72 with one run, the foot in the lines of an item,
+  and sends another to page 63 from half a page of room, the foot
+  between two), and a member that ends a section ends the run —
+  nothing is kept across a section break: "(二)金湖鎮災害應變中心標準
+  作業程序" ends page 72 and its section, and the flow chart that
+  opens the next stays there. Ours moved the whole run as soon as its
+  total did not fit. zh-64044a1d 73.1% -> 87.1, 103 pages as Word's,
+  page 72's foot as Word's; zh 90.5 -> 90.7. bug65649 17.7 -> 11.6
+  under this alone: the old rule gave an empty kept paragraph that
+  carries a section break a page of its own, a blank page Word does
+  not have — which had happened to step a layout one page ahead of
+  Word's since page 131 back into its numbering. The fix after takes
+  that page where Word does, and the count is Word's again.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

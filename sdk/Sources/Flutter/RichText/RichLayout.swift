@@ -2396,29 +2396,51 @@ public final class RichLayout {
                // (A table's row whose text keeps with the next carries
                // the run through: bug65649's place-and-date table.)
                !(i > 0 && document.paragraphs[i - 1].style.keepNext) {
-                var need = 0.0
+                // Word asks of a kept paragraph only that the first lines
+                // of the next stand on its page; a page's foot that falls
+                // inside a member's own lines breaks no keep. So the run
+                // moves — from its first member, the keeps cascading back
+                // — only where the foot falls at a member's end with the
+                // next member's start (its first line; two, under widow
+                // control; all of a short or kept-together paragraph; a
+                // row) not fitting after it. zh-64044a1d: its headings 1
+                // to 4 all keep, so every run reaches to the chapter's
+                // end — Word fills page 72 with one, the foot falling in
+                // the lines of an item, and sends another to page 63 from
+                // half a page of room, the foot falling between two.
+                func start(_ k: Int) -> Double {
+                    if let c = _cells[k] { return c.ownRowHeight }
+                    let st = document.paragraphs[k].style
+                    let g = geometry(k)
+                    let lines = g.painter.computeLineMetrics()
+                    if st.keepLines || lines.count <= 1 || (st.widowControl && lines.count <= 3) { return _heights[k] }
+                    let bottoms = Self._lineBottoms(g.painter)
+                    return (g.textTop - g.top) + bottoms[min(bottoms.count - 1, st.widowControl ? 1 : 0)]
+                }
+                let room = contentH - y
+                var cum = 0.0
                 var k = i
-                while k < count, _cells[k] == nil, document.paragraphs[k].style.keepNext, need <= contentH - y + 0.01 {
-                    need += _heights[k]
-                    k += 1
-                }
-                if k < count {
-                    if let c = _cells[k] {
-                        need += c.ownRowHeight
-                    } else {
-                        // (As much of it as may stand alone at a page's foot.)
-                        let st = document.paragraphs[k].style
-                        let g = geometry(k)
-                        let lines = g.painter.computeLineMetrics()
-                        if st.keepLines || lines.count <= 1 || (st.widowControl && lines.count <= 3) {
-                            need += _heights[k]
-                        } else {
-                            let bottoms = Self._lineBottoms(g.painter)
-                            need += (g.textTop - g.top) + bottoms[min(bottoms.count - 1, st.widowControl ? 1 : 0)]
-                        }
+                var violated = false
+                var ended = false   // the run ends with a section: nothing is kept across its break
+                while k < count, _cells[k] == nil, document.paragraphs[k].style.keepNext {
+                    if cum + _heights[k] <= room + 0.01 {
+                        cum += _heights[k]
+                        // (A member that ends a section ends the run: Word
+                        // keeps nothing with what the next section begins
+                        // with — zh-64044a1d's "(二)金湖鎮災害應變中心標準
+                        // 作業程序" ends page 72 and its section, and the
+                        // flow chart that opens the next stays there.)
+                        if document.paragraphs[k].style.sectionXML != nil { ended = true; k += 1; break }
+                        k += 1
+                        continue
                     }
+                    violated = k > i && cum + start(k) > room + 0.01
+                    break
                 }
-                if need > contentH - y + 0.01 { newPage() }
+                if !violated, !ended, k < count, k > i, (_cells[k] != nil || !document.paragraphs[k].style.keepNext) {
+                    violated = cum + start(k) > room + 0.01
+                }
+                if violated { newPage() }
             }
             // The space it shares with the paragraph above (`_sharedSpace`)
             // is on the page once, as it is in the flow.
