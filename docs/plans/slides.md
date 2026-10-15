@@ -1550,6 +1550,16 @@ Liberation Sans instead. Mean +0.0004: tdf148665 −0.12 but tdf140852
 Arial's measure, and the lines re-wrapped. No better stand-in without
 a face of that width.
 
+**Percent spacing under PowerPoint's own shrink, 2026-10-15** (sweep
+83: 1.4984 → 1.4962%; bug62513 −0.74, testPPT −0.33, aptia −0.26;
+aascu 5864 +0.11). A body that PowerPoint shrank to fit
+(`normAutofit fontScale`) has its percentage spacing of the text as
+drawn: bug62513's 20% before its 77.5% list items is 6.0 pt in the
+print, ours 7.7 from the full size. The stored scale multiplies it now
+(before and after). aascu's page 17 has its gaps exactly PowerPoint's
+(36.0) and scores worse: its first line is 1.2 pt high, which the
+too-wide gaps had been making up for.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

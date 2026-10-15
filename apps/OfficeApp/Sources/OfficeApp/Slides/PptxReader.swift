@@ -2434,13 +2434,16 @@ private struct SlideContext {
                 // Exactly that many points, whatever the runs' sizes.
                 style.lineHeightPoints = pts
             }
-            style.spaceBefore = level.beforePoints ?? (level.beforePercent.map { $0 * size * 1.2 } ?? 0)
+            // (A percentage is of the text as drawn: under PowerPoint's own
+            // shrink to fit, `fontScale` of it — bug62513's 20% before its
+            // 77.5% list items is 6 pt in the print, ours was 7.7.)
+            style.spaceBefore = level.beforePoints ?? (level.beforePercent.map { $0 * size * scale * 1.2 } ?? 0)
             // A percentage after, as before: of the line, taken as 1.2 of the
             // size — but not under the last paragraph, where PowerPoint adds
             // nothing: counted there, a one-line SmartArt label (35% after,
             // every one) measured taller than its box and was shrunk to fit.
             if level.afterPoints == nil, let pct = level.afterPercent, p !== allParagraphs.last {
-                style.spaceAfter = pct * size * 1.2
+                style.spaceAfter = pct * size * scale * 1.2
             }
             // (Nor in points: bnc904423's centred boxes, 11.5 pt after their
             // one paragraph, stood 5.75 high.)
