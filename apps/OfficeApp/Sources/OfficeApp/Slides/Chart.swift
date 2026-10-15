@@ -352,7 +352,20 @@ enum ChartXML {
             if series.isEmpty { named = ser.first("c:tx") != nil }
             let cat = ser.first("c:cat") ?? ser.first("c:xVal")
             let val = ser.first("c:val") ?? ser.first("c:yVal")
-            let names = cat.map(_points) ?? []
+            var names = cat.map(_points) ?? []
+            // (Numbers named by a format — dates, most often — are shown
+            // in it: chartex's radar chart has days 37261 to 37265 in a
+            // m/d/yyyy cache, which Word prints as 1/5/2002 to 1/9/2002.
+            // The axis' own format wins where it is not the source's.)
+            if type != .scatter, let cache = cat?.descendant("c:numCache") {
+                let axis = space.descendant("c:catAx")?.first("c:numFmt") ?? space.descendant("c:dateAx")?.first("c:numFmt")
+                let own = axis.flatMap { ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }
+                if let code = own ?? cache.first("c:formatCode")?.text, !code.isEmpty, code.lowercased() != "general" {
+                    names = names.map { name in
+                        name.flatMap { Double($0.trimmingWhitespace()) }.map { NumberFormat.format($0, code, width: 40).text.trimmingWhitespace() } ?? name
+                    }
+                }
+            }
             if categories.count < names.count {
                 categories = names.enumerated().map { $0.element ?? (categories.indices.contains($0.offset) ? categories[$0.offset] : "") }
             }

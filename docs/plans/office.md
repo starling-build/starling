@@ -3644,6 +3644,14 @@ fitter dropped the paragraph's tail).
   its picture. zh-64044a1d's nine charts and photos stand where Word's
   print has them (page 15: 90,78-510,375 to Word's 90,77-510,374). Their
   room was already kept, so no score moved.
+- **A chart's numeric categories are shown in their format
+  (2026-10-15).** A category cache of numbers with a format code (most
+  often a date) is shown in that format, or in the axis' own format
+  where it is not linked to the source. chartex's radar and box charts
+  have days 37261 to 37265 in an m/d/yyyy cache. Word prints 1/5/2002 to
+  1/9/2002, and ours printed the serial numbers. Shared with Slides,
+  where no deck of the 3,347 in the PowerPoint corpora has such a cache.
+  chartex 33.8 -> 35.2; nothing else moved.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the
