@@ -2807,7 +2807,13 @@ public final class RichLayout {
         func sameStyle(_ j: Int) -> Bool {
             guard j >= 0, j < document.paragraphs.count else { return false }
             let o = document.paragraphs[j].style
-            return o.named == style.named && o.heading == style.heading && o.list == style.list
+            // (Word compares the paragraph style alone: a bulleted List
+            // Paragraph and a numbered one under it share no space —
+            // POI's Numbering. A list of the editor's own, unstyled,
+            // still goes by its kind.)
+            return o.named == style.named && o.heading == style.heading
+                && (o.list == style.list || (theme.wordRules && style.named != nil && o.list != nil && style.list != nil
+                    && document.paragraphs[j].cell == p.cell))
         }
         // A list made here, in a document that was not read from a file,
         // is saved in Word's List Paragraph — whose spacing is contextual.
@@ -2860,7 +2866,8 @@ public final class RichLayout {
         if theme.wordRules, theme.collapsesParagraphSpacing, !document.addsParagraphSpacing, i > 0, p.cell == nil,
            i - 1 < document.paragraphs.count, document.paragraphs[i - 1].cell == nil {
             let a = document.paragraphs[i - 1].style
-            if a.contextualSpacing, a.named == style.named, a.heading == style.heading, a.list == style.list {
+            if a.contextualSpacing, a.named == style.named, a.heading == style.heading,
+               a.list == style.list || (style.named != nil && a.list != nil && style.list != nil) {
                 spaceBefore = max(0, spaceBefore - spaceAfter(a))
             }
         }
