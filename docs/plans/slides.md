@@ -1773,6 +1773,17 @@ through MuPDF and every pixel of the page differs from our sRGB
 one to imitate in the app's own drawing. It costs any page with a
 saturated gradient a few points; pale gradients barely move.
 
+**A damaged deck's missing slides and theme, 2026-10-15** (sweep 88:
+1.3355 → 1.2897%; clusterfuzz 4986 28.96 → 3.28; Divino_Revelado
++0.30, its PowerPoint pages blank either way). Two repairs PowerPoint
+makes that we did not. A slide whose part is missing from the archive
+(4986 lacks four) was dropped, so every slide after it was compared
+with the page before its own; it is a blank page now, as PowerPoint
+shows it. And a master whose theme part is missing read as no colours
+at all — the deck's grey and orange boxes drew as nothing; it is
+PowerPoint's own Office theme now (accent 3 A5A5A5, accent 2 ED7D31,
+line widths ½, 1, 1½ pt).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

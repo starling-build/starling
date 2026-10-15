@@ -117,7 +117,18 @@ struct PptxTheme {
     var lineWidths: [Double] = []
 
     init(_ root: XNode?) {
-        guard let root, let elements = root.descendant("a:themeElements") else { return }
+        guard let root, let elements = root.descendant("a:themeElements") else {
+            // No theme part (a damaged file: clusterfuzz 4986's master
+            // names one that is not there): PowerPoint's own Office theme,
+            // whose grey accent 3 and orange accent 2 its boxes show.
+            let office: [String: Int64] = ["dk1": 0x000000, "lt1": 0xFFFFFF, "dk2": 0x44546A, "lt2": 0xE7E6E6,
+                                           "accent1": 0x4472C4, "accent2": 0xED7D31, "accent3": 0xA5A5A5,
+                                           "accent4": 0xFFC000, "accent5": 0x5B9BD5, "accent6": 0x70AD47,
+                                           "hlink": 0x0563C1, "folHlink": 0x954F72]
+            for (k, v) in office { colors[k] = Color(0xFF00_0000 | v) }
+            lineWidths = [0.5, 1, 1.5]
+            return
+        }
         fillStyles = elements.first("a:fmtScheme")?.first("a:fillStyleLst")?.children ?? []
         effectStyles = elements.first("a:fmtScheme")?.first("a:effectStyleLst")?.children ?? []
         lineWidths = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map {
@@ -547,7 +558,12 @@ struct PptxReader {
         var nextId = 1
         func id() -> Int { defer { nextId += 1 }; return nextId }
         for (n, part) in slideParts.enumerated() {
-            guard let slide = package.xml(part) else { continue }
+            // A slide whose part is missing or unreadable (a damaged
+            // file) is a blank page, as PowerPoint shows it after repair —
+            // dropped, every later slide stood a page early against it
+            // (clusterfuzz 4986 lost four).
+            let slide = package.xml(part)
+                ?? XNode.parse(Data("<p:sld><p:cSld><p:spTree></p:spTree></p:cSld></p:sld>".utf8))!
             let layoutPart = package.rel(part, kind: "slideLayout")?.target
             let layout = layoutPart.flatMap(package.xml)
             let masterPart = layoutPart.flatMap { package.rel($0, kind: "slideMaster")?.target }

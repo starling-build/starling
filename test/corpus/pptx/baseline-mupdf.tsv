@@ -11,7 +11,7 @@
 61515.pptx	summary pages=1 worst=0.00% mean=0.00%
 63200.pptx	summary pages=1 worst=0.00% mean=0.00%
 ArtisticEffectSample.pptx	summary pages=2 worst=2.02% mean=1.46%
-Divino_Revelado.pptx	summary pages=12 worst=21.03% mean=14.31%
+Divino_Revelado.pptx	summary pages=12 worst=21.36% mean=14.61%
 EmbeddedAudio.pptx	summary pages=1 worst=0.00% mean=0.00%
 EmbeddedVideo.pptx	summary pages=1 worst=0.00% mean=0.00%
 KEY02.pptx	summary pages=1 worst=4.35% mean=4.35%
@@ -47,9 +47,9 @@ ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst
 chart-picture-bg.pptx	summary pages=1 worst=2.69% mean=2.69%
 chart-slide-bg.pptx	summary pages=1 worst=2.35% mean=2.35%
 chart-texture-bg.pptx	summary pages=1 worst=2.27% mean=2.27%
-clusterfuzz-testcase-minimized-POIXSLFFuzzer-4986044400861184.pptx	summary pages=23 worst=100.00% mean=28.96%
+clusterfuzz-testcase-minimized-POIXSLFFuzzer-4986044400861184.pptx	summary pages=23 worst=16.45% mean=3.28%
 clusterfuzz-testcase-minimized-POIXSLFFuzzer-5611274456596480.pptx	summary pages=1 worst=61.55% mean=61.55%
-clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages=1 worst=0.64% mean=0.64%
+clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages=1 worst=0.65% mean=0.65%
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=3.81% mean=3.81%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
@@ -155,7 +155,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.17% mean=0.17%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=1.74% mean=1.74%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.03%
+lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.04%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.25% mean=0.25%
 lo-ole.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
