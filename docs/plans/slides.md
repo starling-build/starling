@@ -1719,6 +1719,14 @@ either way. The page still scores alike: its 3-D wall sets the bars
 off to the right in PowerPoint's print, and ours stand from the plot's
 left edge.
 
+**Right-to-left WordArt, 2026-10-15** (WordArtFontText 4.83 → 4.52,
+WordArtFontTheme 3.71 → 3.38; the 23 WordArt decks otherwise
+unchanged). WordArt is set a letter at a time, left to right in the
+order the text is stored, so tdf125085's Hebrew read backwards. A line
+whose first strong letter is Hebrew or Arabic is now put in visual
+order — reversed, with any stretch of Latin letters and digits in it
+reading forwards. (Mirrored brackets are not swapped.)
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

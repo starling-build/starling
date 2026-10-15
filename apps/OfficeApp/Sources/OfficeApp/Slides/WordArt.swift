@@ -87,6 +87,40 @@ enum WordArt {
         var height: Double { glyphs.map { $0.painter.height }.max() ?? 0 }
     }
 
+    /// A line's glyphs in the order they stand, left to right: a line
+    /// whose first strong letter is Hebrew or Arabic runs right to left,
+    /// each stretch of Latin letters and digits in it reading forwards
+    /// (tdf125085_WordArtFontText's מדינת ישראל came out letter-reversed).
+    private static func visualOrder(_ glyphs: [Glyph]) -> [Glyph] {
+        func strong(_ g: Glyph) -> Bool? {
+            guard let u = g.text.unicodeScalars.first else { return nil }
+            if (0x0590 ... 0x08FF).contains(u.value) || (0xFB1D ... 0xFDFF).contains(u.value) || (0xFE70 ... 0xFEFF).contains(u.value) { return true }
+            if u.properties.isAlphabetic || ("0" ... "9").contains(Character(u)) { return false }
+            return nil
+        }
+        guard let first = glyphs.lazy.compactMap(strong).first, first else { return glyphs }
+        var out: [Glyph] = []
+        var i = 0
+        // Reversed as a whole, the left-to-right stretches put back.
+        var pieces: [[Glyph]] = []
+        while i < glyphs.count {
+            if strong(glyphs[i]) == false {
+                var j = i
+                while j < glyphs.count, strong(glyphs[j]) != true { j += 1 }
+                // (Trailing neutrals belong to the right-to-left text.)
+                var end = j
+                while end > i, strong(glyphs[end - 1]) == nil { end -= 1 }
+                pieces.append(Array(glyphs[i ..< end]))
+                i = end
+            } else {
+                pieces.append([glyphs[i]])
+                i += 1
+            }
+        }
+        for piece in pieces.reversed() { out += piece }
+        return out
+    }
+
     /// Draws `shape`'s text in its bend, in the shape's own space (`r` is
     /// its frame). False when the preset is not one this draws.
     static func paint(_ shape: SlideShape, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, cache: SlideTextCache) -> Bool {
@@ -136,6 +170,7 @@ enum WordArt {
                     line.glyphs.append(Glyph(painter: tp, text: String(ch), style: style, look: look(at: offset)))
                 }
             }
+            line.glyphs = visualOrder(line.glyphs)
             if !line.glyphs.isEmpty { lines.append(line) }
         }
         defer { for l in lines { for g in l.glyphs { g.painter.dispose() } } }

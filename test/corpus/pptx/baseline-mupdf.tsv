@@ -498,8 +498,8 @@ oox-shape-text-alignment.pptx	summary pages=1 worst=0.44% mean=0.44%
 oox-smartart-groupshape.pptx	summary pages=1 worst=0.10% mean=0.10%
 oox-table-shadow.pptx	summary pages=1 worst=0.68% mean=0.68%
 oox-tdf113187_arcTo_withoutReferences.pptx	summary pages=1 worst=0.02% mean=0.02%
-oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=4.83% mean=4.83%
-oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=3.71% mean=3.71%
+oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=4.52% mean=4.52%
+oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=3.38% mean=3.38%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
 oox-tdf131082.pptx	summary pages=1 worst=0.15% mean=0.15%
 oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=18.12% mean=18.12%
