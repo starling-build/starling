@@ -422,3 +422,13 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   lines): zh-f94d11c5 87.7 -> 99.6, bug65649 43.3 -> 54.0, zh-e061a08e
   93.7 -> 93.0; and ef56a9f1 (contextual spacing): zh-06c46ba9 83.4 ->
   80.9, bug65649 32.9 -> 43.3.
+- Mac, 2026-10-15, for the Windows box: since 223b723e (a small table
+  in a cell is a table) `test/run.sh --office` dies in
+  DocxTests.testNestedTableKeptVerbatim (DocxTests.swift:1344–1356):
+  the kept-table ids and texts it expects are no longer what the
+  importer makes, and line 1356 force-unwraps nil, so the whole office
+  test step aborts (signal 5). Yours to update — the Mac sweeps' only
+  known failure had been LineHeightTests.testSingleSpacingIsTheFacesNaturalHeight.
+  Also: 1f705930 (space after/before share their room across a border
+  too; bug59058 to Word's 52 pages), 4a380fa2 (separated-border rows),
+  and a 0.75pt inset on continuation pieces (PDFKit phantom rows).

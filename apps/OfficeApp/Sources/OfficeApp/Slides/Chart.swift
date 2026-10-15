@@ -924,11 +924,6 @@ enum ChartPainter {
         return s
     }
 
-    // (Unoptimised: Swift 6.2.1's release optimiser dies in this function
-    // — "compile command failed due to signal 6", a SIL verification
-    // failure in BoundsCheckOpts after 94f80fef — on macOS; the debug
-    // build is fine. Drawing a chart's axes is not where time goes.)
-    @_optimize(none)
     private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, frame: Rect, k: Double, theme: DeckTheme,
                               grid: Color, text: (String, Double, Double) -> TextPainter,
                               categoryText: (String, Double, Double) -> TextPainter,

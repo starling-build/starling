@@ -6964,7 +6964,15 @@ public final class RichLayout {
                             // above its line box (`baselineShift`) would
                             // otherwise show the tops of its next line here.
                             let dy = shading ? 0 : _baselineShift(piece.paragraph, document)
-                            canvas.clipRect(Rect.fromLTRB(clipL, top + dy, clipR, bottom + dy))
+                            // (A piece that goes on from a line's cut starts a
+                            // pixel under it: the engine's line boxes are whole
+                            // pixels and the glyphs' ink is not, so the line
+                            // above's descenders reach a hair past its cut, and
+                            // their tips were drawn again at the next page's
+                            // head — bug59058's "g g y" over page 25, which
+                            // PDFKit reads as a line of text there.)
+                            let inset = !shading && piece.flowTop > _tops[i] + 0.5 ? _px(0.75) : 0
+                            canvas.clipRect(Rect.fromLTRB(clipL, top + dy + inset, clipR, bottom + dy))
                         }
                         canvas.translate(left, top - piece.flowTop)
                         if shading { _paintShading(piece.paragraph, canvas, document, part: piece.part) } else {

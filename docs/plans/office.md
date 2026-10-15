@@ -3036,6 +3036,18 @@ fitter dropped the paragraph's tail).
   9pt after — stood 9pt further from its body than Word sets it, and
   page 24 lost its last line, the page after it a line out of step:
   47.2% -> 52.1, and Word's 52 pages (POI 104 of 111 page counts).
+- **A piece that goes on from a line's cut starts a pixel under it
+  (2026-10-15).** The engine's line boxes are whole pixels and the
+  glyphs' ink is not, so the descenders of a page's last line reach a
+  hair past its cut, and the piece on the next page — clipped from
+  that cut — drew their tips again at its head: bug59058's page 25
+  opened with the bottoms of "g g y" from page 24's "including an
+  ecologic analysis", a strip a pixel tall over the first line, which
+  PDFKit reads as a line of text "ggy" there (PyMuPDF, which keeps to
+  the clip, sees nothing). Twenty-eight of its pages had one. The
+  continuation piece's clip now starts 0.75pt under the cut; a first
+  or whole piece is as it was. No score moved by 0.3 — the phantom
+  rows matched nothing and cost only their count.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
