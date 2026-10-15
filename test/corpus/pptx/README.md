@@ -49,7 +49,7 @@ PowerPoint's at the baseline — exact, not "small" — and `others.txt` the
 other decks that have a PowerPoint PDF (the eight without one are in
 neither). `matched-mupdf.txt` and `others-mupdf.txt` are the same split
 of `baseline-mupdf.tsv`: 67 matched and 486 others by MuPDF at sweep
-73, 48 and 505 by the Mac's baseline of sweep 27. The files are
+77, 48 and 505 by the Mac's baseline of sweep 27. The files are
 generated, never edited:
 
     python3 test/pptx-corpus-groups.py      # after writing a sweep over a baseline
