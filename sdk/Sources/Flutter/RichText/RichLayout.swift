@@ -3953,6 +3953,8 @@ public final class RichLayout {
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.
         if theme.wordRules, p.text.isEmpty, p.image == nil, style.sectionXML != nil, p.cell == nil { _heights[i] = 0 }
+        // (So does one wholly hidden, its mark too: see `_vanishes`.)
+        if _vanishes(p, document) { _heights[i] = 0; _spaceBefore[i] = 0 }
         // A floating frame takes no room either: the text that follows
         // starts where it does.
         if frameLeft != nil {
@@ -4587,6 +4589,20 @@ public final class RichLayout {
     /// paragraph Normal's — the face and size a document's body text is
     /// set in when its runs name none, and what its own style leaves
     /// unsaid. (A heading with no entry keeps the theme's look.)
+    /// A paragraph Word shows nothing of: its mark hidden (`w:vanish` on
+    /// the mark, or in its paragraph style) and every run hidden. It takes
+    /// no room and draws no border — bug59058's HTML "Top of Form"
+    /// paragraphs, hidden by their style (z-TopofForm) with a rule under
+    /// each, drew two rules and set page 24's text 3.5pt low.
+    private func _vanishes(_ p: RichParagraph, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, p.cell == nil, p.image == nil, p.inlineImages.isEmpty else { return false }
+        let named = _named(p, document)
+        let styleHides = named?.char.hidden ?? false
+        guard p.style.markHidden || (p.style.mark?.hidden ?? styleHides) else { return false }
+        if p.text.isEmpty { return styleHides || p.style.markHidden }
+        return p.runs.allSatisfy { $0.style.hidden || styleHides }
+    }
+
     private func _named(_ p: RichParagraph, _ document: RichDocument) -> RichNamedStyle? {
         guard theme.wordRules else { return document.styles.resolve(p.style) }
         let normal = document.styles[RichNamedStyle.normalId]
@@ -6396,7 +6412,7 @@ public final class RichLayout {
             canvas.restore()
             return
         }
-        if let b = document.paragraphs[i].style.borders {
+        if let b = document.paragraphs[i].style.borders, !_vanishes(document.paragraphs[i], document) {
             // Word's paragraph borders: each edge a line its `space` away
             // from the text, the horizontal ones spanning the text width
             // (plus the side edges' own gaps).

@@ -3588,6 +3588,17 @@ fitter dropped the paragraph's tail).
   group shapes (`wpg:wgp`) — the importer takes the first body it finds
   and places it by the group; five corpus files have such groups
   (60316, shapes-with-text, zh-06c46ba9, zh-6cd1befe, zh-799c91cd).
+- **A wholly hidden paragraph takes no room and draws no border
+  (2026-10-15).** Its mark hidden — by its own `w:rPr` or by its
+  paragraph style's `w:vanish` — and every run hidden, Word shows
+  nothing of it: bug59058's HTML "Top of Form" paragraphs (style
+  z-TopofForm, hidden, a rule under each) drew two rules in ours and set
+  page 24 3.5pt low; its print has neither. `markHidden` had been read
+  only by the writer, and only from the mark's own properties.
+  bug59058 56.6% -> 57.1; nothing else moved. Its largest remaining run
+  (177 lines from page 31) is OMML: Word typesets the equations in two
+  dimensions, ours as a line of italic text, and everything after
+  drifts — real equation layout is the next lever there.
 - **Lead, not taken: a page-anchored floating table that Word breaks
   after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
   the rest of the table, which would fit, goes to page 21 in Word's
