@@ -5079,6 +5079,7 @@ public final class RichLayout {
         let onCharacterGrid = (_grid(i, document).chars ?? 0) != 0
         var lineOther = false
         var lineSpaced = false  // … or ends, so far, with one
+        var lineBlank = false   // a space character (U+0020) on the line so far
         var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
         var breaks: [(end: Int, opener: Range<Int>, over: Double)] = []   // where a line ended because what followed was over
         for piece in pieces {
@@ -5288,7 +5289,17 @@ public final class RichLayout {
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)
                             : need / Double(max(1, all.count)) <= width - x + (all.count > 1 ? -_px(0.02) : hair))
-                        : (!wide && inCell) || x + min(lead, w) - width <= set / 2 + edge
+                        // (… on a line with spaces in it — `ovc`'s had 41. On
+                        // one without, a Latin word no more than half an em
+                        // over, the automatic space after it aside: lab `sqc`
+                        // from zh-69bbcc3c (mode 14, a centred 12pt cell
+                        // "3月，6月，9月，11月", the cell's width varied),
+                        // "11" is taken 4.5pt over and left from 6.0, with
+                        // "，", "：" or "、" for the marks alike. A word that
+                        // carries a full-width mark of its own keeps the room
+                        // test: zh-06c46ba9's "（詳參附錄1）" takes "1）" 9pt
+                        // over in Word's print.)
+                        : (!wide && inCell && (lineBlank || need < set / 2 - _px(0.25) || (a ..< last).contains { units[$0] >= 0x2E80 })) || x + min(lead, w) - width <= set / 2 + edge
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken)\n".utf8))
@@ -5342,7 +5353,7 @@ public final class RichLayout {
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false }
+                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineBlank = false }
                     continue
                 }
             }
@@ -5360,6 +5371,7 @@ public final class RichLayout {
                 lineEms = 0
                 lineLatin = false
                 lineOther = false
+                lineBlank = false
                 lineSpaced = false
             }
             // (An opening mark a line starts with keeps its blank half:
@@ -5375,6 +5387,7 @@ public final class RichLayout {
             let lineOpener = lineWide == 0 ? (a ..< last).first { !isSpace(units[$0]) } : nil
             // (Spaces a line opens with are no characters of it, and
             // those it ends with stretch nothing.)
+            if (a ..< piece.b).contains(where: { units[$0] == 0x20 }) { lineBlank = true }
             for k in a ..< last {
                 if isSpace(units[k]) { if lineWide > 0 { lineOther = true } } else { lineWide += 1; lineEms += ems[k]; if units[k] < 0x2E80 { lineLatin = true } }
             }
@@ -5400,6 +5413,7 @@ public final class RichLayout {
                 lineEms = 0
                 lineLatin = false
                 lineOther = false
+                lineBlank = false
                 lineSpaced = false
             }
         }

@@ -3331,6 +3331,19 @@ fitter dropped the paragraph's tail).
   PMingLiU document's own compatibility glyphs (zh-db93607e) took the
   height too, 99.2% -> 4.9. zh-7dc3afad 92.2% -> 98.9, zh-8e8d4c40 87.1
   -> 90.4 at Word's 6 pages; nothing down.
+- **In a cell before 2013's layout, a Latin word on a line without
+  spaces is taken only half an em over (2026-10-15).** Lab `ovc`
+  found Word taking a Latin word in a cell whenever the marks and
+  automatic spaces could give what it needed — on a line of 41 spaces.
+  Lab `sqc` (zh-69bbcc3c's cell "3月，6月，9月，11月", 12pt, mode 14,
+  the cell's width varied; the other Mac session's find): "11" is taken
+  4.5pt over and left from 6.0, with "，", "：" or "、" as the marks —
+  though they could give 18pt. So the room test now holds for a word
+  on a line with a space character on it (`lineBlank`) or a word that
+  carries a full-width mark of its own (zh-06c46ba9's "1）" is taken
+  9pt over in Word's print); otherwise a Latin word in a cell is taken
+  within half an em. zh-69bbcc3c's two such cells (pages 22, 31) wrap
+  as Word's; +0.2, nothing down.
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
