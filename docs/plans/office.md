@@ -2319,6 +2319,18 @@ fitter dropped the paragraph's tail).
   lower, which neither page border nor anything else in the lab
   explains. No document moved by 0.3% either way.
 
+- **A header or footer with a tab is the file's, not the editor's line
+  (2026-10-14).** A kept header or footer whose text held a tab was
+  drawn as the editor's plain line (12pt, no rules, its other
+  paragraphs gone), from before the kept paragraphs had their styles'
+  tab stops; and the reader dropped `w:ptab`, a positional tab, so
+  "VDPAM 527_S. Azeem_HW13" ran into "Page 1 of 14" (bug57031). Both
+  now as the file has them: a positional tab is a tab, placed by the
+  Header and Footer styles' centre and right stops. POI set on Windows
+  69.6% -> 70.8%: FancyFoot, ThreeColFoot, SimpleHeadThree,
+  ThreeColHeadFoot, DiffFirstPageHeadFoot -> 100%, PageSpecificHeadFoot
+  80 -> 90, bug57031 +4.1; zh-90e0cea8 67.1 -> 86.2; nothing down.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

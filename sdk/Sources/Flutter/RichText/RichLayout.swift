@@ -5999,7 +5999,11 @@ public final class RichLayout {
             // (One an earlier section named has no line of the editor's.)
             let own = kind == .header ? document.header : document.footer
             if let kept = document.keptHeaderFooters.first(where: { $0.kind == kind && $0.type == type })?.text {
-                if kept != own || own.contains("\t" as Character) { return nil }
+                // (A tab no longer sends it to the editor's line: the
+                // paragraphs keep their styles' stops; bug57031's footer
+                // was drawn as a plain 12pt line, its 10pt text, rule and
+                // second paragraph gone.)
+                if kept != own { return nil }
             }
         }
         let setup = pageSetup(forPage: p)

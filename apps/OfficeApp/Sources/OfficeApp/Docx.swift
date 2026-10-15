@@ -2415,6 +2415,11 @@ enum DocxFormat {
                     }
                 case "w:delText": addText(child.text, cs)
                 case "w:tab": addText("\t", cs)
+                // A positional tab (a header's or footer's "right of the
+                // margin"): a tab, which the Header and Footer styles'
+                // centre and right stops place: bug57031's "Page 1 of 14"
+                // at the right margin. (It was dropped, and the text ran on.)
+                case "w:ptab": addText("\t", cs)
                 case "w:br":
                     // A page break ends the paragraph; a line break stays
                     // inside it, as Shift+Return's does — splitting it added a
