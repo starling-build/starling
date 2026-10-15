@@ -218,7 +218,7 @@ enum OfficeFonts {
     }
 
     private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 5.0 / 6.0, fakeBold: true, baseline: 1.005)
-    private static let yaHei = EastAsianFace(height: 1.72, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96],
+    private static let yaHei = EastAsianFace(height: 1.715, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96],
                                              latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances, fakeBold: false, baseline: 1.26)
 
     // The horizontal advances of U+0020 to U+007E in the faces whose

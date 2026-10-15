@@ -277,3 +277,9 @@ Owner: none — notes for whoever takes them.
 - zh-0aac9d1a (T1): Word's autofit narrows one column and widens
   another past the page; it needs the content-width algorithm.
 - zh-a0e932c2 (T2): needs column regions that start mid-page.
+- zh-8e8d4c40 / zh-7dc3afad (Mac, 2026-10-14): with YaHei at its
+  measured 1.715-em pitch each loses one page foot (zh-8e8d4c40 now
+  fits Word's sixth page's two lines on page 5). Word's lines sit on a
+  0.24pt raster with the fraction accumulated; emulating that rounding
+  in paging would settle these, and is the only thing that would.
+

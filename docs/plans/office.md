@@ -2543,6 +2543,19 @@ fitter dropped the paragraph's tail).
   Nothing down; zh-799c91cd's page 1 is now 1pt out, not 2.5 (Word's
   12pt YaHei lines step 20.64/20.4 on its 0.24pt raster, ours 20.65).
 
+- **YaHei's line is 1.715 ems, not 1.72 (2026-10-14).** Word sets
+  its 12pt YaHei lines 20.64 and 20.4 apart in a 3:1 mix — its layout
+  accumulates a fractional pitch and puts each line on its 0.24pt
+  raster — and the mean over zh-7dc3afad, zh-8e8d4c40 and zh-799c91cd
+  is 20.58–20.60; ours was a flat 20.65, 0.07 a line, a line's worth
+  down a long page. Tried once before (as 1.7157) while the held-space
+  bug above still stood, and dropped as net negative; with that fixed
+  it is net positive: zh-799c91cd 82.3% -> 91.2%, zh-06c46ba9 76.1 ->
+  79.3, zh-232090e0 93.5 -> 97.8, zh-6cd1befe +0.3; zh-7dc3afad 96.4
+  -> 92.0 and zh-8e8d4c40 88.8 -> 87.1 (its last two lines now fit
+  page 5, where Word carries them to a sixth) — both single page feet
+  that Word's raster decides by a fraction of a point.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
