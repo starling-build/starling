@@ -1745,6 +1745,13 @@ picture fills (nor the members of a group drawn from its parts), so
 ArtisticEffectSample's layout logo — a box filled with a PNG — came out
 as nothing. Their fills are waited for now.
 
+**A snake's short last line, centred, 2026-10-15** (smartart1 4.33 →
+0.23, smartart-rightoleftblockdiagram 4.32 → 0.23; the 73 diagram decks
+otherwise unchanged but picture-strip −0.01). A grid of boxes laid out
+here put a short last line at the start of the row; the snake's `off`
+parameter, "ctr" by default and in both decks, centres it under the
+lines above, as PowerPoint draws the fifth box alone under two.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

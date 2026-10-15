@@ -993,11 +993,18 @@ struct DiagramLayout {
         let reverse = (node.params["contDir"] ?? "sameDir") == "revDir"
         let grDir = node.params["grDir"] ?? "tL"
         let ox = node.rect.left + (W - (byRow ? gw : gh) * k) / 2, oy = node.rect.top + (H - (byRow ? gh : gw) * k) / 2
+        // A last line short of the others stands centred under them
+        // (`off="ctr"`, the default: smartart1's fifth box, alone under
+        // two).
+        let centred = (node.params["off"] ?? "ctr") == "ctr"
         for (i, item) in items.enumerated() {
             var row = i / cols, col = i % cols
             if reverse && row % 2 == 1 { col = cols - 1 - col }
+            let inLine = min(cols, n - row * cols)
+            let shift = centred && inLine < cols ? Double(cols - inLine) / 2 * (byRow ? (w + hs) : (h + vs)) * k : 0
             if !byRow { swap(&row, &col) }
             var x = Double(col) * (w + hs) * k, y = Double(row) * (h + vs) * k
+            if byRow { x += shift } else { y += shift }
             if grDir == "tR" || grDir == "bR" { x = (byRow ? gw : gh) * k - x - w * k }
             if grDir == "bL" || grDir == "bR" { y = (byRow ? gh : gw) * k - y - h * k }
             item.rect = Rect.fromLTWH(ox + x, oy + y, w * k, h * k)
