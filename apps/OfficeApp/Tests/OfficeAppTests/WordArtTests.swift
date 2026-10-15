@@ -69,6 +69,21 @@ final class WordArtTests: XCTestCase {
         XCTAssertNotNil(again.slides[1].shapes.lazy.compactMap { $0.text?.paragraphs.lazy.flatMap(\.runs).first { $0.style.shadow != nil } }.first)
     }
 
+    /// A run's `a:highlight` is read and written back.
+    func testARunsHighlightIsReadAndWrittenBack() throws {
+        let (state, theme, pkg) = try deck { slide in
+            let run = try XCTUnwrap(slide.range(of: "<a:rPr lang=\"en-US\""))
+            let end = try XCTUnwrap(slide.range(of: "</a:rPr>", range: run.upperBound ..< slide.endIndex))
+            slide.replaceSubrange(end, with: "<a:highlight><a:srgbClr val=\"FF0000\"/></a:highlight></a:rPr>")
+        }
+        func lit(_ s: DeckState) -> CharStyle? {
+            s.slides[1].shapes.lazy.compactMap { $0.text?.paragraphs.lazy.flatMap(\.runs).first { $0.style.highlight != nil } }.first?.style
+        }
+        XCTAssertEqual(lit(state)?.highlight, Color(0xFFFF0000))
+        let again = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg)).0
+        XCTAssertEqual(lit(again)?.highlight, Color(0xFFFF0000))
+    }
+
     func testNoShapeIsNoWarp() throws {
         let (state, _, _) = try deck { slide in
             let fit = try XCTUnwrap(slide.range(of: "<a:normAutofit"))

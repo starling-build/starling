@@ -55,7 +55,7 @@ crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=3.81% 
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
 customGeo.pptx	summary pages=48 worst=31.37% mean=7.57%
 ececapstonespring2012.pptx	summary pages=24 worst=6.27% mean=3.57%
-highlight-test-case.pptx	summary pages=1 worst=1.23% mean=1.23%
+highlight-test-case.pptx	summary pages=1 worst=0.96% mean=0.96%
 layouts.pptx	summary pages=10 worst=1.59% mean=0.65%
 line-chart.pptx	summary pages=1 worst=3.09% mean=3.09%
 lo-3columns.pptx	summary pages=1 worst=6.49% mean=6.49%
@@ -294,7 +294,7 @@ lo-tdf125573_FontWorkScaleX.pptx	summary pages=2 worst=3.72% mean=3.52%
 lo-tdf126234.pptx	summary pages=1 worst=0.78% mean=0.78%
 lo-tdf126324.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-tdf126741.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-tdf127129.pptx	summary pages=1 worst=0.22% mean=0.22%
+lo-tdf127129.pptx	summary pages=1 worst=0.13% mean=0.13%
 lo-tdf127237.pptx	summary pages=1 worst=0.57% mean=0.57%
 lo-tdf127964.pptx	summary pages=1 worst=0.89% mean=0.89%
 lo-tdf128206.pptx	summary pages=1 worst=0.75% mean=0.75%
@@ -451,7 +451,7 @@ lo-tdf93830.pptx	summary pages=1 worst=4.39% mean=4.39%
 lo-tdf93868.pptx	summary pages=1 worst=1.89% mean=1.89%
 lo-tdf94238.pptx	summary pages=1 worst=0.99% mean=0.99%
 lo-tdf95932.pptx	summary pages=1 worst=0.27% mean=0.27%
-lo-tdf96061.pptx	summary pages=1 worst=0.22% mean=0.22%
+lo-tdf96061.pptx	summary pages=1 worst=0.12% mean=0.12%
 lo-tdf98477grow.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf98603.pptx	summary pages=1 worst=6.36% mean=6.36%
 lo-tdf99030.pptx	summary pages=1 worst=1.70% mean=1.70%
@@ -547,7 +547,7 @@ table_test.pptx	summary pages=1 worst=0.51% mean=0.51%
 table_test2.pptx	summary pages=1 worst=2.03% mean=2.03%
 templatePPTWithOnlyOneText.pptx	summary pages=1 worst=0.21% mean=0.21%
 testPPT.pptx	summary pages=3 worst=2.68% mean=1.82%
-text-highlight.pptx	summary pages=1 worst=2.50% mean=2.50%
+text-highlight.pptx	summary pages=1 worst=1.25% mean=1.25%
 themes.pptx	summary pages=10 worst=4.79% mean=2.59%
 tika-2605.pptx	summary pages=14 worst=1.97% mean=0.14%
 with_japanese.pptx	summary pages=1 worst=2.27% mean=2.27%

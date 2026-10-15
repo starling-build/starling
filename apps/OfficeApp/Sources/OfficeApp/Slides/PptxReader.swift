@@ -300,6 +300,8 @@ private struct LevelStyle {
     /// that has none), and whether the list was there at all.
     var shadow: CharShadow?
     var shadowSet = false
+    /// `a:highlight`: the run's text highlight colour.
+    var highlight: Color?
 
     func filled(from lower: LevelStyle) -> LevelStyle {
         var s = self
@@ -324,6 +326,7 @@ private struct LevelStyle {
         s.baseline = s.baseline ?? lower.baseline
         s.spc = s.spc ?? lower.spc
         if !s.shadowSet { s.shadow = lower.shadow; s.shadowSet = lower.shadowSet }
+        s.highlight = s.highlight ?? lower.highlight
         return s
     }
 
@@ -410,6 +413,7 @@ private struct LevelStyle {
         s.spc = r["spc"].flatMap(Double.init).map { $0 / 100 }
         s.font = r.first("a:latin")?["typeface"]
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
+        if let h = r.first("a:highlight") { s.highlight = colors.color(in: h) }
         if let effects = r.first("a:effectLst") {
             // An outer shadow: `dist` along `dir` (60000ths of a degree,
             // clockwise from the right), blurred by `blurRad` — 45541's
@@ -2297,6 +2301,7 @@ private struct SlideContext {
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
                 cs.shadow = s.shadow
+                cs.highlight = s.highlight
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
                 text += t
                 runs.append(Run(length: t.utf16.count, style: cs))
