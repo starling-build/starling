@@ -942,6 +942,39 @@ final class SlidePainter: CustomPainter {
             canvas.restore()
             return
         }
+        // A rectangle's path gradient (`path="rect"`, or `"shape"` on a
+        // box): rectangles from the fill-to rectangle out to the area's
+        // edges, each in the colour that far along — a slide shaded to its
+        // title (tdf114848's, light along the whole title box and darker
+        // toward every edge, where a circle round the middle had it).
+        if fill.path == .rect || fill.path == .shape, fill.stops.count >= 2, r.width > 0, r.height > 0 {
+            let (colors, positions) = fill.even ? (fill.stops.map(\.color), fill.stops.map(\.position))
+                                                : Self.linearLight(fill.stops, eased: fill.eased)
+            func at(_ u: Double) -> Color {
+                guard let j = positions.firstIndex(where: { $0 >= u }) else { return colors.last! }
+                if j == 0 { return colors[0] }
+                let a = positions[j - 1], b = positions[j]
+                let k = b > a ? (u - a) / (b - a) : 0
+                func ch(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
+                func m(_ sh: Int) -> Int64 { Int64((ch(colors[j - 1], sh) * (1 - k) + ch(colors[j], sh) * k).rounded()) }
+                let al = Int64((Double(colors[j - 1].alpha) * (1 - k) + Double(colors[j].alpha) * k).rounded())
+                return Color(al << 24 | m(16) << 16 | m(8) << 8 | m(0))
+            }
+            let f = fill.fillTo
+            let inner = Rect.fromLTRB(r.left + f.left * r.width, r.top + f.top * r.height,
+                                      r.right - f.right * r.width, r.bottom - f.bottom * r.height)
+            let steps = 96
+            let p = Paint()
+            p.style = .fill
+            for k in 0 ... steps {
+                let t = 1 - Double(k) / Double(steps)
+                let box = Rect.fromLTRB(inner.left + (r.left - inner.left) * t, inner.top + (r.top - inner.top) * t,
+                                        inner.right + (r.right - inner.right) * t, inner.bottom + (r.bottom - inner.bottom) * t)
+                p.color = at(t)
+                canvas.drawRect(k == 0 ? r : box, p)
+            }
+            return
+        }
         let p = Paint()
         p.style = .fill
         p.color = fill.color ?? Color(0xFFFFFFFF)

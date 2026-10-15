@@ -593,6 +593,13 @@ struct PptxReader {
             var inherited: SlideFill? = nil
             if let b = slide.first("p:cSld")?.first("p:bg") {
                 bgFill = _background(b, owner: part, colors: colors, theme: themeRoot, themePart: themePart)
+                // Shaded to the title (`shadeToTitle`): the path gradient
+                // runs out from the title's box.
+                if b.first("p:bgPr")?["shadeToTitle"] == "1", bgFill?.path != nil, size.width > 0, size.height > 0,
+                   let title = shapes.first(where: { $0.phType == "title" || $0.phType == "ctrTitle" })?.frame {
+                    bgFill?.fillTo = Rect.fromLTRB(max(0, title.left / size.width), max(0, title.top / size.height),
+                                                   max(0, 1 - title.right / size.width), max(0, 1 - title.bottom / size.height))
+                }
             } else {
                 for (owner, xml) in [(layoutPart, layout), (masterPart, master)] {
                     guard let owner, let b = xml?.first("p:cSld")?.first("p:bg") else { continue }

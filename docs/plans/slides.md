@@ -1427,6 +1427,16 @@ entries in a row there and the plot's room untouched. Other
 combinations (a line on a secondary axis, areas with lines) are still
 kept undrawn.
 
+**A rectangle's path gradient, and a slide shaded to its title,
+2026-10-15** (sweep 78: 1.5863 → 1.5812%; tdf114848 7.73 → 4.90, its
+worst page 18.4 → 10.4). A `path="rect"` gradient (and `"shape"`,
+taken as its box) was drawn as a squeezed circle. It is rectangles now,
+from the fill-to rectangle out to the area's edges, each the colour
+that far along (96 steps, drawn outside in). And a slide background
+`shadeToTitle="1"` with a path gradient runs out from the title's box:
+tdf114848's is light along the whole title and darker toward every
+edge, where ours had a circle round the middle.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
