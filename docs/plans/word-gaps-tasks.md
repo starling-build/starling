@@ -509,3 +509,15 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   block hold blocks to three deep (tried, not kept) set it 5pt high and
   21pt left of Word's (x 34.8 to 55.7): a box's tables are placed
   without Word's outdent and cell spacing at each level.
+- Mac, 2026-10-15, leads left (not built):
+  - zh-e6d54ae4 p6: a cell merged over three rows ("依據服務特性…改善既有措施。",
+    rows 19–21 of t1) brings five lines to page 6 with row 21; Word's row
+    21 stands 180pt there (rule at 589.3), ours 163.9 (its flow height),
+    and "施。" is drawn under our row's rule. Row 21 is set at p5's foot
+    (y 661.7 of 697.3) and goes over; neither `pageHeight` (stretched
+    39.8, need 163.9 on p5) nor `splitRow`'s carried sees the merged
+    cell's remainder on p6. Removing `pageHeight`'s stretched guard
+    alone changes nothing.
+  - zh-84702a67 p3: Word's ideograph–digit automatic space is 3.1pt at
+    10.5pt (0.295 em) on a line whose runs mix 10.5 and 16pt; ours 2.6,
+    so the line squeezes three marks to take one ideograph Word leaves.
