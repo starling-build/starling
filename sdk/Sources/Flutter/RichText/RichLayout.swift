@@ -1503,6 +1503,25 @@ public final class RichLayout {
                 // row (a turned cell's content width, across the column).
                 var content: [Int: Double] = [:]
                 for k in row.first ..< row.end { content[_cells[k]!.column, default: 0] += _heights[k] }
+                // (… which reaches to the foot of a box floating over the
+                // text from one of its paragraphs: Word centres
+                // zh-454e2e29's two 18pt lines with the 37.75pt text box
+                // anchored 4.35pt into the first — "娩假 42日" — as a
+                // block 43.35pt tall, outline's effect extent and all;
+                // centring the lines alone set them 3.5pt low.)
+                if theme.wordRules {
+                    var at: [Int: Double] = [:]
+                    for k in row.first ..< row.end {
+                        let column = _cells[k]!.column, top = at[column] ?? 0
+                        let p = document.paragraphs[k]
+                        for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
+                            guard let f = image.float, !f.takesRoom, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil else { continue }
+                            let foot = top + _spaceBefore[k] + _px(f.y + image.height + f.effectBottom)
+                            content[column] = max(content[column] ?? 0, foot)
+                        }
+                        at[column] = top + _heights[k]
+                    }
+                }
                 // The rows after it that hold no paragraph are drawn and
                 // paged as part of this one: every cell of this row runs
                 // on through them.

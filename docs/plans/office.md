@@ -2458,6 +2458,16 @@ fitter dropped the paragraph's tail).
   Greek and Cyrillic words whole (each letter of bug65649's Russian was
   a stretch of its own, so a word over looked like a letter over).
 
+- **A cell centres its text with the boxes floating from it
+  (2026-10-15).** A text box anchored in a cell's paragraph (wrapNone,
+  in the cell) counts toward the content the cell centres, to its foot
+  and its effect extent's: zh-454e2e29's two exact 18pt lines with
+  "娩假 42日" (37.75pt, 4.35 into the first paragraph, 1.25 of effect
+  below) stand 4.3pt from the 51pt row's top in Word's print — a block
+  43.35 tall, not the lines' 36 — and the next row's 3.4 for a box that
+  reaches 44.65. Ours had centred the lines alone, 3.5pt low.
+  zh-454e2e29 48.4% -> 54.2%; nothing else moved.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

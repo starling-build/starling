@@ -1518,6 +1518,7 @@ enum DocxFormat {
             }
             f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
+            if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
             return f
         }
         if let shape = ["v:shape", "v:rect", "v:group", "v:line", "v:oval", "v:roundrect"].contains(node.name) ? node
