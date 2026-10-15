@@ -3746,7 +3746,13 @@ public final class RichLayout {
         // (Not a table nested in a cell: a block, not a line.)
         let inLine = p.image.map { $0.float == nil && $0.textBox?.growsToFit != true }
             ?? ((p.inlineImages.values.contains { $0.float == nil } || combined) && painter.computeLineMetrics().count == 1)
-        if theme.wordRules, inLine, style.lineHeightPoints == nil,
+        // (An "at least" height keeps to the grid as a picture's line
+        // does, the picture being more than the least: zh-9c5d0c3f's
+        // fifth column, a 58.5pt sign in a paragraph of at least 19.2pt
+        // on an 18pt grid, takes four pitches in Word's print, 7.5pt of
+        // them over the sign — ours had set it flush and its captions
+        // 14pt high. Only an exact height leaves the grid.)
+        if theme.wordRules, inLine, style.lineHeightPoints == nil || style.lineHeightIsMinimum,
            style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch, pitch > 0 {
             let px = _px(pitch)
             // (A picture paragraph's picture stands on the line's

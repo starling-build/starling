@@ -2503,6 +2503,17 @@ fitter dropped the paragraph's tail).
   "2024-10", lab `hy3`, stops there too: zh-64044a1d's "0932-757839"),
   and the fitter knows both breaks.
 
+- **A picture's line keeps to the grid under "at least" too
+  (2026-10-15).** The rule that snaps a picture's line to the line grid
+  (as many pitches as the picture and its mark's descent need, the rest
+  above) passed over any paragraph that states a line height. Word
+  passes over an exact one only: zh-9c5d0c3f's fifth column, a 58.5pt
+  sign in a paragraph of at least 19.2pt on an 18pt grid, takes four
+  pitches in Word's print with 7.5pt over the sign; ours set it flush
+  and its captions 14pt high. zh-9c5d0c3f 65.3% -> 81.6% (page 4: 4 ->
+  21 of 22 lines). Still open on its page 5: a 69.8pt sign under the
+  same spacing takes no fifth pitch in Word (3.4pt over it, not 14.7).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
