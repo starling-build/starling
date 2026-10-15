@@ -364,3 +364,18 @@ paragraph before a table had been dropped at the row — bug65649 17.7 ->
 (59 -> 60) to the latter only because of T2: 附件3's two unequal columns
 (a 1272-twip column for "附件3", the title beside it) put its title a
 page down, so that document is T2's best test now, with zh-a0e932c2.
+
+### Note from the Windows box (2026-10-15)
+- The `js` space squeeze (a quarter of the spaces) has a second
+  condition, f80dee36: each space gives at most half of what it would
+  stretch without the word, C/n <= E/(n-1)/2 (lab `jg`, every case to
+  0.1pt). It now runs for every justified paragraph from mode 15, not
+  only under East Asian layout, and the fitter keeps Greek and Cyrillic
+  words whole. Without the second condition `js` alone took words Word
+  leaves when the word is short against the line's spare room.
+- bug65649 p3 (lead, not taken): Word sets footnote 2 whole on page 4
+  though its reference ("КС-3)2") is on page 3, and keeps clause 3.7
+  (keepLines, 4 lines) on page 3 with that room; ours puts both
+  footnotes on page 3 and carries 3.7 over. Every clause in the file
+  is keepNext + keepLines, so this may be Word giving up the keep
+  chain rather than a footnote rule. Needs a lab.
