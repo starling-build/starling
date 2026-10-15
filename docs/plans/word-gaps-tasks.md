@@ -230,8 +230,11 @@ cover page (frames) and page 2's table of contents, whose lines match
 Word's glyph for glyph but whose leader dots the matcher's text
 extraction groups otherwise.
 
-### T12. Squeezing marks to fit a character: the limit on a character grid
-Owner: none. Documents: zh-d68ac84a (80%, first parting page 10).
+### T12. Squeezing marks to fit a character: the limit on a character grid — DONE (2026-10-15)
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box). zh-d68ac84a 80 -> 99.2%:
+the hang half (299b2ecd) and the squeeze's tolerance, which now stands
+only off a character grid (on one ours are Word's widths exactly).
+Documents: zh-d68ac84a (80%, first parting page 10).
 Windows box, 2026-10-15 (299b2ecd): the hang half of this. Word hangs a
 final mark to its em exactly (no hair), and keeps a character-counted
 indent in whole twips (200 hundredths at 14.6465 = 586 twips): lab `hc`

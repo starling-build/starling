@@ -4946,6 +4946,8 @@ public final class RichLayout {
         var opening = true      // nothing on the line yet
         var lineWide = 0        // this line's characters, and whether it has spaces among them
         var lineEms = 0.0       // … and their ems, summed
+        var lineLatin = false   // … and whether any is not East Asian (see `edge`)
+        let onCharacterGrid = (_grid(i, document).chars ?? 0) != 0
         var lineOther = false
         var lineSpaced = false  // … or ends, so far, with one
         var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
@@ -4971,7 +4973,14 @@ public final class RichLayout {
             // near to it as may be: with Latin digits on the line the
             // sum here is not Word's to the hundredth, and zh-a4b0f6ea
             // has a "《威" taken that comes out a few hundredths over.)
-            let edge = min(em * 0.01, _px(0.045))
+            // (Only where Latin text is on the line and no character grid
+            // sets its widths: on one, ours are Word's to the
+            // ten-thousandth, digits too, and zh-d68ac84a's
+            // "（3）合理性审核…价格是", 7.3248 over against a half em of
+            // 7.3232, is not taken by Word — it ends the line at "格",
+            // justified.)
+            let pieceLatin = (a ..< last).contains { units[$0] < 0x2E80 && !isSpace(units[$0]) }
+            let edge = (lineLatin || pieceLatin) && !onCharacterGrid ? min(em * 0.01, _px(0.045)) : _px(0.0001)
             var fits = x + w - after <= width + hair
             let traced = Self.debugFit.map { p.text.firstRange(of: $0) != nil } ?? false
             if traced {
@@ -5190,7 +5199,7 @@ public final class RichLayout {
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false }
+                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false }
                     continue
                 }
             }
@@ -5206,6 +5215,7 @@ public final class RichLayout {
                 wordSpaces = []
                 lineWide = 0
                 lineEms = 0
+                lineLatin = false
                 lineOther = false
                 lineSpaced = false
             }
@@ -5223,7 +5233,7 @@ public final class RichLayout {
             // (Spaces a line opens with are no characters of it, and
             // those it ends with stretch nothing.)
             for k in a ..< last {
-                if isSpace(units[k]) { if lineWide > 0 { lineOther = true } } else { lineWide += 1; lineEms += ems[k] }
+                if isSpace(units[k]) { if lineWide > 0 { lineOther = true } } else { lineWide += 1; lineEms += ems[k]; if units[k] < 0x2E80 { lineLatin = true } }
             }
             if last < piece.b, lineWide > 0 { lineSpaced = true }
             x += w + piece.trail
@@ -5245,6 +5255,7 @@ public final class RichLayout {
                 opening = true
                 lineWide = 0
                 lineEms = 0
+                lineLatin = false
                 lineOther = false
                 lineSpaced = false
             }

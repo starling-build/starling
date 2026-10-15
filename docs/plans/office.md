@@ -2544,6 +2544,18 @@ fitter dropped the paragraph's tail).
   Word's does). Rounding every grid character's width to twips instead
   was tried and was worse (75.6%).
 
+- **On a character grid a line is squeezed only to the half em, not a
+  hair past (2026-10-15).** The fitter takes the next character where
+  the line's marks can give what it is over, up to half an em, with a
+  tolerance of 0.045pt: off a grid, Latin text on the line makes our
+  sum differ from Word's by hundredths (zh-a4b0f6ea's "《威"). On a
+  character grid every width is the grid's — digits too — and ours
+  are Word's to the ten-thousandth: zh-d68ac84a's "（3）合理性审核…价格
+  是" is 7.3248 over against a half em of 7.3232, and Word ends the
+  line at "格", justified (14.92 a character), where ours took "是".
+  The tolerance now stands only for a line off a character grid.
+  zh-d68ac84a 83.8% -> 99.2%; nothing else moved. (T12.)
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
