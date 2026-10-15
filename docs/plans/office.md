@@ -2706,6 +2706,21 @@ fitter dropped the paragraph's tail).
   99.8, zh-64044a1d 90.4 -> 92.0; Chinese sample 96.69 -> 96.74; POI
   unchanged.
 
+- **`w:splitPgBreakAndParaMark`: the mark after a page break goes to
+  the next page (2026-10-15).** A paragraph that ends in a page break
+  leaves nothing on the new page in Word 2013's layout (SampleDoc), and
+  the reader drops its mark. Files that carry this compatibility switch
+  before that layout — zh-64044a1d (mode 11), 60329, zh-8c2948a8 and
+  zh-8cd03691 (mode 12), and several of no stated mode — have Word
+  carry the mark over: zh-64044a1d's annexes each follow a paragraph
+  of a page break alone, and Word's print opens their pages with its
+  empty line, the heading 36pt down. The reader now keeps the mark as
+  an empty paragraph after the break there. The save writes a file of
+  2013's layout, where that paragraph is the same empty line.
+  zh-64044a1d 92.0% -> 92.8; nothing else moved by it (the sweep also
+  carried the Mac's b18da088 and 95d61f1d: bib-chernigovka 0 -> 91.7,
+  zh-15728c84 91.5 -> 94.0).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

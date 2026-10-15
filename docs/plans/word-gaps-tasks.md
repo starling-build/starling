@@ -493,7 +493,9 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   every page's text 18pt lower and ends each page two rows sooner. Its
   only unusual part is the art page border (`mapleMuffins`, sz 12,
   space 24, offsetFrom page) — likely how the Mac's Word places text
-  under an art border. zh-8e8d4c40 (87.1%, a page short): Word's Mac
+  under an art border. (Settled the same day by the Mac's b18da088 —
+  a page background's phantom header and footer: 0 -> 91.7%.)
+  zh-8e8d4c40 (87.1%, a page short): Word's Mac
   print sets 標楷體 in YaHei, and its compatibility ideographs
   (U+F900–FAFF, Big5 leftovers: 料 U+F9BE, 狀 U+F9FA, 行 U+FA08) that
   YaHei lacks in NotoSansSC-Thin — or as YaHei's empty box (零, 金, 領)

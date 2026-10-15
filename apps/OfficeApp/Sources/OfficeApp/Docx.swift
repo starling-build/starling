@@ -243,6 +243,10 @@ enum DocxFormat {
             if let f = settings.first("w:endnotePr")?.first("w:numFmt")?["w:val"] { notes.endnoteFormat = f }
             if let f = settings.first("w:footnotePr")?.first("w:numFmt")?["w:val"] { notes.footnoteFormat = f }
         }
+        if let compat = part("word/settings.xml").flatMap(XNode.parse)?.first("w:compat") {
+            let mode = compat.all("w:compatSetting").first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") } ?? 12
+            notes.marksFollowBreaks = mode < 15 && (compat.first("w:splitPgBreakAndParaMark").map { !_isOff($0) } ?? false)
+        }
 
         // Kept header and footer parts, before the styles are read: the
         // styles they name must be written too (issue_51265_3's header
@@ -2039,6 +2043,9 @@ enum DocxFormat {
         /// own. drawing.docx's dates wear a Tahoma 7.5pt shaded style and
         /// its headings a bold 14pt one; both came back as plain text.
         var charStyleChains: [String: [XNode]] = [:]
+        /// `w:splitPgBreakAndParaMark` before 2013's layout: the mark of a
+        /// paragraph that ends in a page break goes to the next page.
+        var marksFollowBreaks = false
         init(kept: [String: Data], rels: [String: KeptRel], rootNS: [String: String],
              part: @escaping (String) -> Data?, contentType: @escaping (String) -> String?) {
             self.kept = kept
@@ -2829,11 +2836,18 @@ enum DocxFormat {
                 built[0].paragraph.style.columnBreak = leadingColumnBreak; built[0].paragraph.style.breakRunPropertiesXML = leadingBreakRPr
             }
         }
-        if text.isEmpty, inlineImages.isEmpty, let last = built.last, last.pageBreakAfter {
+        if text.isEmpty, inlineImages.isEmpty, let last = built.last, last.pageBreakAfter,
+           !(notes.marksFollowBreaks && last.breakCharacter && !last.breakColumn) {
             // The paragraph ended with its page break: Word shows nothing
             // for its mark on the new page (SampleDoc's page two began
             // a line down), so no empty paragraph for it — the break
             // still lands on the next paragraph.
+            // (Unless the file says the mark goes there, as Word's
+            // `w:splitPgBreakAndParaMark` does before 2013's layout:
+            // zh-64044a1d's annexes each follow a paragraph of a page
+            // break alone, and Word's print opens their pages with the
+            // mark's empty line — ours stood a line high, 36pt with the
+            // heading's space before.)
             if sectionBreakAfter { built[built.count - 1].pageBreakAfter = true }
         } else {
             flush(pageBreakAfter: sectionBreakAfter)
