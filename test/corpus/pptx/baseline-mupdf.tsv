@@ -54,7 +54,7 @@ copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=3.81% mean=3.81%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
 customGeo.pptx	summary pages=48 worst=31.37% mean=7.57%
-ececapstonespring2012.pptx	summary pages=24 worst=6.27% mean=3.57%
+ececapstonespring2012.pptx	summary pages=24 worst=3.28% mean=1.99%
 highlight-test-case.pptx	summary pages=1 worst=0.96% mean=0.96%
 layouts.pptx	summary pages=10 worst=1.59% mean=0.65%
 line-chart.pptx	summary pages=1 worst=3.09% mean=3.09%
@@ -97,7 +97,7 @@ lo-bnc887225.pptx	summary pages=1 worst=1.08% mean=1.08%
 lo-bnc887230.pptx	summary pages=1 worst=0.10% mean=0.10%
 lo-bnc904423.pptx	summary pages=1 worst=1.39% mean=1.39%
 lo-bnc910045.pptx	summary pages=1 worst=0.25% mean=0.25%
-lo-bullet-indent.pptx	summary pages=1 worst=1.22% mean=1.22%
+lo-bullet-indent.pptx	summary pages=1 worst=1.24% mean=1.24%
 lo-bulletColor.pptx	summary pages=1 worst=0.21% mean=0.21%
 lo-bulletMarginAndIndent.pptx	summary pages=1 worst=0.16% mean=0.16%
 lo-chart_pt_color_bg1.pptx	summary pages=1 worst=2.98% mean=2.98%
@@ -155,7 +155,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.29% mean=0.29%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=1.74% mean=1.74%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.14% mean=0.04%
+lo-numfmt.pptx	summary pages=9 worst=0.14% mean=0.05%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.25% mean=0.25%
 lo-ole.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -481,7 +481,7 @@ oox-Scene3d_pureImage.pptx	summary pages=1 worst=2.54% mean=2.54%
 oox-Scene3d_shape_rotation.pptx	summary pages=1 worst=3.40% mean=3.40%
 oox-ThemeShapesReference.pptx	summary pages=1 worst=0.01% mean=0.01%
 oox-camera-rotation-revolution-nonwps.pptx	summary pages=1 worst=0.42% mean=0.42%
-oox-chart-theme-override.pptx	summary pages=2 worst=0.52% mean=0.29%
+oox-chart-theme-override.pptx	summary pages=2 worst=0.47% mean=0.27%
 oox-connectorConnection.pptx	summary pages=1 worst=0.48% mean=0.48%
 oox-curvedConnectors.pptx	summary pages=1 worst=1.11% mean=1.11%
 oox-elbowConnectors.pptx	summary pages=1 worst=1.11% mean=1.11%

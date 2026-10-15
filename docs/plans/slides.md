@@ -1156,10 +1156,18 @@ none further). A percentage after was already left off a body's last
 paragraph; one in points was not, and a master giving every body
 paragraph 11.5 pt after lifted a centred box's text by half of it.
 
-Also looked at and left: ececapstonespring2012 (an export with no
-`marL` anywhere, whose first lines PowerPoint starts right after their
-bullet — the layout has no such first line), and the 1.08/1.22 line
-pitches of lo-tdf169524 and 60810 (see above).
+Also looked at and left: the 1.08/1.22 line pitches of lo-tdf169524
+and 60810 (see above).
+
+**A bullet with no hang, 2026-10-14** (sweep 66: 1.7530 → 1.7502%;
+ececapstonespring2012 3.57 → 1.99, nothing else moved). That deck, an
+export with no default text style, says no `marL` or `indent` anywhere:
+PowerPoint then puts a level half an inch in and hangs nothing — the
+bullet at the edge, the text straight after it ("•Down Syndrome", the
+D 9.7 pt right of the bullet). The reader gives such a level those
+margins, and the layout (`markersAtHang`) sets a bullet whose hang is
+at or past its text at the first line's start with the first line led
+by the bullet's width; both now land within 0.1 pt of PowerPoint's.
 
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,

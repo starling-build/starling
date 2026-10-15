@@ -2280,6 +2280,14 @@ private struct SlideContext {
                 // As an offset from the usual hang (-shapeIndent), so 0 is
                 // "the usual" and a file's indent="0" survives as itself.
                 if let indent = level.indent { style.firstLineIndent = indent + shapeIndent }
+                // Neither said anywhere (an export with no default text
+                // style, ececapstone's): PowerPoint's own, half an inch a
+                // level and no hang — the bullet at the edge, the text
+                // after it.
+                if level.marL == nil, level.indent == nil {
+                    style.indentLeft = 36 * Double(lvl) - shapeIndent * Double(lvl + 1)
+                    style.firstLineIndent = shapeIndent
+                }
             default:
                 style.indentLeft = level.marL ?? 0
                 style.firstLineIndent = level.indent ?? 0

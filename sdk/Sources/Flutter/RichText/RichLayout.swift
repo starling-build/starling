@@ -3023,6 +3023,16 @@ public final class RichLayout {
         // after it, or the next tab stop (the text's own left, when the
         // number fits in the hanging indent).
         var lead = _px(firstLineIndent(p, at: i, document))
+        // PowerPoint's bullet with no hanging indent (indent ≥ 0): the
+        // bullet stands at the first line's start and the text follows it
+        // on that line — ececapstone's "•Down Syndrome…", where the text
+        // waited at the next line's edge.
+        if theme.markersAtHang, style.list != nil, !p.text.isEmpty,
+           _px(style.firstLineIndent) >= _px(theme.listIndent) - 0.01, let label = listLabel(i, document) {
+            let marker = _hangMarker(i, p, document, label: label)
+            lead = _px(style.firstLineIndent) - _px(theme.listIndent) + marker.width
+            marker.dispose()
+        }
         if let wl = wordList, !p.text.isEmpty, let label = listLabel(i, document) {
             let marker = _marker(i, p, document, label: label, strut: nil)
             var end = _px(wl.first) + marker.width
@@ -4168,6 +4178,19 @@ public final class RichLayout {
         guard let left = p.style.listIndentLeft ?? f?.indentLeft ?? (f != nil && p.style.listFirstLine != nil ? p.style.indentLeft : nil)
         else { return nil }
         return (left, p.style.listFirstLine ?? -(f?.hanging ?? 0), f)
+    }
+
+    /// A Slides marker as its paragraph draws it, laid out at its width.
+    private func _hangMarker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String) -> TextPainter {
+        var markerChar = p.runs.first?.style ?? CharStyle()
+        if let c = p.style.bulletColor { markerChar.color = c }
+        if let f = p.style.bulletStandInFamily ?? p.style.bulletFontFamily { markerChar.fontFamily = f }
+        let k = (p.style.bulletScale ?? 1) * (p.style.bulletStandInScale ?? 1)
+        if k != 1 { markerChar.fontSize = (markerChar.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize) * k }
+        let style = theme.textStyle(for: markerChar, in: p.style, named: _named(p, document), normal: _normalChar(document), scale: scale, fontScale: fontScale)
+        let marker = TextPainter(text: TextSpan(text: label, style: style), textAlign: .left, textDirection: .ltr)
+        marker.layout(minWidth: 0, maxWidth: 100_000)
+        return marker
     }
 
     /// A list paragraph's marker, laid out at its own width.
@@ -5550,14 +5573,21 @@ public final class RichLayout {
                 let hang = g.textLeft - _px(own.hanging)
                 marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width), top()))
             } else if theme.markersAtHang {
-                // At the hang, and never over the text: a bullet whose hang
-                // is at the text (indent 0) sits just before it instead.
+                // At the hang, and never over the text — or, with no hang at
+                // all, at the first line's start, the text after it (its
+                // lead, above).
                 marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
                 let hang = g.textLeft - slot + _px(p.style.firstLineIndent)
-                // On the first line's baseline, as PowerPoint sets it: from
-                // the line's top, a bullet at 80% stood four points high
-                // (45541's), and a stand-in face's glyph more.
-                marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4), top()))
+                if hang >= g.textLeft - 0.01, !p.text.isEmpty {
+                    marker.textAlign = .left
+                    marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
+                    marker.paint(canvas, Offset(hang, top()))
+                } else {
+                    // On the first line's baseline, as PowerPoint sets it: from
+                    // the line's top, a bullet at 80% stood four points high
+                    // (45541's), and a stand-in face's glyph more.
+                    marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width - 4), top()))
+                }
             } else if theme.wordRules, !document.readFromFile {
                 // No level of its own yet: where the file it is saved to
                 // will hang it, half the indent back from the text.
