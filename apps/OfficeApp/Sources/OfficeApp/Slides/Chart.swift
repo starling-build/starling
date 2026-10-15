@@ -682,7 +682,11 @@ enum ChartPainter {
             tp.layout(minWidth: 0, maxWidth: max(1, area.width))
             // (Two points higher than the area's edge: where PowerPoint's sits.)
             tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.top - 2 * k))
-            area = Rect.fromLTRB(area.left, area.top + tp.height + 6 * k, area.right, area.bottom)
+            // (Gaps from PowerPoint's own default chart, chart-slide-bg:
+            // title to plot 3.6, plot to its category labels 7.6, labels to
+            // the legend 8.4, the legend 1.2 above the margin, value labels
+            // 8.5 from the plot — each where its text sits on the page.)
+            area = Rect.fromLTRB(area.left, area.top + tp.height + 3.6 * k, area.right, area.bottom)
             tp.dispose()
         }
 
@@ -726,8 +730,8 @@ enum ChartPainter {
                 y = area.top
                 area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k, area.right, area.bottom)
             } else {
-                y = area.bottom - lineH * Double(lines.count)
-                area = Rect.fromLTRB(area.left, area.top, area.right, y - 6 * k)
+                y = area.bottom - 1.2 * k - lineH * Double(lines.count)
+                area = Rect.fromLTRB(area.left, area.top, area.right, y - 8.4 * k)
             }
             for line in lines {
                 let w = line.reduce(0.0) { $0 + key + gap + $1.tp.width } + spacing * Double(max(0, line.count - 1))
@@ -938,8 +942,8 @@ enum ChartPainter {
             plot = Rect.fromLTRB(area.left + left, area.top + 2 * k, area.right - (valueLabels.last?.width ?? 0) / 2,
                                  area.bottom - lineH - 4 * k)
         } else {
-            var left = (valueLabels.map(\.width).max() ?? 0) + 6 * k
-            let bottom = (catLabels.map(\.height).max() ?? lineH) + 4 * k
+            var left = (valueLabels.map(\.width).max() ?? 0) + 8.5 * k
+            let bottom = (catLabels.map(\.height).max() ?? lineH) + 7.6 * k
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -974,7 +978,7 @@ enum ChartPainter {
                 tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + 4 * k))
             } else {
                 if c.valueGrid { canvas.drawLine(Offset(plot.left, p), Offset(plot.right, p), gridPaint) }
-                tp.paint(canvas, Offset(plot.left - 6 * k - tp.width, p - tp.height / 2))
+                tp.paint(canvas, Offset(plot.left - 8.5 * k - tp.width, p - tp.height / 2))
             }
         }
         // The category axis line, at zero.
@@ -992,14 +996,14 @@ enum ChartPainter {
             for (i, tp) in catLabels.enumerated() {
                 // Category 1 at the bottom, as PowerPoint draws a bar chart.
                 let cy = plot.bottom - (Double(i) + 0.5) * slot
-                tp.paint(canvas, Offset(plot.left - 6 * k - tp.width, cy - tp.height / 2))
+                tp.paint(canvas, Offset(plot.left - 8.5 * k - tp.width, cy - tp.height / 2))
             }
         } else {
             canvas.drawLine(Offset(plot.left, zero), Offset(plot.right, zero), gridPaint)
             let slot = plot.width / Double(n)
             for (i, tp) in catLabels.enumerated() {
                 let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
-                tp.paint(canvas, Offset(cx - tp.width / 2, plot.bottom + 4 * k))
+                tp.paint(canvas, Offset(cx - tp.width / 2, plot.bottom + 7.6 * k))
             }
         }
         for t in valueLabels + catLabels { t.dispose() }

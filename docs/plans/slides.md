@@ -1161,6 +1161,17 @@ Also looked at and left: ececapstonespring2012 (an export with no
 bullet — the layout has no such first line), and the 1.08/1.22 line
 pitches of lo-tdf169524 and 60810 (see above).
 
+**A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
+4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
+tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
+chart-theme-override +0.1 or less). Matching every line of text on our
+pages with PowerPoint's (median offset over 89 decks: 0.25 pt) put
+these four decks' chart text 2.4 pt low and 2.1 pt to the left, all of
+it. The default chart's gaps are now read off chart-slide-bg's page:
+title to plot 3.6 pt, plot to its category labels 7.6, labels to the
+legend 8.4, the legend 1.2 above the chart's margin, value labels 8.5
+left of the plot — where they were 6, 4, 6, 0 and 6.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
