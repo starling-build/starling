@@ -2577,6 +2577,15 @@ fitter dropped the paragraph's tail).
   Word line for line; zh-9e08ed28 91.2% -> 99.6%, zh-89385c94 99.3 ->
   99.8; nothing down. Chinese sample 94.73.
 
+- **The mark before a line break gives as a paragraph's last does
+  (2026-10-15).** In a cell before mode 15 a line's last centred mark
+  keeps its em unless it ends the paragraph (lab `pe`); a mark before a
+  line break (`w:br`) counted as one with text after it. Text after a
+  break is on another line: zh-e6d54ae4's cell line "…皆設有免費無線上網
+  服務。" before its break is taken 8.2pt over in Word, its "、" and "。"
+  each giving half; ours sent "務。" down. zh-e6d54ae4 82.7% -> 93.5%;
+  nothing else moved. Chinese sample 94.89.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

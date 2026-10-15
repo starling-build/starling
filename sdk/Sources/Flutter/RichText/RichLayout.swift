@@ -5070,7 +5070,11 @@ public final class RichLayout {
                     // to 7.0pt over at 14pt and not at 7.5 where they end
                     // the paragraph, and not even 0.55 over where text
                     // follows. Its cells end "納入課程教學參據。" so.)
-                    let endsParagraph = !units[(tail + 1)...].contains(where: { !isSpace($0) && $0 != 0x0A && $0 != 0x2028 })
+                    // (… or a line: before a line break the mark is the
+                    // last of what the line could hold, as at the
+                    // paragraph's end — zh-e6d54ae4's cell line "…上網服
+                    // 務。" before its break is taken 8.2pt over in Word.)
+                    let endsParagraph = units[(tail + 1)...].first(where: { !isSpace($0) }).map { $0 == 0x0A || $0 == 0x2028 || $0 == 0x0B } ?? true
                     // (A bracket gives its half there all the same — it
                     // has a blank half, where Taiwan's centred "，。、" have
                     // none to give: lab `cb`, zh-9e08ed28's package, a cell
