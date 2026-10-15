@@ -3707,8 +3707,13 @@ public final class RichLayout {
         // fractional line box leaves the previous line's descenders peeking
         // into the next page (and its ascenders shaved off the previous).
         // A border's line and its gap lie between the spacing and the text.
-        let bTop = style.borders?.top.map { _px($0.space + $0.width) } ?? 0
-        let bBottom = style.borders?.bottom.map { _px($0.space + $0.width) } ?? 0
+        // (Paragraphs of one border set run together under one box: the
+        // top line over the first, the bottom one under the last, and no
+        // room for either between — bug65649's specification lines, each
+        // ruled under in grey, stand 12.5pt apart in Word's print, not
+        // the 13 ours gave them for a line under each.)
+        let bTop = _bordersJoin(i - 1, i, document) ? 0 : style.borders?.top.map { _px($0.space + $0.width) } ?? 0
+        let bBottom = _bordersJoin(i, i + 1, document) ? 0 : style.borders?.bottom.map { _px($0.space + $0.width) } ?? 0
         let spacing = _spacing(i, document)
         let before = (spacing.before + bTop).rounded()
         let after = spacing.after + bBottom
@@ -5729,6 +5734,17 @@ public final class RichLayout {
     /// of one Latin word (see `_span`) after the first of which the
     /// engine may break — a stroke, a question or exclamation mark, a
     /// bar, a closing bracket.
+    /// Whether paragraphs `a` and `b` (in that order) share one border
+    /// box: Word's grouping of consecutive paragraphs whose borders and
+    /// indents are the same, in the same cell.
+    private func _bordersJoin(_ a: Int, _ b: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, a >= 0, b < document.paragraphs.count, a < b else { return false }
+        let x = document.paragraphs[a], y = document.paragraphs[b]
+        guard let bx = x.style.borders, bx == y.style.borders, x.cell == y.cell,
+              x.style.indentLeft == y.style.indentLeft, x.style.indentRight == y.style.indentRight else { return false }
+        return true
+    }
+
     private static func _joinsLatin(_ a: Character, _ b: Character) -> Bool {
         guard let x = a.asciiValue, let y = b.asciiValue, y > 0x20, y < 0x7F else { return false }
         if x == 0x2F || x == 0x3F || x == 0x21 || x == 0x7C || x == 0x29 || x == 0x5D || x == 0x7D { return true }
@@ -6479,11 +6495,11 @@ public final class RichLayout {
                 p.color = l.color ?? theme.textColor
                 return p
             }
-            if let l = b.top, l.style != "none" {
+            if let l = b.top, l.style != "none", !(theme.wordRules && _bordersJoin(i - 1, i, document)) {
                 let y = (g.textTop - _px(l.space) - _px(l.width) / 2).rounded() + 0.5
                 canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
             }
-            if let l = b.bottom, l.style != "none" {
+            if let l = b.bottom, l.style != "none", !(theme.wordRules && _bordersJoin(i, i + 1, document)) {
                 let y = (textBottom + _px(l.space) + _px(l.width) / 2).rounded() - 0.5
                 canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
             }

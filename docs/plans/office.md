@@ -3491,6 +3491,18 @@ fitter dropped the paragraph's tail).
   may end with: Word sets "Блок разветвительно-" / "изолирующий"; the
   whole compound measured, "разветвительно-" had taken a line of its
   own — bug65649 83.8 -> 84.1.)
+- **Paragraphs of one border set share one box (2026-10-15).** Word
+  groups consecutive paragraphs whose borders and indents are the same
+  (in the same cell): the top line over the first, the bottom one under
+  the last, and no room for either between them. bug65649's
+  specification lines, each with a grey 0.5pt bottom border, stand
+  12.5pt apart in Word's print (their "at least" 12.5); ours gave each
+  its own bottom line and its room, 13.0 a line, and from page 72 the
+  estimate tables ran long. Layout and painter both skip a border edge
+  a neighbour of the same set joins. bug65649 84.1% -> 96.4,
+  zh-1563bd74 88.1 -> 99.2 (Word's 29 pages, the footer box T16 noted
+  among them), checkboxes 66.7 -> 100; nothing down. (No `w:between`
+  line yet: a group that names one would draw it between.)
   bug65649 67.8% -> 79.0; nothing else moved (clean A/B, n201 vs n200).
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
