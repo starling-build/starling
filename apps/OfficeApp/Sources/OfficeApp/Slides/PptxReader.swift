@@ -423,6 +423,12 @@ private struct LevelStyle {
            face.hasPrefix("wingdings") || face.hasPrefix("symbol") || face.hasPrefix("webdings") {
             return String(ch[ch.startIndex])
         }
+        // Wingdings 3's right arrowhead, a small triangle in PowerPoint's
+        // prints (GeomLec1's and aascu 5864's bullets) — the one code of
+        // that face the corpus shows printed.
+        if face == "wingdings 3" {
+            return [0x7D: "▸"][code]
+        }
         if face.hasPrefix("wingdings") {
             let map: [UInt32: String] = [
                 0x6C: "●", 0x6D: "❍", 0x6E: "■", 0x6F: "□", 0x70: "◻", 0x71: "❑", 0x72: "❒", 0x73: "◆",
