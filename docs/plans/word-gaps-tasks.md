@@ -432,3 +432,8 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   Also: 1f705930 (space after/before share their room across a border
   too; bug59058 to Word's 52 pages), 4a380fa2 (separated-border rows),
   and a 0.75pt inset on continuation pieces (PDFKit phantom rows).
+- Windows box, for the Mac: DocxTests.testNestedTableKeptVerbatim is
+  rewritten for 223b723e — a small nested table is now one block
+  (testSmallNestedTableIsABlock), and the flattened, kept-verbatim path
+  is tested with a nested table over the 600-character bound. Both
+  pass here (`swift test -c release --filter`).
