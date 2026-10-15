@@ -1519,6 +1519,14 @@ gets 0.75 there and breaks linear-rule, continuous-block-process and
 table-list (+14 to +25): the `gte` has to be met where the engine
 measures, not in general.
 
+**An empty paragraph's spacing by its end mark, 2026-10-15** (sweep 82:
+1.5076 → 1.5053%; 60810 −0.60, alterman −0.49, ecodesign −0.13;
+GeomLec1 +0.03). A percentage of spacing before or after is of the
+paragraph's own text size, and an empty paragraph has only its end
+mark (`a:endParaRPr sz`) to say it; we took the level's instead, so
+alterman's 24 pt blank lines under a 28 pt level were 1.3 pt taller a
+gap each, and the slide drifted down by its paragraphs.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

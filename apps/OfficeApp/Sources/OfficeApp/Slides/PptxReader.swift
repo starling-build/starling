@@ -2412,7 +2412,10 @@ private struct SlideContext {
             // paragraph's runs are actually set in (a SmartArt label is 31 pt
             // by its runs under a level that says nothing), else the level's.
             let runSizes = p.all("a:r").compactMap { $0.first("a:rPr")?["sz"].flatMap(Double.init).map { $0 / 100 } }
-            let size = runSizes.max() ?? level.size ?? 18
+            // (An empty paragraph's by its end mark: alterman's 24 pt blank
+            // lines under a 28 pt level, each 1.3 pt further apart.)
+            let endSize = p.all("a:r").isEmpty ? p.first("a:endParaRPr")?["sz"].flatMap(Double.init).map { $0 / 100 } : nil
+            let size = runSizes.max() ?? endSize ?? level.size ?? 18
             var style = RichParagraphStyle(spaceAfter: level.afterPoints ?? 0, lineSpacing: 1.0)
             switch level.algn {
             case "ctr": style.alignment = .center

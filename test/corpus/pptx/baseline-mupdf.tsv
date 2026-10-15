@@ -7,7 +7,7 @@
 54542_cropped_bitmap.pptx	summary pages=1 worst=0.89% mean=0.89%
 56812.pptx	summary pages=1 worst=0.60% mean=0.60%
 60042.pptx	summary pages=2 worst=0.00% mean=0.00%
-60810.pptx	summary pages=25 worst=13.26% mean=6.50%
+60810.pptx	summary pages=25 worst=11.06% mean=5.90%
 61515.pptx	summary pages=1 worst=0.00% mean=0.00%
 63200.pptx	summary pages=1 worst=0.00% mean=0.00%
 ArtisticEffectSample.pptx	summary pages=2 worst=50.61% mean=25.84%
@@ -20,13 +20,13 @@ OverlappingRelations.pptx	summary pages=4 worst=0.56% mean=0.36%
 SampleShow.pptx	summary pages=2 worst=1.80% mean=1.35%
 SmartArt.pptx	summary pages=1 worst=0.00% mean=0.00%
 WithMaster.pptx	summary pages=2 worst=1.41% mean=1.24%
-aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=12.42% mean=5.67%
+aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=12.42% mean=5.65%
 aascu.org_workarea_downloadasset.aspx_id=5864.pptx	summary pages=34 worst=74.34% mean=8.73%
-ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=14.40% mean=8.10%
-alterman_security.pptx	summary pages=23 worst=12.03% mean=7.18%
+ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=14.40% mean=8.13%
+alterman_security.pptx	summary pages=23 worst=11.70% mean=6.69%
 aptia.pptx	summary pages=9 worst=6.93% mean=3.50%
-at.ecodesign.www_downloads_Vertiefungsvortrag_elektronik.pptx	summary pages=34 worst=8.85% mean=3.55%
-au.asn.aes.www_conferences_2011_presentations_Fri_20Room4Level4_20930_20Maloney.pptx	summary pages=28 worst=15.08% mean=8.17%
+at.ecodesign.www_downloads_Vertiefungsvortrag_elektronik.pptx	summary pages=34 worst=8.85% mean=3.42%
+au.asn.aes.www_conferences_2011_presentations_Fri_20Room4Level4_20930_20Maloney.pptx	summary pages=28 worst=15.08% mean=8.15%
 backgrounds.pptx	summary pages=4 worst=1.84% mean=1.15%
 bar-chart.pptx	summary pages=1 worst=2.75% mean=2.75%
 bug54570.pptx	summary pages=1 worst=2.62% mean=2.62%
@@ -43,7 +43,7 @@ bug65523.pptx	summary pages=1 worst=0.28% mean=0.28%
 bug65551.pptx	summary pages=1 worst=0.04% mean=0.04%
 bug65673.pptx	summary pages=1 worst=0.27% mean=0.27%
 bug68703.pptx	summary pages=1 worst=1.17% mean=1.17%
-ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst=7.72% mean=3.72%
+ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst=7.28% mean=3.70%
 chart-picture-bg.pptx	summary pages=1 worst=2.69% mean=2.69%
 chart-slide-bg.pptx	summary pages=1 worst=2.35% mean=2.35%
 chart-texture-bg.pptx	summary pages=1 worst=2.27% mean=2.27%
@@ -53,7 +53,7 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=3.81% mean=3.81%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=22.28% mean=6.49%
+customGeo.pptx	summary pages=48 worst=22.27% mean=6.49%
 ececapstonespring2012.pptx	summary pages=24 worst=3.22% mean=1.96%
 highlight-test-case.pptx	summary pages=1 worst=0.80% mean=0.80%
 layouts.pptx	summary pages=10 worst=1.59% mean=0.65%
