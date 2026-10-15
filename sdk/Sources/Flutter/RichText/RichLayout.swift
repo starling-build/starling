@@ -2937,8 +2937,17 @@ public final class RichLayout {
             let o = document.paragraphs[j].style
             // (Word compares the paragraph style alone: a bulleted List
             // Paragraph and a numbered one under it share no space —
-            // POI's Numbering. A list of the editor's own, unstyled,
-            // still goes by its kind.)
+            // POI's Numbering — and nor do a numbered paragraph of no
+            // named style and the plain one under it: bug65649's
+            // "1. Предмет аукциона…" keeps its 10pt after from
+            // "Начальная (максимальная) цена контракта" in Word's print,
+            // which ours set 10pt down, and every line of the page with
+            // it. A list of the editor's own, unstyled, still goes by
+            // its kind.)
+            if theme.wordRules, document.readFromFile, o.named == style.named, o.heading == style.heading,
+               document.paragraphs[j].cell == p.cell {
+                return true
+            }
             return o.named == style.named && o.heading == style.heading
                 && (o.list == style.list || (theme.wordRules && style.named != nil && o.list != nil && style.list != nil
                     && document.paragraphs[j].cell == p.cell))

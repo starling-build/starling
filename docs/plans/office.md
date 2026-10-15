@@ -2856,6 +2856,27 @@ fitter dropped the paragraph's tail).
   now Word's, 3.7 whole and 3.8's first line above footnote 1, footnote
   2 at page 4's foot under its reference on page 3; 32.5% -> 37.5 at
   Word's 176 pages. Nothing else in the sample has both.
+- **Contextual spacing goes by the paragraph style alone, list or not
+  (2026-10-15).** bug65649's "1. Предмет аукциона в электронной
+  форме." — a numbered paragraph of no named style, 10pt after,
+  contextual — and the plain "Начальная (максимальная) цена контракта"
+  under it, contextual too: Word sets them 14pt apart, the 10pt
+  dropped between paragraphs of one style; ours kept it, holding a
+  numbered paragraph and an unnumbered one for two styles, and every
+  line of the page after was 10pt down, the page one line short.
+  zh-06c46ba9's "解決建議" (List Paragraph, numbered, 6pt before) under
+  an empty List Paragraph (6pt before) is the same case: Word's 56pt
+  from the line above, ours had 62. For a document read from a file, a
+  neighbour of the same named style and heading level in the same cell
+  is the same style, whatever its list; the editor's own unstyled lists
+  still go by kind. (A first try also demanded the same cell of plain
+  neighbours, which took the long-standing sameness across a cell's
+  edge away — zh-1a3c7aa0 76.3% -> 28.6, three pages over; the rule
+  only adds sameness now.) bug65649 37.5% -> 42.9, page 12 Word's
+  again; zh-06c46ba9 82.7 -> 80.2, a sync loss: its page 42 was already
+  a line ahead of Word's at the top, and the 6pt it no longer carries
+  lets one line more onto the page, so pages 43 and 44 fall a line out
+  of step — the page-42 gap itself is now Word's 56pt.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
