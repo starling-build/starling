@@ -1224,6 +1224,7 @@ private struct SlideContext {
         st.insetsFollowFont = text.insetsFollowFont
         st.sizeGroup = text.sizeGroup
         st.noWrap = text.noWrap
+        st.textTurn = text.textTurn
         st.columns = text.columns
         st.columnGap = text.columnGap
         st.warp = text.warp
@@ -2095,6 +2096,8 @@ private struct SlideContext {
         var sizeGroup: String? = nil
         /// `bodyPr wrap="none"`.
         var noWrap = false
+        /// `bodyPr vert`: 1 a quarter clockwise, -1 anticlockwise.
+        var textTurn = 0
         /// `bodyPr numCol` and `spcCol` (points).
         var columns = 1
         var columnGap = 0.0
@@ -2343,6 +2346,11 @@ private struct SlideContext {
                         columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0,
                         warp: warp, runLooks: runLooks)
         body0.sizeGroup = body?.first("a:bodyPr")?["starling:sizeGroup"]
+        switch attr("vert") {
+        case "vert", "eaVert", "mongolianVert": body0.textTurn = 1
+        case "vert270": body0.textTurn = -1
+        default: break
+        }
         return body0
     }
 

@@ -1138,6 +1138,17 @@ outside tables. A picture bullet (`a:buBlip`, seven decks) is read as a
 bullet whose marker is not drawn yet, so its text stays where a list's
 is (tdf90626 and tdf138148 hung out to the left without that).
 
+**Vertical text in shapes, 2026-10-14** (tdf128684 1.95 → 0.44,
+vert_and_padding 3.02 → 1.99, eaVertAnchor 4.05 → 3.28, shape-text-rotate
+0.06 → 0.01, vert270AndTextRot −0.03; six decks, none further). A
+body's `vert` (`vert`, `eaVert`, `mongolianVert` a quarter clockwise;
+`vert270` anticlockwise) was ignored and the text laid out across. It is
+laid out in the frame turned a quarter — width and height swapped, the
+insets turned with it — and drawn turned back (`SlideShape.textTurn`).
+Drawing only: the editor still edits it across, and East Asian
+characters are turned with the Latin ones rather than stood upright as
+`eaVert` stands them.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

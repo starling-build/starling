@@ -729,11 +729,29 @@ final class SlidePainter: CustomPainter {
             canvas.drawPath(effectOutline(), p)
             canvas.restore()
         }
+        // Vertical text (`bodyPr vert`): laid out in the frame turned a
+        // quarter — its width the frame's height, its insets turned with
+        // it — and drawn turned back (eaVertAnchor's six boxes).
+        var tr = r
+        let keptFrame = shape.frame, keptInsets = shape.insets
+        if shape.textTurn != 0 {
+            let c = r.center
+            canvas.translate(c.dx, c.dy)
+            canvas.rotate(Double(shape.textTurn) * .pi / 2)
+            canvas.translate(-c.dx, -c.dy)
+            tr = Rect.fromCenter(center: c, width: r.height, height: r.width)
+            shape.frame = Rect.fromCenter(center: keptFrame.center, width: keptFrame.height, height: keptFrame.width)
+            let i = keptInsets
+            shape.insets = shape.textTurn > 0
+                ? EdgeInsets(left: i.top, top: i.right, right: i.bottom, bottom: i.left)
+                : EdgeInsets(left: i.bottom, top: i.left, right: i.top, bottom: i.right)
+        }
+        defer { shape.frame = keptFrame; shape.insets = keptInsets }
         // (An empty table still has its rows' fills and borders to draw.)
-        if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, r, canvas, pxPerPt: px, cache: cache) {
+        if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, tr, canvas, pxPerPt: px, cache: cache) {
             // WordArt: fitted to the box and bent, not laid out in it.
         } else if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
-            let ox = r.left + cache.textLeft(shape, pxPerPt: px), oy = r.top + cache.textTop(shape, pxPerPt: px)
+            let ox = tr.left + cache.textLeft(shape, pxPerPt: px), oy = tr.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
             if let paragraphs, !paragraphs.isEmpty {

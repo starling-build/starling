@@ -411,6 +411,9 @@ final class SlideShape {
     /// `a:ln/a:prstDash`: the outline's dash pattern ("dash", "sysDot"…);
     /// nil for a solid line.
     var outlineDash: String? = nil
+    /// `bodyPr vert`: the text set a quarter turn clockwise (1: `vert`,
+    /// `eaVert`) or anticlockwise (-1: `vert270`); 0 across.
+    var textTurn = 0
     /// `a:effectLst/a:outerShdw` (or the theme's, through `effectRef`):
     /// a blurred copy of the outline cast under the shape.
     var shadow: CharShadow? = nil
