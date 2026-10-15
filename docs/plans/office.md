@@ -3693,6 +3693,15 @@ fitter dropped the paragraph's tail).
   trigger the re-fit. So nothing is built yet: a min-width model
   without that break rule changes nothing in the one measured
   document.
+  Correction (lab `sp1`, 2026-10-15): Word DOES break that stamp line
+  at its spaces — in a 120pt cell it wraps over five lines, as ours
+  does — so the re-fit is not about a minimum width at all. What fits
+  every lab so far: an autofit cell grows toward its unwrapped (max-
+  content) width up to a cap, wraps its text there, and the column then
+  shrinks to the widest wrapped line — the stamp line's 540pt wraps
+  before "（盖章）" and leaves 444, the width Word gives the span (plus
+  margins, 454.5). The cap lies between 477 and 525pt of table; what
+  sets it is the next lab (vary the page's text width and margins).
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
