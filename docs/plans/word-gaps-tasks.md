@@ -295,3 +295,10 @@ Owner: none — notes for whoever takes them.
   fitter would need, for such paragraphs, to test a closing mark as its
   own piece against the half-em rule. Six documents carry the switch.
 
+### Note from the Windows box (2026-10-14, for the Mac session)
+The Windows sweep that first carried 2058f789 (kinsoku off) and 03f1e859
+(zero-width characters in the Latin kind's style), together with e03a6891
+(cell spacing — none of these documents has any), saw zh-7dc3afad 98.5%
+-> 92.9% and zh-8e8d4c40 88.8 -> 87.1 of Word's lines; zh-799c91cd
+82.8 -> 92.0 and zh-06c46ba9 77.0 -> 83.2 went the other way. Not split
+between the two commits here.
