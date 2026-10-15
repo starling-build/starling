@@ -230,3 +230,24 @@ Documents: 61745 (two charts, nothing else), chartex, zh-37b6536f (p3).
 Known: a chart (`c:chart` in a drawing) is kept as an empty box of its
 size. Slides reads and paints charts (`ChartXML.read`, `ChartPainter`);
 the plan is to paint them in Writer through a hook in RichLayout.
+
+### T16. Leads looked at and left (Mac, 2026-10-14)
+Owner: none — notes for whoever takes them.
+- zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
+  page number in a frame (`w:framePr`, vAnchor text, y=1) and an empty
+  paragraph; our footer extent counts the empty paragraph only, and
+  Word's reaches about a point higher. Which part of a framed footer
+  paragraph Word counts is not known.
+- zh-1563bd74 p14: our line squeezes 3.95pt to take "的" after
+  "自救能力”"; the fitter counts one mark with 8pt of room. Both quotes
+  are Times New Roman (7.1pt) in Word's print and in ours. Making a
+  narrow-set quote give no half em did not move this line and cost
+  zh-e27cd8bf 3.2 and zh-e37f8d40 1.6 — reverted; the 8pt comes from
+  somewhere else.
+- zh-a4b0f6ea p18: a row 3pt taller than Word's; the document has
+  `w:adjustLineHeightInTable`. Turning the grid off in cells for files
+  without the switch changed nothing anywhere (cells do not take the
+  pitch through `_grid` as it is).
+- zh-0aac9d1a (T1): Word's autofit narrows one column and widens
+  another past the page; it needs the content-width algorithm.
+- zh-a0e932c2 (T2): needs column regions that start mid-page.
