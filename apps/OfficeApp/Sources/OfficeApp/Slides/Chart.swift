@@ -125,6 +125,16 @@ struct Chart: Equatable {
     /// the plot itself (`inner`) or the plot with its axis labels.
     var plotLayout: Rect? = nil
     var plotLayoutInner = false
+    /// Office 2007's chart style (`c:style`, 1–48): eight columns of
+    /// colour — greys, the accents, then one accent each in shades — by
+    /// six rows of effects. nil for none (PowerPoint's default, 2).
+    var style: Int? = nil
+    /// The accent (1–6) a monochrome style shades every series from.
+    var monochromeAccent: Int? {
+        guard let s = style, (1 ... 48).contains(s) else { return nil }
+        let column = (s - 1) % 8
+        return column >= 2 ? column - 1 : nil
+    }
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
     /// The chart's own text size (`c:chartSpace/c:txPr`) where it is not
@@ -175,7 +185,33 @@ struct Chart: Equatable {
         if let scheme = s?.scheme, scheme.hasPrefix("accent"), let n = Int(scheme.dropFirst(6)), (1 ... 6).contains(n) {
             return accents[n - 1]
         }
+        if let k = monochromeAccent { return Self.monochrome(i, of: series.count, accents[k - 1]) }
         return Self.cycle(i, accents)
+    }
+
+    /// Slice `i`'s colour: its own, else its style's or the cycle's.
+    func pointColor(_ i: Int, accents: [Color]) -> Color {
+        if let c = pointColors[i] { return c }
+        if let k = monochromeAccent { return Self.monochrome(i, of: categories.count, accents[k - 1]) }
+        return Self.cycle(i, accents)
+    }
+
+    /// Item `i` of `n` in a monochrome style: shades of the accent for the
+    /// first half, tints for the second, in linear light, by 1 − 0.56 of
+    /// its place out from the middle (−1 to 1) — the cooper deck's four
+    /// series are the accent shaded to 0.58 and 0.85 and tinted to 0.86
+    /// and 0.575, to a level each.
+    static func monochrome(_ i: Int, of n: Int, _ accent: Color) -> Color {
+        guard n > 1 else { return accent }
+        let place = Double(2 * i + 1) / Double(n) - 1
+        let f = 1 - 0.56 * abs(place)
+        func lin(_ c: Int) -> Double { let v = Double(c) / 255; return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+        func srgb(_ l: Double) -> Int { let c = l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055; return Int((max(0, min(1, c)) * 255).rounded()) }
+        func ch(_ shift: Int) -> Int {
+            let l = lin(Int((accent.value >> Int64(shift)) & 0xFF))
+            return srgb(place < 0 ? l * f : 1 - (1 - l) * f)
+        }
+        return Color(0xFF00_0000 | Int64((ch(16) << 16) | (ch(8) << 8) | ch(0)))
     }
 
     /// PowerPoint's colour cycle: the six accents, then darker and lighter
@@ -365,6 +401,10 @@ enum ChartXML {
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
         }
         c.pointColors = pointColors
+        let styleNode = space.first("c:style") ?? space.first("mc:AlternateContent")?.first("mc:Fallback")?.first("c:style")
+        // (Kept where it colours the chart its own way: a monochrome one.)
+        c.style = styleNode?["val"].flatMap(Int.init)
+        if c.monochromeAccent == nil { c.style = nil }
         if let m = plot.first("c:layout")?.first("c:manualLayout"),
            (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
            let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
@@ -468,6 +508,8 @@ enum ChartXML {
         let s = chart.series[i]
         if let c = s.color { return "<a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\"/></a:solidFill>" }
         if let scheme = s.scheme { return "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>" }
+        // A monochrome style colours the series itself: no fill of its own.
+        if chart.monochromeAccent != nil { return "" }
         return _cycleFill(i)
     }
 
@@ -568,7 +610,7 @@ enum ChartXML {
         let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"\(Int(((c.textSize ?? 12) * 100).rounded()))\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/><c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)\(plotFill)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
+        <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>\(c.style.map { "<c:style val=\"\($0)\"/>" } ?? "")<c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)\(plotFill)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
         """
     }
 
@@ -694,7 +736,7 @@ enum ChartPainter {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
-                    p.color = pie ? c.pointColors[e.i] ?? Chart.cycle(e.i, theme.accents) : c.color(series: e.i, accents: theme.accents)
+                    p.color = pie ? c.pointColor(e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
                     if c.type == .line {
                         p.style = .stroke
                         p.strokeWidth = 2.25 * k
@@ -1148,7 +1190,7 @@ enum ChartPainter {
         let inner = Rect.fromCircle(center: centre, radius: hole)
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
-            let color = c.pointColors[i] ?? Chart.cycle(i, theme.accents)
+            let color = c.pointColor(i, accents: theme.accents)
             fill.color = color
             if hole > 0 {
                 let ring = Path()

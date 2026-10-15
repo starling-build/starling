@@ -1108,6 +1108,24 @@ fade PowerPoint has half gone 0.73 of the radius in and spread over
 0.9 of it; this matches it to a few levels. A run's glow is not drawn:
 blurred text reaches PDF as the misplaced soft mask text shadows hit.
 
+**A monochrome chart style, 2026-10-14** (aascu cooper 7.11 → 5.78; no
+other chart deck moved). Office 2007's chart styles (`c:style` 1–48)
+are eight columns of colour by six rows of effects: greys, the accents,
+then accent 1 to 6 each in shades of itself. The cooper deck's stacked
+columns are style 12 — accent 2's column — and were drawn in the
+accent cycle (orange, maroon, white, black). Measured there: its four
+series are accent 2 shaded in linear light to 0.58 and 0.85 and tinted
+to 0.86 and 0.575, which is 1 − 0.56 × each series' place out from the
+middle (−¾, −¼, ¼, ¾) to a level per channel (`Chart.monochrome`; a
+pie's slices likewise). A monochrome style is kept and written back,
+its series without a fill of their own; any other style is dropped as
+before.
+
+Tried and dropped: tints in sRGB where a `satMod` follows (customGeo's
+satMod 300% gradient is sRGB's to a level, its plain table bands are
+linear light's) — made 13 decks worse, themes 2.59 → 18.28. How
+PowerPoint combines a tint with a saturation boost is still open.
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

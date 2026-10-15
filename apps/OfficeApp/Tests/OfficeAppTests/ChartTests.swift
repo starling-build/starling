@@ -109,6 +109,27 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(try reread(c).textSize, 18, "written back")
     }
 
+    /// A monochrome style shades its series from one accent — the cooper
+    /// deck's style 12 is accent 2, four series shaded and tinted out from
+    /// the middle — and survives the chart's own XML.
+    func testAMonochromeStyleShadesOneAccent() throws {
+        var c = Chart.sample(.column)
+        c.style = 12
+        XCTAssertEqual(c.monochromeAccent, 2)
+        let maroon = Color(0xFF9F2936)
+        let accents = [Color(0xFFF07F09), maroon, Color(0xFFFFFFFF), Color(0xFF000000), Color(0xFFF6C0AA), Color(0xFF902430)]
+        let four = (0 ..< 4).map { Chart.monochrome($0, of: 4, maroon) }
+        XCTAssertEqual(four[0], Color(0xFF7C1E28), "PowerPoint's (124, 30, 40)")
+        XCTAssertEqual(four[3], Color(0xFFCFB0B1), "PowerPoint's (207, 176, 177)")
+        XCTAssertEqual(c.color(series: 0, accents: accents), Chart.monochrome(0, of: c.series.count, maroon))
+        let back = try reread(c)
+        XCTAssertEqual(back.style, 12)
+        XCTAssertNil(back.series[0].color, "no fill of its own: the style colours it")
+        var plain = Chart.sample(.column)
+        plain.style = 2
+        XCTAssertNil(plain.monochromeAccent)
+    }
+
     func testCellTypingIsOneUndoStep() {
         let deck = SlidesSample.make()
         let shape = deck.slides.flatMap(\.shapes).first { $0.chart != nil }!
