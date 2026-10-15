@@ -1269,9 +1269,15 @@ rot` is read now (`Chart.categoryLabelTurn`; -60000000 is the charts'
 "automatic" and reads as none): a turn sets the labels aslant, each
 ending at its tick and running down to the left, the plot raised by
 their drop. With no turn given they are set at 45° when a single word
-of one is wider than its slot, as PowerPoint does. Left: the labels'
-own colour (the file's black, ours grey), the bars' outline
-(`ser/spPr/a:ln`), and the plot area's border.
+of one is wider than its slot, as PowerPoint does.
+
+**A chart's outlines and axis colours, 2026-10-15** (aascu 5864 9.80 →
+9.48; tdf149985 +0.04, its light grey outline half a pixel off). Read
+and drawn now: a bar's or column's outline (`ser/spPr/a:ln`), the plot
+area's border (`plotArea/spPr/a:ln`), the axes' label colours and the
+value labels' weight (`c:txPr`), and gridlines in a colour of their own
+(not the standard `tx1` at 15%, which is our default look and what a
+save writes, so a written chart reads back as it was).
 
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,

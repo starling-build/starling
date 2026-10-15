@@ -64,6 +64,10 @@ struct ChartSeries: Equatable {
     var labelSize: Double? = nil
     var labelBold = false
     var labelColor: Color? = nil
+    /// The outline round a bar or slice (`c:spPr/a:ln`), and its width in
+    /// points; nil is none.
+    var outline: Color? = nil
+    var outlineWidth = 0.75
 }
 
 struct Chart: Equatable {
@@ -106,6 +110,17 @@ struct Chart: Equatable {
     /// nil where it gives none, and the labels are set aslant only when
     /// they do not fit.
     var categoryLabelTurn: Double? = nil
+    /// The axes' label colours where the file gives them, and whether the
+    /// value axis's are bold.
+    var categoryLabelColor: Color? = nil
+    var valueLabelColor: Color? = nil
+    var valueLabelBold = false
+    /// The plot area's border and the value gridlines' colour and width
+    /// (points), where the file gives them.
+    var plotBorder: Color? = nil
+    var plotBorderWidth = 0.75
+    var gridColor: Color? = nil
+    var gridWidth: Double? = nil
     /// The value axis's number format, an Excel format code ("#,##0"),
     /// where the file gives one other than General: the axis's own, or —
     /// "linked to source" — the one its first series' numbers came with.
@@ -276,6 +291,10 @@ enum ChartXML {
             let values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
             let pr = ser.first("c:spPr")
+            if type != .line, type != .scatter, let ln = pr?.first("a:ln"), let f = ln.first("a:solidFill") {
+                s.outline = color(f)
+                s.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+            }
             if type == .scatter {
                 let style = el.first("c:scatterStyle")?["val"] ?? "marker"
                 let ln = pr?.first("a:ln")
@@ -407,6 +426,11 @@ enum ChartXML {
         if let run = categoryAxis?.first("c:txPr")?.descendant("a:defRPr") {
             if let sz = run["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.categoryLabelSize = sz / 100 }
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
+            if let f = run.first("a:solidFill") { c.categoryLabelColor = color(f) }
+        }
+        if let run = valueAxis?.first("c:txPr")?.descendant("a:defRPr") {
+            c.valueLabelBold = ["1", "true"].contains(run["b"] ?? "")
+            if let f = run.first("a:solidFill") { c.valueLabelColor = color(f) }
         }
         // (-60000000 is the charts' "automatic", PowerPoint's own default.)
         if let rot = categoryAxis?.first("c:txPr")?.first("a:bodyPr")?["rot"].flatMap(Double.init), abs(rot) <= 5_400_000 {
@@ -430,6 +454,17 @@ enum ChartXML {
             ?? el.first("c:ser")?.first("c:val")?.descendant("c:formatCode")?.text
         if let code = labelCode, !code.isEmpty, code.lowercased() != "general" { c.labelFormat = code }
         if let f = plot.first("c:spPr")?.first("a:solidFill") { c.plotFill = color(f) }
+        if let ln = plot.first("c:spPr")?.first("a:ln"), let f = ln.first("a:solidFill") {
+            c.plotBorder = color(f)
+            c.plotBorderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+        }
+        // (Not the standard light grey, `tx1` at 15%, which is the look
+        // drawn when the file gives none — and what a save writes.)
+        if let ln = valueAxis?.first("c:majorGridlines")?.first("c:spPr")?.first("a:ln"),
+           let f = ln.first("a:solidFill"), f.children.first?.children.isEmpty ?? false, let g = color(f) {
+            c.gridColor = g
+            c.gridWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 }
+        }
         if let valueAxis {
             c.valueGrid = valueAxis.first("c:majorGridlines") != nil
             c.valueAxisDeleted = ["1", "true"].contains(valueAxis.first("c:delete")?["val"] ?? "")
@@ -670,9 +705,9 @@ enum ChartPainter {
         let font = OfficeFonts.substitute(theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
-        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool) -> TextPainter {
+        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil) -> TextPainter {
             let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
-                color: ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
+                color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
                 fontFeatures: plain, fontFamily: font)), textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
@@ -783,8 +818,9 @@ enum ChartPainter {
             }
             _pie(c, canvas, area, k: k, theme: theme, text: text)
         } else {
-            _axes(c, canvas, area, frame: r, k: k, theme: theme, grid: grid, text: text,
-                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold) })
+            _axes(c, canvas, area, frame: r, k: k, theme: theme, grid: c.gridColor ?? grid, text: text,
+                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) },
+                  valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor) })
         }
         canvas.restore()
     }
@@ -858,7 +894,8 @@ enum ChartPainter {
 
     private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, frame: Rect, k: Double, theme: DeckTheme,
                               grid: Color, text: (String, Double, Double) -> TextPainter,
-                              categoryText: (String, Double, Double) -> TextPainter) {
+                              categoryText: (String, Double, Double) -> TextPainter,
+                              valueText: (String, Double, Double) -> TextPainter) {
         let n = c.categories.count
         guard n > 0 else { return }
         let horizontal = c.type == .bar
@@ -977,7 +1014,7 @@ enum ChartPainter {
             let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
             return shown.isEmpty ? label(v, percent: false) : shown
         }
-        let valueLabels = ticks.map { text(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
+        let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
         let lineH = valueLabels.first?.height ?? 12 * k
         var plot: Rect
         if horizontal {
@@ -1006,13 +1043,20 @@ enum ChartPainter {
             p.color = f
             canvas.drawRect(plot, p)
         }
+        if let b = c.plotBorder {
+            let p = Paint()
+            p.style = .stroke
+            p.strokeWidth = max(0.25, c.plotBorderWidth * k)
+            p.color = b
+            canvas.drawRect(plot, p)
+        }
         func vpos(_ v: Double) -> Double {
             let t = (v - sc.lo) / (sc.hi - sc.lo)
             return horizontal ? plot.left + t * plot.width : plot.bottom - t * plot.height
         }
         let gridPaint = Paint()
         gridPaint.style = .stroke
-        gridPaint.strokeWidth = max(0.5, 0.75 * k)
+        gridPaint.strokeWidth = max(0.5, (c.gridWidth ?? 0.75) * k)
         gridPaint.color = grid
         for (i, v) in ticks.enumerated() {
             let p = vpos(v)
@@ -1116,6 +1160,13 @@ enum ChartPainter {
                         labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy : min(p0, p1) - 8 * k)))
                     }
                     canvas.drawRect(rect, fill)
+                    if let o = c.series[j].outline {
+                        let line = Paint()
+                        line.style = .stroke
+                        line.strokeWidth = max(0.25, c.series[j].outlineWidth * k)
+                        line.color = o
+                        canvas.drawRect(rect, line)
+                    }
                     if let t = c.series[j].cellLabels[i] { cellLabels.append((t, rect, c.series[j])) }
                 }
             }
