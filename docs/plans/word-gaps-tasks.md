@@ -248,8 +248,14 @@ Documents: 61745 (two charts, nothing else), chartex, zh-37b6536f (p3).
 Known: a chart (`c:chart` in a drawing) is kept as an empty box of its
 size. Slides reads and paints charts (`ChartXML.read`, `ChartPainter`);
 the plan is to paint them in Writer through a hook in RichLayout.
-Progress: drawn (61745 0 -> 15/17 lines, zh-37b6536f 31% -> 96%).
-Left: `cx:` charts (chartex), a pie's automatic title.
+Progress: drawn (61745 0 -> 15/17 lines, zh-37b6536f 31% -> 96%), the
+automatic title of an unnamed lone series, `cx:` charts by their
+Fallback pictures, charts in a line of text (chartex: 3 pages as Word's).
+Left: radar charts (Slides reads none; chartex's stays a grey box).
+
+### T17. zh-9c5d0c3f: road-sign table rows
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-14
+Documents: zh-9c5d0c3f (54%).
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
