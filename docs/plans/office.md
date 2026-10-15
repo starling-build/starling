@@ -2619,6 +2619,26 @@ fitter dropped the paragraph's tail).
   Chinese sample 95.69 -> 95.83 (zh-abe7e063 91.8 -> 98.4, four more up
   a little), POI 75.36 -> 75.59; nothing down.
 
+- **The mark under a nested table takes no room (2026-10-15).** A cell
+  must end in a paragraph, so one that ends in a table has an empty
+  mark under it, and Word gives that mark nothing — no line, no
+  spacing — and the table itself no paragraph spacing. bug65738's cell
+  of a two-row nested table ends 2.75pt (its margin) under the table in
+  Word's print; ours set the table's paragraph 10pt after and the mark
+  a line and 10pt more under it, 37pt in all. Labs on its package (Word
+  16): with "after" typed into the mark the row grows by that line and
+  its spacing (26pt); in compatibility mode 15, with a stated cell
+  spacing of 0, or at a width in fiftieths the mark still takes
+  nothing; and drawing.docx's 8.5pt mark under its own nested table,
+  set at 50pt, moves nothing. Both now take no room in the layout (the
+  file keeps them). bug65738 69.6% -> 100%; Chinese sample 95.83 ->
+  95.99 (zh-4b8e0abc 89.2 -> 96.6, zh-84702a67 93.8 -> 96.9); POI 75.59
+  -> 75.82. drawing 89.9 -> 80.8: its "12.04.2006 - Cbonds" row stands
+  in HTML tables nested three deep, flattened into their cell without
+  their margins and spacing — Word indents it 13pt and sets it 41pt
+  under the line above where ours, without the mark's line to make up
+  for them, now has 30.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

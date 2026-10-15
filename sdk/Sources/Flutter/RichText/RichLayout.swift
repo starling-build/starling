@@ -2999,8 +2999,29 @@ public final class RichLayout {
     /// Paragraph `i`'s space before and after, in pixels, without its
     /// borders: none against a neighbour of the same style under
     /// contextual spacing, Word's 14pt where it is automatic.
+    /// Whether paragraph `i` is the empty mark that ends a cell under a
+    /// table nested in it (`RichTextBox.growsToFit`): Word gives it no
+    /// room at all, line or spacing. bug65738's cell of a two-row nested
+    /// table ends 2.75pt under the table in Word's print; ours stood a
+    /// line and its 10pt after lower, and the row with it (lab, Word 16,
+    /// 2026-10-15: with "after" typed in the mark's paragraph, the row
+    /// grows by that line and its spacing, 26pt).
+    private func _markUnderNestedTable(_ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, i > 0, i < document.paragraphs.count else { return false }
+        let p = document.paragraphs[i]
+        guard let c = p.cell, p.text.isEmpty, p.image == nil,
+              document.paragraphs[i - 1].cell == c,
+              document.paragraphs[i - 1].image?.textBox?.growsToFit == true else { return false }
+        return i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].cell != c
+    }
+
     private func _spacing(_ i: Int, _ document: RichDocument) -> (before: Double, after: Double) {
         let p = document.paragraphs[i]
+        // A table nested in a cell has no paragraph's spacing, nor has
+        // the empty mark under it (bug65738: 10pt after each in ours).
+        if theme.wordRules, p.cell != nil, p.image?.textBox?.growsToFit == true || _markUnderNestedTable(i, document) {
+            return (0, 0)
+        }
         let style = p.style
         // Word's auto spacing: 14pt, none between items of a list.
         let autoGap = style.list == nil ? 14.0 : 0.0
@@ -3741,6 +3762,7 @@ public final class RichLayout {
         }
         // (No lines at all: `RichParagraphStyle.lineCollapsed`.)
         if theme.wordRules, style.lineCollapsed, p.image == nil { bodyHeight = 0 }
+        if _markUnderNestedTable(i, document) { bodyHeight = 0 }
         // (An empty paragraph of an exact line height is that tall: the
         // engine gives a 0.7pt strut nothing, and zh-90e0cea8's two
         // counter paragraphs — 1pt text on 0.7pt exact lines, before
@@ -6165,6 +6187,7 @@ public final class RichLayout {
         }
         if part == .rules { return }
         if theme.wordRules, i < document.paragraphs.count, document.paragraphs[i].style.lineCollapsed, document.paragraphs[i].image == nil { return }
+        if _markUnderNestedTable(i, document) { return }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
             let drawn = _decoded[image.id] == nil && _paintOutline(image, box, canvas)
             if let decoded = _decoded[image.id] {
