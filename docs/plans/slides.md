@@ -1457,6 +1457,16 @@ that line style's width now (`PptxTheme.lineWidths`, from
 a 2013 one — aascu's ovals' 2 pt red rims, every default connector's
 1 pt.
 
+**Arial Black, 2026-10-15** (WordArtBitmapFill 20.70 → 16.83,
+ThemeColorTransparency 12.50 → 8.83, placeholder-layout-color −0.37,
+themes −0.26, SampleShow −0.17; Wordart3D +0.44). No face shipped here
+is Arial Black, and its runs were set in the plain sans — light and
+narrow, "TRADE SHOW" on one line where PowerPoint breaks it. Slides now
+set it in Arial's bold, 0.07 em further apart a letter: Arial Black's
+measure in PowerPoint's prints (1.10 to 1.16 of the bold's, median
+1.12, on the four lines the corpus prints in it). Slides-only (the
+reader's run style), the shared font table untouched.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

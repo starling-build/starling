@@ -2478,6 +2478,17 @@ private struct SlideContext {
                                    color: s.color ?? tx1)
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
+                // Arial Black, which no face shipped here has: Arial's bold
+                // set 0.07 em further apart a letter — its measure in
+                // PowerPoint's prints (1.10 to 1.16 of the bold's across
+                // themes', SampleShow's and placeholder-layout-color's
+                // lines), where the plain face's left "TRADE SHOW" on one
+                // line PowerPoint breaks in two.
+                if cs.fontFamily?.lowercased() == "arial black" {
+                    cs.fontFamily = "Arial"
+                    cs.bold = true
+                    cs.letterSpacing = (cs.letterSpacing ?? 0) + 0.07 * (cs.fontSize ?? 18)
+                }
                 cs.shadow = s.shadow
                 cs.highlight = s.highlight
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
