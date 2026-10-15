@@ -1172,6 +1172,26 @@ title to plot 3.6 pt, plot to its category labels 7.6, labels to the
 legend 8.4, the legend 1.2 above the chart's margin, value labels 8.5
 left of the plot — where they were 6, 4, 6, 0 and 6.
 
+**Tried and dropped, 2026-10-14**, so they are not tried again blind:
+
+- **Lucida Sans Unicode as DejaVu Sans** in Slides (1.3% off its widths,
+  where Liberation Sans is 11% narrow): GeomLec1's regular lines then
+  break where PowerPoint's do, but its bold and italic — which Lucida
+  Sans Unicode synthesizes — are far narrower than DejaVu's own, and
+  those lines broke worse. 1.7561 → 1.7586%; GeomLec1 8.15 → 9.31.
+- **Half a point of slack on a body's wrap width** (2411's "…Extension
+  of RAM" fits PowerPoint's box with 0.4 pt to spare and wraps here):
+  39 decks worse at 0.5, 77 at 1.0. Our widths are right in general.
+- **lo-tdf137367's 150% lines** stand 7.3 pt higher in PowerPoint with
+  the same pitch; five other decks at 150% line up to a quarter point,
+  so it is that deck (a subtitle under `normAutofit`), not the rule.
+- **Picture bullets** are read as markers not drawn; drawing them wants
+  the layout's inline images as list markers.
+- **The size of smartart-rotation's arrows, accent-process' and
+  vertical-box-list's boxes**: PowerPoint's are about 0.7 of ours,
+  sized from a smaller font than the frame allows; the reason is still
+  not found (see accent-process above).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;
