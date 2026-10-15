@@ -2400,6 +2400,13 @@ fitter dropped the paragraph's tail).
   `(multiple - 1)` of the mark's single line goes under such a line.
   Every page of Bug51170 under its header had stood 2pt high.
 
+- **Word kerns only where `w:kern` says (2026-10-14).** A run is kerned
+  from the size its `w:kern` names up, and not at all without one; the
+  engine kerned every pair. bug59058's Calibri 12 abstract, unkerned,
+  is word for word Word's widths ("Abstract" 40.99, kerned 40.55), and
+  its Times New Roman bold caption no longer fits "State," where Word's
+  line ends "Women by" ("Wo" alone kerned 0.67pt).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

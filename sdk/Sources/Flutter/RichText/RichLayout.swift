@@ -371,7 +371,17 @@ public final class RichTextTheme {
                 return [Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
                                offset: Offset(sh.dx * k, sh.dy * k))]
             },
-            fontFeatures: disablesLigatures ? [FontFeature("liga", 0), FontFeature("clig", 0)] : nil,
+            fontFeatures: {
+                var features = disablesLigatures ? [FontFeature("liga", 0), FontFeature("clig", 0)] : []
+                // Word kerns a run only from the size its `w:kern` names
+                // up; the engine kerns every pair. Bug59058's caption in
+                // Times New Roman bold, kerned, fitted "State," on a line
+                // Word's unkerned "Women by" filled ("Wo" alone 0.67pt).
+                if wordRules, !((style.kerningFrom ?? named?.char.kerningFrom ?? normal?.kerningFrom).map { $0 > 0 && size >= $0 } ?? false) {
+                    features.append(FontFeature("kern", 0))
+                }
+                return features.isEmpty ? nil : features
+            }(),
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
             fontFamily: family,
