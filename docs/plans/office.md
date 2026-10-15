@@ -3224,6 +3224,15 @@ fitter dropped the paragraph's tail).
   now; its page-51 "127" is the same case (the Windows box's lead).
   zh-abe7e063 91.4% -> 98.3, zh-1a3c7aa0 76.3 -> 78.0, zh-69bbcc3c and
   zh-84702a67 +0.5; nothing down.
+- **A line may part between a closing curly quote and a hyphen
+  (2026-10-15).** zh-84702a67's "…建筑市场监管系统”-“企业信息备案模块”"
+  ends a line with "统”" and opens the next with "-“企业" in Word's
+  print: Word's Simplified Chinese list keeps neither a hyphen from a
+  line's start nor a quote's other side here. The engine parts on
+  neither side of a quote, and `_breaksBetween` let a closing quote
+  part only from what is wide — so ours carried "统”-“企" as one piece
+  and the line ran a character short, page 3 on. zh-84702a67 88.3% ->
+  91.5; nothing else moved.
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
