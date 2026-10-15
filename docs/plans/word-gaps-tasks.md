@@ -224,3 +224,9 @@ Note for the Windows session (Mac sweep, clean baseline either side):
 taking zh-9e08ed28 47.4 -> 81.0, zh-e6d54ae4 64.2 -> 82.4 and
 zh-89385c94 53.1 -> 98.9.
 
+### T15. Charts in Writer
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-14
+Documents: 61745 (two charts, nothing else), chartex, zh-37b6536f (p3).
+Known: a chart (`c:chart` in a drawing) is kept as an empty box of its
+size. Slides reads and paints charts (`ChartXML.read`, `ChartPainter`);
+the plan is to paint them in Writer through a hook in RichLayout.
