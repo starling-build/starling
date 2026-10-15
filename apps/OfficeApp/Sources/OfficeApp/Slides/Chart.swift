@@ -951,15 +951,22 @@ enum ChartPainter {
             lo = all.min() ?? 0; hi = all.max() ?? 1
         }
         let labelSize = c.valueLabelSize ?? c.textSize ?? 12
-        var sc = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi)
+        // (Settled here and captured as constants: the Windows
+        // toolchain's optimizer (Swift 6.2.3) fails SIL verification on
+        // a tuple `var` that the closures below capture — "Lexical
+        // borrows of SILBoxTypes must be of vars or captures" — and the
+        // release build dies with exception 3.)
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
-            sc = fixedScale(auto: sc, min: c.valueMin, max: c.valueMax, step: c.valueStep)
+            valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
-        var xs = (lo: 0.0, hi: Double(n), step: 1.0)
+        let sc = valueScale
+        var xScale = (lo: 0.0, hi: Double(n), step: 1.0)
         if c.type == .scatter {
             let x = (0 ..< n).map { c.x($0) }
-            xs = scale(x.min() ?? 0, x.max() ?? 1)
+            xScale = scale(x.min() ?? 0, x.max() ?? 1)
         }
+        let xs = xScale
         var area = area0
         // Axis titles take a band at the side and bottom.
         let titleSize = 13.3
