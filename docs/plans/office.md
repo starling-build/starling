@@ -2354,6 +2354,18 @@ fitter dropped the paragraph's tail).
   has none) — and the sign is within 2pt. zh-9c5d0c3f +1.0,
   zh-37b6536f +0.7; nothing down.
 
+- **Cell spacing (2026-10-14).** `w:tblCellSpacing` was read and not
+  laid out. Lab `cs` (Word for Windows, one-line rows at s of 0, 0.75
+  and 5pt): each row is 2s taller, the first row's text 2s down, the
+  table 2s longer under its last row, the first column's text 2s and
+  the others' s to the right — s round every cell and s more at the
+  table's edges, which is how the cells are padded now. Ours matches
+  each delta to 0.3pt. zh-9c5d0c3f 55.1% -> 65.3% (its road signs
+  gained 1.5pt a row), bug57031 14.7 -> 24.5; the four documents that
+  use it are those two, bib-chernigovka and drawing. (The sweep also
+  carried 2058f789 and 03f1e859; zh-7dc3afad 98.5 -> 92.9 and
+  zh-8e8d4c40 -1.7 moved with those, not with this.)
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

@@ -2999,6 +2999,21 @@ public final class RichLayout {
                     below = bottom
                 }
                 ruleBelow = below
+                // Cell spacing (`w:tblCellSpacing`): s round every cell's
+                // text and s more at the table's edges — Word for Windows,
+                // lab `cs` (one-line rows at s of 0, 0.75 and 5pt): each
+                // row 2s taller, the first row's text 2s down and the table
+                // 2s longer under its last, the first column's text 2s and
+                // the others' s further right. zh-9c5d0c3f's road signs
+                // gained 1.5pt a row on ours.
+                if let spacing = ts.cellSpacing, spacing > 0 {
+                    let sp = _px(spacing)
+                    let lastColumn = c.column + c.span >= widths.count
+                    pad = EdgeInsets(left: pad.left + sp + (c.column == 0 ? sp : 0),
+                                     top: pad.top + sp + (c.row == 0 ? sp : 0),
+                                     right: pad.right + sp + (lastColumn ? sp : 0),
+                                     bottom: pad.bottom + sp + (c.row + c.rowSpan - 1 >= rows ? sp : 0))
+                }
             }
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
                                  colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges,
