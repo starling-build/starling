@@ -4299,7 +4299,12 @@ public final class RichLayout {
                             : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
                         extra += gap
                         autoSpaces?(offset, gap)
-                    } else if ea, closes, Self.closesUp(ch, following) {
+                    } else if ea, closes, Self.closesUp(ch, following)
+                                || (fullQuotes && (following == "\u{201C}" || following == "\u{2018}") && Self._closingMarks.contains(ch)
+                                    && Self.isEastAsian(following, hinted: hinted)) {
+                        // (A closing mark before a full-width opening quote
+                        // gives its half as before any opening mark: zh-15728c84's
+                        // "微信、“12345”" sets "、" 5pt wide at 10pt in Word's print.)
                         extra -= em / 2
                     }
                 }
@@ -5006,6 +5011,7 @@ public final class RichLayout {
         func closesUp(_ k: Int) -> Bool {
             guard closing[k], k + 1 < units.count, let a = Unicode.Scalar(units[k]), let b = Unicode.Scalar(units[k + 1]) else { return false }
             return Self.closesUp(Character(a), Character(b))
+                || (Self._closingMarks.contains(Character(a)) && (units[k + 1] == 0x201C || units[k + 1] == 0x2018) && wideQuote(k + 1))
         }
         // The probe's lines are the engine's clusters (at no width it
         // breaks even inside a word): each with its width, and its

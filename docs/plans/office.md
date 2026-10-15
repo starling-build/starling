@@ -3379,6 +3379,14 @@ fitter dropped the paragraph's tail).
   another mark on the line gives too. Letting it give always cost
   zh-ae3d78ee 15.6 points (its lines are the labs'). zh-64044a1d 88.8%
   -> 90.3; nothing down.
+- **A closing mark before a full-width opening quote gives its half
+  (2026-10-15).** zh-15728c84 (mode 14, compressPunctuation, quotes in
+  runs hinted East Asian) writes "政务微博微信、“12345”热线": Word's print
+  sets "、" 5pt wide at 10.1pt — half its em, as before any opening
+  mark — and the "“" its em; ours set "、" whole, and the line held a
+  character less, then the page. The span and the fitter both take a
+  full-width “ or ‘ after a closing mark as an opening mark for the
+  half-em rule. zh-15728c84 90.9% -> 93.4; nothing down (clean A/B).
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
