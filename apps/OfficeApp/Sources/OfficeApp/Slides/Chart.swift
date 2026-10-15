@@ -136,6 +136,10 @@ struct Chart: Equatable {
     /// as a disc seen from above at that angle, its rim showing below. nil
     /// is a flat pie.
     var pieTilt: Double? = nil
+    /// A 3-D bar or column chart's view (`c:view3D` rotX, rotY, degrees):
+    /// each bar a box, its top and side showing. nil is flat.
+    var barView: BarView? = nil
+    struct BarView: Equatable { var x: Double; var y: Double }
     /// The value axis's bounds and step where the file fixes them
     /// (`c:scaling/c:min`, `c:max`, `c:majorUnit`); nil is automatic.
     var valueMin: Double? = nil
@@ -407,6 +411,11 @@ enum ChartXML {
         }
         c.dataLabels = shows(el.first("c:dLbls")) || el.all("c:ser").contains { shows($0.first("c:dLbls")) }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
+        if el.name == "c:bar3DChart" {
+            let v = chart.first("c:view3D")
+            c.barView = Chart.BarView(x: v?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15,
+                                      y: v?.first("c:rotY")?["val"].flatMap(Double.init) ?? 20)
+        }
         if el.name == "c:pie3DChart" {
             c.pieTilt = chart.first("c:view3D")?.first("c:rotX")?["val"].flatMap(Double.init) ?? 30
         }
@@ -758,6 +767,9 @@ enum ChartPainter {
             // A column beside stacked columns (or areas) reads as the stack
             // does, the last series — the top of it — first.
             if beside, c.stacked, c.type == .column || c.type == .area { entries.reverse() }
+            // And a bar chart's, at any side, as its bars run: series 1 at
+            // the bottom, listed last (LIBRE_OFFICE-100610-0's five).
+            if c.type == .bar, !c.stacked { entries.reverse() }
             var lines: [[(i: Int, tp: TextPainter)]] = [[]]
             var lineW = 0.0
             for e in entries {
@@ -1053,6 +1065,19 @@ enum ChartPainter {
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2, area.right - right, area.bottom - bottom)
         }
         if let placed, c.plotLayoutInner { plot = placed }
+        // A 3-D chart's boxes stand out of the plot by their depth, up and
+        // to the right: room for it inside.
+        let depthAt: (Double) -> Offset = { thick in
+            guard let v = c.barView else { return .zero }
+            return Offset(thick * sin(abs(v.y) * .pi / 180), thick * sin(abs(v.x) * .pi / 180))
+        }
+        if c.barView != nil, c.type == .column || c.type == .bar {
+            let slot = (horizontal ? plot.height : plot.width) / Double(max(1, n))
+            let lanes = c.stacked ? 1.0 : Double(c.series.count)
+            let thick = slot / (1 + (lanes - 1) * (c.stacked ? 0 : 1 - c.overlapFraction) + c.gap)
+            let d = depthAt(thick)
+            plot = Rect.fromLTRB(plot.left, plot.top + d.dy, plot.right - d.dx, plot.bottom)
+        }
         guard plot.width > 4, plot.height > 4 else {
             for t in valueLabels + catLabels { t.dispose() }
             return
@@ -1180,6 +1205,26 @@ enum ChartPainter {
                         labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy : min(p0, p1) - 8 * k)))
                     }
                     canvas.drawRect(rect, fill)
+                    if c.barView != nil {
+                        // The box's top and right side, darker, as
+                        // PowerPoint's print of LIBRE_OFFICE-100610-0 has
+                        // them: the depth the bar's own thickness, turned
+                        // by the view's angles; the top 0.757 of the colour,
+                        // the side 0.64.
+                        let d = depthAt(bar)
+                        let base = fill.color
+                        let top = Path()
+                        top.moveTo(rect.left, rect.top); top.lineTo(rect.left + d.dx, rect.top - d.dy)
+                        top.lineTo(rect.right + d.dx, rect.top - d.dy); top.lineTo(rect.right, rect.top); top.close()
+                        fill.color = Self._scaled(base, 0.757)
+                        canvas.drawPath(top, fill)
+                        let side = Path()
+                        side.moveTo(rect.right, rect.top); side.lineTo(rect.right + d.dx, rect.top - d.dy)
+                        side.lineTo(rect.right + d.dx, rect.bottom - d.dy); side.lineTo(rect.right, rect.bottom); side.close()
+                        fill.color = Self._scaled(base, 0.64)
+                        canvas.drawPath(side, fill)
+                        fill.color = base
+                    }
                     if let o = c.series[j].outline {
                         let line = Paint()
                         line.style = .stroke
@@ -1354,6 +1399,13 @@ enum ChartPainter {
 }
 
 extension ChartPainter {
+    /// A colour's channels times `f`.
+    static func _scaled(_ c: Color, _ f: Double) -> Color {
+        let v = c.value
+        func ch(_ sh: Int) -> Int64 { Int64((Double((v >> sh) & 0xFF) * f).rounded()) }
+        return Color(Int64(0xFF00_0000) | ch(16) << 16 | ch(8) << 8 | ch(0))
+    }
+
     /// A 3-D pie: the disc tilted by `tilt` degrees, its rim showing below
     /// in each slice's colour darkened toward the front — as PowerPoint's
     /// print of LIBRE_OFFICE-100610-0 has it at 30°: the disc 0.473 as

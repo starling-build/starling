@@ -1287,9 +1287,18 @@ grey square. It is a tilted disc now (`Chart.pieTilt`, from
 the rim 0.228 of the radius deep, the whole filling 94% of the plot's
 width or 97% of its height, the plot 7% and 8.5% inside the room left
 by title and legend, and the rim the slice's colour × (0.575 + 0.3 |cos
-θ|) — 0.575 at the front, 0.875 at the sides. Left: the deck's 3-D
-column chart (boxes with depth), and its horizontal bar chart's legend,
-which PowerPoint lists last series first.
+θ|) — 0.575 at the front, 0.875 at the sides.
+
+**3-D bars, and a bar chart's legend, 2026-10-15** (LIBRE_OFFICE-100610-0
+3.13 → 2.94, aascu 5864 −0.03). A `c:bar3DChart` draws each bar as a
+box (`Chart.barView`, from `c:view3D` rotX/rotY): its depth is the bar's
+own thickness, shown up by sin(rotX) and right by sin(rotY) of it (15°
+and 20° in PowerPoint's print: 12 and 16 pt on a 46.5 pt bar), the top
+0.757 of the colour and the side 0.64, with the plot made that much
+smaller so the boxes stay inside. A horizontal bar chart's legend lists
+its series last first, at any side, as its bars run. Left: the walls
+and floor behind 3-D bars, and the value axis's auto steps (aascu's
+census chart is 0–90 by 10 in PowerPoint, ours 0–100 by 20).
 
 **An Office 2007 embedded object's picture, 2026-10-15** (tdf169781
 4.02 → 1.62). An embedded Excel chart with no `p:pic` fallback shows
