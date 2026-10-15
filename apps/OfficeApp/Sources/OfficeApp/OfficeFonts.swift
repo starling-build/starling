@@ -704,6 +704,17 @@ enum OfficeFonts {
         face.scaledBaseline = ea.scaledBaseline
         face.advances = ea.latinAdvances
         face.boldAdvances = ea.latinBoldAdvances
+        // A no-break space in a square face is an em, where its space is
+        // half of one (lab `nb1`, Word 16, 2026-10-15: "甲" + ten U+00A0 +
+        // "乙" at 12pt is 12pt a space in 宋体, 黑体, 楷体 and 仿宋, 6pt
+        // with U+0020; 3pt in a run whose Latin face is Times, 3.55 in
+        // YaHei, its own). Chinese forms space their "年  月  日" lines
+        // with them: zh-0aac9d1a's stamp line holds 18 before its "日"
+        // and is 444pt to there in Word's print, where it was 336 here.
+        if ea.latin == mono, ea.latinAdvances == nil {
+            face.otherAdvances = [0xA0: 1.0]
+            face.boldOtherAdvances = [0xA0: 1.0]
+        }
         return face
     }
 

@@ -83,8 +83,15 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
-### T1. Autofit tables
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree), from 2026-10-15 — after T8
+### T1. Autofit tables — measured, nothing built (2026-10-15)
+Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN; findings in office.md, "Autofit tables")
+Five Word labs (`at1`–`at5`): Word keeps an autofit table's saved grid
+until a cell's unbreakable content is wider than its columns; then that
+cell takes exactly its width and the other columns give way to their
+own minimum. Open: how a spanning cell's width is shared among its
+columns, and why Word holds zh-0aac9d1a's stamp line (no-break and
+ordinary spaces) whole up to "（盖章）" — the re-fit there hangs on it.
+Found on the way and built: a no-break space is an em in a square face.
 Documents: zh-0aac9d1a (63%), and likely others among the forms.
 Known: `w:tblLayout autofit`, grid 1350/3022/1526/2680 twips; Word draws
 the columns 34.5/187.7/110.4/156.5pt, wider than `tblW` and the text

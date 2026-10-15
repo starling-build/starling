@@ -3260,6 +3260,36 @@ fitter dropped the paragraph's tail).
   Skia writes those glyphs as ActualText. The line match had forgiven
   radicals all along, so no score moved for it; PyMuPDF and PDFKit now
   both read the real characters.
+- **A no-break space is an em in a square face (2026-10-15).** Lab
+  `nb1`: "甲" + ten U+00A0 + "乙" at 12pt sets each no-break space 12pt
+  in 宋体, 黑体, 楷体 and 仿宋, where a space (U+0020) is 6pt; in a run
+  whose Latin face is Times it is Times' 3pt, and YaHei keeps its own
+  3.55. It goes by the run's Latin face whatever the hint. Chinese forms
+  space their "年  月  日" lines with them. The square faces' Latin side
+  now sets U+00A0 at an em (`otherAdvances`). No document moved by 0.3.
+- **Autofit tables: what makes Word re-fit one (2026-10-15, T1; labs
+  `at1`–`at5`, bodies 56–60, in ~/starling-word-check/lab).**
+  zh-0aac9d1a's forms are autofit, tblW 8578, grid 1350/3022/1526/2680,
+  cell margins 105; Word prints them 34.6/187.5/110.6/156.4pt, 489pt in
+  all. What the labs found: (1) Word keeps the saved grid exactly, as a
+  fixed table, until a cell's narrowest unbreakable content plus its
+  margins is wider than the grid columns it covers — a cell's longest
+  word growing, or ordinary breakable text, changes nothing. (2) Then
+  that cell gets exactly its unbreakable width, and the other columns
+  give way down to their own narrowest content (a column of "相关证明材料"
+  to 22.6pt: one character and the margins; "列入“红" holds an opening
+  quote to its character, so 34.6). (3) The table is the stated width
+  while that suffices, and wider when the minimums need it (a 3-column
+  span of 50, 55, 62, 70 Courier "W"s: 428.8, 429.1, 479.5, 537.1pt).
+  How a spanning cell's width is shared among its columns is NOT
+  proportional to the grid and was not found. In zh-0aac9d1a the cell
+  that triggers it is the stamp row's line of no-break and ordinary
+  spaces, which Word holds whole up to "（盖章）" (444pt) — it does not
+  break at those spaces, for a reason not found (no compat switch
+  explains it); a line of breakable words in the same place does not
+  trigger the re-fit. So nothing is built yet: a min-width model
+  without that break rule changes nothing in the one measured
+  document.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
