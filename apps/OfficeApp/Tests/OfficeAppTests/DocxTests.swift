@@ -1371,6 +1371,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(again.paragraphs.compactMap { $0.image?.textBox }.flatMap { $0.paragraphs.map(\.text) }, ["in1", "in2"])
     }
 
+    /// A section of columns that a continuous section follows, filled by
+    /// a column break, reads as a borderless row of a table — a cell a
+    /// column and one for the gap — with its section's end left as an
+    /// empty top-level paragraph, and goes back as written.
+    func testColumnSectionBeforeContinuousIsARow() throws {
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "x")])
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let page = "<w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/>"
+        let body = "<w:p><w:r><w:t>left</w:t></w:r></w:p><w:p><w:r><w:br w:type=\"column\"/></w:r></w:p><w:p><w:r><w:t>right</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:sectPr>\(page)<w:cols w:num=\"2\" w:space=\"720\"/></w:sectPr></w:pPr></w:p>"
+            + "<w:p><w:r><w:t>after</w:t></w:r></w:p><w:sectPr><w:type w:val=\"continuous\"/>\(page)<w:cols w:space=\"720\"/></w:sectPr>"
+        let a = xml.range(of: "<w:body>")!, b = xml.range(of: "</w:body>")!
+        xml.replaceSubrange(a.upperBound ..< b.lowerBound, with: body)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let cells = back.paragraphs.filter { $0.cell != nil }
+        let table = try XCTUnwrap(cells.first?.cell?.table)
+        XCTAssertEqual(back.tableColumns[table]?.count, 3, "two columns and the gap between them")
+        XCTAssertEqual(back.tableColumns[table]?[1], 36)
+        XCTAssertEqual(cells.first { $0.text == "left" }?.cell?.column, 0)
+        XCTAssertEqual(cells.first { $0.text == "right" }?.cell?.column, 2)
+        XCTAssertFalse(cells.contains { $0.style.columnBreak || $0.style.pageBreakBefore })
+        XCTAssertEqual(back.tableStyles[table]?.borders, false)
+        let mark = try XCTUnwrap(back.paragraphs.firstIndex { $0.cell == nil && $0.style.sectionXML != nil })
+        XCTAssertEqual(back.paragraphs[mark].text, "")
+        XCTAssertEqual(back.paragraphs[mark + 1].text, "after")
+        let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertFalse(saved.contains("<w:tbl"), saved)
+        XCTAssertTrue(saved.contains("w:type=\"column\"") && saved.contains("w:num=\"2\"") && saved.contains(">right<"), saved)
+    }
+
     /// A long one is flattened into its cell, kept verbatim for the save
     /// while its text stands as read.
     func testNestedTableKeptVerbatim() throws {

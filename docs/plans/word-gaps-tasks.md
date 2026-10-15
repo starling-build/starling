@@ -442,3 +442,14 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   (testSmallNestedTableIsABlock), and the flattened, kept-verbatim path
   is tested with a nested table over the 600-character bound. Both
   pass here (`swift test -c release --filter`).
+- Windows box, 2026-10-15, leads left for whoever takes them:
+  zh-1a3c7aa0 p51 (parted rows, the Mac's): row 127's centred cells
+  ("127 二硫化碳 75-15-0") stand in the middle of the row's part on p51
+  in Word's print (y 187 between 217 and 147); ours centre them over
+  the whole row and the part keeps one line more. zh-1563bd74 (83.6%,
+  30 pages to 29): its footer's second paragraph (style "header",
+  leftChars 2280 + firstLineChars 2000, right-aligned, a near-white "X"
+  then "红河县人民政府发布") is one line in Word's footer and two in
+  ours; the footer then stands taller and every body page ends 35pt
+  short from p26. A body lab of the same paragraph (lab `oi`) wraps in
+  Word too, so the footer's case turns on something not yet found.
