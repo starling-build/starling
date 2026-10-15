@@ -108,7 +108,7 @@ lo-control_background_color.pptx	summary pages=1 worst=1.90% mean=1.90%
 lo-crop-position.pptx	summary pages=1 worst=0.40% mean=0.40%
 lo-crop-to-shape.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-croppedTo0.pptx	summary pages=1 worst=2.25% mean=2.25%
-lo-cshapes.pptx	summary pages=1 worst=2.52% mean=2.52%
+lo-cshapes.pptx	summary pages=1 worst=2.39% mean=2.39%
 lo-custgeom-nofill-path.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-custgeom-overlapping-contours.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-custgeom-placeholder.pptx	summary pages=1 worst=0.07% mean=0.07%
@@ -155,7 +155,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.17% mean=0.17%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=1.74% mean=1.74%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.04%
+lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.03%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.25% mean=0.25%
 lo-ole.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%

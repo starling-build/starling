@@ -658,6 +658,9 @@ final class SlidePainter: CustomPainter {
                 paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
                 canvas.restore()
             }
+            // Every fill, then every outline — PowerPoint's order whatever
+            // the paths': lo-cshapes' chartStar lists its lines before the
+            // box they lie on, and shows them over it.
             for sub in freeform.subpaths {
                 let path = FreeformGeometry.path(sub, in: r)
                 if sub.fill, shape.fillStyle == nil, let fill = shape.fill, shape.preset?.isOpenPath != true {
@@ -667,6 +670,9 @@ final class SlidePainter: CustomPainter {
                     p.color = FreeformGeometry.toned(fill, sub.tone)
                     canvas.drawPath(path, p)
                 }
+            }
+            for sub in freeform.subpaths {
+                let path = FreeformGeometry.path(sub, in: r)
                 if sub.stroke, let line = shape.outline {
                     let p = Paint()
                     p.style = .stroke

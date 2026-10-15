@@ -1784,6 +1784,14 @@ at all — the deck's grey and orange boxes drew as nothing; it is
 PowerPoint's own Office theme now (accent 3 A5A5A5, accent 2 ED7D31,
 line widths ½, 1, 1½ pt).
 
+**A shape's fills before its outlines, 2026-10-15** (sweep 88 again:
+1.28966 → 1.28940%; lo-cshapes 2.52 → 2.39, numfmt −0.01; none worse).
+A shape of several paths was filled and stroked path by path; lo-cshapes'
+chartStar, chartPlus and chartX list their lines before the box they
+lie on, and PowerPoint shows the lines over the box. Every path is
+filled first now, then every outline drawn. (Its accentCallout1, which
+PowerPoint leaves out altogether, is still drawn here.)
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
