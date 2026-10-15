@@ -2639,6 +2639,21 @@ fitter dropped the paragraph's tail).
   under the line above where ours, without the mark's line to make up
   for them, now has 30.
 
+- **The row above's bottom line lies in the cell's top margin
+  (2026-10-15).** A row is as much taller as the line above it is wide
+  — where its cells, or the table's inside lines, say that line. Where
+  only the row above rules its bottom, Word sets that line in the lower
+  cell's top margin and gives it only what of its width the margin
+  does not hold. Lab `bm` in table-indent's package (Word 16, 12pt
+  Times rows of 18.4pt): under a 1pt line, rows 19.4 apart with no
+  margins, 21.1 with 55 twips above (none below), 22.1 with 55 twips
+  below (none above), 19.9 at 10 twips each, 22.4 under a 3pt line at
+  20 twips; and 20.4 at 10 twips where every cell rules its own top. A
+  table's top and bottom lines take their full width as before.
+  table-indent's cells rule their bottoms alone over 55-twip margins,
+  and its rows stood half a point too far apart: 50% -> 100%. POI
+  75.82 -> 76.30; the Chinese sample unchanged (95.99).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

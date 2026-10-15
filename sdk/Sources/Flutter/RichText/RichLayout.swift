@@ -3255,10 +3255,19 @@ public final class RichLayout {
                 }
                 var below = 0.0
                 var top = rule(c, "top")
+                // (The row above's bottom line, where this cell says none
+                // of its own, lies in this cell's top margin: room only
+                // for what of it the margin does not hold. Lab `bm` in
+                // table-indent's package, Word 16, 2026-10-15: under a 1pt
+                // line rows of 18.4pt text are 19.4 apart with no margins,
+                // 21.1 with 55 twips above, 22.1 with them below, 19.9 at
+                // 10 twips each — and 20.4 there where every cell rules its
+                // own top. table-indent's cells rule their bottoms alone,
+                // and its rows stood 0.5pt apart too far.)
                 if c.row > 0 {
                     var k = i - 1
                     while k >= 0, let d = document.paragraphs[k].cell, d.table == c.table, d.row + d.rowSpan - 1 >= c.row - 1 {
-                        if d.row + d.rowSpan - 1 == c.row - 1 { top = max(top, rule(d, "bottom")) }
+                        if d.row + d.rowSpan - 1 == c.row - 1 { top = max(top, rule(d, "bottom") - pad.top) }
                         k -= 1
                     }
                 }
