@@ -2831,6 +2831,15 @@ public final class RichLayout {
             web && s.spaceAfterAuto ? (s.list == nil ? 14.0 : 0.0) : inLines(s, "w:afterLines") ?? s.spaceAfter
         }
         var spaceBefore = web && style.spaceBeforeAuto ? autoGap : inLines(style, "w:beforeLines") ?? style.spaceBefore
+        // (Automatic spacing gives way at a cell's edges, as a web page's
+        // does: none before a cell's first paragraph, none after its
+        // last — zh-a4b0f6ea's cover form, whose every cell is auto
+        // spaced, has its title row 14pt shorter in Word's print.)
+        var dropAfter = false
+        if theme.wordRules, web, let c = p.cell {
+            if style.spaceBeforeAuto, i == 0 || document.paragraphs[i - 1].cell != c { spaceBefore = 0 }
+            if style.spaceAfterAuto, i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].cell != c { dropAfter = true }
+        }
         if theme.wordRules, web {
             if i == 0 {
                 if style.spaceBeforeAuto { spaceBefore = 0 }
@@ -2856,7 +2865,7 @@ public final class RichLayout {
             }
         }
         let k = spacingFollowsFont ? fontScale : 1
-        return (skipBefore ? 0 : _px(spaceBefore * k), skipAfter ? 0 : _px(spaceAfter(style) * k))
+        return (skipBefore ? 0 : _px(spaceBefore * k), skipAfter || dropAfter ? 0 : _px(spaceAfter(style) * k))
     }
 
     /// The sheet's Normal look, for `RichTextTheme.textStyle`.

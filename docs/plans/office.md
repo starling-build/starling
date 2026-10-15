@@ -2439,6 +2439,12 @@ fitter dropped the paragraph's tail).
   where ours stood 29pt into it. zh-37b6536f 30.8% -> 91.5%; nothing
   else has one. (Charts themselves are still not drawn in documents.)
 
+- **Automatic spacing gives way at a cell's edges (2026-10-14).** As
+  on a web page, a cell's first paragraph has no automatic space before
+  it and its last none after. zh-a4b0f6ea's cover form, every cell auto
+  spaced, has its title row 14pt shorter in Word's print than ours
+  was. zh-a4b0f6ea 78.4% -> 81.7%; nothing else moved.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
