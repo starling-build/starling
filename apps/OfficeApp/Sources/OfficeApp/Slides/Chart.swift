@@ -328,7 +328,10 @@ enum ChartXML {
             let text = paragraphs.isEmpty ? _texts(t, "a:t").joined() : paragraphs.map { p in
                 p.children.map { $0.name == "a:br" ? "\n" : $0.name == "a:r" ? ($0.first("a:t")?.text ?? "") : "" }.joined()
             }.joined(separator: "\n")
-            title = text.isEmpty ? (series.count == 1 ? series[0].name : "Chart Title") : text
+            // (A lone series titles its chart by its name — and one with
+            // no name gives "Chart Title": zh-37b6536f's pie in Word's
+            // print, where ours read "Series 1".)
+            title = text.isEmpty ? (series.count == 1 && named ? series[0].name : "Chart Title") : text
             // Its look: the first run's, over the paragraph's default run
             // properties, over the title's own (`c:txPr`).
             let run = paragraphs.first?.first("a:r")?.first("a:rPr")
