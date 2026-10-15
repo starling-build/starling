@@ -5374,7 +5374,14 @@ public final class RichLayout {
     /// bar, a closing bracket.
     private static func _joinsLatin(_ a: Character, _ b: Character) -> Bool {
         guard let x = a.asciiValue, let y = b.asciiValue, y > 0x20, y < 0x7F else { return false }
-        return x == 0x2F || x == 0x3F || x == 0x21 || x == 0x7C || x == 0x29 || x == 0x5D || x == 0x7D
+        if x == 0x2F || x == 0x3F || x == 0x21 || x == 0x7C || x == 0x29 || x == 0x5D || x == 0x7D { return true }
+        // (And a stop, comma, colon or semicolon before an opening
+        // bracket: the engine parts "population." from "(4)Temporality:"
+        // — Unicode lets a line break after a stop before a bracket —
+        // where Word, which parts Latin text at spaces and after hyphens
+        // alone, carries "population.(4)Temporality:" over whole:
+        // bug59058's page 29.)
+        return (x == 0x2E || x == 0x2C || x == 0x3A || x == 0x3B) && (y == 0x28 || y == 0x5B || y == 0x7B)
     }
 
     /// Whether a line may break between `a` and `b` for a curly quote's

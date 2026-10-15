@@ -3078,6 +3078,18 @@ fitter dropped the paragraph's tail).
   (Unguarded, SampleDoc had jumped 50 -> 66.7 by accident: its Arial
   Black in Carlito happened to wrap as Word's Arial Black; a width
   model for Arial Black is the honest fix.)
+- **A stop before a bracket is one word with it (2026-10-15).**
+  bug59058's "…particular outcome or population.(4)Temporality: the
+  potential…" has no spaces round "(4)": Word, which parts Latin text
+  at spaces and after hyphens alone, carries "population.(4)Temporality:"
+  over whole and leaves the line ten words long; the engine, by
+  Unicode's rules, may break after a stop before an opening bracket,
+  so ours kept "population." on the line and parted the rest — a line
+  out of step for the page. `_joinsLatin` now joins a stop, comma,
+  colon or semicolon to an opening bracket after it with a word
+  joiner, as it already did the slash, the question and exclamation
+  marks, the bar and the closing brackets. bug59058 53.3% -> 56.3;
+  nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
