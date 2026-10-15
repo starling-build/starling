@@ -1149,6 +1149,18 @@ Drawing only: the editor still edits it across, and East Asian
 characters are turned with the Latin ones rather than stood upright as
 `eaVert` stands them.
 
+**No space after a body's last paragraph, in points too, 2026-10-14**
+(sweep 65: 1.7783 → 1.7703%; bnc904423 3.59 → 1.39, ShapeLineProperties
+3.45 → 1.88, tdf169825_vertical_layouts 0.99 → 0.47, customGeo −0.09;
+none further). A percentage after was already left off a body's last
+paragraph; one in points was not, and a master giving every body
+paragraph 11.5 pt after lifted a centred box's text by half of it.
+
+Also looked at and left: ececapstonespring2012 (an export with no
+`marL` anywhere, whose first lines PowerPoint starts right after their
+bullet — the layout has no such first line), and the 1.08/1.22 line
+pitches of lo-tdf169524 and 60810 (see above).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

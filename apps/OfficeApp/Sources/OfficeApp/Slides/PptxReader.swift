@@ -2243,6 +2243,9 @@ private struct SlideContext {
             if level.afterPoints == nil, let pct = level.afterPercent, p !== allParagraphs.last {
                 style.spaceAfter = pct * size * 1.2
             }
+            // (Nor in points: bnc904423's centred boxes, 11.5 pt after their
+            // one paragraph, stood 5.75 high.)
+            if p === allParagraphs.last { style.spaceAfter = 0 }
             switch level.bullet {
             case .char?, .number?:
                 style.list = level.bullet == .char ? .bullet : .numbered
