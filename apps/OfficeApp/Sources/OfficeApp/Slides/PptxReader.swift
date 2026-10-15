@@ -1101,8 +1101,8 @@ private struct SlideContext {
                        let chOff = gx.first("a:chOff"), let chExt = gx.first("a:chExt"),
                        let cox = chOff["x"].flatMap(Double.init), let coy = chOff["y"].flatMap(Double.init),
                        let ccx = chExt["cx"].flatMap(Double.init), let ccy = chExt["cy"].flatMap(Double.init),
-                       ccx > 0, ccy > 0 {
-                        let sx = gf.width / (ccx / Pptx.emu), sy = gf.height / (ccy / Pptx.emu)
+                       ccx >= 0, ccy >= 0 {
+                        let sx = ccx > 0 ? gf.width / (ccx / Pptx.emu) : 1, sy = ccy > 0 ? gf.height / (ccy / Pptx.emu) : 1
                         let map: (Rect) -> Rect = { r in
                             let mapped = Rect.fromLTWH(gf.left + (r.left - cox / Pptx.emu) * sx,
                                                        gf.top + (r.top - coy / Pptx.emu) * sy, r.width * sx, r.height * sy)
@@ -1145,14 +1145,16 @@ private struct SlideContext {
                       let chOff = x.first("a:chOff"), let chExt = x.first("a:chExt"),
                       let cox = chOff["x"].flatMap(Double.init), let coy = chOff["y"].flatMap(Double.init),
                       let ccx = chExt["cx"].flatMap(Double.init), let ccy = chExt["cy"].flatMap(Double.init),
-                      ccx > 0, ccy > 0 else {
-                    // No child space to map through (a zero `chExt`, which
-                    // PowerPoint still draws somehow — tdf136830): kept
-                    // whole, so it gets exactly that back.
+                      ccx >= 0, ccy >= 0 else {
                     add(_opaque(el, label: "Group", transform, id: id), el)
                     continue
                 }
-                let sx = frame.width / (ccx / Pptx.emu), sy = frame.height / (ccy / Pptx.emu)
+                // A child space of no width (or height) maps that way one
+                // to one from the group's corner: tdf136830's figure, whose
+                // `chExt cx="0"`, keeps its members' own widths in
+                // PowerPoint's print and is scaled only up and down. (It
+                // was drawn as nothing.)
+                let sx = ccx > 0 ? frame.width / (ccx / Pptx.emu) : 1, sy = ccy > 0 ? frame.height / (ccy / Pptx.emu) : 1
                 let map: (Rect) -> Rect = { r in
                     let mapped = Rect.fromLTWH(frame.left + (r.left - cox / Pptx.emu) * sx,
                                                frame.top + (r.top - coy / Pptx.emu) * sy,

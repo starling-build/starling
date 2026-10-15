@@ -1627,6 +1627,12 @@ from the two lights as fitted.
 colour — LibreOffice's hairline — was drawn a pixel wide; PowerPoint
 draws nothing.
 
+**A group whose child space has no width, 2026-10-15** (tdf136830 3.22
+→ 0.05; the only deck with one). `chExt cx="0"` was kept whole and
+drawn as nothing. PowerPoint's print keeps the members' own widths,
+placed from the group's corner, and scales only the other way (1.159,
+the heights' ratio); that is the mapping now.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
