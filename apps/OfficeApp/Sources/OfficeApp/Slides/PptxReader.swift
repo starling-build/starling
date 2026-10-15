@@ -1985,6 +1985,10 @@ private struct SlideContext {
                 }
             }
         }
+        // The chart's own colour map, over the slide's: chart_pt_color_bg1's
+        // slide swaps bg1 for dark, its chart keeps bg1 light, and its
+        // `bg1 lumMod 85%` slice is light grey in PowerPoint's print.
+        if let map = space.first("c:clrMapOvr") { for (k, v) in map.attrs { colors.map[k] = v } }
         guard var chart = ChartXML.read(space, color: { colors.color(in: $0) }),
               var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
         if overridden {

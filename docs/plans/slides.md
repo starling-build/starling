@@ -1656,6 +1656,16 @@ the bar); plain stops otherwise get the eased linear-light blend
 (tdf109067's, whose `a:lin` has no `scaled`, still does). One deck of
 evidence, but the only gradient of the kind in the corpus.
 
+**A chart's own colour map, and a bare pie's size, 2026-10-15**
+(chart_pt_color_bg1 2.98 → 0.74; the other chart decks unchanged).
+The chart part's `c:clrMapOvr` was ignored, so its `bg1 lumMod 85%`
+slice took the slide's swapped map (bg1 dark) and drew black; it is
+read over the slide's now (light grey, as printed). And a pie with no
+title and no legend stands in its whole frame: PowerPoint's ring is
+0.926 of the frame's half height, ours was 0.87 inside the 9 pt margin
+(the only such pie in the corpus; ones with a title or legend keep the
+margin).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

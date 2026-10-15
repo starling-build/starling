@@ -878,7 +878,11 @@ enum ChartPainter {
         }
         canvas.save()
         canvas.clipRect(r)
-        var area = r.deflate(9 * k)
+        // (A pie with no title and no legend stands in the whole frame:
+        // chart_pt_color_bg1's ring is 0.926 of the frame's half height in
+        // PowerPoint's print, 0.87 inside the margin.)
+        let bare = c.type.isPie && (c.title ?? "").isEmpty && !c.legend && c.pieTilt == nil && c.plotLayout == nil
+        var area = bare ? r : r.deflate(9 * k)
 
         if let title = c.title, !title.isEmpty {
             // In the file's size, weight and colour where it gives them,
