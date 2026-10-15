@@ -2492,6 +2492,19 @@ fitter dropped the paragraph's tail).
   line ran a digit longer. zh-90e0cea8 67.5% -> 88.5%; nothing else
   moved.
 
+- **Contextual spacing compares the paragraph style alone
+  (2026-10-14).** Under Word's rules a bulleted List Paragraph and a
+  numbered one under it share no space — POI's Numbering had 9pt
+  between each of its lists — though not across a cell's edge (a
+  table's last list item and a list heading under the table keep
+  theirs: zh-06c46ba9). A list of the editor's own still goes by kind.
+- **Word 2010's custom number formats (2026-10-14).** A level whose
+  format is "custom" (in an `mc:Choice`, over a decimal fallback)
+  numbers from its sample: "α, β, γ, ..." runs on through the Greek
+  letters, "001, 002, 003, ..." pads digits; a save writes the choice
+  back. POI's Numbering 25.0% -> 100% with the entry above; nothing
+  else moved.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

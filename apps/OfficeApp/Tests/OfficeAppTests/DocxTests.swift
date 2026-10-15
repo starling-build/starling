@@ -1817,6 +1817,20 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(RichListNumbering.labels(doc), ["1\u{3000}"])
     }
 
+    func testCustomNumberFormats() throws {
+        // POI's Numbering: Word 2010's "α, β, γ, ..." in an mc:Choice.
+        var greek = ListLevelFormat(text: "%1."); greek.rawFormat = "custom:α, β, γ, ..."
+        XCTAssertEqual((1 ... 19).map { greek.number($0) }.joined(), "αβγδεζηθικλμνξοπρστ")
+        var padded = ListLevelFormat(text: "%1"); padded.rawFormat = "custom:001, 002, 003, ..."
+        XCTAssertEqual(padded.number(7), "007")
+        // And a save writes it back as Word does, so it reads the same.
+        var p = RichParagraph(text: "One"); p.style.list = .numbered; p.style.listId = "5"
+        var doc = RichDocument(paragraphs: [p])
+        doc.listFormats = ["5": [0: greek]]
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(RichListNumbering.labels(back), ["α."])
+    }
+
     func testDocxWrittenByWord() throws {
         // A real Microsoft Word document: BoringCrypto's FIPS security
         // policy (Google; "may be freely reproduced and distributed in its

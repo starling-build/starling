@@ -1168,8 +1168,32 @@ public struct ListLevelFormat: Hashable, Sendable {
         // (A level that shows no number: zh-90e0cea8's chapters are
         // "%1%2　" over a level 0 of "none" — "6　", not "16　".)
         case "none": return ""
+        case let r where r.hasPrefix("custom:"):
+            return Self.customNumber(String(r.dropFirst(7)), n) ?? format.string(n)
         default: return format.string(n)
         }
+    }
+
+    /// A number in a Word 2010 custom format, given as samples of its
+    /// first items ("α, β, γ, ...", "001, 002, 003, ..."): letters run on
+    /// from the first (the Greek ones skipping the final sigma), digits
+    /// are padded to the sample's width. nil for a sample not read.
+    static func customNumber(_ spec: String, _ n: Int) -> String? {
+        let items = spec.split(separator: ",").map { String($0.filter { $0 != " " }) }.filter { !$0.isEmpty && $0 != "..." }
+        guard let first = items.first else { return nil }
+        if first.allSatisfy({ $0.isASCII && $0.isNumber }) {
+            let digits = String(n)
+            return String(repeating: "0", count: max(0, first.count - digits.count)) + digits
+        }
+        guard first.unicodeScalars.count == 1, let start = first.unicodeScalars.first?.value else { return nil }
+        var code = start
+        var k = 1
+        while k < n {
+            code += 1
+            if code == 0x3C2 || code == 0x3A2 { code += 1 }   // ς, and the unassigned capital
+            k += 1
+        }
+        return Unicode.Scalar(code).map { String(Character($0)) }
     }
 
     /// The bullet a level shows when its list names none.

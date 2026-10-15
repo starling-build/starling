@@ -622,7 +622,12 @@ enum DocxFormat {
             var abstractFormats: [String: [Int: ListLevelFormat]] = [:]
             func readLevel(_ lvl: XNode, _ levels: inout [Int: ListKind], _ formats: inout [Int: ListLevelFormat]) {
                 let ilvl = Int(lvl["w:ilvl"] ?? "0") ?? 0
-                let fmt = lvl.first("w:numFmt")?["w:val"] ?? "decimal"
+                // (Word 2010's custom formats — "α, β, γ, ..." — stand in
+                // an mc:Choice over a decimal fallback.)
+                let chosen = lvl.first("mc:AlternateContent")?.first("mc:Choice")?.first("w:numFmt")
+                let fmtNode = chosen ?? lvl.first("w:numFmt") ?? lvl.first("mc:AlternateContent")?.first("mc:Fallback")?.first("w:numFmt")
+                let customSpec = fmtNode?["w:val"] == "custom" ? fmtNode?["w:format"] : nil
+                let fmt = customSpec == nil ? (fmtNode?["w:val"] == "custom" ? "decimal" : fmtNode?["w:val"] ?? "decimal") : "custom"
                 levels[ilvl] = fmt == "bullet" ? .bullet : .numbered
                 if fmt == "bullet" {
                     // Word's stock bullets are Symbol/Wingdings private-use
@@ -655,6 +660,7 @@ enum DocxFormat {
                                                     format: number)
                     // "一、二、三": a format the editor counts in digits.
                     if !["decimal", "lowerLetter", "upperLetter", "lowerRoman", "upperRoman"].contains(fmt) { formats[ilvl]!.rawFormat = fmt }
+                    if let spec = customSpec { formats[ilvl]!.rawFormat = "custom:" + spec }
                 }
                 // The level's indents (65099's "1.1.1" hangs 0.5in at the
                 // margin; the editor's default put it 1.5in in).
@@ -3850,7 +3856,10 @@ enum DocxFormat {
                     case .upperRoman: fmt = "upperRoman"
                     case .bullet: fmt = "bullet"
                     }
-                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"\(f.start ?? 1)\"/><w:numFmt w:val=\"\(_esc(f.rawFormat ?? fmt))\"/>\(suff)<w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"\(_esc(f.justification ?? "left"))\"/><w:pPr>\(ind)</w:pPr>\(numRPr)</w:lvl>"
+                    let numFmt = f.rawFormat.map { $0.hasPrefix("custom:") }  == true
+                        ? "<mc:AlternateContent><mc:Choice Requires=\"w14\"><w:numFmt w:val=\"custom\" w:format=\"\(_esc(String(f.rawFormat!.dropFirst(7))))\"/></mc:Choice><mc:Fallback><w:numFmt w:val=\"decimal\"/></mc:Fallback></mc:AlternateContent>"
+                        : "<w:numFmt w:val=\"\(_esc(f.rawFormat ?? fmt))\"/>"
+                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"\(f.start ?? 1)\"/>\(numFmt)\(suff)<w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"\(_esc(f.justification ?? "left"))\"/><w:pPr>\(ind)</w:pPr>\(numRPr)</w:lvl>"
                 }
                 lvls.append(levels)
             }
