@@ -3743,7 +3743,23 @@ public final class RichLayout {
                     break search
                 }
             }
-            if let target = theme.baseline(for: lead.0, in: style, named: named, eastAsian: lead.1, gridPitch: pitch) {
+            if var target = theme.baseline(for: lead.0, in: style, named: named, eastAsian: lead.1, gridPitch: pitch) {
+                // (The line's baseline is its tallest run's, where the
+                // text is Latin: form_footnotes' "D - " box in Symbol
+                // after 11pt spaces sets "Concessão" a point lower than
+                // the 10pt lines beside it in Word's print.)
+                if !lead.1, style.lineHeightPoints == nil {
+                    let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)
+                    var start = 0
+                    for run in p.runs where run.length > 0 {
+                        defer { start += run.length }
+                        guard start < firstEnd else { break }
+                        if run.style.inlineImage != nil || run.style.script != .normal { continue }
+                        if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch) {
+                            target = max(target, b)
+                        }
+                    }
+                }
                 _inkShift[i] = _px(target) - line.baseline
             }
         }

@@ -3532,6 +3532,16 @@ fitter dropped the paragraph's tail).
   the text's size and the lines uniform. The line's height arrives by
   the zero-width space the Symbol bullets already use (a placeholder box
   sets no height). bug65649 96.4 -> 99.7; nothing else moved.
+- **A Latin line's baseline is its tallest run's (2026-10-15).** The
+  baseline was the first run's alone. Word sets it under the tallest
+  run on the first line, and a larger size or a Symbol box lowers it.
+  form_footnotes' "D - " box after 11pt spaces sets "Concessão" 0.96pt
+  under the 10pt "F - Validade" beside it in Word's print. Ours set the
+  two level, and they now stand 0.96 apart. Not for East Asian lines,
+  whose lead stretch already decides, nor for stated line heights. No
+  score moved: form_footnotes' extra page comes from its rows, each
+  about 0.4pt short. Word starts a cell's text under the whole of the
+  row's top border, and ours starts it at the border's centre.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the
