@@ -2647,6 +2647,16 @@ fitter dropped the paragraph's tail).
   face's, and the line still stands 1.09pt under Word's; T11 stays
   open with that.
 
+- **A header's or footer's lines keep to no line grid (2026-10-14).**
+  The header and footer sub-layouts took the section's line pitch, and
+  a 10.5pt header line was centred in zh-90e0cea8's 15.6pt grid —
+  11.44pt under the header's top where Word's print has it 10.35; the
+  header was then a point taller, the body's text a point lower on
+  every page, and the last picture missed the last page's foot (task
+  board T11, chased through the header's "—" and the 黑体 stand-in
+  first). zh-90e0cea8 67.8% -> 83.9% and Word's 10 pages; nothing
+  down. 63 of 68 documents now have Word's page count.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

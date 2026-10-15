@@ -177,7 +177,7 @@ Owner: session 011uWpmCQYr9neyJ1V1gzrrb
 Always a page, unless a page break just before is the same break
 (entry in `office.md`, lab `es`). zh-06c46ba9 0.7 -> 47.2.
 
-### T11. zh-90e0cea8: drift on its last page
+### T11. zh-90e0cea8: drift on its last page — DONE (2026-10-14)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 Documents: zh-90e0cea8 (67%, 11 pages to Word's 10).
 Known: Word's last picture ends exactly at the page's usable foot, its
@@ -211,6 +211,10 @@ ellipsis routed to the CJK face) is in — zh-9c5d0c3f 55.9 -> 66.7 — and
 zh-90e0cea8's header line still stands 1.09pt under Word's with its "—"
 from the CJK face. So the drift is not the dash: the 黑体 run's mono
 stand-in (Liberation Mono at 5/6, baseline 1.005) is the next suspect.
+Found: the header sub-layout took the body's line grid and centred its
+10.5pt line in the 15.6pt pitch (11.44 under the top; Word 10.35).
+Headers and footers now keep to no grid: 67.8% -> 83.9%, Word's 10
+pages (commit after 49beaff9).
 
 ### T12. Squeezing marks to fit a character: the limit on a character grid
 Owner: none. Documents: zh-d68ac84a (80%, first parting page 10).

@@ -6204,7 +6204,11 @@ public final class RichLayout {
         sub.listRestarts = document.listRestarts
         sub.tableColumns = document.tableColumns
         sub.tableStyles = document.tableStyles
-        sub.lineGridPitch = section.last ? document.lineGridPitch : setup.lineGridPitch
+        // (A header's or footer's lines keep to no line grid: Word sets
+        // zh-90e0cea8's 10.5pt header 10.35pt under its top, where a
+        // line centred in the body's 15.6pt pitch stands 11.44 under,
+        // and every page's text then that much lower.)
+        sub.lineGridPitch = nil
         sub.characterGridSpace = section.last ? document.characterGridSpace : setup.characterGridSpace
         sub.usesEastAsianLayout = document.usesEastAsianLayout
         sub.characterSpacingControl = document.characterSpacingControl
