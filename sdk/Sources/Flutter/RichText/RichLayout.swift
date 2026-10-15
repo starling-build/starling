@@ -5121,7 +5121,12 @@ public final class RichLayout {
             // (Fitting by that hair is fitting: the engine allows none,
             // so the last character gives it up.)
             if fits, x + w > width, last > a { adjust[last - 1, default: 0] -= x + w - width + 0.02 }
-            if !fits, !opening, last > a {
+            // (A piece that opens its line hangs its closing mark all the
+            // same — it alone, nothing squeezed: zh-69bbcc3c's paragraph
+            // of 48 spaces and "）。", 416pt in a column of 415.6, is one
+            // line in Word's print, its "。" 0.4pt past the margin. Ours
+            // broke the piece where it would not fit, "。" a line alone.)
+            if !fits, !opening || hangs, last > a {
                 let over = x + w - width
                 let tail = last - 1
                 // A closing mark at the end of what comes next may hang
@@ -5165,7 +5170,7 @@ public final class RichLayout {
                     // (All of it, the hair too: the engine has none.)
                     adjust[tail, default: 0] -= over + 0.02
                     fits = true
-                } else if squeezes {
+                } else if squeezes, !opening {
                     // Word takes the next character where it is half an
                     // em or less too wide for the line, and then all of
                     // what cannot be parted from it (an opening mark's
@@ -5326,7 +5331,7 @@ public final class RichLayout {
                         fits = true
                     }
                 }
-                if !fits, squeezesSpaces, !wordSpaces.isEmpty {
+                if !fits, !opening, squeezesSpaces, !wordSpaces.isEmpty {
                     let need = x + w - after - width
                     let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4
                     // (And only where each space gives at most half of

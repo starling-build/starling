@@ -2654,6 +2654,18 @@ fitter dropped the paragraph's tail).
   and its rows stood half a point too far apart: 50% -> 100%. POI
   75.82 -> 76.30; the Chinese sample unchanged (95.99).
 
+- **A piece that opens its line may hang its mark (2026-10-15).** The
+  fitter judged what comes next on a line only where something stood
+  on the line already; a stretch that opens the line and is itself too
+  wide was left to the engine, which broke it wherever it ran out —
+  between "）" and "。" too. zh-69bbcc3c's form leaves its blanks as
+  paragraphs of spaces: 48 spaces and "）。", 416pt in a column of
+  415.6, are one line in Word's print, the "。" 0.4pt past the margin.
+  Such a stretch now hangs its last mark as any other. Chinese sample
+  95.99 -> 96.20 (zh-1a3c7aa0 72.9 -> 86.3, zh-69bbcc3c 89.4 -> 90.6);
+  POI 76.30 -> 76.78 (SampleDoc 50 -> 100, the Mac's Arial Black in
+  the same sweep); nothing down.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
