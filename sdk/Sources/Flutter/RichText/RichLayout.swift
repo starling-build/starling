@@ -4853,17 +4853,21 @@ public final class RichLayout {
     /// is wrapped round as a picture is (`_wrapBoxes`).
     public nonisolated(unsafe) static var drawsObject: ((ImageAttachment) -> Bool)? = nil
 
+    /// What `objectPainter` draws for an object with no picture, in
+    /// `rect`; true where it drew it.
+    private func _paintObject(_ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas) -> Bool {
+        guard theme.wordRules, image.data.isEmpty, let paint = Self.objectPainter else { return false }
+        canvas.save()
+        defer { canvas.restore() }
+        return paint(image, canvas, rect, theme.pixelsPerPoint * scale)
+    }
+
     /// A kept shape's line or box (`ImageAttachment.outline`), in `rect`
     /// — or what `objectPainter` draws for it, and then true.
     @discardableResult
     private func _paintOutline(_ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas) -> Bool {
         guard theme.wordRules else { return false }
-        var drawn = false
-        if image.data.isEmpty, let paint = Self.objectPainter {
-            canvas.save()
-            drawn = paint(image, canvas, rect, theme.pixelsPerPoint * scale)
-            canvas.restore()
-        }
+        let drawn = _paintObject(image, rect, canvas)
         guard let outline = image.outline else { return drawn }
         if outline.kind == .box, let fill = outline.fill {
             let paint = Paint()
@@ -5634,7 +5638,10 @@ public final class RichLayout {
                     inside.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000),
                                         document: inside.document, selection: nil, caret: nil)
                     canvas.restore()
-                } else {
+                } else if !_paintObject(image, rect, canvas) {
+                    // (An object in the line that the app draws — chartex's
+                    // line chart, a space after it — is drawn as one alone in
+                    // its paragraph is; any other, a grey stand-in.)
                     paint.style = .fill
                     paint.color = Color(0x22808080)
                     canvas.drawRect(rect, paint)

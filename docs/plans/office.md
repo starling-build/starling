@@ -2331,6 +2331,16 @@ fitter dropped the paragraph's tail).
   ThreeColHeadFoot, DiffFirstPageHeadFoot -> 100%, PageSpecificHeadFoot
   80 -> 90, bug57031 +4.1; zh-90e0cea8 67.1 -> 86.2; nothing down.
 
+- **Word 2016's charts show as their pictures; a chart in a line is
+  drawn (2026-10-14).** A `cx` chart (box and whisker, waterfall …)
+  comes as `mc:AlternateContent` whose Fallback is a picture of it:
+  the reader took the Choice, failed on it, and the chart took no room
+  — chartex printed on one page to Word's three. The Fallback's picture
+  is now shown. And a chart in a line with text (chartex's line chart,
+  a space after it) went through the inline path, which never asked
+  `objectPainter`: drawn now too. chartex has its three pages; its
+  radar chart stays a grey box (Slides reads no radar charts).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

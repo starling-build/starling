@@ -2456,8 +2456,19 @@ enum DocxFormat {
                     }
                 case "w:drawing", "w:pict":
                     addImage(child)
-                case "w:object", "mc:AlternateContent":
+                case "w:object":
                     addObject(child)
+                case "mc:AlternateContent":
+                    // A Choice this app cannot draw — Word 2016's charts,
+                    // `cx` — is the picture of it the Fallback holds:
+                    // chartex's six charts took no room at all.
+                    let requires = (child.first("mc:Choice")?["Requires"] ?? "").split(separator: " ")
+                    if requires.contains("cx"), let drawing = child.first("mc:Fallback")?.first("w:drawing"),
+                       drawing.descendant("a:blip") != nil {
+                        addImage(drawing)
+                    } else {
+                        addObject(child)
+                    }
                 case "w:footnoteReference", "w:endnoteReference":
                     // The mark: its number as superscript text, tagged with
                     // the note it stands for so the writer puts the
