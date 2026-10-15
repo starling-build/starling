@@ -665,6 +665,10 @@ public final class RichLayout {
     /// one: a header's or footer's, where an object aligned "outside"
     /// stands at the left.
     public var leftHandPage = false
+    /// The widths (pixels, by image id) a header's or footer's fit-to-text
+    /// boxes keep from the first page that header or footer is on: Word
+    /// sizes such a box once and wraps later pages' text inside it.
+    var inheritedFitWidths: [String: Double] = [:]
     /// … and up, where its paragraph's line was moved down under the
     /// pictures and the picture stays where the paragraph first stood.
     private var _floatShiftY: [String: Double] = [:]
@@ -6586,7 +6590,29 @@ public final class RichLayout {
         // line — zh-1a3c7aa0's footer page number, in a 144pt box set
         // to fit its text and centred, stands at the page's middle in
         // Word's print, where the whole box centred put it 65pt left.)
-        if box.fitsText {
+        if box.fitsText, let w = inheritedFitWidths[image.id] {
+            // (A header's or footer's box as wide as on the first page it
+            // is on — lab `ftD`, Word 16, 2026-10-15: zh-a4b0f6ea's
+            // "— PAGE —", fit to its text without wrapping, first drawn
+            // on page 2, wraps its closing dash under "— 10" on every
+            // two-digit even page; numbered from 8, so that it first
+            // stands on page 10, no even page wraps and the odd ones,
+            // first on 9, all do. The cached result is not what it is
+            // sized by: changing it changes nothing.)
+            // (Wrapped only at a space: "-10-" in a box sized by "-1-"
+            // runs out of it whole in Word's prints of zh-c3dd22c4,
+            // zh-1563bd74, zh-9dd9ce6d and zh-1a3c7aa0, where the engine
+            // parted it and the footer grew a line. The box is no
+            // narrower than a paragraph's longest unbreakable piece.)
+            var need = 0.0
+            for k in 0 ..< sub.paragraphs.count {
+                let g = layout.geometry(k)
+                need = max(need, g.painter.minIntrinsicWidth + g.textLeft)
+            }
+            layout.width = max(1, w - _px(box.insetLeft + box.insetRight), need.rounded(.up) + (need > 0 ? 1 : 0))
+            layout.ensureLaidOut(sub)
+            _fitWidths["\(image.id)|\(box.hashValue)"] = layout.width + _px(box.insetLeft + box.insetRight)
+        } else if box.fitsText {
             var natural = 0.0
             for k in 0 ..< sub.paragraphs.count {
                 let painter = layout.geometry(k).painter
@@ -6865,6 +6891,12 @@ public final class RichLayout {
                             // (One number per field, however many runs its old result was in.)
                             let word = field.trimmingWhitespace().uppercased().split(separator: " ").first.map(String.init) ?? ""
                             piece = lastField == field ? "" : (word == "PAGE" ? shown : count)
+                            // (A field's result is one piece: Word parts
+                            // "- 10 -" (numberInDash) at none of its spaces
+                            // — zh-c3dd22c4's, in a box sized by "- 1 -",
+                            // stays on one line in its print — so each
+                            // space is joined to what follows it.)
+                            if piece.contains(" ") { piece = piece.replacingAll(" ", with: " \u{2060}") }
                         }
                         lastField = run.style.field
                         guard !piece.isEmpty else { continue }
@@ -6917,6 +6949,17 @@ public final class RichLayout {
         layout.frameMargins = (setup.marginLeft + setup.gutter, setup.marginRight)
         layout.leftHandPage = number % 2 == 0
         layout.width = _px(setup.contentWidth)
+        // (Its fit-to-text boxes as wide as on the first page this one is
+        // on: see `inheritedFitWidths`.)
+        if let first = (0 ..< p).first(where: { q in
+            !_blankPages.contains(q) && _headerFooterSection(q).index == section.index
+                && (_titlePage(q, document) ? "first" : document.evenAndOddHeaders && _pageNumberOf(q, document) % 2 == 0 ? "even" : "default") == type
+        }), let earlier = _headerFooter(kind, page: first, document, pageCount: pageCount) {
+            for (k, w) in earlier.layout._fitWidths {
+                guard let bar = k.firstIndex(of: "|") else { continue }
+                layout.inheritedFitWidths[String(k[..<bar])] = w
+            }
+        }
         layout.ensureLaidOut(sub)
         let made = _HeaderFooter(layout: layout, document: sub)
         _headerFooterCache[key] = made

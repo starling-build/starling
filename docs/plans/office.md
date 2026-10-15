@@ -3381,7 +3381,24 @@ fitter dropped the paragraph's tail).
   Both fixed, `w:eastAsiaTheme` with them. zh-1a3c7aa0 78.0% -> 91.7;
   nothing down. zh-a4b0f6ea's page numbers (a fit-to-text box, "— PAGE
   —") still differ: on two-digit pages Word wraps the closing dash onto
-  a second line, as if the box kept a one-digit page's width.
+  a second line: see the next entry.
+- **A header's or footer's fit-to-text box is sized on its first page
+  (2026-10-15).** Labs `ftA`–`ftD` (zh-a4b0f6ea's package, twelve pages):
+  its "— PAGE —" box, `wrap="none"` with `spAutoFit`, wraps the closing
+  dash under "— 10" on every two-digit even page; changing the field's
+  cached result changes nothing, and numbering from 8 — so that the even
+  footer first stands on page 10 — prints every even page whole while
+  the odd one, first on 9, wraps on each. Word sizes the box once, on
+  the first page that header or footer is on, and later pages' text
+  wraps inside that width. Ours fitted each page's box to its own
+  number. But a field's result is one piece: zh-c3dd22c4's "- 10 -"
+  (`numberInDash`) stays on one line in a box sized by "- 1 -" (Word
+  halves its spaces to keep the box's width); so the spaces of a filled
+  page number are joined to what follows, and an inherited box is never
+  narrower than a paragraph's longest unbreakable piece. zh-a4b0f6ea
+  82.0% -> 88.0, zh-5901e2b0 94.4 -> 100, zh-84702a67 91.5 -> 92.5;
+  nothing down (against a clean baseline at the same tip). Not done: the
+  halved spaces.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
