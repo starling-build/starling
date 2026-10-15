@@ -414,6 +414,13 @@ final class SlideShape {
     /// `a:effectLst/a:outerShdw` (or the theme's, through `effectRef`):
     /// a blurred copy of the outline cast under the shape.
     var shadow: CharShadow? = nil
+    /// `a:glow`: a blurred halo of `glowColor` this many points out round
+    /// the outline; nil for none.
+    var glowRadius: Double? = nil
+    var glowColor: Color? = nil
+    /// `a:softEdge`: the shape fades out over this many points inside its
+    /// outline; nil for a hard edge.
+    var softEdge: Double? = nil
     /// The part of `insets` that is the geometry's text rectangle (an
     /// oval's inscribed box, a chevron's notch): it stays when margins that
     /// follow the font shrink with it.

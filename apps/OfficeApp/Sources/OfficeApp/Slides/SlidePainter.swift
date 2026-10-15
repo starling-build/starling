@@ -446,6 +446,16 @@ final class SlidePainter: CustomPainter {
             canvas.rotate(-scene.rev * .pi / 180)
             canvas.translate(-c.dx, -c.dy)
         }
+        // The outline as drawn, for the effects round it.
+        func effectOutline() -> Path {
+            if let g = shape.pictureGeometry ?? shape.preset ?? shape.inheritedPreset, !g.isLine {
+                return PresetGeometry.path(g.rawValue, in: r) ?? Self.geometryPath(g, r)
+            }
+            if let free = shape.opaque?.freeform ?? shape.customPath { return Self.combinedPath(free, r) }
+            let p = Path()
+            p.addRect(r)
+            return p
+        }
         // (Not for a shape filled with a picture: its shadow is the shadow
         // of what the picture paints — tdf128596's ticks on nothing — and
         // the outline's showed grey through the gaps.)
@@ -454,15 +464,7 @@ final class SlidePainter: CustomPainter {
             // The outline's blurred copy, where the shadow falls: offset on
             // the page, not turned with the shape (rotWithShape="0", as
             // PowerPoint writes its shadows).
-            let outline: Path
-            if let g = shape.pictureGeometry ?? shape.preset ?? shape.inheritedPreset, !g.isLine {
-                outline = PresetGeometry.path(g.rawValue, in: r) ?? Self.geometryPath(g, r)
-            } else if let free = shape.opaque?.freeform ?? shape.customPath {
-                outline = Self.combinedPath(free, r)
-            } else {
-                outline = Path()
-                outline.addRect(r)
-            }
+            let outline = effectOutline()
             let a = -shape.rotation * .pi / 180
             let dx = (sh.dx * cos(a) - sh.dy * sin(a)) * px, dy = (sh.dx * sin(a) + sh.dy * cos(a)) * px
             let p = Paint()
@@ -477,6 +479,25 @@ final class SlidePainter: CustomPainter {
             canvas.drawPath(outline, p)
             canvas.restore()
         }
+        if let rad = shape.glowRadius, rad > 0, let color = shape.glowColor {
+            // A glow: the outline grown by its radius and blurred, behind
+            // the shape.
+            let p = Paint()
+            p.style = .stroke
+            p.isAntiAlias = true
+            p.strokeWidth = rad * px
+            p.strokeJoin = .round
+            p.color = color
+            p.maskFilter = MaskFilter(blur: .normal, rad * px / 4)
+            let outline = effectOutline()
+            canvas.drawPath(outline, p)
+            p.style = .fill
+            canvas.drawPath(outline, p)
+        }
+        // A soft edge: the shape drawn in a layer of its own, and the band
+        // inside its outline faded out of it before it is put down.
+        let softEdge = shape.softEdge.map { $0 * px }
+        if let softEdge { canvas.saveLayer(r.inflate(softEdge), Paint()) }
         if let image = shape.picture {
             if let metafile = cache.metafile(image) {
                 // A WMF or EMF, as vectors: the whole picture placed so that
@@ -689,6 +710,18 @@ final class SlidePainter: CustomPainter {
             }
         }
         if mirrored { canvas.restore() }
+        if let softEdge {
+            let p = Paint()
+            p.style = .stroke
+            p.isAntiAlias = true
+            // (Measured on lo-shape-soft-edges: PowerPoint's fade is half
+            // gone 0.73 of the radius in and spreads over 0.9 of it.)
+            p.strokeWidth = softEdge * 2
+            p.blendMode = .dstOut
+            p.maskFilter = MaskFilter(blur: .normal, softEdge * 0.4)
+            canvas.drawPath(effectOutline(), p)
+            canvas.restore()
+        }
         // (An empty table still has its rows' fills and borders to draw.)
         if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, r, canvas, pxPerPt: px, cache: cache) {
             // WordArt: fitted to the box and bent, not laid out in it.

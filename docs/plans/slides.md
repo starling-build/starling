@@ -1093,8 +1093,20 @@ tdf152606 +0.07). A shape's or picture's `a:outerShdw` was not drawn;
 - **Not under a picture fill**: its shadow is of what the picture
   paints (tdf128596's ticks on nothing went 3 → 29 with the outline's).
 
-Left: glow and soft edges (6 and 4 decks), inner shadows, and shadows
-of shapes with no fill (PowerPoint shadows their text or line).
+Left: inner shadows, and shadows of shapes with no fill (PowerPoint
+shadows their text or line).
+
+**Glow and soft edges, 2026-10-14** (sweep 63: 1.8123 → 1.7971%;
+shape-soft-edges 3.71 → 0.04, shape-glow-effect 0.64 → 0.01,
+shape-text-glow-effect 3.79 → 0.76, effectOrder 1.67 → 0.37;
+tdf141058-1 +0.27). A shape's `a:glow` is its outline stroked at the
+glow's radius and filled, blurred by a quarter of the radius, behind
+it; `a:softEdge` draws the shape in a layer of its own and cuts the
+band inside its outline away with a blurred stroke (`dstOut`) twice the
+radius wide, blurred by 0.4 of it — measured on shape-soft-edges, whose
+fade PowerPoint has half gone 0.73 of the radius in and spread over
+0.9 of it; this matches it to a few levels. A run's glow is not drawn:
+blurred text reaches PDF as the misplaced soft mask text shadows hit.
 
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page

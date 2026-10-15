@@ -1230,6 +1230,13 @@ private struct SlideContext {
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.outlineDash = PptxReader.dash(spPr?.first("a:ln")) ?? inheritedDash
         st.shadow = _shapeShadow(spPr, style)
+        if let effects = spPr?.first("a:effectLst") {
+            if let g = effects.first("a:glow"), let c = colors.color(in: g) {
+                st.glowRadius = (g["rad"].flatMap(Double.init) ?? 0) / Pptx.emu
+                st.glowColor = c
+            }
+            if let soft = effects.first("a:softEdge")?["rad"].flatMap(Double.init), soft > 0 { st.softEdge = soft / Pptx.emu }
+        }
         st.fillStyle = fillStyle
         if let o = spPr?.first("a:effectLst")?.first("a:fillOverlay"),
            var base = fillStyle ?? fill.map({ SlideFill(color: $0) }) {

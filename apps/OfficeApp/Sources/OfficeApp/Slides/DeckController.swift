@@ -57,6 +57,9 @@ struct ShapeState: Equatable {
     var sizeGroup: String? = nil
     var outlineDash: String? = nil
     var shadow: CharShadow? = nil
+    var glowRadius: Double? = nil
+    var glowColor: Color? = nil
+    var softEdge: Double? = nil
     var shapeInsets = EdgeInsets.zero
     var noWrap = false
     var columns = 1
@@ -1132,6 +1135,9 @@ final class DeckController: ChangeNotifier {
         st.sizeGroup = s.sizeGroup
         st.outlineDash = s.outlineDash
         st.shadow = s.shadow
+        st.glowRadius = s.glowRadius
+        st.glowColor = s.glowColor
+        st.softEdge = s.softEdge
         st.shapeInsets = s.shapeInsets
         st.noWrap = s.noWrap
         st.columns = s.columns
@@ -1221,6 +1227,9 @@ final class DeckController: ChangeNotifier {
         shape.sizeGroup = st.sizeGroup
         shape.outlineDash = st.outlineDash
         shape.shadow = st.shadow
+        shape.glowRadius = st.glowRadius
+        shape.glowColor = st.glowColor
+        shape.softEdge = st.softEdge
         shape.shapeInsets = st.shapeInsets
         shape.noWrap = st.noWrap
         shape.columns = st.columns
