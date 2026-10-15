@@ -2482,6 +2482,19 @@ fitter dropped the paragraph's tail).
   needs, centred in them as text is (three 18pt pitches here).
   zh-454e2e29 54.2% -> 71.9%; nothing else moved by it.
 
+- **A small table in a cell is a table (2026-10-15).** Nested tables
+  were flattened into their cell, by design: the layout knows one level
+  of table. zh-454e2e29's nested forms ("姓名 | 職稱 | 職務編號 | 考績等次 |
+  未報送考績原因" over two empty rows) stood as a column of lines 36pt
+  apart. A nested table with none in it, of 15 rows and 600 characters
+  at most, is now read as a document of its own and set in its cell as
+  a block (a `RichTextBox` that `growsToFit`, laid out by a layout of
+  its own, with the tables' looks and grids and the page's line grid),
+  its markup kept for the save. Longer ones are still flattened: a
+  block does not part across pages, and 60329's protocol text — 2,235
+  characters in a three-row table in a cell — ran to six pages that
+  way. The block keeps off the line grid (it is no line).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

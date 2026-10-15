@@ -260,6 +260,14 @@ public struct RichTextBox: Hashable, Sendable {
     /// or VML's `mso-wrap-style:none` with `mso-fit-shape-to-text`):
     /// Word shrinks it to the text before it places it.
     public var fitsText = false
+    /// The tables among `paragraphs` (their cells' `CellRef.table`), with
+    /// their looks and grids: a table nested in a cell is read as a box
+    /// of its own, laid out as a document is.
+    public var tableStyles: [String: TableStyle] = [:]
+    public var tableColumns: [String: [Double]] = [:]
+    /// The box is as tall as what is in it lays out (a nested table),
+    /// not as `ImageAttachment.height` says.
+    public var growsToFit = false
     public init(paragraphs: [RichParagraph]) { self.paragraphs = paragraphs }
 }
 

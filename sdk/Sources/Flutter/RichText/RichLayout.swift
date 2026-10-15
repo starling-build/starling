@@ -3671,6 +3671,8 @@ public final class RichLayout {
             var w = _px(image.width)
             var h = _px(image.height)
             if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
+            // (A table nested in a cell: as tall as it lays out.)
+            if image.textBox?.growsToFit == true, let inside = _textBox(image, document) { h = inside.height }
             _imageSize[i] = Size(w.rounded(), h.rounded())
             // A floating object stands clear of the flow: its paragraph
             // is the height of its (empty) line, as Word sets it.
@@ -3691,7 +3693,9 @@ public final class RichLayout {
         // zh-454e2e29's title, 41.3pt of combined 24pt text in a line of
         // three 18pt pitches, its baseline 37.2 down in Word's print.)
         let combined = inline.contains { $0.image?.name == "combine" } && painter.computeLineMetrics().count == 1
-        let inLine = p.image.map { $0.float == nil } ?? ((p.inlineImages.values.contains { $0.float == nil } || combined) && painter.computeLineMetrics().count == 1)
+        // (Not a table nested in a cell: a block, not a line.)
+        let inLine = p.image.map { $0.float == nil && $0.textBox?.growsToFit != true }
+            ?? ((p.inlineImages.values.contains { $0.float == nil } || combined) && painter.computeLineMetrics().count == 1)
         if theme.wordRules, inLine, style.lineHeightPoints == nil,
            style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch, pitch > 0 {
             let px = _px(pitch)
@@ -6347,6 +6351,15 @@ public final class RichLayout {
         sub.defaultLangXML = document.defaultLangXML
         sub.htmlAutoSpacing = document.htmlAutoSpacing
         sub.defaultTabStop = document.defaultTabStop
+        sub.tableStyles = box.tableStyles
+        sub.tableColumns = box.tableColumns
+        // (A table nested in a cell keeps to the page's grid, as its
+        // cell does: zh-454e2e29's nested form, its rows of 14pt 標楷體
+        // two 18pt pitches each in Word's print, came out 33pt short.)
+        if box.growsToFit {
+            sub.lineGridPitch = document.lineGridPitch
+            sub.characterGridSpace = document.characterGridSpace
+        }
         let layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
         layout.width = max(1, _px(image.width - box.insetLeft - box.insetRight))

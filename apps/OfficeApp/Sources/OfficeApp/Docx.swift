@@ -782,6 +782,16 @@ enum DocxFormat {
         // stack, so past this depth a cell's paragraphs are gathered without
         // recursing further.
         let maxNesting = 32
+        /// The characters of text under `node`.
+        func textLength(_ node: XNode) -> Int {
+            var n = 0
+            var stack = [node]
+            while let x = stack.popLast() {
+                if x.name == "w:t" { n += x.text.count; continue }
+                stack.append(contentsOf: x.children)
+            }
+            return n
+        }
         func deepParagraphs(_ node: XNode) -> [XNode] {
             var out: [XNode] = []
             var stack = [node]
@@ -798,6 +808,40 @@ enum DocxFormat {
                                      currentCell != nil ? { id in chainOver(id, cellBase, cellRootBase) } : nil) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
+            case "w:tbl" where currentCell != nil && depth < maxNesting && _nestingDepth(node) == 1
+                                && unwrapped(node, "w:tr").count <= 15 && textLength(node) <= 600:
+                // A small table in a cell, with none in it, is a table of
+                // its own: read as a document is, and set in its cell as a
+                // block as tall as it lays out (`RichTextBox.growsToFit`).
+                // Flattened, zh-454e2e29's form of five columns — "姓名",
+                // "職稱", "職務編號"… — stood as a column of lines 36pt
+                // apart. (A long one is still flattened below: a block
+                // does not part across pages, and 60329's protocol text,
+                // 2,235 characters in a three-row table in a cell, ran to
+                // six pages for it.) Its markup is kept for the save.
+                let saved = (paragraphs, currentCell, cellChar, cellBase, cellRootBase)
+                paragraphs = []
+                currentCell = nil
+                walkBlock(node, indent: 0, depth: depth + 1)
+                let inner = paragraphs
+                (paragraphs, currentCell, cellChar, cellBase, cellRootBase) = saved
+                let ids = Set(inner.compactMap { $0.cell?.table })
+                var box = RichTextBox(paragraphs: inner)
+                box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
+                box.tableStyles = tableStyles.filter { ids.contains($0.key) }
+                box.tableColumns = tableColumns.filter { ids.contains($0.key) }
+                box.growsToFit = true
+                let gridWidth = (node.first("w:tblGrid")?.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.reduce(0, +) ?? 0) / 20
+                var image = ImageAttachment(data: Data(), width: max(1, gridWidth), height: 1, name: "table")
+                image.textBox = box
+                var para = RichParagraph(image: image, style: cellBase)
+                if let frag = _keptFragment(node, notes) {
+                    keptTableCount += 1
+                    let kid = "kt\(keptTableCount)"
+                    keptTables[kid] = KeptTable(xml: frag.xml, rels: frag.rels, texts: [para.text])
+                    para.keptTable = kid
+                }
+                emit(para)
             case "w:tbl" where currentCell != nil:
                 // A nested table flattens into its cell, indented — and,
                 // unless it nests absurdly (a fuzzer's 5,000 levels), is
