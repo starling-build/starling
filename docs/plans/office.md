@@ -3436,6 +3436,24 @@ fitter dropped the paragraph's tail).
   "1". The settings' formats are read for both kinds. No score moved
   by the sweep's 0.3; the endnotes themselves are still not set at the
   document's end (two documents in the corpora have one each).
+- **A centred cell that does not fit a row's part is parted from its
+  text's top (2026-10-15).** zh-1a3c7aa0's row 328 (every cell
+  centred, the name "硝酸铵[含可燃物>0.2%,包括以碳计算的任何有机物,但不包括
+  任何其它添加剂]" three lines in a 305pt row): Word starts the row on
+  page 82 with two lines of the name at the head of the part and the
+  third on page 83. Ours parted the cell where the flow centres it,
+  its first line 133pt down with 92.7 left, so the row went over
+  whole. Now, in a row begun under other text, a centred (or bottom-
+  set) cell that cannot stand whole in the part is parted from its
+  text's top, at the part's head — where a line of it fits there.
+  Where none does, what goes over stays centred over the page as the
+  flow has it (zh-e37f8d40's "乡镇社会事务办公室核查意见", which went to the
+  top of its part and lost 1.9 points otherwise), and a row that then
+  goes over whole is centred again (bib-chernigovka, −0.9 before).
+  Not before mode 12: zh-64044a1d (mode 11) takes its "電力組" row over
+  whole with a line of each cell fitting at page 19's foot — the cause
+  is not known; seen in modes 12 and 15. zh-1a3c7aa0 91.7% -> 98.1,
+  bug65649 58.4 -> 67.8; nothing down.
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16

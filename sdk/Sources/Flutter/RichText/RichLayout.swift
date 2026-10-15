@@ -2107,6 +2107,38 @@ public final class RichLayout {
                     wentOver = true
                     return false
                 }
+                // A centred cell (or one set at the bottom) that does not fit
+                // the part is parted from its text's top, at the part's top:
+                // Word sets zh-1a3c7aa0's row 328 name cell — three lines
+                // centred in a row of 305pt — two lines at the head of the
+                // part on page 82 and one on the next; parted where the
+                // flow centres it, its first line fell below the foot and
+                // the row went over whole.
+                // (Not before Word 2007's layout, mode 12: zh-64044a1d, mode
+                // 11, takes its "電力組" row over whole with a line of each
+                // cell fitting at page 19's foot — why is not known; the
+                // modes this was seen in are 12 and 15.)
+                if theme.wordRules, first, !fits, (document.compatibilityMode ?? 12) >= 12 {
+                    for n in columns.indices where columns[n].cut <= c.rowTop + 0.01 {
+                        let d0 = _cells[columns[n].members[0]]!
+                        guard d0.rowSpan == 1, !d0.vertical, d0.verticalAlign == "center" || d0.verticalAlign == "bottom" else { continue }
+                        let blockTop = _tops[columns[n].members[0]]
+                        let blockBottom = _tops[columns[n].members[columns[n].members.count - 1]] + _heights[columns[n].members[columns[n].members.count - 1]]
+                        let room = avail - ruleUnder(c, parted: true) - d0.pad.top - d0.pad.bottom - (blockBottom - blockTop)
+                        // (Only for a row begun under other text: one that opens a
+                        // page keeps its centring — zh-e37f8d40's "乡镇社会事务
+                        // 办公室核查意见" stands mid-cell at page 12's head.)
+                        // (And only where a line of it fits there: with none, what
+                        // goes over is centred in the part over the page, as the
+                        // flow has it — zh-e37f8d40's "乡镇社会事务办公室核查意见"
+                        // at page 12's head, its row begun on page 11.)
+                        let start = max(c.rowTop, blockTop - d0.pad.top)
+                        let limit = start + avail - ruleUnder(c, parted: true) + 0.01
+                        if room < -0.01, !fresh, y > 0.01, columns[n].cuts.contains(where: { $0 > start + 0.01 && $0 <= limit }) {
+                            columns[n].cut = start
+                        }
+                    }
+                }
                 var next = columns.map(\.cut)
                 var setWhole: [Int: Double] = [:]   // column → pageY of flow 0, for one set whole in this part
                 if !fits {
@@ -2200,6 +2232,9 @@ public final class RichLayout {
                     if !moved {
                         if !fresh, y > 0.01 {
                             // Not a line of it fits here: the row starts the next page.
+                            // (Where it opens that page whole, its centred cells
+                            // are centred again — see the start moved above.)
+                            if first { for n in columns.indices { columns[n].cut = c.rowTop } }
                             newPage()
                             fresh = true
                             if repeats { repeatHeader(of: c.table, before: i) }
