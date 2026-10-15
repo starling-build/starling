@@ -1763,6 +1763,16 @@ turned, and its text as an upright box of its own in the frame given —
 a diagram's drawing is never written, so the split costs nothing on a
 save.
 
+Found, and left: **PowerPoint for Mac's PDFs carry gradients in
+"Generic RGB Linear"** (an ICC profile with Apple's primaries, not
+sRGB's). aascu 5864's page 32 (74%) is a 000076 → 0000FF → 000076
+band: the shading's samples are (0,0,47) … (0,0,255), linear light as
+blended here, but in that space, so pure blue prints as (9, 48, 255)
+through MuPDF and every pixel of the page differs from our sRGB
+(0, 0, 255). The blend is right; the reference's colour space is not
+one to imitate in the app's own drawing. It costs any page with a
+saturated gradient a few points; pale gradients barely move.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
