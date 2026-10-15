@@ -2556,6 +2556,15 @@ fitter dropped the paragraph's tail).
   page 5, where Word carries them to a sixth) — both single page feet
   that Word's raster decides by a fraction of a point.
 
+- **A picture wider than its line keeps its size (2026-10-14).** Under
+  Word's rules an inline picture is drawn at the size the file gives
+  it and runs past the margin, where the editor shrinks it to the
+  line: zh-06c46ba9's fishbone chart is 419pt wide in a 401pt line
+  (a hanging indent of 14pt) and Word draws it at 419, 8pt taller
+  than ours was, with page 32 and all under it 8pt out. zh-06c46ba9
+  79.3% -> 82.5%, bug57031 14.7 -> 24.2, chartex 7.0 -> 32.4; nothing
+  down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

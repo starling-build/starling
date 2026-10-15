@@ -3386,10 +3386,14 @@ public final class RichLayout {
         // (No lines at all: `RichParagraphStyle.lineCollapsed`.)
         if theme.wordRules, style.lineCollapsed, p.image == nil { bodyHeight = 0 }
         if let image = p.image {
-            // Shown at its own size, shrunk to the column when wider.
+            // Shown at its own size, shrunk to the column when wider —
+            // except under Word's rules, where a picture keeps the size
+            // the file gives it and runs past the margin (zh-06c46ba9's
+            // fishbone chart, 419pt in a 401pt line, is drawn at 419 in
+            // Word's print and 8pt taller than ours was).
             var w = _px(image.width)
             var h = _px(image.height)
-            if w > textWidth { h *= textWidth / w; w = textWidth }
+            if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
             _imageSize[i] = Size(w.rounded(), h.rounded())
             // A floating object stands clear of the flow: its paragraph
             // is the height of its (empty) line, as Word sets it.
@@ -3803,7 +3807,7 @@ public final class RichLayout {
                 // A picture in the line, sitting on the baseline as Word
                 // sets it; shrunk to the column when wider.
                 var w = _px(image.width), h = _px(image.height)
-                if w > textWidth { h *= textWidth / w; w = textWidth }
+                if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
                 // (A floating object takes no room in the line.)
                 if theme.wordRules, let float = image.float, !float.takesRoom { w = 0; h = 0 }
                 let size = Size(w.rounded(), h.rounded())
