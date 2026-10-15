@@ -3101,6 +3101,21 @@ public final class RichLayout {
             let ins = _cellInsets(c.table, document)
             var pad = c.padding.map { EdgeInsets(left: _px($0.left), top: _px($0.top), right: _px($0.right), bottom: _px($0.bottom)) }
                 ?? EdgeInsets(left: ins.left, top: ins.top, right: ins.right, bottom: ins.bottom)
+            // The text keeps clear of the cell's own side lines: its left
+            // edge stands the margin and half the line's width in, and
+            // never inside the line; its right inset is the margin less
+            // half the line. Lab `cb3` in bug65649's package (Word 16,
+            // 2026-10-15): at a 108-twip margin the text of a 1pt-lined
+            // cell starts 0.48pt further in than an unlined one's, of a
+            // 3pt line 1.44, of 12pt 6.48; at 28 twips a 6pt line sets
+            // it 6pt in, the margin lost under it; and a right-aligned
+            // "H" in the cell beside ends half a point nearer the edge
+            // per point of line. With no margin the text loses the whole
+            // line: the estimate tables' "зарплаты" in a 1060-twip cell
+            // under 85-twip indents wraps "зарплат" / "ы" from a 1.5pt
+            // line on and not under a 1pt one (lab `cb`), as Word's
+            // bug65649 print has it from page 22.
+            // (Applied below, where the cell's lines are resolved.)
             // A ruled row is its rule taller, as Word sets it: the line
             // above each row takes its width from the row, and the last
             // row has the table's bottom line too.
@@ -3136,6 +3151,24 @@ public final class RichLayout {
                     let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
                     let width = said?.width ?? d.borderWidth ?? ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
                     return _px(Self._ruleRoom(style, width))
+                }
+                // The cell's left and right lines, resolved as its top and
+                // bottom ones are: the cell's own side over the table's,
+                // which rules a side column by its own edge and the rest
+                // by its inside one.
+                func sideLine(_ d: CellRef, _ side: String) -> Double {
+                    let said = Self._cellSide(d.bordersXML, side)
+                    let atEdge = side == "left" ? d.column == 0 : d.column + d.span >= widths.count
+                    let tables = atEdge ? (side == "left" ? ts.edges?.left : ts.edges?.right) : ts.edges?.insideV
+                    guard (side == "left" ? d.edges?.left : d.edges?.right) ?? tables ?? (ts.borders && !ts.bordersFromCells) else { return 0 }
+                    let tableSide = atEdge ? side : "insideV"
+                    let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
+                    let width = said?.width ?? d.borderWidth ?? ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
+                    return _px(Self._ruleRoom(style, width))
+                }
+                let l = sideLine(c, "left"), r = sideLine(c, "right")
+                if l > 0 || r > 0 {
+                    pad = EdgeInsets(left: max(pad.left + l / 2, l), top: pad.top, right: max(pad.right - r / 2, 0), bottom: pad.bottom)
                 }
                 var below = 0.0
                 var top = rule(c, "top")

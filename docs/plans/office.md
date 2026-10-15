@@ -2914,6 +2914,33 @@ fitter dropped the paragraph's tail).
   package (標楷體, mode 11) could not tell — its Chinese text always
   offered the line a break elsewhere — so the East Asian side stands
   on the document alone.
+- **A cell's text keeps clear of its side lines (2026-10-15).** Labs
+  `cb`, `cb2`, `cb3` in bug65649's package (fixed cells, Times New
+  Roman 11pt, a left-aligned and a right-aligned "H"; PyMuPDF for the
+  x of each): the text's left edge stands the margin and half the
+  line's width in, and never inside the line — at a 108-twip margin
+  a 1pt line sets it 0.48pt further in than no line, a 3pt line 1.44,
+  a 12pt line 6.48; at 28 twips a 6pt line sets it 6pt in, the margin
+  lost under it — and the right inset is the margin less half the
+  line, the right-aligned "H" ending half a point nearer the edge per
+  point of line: under ordinary margins the text is shifted, not
+  narrowed. With no margin the text loses the whole line: "зарплаты"
+  in a 1060-twip cell under 85-twip paragraph indents wraps "зарплат"
+  / "ы" from a 1.5pt line on, fits under a 1pt one, and fits again at
+  1080 twips. bug65649's estimate tables (pages 22 on, 150 of them)
+  are such cells — no cell margins, 1.5pt lines, 85-twip indents —
+  and their header cells wrapped a character short of Word's. The
+  lines are the cell's own side over the table's (its edge for a side
+  column, its inside one for the rest), as the rules above and below
+  are resolved; `c.borders` is the editor's and empty for a file.
+  Labs `cb` and `cb3` replay through ours within 0.1pt at every
+  width. bug65649 43.3% -> 53.8, zh-f94d11c5 86.5 -> 98.5 (its
+  `wordWrap`-off cells had been a hair wide), zh-04f73697 97.3 ->
+  97.9; zh 90.7 -> 90.9. Down a hair: zh-e061a08e 91.8 -> 91.0 (a
+  zero-margin cell under 0.5pt lines loses "÷" from a line Word
+  holds — Word's cell is that hair wider, a percentage width) and
+  zh-53fa3030 97.8 -> 97.4 (its page 3 cell now wraps "民政業務" alone
+  as Word's does; the loss is further on).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
