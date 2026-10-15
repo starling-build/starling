@@ -17,8 +17,9 @@ enum SlidesPdf {
         for slide in deck.slides {
             if let i = slide.background?.image { images.append(i) }
             if let i = slide.inheritedBackground?.image { images.append(i) }
-            for s in slide.decorations { if let i = s.picture { images.append(i) } }
-            for s in slide.shapes {
+            // (The layout's and master's shapes too, picture fills and all:
+            // ArtisticEffectSample's layout logo is a box filled with one.)
+            for s in slide.decorations + slide.shapes {
                 if let i = s.picture { images.append(i) }
                 if let i = s.fillStyle?.image { images.append(i) }
                 for look in s.runLooks.joined() { if let i = look.fill?.image { images.append(i) } }

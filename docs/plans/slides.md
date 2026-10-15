@@ -1737,6 +1737,14 @@ hands the codec its pixels as a BMP. The part is kept as it was for a
 save; only the drawing changes. (JPEG XR, `.wdp`, is still undrawn:
 bug65523 and tdf112633 carry one each.)
 
+**A layout's picture-filled shapes in an export, 2026-10-15** (sweep
+87: 1.3527 → 1.3521%; alterman_security −0.19, ArtisticEffectSample
+−0.17; none worse). An export waits for every picture to decode first,
+and listed the layout's and master's shapes' pictures but not their
+picture fills (nor the members of a group drawn from its parts), so
+ArtisticEffectSample's layout logo — a box filled with a PNG — came out
+as nothing. Their fills are waited for now.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
