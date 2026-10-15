@@ -1696,6 +1696,9 @@ c) / (i) …) from `startAt`; an empty paragraph neither counts nor
 breaks. A save writes the scheme back (it wrote `arabicPeriod` for
 every list). The shared numbering rules (Word's) are untouched.
 
+Sweep 86, 2026-10-15: 1.3976% over the 553 decks (from 1.4984 at sweep
+83 this morning), the baseline written whole again; 84 decks exact.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
