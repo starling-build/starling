@@ -3487,6 +3487,10 @@ fitter dropped the paragraph's tail).
   word (three letters or more, no ideographs) that follows a space in
   a cell narrower than 150pt and is wider than the cell's line starts
   a line of its own, through a line separator put in before it.
+  (A hyphenated word is measured up to its first hyphen, which a line
+  may end with: Word sets "Блок разветвительно-" / "изолирующий"; the
+  whole compound measured, "разветвительно-" had taken a line of its
+  own — bug65649 83.8 -> 84.1.)
   bug65649 67.8% -> 79.0; nothing else moved (clean A/B, n201 vs n200).
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph

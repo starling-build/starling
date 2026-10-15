@@ -5644,15 +5644,18 @@ public final class RichLayout {
             guard units[k] != 0x20, units[k] != 0x0A, units[k] != 0x2028 else { k += 1; continue }
             var end = k
             while end < units.count, units[end] != 0x20, units[end] != 0x0A, units[end] != 0x2028 { end += 1 }
+            // (Up to its first hyphen, which a line may end with: Word
+            // sets "Блок разветвительно-" / "изолирующий" in that cell.)
+            let part = (k + 1 ..< end).first(where: { units[$0] == 0x2D && $0 + 1 < end }).map { $0 + 1 } ?? end
             // (Only after a space: a word that opens the paragraph is on a
             // line of its own already.)
-            if k > 0, units[k - 1] == 0x20, end - k >= 3,
-               !(k ..< end).contains(where: { units[$0] >= 0x2E80 }) {
+            if k > 0, units[k - 1] == 0x20, part - k >= 3,
+               !(k ..< part).contains(where: { units[$0] >= 0x2E80 }) {
                 var at = 0
                 var run = p.runs[0].style
                 for r in p.runs { if k < at + r.length { run = r.style; break }; at += r.length }
                 let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
-                let word = String(decoding: units[k ..< end], as: UTF16.self)
+                let word = String(decoding: units[k ..< part], as: UTF16.self)
                 let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
                 painter.layout(minWidth: 0, maxWidth: 1_000_000)
                 if painter.width > textWidth { out.insert(k) }
