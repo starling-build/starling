@@ -1807,6 +1807,16 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(RichListNumbering.labels(back), ["1.", "2.", "1.", "2."])
     }
 
+    func testALevelOfNoneShowsNoNumber() {
+        // zh-90e0cea8: chapters are "%1%2　" over a level 0 of "none".
+        var none = ListLevelFormat(text: "%1"); none.rawFormat = "none"
+        XCTAssertEqual(none.number(1), "")
+        var p = RichParagraph(text: "范围"); p.style.list = .numbered; p.style.listId = "2"; p.style.listLevel = 1
+        var doc = RichDocument(paragraphs: [p])
+        doc.listFormats = ["2": [0: none, 1: ListLevelFormat(text: "%1%2\u{3000}")]]
+        XCTAssertEqual(RichListNumbering.labels(doc), ["1\u{3000}"])
+    }
+
     func testDocxWrittenByWord() throws {
         // A real Microsoft Word document: BoringCrypto's FIPS security
         // policy (Google; "may be freely reproduced and distributed in its

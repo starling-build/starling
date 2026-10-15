@@ -1165,6 +1165,9 @@ public struct ListLevelFormat: Hashable, Sendable {
         case "decimalFullWidth", "decimalFullWidth2":
             return String(String(n).unicodeScalars.map { Character(UnicodeScalar($0.value - 0x30 + 0xFF10)!) })
         case "decimalZero": return n < 10 ? "0\(n)" : String(n)
+        // (A level that shows no number: zh-90e0cea8's chapters are
+        // "%1%2　" over a level 0 of "none" — "6　", not "16　".)
+        case "none": return ""
         default: return format.string(n)
         }
     }

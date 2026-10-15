@@ -2474,6 +2474,13 @@ fitter dropped the paragraph's tail).
   slot instead — at the margin, its "）" wrapped onto a line of its
   own. zh-5901e2b0 93.4% -> 94.4%; nothing down.
 
+- **A list level of "none" shows no number (2026-10-14).** A level
+  whose `w:numFmt` is "none" stands in its own and its sub-levels'
+  numbers as nothing. zh-90e0cea8's chapters are "%1%2　" over a level
+  0 of "none": Word prints "6　", ours printed "16　", and every heading
+  line ran a digit longer. zh-90e0cea8 67.5% -> 88.5%; nothing else
+  moved.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
