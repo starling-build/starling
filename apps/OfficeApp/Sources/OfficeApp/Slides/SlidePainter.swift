@@ -490,9 +490,16 @@ final class SlidePainter: CustomPainter {
             p.color = color
             p.maskFilter = MaskFilter(blur: .normal, rad * px / 4)
             let outline = effectOutline()
+            // Round the shape as filled — or, with no fill, round its line
+            // alone: tdf141058's red frame has a white glow, and filled it
+            // hid the text behind the frame.
+            let filled = shape.fill != nil || shape.fillStyle != nil || shape.picture != nil
+            if !filled { p.strokeWidth = (rad * 2 + shape.outlineWidth) * px }
             canvas.drawPath(outline, p)
-            p.style = .fill
-            canvas.drawPath(outline, p)
+            if filled {
+                p.style = .fill
+                canvas.drawPath(outline, p)
+            }
         }
         // A soft edge: the shape drawn in a layer of its own, and the band
         // inside its outline faded out of it before it is put down.
