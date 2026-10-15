@@ -3414,6 +3414,13 @@ fitter dropped the paragraph's tail).
   character less, then the page. The span and the fitter both take a
   full-width “ or ‘ after a closing mark as an opening mark for the
   half-em rule. zh-15728c84 90.9% -> 93.4; nothing down (clean A/B).
+- **Endnote marks count "i, ii, iii" (2026-10-15).** Word's endnotes are
+  numbered in lower-case Roman numerals unless `w:endnotePr` in the
+  settings names another `w:numFmt`; its footnotes in digits.
+  endnotes.docx and Bug54849 show "i" in Word's print where ours drew
+  "1". The settings' formats are read for both kinds. No score moved
+  by the sweep's 0.3; the endnotes themselves are still not set at the
+  document's end (two documents in the corpora have one each).
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16

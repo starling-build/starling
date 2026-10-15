@@ -236,6 +236,13 @@ enum DocxFormat {
             body.children.insert(contentsOf: extra.children.filter { $0.name != "w:sectPr" }, at: at)
         }
         let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
+        // How note marks are numbered: Word's endnotes count "i, ii, iii"
+        // unless the settings say otherwise, its footnotes "1, 2, 3"
+        // (endnotes.docx and Bug54849 show "i" in Word's print).
+        if let settings = part("word/settings.xml").flatMap(XNode.parse) {
+            if let f = settings.first("w:endnotePr")?.first("w:numFmt")?["w:val"] { notes.endnoteFormat = f }
+            if let f = settings.first("w:footnotePr")?.first("w:numFmt")?["w:val"] { notes.footnoteFormat = f }
+        }
 
         // Kept header and footer parts, before the styles are read: the
         // styles they name must be written too (issue_51265_3's header
@@ -1992,6 +1999,16 @@ enum DocxFormat {
         /// `w:footnoteRef`.
         var footnoteNumbers: [Int: Int] = [:]
         var currentNote: Int? = nil
+        var endnoteFormat = "lowerRoman", footnoteFormat = "decimal"
+        func label(_ n: Int, footnote: Bool) -> String {
+            switch footnote ? footnoteFormat : endnoteFormat {
+            case "lowerRoman": return ListNumberFormat.lowerRoman.string(n)
+            case "upperRoman": return ListNumberFormat.upperRoman.string(n)
+            case "lowerLetter": return ListNumberFormat.lowerLetter.string(n)
+            case "upperLetter": return ListNumberFormat.upperLetter.string(n)
+            default: return String(n)
+            }
+        }
         var rels: [String: KeptRel]
         /// Reading a header or footer part: its page fields stay fields
         /// (the layout fills them for each page).
@@ -2744,7 +2761,7 @@ enum DocxFormat {
                     } else {
                         let n = notes.next(footnote: footnote)
                         if footnote, !notes.inTextBox, notes.footnoteNumbers[id] == nil { notes.footnoteNumbers[id] = n }
-                        addText(String(n), mark)
+                        addText(notes.label(n, footnote: footnote), mark)
                     }
                 case "w:footnoteRef":
                     // A note's own mark, in the note: its number.
