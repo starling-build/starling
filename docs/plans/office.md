@@ -2366,6 +2366,17 @@ fitter dropped the paragraph's tail).
   carried 2058f789 and 03f1e859; zh-7dc3afad 98.5 -> 92.9 and
   zh-8e8d4c40 -1.7 moved with those, not with this.)
 
+- **A row with nothing left for the next page goes over whole
+  (2026-10-14).** A row that does not fit was parted wherever each
+  cell had a line that did; where every cell then ends on this page —
+  only the row's own height, its space after and margins, over the
+  foot — Word parts nothing and takes the row to the next page.
+  bug59058's yearly rows (one centred line and 14.4pt after it in each
+  cell) were squeezed into the 33.8pt left at page 2's foot. Not for a
+  row with a cell merged down from above or into the rows below:
+  zh-e6d54ae4's such row parts at the foot as Word parts it (82.7%
+  fell to 43.2 without that).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

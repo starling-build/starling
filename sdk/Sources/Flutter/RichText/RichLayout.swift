@@ -2029,6 +2029,28 @@ public final class RichLayout {
                         }
                     }
                     if stuck, !fresh { moved = false }
+                    // (Nor where no cell has anything left for the next
+                    // page — every one set whole here, or ended: then only
+                    // the row's own height is over, and Word takes the row
+                    // over whole. bug59058's yearly rows, one centred line
+                    // and 14.4pt after it in each cell, were squeezed into
+                    // the 33.8pt left at a page's foot.)
+                    // (A cell cut at its last cut — the end of its last
+                    // paragraph, space after and all — has only its margin
+                    // left, which is nothing to go over.)
+                    // (Only for a row of its own: a cell merged down
+                    // has the rows below for the rest, and zh-e6d54ae4's
+                    // such row parts at the foot as Word parts it.)
+                    if moved, !fresh, first, theme.wordRules, columns.indices.allSatisfy({ n in
+                        _cells[columns[n].members[0]]!.rowSpan == 1
+                    }), !(0 ..< i).reversed().prefix(while: { _cells[$0]?.table == c.table }).contains(where: { m in
+                        let d = _cells[m]!
+                        return d.row < c.row && d.row + d.rowSpan - 1 >= c.row
+                    }), columns.indices.allSatisfy({ n in
+                        setWhole[n] != nil || next[n] >= rowBottom - 0.01 || next[n] >= (columns[n].cuts.max() ?? rowBottom) - 0.01
+                    }) {
+                        moved = false
+                    }
                     if !moved {
                         if !fresh, y > 0.01 {
                             // Not a line of it fits here: the row starts the next page.
