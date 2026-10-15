@@ -193,6 +193,14 @@ Liberation Sans in ours (a taller ascent: the header's baseline 1.09pt
 lower). Routing hAnsi characters to an East Asian hAnsi face works (it
 resolves 宋体) but our 宋体 stand-in has no U+2014 and falls back to
 Liberation Sans all the same — tried and reverted, no score moved.
+Now 88.5% -> 67.8% after the list-number rule of 2026-10-14 (its 6.1.1
+paragraph wraps as Word's, and 6.1.3 then misses page 5's foot by that
+half point): fixing the header's "—" would recover both. The East
+Asian style's family is the Latin stand-in (Liberation Sans) with CJK
+glyphs from the system fallback; a glyph the stand-in has (U+2014)
+comes from it with its metrics. The fix is in the face resolver: an
+East Asian style whose family is a real CJK face, so its symbols and
+their metrics are that face's.
 
 ### T12. Squeezing marks to fit a character: the limit on a character grid
 Owner: none. Documents: zh-d68ac84a (80%, first parting page 10).
@@ -294,6 +302,19 @@ Owner: none — notes for whoever takes them.
   (12pt over, more than its half em) rather than "憑。" together. The
   fitter would need, for such paragraphs, to test a closing mark as its
   own piece against the half-em rule. Six documents carry the switch.
+- zh-6600d539 p7 (Mac, 2026-10-14): "口(網址：http://law.ndc.gov.tw/)" fills
+  Word's line and the next starts with "，針對平臺" — a full-width comma
+  at a line's start, with kinsoku on and the comma after a Latin word
+  and ")". Our URL's widths match Word's glyph for glyph (YaHei's Latin,
+  as Word draws ASCII in 標楷體 runs), but the engine will not break
+  before "，", so ")，" went down with the URL. Needs a lab: a Latin word
+  + ")" + "，" at a line's end, with and without a space.
+- zh-f94d11c5 p3 (Mac, 2026-10-14): a justified cell line ("Normal (Web)",
+  `w:wordWrap` 0) holds "權重為70" in Word and "權重為7" in ours; both
+  break inside the Latin stretch "70%". Our digits are Liberation Serif
+  11.3pt (narrower than Word's PMingLiU-run 7.22 steps) yet the "0" did
+  not fit — the cell's width (pct table, grid 2380 twips) is the thing
+  to measure first.
 
 ### Note from the Windows box (2026-10-14, for the Mac session)
 The Windows sweep that first carried 2058f789 (kinsoku off) and 03f1e859

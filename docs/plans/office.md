@@ -2611,6 +2611,27 @@ fitter dropped the paragraph's tail).
   fits in ours where Word wraps the "。" — its width is the open
   question now, not the break.
 
+- **A list number's Latin characters are in the number's Latin face
+  whatever the hint (2026-10-14).** Correcting the rule of 4b562bc1,
+  which kept a number hinted East Asian wholly in the East Asian
+  face: zh-4b8e0abc's "(一)" is hinted so, and Word's print draws its
+  parens in Cambria (the paragraph's majorHAnsi) at 0.382 em — 24.7pt
+  in all, past the 24.1pt hanging indent, so the tab goes to the next
+  default stop (480 twips) and the text starts 9.4pt later than at the
+  indent. In the East Asian style the parens were the base family's
+  0.333 em, the number fit, and the text started at the indent. The
+  number's Latin characters now take the Latin face in every case, at
+  that face's own advances (as the text's spans are set); an ascii
+  face that is itself East Asian (zh-90e0cea8's 黑体) resolves to that
+  face's Latin stand-in. zh-4b8e0abc 88.5% -> 89.2%, its "(一)" lines
+  now to the hundredth of a point. zh-90e0cea8 88.5 -> 67.8: its
+  "6.1.1" paragraph now wraps as Word's does (its number is narrower,
+  the text starts earlier, and "專班。" goes to a second line as in
+  Word's print), which sends "6.1.3" over page 5's foot, where Word
+  keeps it by the half point our header stands too tall (task board
+  T11 — the 黑体/宋体 header's "—" drawn from Liberation Sans). The
+  drop is that drift surfacing, not this rule.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
