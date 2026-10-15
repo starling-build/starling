@@ -747,6 +747,9 @@ public final class RichLayout {
     private var _flowHeight = 0.0
     private var _columnWidths: [String: [Double]] = [:]   // px, per table
     private var _tableFlowWidth: [String: Double] = [:]   // px: the column each table is laid out in
+    /// Points: how far a table of cell spacing is set out before Word 2013's
+    /// layout — its first cell's whole text inset (`_tableLeft`).
+    private var _tableSpacedOutdent: [String: Double] = [:]
     private var _tableRows: [String: Int] = [:]           // each table's last row
     public var cellPadding: Double = 4   // px, inside a cell
 
@@ -1188,7 +1191,14 @@ public final class RichLayout {
         // centred table had been 5.4pt left of Word's).
         let old = theme.wordRules && (document.compatibilityMode ?? 0) < 15
         let style = document.tableStyles[table]
-        let left = old ? _px(style?.textOutdent ?? 5.4) : 0
+        // (One of cell spacing by its first cell's whole text inset —
+        // its own margin, the spacing twice and half its line — the
+        // indent being where that text starts: zh-9c5d0c3f's road signs,
+        // a table at -685 twips of 15-twip spacing over cells of 60-twip
+        // margins, stand 4.5pt left of ours in Word's print, set out by
+        // the table's margin alone; bug57031's SAS tables put their text
+        // at the margin.)
+        let left = old ? _px(_tableSpacedOutdent[table] ?? style?.textOutdent ?? 5.4) : 0
         let right = old ? _px(style?.textOutdentRight ?? 5.4) : 0
         switch style?.alignment ?? .left {
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
@@ -1210,12 +1220,17 @@ public final class RichLayout {
         }
         var widths: [String: [Double]] = [:]
         _tableFlowWidth = [:]
+        _tableSpacedOutdent = [:]
         for (i, p) in document.paragraphs.enumerated() {
             guard let c = p.cell, widths[c.table] == nil else { continue }
             let cols = columns[c.table] ?? 1
             // (The table's section's column.)
             let width = _flowWidth(i)
             _tableFlowWidth[c.table] = width
+            if let ts = document.tableStyles[c.table], let sp = ts.cellSpacing, sp > 0 {
+                _tableSpacedOutdent[c.table] = (c.padding?.left ?? ts.cellMarginLeft ?? ts.textOutdent ?? 5.4) + 2 * sp
+                    + (ts.borders ? (ts.borderWidth ?? 0.5) / 2 : 0)
+            }
             if let pts = _columnPreview[c.table] ?? document.tableColumns[c.table], pts.count == cols {
                 // Wider than the column: scaled to fit, as Word autofits a
                 // table whose grid outgrows the page; a preferred width

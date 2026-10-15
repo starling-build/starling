@@ -2805,6 +2805,18 @@ fitter dropped the paragraph's tail).
   (one wider than its line keeps to the left). No text line moves by
   it.
 
+- **Before 2013's layout a spaced table is set out by its first cell's
+  text inset (2026-10-15).** There the indent is where the first
+  column's text starts, so the table's edge stands that cell's whole
+  inset to the left: its own margin (`w:tcMar` over the table's), the
+  cell spacing twice and half its side line. Ours set it out by the
+  table's margin alone. zh-9c5d0c3f's road signs (mode 12, -685 twips,
+  15-twip spacing over cells of 60-twip margins, 0.75pt lines) stood
+  4.5pt right of Word's print and now 0.4; bug57031's "Note:" table
+  (no lines) puts its text at 72.0, the margin, as Word's does. Only
+  tables that state a spacing, the two of the evidence; no document
+  moved by 0.3.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
