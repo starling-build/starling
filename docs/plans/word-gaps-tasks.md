@@ -556,6 +556,9 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   y 4429125 EMU in the group); the reader takes only the first
   `w:txbxContent` of a drawing, so the group's other boxes are never
   read (shapes-with-text's "Where some contain text" too).
+  DONE on the Mac for stacked boxes of one width, 2026-10-15 (cabe6fad):
+  60316 81.8 -> 97.0. Side-by-side groups (shapes-with-text) still read
+  only their first box.
   bug57031 p12 — its two-line "Note:" row (an HTML table with 15-twip
   cell spacing and margins) goes whole to page 12 in Word and parts 1+1
   in ours; and Word sets that table's first-column text exactly at the
