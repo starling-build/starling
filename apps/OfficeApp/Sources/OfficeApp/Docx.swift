@@ -272,7 +272,9 @@ enum DocxFormat {
             }
             evenAndOddHeaders = part("word/settings.xml").map { String(decoding: $0, as: UTF8.self).containsSubstring("<w:evenAndOddHeaders") } ?? false
             for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
-                let type = ref["w:type"] ?? "default"
+                // ("odd", which the format does not have, is the default
+                // to Word: 60293's "ODD_PAGE_HEADER" on its page 3.)
+                let type = ref["w:type"].map { $0 == "odd" ? "default" : $0 } ?? "default"
                 guard ["default", "first", "even"].contains(type), let rid = ref["r:id"], let target = relInfo[rid]?.target,
                       let data = media(target), _wellFormed(data), let node = XNode.parse(data) else { continue }
                 // Every part is kept, the plainest included, and written back
@@ -1181,7 +1183,7 @@ enum DocxFormat {
             for sect in earlier {
                 for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
                     let kind: KeptHeaderFooter.Kind = ref.name == "w:headerReference" ? .header : .footer
-                    let type = ref["w:type"] ?? "default"
+                    let type = ref["w:type"].map { $0 == "odd" ? "default" : $0 } ?? "default"
                     guard ["default", "first", "even"].contains(type),
                           let rid = ref["r:id"], let target = relInfo[rid]?.target, !(relInfo[rid]?.external ?? false) else { continue }
                     named["\(kind.rawValue)|\(type)"] = (kind, type, _resolvePath("word", target))
@@ -1383,13 +1385,13 @@ enum DocxFormat {
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
         if let sect = body.first("w:sectPr") {
-            for ref in sect.all("w:headerReference") where ref["w:type"] == "default" || ref["w:type"] == nil {
+            for ref in sect.all("w:headerReference") where ref["w:type"] == "default" || ref["w:type"] == "odd" || ref["w:type"] == nil {
                 if let rid = ref["r:id"], let target = rels[rid], let data = media(target),
                    let node = XNode.parse(data) {
                     document.header = _fieldText(node)
                 }
             }
-            for ref in sect.all("w:footerReference") where ref["w:type"] == "default" || ref["w:type"] == nil {
+            for ref in sect.all("w:footerReference") where ref["w:type"] == "default" || ref["w:type"] == "odd" || ref["w:type"] == nil {
                 if let rid = ref["r:id"], let target = rels[rid], let data = media(target),
                    let node = XNode.parse(data) {
                     document.footer = _fieldText(node)

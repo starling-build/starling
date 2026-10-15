@@ -2420,6 +2420,10 @@ fitter dropped the paragraph's tail).
   apart, the first baseline 11.28 under the margin). table-alignment's
   empty paragraphs between its tables were each 2pt short.
 
+- **A header or footer of type "odd" is the default one
+  (2026-10-14).** The format has no such type; Word prints 60293's
+  "ODD_PAGE_HEADER" on its third page, where ours had none.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
