@@ -206,8 +206,14 @@ Known: page 5's body lines end two characters before Word's.
 Progress (Mac): mirrorIndents parity by `doNotFlipMirrorIndents`
 (5a7f5332), compound cell rules (91ca3fcf), footnotes laid out
 (c7ffdfc9), an autofit grid wider than its share kept (fc60d952):
-47% -> 74.8%. Page 5's figure is SmartArt (word/diagrams), drawn as an
-empty box; the only such document in the corpus.
+47% -> 75.9% (with 4b562bc1, list numbers' Latin digits). Page 5's
+figure is SmartArt (word/diagrams), drawn as an empty box; the only
+such document in the corpus. Pages 25 on: the footnotes and their room
+match Word's to 0.1pt (separator 14.65, note lines 17.2), but table 9
+on page 24 runs ~0.1pt a row taller than Word's — 1.35pt by its foot —
+so the page's last line (exact 25pt) misses by 0.36 and goes over. Word
+puts every line on a 1/300in raster (0.24pt); that is the open
+question, not the notes.
 
 Note for the Windows session: on the Mac, 2ffeece2 moved zh-9e08ed28
 from 56.7% to 47.4% (Word's 22 pages: 21 -> 23); the sweep that showed
