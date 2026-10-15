@@ -201,7 +201,17 @@ struct Chart: Equatable {
     /// at 65%, which the file spells `tx1` lumMod 65% lumOff 35%.
     var textColor: Color? = nil
     var legendColor: Color? = nil
+    var legendBold = false
     var plainText = false
+    /// The labels' and legend's size where nothing says one: PowerPoint
+    /// 2013's 12 pt for a chart that colours its text (as a new chart
+    /// does), the 2007 default of 10 for one that says nothing at all —
+    /// aascu 5864's children's-skills charts, 10 pt in PowerPoint's print.
+    var baseTextSize: Double { textSize ?? (plainText && !styled2013 ? 10 : 12) }
+    /// Text anywhere in the chart set in PowerPoint 2013's grey (`tx1` at
+    /// lumMod 65%): a chart of that kind, whose unstated sizes are 12. A
+    /// new chart is one (and is written so).
+    var styled2013 = true
     /// The plot area's own fill (`c:plotArea/c:spPr`).
     var plotFill: Color? = nil
     /// The value axis draws its gridlines (`c:majorGridlines`).
@@ -458,6 +468,11 @@ enum ChartXML {
             return l
         }
         if let sz = spaceRun?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.textSize = sz / 100 }
+        func greyText(_ n: XNode) -> Bool {
+            if n.name == "a:lumMod", n["val"] == "65000" { return true }
+            return n.children.contains(where: greyText)
+        }
+        c.styled2013 = greyText(space)
         if let f = spaceRun?.first("a:solidFill") {
             let mods = f.first("a:schemeClr").map { n in n.children.map { "\($0.name)=\($0["val"] ?? "")" }.sorted() } ?? []
             let standard = f.first("a:schemeClr")?["val"] == "tx1" && mods == ["a:lumMod=65000", "a:lumOff=35000"].sorted()
@@ -476,6 +491,7 @@ enum ChartXML {
                 c.legendSize = sz / 100
             }
             if let f = l.first("c:txPr")?.descendant("a:defRPr")?.first("a:solidFill") { c.legendColor = color(f) }
+            c.legendBold = ["1", "true"].contains(l.first("c:txPr")?.descendant("a:defRPr")?["b"] ?? "")
             if let m = l.first("c:layout")?.first("c:manualLayout"),
                (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
                let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
@@ -876,8 +892,8 @@ enum ChartPainter {
         if c.legend {
             let names = pie ? c.categories : c.series.map(\.name) + c.lineSeries.map(\.name)
             // In the legend's own size, its keys and gaps in proportion.
-            let size = c.legendSize ?? c.textSize ?? 12, m = size / 12
-            var entries = names.enumerated().map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: false, color: c.legendColor)) }
+            let size = c.legendSize ?? c.baseTextSize, m = size / 12
+            var entries = names.enumerated().map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: c.legendBold, color: c.legendColor)) }
             let key = 7 * k * m, gap = 4 * k * m, spacing = 12 * k * m
             // Beside the plot (`legendPos` r, l, tr): a column, an entry to
             // a line, in the middle of the side; above or below: rows.
@@ -1090,7 +1106,7 @@ enum ChartPainter {
         }
         // (The lines over a combination's columns share the axis.)
         for v in c.lineSeries.flatMap({ $0.values.compactMap { $0 } }) { lo = min(lo, v); hi = max(hi, v) }
-        let labelSize = c.valueLabelSize ?? c.textSize ?? 12
+        let labelSize = c.valueLabelSize ?? c.baseTextSize
         // (Settled here and captured as constants: the Windows
         // toolchain's optimizer (Swift 6.2.3) fails SIL verification on
         // a tuple `var` that the closures below capture — "Lexical
@@ -1150,7 +1166,7 @@ enum ChartPainter {
         }
         if let placed, !c.plotLayoutInner { area = placed }
         // Tick labels: values along one axis, categories (or x values) along the other.
-        let catSize = c.categoryLabelSize ?? c.textSize ?? 12
+        let catSize = c.categoryLabelSize ?? c.baseTextSize
         var catLabels: [TextPainter]
         // Categories too long for their slot even word by word are set
         // aslant, a quarter of a right angle up to the right and ending
@@ -1513,7 +1529,7 @@ enum ChartPainter {
         }
         if c.dataLabels {
             for (s, at) in labels {
-                let tp = text(s, c.textSize ?? 12, .infinity)
+                let tp = text(s, c.baseTextSize, .infinity)
                 let dx = horizontal && !c.stacked ? 0 : tp.width / 2
                 tp.paint(canvas, Offset(at.dx - dx, at.dy - tp.height / 2))
                 tp.dispose()
@@ -1569,7 +1585,7 @@ enum ChartPainter {
                 let v = wedge.value
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
-                    color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.textSize ?? 12) * k),
+                    color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.baseTextSize) * k),
                     fontFamily: OfficeFonts.substitute(theme.bodyFont))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
@@ -1617,8 +1633,8 @@ extension ChartPainter {
         let values = c.series.flatMap { $0.values.compactMap { $0 } }
         let auto = scale(min(0, values.min() ?? 0), values.max() ?? 1)
         let sc = fixedScale(auto: auto, min: c.valueMin, max: c.valueMax, step: c.valueStep)
-        let labelSize = c.valueLabelSize ?? c.textSize ?? 12
-        let catSize = c.categoryLabelSize ?? c.textSize ?? 12
+        let labelSize = c.valueLabelSize ?? c.baseTextSize
+        let catSize = c.categoryLabelSize ?? c.baseTextSize
         let catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, .infinity) }
         let room = (catLabels.map(\.height).max() ?? 12 * k) + 4 * k
         let wide = (catLabels.map(\.width).max() ?? 0) + 4 * k
@@ -1779,7 +1795,7 @@ extension ChartPainter {
                 let v = s.color.value
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: dataLabel(c, s.value), style: Flutter.TextStyle(
-                    color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.textSize ?? 12) * k),
+                    color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.baseTextSize) * k),
                     fontFamily: OfficeFonts.substitute(theme.bodyFont))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(pt.dx - tp.width / 2, pt.dy - tp.height / 2))

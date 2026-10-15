@@ -1437,6 +1437,15 @@ that far along (96 steps, drawn outside in). And a slide background
 tdf114848's is light along the whole title and darker toward every
 edge, where ours had a circle round the middle.
 
+**A 2007 chart's 10 pt text, 2026-10-15** (LIBRE_OFFICE-100610-0 −0.08,
+aascu 5864 −0.04, cooper +0.03). A chart that states no text size and
+no text colour anywhere — none of PowerPoint 2013's grey (`tx1`
+lumMod 65%) in any of its text — sets its labels and legend at 10 pt
+in PowerPoint's print (aascu's children's-skills charts); ours were 12,
+and the wider labels tipped into the aslant rule where PowerPoint's
+stand level. `Chart.baseTextSize`; a 2013-style chart (and a new one)
+keeps 12. The legend's bold (`c:legend/c:txPr`) is read too.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
