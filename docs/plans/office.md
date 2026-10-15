@@ -2607,6 +2607,18 @@ fitter dropped the paragraph's tail).
   0.06pt; bug57031 74.6% -> 87.3%, drawing 41.0 -> 66.5; POI 75.0 ->
   75.36, nothing down.
 
+- **Verdana keeps its own widths and line (2026-10-15).** Its stand-in,
+  DejaVu Sans, is a few per cent wider in its letters (a .613 em to
+  Verdana's .601) and narrower in its space (.318 to .352), and its line
+  is 1.164 ems to Verdana's 1.2153. drawing.docx's Verdana 9 Russian
+  news held a word a line fewer, every page running on. The stand-in is
+  now set to Verdana's own advances — U+0020 to U+007E, Latin-1,
+  Cyrillic and the common punctuation, regular and bold, read from
+  Windows' verdana.ttf and verdanab.ttf — and Verdana's line (hhea
+  ascent and descent, no gap; baseline 1.0054). drawing 66.5% -> 89.9%;
+  Chinese sample 95.69 -> 95.83 (zh-abe7e063 91.8 -> 98.4, four more up
+  a little), POI 75.36 -> 75.59; nothing down.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
