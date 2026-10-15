@@ -4016,6 +4016,10 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, !document.usesEastAsianLayout, let b = before, Self._breaksAfterHyphen(beforeBefore, b, ch) {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, !document.usesEastAsianLayout, before == "-", ch.isNumber,
                           let bb = beforeBefore, bb.isLetter || bb.isNumber {
                     // (Word parts a line after a hyphen before a digit —
@@ -4828,6 +4832,7 @@ public final class RichLayout {
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
             return Self._breaksBetween(Character(a), Character(b))
+                || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
                                    pitch: p.style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(i, document).pitch))
         let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
@@ -5404,6 +5409,18 @@ public final class RichLayout {
             return wide(a) && !_openingMarks.contains(a) && !_closingMarks.contains(a)
         }
         return false
+    }
+
+    /// Whether Word may part a line after a hyphen-minus that opens a
+    /// word and a digit follows — a sign, which the engine keeps with its
+    /// number: bug59058's p9 table text ends a line " -" and starts the
+    /// next "0.01" in Word's print; ours carried "-0.01" down whole.
+    /// (After a letter or digit too, outside East Asian layout: `_span`'s
+    /// rule from lab `hy3`. `letters` asks for that case as well.)
+    private static func _breaksAfterHyphen(_ before: Character?, _ a: Character, _ b: Character, letters: Bool = false) -> Bool {
+        guard a == "-", b.asciiValue.map({ $0 >= 0x30 && $0 <= 0x39 }) ?? false else { return false }
+        if let bb = before, bb.isLetter || bb.isNumber { return letters }
+        return before == nil || before == " "
     }
 
     /// Whether Word's automatic spacing falls between `a` and `b`: one

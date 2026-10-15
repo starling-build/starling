@@ -2495,6 +2495,14 @@ fitter dropped the paragraph's tail).
   characters in a three-row table in a cell — ran to six pages that
   way. The block keeps off the line grid (it is no line).
 
+- **A sign's hyphen may end a line (2026-10-15).** Word parts a line
+  after a hyphen-minus that opens a word and a digit follows; the engine
+  keeps "-0.01" whole. bug59058's page 9 table text ends a line " -"
+  and starts the next "0.01". A zero-width space now stands after such
+  a hyphen outside East Asian layout (the sibling rule for "КС-2" and
+  "2024-10", lab `hy3`, stops there too: zh-64044a1d's "0932-757839"),
+  and the fitter knows both breaks.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
