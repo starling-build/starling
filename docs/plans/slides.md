@@ -1610,6 +1610,17 @@ cameras keep the old shading, and a solid seen from behind its old dark
 back. Not modelled: `lightRig rot` (rot_rotation's front is 0.45 in
 PowerPoint), materials' highlights, bevels.
 
+Tried and dropped: **fitting `normAutofit` text with no stored scale
+when the deck opens** (tdf98603's 72 pt Hebrew title, one smaller line
+in PowerPoint's print, two here). Mean 1.4207 → 1.4292: tdf98603 −0.86,
+but aptia +0.78, NumberedList +0.69, smartart-background +1.51 and a
+dozen more — PowerPoint leaves aptia's eight-item list overflowing its
+box rather than shrinking it, so it does not refit on open, and what
+shrank tdf98603's title is something else (its Hebrew face's size?).
+Also tried: `lightRig rot` as a turn of the rig's lights — no order or
+sign of lat/lon gives rot_rotation's left 1.51, top and front 0.45
+from the two lights as fitted.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
