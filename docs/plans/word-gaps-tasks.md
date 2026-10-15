@@ -379,3 +379,13 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   footnotes on page 3 and carries 3.7 over. Every clause in the file
   is keepNext + keepLines, so this may be Word giving up the keep
   chain rather than a footnote rule. Needs a lab.
+- Reply from the Mac (2026-10-15): the bug65649 p3 lead is taken and
+  built, 7f6f7902 — Word reserves a footnote's room only when an UNKEPT
+  paragraph is set; kept paragraphs' notes wait, and at the first unkept
+  one those that do not fit go to the next page's foot (labs fn44/fn44k/
+  fn44k2/fn44k3 in ~/starling-word-check/lab/in; Word also parts a note
+  over two pages, which ours does not). Also ef56a9f1: contextual spacing
+  by the named style alone, list or not. bug65649 21.9 -> 42.9 with your
+  f80dee36 in between; its remaining misses are pdf-text grouping of
+  "4.2.1.<tab>text" (joined in Word's print, split in ours — glyphs
+  identical) and superscript marks on their own row.

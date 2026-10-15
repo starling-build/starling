@@ -2887,6 +2887,18 @@ fitter dropped the paragraph's tail).
   a line ahead of Word's at the top, and the 6pt it no longer carries
   lets one line more onto the page, so pages 43 and 44 fall a line out
   of step — the page-42 gap itself is now Word's 56pt.
+- **A tab stop nearer than the engine's own tab width makes the tab
+  that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
+  на материалы…": the number ends 1.35pt before the stop at 1134
+  twips, and Word's text starts at the stop (141.66 in its print);
+  ours kept the engine's 3pt tab (text at 143.40), and with 1.65pt
+  less the line's nine spaces had 0.87pt each to give for
+  "выполнения" — past the quarter they may — so it went over, where
+  Word's print has them at 2.31 and the line filled to the margin
+  exactly. A left tab's adjustment may now be negative down to half a
+  point of width; the aligned kinds keep their floor at nothing.
+  (Below the sweep's 0.3-point threshold on its own; the page is
+  Word's line for line now.)
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

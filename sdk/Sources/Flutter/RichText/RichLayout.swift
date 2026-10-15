@@ -3294,7 +3294,13 @@ public final class RichLayout {
                 case .decimal:
                     if let dot = (t + 1 ..< end).first(where: { units[$0] == 0x2E }) { extra -= edge(dot) - after } else { extra -= following }
                 }
-                extra = max(0, extra)
+                // (A stop nearer than the engine's own tab width: the tab
+                // is that narrow. Word sets bug65649's "5.1.1.<tab>" at
+                // its stop 1.35pt on; ours kept the tab's 3pt, and the
+                // line's nine spaces then had 0.87pt each to give — past
+                // their quarter — so "выполнения" went over. Word's
+                // print has them at 2.31, the line filled to the margin.)
+                extra = stop.alignment == .left ? max(0.5 - own, extra) : max(0, extra)
                 tabs[t] = extra
                 shift += extra
                 if let fill = stop.leader, fill != "none" {
