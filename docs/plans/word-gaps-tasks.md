@@ -155,6 +155,10 @@ spaces at a line height of 1.0 (zh-c3dd22c4 100 -> 14, zh-4b8e0abc
 -31). Other documents' lines depend on what such runs do now; the rule
 has to say which spaces Word leaves out of the line's height (at the
 line's end? between East Asian text?), from a lab.
+Solved (81b392cd, 96f82ce8): it was the zero-width space put in after
+the held spaces, in the East Asian style, whose glyph came from the
+Latin base family; and then YaHei's 1.715-em pitch. zh-799c91cd 82.3%
+-> 91.2%.
 
 ### T8. Load embedded fonts
 Owner: —
