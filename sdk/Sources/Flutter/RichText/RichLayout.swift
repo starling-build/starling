@@ -5071,7 +5071,12 @@ public final class RichLayout {
                     // the paragraph, and not even 0.55 over where text
                     // follows. Its cells end "納入課程教學參據。" so.)
                     let endsParagraph = !units[(tail + 1)...].contains(where: { !isSpace($0) && $0 != 0x0A && $0 != 0x2028 })
-                    let kept = hang > 0 || holdsFinal || (legacy && inCell && !document.marksSitLeft && Self._hangingUnits.contains(units[tail]) && !endsParagraph)
+                    // (A bracket gives its half there all the same — it
+                    // has a blank half, where Taiwan's centred "，。、" have
+                    // none to give: lab `cb`, zh-9e08ed28's package, a cell
+                    // line of "…服務團」" 0.5pt over is taken, "…團，",
+                    // "…團。", "…團、" go down; "）" and "』" as "」".)
+                    let kept = hang > 0 || holdsFinal || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
                     let all = (marks + own).filter { !kept || $0 != tail }
                     let given = legacy ? spaces + ownSpaces : []
                     // (A curly quote in a Latin face is as wide as it is.)
@@ -5319,6 +5324,9 @@ public final class RichLayout {
     private static let _quotes = Set("\"'“”‘’".utf16)
 
     private static let _closingUnits = Set(_closingMarks.flatMap { String($0).utf16 })
+    /// The marks Taiwan's faces set in the middle of their em, with no
+    /// blank half to give (`_fitEastAsianLines`).
+    private static let _centredUnits = Set("，。、；：！？".utf16)
     private static let _openingUnits = Set(_openingMarks.flatMap { String($0).utf16 })
     /// The marks that may hang past the margin at a line's end.
     private static let _hangingUnits = _closingUnits.union("？”’％".utf16)

@@ -2566,6 +2566,17 @@ fitter dropped the paragraph's tail).
   on zh-799c91cd's "各執1份為憑。" asked. zh-9e08ed28 85.4% -> 91.2%,
   zh-799c91cd 92.0 -> 97.6; nothing else moved. Chinese sample 94.6.
 
+- **In a cell a line's last bracket gives its half before 2013's layout
+  (2026-10-15).** The rule that the line's last mark keeps its em in a
+  cell before mode 15 (zh-TW; measured with a comma) held for every
+  closing mark. Lab `cb` (zh-9e08ed28's package, Word for Windows, a
+  97.5pt cell, a line 0.5pt over): "…服務團」", "…團）", "…團』" are taken,
+  "…團，", "…團。", "…團、" go down — Taiwan's faces centre "，。、；：！？"
+  in their em, which leaves them no blank half to give; a bracket has
+  one. The rule now keeps only those centred marks. The lab matches
+  Word line for line; zh-9e08ed28 91.2% -> 99.6%, zh-89385c94 99.3 ->
+  99.8; nothing down. Chinese sample 94.73.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
