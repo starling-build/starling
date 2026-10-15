@@ -4117,7 +4117,13 @@ public final class RichLayout {
                 // be a Latin fallback's narrower glyph — zh-abe7e063's ■
                 // came out 6.04pt at 10pt where Word's SimSun sets 10, and
                 // a table cell's line took a character Word wraps.
-                if ea, let u = ch.unicodeScalars.first?.value, u >= 0x2190, u <= 0x266F,
+                // (So is the hyphenation point "‧", U+2027 — the zh-TW
+                // middle dot of "亞洲‧矽谷" — and the bullet and two-dot
+                // leader beside it, whichever kind the layout counts
+                // them: PMingLiU sets each an em, and zh-190d730c's
+                // line of it at 6.2pt took a character Word wraps.)
+                if let u = ch.unicodeScalars.first?.value,
+                   (ea && u >= 0x2190 && u <= 0x266F) || u == 0x2027 || u == 0x2025 || (ea && u == 0x2022),
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                        ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.fullWidthSymbols == true {
                     let g = _glyphWidth(style(kind), ch)

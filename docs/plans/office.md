@@ -3181,6 +3181,17 @@ fitter dropped the paragraph's tail).
   joiner, as it already did the slash, the question and exclamation
   marks, the bar and the closing brackets. bug59058 53.3% -> 56.3;
   nothing else moved.
+- **The hyphenation point "‧" is an em in a square face
+  (2026-10-15).** zh-190d730c (`zh-TW`, PMingLiU, `wordWrap` off)
+  writes "亞洲‧矽谷" with U+2027, which PMingLiU sets an em wide (its
+  hmtx: 1.0, as the bullet and the two-dot leader; "·" U+00B7 is
+  0.206). Ours drew it from a fallback at 6.2pt, so each such line
+  held a character more than Word's, and the justified text ran a
+  character ahead from page 4 on. The em rule for symbols an East
+  Asian face sets (`fullWidthSymbols`, ■→ arrows) now takes U+2027
+  and U+2025 whichever kind the layout counts them, and U+2022 in an
+  East Asian run. zh-190d730c 43.4% -> 97.8; zh 91.5 -> 92.3; nothing
+  down.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
