@@ -283,6 +283,9 @@ struct SlideFill: Equatable {
     var tileScaleY = 1.0
     var tileAlign = Offset(0, 0)
     var tileOffset = Offset(0, 0)
+    /// The tiles are laid from the slide's corner, not the area's: a
+    /// pattern fill (`a:pattFill`), whose pixels line up across shapes.
+    var tileAnchored = false
     /// Gradient stops (position 0...1, colour) and the direction, degrees
     /// clockwise from left-to-right.
     var stops: [GradientStop] = []

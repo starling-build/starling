@@ -660,4 +660,26 @@ final class MetafileTests: XCTestCase {
         XCTAssertFalse(Metafile.isMetafile(Data([0x89, 0x50, 0x4E, 0x47] + [UInt8](repeating: 0, count: 60))))
         XCTAssertFalse(Metafile.isMetafile(Data()))
     }
+
+    func testAPatternFillIsItsPresetTiledFromTheSlideCorner() throws {
+        let f = PatternFill.fill(preset: "ltDnDiag", foreground: Color(0xFFFF0000), background: Color(0xFF00FF00))
+        XCTAssertTrue(f.tiled && f.tileAnchored)
+        // A quarter of the pixels are the foreground's.
+        XCTAssertEqual(f.color, Color(0xFF40BF00))
+        // One pattern pixel a point: 32 pt of tile.
+        let image = try XCTUnwrap(f.image)
+        let side = 8 * PatternFill.repeats * PatternFill.magnify
+        XCTAssertEqual(Double(side) * 0.75 * f.tileScale, Double(8 * PatternFill.repeats), accuracy: 1e-9)
+        // The BMP from the top left: (0, 0) and (1, 1) are on, (1, 0) off —
+        // down to the right, as PowerPoint prints ltDnDiag.
+        let bytes = [UInt8](image.data)
+        func red(_ x: Int, _ y: Int) -> Bool {
+            let at = 54 + (side - 1 - y * PatternFill.magnify) * side * 3 + x * PatternFill.magnify * 3
+            return bytes[at + 2] == 0xFF && bytes[at + 1] == 0
+        }
+        XCTAssertTrue(red(0, 0))
+        XCTAssertTrue(red(1, 1))
+        XCTAssertFalse(red(1, 0))
+        XCTAssertTrue(red(4, 0))
+    }
 }

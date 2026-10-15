@@ -1235,6 +1235,21 @@ are those to a tenth of a point. A content placeholder (`p:ph` with no
 type) takes the same but no bullet (outliner-list-style's first level
 has none).
 
+**Pattern fills, 2026-10-15** (sweep 72: 1.7446 → 1.7353%; tdf107608
+5.08 → 0.07). `a:pattFill` was not read, so a shape fell through to its
+style's colour. PowerPoint's export draws a pattern as a PDF tiling
+pattern: one pattern pixel a point, the grid laid from the slide's
+corner, not the shape's, and square to the slide even when the shape
+is turned (tdf107608's rectangle is turned 270° and its stripes still
+run down to the right). `Slides/PatternFill.swift` holds the 48
+presets as 8×8 bitmaps (GDI+'s hatch brushes, which the presets name;
+ltDnDiag checked against the print, the rest not seen in the corpus)
+and draws one as a tiled BMP, eight pixels to the pattern pixel, with
+`SlideFill.tileAnchored`; `paintFill` undoes the shape's turn for it.
+The blend of the two colours by share stands for the fill wherever a
+single colour is wanted. (The other moves in this sweep — table decks
+±0.1 — come from the Writer session's shared table changes, not this.)
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

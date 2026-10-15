@@ -522,7 +522,7 @@ final class SlidePainter: CustomPainter {
                 } else if let outline = shape.customPath {
                     canvas.clipPath(Self.combinedPath(outline, r))
                 }
-                if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px) }
+                if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation) }
                 if shape.flipH || shape.flipV {
                     let c = r.center
                     canvas.translate(c.dx, c.dy)
@@ -554,7 +554,7 @@ final class SlidePainter: CustomPainter {
                 } else if let outline = shape.customPath {
                     canvas.clipPath(Self.combinedPath(outline, frame))
                 }
-                if let style = shape.fillStyle { paintFill(style, frame, canvas, cache: cache, pxPerPt: px) }
+                if let style = shape.fillStyle { paintFill(style, frame, canvas, cache: cache, pxPerPt: px, turn: shape.rotation) }
                 if shape.flipH || shape.flipV {
                     let c = frame.center
                     canvas.translate(c.dx, c.dy)
@@ -571,7 +571,7 @@ final class SlidePainter: CustomPainter {
             }
         }
         if let chart = shape.chart {
-            if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px) }
+            if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation) }
             ChartPainter.paint(chart, canvas, r, pxPerPt: px, theme: theme)
         }
         if shape.fillsWithBackground, let backdrop, let slide {
@@ -620,7 +620,7 @@ final class SlidePainter: CustomPainter {
                 // A gradient or picture, within every filled subpath at once.
                 canvas.save()
                 canvas.clipPath(Self.combinedPath(freeform, r))
-                paintFill(style, r, canvas, cache: cache, pxPerPt: px)
+                paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
                 canvas.restore()
             }
             for sub in freeform.subpaths {
@@ -679,7 +679,7 @@ final class SlidePainter: CustomPainter {
             // A gradient or picture fill, within the shape's outline.
             canvas.save()
             if let path { canvas.clipPath(path) } else { canvas.clipRect(area) }
-            paintFill(style, area, canvas, cache: cache, pxPerPt: px)
+            paintFill(style, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
             canvas.restore()
         } else if let fill = shape.fill, shape.preset?.isOpenPath != true, !drawnAlready {
             let p = Paint()
@@ -911,8 +911,12 @@ final class SlidePainter: CustomPainter {
         return out
     }
 
-    /// A colour, gradient or picture filling `r`.
-    static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache, pxPerPt: Double = 1) {
+    /// A colour, gradient or picture filling `r`. `turn` is the degrees
+    /// the canvas is turned about the shape's centre, which a pattern
+    /// (tiles laid from the slide's corner) undoes: PowerPoint keeps a
+    /// turned shape's pattern square to the slide (tdf107608).
+    static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache, pxPerPt: Double = 1,
+                          turn: Double = 0) {
         if let overlay = fill.overlay {
             // The fill and its overlay in a layer of their own, the overlay
             // blended into the fill alone, not into what lies behind it.
@@ -953,14 +957,25 @@ final class SlidePainter: CustomPainter {
             let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
             // A tile larger than the area in both directions is a photo
             // marked "tile": PowerPoint shows it fitted, not cropped.
-            if fill.tiled, tw < r.width || th < r.height {
+            if fill.tiled, tw < r.width || th < r.height || fill.tileAnchored {
                 // At the picture's own size (96/in) times the tile scale,
                 // from the one tile the alignment and offset place, back
                 // to the area's top left edge and on past its bottom right.
-                let x0 = r.left + (r.width - tw) * fill.tileAlign.dx + fill.tileOffset.dx * pxPerPt
-                let y0 = r.top + (r.height - th) * fill.tileAlign.dy + fill.tileOffset.dy * pxPerPt
                 canvas.save()
                 canvas.clipRect(r)
+                var r = r
+                if fill.tileAnchored, turn != 0 {
+                    // Untouched by the turn: tiles over what the turned
+                    // area covers, square to the slide.
+                    let c = r.center, a = turn * .pi / 180
+                    canvas.translate(c.dx, c.dy)
+                    canvas.rotate(-a)
+                    canvas.translate(-c.dx, -c.dy)
+                    let w = abs(r.width * cos(a)) + abs(r.height * sin(a)), h = abs(r.width * sin(a)) + abs(r.height * cos(a))
+                    r = Rect.fromLTWH(c.dx - w / 2, c.dy - h / 2, w, h)
+                }
+                let x0 = fill.tileAnchored ? 0 : r.left + (r.width - tw) * fill.tileAlign.dx + fill.tileOffset.dx * pxPerPt
+                let y0 = fill.tileAnchored ? 0 : r.top + (r.height - th) * fill.tileAlign.dy + fill.tileOffset.dy * pxPerPt
                 var y = y0 - ((y0 - r.top) / th).rounded(.up) * th
                 while y < r.bottom {
                     var x = x0 - ((x0 - r.left) / tw).rounded(.up) * tw

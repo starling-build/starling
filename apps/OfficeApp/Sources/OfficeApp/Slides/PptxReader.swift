@@ -662,6 +662,7 @@ struct PptxReader {
     func fill(_ pr: XNode, owner: String, colors: ColorContext) -> SlideFill? {
         if let f = pr.first("a:solidFill") { return colors.color(in: f).map { SlideFill(color: $0) } }
         if let g = pr.first("a:gradFill") { return Self.gradient(g, colors: colors) }
+        if let p = pr.first("a:pattFill") { return Self.pattern(p, colors: colors) }
         if let b = pr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
            let rel = package.rels(owner).first(where: { $0.id == rid }), !rel.external,
            package.parts[rel.target] != nil {
@@ -682,6 +683,14 @@ struct PptxReader {
 
     /// A picture fill's `a:tile` (or nil for a bare `a:blip`, which tiles
     /// with the defaults): its scale, alignment and offset, into `f`.
+    /// `a:pattFill`: its preset in its two colours (black on white where
+    /// it names none, as PowerPoint draws them).
+    static func pattern(_ p: XNode, colors: ColorContext) -> SlideFill {
+        PatternFill.fill(preset: p["prst"] ?? "pct5",
+                         foreground: p.first("a:fgClr").flatMap { colors.color(in: $0) } ?? Color(0xFF000000),
+                         background: p.first("a:bgClr").flatMap { colors.color(in: $0) } ?? Color(0xFFFFFFFF))
+    }
+
     static func tile(_ tile: XNode?, image: Data?, into f: inout SlideFill) {
         f.tiled = true
         // At the picture's own resolution (its declared dpi) times `sx` and
@@ -1172,6 +1181,12 @@ private struct SlideContext {
             if b.first("a:tile") != nil || b.first("a:stretch") == nil {
                 PptxReader.tile(b.first("a:tile"), image: package.parts[rel.target], into: &f)
             }
+            fillStyle = f
+        } else if let pf = spPr?.first("a:pattFill") {
+            // A pattern: drawn as itself, the blend of its colours standing
+            // for it.
+            let f = PptxReader.pattern(pf, colors: colors)
+            fill = f.color
             fillStyle = f
         } else if spPr?.has("a:grpFill") == true {
             // The group's fill, which the group it is read from supplies.
