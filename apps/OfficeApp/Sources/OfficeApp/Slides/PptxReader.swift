@@ -354,6 +354,10 @@ private struct LevelStyle {
         if let v = p.first("a:buSzPct")?["val"].flatMap(Double.init) { s.bulletScale = v / 100000 }
         if p.has("a:buSzTx") { s.bulletSizeFollows = true }
         if p.has("a:buAutoNum") { s.bullet = .number }
+        // A picture bullet (`a:buBlip`): a list paragraph whose marker is
+        // not drawn yet — its text where a bullet's is, not hung out to
+        // the left as an unbulleted paragraph's first line is.
+        if p.has("a:buBlip") { s.bullet = .char; s.bulletChar = "\u{200B}" }
         if let r = p.first("a:defRPr") { s = run(r, colors).filled(from: s) }
         return s
     }

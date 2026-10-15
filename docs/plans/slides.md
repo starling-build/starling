@@ -1126,6 +1126,18 @@ satMod 300% gradient is sRGB's to a level, its plain table bands are
 linear light's) — made 13 decks worse, themes 2.59 → 18.28. How
 PowerPoint combines a tint with a saturation boost is still open.
 
+**An unbulleted paragraph's own first-line indent, 2026-10-14** (sweep
+64: 1.7942 → 1.7875%; eleven decks closer — n778859 2.16 → 0.87,
+ecodesign 4.15 → 3.55, testPPT 2.36 → 1.82, the 45541 trio −0.24 — none
+further). The layout's `firstLineIndent` answered only under Word's
+rules, so a Slides paragraph with no bullet ignored its own indent: a
+master that hangs every body level (marL 27, indent −27 pt) and a
+paragraph that turns its bullet off (`buNone`) left the first line at
+27 where PowerPoint starts it at 0. It is the paragraph's own now,
+outside tables. A picture bullet (`a:buBlip`, seven decks) is read as a
+bullet whose marker is not drawn yet, so its text stays where a list's
+is (tdf90626 and tdf138148 hung out to the left without that).
+
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
 0.00%: 59 of 553 by MuPDF at sweeps 31 and 32) and `others*.txt` the rest;

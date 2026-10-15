@@ -3840,7 +3840,15 @@ public final class RichLayout {
     /// list's marker has its own slot, and an empty paragraph no line
     /// to indent.
     public func firstLineIndent(_ p: RichParagraph, at index: Int? = nil, _ document: RichDocument) -> Double {
-        guard theme.wordRules, p.style.list == nil, !p.text.isEmpty, p.image == nil else { return 0 }
+        // PowerPoint's unbulleted paragraph starts its first line where its
+        // own indent puts it — out to the left of the rest for a negative
+        // one, as a master's body hangs every level (ecodesign's quotes) —
+        // where this returned nothing outside Word.
+        if !theme.wordRules {
+            guard p.style.list == nil, !p.text.isEmpty, p.image == nil, p.cell == nil else { return 0 }
+            return p.style.firstLineIndent
+        }
+        guard p.style.list == nil, !p.text.isEmpty, p.image == nil else { return 0 }
         let chars = Double(p.style.eastAsian["w:hangingChars"] ?? "").map { -$0 } ?? Double(p.style.eastAsian["w:firstLineChars"] ?? "")
         if let chars, chars != 0 {
             // (A character of the first run: its size, and its character
