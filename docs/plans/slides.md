@@ -1542,6 +1542,14 @@ PDF output rasterises each such layer — the three decks' PDFs went to
 2.8 MB — and at sigma = blur / 2 the shadow came out wider and darker
 than PowerPoint's tight one: 6.78 → 8.53. The sharp 45% copy stays.
 
+Tried and dropped, 2026-10-15: names the shared font table does not
+know go to Cambria's measure (Word's rule); a Slides-side resolver sent
+plainly sans names (Work Sans, Poppins, Montserrat, "… Sans") to
+Liberation Sans instead. Mean +0.0004: tdf148665 −0.12 but tdf140852
++0.19 and HowWeRefactor +0.10 — Work Sans Light is narrower than
+Arial's measure, and the lines re-wrapped. No better stand-in without
+a face of that width.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
