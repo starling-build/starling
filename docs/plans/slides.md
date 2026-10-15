@@ -1467,6 +1467,18 @@ measure in PowerPoint's prints (1.10 to 1.16 of the bold's, median
 1.12, on the four lines the corpus prints in it). Slides-only (the
 reader's run style), the shared font table untouched.
 
+**A table style's rules side by side, 2026-10-15** (sweep 80: 1.5406 →
+1.5301%; 22 decks closer — bug68703 2.71 → 1.50, tdf149865 −0.57,
+bnc480256 −0.51, bnc887225 −0.49 — bnc910045 +0.11). A deck's table
+style's whole-table rules (`a:wholeTbl/a:tcStyle/a:tcBdr`) were read as
+one switch and a colour: any side ruled was every side ruled, at the
+default width. Each of the six sides is its own now (`TableStyle.edges`:
+a side the style leaves out or sets `noFill` has no rule) and the rules
+are the width the style gives (`borderWidth`). Tried with it and
+dropped: `{793D81CF…}` (tdf135843_insideH's undefined style) built in as
+rows ruled and columns not — +1.85 there, its rows still the wrong
+height; that deck stays undrawn-ruled.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

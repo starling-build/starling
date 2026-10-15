@@ -1889,6 +1889,8 @@ private struct SlideContext {
             ts.bandAltFill = banded ? over(b2?.fill) : under
             if let b = whole?.borders { ts.borders = b }
             if let c = whole?.borderColor { ts.borderColor = c }
+            if let e = whole?.edges { ts.edges = e }
+            if let w = whole?.borderWidth { ts.borderWidth = w }
         }
         for (r, h) in rowHeights.enumerated() where h > 0 { ts.rowHeights[r] = h }
         doc.tableStyles[tableId] = ts
@@ -2123,6 +2125,10 @@ private struct SlideContext {
         var bold: Bool? = nil
         var borders: Bool? = nil
         var borderColor: Color? = nil
+        /// Which of its six rules it draws, and their width (points),
+        /// where its `a:tcBdr` names each side.
+        var edges: BorderEdges? = nil
+        var borderWidth: Double? = nil
         /// `a:tcTxStyle`'s face: a theme slot (`fontRef idx`) or a name.
         var font: String? = nil
     }
@@ -2146,20 +2152,31 @@ private struct SlideContext {
             }
             if let bdr = tc.first("a:tcBdr"), !bdr.children.isEmpty {
                 var visible = false
+                var shown: [String: Bool] = [:]
                 for side in ["a:insideH", "a:insideV", "a:left", "a:right", "a:top", "a:bottom"] {
                     if let ref = bdr.first(side)?.first("a:lnRef") {
                         // The theme's line style in the referred colour.
-                        if ref["idx"] == "0" { continue }
+                        if ref["idx"] == "0" { shown[side] = false; continue }
                         visible = true
+                        shown[side] = true
                         if r.borderColor == nil { r.borderColor = colors.color(in: ref) }
                         continue
                     }
                     guard let ln = bdr.first(side)?.first("a:ln") else { continue }
-                    if ln.has("a:noFill") { continue }
+                    if ln.has("a:noFill") { shown[side] = false; continue }
                     visible = true
+                    shown[side] = true
                     if r.borderColor == nil, let f = ln.first("a:solidFill") { r.borderColor = colors.color(in: f) }
+                    if r.borderWidth == nil, let w = ln["w"].flatMap(Double.init) { r.borderWidth = w / Pptx.emu }
                 }
                 r.borders = visible
+                // Each side as it says (a side it leaves out has no rule:
+                // tdf135843_insideH's rows ruled, its columns not).
+                if visible {
+                    r.edges = BorderEdges(top: shown["a:top"] ?? false, left: shown["a:left"] ?? false,
+                                          bottom: shown["a:bottom"] ?? false, right: shown["a:right"] ?? false,
+                                          insideH: shown["a:insideH"] ?? false, insideV: shown["a:insideV"] ?? false)
+                }
             }
         }
         if let tx = part.first("a:tcTxStyle") {
