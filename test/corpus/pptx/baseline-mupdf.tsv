@@ -43,7 +43,7 @@ bug65523.pptx	summary pages=1 worst=0.28% mean=0.28%
 bug65551.pptx	summary pages=1 worst=0.03% mean=0.03%
 bug65673.pptx	summary pages=1 worst=0.27% mean=0.27%
 bug68703.pptx	summary pages=1 worst=2.71% mean=2.71%
-ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst=7.72% mean=4.05%
+ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst=7.72% mean=3.85%
 chart-picture-bg.pptx	summary pages=1 worst=2.69% mean=2.69%
 chart-slide-bg.pptx	summary pages=1 worst=2.35% mean=2.35%
 chart-texture-bg.pptx	summary pages=1 worst=2.27% mean=2.27%
@@ -501,7 +501,7 @@ oox-tdf113187_arcTo_withoutReferences.pptx	summary pages=1 worst=0.02% mean=0.02
 oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=4.83% mean=4.83%
 oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=3.71% mean=3.71%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
-oox-tdf131082.pptx	summary pages=1 worst=1.67% mean=1.67%
+oox-tdf131082.pptx	summary pages=1 worst=0.15% mean=0.15%
 oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=18.12% mean=18.12%
 oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=12.50% mean=12.50%
 oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=20.70% mean=20.70%

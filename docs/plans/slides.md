@@ -1349,6 +1349,14 @@ widening into the first line's indent box, since the engine sets
 added spacing half before a character and at a line's start that moved
 the line (10.8 pt).
 
+**A freeform in a turned or mirrored group, 2026-10-15** (sweep 76:
+1.5937 → 1.5906%; tdf131082 1.67 → 0.15, HowWeRefactor 4.05 → 3.85).
+Such a group is drawn from its members; a member kept whole hands on
+what it is drawn from — right for a nested turned group, but a freeform
+is kept whole and draws itself, and it handed on nothing. HowWeRefactor's
+mirrored wrenches over its "R" boxes were missing. A kept member with
+nothing to hand on and a freeform of its own is drawn as itself now.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

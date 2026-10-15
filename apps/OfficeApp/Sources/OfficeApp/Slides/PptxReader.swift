@@ -1082,8 +1082,11 @@ private struct SlideContext {
                         let flipH = gx["flipH"] == "1", flipV = gx["flipV"] == "1"
                         obj.rendering = members.flatMap { m -> [ShapeState] in
                             // A member that is itself drawn through others
-                            // (a nested turned group) hands those on.
-                            if case .opaque(let inner) = m.kind { return inner.rendering }
+                            // (a nested turned group) hands those on; one
+                            // kept whole that draws itself (a freeform) is
+                            // a member like any other — HowWeRefactor's
+                            // mirrored wrenches were left out.
+                            if case .opaque(let inner) = m.kind, !inner.rendering.isEmpty || inner.freeform == nil { return inner.rendering }
                             return [m]
                         }.map { m in
                             var m = m
