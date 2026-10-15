@@ -3660,6 +3660,24 @@ fitter dropped the paragraph's tail).
   (177 lines from page 31) is OMML: Word typesets the equations in two
   dimensions, ours as a line of italic text, and everything after
   drifts — real equation layout is the next lever there.
+- **Formulas written as text in Cambria Math (2026-10-15).** bug59058's
+  equations are HTML-converted runs of math letters ("𝑘𝑖", U+1D400 on)
+  in Cambria Math 13pt, with private-use characters (U+E037/E038) between
+  them, and no spaces. Word: (1) sets the letters at Cambria Math's own
+  widths (𝑖 0.3169 em; table generated from the Cambria Math in Word's
+  DFonts, `CambriaMathAdvances.swift`) on Cambria's 1.172-em line; (2)
+  keeps the space-free formula one word, so "was used:" ends its line and
+  the formula opens the next; (3) sets a private-use character no face
+  has at the run face's missing-glyph box, blank (Times' .notdef 0.7778
+  em, 10.11pt at 13pt; Arial 0.75, Calibri 0.5068, Cambria 0.6582,
+  Verdana 1.0 — `missingGlyphAdvance`), not a fallback's glyph, and does
+  not part a line there. Ours now does all three, and draws the
+  characters a math face takes from the platform's math face (STIX Two
+  Math, 0.762/0.238 with 0.25 leading) at four fifths of the run's
+  height, so its split of the height no longer makes the line taller:
+  16.4pt lines became 15.4-15.8 (Word 15.2). bug59058 57.1% -> 71.9; it
+  now runs 53 pages to Word's 52 — the remaining half point a math line
+  is the next thing there (subscript runs and the private-use blanks).
 - **Lead, not taken: a page-anchored floating table that Word breaks
   after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
   the rest of the table, which would fit, goes to page 21 in Word's

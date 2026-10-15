@@ -449,6 +449,13 @@ public struct RichResolvedFace: Sendable {
     /// KaiTi, FangSong, MingLiU); a proportional one (YaHei) sets its own
     /// widths — ○ at 0.6 em.
     public var fullWidthSymbols = false
+    /// The advance, in ems, of the face's missing-glyph box: what Word
+    /// sets a private-use character in where no face has it (drawn
+    /// blank in its print). nil: the fallback's glyph.
+    public var missingGlyphAdvance: Double? = nil
+    /// A math face (Cambria Math): its characters past ASCII come from
+    /// the platform's math face, set inside the run's line.
+    public var setsMath = false
 
     public init(family: String, sizeScale: Double = 1, naturalHeight: Double? = nil, boldSpread: Double = 0,
                 classScales: [Double]? = nil, baseline: Double? = nil, isEastAsian: Bool = false) {
@@ -4391,6 +4398,33 @@ public final class RichLayout {
                     start = after
                     afterHeld = true
                     heldKind = kind
+                } else if theme.wordRules, let u = ch.unicodeScalars.first?.value, u >= 0xE000, u <= 0xF8FF,
+                          let w = latinFace?.missingGlyphAdvance {
+                    // (A private-use character no face has is the run's
+                    // face's missing-glyph box, blank: bug59058's formulas
+                    // hold U+E037/E038 from an HTML converter, 10.11pt
+                    // each at 13pt in Word's print — Times' .notdef, 0.7778
+                    // em — where a fallback drew a glyph near twice that
+                    // and pushed every formula past the line.)
+                    flush(i)
+                    let s = style(kind)
+                    // (A no-break space: the box is no place to part a line.)
+                    spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + w * em - _glyphWidth(s, "\u{00A0}"))))
+                    start = after
+                } else if theme.wordRules, let u = ch.unicodeScalars.first?.value,
+                          (u >= 0x1D400 && u <= 0x1D7FF) || (u > 0x7F && latinFace?.setsMath == true && !ea) {
+                    // (A mathematical letter, which no shipped face has,
+                    // comes from the platform's math face — STIX Two Math
+                    // on a Mac, 0.762 above and 0.238 below with a quarter
+                    // em of leading — whose own split of the run's height
+                    // set bug59058's formula lines 16.4pt apart where
+                    // Word's, in Cambria Math, are 15.2. At four fifths of
+                    // the run's height it sits inside the line the text
+                    // makes; its glyphs stand on the same baseline.)
+                    flush(i)
+                    let s = style(kind)
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra, height: (s.height ?? 1) * 0.8)))
+                    start = after
                 } else if ea, theme.wordRules, let cjk = Self._cjkSymbolFamily, Self._cjkSymbols.contains(ch) {
                     // (A dash or an ellipsis in East Asian text is the
                     // CJK face's glyph, with its metrics: the Latin
@@ -5746,7 +5780,24 @@ public final class RichLayout {
     }
 
     private static func _joinsLatin(_ a: Character, _ b: Character) -> Bool {
-        guard let x = a.asciiValue, let y = b.asciiValue, y > 0x20, y < 0x7F else { return false }
+        // (A mathematical letter or digit after it counts as one of the
+        // Latin text's own: bug59058's formulas are runs of "𝑏𝑖𝑐𝑖/𝑁𝑖"
+        // with no space, which Word carries to the next line whole where
+        // the engine parted them after the slash.)
+        // (… and so is every pair in such a formula with a mathematical
+        // letter or operator in it: the engine also parted "OR𝑖" from
+        // "∑𝑘𝑖=1", and Word keeps the space-free formula one word.)
+        func mathy(_ c: Character) -> Bool {
+            guard let v = c.unicodeScalars.first?.value else { return false }
+            return (v >= 0x1D400 && v <= 0x1D7FF) || (v >= 0x2200 && v <= 0x22FF) || v == 0xD7
+        }
+        func plain(_ c: Character) -> Bool {
+            guard let v = c.unicodeScalars.first?.value else { return false }
+            return v > 0x20 && v != 0xA0 && (v < 0x2E80 || mathy(c))
+        }
+        if mathy(a) || mathy(b), plain(a), plain(b) { return true }
+        let math = b.unicodeScalars.first.map { $0.value >= 0x1D400 && $0.value <= 0x1D7FF } ?? false
+        guard let x = a.asciiValue, let y = math ? 0x41 : b.asciiValue, y > 0x20, y < 0x7F else { return false }
         if x == 0x2F || x == 0x3F || x == 0x21 || x == 0x7C || x == 0x29 || x == 0x5D || x == 0x7D { return true }
         // (And a stop, comma, colon or semicolon before an opening
         // bracket: the engine parts "population." from "(4)Temporality:"

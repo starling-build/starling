@@ -745,11 +745,35 @@ enum OfficeFonts {
             default: baseline = 0.938
             }
             var face = RichResolvedFace(family: clone, baseline: baseline)
+            // (The missing-glyph box of the face it stands for, as
+            // Word's own fonts have it: a private-use character is set
+            // at that width.)
+            switch clone {
+            case serif: face.missingGlyphAdvance = 0.7778
+            case sans: face.missingGlyphAdvance = 0.75
+            case calibri: face.missingGlyphAdvance = 0.5068
+            case cambria: face.missingGlyphAdvance = 0.6582
+            case verdana: face.missingGlyphAdvance = 1.0
+            default: break
+            }
             // (Aptos, drawn as the sans clone, keeps its own line: 1.22
             // ems, its baseline .94 down — lab `ap`, Word for Windows,
             // 12pt lines 14.64 apart and the first baseline 11.28 down,
             // where the clone's 13.8 put table-alignment's paragraphs
             // between tables 2pt short.)
+            // (Cambria Math keeps Cambria's line, 1.172 ems — its hhea
+            // ascent and descent; its huge OS/2 win metrics are for the
+            // equation editor — and sets its math letters at its own
+            // widths. bug59058's formulas, written as runs of "𝑘𝑖" in it at
+            // 13pt, are 15.2pt lines in Word's print; the fallback that
+            // draws them here made them 16.2 and 𝑖 3.6pt wide to Word's 4.1.)
+            if family.trimmingWhitespace().lowercased() == "cambria math" {
+                face.naturalHeight = 1.172
+                face.setsMath = true
+                face.otherAdvances = cambriaMathAdvances
+                face.boldOtherAdvances = cambriaMathAdvances
+                return face
+            }
             if family.trimmingWhitespace().lowercased() == "aptos" {
                 face.naturalHeight = 1.22
                 face.baseline = 0.94
