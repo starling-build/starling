@@ -1780,7 +1780,8 @@ private struct SlideContext {
                     switch level.algn { case "ctr": style.alignment = .center; case "r": style.alignment = .right; default: break }
                     // Its spacing, as a text box's paragraph has it (aptia's
                     // cells, 6 pt before each paragraph, sat that much high).
-                    let size = runs.first?.style.fontSize ?? level.size ?? 18
+                    let endMark: Double? = p.first("a:endParaRPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
+                    let size: Double = runs.first?.style.fontSize ?? endMark ?? level.size ?? 18
                     if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints { style.lineHeightPoints = pts }
                     // (None before a cell's first paragraph, as none before a
                     // body's: aptia's empty first line and the text under it
