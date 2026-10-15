@@ -2695,6 +2695,17 @@ fitter dropped the paragraph's tail).
   84.6 -> 88.3, zh-06c46ba9 +0.6, zh-84702a67 +0.4; POI 76.78 ->
   76.82 (Bug54849 91.3 -> 95.7); nothing down.
 
+- **In a cell too a stretch that opens its line is fitted
+  (2026-10-15).** The rule above let a line-opening stretch hang its
+  mark — but in a cell nothing hangs, so such a stretch was still left
+  to the engine. zh-69bbcc3c's transfer form has a cell line of a 317pt
+  first-line indent, 14 spaces and "）。", 9.85pt over its column; in
+  Word's print it is one line, the "）" 3.8pt close and the "。" giving
+  its blank half past the edge, as the marks of any line give. Now the
+  stretch's own marks give there as anywhere. zh-69bbcc3c 98.2% ->
+  99.8, zh-64044a1d 90.4 -> 92.0; Chinese sample 96.69 -> 96.74; POI
+  unchanged.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

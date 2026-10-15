@@ -5151,8 +5151,10 @@ public final class RichLayout {
             // same: zh-69bbcc3c's paragraph of 48 spaces and "）。", 416pt
             // in a column of 415.6, is one line in Word's print, its "。"
             // 0.4pt past the margin. Ours broke the piece where it would
-            // not fit, "。" a line alone.)
-            if !fits, !opening || hangs, last > a {
+            // not fit, "。" a line alone. In a cell, where nothing hangs,
+            // its marks give: the form's cell line of a 317pt indent, 14
+            // spaces and "）。", 9.85pt over, is one line in Word's print.)
+            if !fits, last > a {
                 let over = x + w - width
                 let tail = last - 1
                 // A closing mark at the end of what comes next may hang
