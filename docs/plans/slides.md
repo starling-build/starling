@@ -1633,6 +1633,13 @@ drawn as nothing. PowerPoint's print keeps the members' own widths,
 placed from the group's corner, and scales only the other way (1.159,
 the heights' ratio); that is the mapping now.
 
+**A chart's own face, 2026-10-15** (LIBRE_OFFICE-100610 2.86 → 2.77;
+the chart decks otherwise unchanged). Chart text was always in the
+theme's body face; LIBRE_OFFICE-100610's charts name Calibri (title,
+and the chart's text) in an Arial theme, and PowerPoint sets them in
+Calibri. A face the chart names — `c:chartSpace/c:txPr`, the title's
+runs — is used now; a theme slot (`+mn-lt`) still means the theme's.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

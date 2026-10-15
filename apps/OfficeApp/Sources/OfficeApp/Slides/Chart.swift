@@ -200,6 +200,10 @@ struct Chart: Equatable {
     /// otherwise (a new chart, PowerPoint 2013's own) it is that colour
     /// at 65%, which the file spells `tx1` lumMod 65% lumOff 35%.
     var textColor: Color? = nil
+    /// The face the chart names for its text (`c:chartSpace/c:txPr`) and
+    /// for its title, where they name one rather than the theme's.
+    var font: String? = nil
+    var titleFont: String? = nil
     var legendColor: Color? = nil
     var legendBold = false
     var plainText = false
@@ -429,7 +433,7 @@ enum ChartXML {
 
         var title: String? = nil
         let deleted = chart.first("c:autoTitleDeleted")?["val"] == "1"
-        var titleSize: Double? = nil, titleBold = false, titleColor: Color? = nil
+        var titleSize: Double? = nil, titleBold = false, titleColor: Color? = nil, titleFace: String? = nil
         if let t = chart.first("c:title") {
             // Line by line: a paragraph, or a break inside one, starts a new line.
             let paragraphs = t.first("c:tx")?.first("c:rich")?.all("a:p") ?? []
@@ -454,6 +458,7 @@ enum ChartXML {
             for layer in layers where titleColor == nil {
                 if let fill = layer.first("a:solidFill") { titleColor = color(fill) }
             }
+            titleFace = layers.lazy.compactMap { $0.first("a:latin")?["typeface"] }.first
         } else if !deleted && series.count == 1 && lines.isEmpty && named {
             // (A series with no name of its own gives no title: aascu
             // 5864's census chart has none in PowerPoint, where ours read
@@ -483,6 +488,10 @@ enum ChartXML {
         c.titleSize = titleSize
         c.titleBold = titleBold
         c.titleColor = titleColor
+        // (A theme slot, "+mn-lt", is the theme's face: none of its own.)
+        func face(_ f: String?) -> String? { f.flatMap { $0.hasPrefix("+") || $0.isEmpty ? nil : $0 } }
+        c.font = face(spaceRun?.first("a:latin")?["typeface"])
+        c.titleFont = face(titleFace) ?? c.font
         c.legend = chart.first("c:legend") != nil
         // (Absent, the schema's default is the right.)
         if let l = chart.first("c:legend") {
@@ -852,7 +861,9 @@ enum ChartPainter {
         // own, on each part's text.
         let ink = c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65))
         let grid = _mix(theme.text, theme.background, 0.15)
-        let font = OfficeFonts.substitute(theme.bodyFont)
+        // (LIBRE_OFFICE-100610's charts say Calibri in an Arial theme, and
+        // PowerPoint sets them in Calibri.)
+        let font = OfficeFonts.substitute(c.font ?? theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
         func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil) -> TextPainter {
@@ -874,7 +885,8 @@ enum ChartPainter {
             // each line centred.
             let tp = TextPainter(text: TextSpan(text: title, style: Flutter.TextStyle(
                 color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? 18.6) * k),
-                fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain, fontFamily: font)),
+                fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain,
+                fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont))),
                 textAlign: .center, textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: max(1, area.width))
             // (Two points higher than the area's edge: where PowerPoint's sits.)
@@ -1519,7 +1531,7 @@ enum ChartPainter {
             // own label look.
             let tp = TextPainter(text: TextSpan(text: l.text, style: Flutter.TextStyle(
                 color: l.series.labelColor ?? theme.text, fontSize: max(3, (l.series.labelSize ?? 12) * k),
-                fontWeight: l.series.labelBold ? .bold : .normal, fontFamily: OfficeFonts.substitute(theme.bodyFont))),
+                fontWeight: l.series.labelBold ? .bold : .normal, fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))),
                 textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: .infinity)
             let at = horizontal ? Offset(l.bar.right - tp.width - 3 * k, l.bar.center.dy - tp.height / 2)
@@ -1586,7 +1598,7 @@ enum ChartPainter {
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                     color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.baseTextSize) * k),
-                    fontFamily: OfficeFonts.substitute(theme.bodyFont))), textDirection: .ltr)
+                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
                 tp.dispose()
@@ -1796,7 +1808,7 @@ extension ChartPainter {
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: dataLabel(c, s.value), style: Flutter.TextStyle(
                     color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.baseTextSize) * k),
-                    fontFamily: OfficeFonts.substitute(theme.bodyFont))), textDirection: .ltr)
+                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(pt.dx - tp.width / 2, pt.dy - tp.height / 2))
                 tp.dispose()
