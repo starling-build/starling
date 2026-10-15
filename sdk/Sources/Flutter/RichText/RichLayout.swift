@@ -436,6 +436,10 @@ public struct RichResolvedFace: Sendable {
     /// OS/2 metrics, and 华文中宋's are not its hhea ones.
     public var scaledHeight: Double? = nil
     public var scaledBaseline: Double? = nil
+    /// Whether the face has none of the CJK compatibility ideographs
+    /// Word's fallback sets in Noto Sans SC (`_notoCompatibility`) —
+    /// YaHei, the face Word on a Mac sets most Chinese names in.
+    public var lacksCompatibilityIdeographs = false
     /// Whether the name is an East Asian face's: the quotes, dashes and
     /// dots both scripts claim are then its full-width ones, whatever
     /// the run's hint.
@@ -4064,6 +4068,7 @@ public final class RichLayout {
             // line with both grew 0.9pt at 12pt — zh-799c91cd's held
             // spaces, and every line with a break before a quote.)
             func zeroWidth(_ kind: Int) -> TextStyle { style(kind < 0 ? 0 : kind) }
+            var notoStyle: TextStyle? = nil
             var spans: [TextSpan] = []
             var start = text.startIndex
             var current: Int? = nil
@@ -4121,6 +4126,29 @@ public final class RichLayout {
                 // every face Word sets such text in draw it; the faces
                 // that stand in here draw the Latin one. The closing
                 // one's blank is spacing after it.
+                // A CJK compatibility ideograph Word on a Mac sets in Noto
+                // Sans SC — its East Asian face has none, and its fallback
+                // takes that face for these (`_notoCompatibility`) and
+                // Heiti SC for the rest — gives its line Noto's height: a
+                // word joiner in that face before it. Lab `cj2` (Word 16,
+                // 標楷體 → YaHei 12pt, 2026-10-15): a line holding "行"
+                // U+FA08 stands 1.44pt lower under the line above and
+                // 0.48 higher over the next; one holding "零" U+F9B2, in
+                // Heiti, is as any. zh-8e8d4c40's page 5 ran a line long.
+                if theme.wordRules, ea, let u = ch.unicodeScalars.first?.value, u >= 0xF900, u <= 0xFAFF,
+                   Self._notoCompatibility.contains(u),
+                   theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.lacksCompatibilityIdeographs == true {
+                    flush(i)
+                    if notoStyle == nil {
+                        var r = run
+                        r.eastAsiaFontFamily = "Noto Sans SC"
+                        notoStyle = theme.textStyle(for: r, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                                    eastAsian: true, gridPitch: pitch, scriptHidden: true)
+                    }
+                    spans.append(TextSpan(text: "\u{2060}", style: notoStyle!))
+                    inserts.append(offset)
+                }
                 let quote = ea && fullQuotes && (ch == "\u{201C}" || ch == "\u{2018}" || ch == "\u{201D}" || ch == "\u{2019}")
                 let blank = quote ? max(0, em - _glyphWidth(style(kind), ch)) : 0
                 var led = false
@@ -5424,6 +5452,12 @@ public final class RichLayout {
     /// Symbols an East Asian run draws from the CJK face itself (see
     /// `styled`), and the face: the Mac's PingFang, the engine's own
     /// fallback for CJK text there; nil where no face is known.
+    /// The CJK compatibility ideographs Word 16 for Mac sets in Noto
+    /// Sans SC where the run's East Asian face lacks them (lab `cj2`:
+    /// every one the Chinese sample uses; the others go to Heiti SC).
+    static let _notoCompatibility: Set<UInt32> = [
+        0xF901, 0xF902, 0xF918, 0xF92D, 0xF92F, 0xF937, 0xF94E, 0xF962, 0xF963, 0xF966, 0xF967, 0xF974, 0xF976, 0xF97E, 0xF98A, 0xF98E, 0xF9BE, 0xF9D0, 0xF9DD, 0xF9E0, 0xF9E4, 0xF9E9, 0xF9F4, 0xF9FA, 0xF9FF, 0xFA08,
+    ]
     private static let _cjkSymbols: Set<Character> = ["\u{2014}", "\u{2015}", "\u{2026}", "\u{2013}", "\u{2500}", "\u{2501}"]
     #if os(macOS)
     private static let _cjkSymbolFamily: String? = "PingFang SC"

@@ -3313,6 +3313,24 @@ fitter dropped the paragraph's tail).
   carries Arial Black's advances for U+0020–U+007E and its line (1.41
   ems by its hhea, the ascent 1.1006), as Verdana's and YaHei's do.
   SampleDoc 50% -> 100; nothing else moved.
+- **A CJK compatibility ideograph Word sets in Noto Sans SC makes its
+  line taller (2026-10-15).** Word on a Mac sets most Chinese face
+  names in YaHei, which has 21 of the 512 compatibility ideographs
+  (U+F900–FAFF); for the rest its fallback takes Heiti SC or Noto Sans
+  SC. Lab `cj2` (every one of the 60 the Chinese sample uses, a line
+  each, 標楷體 → YaHei 12pt): 26 go to Noto Sans SC ("行" U+FA08, "理"
+  U+F9E4, "狀" U+F9FA …), and their line stands 1.44pt lower under the
+  line above and 0.48pt deeper over the next — Noto's hhea 1.16 + 0.288
+  ems with Word's 30% more; the 34 in Heiti SC change nothing. The
+  layout now puts a word joiner in Noto Sans SC before each such
+  character where the run's East Asian face is YaHei
+  (`lacksCompatibilityIdeographs`), so the line takes Noto's height; the
+  extra goes below the line rather than split 1.44/0.48 as in Word, the
+  sum the same. Noto Sans SC is installed in this Mac's user fonts, so
+  this models the machine the prints were made on. Ungated, a
+  PMingLiU document's own compatibility glyphs (zh-db93607e) took the
+  height too, 99.2% -> 4.9. zh-7dc3afad 92.2% -> 98.9, zh-8e8d4c40 87.1
+  -> 90.4 at Word's 6 pages; nothing down.
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16

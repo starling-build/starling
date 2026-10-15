@@ -421,7 +421,7 @@ enum OfficeFonts {
         for key in ["simsun", "simhei", "kaiti", "fangsong", "yahei", "dengxian", "mingliu", "dfkai", "jhenghei",
                     "stsong", "stkaiti", "stfangsong", "stzhongsong", "stxihei", "stheiti", "songti", "heiti",
                     "pingfang", "hiragino", "mincho", "ms gothic", "yu gothic", "meiryo", "malgun", "batang", "gulim", "dotum",
-                    "cjk", "source han", "wenquanyi", "arial unicode", "fzs", "fzf", "fzk", "fzh", "fzx"] where n.containsSubstring(key) {
+                    "cjk", "source han", "noto sans sc", "noto serif sc", "wenquanyi", "arial unicode", "fzs", "fzf", "fzk", "fzh", "fzx"] where n.containsSubstring(key) {
             return true
         }
         return false
@@ -657,6 +657,12 @@ enum OfficeFonts {
         if has("stkaiti", "华文楷体") { return EastAsianFace(height: 1.7, latin: serif, latinScale: 1.04, fakeBold: true) }
         if has("stsong", "华文宋体") { return EastAsianFace(height: 1.31, latin: serif, latinScale: 1.0, fakeBold: true) }
         if has("arial unicode") { return EastAsianFace(height: 1.75, latin: sans, latinScale: 1.0, fakeBold: true) }
+        // (Noto Sans SC, which Word's fallback takes for some CJK
+        // compatibility ideographs — `RichLayout._notoCompatibility`: its
+        // hhea 1.16 + 0.288 ems with Word's 30% more, the baseline 1.377
+        // down. Lab `cj2`: the line 1.44pt lower and 0.48 deeper at 12pt
+        // than YaHei's.)
+        if has("noto sans sc") { return EastAsianFace(height: 1.8824, latin: sans, latinScale: 1.0, fakeBold: false, baseline: 1.377) }
         // Word on a Mac has 宋体, 黑体, 楷体, 仿宋 and the 明體 pair, and
         // sets every other Chinese name — 仿宋_GB2312, the 方正 faces,
         // 標楷體 — in Microsoft YaHei, which is taller and wider than
@@ -805,6 +811,10 @@ enum OfficeFonts {
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
             face.fullWidthSymbols = ea.latinAdvances == nil
+            // (YaHei has none of the compatibility ideographs Word sets in
+            // Noto Sans SC; PMingLiU and the others it has draw their own —
+            // zh-db93607e's in PMingLiU are as any character in Word's print.)
+            face.lacksCompatibilityIdeographs = ea.height == yaHei.height
             face.scaledHeight = ea.scaledHeight
             face.scaledBaseline = ea.scaledBaseline
             return face
