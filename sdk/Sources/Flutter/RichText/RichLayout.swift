@@ -3400,6 +3400,14 @@ public final class RichLayout {
         }
         // (No lines at all: `RichParagraphStyle.lineCollapsed`.)
         if theme.wordRules, style.lineCollapsed, p.image == nil { bodyHeight = 0 }
+        // (An empty paragraph of an exact line height is that tall: the
+        // engine gives a 0.7pt strut nothing, and zh-90e0cea8's two
+        // counter paragraphs — 1pt text on 0.7pt exact lines, before
+        // each annex heading — left the heading 1.4pt higher than Word's
+        // print has it, and page 8's foot then held a row line more.)
+        if theme.wordRules, p.text.isEmpty, p.image == nil, !style.lineCollapsed, let exact = style.lineHeightPoints, exact > 0 {
+            bodyHeight = max(bodyHeight, _px(exact))
+        }
         if let image = p.image {
             // Shown at its own size, shrunk to the column when wider —
             // except under Word's rules, where a picture keeps the size

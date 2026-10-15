@@ -214,7 +214,11 @@ stand-in (Liberation Mono at 5/6, baseline 1.005) is the next suspect.
 Found: the header sub-layout took the body's line grid and centred its
 10.5pt line in the 15.6pt pitch (11.44 under the top; Word 10.35).
 Headers and footers now keep to no grid: 67.8% -> 83.9%, Word's 10
-pages (commit after 49beaff9).
+pages (commit after 49beaff9). Then its empty 0.7pt counter paragraphs
+(zero in ours, 0.7 each in Word) — 83.9% -> 92.3%. What is left: the
+cover page (frames) and page 2's table of contents, whose lines match
+Word's glyph for glyph but whose leader dots the matcher's text
+extraction groups otherwise.
 
 ### T12. Squeezing marks to fit a character: the limit on a character grid
 Owner: none. Documents: zh-d68ac84a (80%, first parting page 10).

@@ -2657,6 +2657,15 @@ fitter dropped the paragraph's tail).
   first). zh-90e0cea8 67.8% -> 83.9% and Word's 10 pages; nothing
   down. 63 of 68 documents now have Word's page count.
 
+- **An empty paragraph of an exact line height is that tall
+  (2026-10-14).** The engine gives a 0.7pt strut nothing, and
+  zh-90e0cea8's two counter paragraphs — 1pt text on 0.7pt exact
+  lines, numbered, before each annex heading — took no room: the
+  heading stood 1.4pt above Word's print (which draws their 1pt "A"
+  numbers 0.72pt apart), and page 8's foot then held a row line that
+  Word carries to page 9. zh-90e0cea8 83.9% -> 92.3%; nothing down.
+  Its page 8 now matches Word's top and foot to a tenth of a point.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
