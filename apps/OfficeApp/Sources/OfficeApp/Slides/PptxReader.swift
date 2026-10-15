@@ -812,6 +812,7 @@ struct PptxReader {
         f.even = (g.first("a:gsLst")?.all("a:gs") ?? []).contains { gs in
             gs.children.contains { $0.name == "a:schemeClr" && !$0.children.isEmpty }
         }
+        f.undirected = g.first("a:lin") == nil && g.first("a:path") == nil
         if let path = g.first("a:path") {
             f.path = path["path"].flatMap(SlideFill.GradientPath.init(rawValue:)) ?? .shape
             if let to = path.first("a:fillToRect") {

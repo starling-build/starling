@@ -311,6 +311,12 @@ struct SlideFill: Equatable {
     /// decks' `gamma`/`shade`/`invGamma` bands were 3 points further
     /// from PowerPoint blended evenly.)
     var even = false
+    /// The gradient names no direction (no `a:lin`, no `a:path`): its
+    /// blend runs evenly in sRGB, whatever its stops — tdf104788's orange
+    /// to cream bars, whose blue channel climbs 16, 33, 51… in
+    /// PowerPoint's print, a straight line, where the eased linear-light
+    /// blend of plain stops gave 24, 55, 84.
+    var undirected = false
     /// `a:lin scaled="1"`: the angle is of the fill's unit square, so it
     /// stretches with the area — 45° runs corner to corner of a wide
     /// slide, its bands of colour lying along the other diagonal.

@@ -1648,6 +1648,14 @@ keeps it to one, and "Vermelho" wraps there. A span now reaches over
 the merged cells that follow it and no further. (PowerPoint also draws
 the two missing cells as white boxes with black edges; not done.)
 
+**A gradient with no direction blends evenly, 2026-10-15** (tdf104788
+0.96 → 0.08, its worst page 5.76 → 0.47; the only deck with one). Its
+orange-to-cream bars name no `a:lin` and no `a:path`, and PowerPoint's
+print blends them in a straight line in sRGB (blue 16, 33, 51… down
+the bar); plain stops otherwise get the eased linear-light blend
+(tdf109067's, whose `a:lin` has no `scaled`, still does). One deck of
+evidence, but the only gradient of the kind in the corpus.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

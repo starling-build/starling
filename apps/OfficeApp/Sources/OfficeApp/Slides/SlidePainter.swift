@@ -824,7 +824,7 @@ final class SlidePainter: CustomPainter {
             for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { m[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k] } } }
             return m
         }
-        let (colors, positions) = fill.even && fill.path != nil ? (fill.stops.map(\.color), fill.stops.map(\.position))
+        let (colors, positions) = fill.even && fill.path != nil || fill.undirected ? (fill.stops.map(\.color), fill.stops.map(\.position))
                                             : Self.linearLight(fill.stops, eased: fill.eased)
         if let path = fill.path, r.width > 0, r.height > 0 {
             // From the focus out to the circle through the area's four
