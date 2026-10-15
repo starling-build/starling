@@ -2995,6 +2995,20 @@ fitter dropped the paragraph's tail).
   Word's yet, the Symbol glyph's own ascent not placing the baseline.
   (delins 5.0 -> 3.3 is its Symbol bullets 12.25 apart in a Word print
   that is a scaled markup-balloon page, not a layout.)
+- **A table that states its cell spacing rules each row top and
+  bottom (2026-10-15).** The web's separated borders: a table with
+  `w:tblCellSpacing`, even of nothing — every HTML-converted table
+  has it — draws each cell's own four lines, so a row has its bottom
+  line under its own top one and stands a line taller than a
+  collapsed table's row, which shares one line with the row below.
+  Lab `ob2` in bug59058's package (Word 16): rows of 12pt text under
+  75-twip margins stand 23.36pt apart with no lines and 24.88 with
+  0.75pt ones, single or outset alike — twice the line, where ours
+  added it once (24.10); bug65649's estimate tables, which state no
+  spacing, share theirs, half a line a row, as before. bug59058's
+  state list (29 rows, 0.75pt outset lines) had a row more on its
+  page 4 than Word's: 45.8% -> 47.2, still a page short. A row ruled
+  so has its bottom line in its own height and asks nothing under it.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

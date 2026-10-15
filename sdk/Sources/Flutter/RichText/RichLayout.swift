@@ -3201,7 +3201,18 @@ public final class RichLayout {
                 }
                 if top > 0 { pad = EdgeInsets(left: pad.left, top: pad.top + top, right: pad.right, bottom: pad.bottom) }
                 rules = top
-                if c.row + c.rowSpan - 1 >= rows {
+                // (A table that states its cell spacing — even none, as
+                // every HTML-converted table does — rules each cell on
+                // its own, the way the web's separated borders do: a
+                // row has its own bottom line under its own top one,
+                // and stands a line taller than a collapsed table's. Lab
+                // `ob2` in bug59058's package, Word 16, 2026-10-15:
+                // rows of 12pt text under 75-twip margins, no lines
+                // 23.36pt apart, 0.75pt lines 24.88 — single or outset
+                // alike — where a table of no cell spacing gains the one
+                // line. bug59058's state list had a row more a page.)
+                let separated = theme.wordRules && ts.cellSpacing != nil
+                if c.row + c.rowSpan - 1 >= rows || separated {
                     let bottom = rule(c, "bottom")
                     if bottom > 0 { pad = EdgeInsets(left: pad.left, top: pad.top, right: pad.right, bottom: pad.bottom + bottom) }
                     rules += bottom

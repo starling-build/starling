@@ -395,3 +395,14 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   table changes under it. bug65649 53.8%, zh-f94d11c5 98.5. Also
   39c92254 (a left tab shrinks to a stop nearer than the engine's 3pt
   tab) and 4c40b3e4 (break after hyphen before digit, non-EA only).
+- Mac, 2026-10-15, for the Windows box: Swift 6.2.1's RELEASE optimiser
+  on macOS dies ("compile command failed due to signal 6", a SIL
+  verification failure in BoundsCheckOpts) inside ChartPainter._axes
+  (Slides/Chart.swift) since 94f80fef; the debug build is fine. 41305b64
+  marks that function `@_optimize(none)` — keep the attribute if you
+  rework the function, or check a macOS release build after.
+  Also 41305b64: Word's symbol faces (Symbol 1.225 em, Wingdings 1.11)
+  keep their own line heights; 3096444c: a row set whole at a page's
+  foot needs room for the line under it (`ruleNext`); 44a57fd4: cell
+  text keeps clear of its side lines. STARLING_RICHTEXT_ROWS=<page>
+  traces rows.
