@@ -5207,7 +5207,13 @@ public final class RichLayout {
                     // none to give: lab `cb`, zh-9e08ed28's package, a cell
                     // line of "…服務團」" 0.5pt over is taken, "…團，",
                     // "…團。", "…團、" go down; "）" and "』" as "」".)
-                    let kept = hang > 0 || holdsFinal || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
+                    // (Under that list the last mark gives its share where
+                    // another mark on the line gives too: zh-64044a1d's
+                    // "…措施事宜。" 6.15pt over sets "，" and the final "。"
+                    // 3.1 and 3.0 narrower in Word's print. Alone — the
+                    // labs' line with a "？", which gives nothing — it
+                    // gives nothing either.)
+                    let kept = hang > 0 || (holdsFinal && !(marks + own).contains { $0 != tail }) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
                     let all = (marks + own).filter { !kept || $0 != tail }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width

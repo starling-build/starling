@@ -3356,6 +3356,16 @@ fitter dropped the paragraph's tail).
   9pt over in Word's print); otherwise a Latin word in a cell is taken
   within half an em. zh-69bbcc3c's two such cells (pages 22, 31) wrap
   as Word's; +0.2, nothing down.
+- **Under the zh-TW list the last mark gives where another mark gives
+  (2026-10-15).** 74e2f9f0 had a paragraph's last mark neither hang nor
+  give under Traditional Chinese's no-break list before mode 15 (labs
+  `hang1`–`hang6`, whose lines held a "？" that gives nothing).
+  zh-64044a1d's "…限制或禁止民眾進入或命其離去措施事宜。" is 6.15pt over
+  with one "，" on the line, and Word's print sets that comma 3.1pt and
+  the final "。" 3.0pt narrower: the last mark gives its share where
+  another mark on the line gives too. Letting it give always cost
+  zh-ae3d78ee 15.6 points (its lines are the labs'). zh-64044a1d 88.8%
+  -> 90.3; nothing down.
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
