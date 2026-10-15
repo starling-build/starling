@@ -866,7 +866,10 @@ public struct CellRef: Hashable, Sendable {
     public struct CellLine: Hashable, Sendable {
         public var width: Double
         public var color: Color?
-        public init(width: Double, color: Color?) { self.width = width; self.color = color }
+        /// Dashed: its pieces, on and off by turns, in widths of the line
+        /// (PowerPoint's `a:prstDash` on a cell's edge). nil is solid.
+        public var dash: [Double]? = nil
+        public init(width: Double, color: Color?, dash: [Double]? = nil) { self.width = width; self.color = color; self.dash = dash }
         /// No line on the edge (the name avoids `Optional.none`, which an
         /// unqualified `.none` resolves to on a `CellLine?`).
         public static let hidden = CellLine(width: 0, color: nil)

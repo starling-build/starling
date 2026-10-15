@@ -219,7 +219,7 @@ lo-smartart-vertical-box-list.pptx	summary pages=1 worst=5.88% mean=5.88%
 lo-smartart1.pptx	summary pages=1 worst=4.33% mean=4.33%
 lo-subtitle-animation-save.pptx	summary pages=1 worst=0.67% mean=0.67%
 lo-table-list.pptx	summary pages=1 worst=0.67% mean=0.67%
-lo-tableBorderLineStyle.pptx	summary pages=1 worst=2.65% mean=2.65%
+lo-tableBorderLineStyle.pptx	summary pages=1 worst=2.39% mean=2.39%
 lo-tablescale.pptx	summary pages=1 worst=0.04% mean=0.04%
 lo-tcPr-vert-roundtrip.pptx	summary pages=1 worst=0.82% mean=0.82%
 lo-tdf100065.pptx	summary pages=1 worst=0.06% mean=0.06%
@@ -456,7 +456,7 @@ lo-tdf98477grow.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf98603.pptx	summary pages=1 worst=6.36% mean=6.36%
 lo-tdf99030.pptx	summary pages=1 worst=1.70% mean=1.70%
 lo-tdfpictureplaceholder.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-tdt142291.pptx	summary pages=1 worst=0.41% mean=0.41%
+lo-tdt142291.pptx	summary pages=1 worst=0.27% mean=0.27%
 lo-testShapeAutofit.pptx	summary pages=1 worst=0.32% mean=0.32%
 lo-trailing-paragraphs.pptx	summary pages=1 worst=0.09% mean=0.09%
 lo-trigger.pptx	summary pages=1 worst=0.00% mean=0.00%

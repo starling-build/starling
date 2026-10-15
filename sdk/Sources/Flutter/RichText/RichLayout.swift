@@ -6002,7 +6002,20 @@ public final class RichLayout {
                     p.color = color
                     canvas.save()
                     canvas.clipRect(Rect.fromLTRB(-1e6, rowTop, 1e6, rowBottom))
-                    canvas.drawLine(from, to, p)
+                    if let dash = own.dash, dash.count >= 2 {
+                        // Dashed along the edge, from its start.
+                        let length = (to - from).distance
+                        let pieces = dash.map { max(0.5, $0 * p.strokeWidth) }
+                        var at = 0.0, k = 0
+                        while at < length {
+                            let end = min(length, at + pieces[k % pieces.count])
+                            if k % 2 == 0 { canvas.drawLine(from + (to - from) * (at / length), from + (to - from) * (end / length), p) }
+                            at = end
+                            k += 1
+                        }
+                    } else {
+                        canvas.drawLine(from, to, p)
+                    }
                     canvas.restore()
                 } else if ruled {
                     canvas.drawLine(from + inward * 0.5, to + inward * 0.5, stroke)

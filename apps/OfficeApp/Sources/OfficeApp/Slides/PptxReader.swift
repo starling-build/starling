@@ -1715,7 +1715,9 @@ private struct SlideContext {
                             // Fully transparent is hidden, not the style's rule.
                             let c = colors.color(in: f)
                             if let c, c.alpha == 0 { return CellRef.CellLine.hidden }
-                            return CellRef.CellLine(width: width, color: c)
+                            // (Dashed as a shape's line is: tableBorderLineStyle's
+                            // dots and dashes.)
+                            return CellRef.CellLine(width: width, color: c, dash: SlidePainter.dashPattern(PptxReader.dash(ln)))
                         }
                         if let g = ln.first("a:gradFill"), let gs = g.first("a:gsLst")?.all("a:gs").first {
                             return CellRef.CellLine(width: width, color: colors.color(in: gs))

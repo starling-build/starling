@@ -1387,6 +1387,12 @@ line's `a:custDash` — its stops in thousandths of a percent of the
 line's width — was drawn solid; it is a dash of its own now
 ("cust:2.99,1.01", on and off by turns, in widths).
 
+**Dashed table borders, 2026-10-15** (tableBorderLineStyle 2.65 →
+2.39, tdt142291 0.41 → 0.27). A cell edge's `a:prstDash` (or custom
+dash) was drawn solid. `CellRef.CellLine` carries a dash now (shared
+SDK, additive: nil is solid, as every Word border is), and the layout
+draws the edge in its pieces from its start.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
