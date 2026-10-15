@@ -821,6 +821,10 @@ public struct CellRef: Hashable, Sendable {
     /// (`bordersKeptUnder`). form_footnotes rules one row's bottom
     /// double under single inside rules, 2pt taller — which decided a page.
     public var bordersXML: String? = nil
+    /// The sides the cell's row gives it where the cell states none (a
+    /// row's `w:tblPrEx` borders, as this cell's `w:tcBorders`): read
+    /// for layout, never written — the row's exception is.
+    public var rowBordersXML: String? = nil
     /// The cell's own margins (`w:tcMar`) as the file wrote them. The
     /// editor lays every cell out with the table's; a save restates the
     /// cell's so Word spaces it as it did.

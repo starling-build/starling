@@ -3542,6 +3542,17 @@ fitter dropped the paragraph's tail).
   score moved: form_footnotes' extra page comes from its rows, each
   about 0.4pt short. Word starts a cell's text under the whole of the
   row's top border, and ours starts it at the border's centre.
+- **A row's own borders rule its cells (2026-10-15).** A row's
+  `w:tblPrEx` borders stand for every side its cells leave unstated:
+  its top and bottom from the exception's top, bottom or insideH by
+  where the row stands, and its sides likewise. form_footnotes' last
+  table rules only its rim, and every row's exception rules the lines
+  between them. Ours read the exceptions for saving alone, so the
+  rows had no inner rules and no room for them, and the "H -
+  Observações" row stayed on page 1 above the footnote. The sides go
+  to layout only (`rowBordersXML`), and a save writes the row's
+  exception back as before. form_footnotes 48.3 -> 90.8; nothing else
+  moved (the Chinese files' exceptions repeat their tables').
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the

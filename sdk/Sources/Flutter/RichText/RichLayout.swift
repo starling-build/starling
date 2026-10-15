@@ -3302,7 +3302,7 @@ public final class RichLayout {
                 let ts = document.tableStyles[c.table] ?? TableStyle()
                 let rows = _tableRows[c.table] ?? 0
                 func rule(_ d: CellRef, _ side: String) -> Double {
-                    let said = Self._cellSide(d.bordersXML, side)
+                    let said = Self._cellSide(d.bordersXML, side) ?? Self._cellSide(d.rowBordersXML, side)
                     let end = d.row + d.rowSpan - 1
                     let tables = side == "top" ? (d.row == 0 ? ts.edges?.top : ts.edges?.insideH) : (end >= rows ? ts.edges?.bottom : ts.edges?.insideH)
                     // (Where the cells rule the table, a side none of them
@@ -3321,7 +3321,7 @@ public final class RichLayout {
                 // which rules a side column by its own edge and the rest
                 // by its inside one.
                 func sideLine(_ d: CellRef, _ side: String) -> Double {
-                    let said = Self._cellSide(d.bordersXML, side)
+                    let said = Self._cellSide(d.bordersXML, side) ?? Self._cellSide(d.rowBordersXML, side)
                     let atEdge = side == "left" ? d.column == 0 : d.column + d.span >= widths.count
                     let tables = atEdge ? (side == "left" ? ts.edges?.left : ts.edges?.right) : ts.edges?.insideV
                     guard (side == "left" ? d.edges?.left : d.edges?.right) ?? tables ?? (ts.borders && !ts.bordersFromCells) else { return 0 }

@@ -1141,8 +1141,32 @@ enum DocxFormat {
                         // The cell's own sides, where they differ from what
                         // the table gives that position (an outer side on
                         // the rim, an inside one elsewhere).
+                        // (A row's own borders — `w:tblPrEx` — stand for its
+                        // cells' unstated sides: form_footnotes' last table
+                        // rules nothing inside, its rows rule every line
+                        // between them, and its rows stood a rule short.)
+                        var rowSides: XNode? = nil
+                        if let rex = tr.first("w:tblPrEx")?.first("w:tblBorders") {
+                            let lastRowHere = r == rowCount - 1, lastColHere = column + span >= gridCount
+                            let said = tcPr?.first("w:tcBorders")
+                            let made = XNode(name: "w:tcBorders", attrs: [:])
+                            for (side, from) in [("top", r == 0 ? "top" : "insideH"), ("left", column == 0 ? "left" : "insideV"),
+                                                 ("bottom", lastRowHere ? "bottom" : "insideH"), ("right", lastColHere ? "right" : "insideV")] {
+                                guard said?.first("w:" + side) == nil, let e = rex.first("w:" + from) else { continue }
+                                made.children.append(XNode(name: "w:" + side, attrs: e.attrs))
+                            }
+                            if !made.children.isEmpty { rowSides = made }
+                        }
+                        let sidesPr: XNode? = {
+                            guard let rowSides else { return tcPr }
+                            let merged = XNode(name: "w:tcBorders", attrs: [:])
+                            merged.children = (tcPr?.first("w:tcBorders")?.children ?? []) + rowSides.children
+                            let pr = XNode(name: "w:tcPr", attrs: [:])
+                            pr.children = [merged]
+                            return pr
+                        }()
                         var ownEdges: BorderEdges? = nil
-                        if var own = _edges(tcPr, "w:tcBorders") {
+                        if var own = _edges(sidesPr, "w:tcBorders") {
                             own.insideH = nil; own.insideV = nil
                             if style.bordersFromCells {
                                 // Every stated side stays: the writer puts
@@ -1174,6 +1198,7 @@ enum DocxFormat {
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil }
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         currentCell?.bordersXML = tcPr?.first("w:tcBorders").map { PptxXML.serialize($0) }
+                        currentCell?.rowBordersXML = rowSides.map { PptxXML.serialize($0) }
                         currentCell?.marginsXML = tcPr?.first("w:tcMar").map { PptxXML.serialize($0) }
                         // (Its own margins, over the table's: zh-6cd1befe's
                         // list of emergency departments narrows its cells'
@@ -3689,7 +3714,7 @@ enum DocxFormat {
                     xml += "<w:tc><w:tcPr>" + tcW(w, kept: ref?.widthXML, under: ref?.widthKeptUnder)
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
                     if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
-                    xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML, under: ref?.bordersKeptUnder)   // schema order: borders, then shading
+                    xml += cellBordersXML(ref?.edges, width: ref?.borderWidth, kept: ref?.bordersXML ?? (ref?.rowBordersXML != nil ? "" : nil), under: ref?.bordersKeptUnder)   // schema order: borders, then shading
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
                     if let mar = ref?.marginsXML { xml += mar }
                     // Schema order: the text direction before the alignment.
