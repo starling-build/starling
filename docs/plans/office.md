@@ -2388,6 +2388,18 @@ fitter dropped the paragraph's tail).
   the picture's (bug57031's 360pt chart otherwise started at page 1's
   foot). Bug51170 32.5% -> 78.5, bug65738 65.2 -> 69.6, bug59058 +1.1.
 
+- **A multiple on a picture's line adds to the mark's line, below
+  (2026-10-14).** Lab `hp` (Word for Windows: Bug51170's 78pt logo alone
+  in a header paragraph, Calibri 11): the paragraph after it stands
+  2.04pt lower at 1.15 lines than at single and 13.44 lower at double —
+  0.15 and 1 of Calibri's 13.43pt single line, not of the picture —
+  with or without text beside the picture, in modes 11 and 15. A
+  picture-only line has no descent under it; with text it has the
+  text's single descent. The engine lost the multiple under the
+  picture (nothing added alone, the descent scaled with text). Now
+  `(multiple - 1)` of the mark's single line goes under such a line.
+  Every page of Bug51170 under its header had stood 2pt high.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

@@ -3499,6 +3499,26 @@ public final class RichLayout {
                 _inkShift[i] += max(0, snapped - first - descent)
                 bodyHeight += snapped - first
             }
+        } else if theme.wordRules, inLine, style.lineHeightPoints == nil, _grid(i, document).pitch == nil,
+                  case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001 {
+            // Off the grid, a multiple on a picture's line adds what it
+            // adds to its mark's single line, under the line — not a
+            // multiple of the picture, and not lost under it, as the
+            // engine's height was. Lab `hp` (Word for Windows, Bug51170's
+            // 78pt logo alone in a header paragraph, Calibri 11): the text
+            // after it 2.04 lower at 1.15 lines than at single, 13.44
+            // lower at 2 — with or without text beside the picture.
+            let single = _markLineHeight(i, document) / multiple
+            if p.image != nil {
+                bodyHeight += (multiple - 1) * single
+            } else if case let lines = painter.computeLineMetrics(), lines.count == 1,
+                      let box = painter.inlinePlaceholderBoxes?.max(by: { $0.bottom - $0.top < $1.bottom - $1.top }),
+                      box.bottom - box.top >= lines[0].ascent - 0.5 {
+                // (The engine scales the text's descent by the multiple
+                // and nothing else: Word keeps its single descent.)
+                let target = (box.bottom - box.top) + lines[0].descent / multiple + (multiple - 1) * single
+                bodyHeight += max(0, target - lines[0].height)
+            }
         }
         _heights[i] = (before + push + bodyHeight + after).rounded(.up)
         // An empty paragraph that only ends a section stands for the
