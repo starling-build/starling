@@ -2278,6 +2278,16 @@ fitter dropped the paragraph's tail).
   Anything else that sets `leadingDistribution` on a text style meets
   the same cache.
 
+- **A line may break before a hyphen after an ideograph (2026-10-14).**
+  zh-1a3c7aa0's chemical names in a 128pt cell: Word sets "异佛尔酮二胺；
+  3,3,5-三甲基" and "-4,6-二氨基-2-烯环己酮；1-", the "；" giving 3.5;
+  the engine will not break before "-" (UAX 14 keeps a hyphen-minus
+  with what precedes it), so "基-4,6-" went over whole and every line
+  of such a name was a character short. A zero-width space now stands
+  there (`_breaksBetween`). zh-1a3c7aa0's annex cells break as Word's
+  (its score moves little: the lines were at the right heights); the
+  pattern is in no other document of the sample.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

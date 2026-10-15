@@ -4754,6 +4754,13 @@ public final class RichLayout {
         if a == "\u{201D}" || a == "\u{2019}" {
             return wide(b) && !_closingMarks.contains(b) && !"？！％…".contains(b)
         }
+        // (And before a hyphen after an ideograph, which the engine
+        // keeps with it: zh-1a3c7aa0's chemical names part "…三甲基" from
+        // "-4,6-二氨基…" in Word's print, where ours took "基-4,6-" over
+        // whole and left the line a character short.)
+        if b == "-" {
+            return wide(a) && !_openingMarks.contains(a) && !_closingMarks.contains(a)
+        }
         return false
     }
 
