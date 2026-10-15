@@ -1450,7 +1450,9 @@ private struct SlideContext {
     /// object written before `p:pic` fallbacks displays. The drawing is
     /// read as text — VML is not always well-formed XML.
     private func _vmlImage(_ spid: String) -> ImageAttachment? {
-        for rel in package.rels(part) where rel.kind == "vmlDrawing" && !rel.external {
+        // (Office 2007 names the relationship `legacyDrawing`, under its
+        // own namespace: tdf169781's budget chart.)
+        for rel in package.rels(part) where ["vmlDrawing", "legacyDrawing"].contains(rel.kind) && !rel.external {
             guard let data = package.parts[rel.target], let vml = String(data: data, encoding: .utf8),
                   let shape = vml.rangeOfSubstring("id=\"\(spid)\""),
                   let end = vml.rangeOfSubstring("</v:shape>", in: shape.upperBound ..< vml.endIndex) else { continue }

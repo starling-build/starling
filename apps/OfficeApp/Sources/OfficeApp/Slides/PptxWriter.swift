@@ -263,7 +263,7 @@ enum PptxWriter {
             controls = w.kept(c, sourcePart: src, package: p, builder: &b, patch: nil)
         }
         if body.containsSubstring("<p:oleObj") || !controls.isEmpty, let src = slide.sourcePart, let p = source,
-           let vml = p.rels(src).first(where: { $0.kind == "vmlDrawing" && !$0.external && p.parts[$0.target] != nil }) {
+           let vml = p.rels(src).first(where: { ["vmlDrawing", "legacyDrawing"].contains($0.kind) && !$0.external && p.parts[$0.target] != nil }) {
             var done = Set<String>()
             PptxWriterCopy.copy(vml.target, from: p, into: &b, done: &done)
             rels.append(Rel(id: "rIdVml", type: vml.type, target: Pptx.relative(vml.target, from: part)))

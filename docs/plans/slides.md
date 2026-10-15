@@ -1291,6 +1291,13 @@ by title and legend, and the rim the slice's colour × (0.575 + 0.3 |cos
 column chart (boxes with depth), and its horizontal bar chart's legend,
 which PowerPoint lists last series first.
 
+**An Office 2007 embedded object's picture, 2026-10-15** (tdf169781
+4.02 → 1.62). An embedded Excel chart with no `p:pic` fallback shows
+the picture its legacy VML drawing names; we looked for that drawing
+under the relationship `vmlDrawing` only, and Office 2007 names it
+`legacyDrawing` (in its own namespace). Both are read now, and both
+are carried on a save.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
