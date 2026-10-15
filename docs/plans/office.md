@@ -2377,6 +2377,17 @@ fitter dropped the paragraph's tail).
   zh-e6d54ae4's such row parts at the foot as Word parts it (82.7%
   fell to 43.2 without that).
 
+- **A paragraph's one line is no orphan (2026-10-14).** Widow and
+  orphan control took a paragraph that starts at a page's foot back to
+  the next page where fewer than two of its lines fit — counting a
+  one-line paragraph whose line fits and whose space after does not.
+  bug59058's thirteenth empty paragraph under a table, 15.4pt of line
+  in 17.3pt, stays at page 3's foot in Word; ours moved it and set
+  page 4 26pt low. Now only a paragraph whose lines go on is held back
+  — and any picture's paragraph, whose cuts are its empty line's, not
+  the picture's (bug57031's 360pt chart otherwise started at page 1's
+  foot). Bug51170 32.5% -> 78.5, bug65738 65.2 -> 69.6, bug59058 +1.1.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

@@ -2582,7 +2582,15 @@ public final class RichLayout {
                         keep = 0
                     } else if st.widowControl {
                         if all.count - 1 - last == 1 { keep -= 1 }
-                        if cursor <= top + 0.01, keep < 2 { keep = 0 }
+                        // (An orphan only where lines go on: the whole of
+                        // a one-line paragraph fits, though its space
+                        // after does not — bug59058's thirteenth empty
+                        // paragraph under a table, 15.4pt of line in
+                        // 17.3pt left, stays at the foot in Word. Not a
+                        // picture's paragraph, whose cuts are its empty
+                        // line's and not the picture's: bug57031's 360pt
+                        // chart then started at page 1's foot.)
+                        if cursor <= top + 0.01, keep < 2, last < all.count - 1 || document.paragraphs[i].image != nil { keep = 0 }
                     }
                     if keep <= 0 {
                         // (Only where a new page gives it more room.)
