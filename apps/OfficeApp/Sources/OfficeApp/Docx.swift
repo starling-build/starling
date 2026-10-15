@@ -2134,6 +2134,14 @@ enum DocxFormat {
         var band2: Color? = nil
     }
 
+    /// Whether `data` is a picture the image codec reads: PNG, JPEG,
+    /// GIF or BMP by its signature.
+    static func _isRasterImage(_ data: Data) -> Bool {
+        let b = [UInt8](data.prefix(4))
+        guard b.count == 4 else { return false }
+        return b == [0x89, 0x50, 0x4E, 0x47] || (b[0] == 0xFF && b[1] == 0xD8) || b[0 ..< 3] == [0x47, 0x49, 0x46] || b[0 ..< 2] == [0x42, 0x4D]
+    }
+
     /// `w:tblBorders` of a table or table style (or `w:tcBorders` of a
     /// cell): nil when it says nothing, off when every edge it lists is
     /// nil/none, else on, with the first drawn edge's colour (nil for
@@ -2647,7 +2655,13 @@ enum DocxFormat {
             // file, or the first page of a document.
             if att.textBox == nil, let rid = node.descendant("v:imagedata")?["r:id"], let rel = notes.rels[rid], !rel.external,
                let data = notes.part(_resolvePath("word", rel.target)) {
-                WriterMetafiles.register(data, for: att.id)
+                // (A VML picture of pixels — `w:pict`'s `v:imagedata`, a
+                // PNG or JPEG — is that picture: zh-64044a1d's nine charts
+                // and photos printed as nothing.)
+                if !WriterMetafiles.register(data, for: att.id), !Metafile.isMetafile(data), Self._isRasterImage(data) {
+                    att.data = data
+                    att.name = rel.target.lastPathComponent
+                }
             }
             // A chart: its part read and drawn as Slides does one
             // (`WriterCharts`), in the document's theme.

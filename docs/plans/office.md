@@ -3638,6 +3638,12 @@ fitter dropped the paragraph's tail).
   drawn yet. tika-3388 0 -> 100, EmbeddedDocument 50 -> 100,
   WordWithAttachments 0 -> 2.6 (Word printed it with its comment
   balloons); nothing down. Five documents carry metafiles.
+- **A VML picture is drawn (2026-10-15).** A picture written in VML
+  (`w:pict` with a `v:imagedata` of a PNG, JPEG, GIF or BMP) went the
+  kept-object way with no bytes, and printed as nothing. It now carries
+  its picture. zh-64044a1d's nine charts and photos stand where Word's
+  print has them (page 15: 90,78-510,375 to Word's 90,77-510,374). Their
+  room was already kept, so no score moved.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the
