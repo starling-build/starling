@@ -1411,6 +1411,22 @@ its `dgm:spPr` but not its `a:effectLst`; fill-color-list's headings
 each carry a shadow there, which PowerPoint draws. The effects go into
 the shape now, and the shape's shadow is drawn as any other's.
 
+**Columns with a line over them, 2026-10-15** (aascu 5864 9.46 → 9.20;
+its OECD chart 16.7 → 7.8 a page). A plot area of a `c:barChart` and a
+`c:lineChart` on the same axes was a combination this app kept undrawn.
+It is one chart now: the columns as before, and the line chart's series
+(`Chart.lineSeries`) drawn over them through their categories' middles
+on the one value axis, each with its marks (`c:marker` symbol, size and
+colours; a point whose marker says none shows none) and its line unless
+that is `noFill` — aascu's 1995 rates, red dots over the 2005 columns.
+They are in the legend after the columns, keyed by their mark; a chart
+with them never takes a series name as its title; and a save writes
+them back as a line chart on the same axes. Also read: a legend's own
+place (`c:legend/c:layout/c:manualLayout`, `Chart.legendBox`), its
+entries in a row there and the plot's room untouched. Other
+combinations (a line on a secondary axis, areas with lines) are still
+kept undrawn.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

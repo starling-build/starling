@@ -70,6 +70,16 @@ struct ChartSeries: Equatable {
     /// points; nil is none.
     var outline: Color? = nil
     var outlineWidth = 0.75
+    /// A line series' marks (`c:marker`): the symbol ("circle", "square",
+    /// "diamond", "triangle"…; nil or "none" is none), its size in points
+    /// and colours, the points that show none (`c:dPt` with symbol none),
+    /// and whether the line between them is hidden (`a:ln/a:noFill`).
+    var marker: String? = nil
+    var markerSize = 5.0
+    var markerFill: Color? = nil
+    var markerLine: Color? = nil
+    var unmarked: Set<Int> = []
+    var lineHidden = false
 }
 
 struct Chart: Equatable {
@@ -137,6 +147,15 @@ struct Chart: Equatable {
     /// A radar chart's series filled (`c:radarStyle val="filled"`), not
     /// lines.
     var radarFilled = false
+    /// A column chart's series drawn as lines over the columns, on the same
+    /// axes (a combination: a `c:barChart` and a `c:lineChart` sharing
+    /// theirs — aascu 5864's 1995 graduation rates as red dots over the
+    /// 2005 columns).
+    var lineSeries: [ChartSeries] = []
+    /// The legend's own place (`c:legend/c:layout/c:manualLayout`, edge
+    /// mode), as fractions of the chart's frame: entries in a row in it,
+    /// the plot keeping its room. nil: beside the plot by `legendPosition`.
+    var legendBox: Rect? = nil
     /// A 3-D pie's tilt toward the viewer (`c:view3D/c:rotX`, degrees): drawn
     /// as a disc seen from above at that angle, its rim showing below. nil
     /// is a flat pie.
@@ -285,7 +304,19 @@ enum ChartXML {
     static func read(_ space: XNode, allowEmpty: Bool = false, color: (XNode) -> Color?) -> Chart? {
         guard let chart = space.first("c:chart"), let plot = chart.first("c:plotArea") else { return nil }
         let kinds = plot.children.filter { $0.name.hasPrefix("c:") && $0.name.hasSuffix("Chart") }
-        guard kinds.count == 1, let el = kinds.first else { return nil }
+        // A combination this app draws: columns (or bars) with lines over
+        // them, both on one pair of axes.
+        var overlay: XNode? = nil
+        var main = kinds.first
+        if kinds.count == 2, let bar = kinds.first(where: { $0.name == "c:barChart" }),
+           let line = kinds.first(where: { $0.name == "c:lineChart" }),
+           Set(bar.all("c:axId").compactMap { $0["val"] }) == Set(line.all("c:axId").compactMap { $0["val"] }) {
+            main = bar
+            overlay = line
+        } else if kinds.count != 1 {
+            return nil
+        }
+        guard let el = main else { return nil }
         let type: ChartType
         switch el.name {
         case "c:barChart", "c:bar3DChart": type = el.first("c:barDir")?["val"] == "bar" ? .bar : .column
@@ -360,6 +391,26 @@ enum ChartXML {
             series.append(s)
         }
         guard !series.isEmpty || allowEmpty else { return nil }
+        // The lines over the columns, with their marks.
+        var lines: [ChartSeries] = []
+        for ser in overlay?.all("c:ser") ?? [] {
+            let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series \(series.count + lines.count + 1)"
+            let values = (ser.first("c:val").map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
+            var s = ChartSeries(name: name, values: values)
+            let ln = ser.first("c:spPr")?.first("a:ln")
+            s.lineHidden = ln?.has("a:noFill") ?? false
+            if let f = ln?.first("a:solidFill") { s.color = color(f) }
+            if let m = ser.first("c:marker") {
+                s.marker = m.first("c:symbol")?["val"]
+                s.markerSize = m.first("c:size")?["val"].flatMap(Double.init) ?? 5
+                if let f = m.first("c:spPr")?.first("a:solidFill") { s.markerFill = color(f) }
+                if let f = m.first("c:spPr")?.first("a:ln")?.first("a:solidFill") { s.markerLine = color(f) }
+            }
+            for pt in ser.all("c:dPt") where pt.first("c:marker")?.first("c:symbol")?["val"] == "none" {
+                if let i = pt.first("c:idx")?["val"].flatMap(Int.init) { s.unmarked.insert(i) }
+            }
+            lines.append(s)
+        }
         let n = max(categories.count, series.map(\.values.count).max() ?? 0)
         if categories.count < n { categories += (categories.count ..< n).map { "\($0 + 1)" } }
         for i in series.indices where series[i].values.count < n {
@@ -393,7 +444,7 @@ enum ChartXML {
             for layer in layers where titleColor == nil {
                 if let fill = layer.first("a:solidFill") { titleColor = color(fill) }
             }
-        } else if !deleted && series.count == 1 && named {
+        } else if !deleted && series.count == 1 && lines.isEmpty && named {
             // (A series with no name of its own gives no title: aascu
             // 5864's census chart has none in PowerPoint, where ours read
             // "Series 1".)
@@ -401,6 +452,11 @@ enum ChartXML {
         }
         let spaceRun = space.first("c:txPr")?.descendant("a:defRPr")
         var c = Chart(type: type, title: title, categories: categories, series: series)
+        c.lineSeries = lines.map { l in
+            var l = l
+            if l.values.count < n { l.values += Array(repeating: nil, count: n - l.values.count) }
+            return l
+        }
         if let sz = spaceRun?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.textSize = sz / 100 }
         if let f = spaceRun?.first("a:solidFill") {
             let mods = f.first("a:schemeClr").map { n in n.children.map { "\($0.name)=\($0["val"] ?? "")" }.sorted() } ?? []
@@ -420,6 +476,12 @@ enum ChartXML {
                 c.legendSize = sz / 100
             }
             if let f = l.first("c:txPr")?.descendant("a:defRPr")?.first("a:solidFill") { c.legendColor = color(f) }
+            if let m = l.first("c:layout")?.first("c:manualLayout"),
+               (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
+               let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
+               let w = m.first("c:w")?["val"].flatMap(Double.init), let h = m.first("c:h")?["val"].flatMap(Double.init), w > 0, h > 0 {
+                c.legendBox = Rect.fromLTWH(x, y, w, h)
+            }
         }
         c.stacked = grouping == "stacked" || grouping == "percentStacked"
         c.percent = grouping == "percentStacked"
@@ -678,6 +740,27 @@ enum ChartXML {
         case .doughnut:
             plot = "<c:doughnutChart><c:varyColors val=\"1\"/>\(sers)\(labels)<c:firstSliceAng val=\"0\"/><c:holeSize val=\"\(c.holeSize)\"/></c:doughnutChart>"
         }
+        // A combination's lines, on the columns' axes (their numbers as
+        // literals: they are not in the chart's sheet).
+        if c.type == .column || c.type == .bar, !c.lineSeries.isEmpty {
+            var lsers = ""
+            for (j, l) in c.lineSeries.enumerated() {
+                let i = c.series.count + j
+                let pts = l.values.enumerated().compactMap { k, v in v.map { "<c:pt idx=\"\(k)\"><c:v>\($0)</c:v></c:pt>" } }.joined()
+                let ink = l.color.map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" }
+                    ?? "<a:solidFill><a:schemeClr val=\"accent\(i % 6 + 1)\"/></a:solidFill>"
+                let line = l.lineHidden ? "<a:ln><a:noFill/></a:ln>" : "<a:ln w=\"28575\" cap=\"rnd\">\(ink)<a:round/></a:ln>"
+                var mark = "<c:marker><c:symbol val=\"none\"/></c:marker>"
+                if let sym = l.marker, sym != "none" {
+                    let fill = l.markerFill.map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" } ?? ink
+                    let edge = l.markerLine.map { "<a:ln><a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill></a:ln>" } ?? ""
+                    mark = "<c:marker><c:symbol val=\"\(sym)\"/><c:size val=\"\(Int(l.markerSize.rounded()))\"/><c:spPr>\(fill)\(edge)</c:spPr></c:marker>"
+                }
+                let unmarked = l.unmarked.sorted().map { "<c:dPt><c:idx val=\"\($0)\"/><c:marker><c:symbol val=\"none\"/></c:marker></c:dPt>" }.joined()
+                lsers += "<c:ser><c:idx val=\"\(i)\"/><c:order val=\"\(i)\"/><c:tx><c:v>\(_esc(l.name))</c:v></c:tx><c:spPr>\(line)</c:spPr>\(mark)\(unmarked)<c:val><c:numLit><c:ptCount val=\"\(l.values.count)\"/>\(pts)</c:numLit></c:val><c:smooth val=\"0\"/></c:ser>"
+            }
+            plot += "<c:lineChart><c:grouping val=\"standard\"/><c:varyColors val=\"0\"/>\(lsers)<c:marker val=\"1\"/>\(ax)</c:lineChart>"
+        }
         if c.type.hasAxes {
             let catTitle = c.categoryAxisTitle.map { _rich($0, size: 1330, rotated: c.type == .bar) } ?? ""
             let valTitle = c.valueAxisTitle.map { _rich($0, size: 1330, rotated: c.type != .bar) } ?? ""
@@ -791,14 +874,15 @@ enum ChartPainter {
         // The legend: one row of key + name, centred, wrapped when wide.
         let pie = c.type.isPie
         if c.legend {
-            let names = pie ? c.categories : c.series.map(\.name)
+            let names = pie ? c.categories : c.series.map(\.name) + c.lineSeries.map(\.name)
             // In the legend's own size, its keys and gaps in proportion.
             let size = c.legendSize ?? c.textSize ?? 12, m = size / 12
             var entries = names.enumerated().map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: false, color: c.legendColor)) }
             let key = 7 * k * m, gap = 4 * k * m, spacing = 12 * k * m
             // Beside the plot (`legendPos` r, l, tr): a column, an entry to
             // a line, in the middle of the side; above or below: rows.
-            let beside = ["r", "l", "tr"].contains(c.legendPosition)
+            let box = c.legendBox.map { Rect.fromLTWH(r.left + $0.left * r.width, r.top + $0.top * r.height, $0.width * r.width, $0.height * r.height) }
+            let beside = box == nil && ["r", "l", "tr"].contains(c.legendPosition)
             // A column beside stacked columns (or areas) reads as the stack
             // does, the last series — the top of it — first.
             if beside, c.stacked, c.type == .column || c.type == .area { entries.reverse() }
@@ -809,7 +893,7 @@ enum ChartPainter {
             var lineW = 0.0
             for e in entries {
                 let w = key + gap + e.tp.width
-                if lineW > 0, beside || lineW + spacing + w > area.width { lines.append([]); lineW = 0 }
+                if lineW > 0, beside || lineW + spacing + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
                 lineW += (lineW > 0 ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
             }
@@ -818,7 +902,10 @@ enum ChartPainter {
             let lineH = beside ? textH + 6 * k : textH
             let columnW = (entries.map(\.tp.width).max() ?? 0) + key + gap
             var y: Double, columnX = 0.0
-            if beside {
+            if let box {
+                // In its own place, the plot's room untouched.
+                y = box.center.dy - lineH * Double(lines.count) / 2
+            } else if beside {
                 y = c.legendPosition == "tr" ? area.top : area.center.dy - lineH * Double(lines.count) / 2
                 if c.legendPosition == "l" {
                     columnX = area.left
@@ -836,11 +923,28 @@ enum ChartPainter {
             }
             for line in lines {
                 let w = line.reduce(0.0) { $0 + key + gap + $1.tp.width } + spacing * Double(max(0, line.count - 1))
-                var x = beside ? columnX : area.center.dx - w / 2
+                var x = beside ? columnX : (box?.center.dx ?? area.center.dx) - w / 2
                 for e in line {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
+                    if !pie, e.i >= c.series.count {
+                        // A combination's line: its mark, on its line unless
+                        // that is hidden.
+                        let l = c.lineSeries[e.i - c.series.count]
+                        let colour = l.color ?? c.color(series: e.i, accents: theme.accents)
+                        let mid = Offset(x + key / 2, y + lineH / 2)
+                        if !l.lineHidden {
+                            p.style = .stroke
+                            p.strokeWidth = 2.25 * k
+                            p.color = colour
+                            canvas.drawLine(Offset(x - 2 * k, mid.dy), Offset(x + key + 2 * k, mid.dy), p)
+                        }
+                        Self._mark(l, at: mid, k: k, colour: colour, canvas)
+                        e.tp.paint(canvas, Offset(x + key + gap, y + (lineH - e.tp.height) / 2))
+                        x += key + gap + e.tp.width + spacing
+                        continue
+                    }
                     p.color = pie ? c.pointColor(e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
                     if c.type == .line || (c.type == .radar && !c.radarFilled) {
                         p.style = .stroke
@@ -984,6 +1088,8 @@ enum ChartPainter {
             let all = c.series.flatMap { $0.values.compactMap { $0 } }
             lo = all.min() ?? 0; hi = all.max() ?? 1
         }
+        // (The lines over a combination's columns share the axis.)
+        for v in c.lineSeries.flatMap({ $0.values.compactMap { $0 } }) { lo = min(lo, v); hi = max(hi, v) }
         let labelSize = c.valueLabelSize ?? c.textSize ?? 12
         // (Settled here and captured as constants: the Windows
         // toolchain's optimizer (Swift 6.2.3) fails SIL verification on
@@ -1281,6 +1387,35 @@ enum ChartPainter {
                     if let t = c.series[j].cellLabels[i] { cellLabels.append((t, rect, c.series[j])) }
                 }
             }
+            // A combination's lines over the columns: each through its
+            // categories' middles, with its marks.
+            if !horizontal {
+                for (j, l) in c.lineSeries.enumerated() {
+                    let colour = l.color ?? c.color(series: c.series.count + j, accents: theme.accents)
+                    func at(_ i: Int) -> Offset? {
+                        guard let v = l.values[safe: i] ?? nil else { return nil }
+                        return Offset(plot.left + (Double(i) + 0.5) * slot, vpos(v))
+                    }
+                    if !l.lineHidden {
+                        let path = Path()
+                        var pen = false
+                        for i in 0 ..< n {
+                            guard let q = at(i) else { pen = false; continue }
+                            if pen { path.lineTo(q.dx, q.dy) } else { path.moveTo(q.dx, q.dy); pen = true }
+                        }
+                        let p = Paint()
+                        p.style = .stroke
+                        p.isAntiAlias = true
+                        p.strokeWidth = max(0.5, 2.25 * k)
+                        p.color = colour
+                        canvas.drawPath(path, p)
+                    }
+                    for i in 0 ..< n where !l.unmarked.contains(i) {
+                        guard let q = at(i) else { continue }
+                        Self._mark(l, at: q, k: k, colour: colour, canvas)
+                    }
+                }
+            }
         case .line, .area:
             // An area's points sit on the category edges, a line's mid-slot.
             let onEdges = c.type == .area && n > 1
@@ -1445,6 +1580,31 @@ enum ChartPainter {
 }
 
 extension ChartPainter {
+    /// A line series' mark at `q`: its symbol at its size, filled and
+    /// outlined in its colours.
+    static func _mark(_ l: ChartSeries, at q: Offset, k: Double, colour: Color, _ canvas: any Canvas) {
+        guard let symbol = l.marker, symbol != "none" else { return }
+        let r = max(1, l.markerSize * k / 2)
+        let shape = Path()
+        switch symbol {
+        case "square": shape.addRect(Rect.fromLTRB(q.dx - r, q.dy - r, q.dx + r, q.dy + r))
+        case "diamond":
+            shape.moveTo(q.dx, q.dy - r); shape.lineTo(q.dx + r, q.dy); shape.lineTo(q.dx, q.dy + r); shape.lineTo(q.dx - r, q.dy); shape.close()
+        case "triangle":
+            shape.moveTo(q.dx, q.dy - r); shape.lineTo(q.dx + r, q.dy + r); shape.lineTo(q.dx - r, q.dy + r); shape.close()
+        default: shape.addOval(Rect.fromLTRB(q.dx - r, q.dy - r, q.dx + r, q.dy + r))
+        }
+        let p = Paint()
+        p.isAntiAlias = true
+        p.style = .fill
+        p.color = l.markerFill ?? colour
+        canvas.drawPath(shape, p)
+        p.style = .stroke
+        p.strokeWidth = max(0.5, 0.75 * k)
+        p.color = l.markerLine ?? l.markerFill ?? colour
+        canvas.drawPath(shape, p)
+    }
+
     /// A radar chart: a spoke for each category from the middle, rings of
     /// the value axis's steps joining the spokes, and each series a closed
     /// line (or a filled shape) through its values, category 1 at the top

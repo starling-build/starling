@@ -186,6 +186,25 @@ final class ChartTests: XCTestCase {
         XCTAssertNil(ChartXML.read(XNode.parse(Data(stock.utf8))!, color: { _ in nil }))
     }
 
+    /// Columns with a line over them on the same axes are one chart: the
+    /// line's series kept beside the columns', with its marks, and written
+    /// back as a line chart on those axes.
+    func testAColumnAndLineCombinationIsAChart() throws {
+        let combo = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><c:chart><c:plotArea><c:barChart><c:barDir val=\"col\"/><c:ser><c:val><c:numLit><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>5</c:v></c:pt><c:pt idx=\"1\"><c:v>6</c:v></c:pt></c:numLit></c:val></c:ser><c:axId val=\"1\"/><c:axId val=\"2\"/></c:barChart><c:lineChart><c:ser><c:tx><c:v>Then</c:v></c:tx><c:spPr><a:ln><a:noFill/></a:ln></c:spPr><c:marker><c:symbol val=\"circle\"/><c:size val=\"8\"/></c:marker><c:dPt><c:idx val=\"1\"/><c:marker><c:symbol val=\"none\"/></c:marker></c:dPt><c:val><c:numLit><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>3</c:v></c:pt><c:pt idx=\"1\"><c:v>9</c:v></c:pt></c:numLit></c:val></c:ser><c:axId val=\"1\"/><c:axId val=\"2\"/></c:lineChart></c:plotArea></c:chart></c:chartSpace>"
+        let c = try XCTUnwrap(ChartXML.read(XNode.parse(Data(combo.utf8))!, color: { _ in nil }))
+        XCTAssertEqual(c.type, .column)
+        XCTAssertEqual(c.lineSeries.count, 1)
+        XCTAssertEqual(c.lineSeries[0].values, [3, 9])
+        XCTAssertEqual(c.lineSeries[0].marker, "circle")
+        XCTAssertEqual(c.lineSeries[0].markerSize, 8)
+        XCTAssertTrue(c.lineSeries[0].lineHidden)
+        XCTAssertEqual(c.lineSeries[0].unmarked, [1])
+        XCTAssertNil(c.title, "two series: no title from a name")
+        let back = try reread(c)
+        XCTAssertEqual(back.lineSeries.map(\.values), c.lineSeries.map(\.values))
+        XCTAssertEqual(back.lineSeries.first?.unmarked, [1])
+    }
+
     /// A radar chart is read and drawn: its style, and its series' lines
     /// not taken for outlines.
     func testARadarChartIsAChart() throws {
