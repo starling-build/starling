@@ -232,6 +232,12 @@ extraction groups otherwise.
 
 ### T12. Squeezing marks to fit a character: the limit on a character grid
 Owner: none. Documents: zh-d68ac84a (80%, first parting page 10).
+Windows box, 2026-10-15 (299b2ecd): the hang half of this. Word hangs a
+final mark to its em exactly (no hair), and keeps a character-counted
+indent in whole twips (200 hundredths at 14.6465 = 586 twips): lab `hc`
+on this document's grid; zh-d68ac84a 81.4 -> 83.8 (page 22). Rounding
+each grid character to twips was tried and is wrong (75.6). The squeeze
+case below is untouched.
 Found (labs `pqgrid1`–`6`, `pqkin1`–`3`, `pqvar1`, `pqthr1` in
 `~/starling-word-check/lab`, 2026-10-14): Word squeezes 。、，（） alike
 on a grid of `linesAndChars` with negative `w:charSpace`, and its
