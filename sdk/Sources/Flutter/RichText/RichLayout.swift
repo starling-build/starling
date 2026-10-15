@@ -3639,7 +3639,12 @@ public final class RichLayout {
         // stood 10pt high in rows 15pt short. In the body as in a cell —
         // lab `pg`, 2026-10-14: zh-90e0cea8's 25pt picture takes a line
         // of 31.2, two of them 62.4, and under `w:snapToGrid` off 25.5.)
-        let inLine = p.image.map { $0.float == nil } ?? (p.inlineImages.values.contains { $0.float == nil } && painter.computeLineMetrics().count == 1)
+        // (Two lines in one, `_span`'s box for them, are text on the
+        // grid: as many pitches as the box needs, and centred in them —
+        // zh-454e2e29's title, 41.3pt of combined 24pt text in a line of
+        // three 18pt pitches, its baseline 37.2 down in Word's print.)
+        let combined = inline.contains { $0.image?.name == "combine" } && painter.computeLineMetrics().count == 1
+        let inLine = p.image.map { $0.float == nil } ?? ((p.inlineImages.values.contains { $0.float == nil } || combined) && painter.computeLineMetrics().count == 1)
         if theme.wordRules, inLine, style.lineHeightPoints == nil,
            style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch, pitch > 0 {
             let px = _px(pitch)
@@ -3649,7 +3654,7 @@ public final class RichLayout {
             let descent = p.image != nil ? (painter.computeLineMetrics().first?.descent ?? 0) : 0
             let snapped = ((bodyHeight + descent) / px - 0.002).rounded(.up) * px
             if snapped > bodyHeight + 0.01 {
-                _inkShift[i] += max(0, snapped - bodyHeight - descent)
+                _inkShift[i] += combined && p.inlineImages.isEmpty ? (snapped - bodyHeight) / 2 : max(0, snapped - bodyHeight - descent)
                 bodyHeight = snapped
             }
             // (At a page's foot the picture itself must fit; the descent
@@ -4132,6 +4137,32 @@ public final class RichLayout {
                 let alignment = centred ? PlaceholderAlignment.middle : PlaceholderAlignment.baseline
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic, baselineOffset: size.height)))
+                continue
+            }
+            // Two lines in one (`w:eastAsianLayout w:combine`): Word sets
+            // the run's text as two lines at half its size, the first
+            // half over the second, together as tall as a line of the
+            // run's own size and standing where one would. zh-454e2e29's
+            // table title combines "機關名稱機關代號" at 24pt: two 12pt
+            // lines 20.64 apart, 48pt wide, the upper's baseline 15.12
+            // over the line's; set flat, the title took two lines and its
+            // row ran 34pt tall. Drawn as a box of the two lines before
+            // the run (one more character in the painter's text, as an
+            // insert), the run's own text kept and hidden.
+            if theme.wordRules, let kept = run.style.keptXML, kept.containsSubstring("w:combine=\"1\"") || kept.containsSubstring("w:combine=\"true\"") || kept.containsSubstring("w:combine=\"on\""),
+               case let chars = Array(String(p.text[a ..< b])), chars.count > 1, !chars.contains(where: { $0.isNewline }),
+               let box = _combineBox(chars, run.style, p, named: named, document) {
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                let baseline = theme.baseline(for: run.style, in: p.style, named: named, eastAsian: true, gridPitch: nil) ?? size * 0.88
+                let dims = PlaceholderDimensions(size: Size(_px(box.width).rounded(), _px(box.height).rounded()), alignment: PlaceholderAlignment.baseline,
+                                                 baseline: TextBaseline.alphabetic, baselineOffset: _px(baseline))
+                children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+                inline.append((box, dims))
+                inserts.append(pos - run.length)
+                var hidden = run.style
+                hidden.hidden = true
+                children.append(contentsOf: styled(p.text[a ..< b], hidden, at: pos - run.length, next: b < utf16.endIndex ? p.text[b] : nil))
                 continue
             }
             children.append(contentsOf: styled(p.text[a ..< b], run.style, at: pos - run.length, next: b < utf16.endIndex ? p.text[b] : nil))
@@ -6131,7 +6162,44 @@ public final class RichLayout {
 
     private var _headerFooterCache: [String: _HeaderFooter] = [:]
     /// Text boxes' own layouts, by attachment.
+    /// The box for a run set as two lines in one (see `_span`): the
+    /// first half of `chars` over the second, at half the run's size,
+    /// as wide as the wider and as tall as the two lines are.
+    private func _combineBox(_ chars: [Character], _ run: CharStyle, _ p: RichParagraph, named: RichNamedStyle?,
+                             _ document: RichDocument) -> ImageAttachment? {
+        let size = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+        let split = (chars.count + 1) / 2
+        let key = "\(String(chars))|\(split)|\(size)|\(scale)|\(run.hashValue)"
+        if let hit = _combineBoxes[key] { return hit }
+        var half = run
+        half.fontSize = size / 2
+        half.keptXML = nil
+        var lineStyle = RichParagraphStyle(alignment: .center, spaceAfter: 0, lineSpacing: 1.0)
+        lineStyle.named = p.style.named
+        let lines = [String(chars[..<split]), String(chars[split...])]
+        let paragraphs = lines.map { RichParagraph(text: $0, runs: [Run(length: $0.utf16.count, style: half)], style: lineStyle) }
+        var widest = 0.0
+        for line in lines {
+            let painter = TextPainter(text: TextSpan(text: line, style: theme.textStyle(for: half, in: lineStyle, named: named, normal: _normalChar(document),
+                                                                                    scale: scale, eastAsian: true)), textDirection: .ltr)
+            painter.layout(minWidth: 0, maxWidth: 1e7)
+            widest = max(widest, painter.width)
+            painter.dispose()
+        }
+        var box = RichTextBox(paragraphs: paragraphs)
+        box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
+        var image = ImageAttachment(data: Data(), width: widest / _px(1) + 0.05, height: 1, name: "combine")
+        image.textBox = box
+        guard let laid = _textBox(image, document) else { return nil }
+        image.height = laid.height / _px(1)
+        _combineBoxes[key] = image
+        return image
+    }
+
     private var _textBoxCache: [String: _HeaderFooter] = [:]
+    /// The boxes Word's two lines in one are set in (`_span`), by their
+    /// text and look: one attachment each, so its laid-out box is kept.
+    private var _combineBoxes: [String: ImageAttachment] = [:]
 
     /// Footnotes' own layouts, by note and width; and the footnotes set
     /// at the foot of each page, by physical page.

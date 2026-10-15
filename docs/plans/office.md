@@ -2468,6 +2468,20 @@ fitter dropped the paragraph's tail).
   reaches 44.65. Ours had centred the lines alone, 3.5pt low.
   zh-454e2e29 48.4% -> 54.2%; nothing else moved.
 
+- **Two lines in one (2026-10-15).** A run with `w:eastAsianLayout
+  w:combine` is set as two lines at half its size, the first half of
+  its text over the second, the pair as tall as a line of the run's
+  own size and standing where one would. zh-454e2e29's table title
+  combines "機關名稱機關代號" and "公務人員醫事人員" at 24pt: in Word's
+  print two 12pt lines 20.64 apart, 48pt wide, the upper's baseline
+  15.12 over the line's. Ours set them flat, the title took two lines
+  and its row ran 34pt tall; now the box of two lines stands before the
+  run (one more character in the painter's text, as an insert) and the
+  run's text is kept, hidden — the half lines land within 0.07pt of
+  Word's. On the line grid the line is as many pitches as the box
+  needs, centred in them as text is (three 18pt pitches here).
+  zh-454e2e29 54.2% -> 71.9%; nothing else moved by it.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
