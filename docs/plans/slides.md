@@ -1187,6 +1187,14 @@ kept whole — a group turned or mirrored, a diagram — as if it could not
 be drawn; those drawn from their members (`rendering`) are drawn now.
 tdf149865's coloured stripe across the top is a group turned a quarter.
 
+**A bullet is never underlined, 2026-10-14** (sweep 68: Maloney 8.23 →
+8.22; nothing else moves). A Slides bullet took its first run's whole
+style, so the "•" before Maloney's underlined theory names was drawn
+with a line under it; PowerPoint takes the run's face, size and colour
+only. Its underline, strike, highlight and link are dropped now. (The
+same deck's one wrap that differs, "it's more", is Verdana against
+DejaVu Sans, a point short at the edge.)
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

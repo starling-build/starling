@@ -4247,9 +4247,21 @@ public final class RichLayout {
         return (left, p.style.listFirstLine ?? -(f?.hanging ?? 0), f)
     }
 
+    /// The first run's style as a Slides bullet takes it: its face, size
+    /// and colour, never its lines or highlight — PowerPoint draws the
+    /// "•" before an underlined run bare (Maloney's theory names).
+    static func _slidesMarkerChar(_ run: CharStyle) -> CharStyle {
+        var c = run
+        c.underline = false
+        c.strikethrough = false
+        c.highlight = nil
+        c.link = nil
+        return c
+    }
+
     /// A Slides marker as its paragraph draws it, laid out at its width.
     private func _hangMarker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String) -> TextPainter {
-        var markerChar = p.runs.first?.style ?? CharStyle()
+        var markerChar = Self._slidesMarkerChar(p.runs.first?.style ?? CharStyle())
         if let c = p.style.bulletColor { markerChar.color = c }
         if let f = p.style.bulletStandInFamily ?? p.style.bulletFontFamily { markerChar.fontFamily = f }
         let k = (p.style.bulletScale ?? 1) * (p.style.bulletStandInScale ?? 1)
@@ -5631,7 +5643,7 @@ public final class RichLayout {
                 marker.paint(canvas, Offset(wl.format?.justification == "right" ? at - marker.width : at, g.inkTop))
                 marker.dispose()
             } else {
-            var markerChar = p.runs[0].style
+            var markerChar = theme.markersAtHang ? Self._slidesMarkerChar(p.runs[0].style) : p.runs[0].style
             if let c = p.style.bulletColor { markerChar.color = c }
             if let f = p.style.bulletStandInFamily ?? p.style.bulletFontFamily { markerChar.fontFamily = f }
             let k = (p.style.bulletScale ?? 1) * (p.style.bulletStandInScale ?? 1)
