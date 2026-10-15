@@ -1640,6 +1640,14 @@ and the chart's text) in an Arial theme, and PowerPoint sets them in
 Calibri. A face the chart names — `c:chartSpace/c:txPr`, the title's
 runs — is used now; a theme slot (`+mn-lt`) still means the theme's.
 
+**A table span with nothing to span, 2026-10-15** (LIBRE_OFFICE-100610
+2.77 → 2.67; the only such row in the corpus, the table decks
+unchanged). A cell's `gridSpan="3"` with no `hMerge` cells after it
+(the row two short of the grid) took three columns here; PowerPoint
+keeps it to one, and "Vermelho" wraps there. A span now reaches over
+the merged cells that follow it and no further. (PowerPoint also draws
+the two missing cells as white boxes with black edges; not done.)
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

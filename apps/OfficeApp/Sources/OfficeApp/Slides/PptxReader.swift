@@ -1718,12 +1718,18 @@ private struct SlideContext {
         var paragraphs: [RichParagraph] = []
         for (r, tr) in tbl.all("a:tr").enumerated() {
             var column = 0
-            let columnCount = tr.all("a:tc").count
-            for (c, tc) in tr.all("a:tc").enumerated() {
+            let cells = tr.all("a:tc")
+            let columnCount = cells.count
+            for (c, tc) in cells.enumerated() {
                 defer { column += 1 }
                 if tc["hMerge"] == "1" || tc["vMerge"] == "1" { continue }
+                // A span reaches over the merged cells that follow it and no
+                // further: LIBRE_OFFICE-100610's "Vermelho" says three
+                // columns with none after it, and PowerPoint wraps it in one.
+                var span = 1
+                while span < (tc["gridSpan"].flatMap(Int.init) ?? 1), c + span < cells.count, cells[c + span]["hMerge"] == "1" { span += 1 }
                 var cell = CellRef(table: tableId, row: r, column: column,
-                                   span: tc["gridSpan"].flatMap(Int.init) ?? 1, rowSpan: tc["rowSpan"].flatMap(Int.init) ?? 1)
+                                   span: span, rowSpan: tc["rowSpan"].flatMap(Int.init) ?? 1)
                 // The style's regional looks, the later ones over the earlier
                 // (a corner cell of the header row looks like the header).
                 var regional: [TablePartStyle] = []
