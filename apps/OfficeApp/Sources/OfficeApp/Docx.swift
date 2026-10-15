@@ -2356,11 +2356,21 @@ enum DocxFormat {
                 // (One of them may be nothing: a level line is no height.)
                 w = cx / 12700
                 h = cy / 12700
-            } else if let shape = node.name == "v:shape" ? node : node.descendant("v:shape"), let st = shape["style"] {
+            } else if let shape = ["v:shape", "v:rect", "v:roundrect", "v:oval"].contains(node.name) ? node
+                        : (node.descendant("v:shape") ?? node.descendant("v:rect") ?? node.descendant("v:roundrect") ?? node.descendant("v:oval")),
+                      let st = shape["style"] {
                 for pair in st.split(separator: ";") {
                     let kv = pair.split(separator: ":", maxSplits: 1)
                     guard kv.count == 2, let v = _length(String(kv[1])), v > 0 else { continue }
                     if kv[0].trimmingWhitespace() == "width" { w = v } else if kv[0].trimmingWhitespace() == "height" { h = v }
+                }
+                // (A horizontal rule — an HTML page's <hr>, `o:hr` — is a
+                // line of its height across the column, its width 0 in the
+                // file; read as 300 by 200, bug57031's took a 200pt box and
+                // pushed its SAS tables a page on.)
+                if shape["o:hr"] == "t" {
+                    w = 0.01
+                    if !st.containsSubstring("height") { h = 1.5 }
                 }
             }
             guard let frag = _keptFragment(node, notes) else { return nil }   // a part it names is missing

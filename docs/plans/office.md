@@ -2586,6 +2586,17 @@ fitter dropped the paragraph's tail).
   each giving half; ours sent "務。" down. zh-e6d54ae4 82.7% -> 93.5%;
   nothing else moved. Chinese sample 94.89.
 
+- **A VML rectangle has its stated size, and a horizontal rule is a
+  line (2026-10-15).** The reader took a VML shape's size from its
+  style only on `v:shape`; a `v:rect` fell to the 300 by 200 default.
+  An HTML page's `<hr>` comes into Word as such a rect, `o:hr="t"`,
+  "width:0;height:2.25pt", across the column: bug57031's SAS output
+  has one before each table, each a 200pt box that pushed a page on,
+  and drawing.docx is full of them. `v:rect`, `v:roundrect` and
+  `v:oval` now read their style too, and a rule is its height and no
+  width (its gray line is not drawn yet). bug57031 49.9% -> 74.6%,
+  drawing 3.0 -> 41.0; POI 74.39 -> 75.0, nothing down.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
