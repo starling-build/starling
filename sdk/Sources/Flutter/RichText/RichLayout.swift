@@ -3500,8 +3500,10 @@ public final class RichLayout {
                 text: span,
                 textAlign: align,
                 textDirection: style.rightToLeft ? .rtl : .ltr,
-                // (A picture in the line makes its own line taller.)
-                strutStyle: inline.contains(where: { $0.image != nil }) ? nil : _strut(span)
+                // (A picture in the line makes its own line taller — not a
+                // horizontal rule, whose line is its text's: the reader's
+                // "hr".)
+                strutStyle: inline.contains(where: { $0.image != nil && $0.image?.name != "hr" }) ? nil : _strut(span)
             )
             if !inline.isEmpty { painter.setPlaceholderDimensions(inline.map { $0.dimensions }) }
             // (A fiftieth of a point over: a line that is exactly the
@@ -3762,6 +3764,9 @@ public final class RichLayout {
             // A floating object stands clear of the flow: its paragraph
             // is the height of its (empty) line, as Word sets it.
             if theme.wordRules, let float = image.float, !float.takesRoom {} else { bodyHeight = h.rounded() }
+            // (A horizontal rule's paragraph is a line of its text: the
+            // reader's "hr", lab `hr`.)
+            if theme.wordRules, image.name == "hr" { bodyHeight = max(bodyHeight, _markLineHeight(i, document)) }
             _ensureDecoded(image)
         } else {
             _imageSize[i] = nil

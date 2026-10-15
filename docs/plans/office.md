@@ -2597,6 +2597,16 @@ fitter dropped the paragraph's tail).
   width (its gray line is not drawn yet). bug57031 49.9% -> 74.6%,
   drawing 3.0 -> 41.0; POI 74.39 -> 75.0, nothing down.
 
+- **A horizontal rule's paragraph is a line of its text (2026-10-15).**
+  Lab `hr` (Word for Windows, Arial 10, rules of 1.5, 2.25 and 6pt):
+  each rule's paragraph is one 11.5pt line of its text whatever the
+  rule's height, the rule drawn across its middle. Ours gave the
+  paragraph the rule's own height, a paragraph of one object being set
+  as the object. A rule (the reader's "hr") now takes its mark's line,
+  and in a line of text keeps the line's strut. The lab matches Word to
+  0.06pt; bug57031 74.6% -> 87.3%, drawing 41.0 -> 66.5; POI 75.0 ->
+  75.36, nothing down.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

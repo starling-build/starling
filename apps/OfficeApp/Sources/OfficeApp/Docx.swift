@@ -2372,6 +2372,7 @@ enum DocxFormat {
         /// names is missing.
         func objectAttachment(_ node: XNode) -> ImageAttachment? {
             var w = 300.0, h = 200.0
+            var isRule = false
             if let extent = node.descendant("wp:extent"),
                let cx = Double(extent["cx"] ?? ""), let cy = Double(extent["cy"] ?? ""), cx >= 0, cy >= 0, cx > 0 || cy > 0 {
                 // (One of them may be nothing: a level line is no height.)
@@ -2390,12 +2391,19 @@ enum DocxFormat {
                 // file; read as 300 by 200, bug57031's took a 200pt box and
                 // pushed its SAS tables a page on.)
                 if shape["o:hr"] == "t" {
+                    // (… and its line is a line of text: Word gives the
+                    // paragraph its text's height whatever the rule's —
+                    // lab `hr`, rules of 1.5, 2.25 and 6pt each in a line
+                    // of Arial 10's 11.5 — and draws the rule across its
+                    // middle. "hr", which the layout sets no taller than
+                    // its text.)
                     w = 0.01
-                    if !st.containsSubstring("height") { h = 1.5 }
+                    h = 0.01
+                    isRule = true
                 }
             }
             guard let frag = _keptFragment(node, notes) else { return nil }   // a part it names is missing
-            var att = ImageAttachment(data: Data(), width: w, height: h, name: node.name)
+            var att = ImageAttachment(data: Data(), width: w, height: h, name: isRule ? "hr" : node.name)
             att.sourceXML = frag.xml
             att.sourceRels = frag.rels
             att.float = _float(node)
