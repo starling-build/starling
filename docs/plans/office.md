@@ -2666,6 +2666,19 @@ fitter dropped the paragraph's tail).
   POI 76.30 -> 76.78 (SampleDoc 50 -> 100, the Mac's Arial Black in
   the same sweep); nothing down.
 
+- **An opening mark keeps its spaces and what follows them
+  (2026-10-15).** The same form writes its blanks as "（   ）": an
+  opening bracket, spaces, a closing one. The engine may break after
+  spaces, so "（   " was a stretch of its own, and a line could end on
+  "（" — which no line may. Word keeps "一般项（   ）" whole at a line's
+  end, its five marks giving 4.9pt each and the "）" hanging; ours set
+  "）" a line down. An opening mark's trailing spaces now bind it to
+  what follows them. And a stretch that opens its line squeezes its
+  own marks as well as hanging one (above): "       ），" after a 344pt
+  first-line indent, 4.25pt over, is one line in Word's print, the "）"
+  4.3pt close. zh-69bbcc3c 90.6% -> 90.7 (its page 17 whole); nothing
+  else moved.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

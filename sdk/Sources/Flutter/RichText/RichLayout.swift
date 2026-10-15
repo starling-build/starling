@@ -5030,6 +5030,10 @@ public final class RichLayout {
         // on a line of its own: a word joiner as wide as an opening
         // quote's blank. Its width goes with what follows it.)
         var pending = 0.0
+        func endsOpening(_ g: Piece?) -> Bool {
+            guard let g, g.last > g.a, g.last < g.b else { return false }
+            return Self._openingUnits.contains(units[g.last - 1])
+        }
         while start < total {
             let r = probe.getLineBoundary(TextPosition(offset: start))
             let end = min(total, max(start + 1, r.end))
@@ -5056,8 +5060,15 @@ public final class RichLayout {
             // stays with what it follows, and so does whatever may not
             // start a line or follows what may not end one — unless a
             // zero-width space stands between them.
+            // (And an opening mark with spaces after it from what follows
+            // them: a line ends with no "（" for its spaces' sake. Word
+            // keeps zh-69bbcc3c's "一般项（   ）" whole at a line's end,
+            // its five marks giving 4.9pt each and "）" hanging; parted,
+            // ours ended the line "（" and set "）" a line down.)
+            let opens = endsOpening(pieces.last)
             if var g = pieces.last, !g.hard, g.b == a, g.b > g.a, !breakBefore.contains(a),
-               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) {
+               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) {
+                if opens && last > a { g.w += g.trail; g.trail = 0 }
                 g.w += lineWidth
                 g.b = b
                 if last > a { g.last = last }
@@ -5122,10 +5133,10 @@ public final class RichLayout {
             // so the last character gives it up.)
             if fits, x + w > width, last > a { adjust[last - 1, default: 0] -= x + w - width + 0.02 }
             // (A piece that opens its line hangs its closing mark all the
-            // same — it alone, nothing squeezed: zh-69bbcc3c's paragraph
-            // of 48 spaces and "）。", 416pt in a column of 415.6, is one
-            // line in Word's print, its "。" 0.4pt past the margin. Ours
-            // broke the piece where it would not fit, "。" a line alone.)
+            // same: zh-69bbcc3c's paragraph of 48 spaces and "）。", 416pt
+            // in a column of 415.6, is one line in Word's print, its "。"
+            // 0.4pt past the margin. Ours broke the piece where it would
+            // not fit, "。" a line alone.)
             if !fits, !opening || hangs, last > a {
                 let over = x + w - width
                 let tail = last - 1
@@ -5170,7 +5181,10 @@ public final class RichLayout {
                     // (All of it, the hair too: the engine has none.)
                     adjust[tail, default: 0] -= over + 0.02
                     fits = true
-                } else if squeezes, !opening {
+                } else if squeezes {
+                    // (Its own marks give too: the same form's "       ），"
+                    // after a 344pt first-line indent, 4.25pt over, is
+                    // one line in Word's print, the "）" set 4.3pt close.)
                     // Word takes the next character where it is half an
                     // em or less too wide for the line, and then all of
                     // what cannot be parted from it (an opening mark's
