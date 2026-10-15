@@ -776,6 +776,29 @@ final class SlidePainter: CustomPainter {
             } else {
                 layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
             }
+            // Picture bullets (`buBlip`): each in its bullet's place on its
+            // first line, as tall as the bullet would be, centred where a
+            // "●" stands — the marker the layout left empty.
+            for i in 0 ..< min(layout.count, doc.paragraphs.count) {
+                let para = doc.paragraphs[i]
+                guard let picture = para.style.bulletPicture, para.style.list != nil, !para.text.isEmpty,
+                      let decoded = cache.image(picture), decoded.width > 0 else { continue }
+                let g = layout.geometry(i)
+                let theme = shape.textTheme
+                let slot = (theme?.listIndent ?? 18) * px
+                // 0.71 of the bullet's size — its share of the first run's —
+                // its foot on the baseline: tdf114913's 28 pt line has a
+                // 20 pt picture, and tdf90626's 47% of 32 pt and 151% of
+                // 10 pt are both 10.7 pt.
+                let first = para.runs.first?.style.fontSize ?? theme?.fontSize ?? 18
+                let size = 0.714 * (para.style.bulletScale ?? 1) * first * shape.fontScale * px
+                let hang = g.textLeft - slot + para.style.firstLineIndent * px
+                let baseline = g.inkTop + g.painter.computeDistanceToActualBaseline(.alphabetic)
+                let w = size * Double(decoded.width) / Double(max(1, decoded.height))
+                let x = hang >= g.textLeft - 0.01 ? hang : min(hang, g.textLeft - w - 4 * px)
+                let box = Rect.fromLTWH(x, baseline - size, w, size)
+                canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height)), box, Self.imagePaint(alpha: 1, duotone: nil))
+            }
         }
         canvas.restore()
     }

@@ -385,6 +385,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// `bulletFontFamily` and `bulletScale` stay the file's.
     public var bulletStandInFamily: String? = nil
     public var bulletStandInScale: Double? = nil
+    /// A picture bullet (PowerPoint's `buBlip`): drawn by the slide in the
+    /// bullet's place, the marker itself left empty.
+    public var bulletPicture: ImageAttachment? = nil
     /// Which list this paragraph belongs to, for numbering: Word's numId.
     /// Items of one id number on across other paragraphs; nil items number
     /// as a run, restarting after an interruption.

@@ -22,6 +22,8 @@ enum SlidesPdf {
                 if let i = s.picture { images.append(i) }
                 if let i = s.fillStyle?.image { images.append(i) }
                 for look in s.runLooks.joined() { if let i = look.fill?.image { images.append(i) } }
+                // Picture bullets, drawn by the slide in their markers' place.
+                for p in s.text?.document.paragraphs ?? [] { if let i = p.style.bulletPicture { images.append(i) } }
                 for sub in s.rendered {
                     if let i = sub.picture { images.append(i) }
                     if let i = sub.fillStyle?.image { images.append(i) }

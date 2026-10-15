@@ -1169,6 +1169,17 @@ margins, and the layout (`markersAtHang`) sets a bullet whose hang is
 at or past its text at the first line's start with the first line led
 by the bullet's width; both now land within 0.1 pt of PowerPoint's.
 
+**Picture bullets, 2026-10-14** (tdf90626 0.59 → 0.54, tdf114913 0.15 →
+0.12, tdf138148 0.06 → 0.04; seven decks have them, the others' slides
+show none). `a:buBlip` is resolved from the part each level comes from
+(slide, layout, master — `LevelStyle.bulletPicture`), carried on the
+paragraph (`RichParagraphStyle.bulletPicture`, SDK) behind an empty
+marker, and drawn by the slide in the marker's place, preloaded for
+export like any picture. Its size, measured: 0.714 of the bullet's —
+the first run's size times `buSzPct` — so 28 pt text has a 20 pt
+picture, and tdf90626's 47% of 32 pt and 151% of 10 pt are both
+10.7 pt; its foot on the baseline.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
@@ -1193,8 +1204,7 @@ left of the plot — where they were 6, 4, 6, 0 and 6.
 - **lo-tdf137367's 150% lines** stand 7.3 pt higher in PowerPoint with
   the same pitch; five other decks at 150% line up to a quarter point,
   so it is that deck (a subtitle under `normAutofit`), not the rule.
-- **Picture bullets** are read as markers not drawn; drawing them wants
-  the layout's inline images as list markers.
+- **Picture bullets** were read as markers not drawn — drawn now, below.
 - **The size of smartart-rotation's arrows, accent-process' and
   vertical-box-list's boxes**: PowerPoint's are about 0.7 of ours,
   sized from a smaller font than the frame allows; the reason is still

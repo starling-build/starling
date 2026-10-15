@@ -302,6 +302,8 @@ private struct LevelStyle {
     var shadowSet = false
     /// `a:highlight`: the run's text highlight colour.
     var highlight: Color?
+    /// `a:buBlip`: the picture bullet, resolved from the part it is in.
+    var bulletPicture: ImageAttachment?
 
     func filled(from lower: LevelStyle) -> LevelStyle {
         var s = self
@@ -312,7 +314,7 @@ private struct LevelStyle {
         if s.beforePoints == nil && s.beforePercent == nil { s.beforePoints = lower.beforePoints; s.beforePercent = lower.beforePercent }
         if s.afterPoints == nil && s.afterPercent == nil { s.afterPoints = lower.afterPoints; s.afterPercent = lower.afterPercent }
         s.bullet = s.bullet ?? lower.bullet
-        if s.bulletChar == nil { s.bulletChar = lower.bulletChar; s.bulletFont = s.bulletFont ?? lower.bulletFont }
+        if s.bulletChar == nil { s.bulletChar = lower.bulletChar; s.bulletFont = s.bulletFont ?? lower.bulletFont; s.bulletPicture = lower.bulletPicture }
         if s.bulletColor == nil, !s.bulletColorFollows { s.bulletColor = lower.bulletColor; s.bulletColorFollows = lower.bulletColorFollows }
         if s.bulletScale == nil, !s.bulletSizeFollows { s.bulletScale = lower.bulletScale; s.bulletSizeFollows = lower.bulletSizeFollows }
         s.caps = s.caps ?? lower.caps
@@ -327,11 +329,12 @@ private struct LevelStyle {
         s.spc = s.spc ?? lower.spc
         if !s.shadowSet { s.shadow = lower.shadow; s.shadowSet = lower.shadowSet }
         s.highlight = s.highlight ?? lower.highlight
+
         return s
     }
 
     /// A `a:lvlNpPr` / `a:pPr` element, with its `a:defRPr`.
-    static func paragraph(_ p: XNode?, _ colors: ColorContext) -> LevelStyle {
+    static func paragraph(_ p: XNode?, _ colors: ColorContext, picture: ((String) -> ImageAttachment?)? = nil) -> LevelStyle {
         var s = LevelStyle()
         guard let p else { return s }
         s.algn = p["algn"]
@@ -360,7 +363,11 @@ private struct LevelStyle {
         // A picture bullet (`a:buBlip`): a list paragraph whose marker is
         // not drawn yet — its text where a bullet's is, not hung out to
         // the left as an unbulleted paragraph's first line is.
-        if p.has("a:buBlip") { s.bullet = .char; s.bulletChar = "\u{200B}" }
+        if let blip = p.first("a:buBlip") {
+            s.bullet = .char
+            s.bulletChar = "\u{200B}"
+            s.bulletPicture = blip.first("a:blip")?["r:embed"].flatMap { picture?($0) }
+        }
         if let r = p.first("a:defRPr") { s = run(r, colors).filled(from: s) }
         return s
     }
@@ -2145,8 +2152,21 @@ private struct SlideContext {
             // and PowerPoint shows its bodies upright.
             layers.removeLast()
         }
+        // (Each layer's picture bullet from its own part.)
+        let layoutPart = package.rel(part, kind: "slideLayout")?.target
+        let masterPart = layoutPart.flatMap { package.rel($0, kind: "slideMaster")?.target }
+        func pictures(_ owner: String?) -> (String) -> ImageAttachment? {
+            { rid in
+                guard let owner, let rel = self.package.rels(owner).first(where: { $0.id == rid }), !rel.external,
+                      self.package.parts[rel.target] != nil else { return nil }
+                return self.images.attachment(rel.target, self.package)
+            }
+        }
+        let owners: [String?] = ph == nil ? [part, nil, masterPart] : [part, layoutPart, masterPart, masterPart, nil]
         var s = LevelStyle()
-        for layer in layers { s = s.filled(from: LevelStyle.paragraph(layer, colors)) }
+        for (k, layer) in layers.enumerated() {
+            s = s.filled(from: LevelStyle.paragraph(layer, colors, picture: pictures(k < owners.count ? owners[k] : nil)))
+        }
         return s
     }
 
@@ -2222,7 +2242,12 @@ private struct SlideContext {
         for p in allParagraphs {
             let pPr = p.first("a:pPr")
             let lvl = pPr?["lvl"].flatMap(Int.init) ?? 0
-            let level = styled(LevelStyle.paragraph(pPr, colors).filled(from: _level(lvl, shapeList: list, ph: ph, inherited: inherited)), lvl, pPr)
+            let picture: (String) -> ImageAttachment? = { rid in
+                guard let rel = self.package.rels(self.part).first(where: { $0.id == rid }), !rel.external,
+                      self.package.parts[rel.target] != nil else { return nil }
+                return self.images.attachment(rel.target, self.package)
+            }
+            let level = styled(LevelStyle.paragraph(pPr, colors, picture: picture).filled(from: _level(lvl, shapeList: list, ph: ph, inherited: inherited)), lvl, pPr)
             // What a percentage of spacing is a percentage of: the size the
             // paragraph's runs are actually set in (a SmartArt label is 31 pt
             // by its runs under a level that says nothing), else the level's.
@@ -2255,6 +2280,7 @@ private struct SlideContext {
                 style.list = level.bullet == .char ? .bullet : .numbered
                 style.listLevel = lvl
                 if level.bullet == .char { style.bulletText = level.bulletGlyph }
+                if level.bullet == .char { style.bulletPicture = level.bulletPicture }
                 style.bulletColor = level.bulletColor
                 style.bulletScale = level.bulletScale
                 // The bullet's own face — but not a symbol face, whose codes
