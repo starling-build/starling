@@ -2442,6 +2442,22 @@ fitter dropped the paragraph's tail).
   — and "[Lower" in the next table — once kerning stopped saving the
   twentieth of a point.
 
+- **A justified line's spaces give for a word only up to half their
+  stretch (2026-10-15).** From mode 15 a justified line takes a word
+  that is over by squeezing its spaces, to three quarters of their
+  width at most (lab `js`, above). That is not the whole rule: the
+  word is taken only where each space gives no more than half of what
+  each would stretch were the word left for the next line. With n
+  spaces, the word C over and E to spare without it: C/n <= E/(n-1)/2.
+  Lab `jg` (Word for Windows, Times New Roman 12, a last word of 3 to
+  28pt after 8 and after 16 spaces): "x" is taken 3.1pt over, "xx"
+  5.2, "mmm" 10.7, all to the lab's tenth of a point, and so are lab
+  `jt`'s lines of "ab", "abcd" and longer words. Mode 14 squeezes
+  nothing. The squeeze was in the East Asian fitter only; it now runs
+  for every justified paragraph from mode 15, and the fitter takes
+  Greek and Cyrillic words whole (each letter of bug65649's Russian was
+  a stretch of its own, so a word over looked like a letter over).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

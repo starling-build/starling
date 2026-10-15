@@ -4502,9 +4502,12 @@ public final class RichLayout {
         // lines are fitted — set left or centred, a mark neither hangs
         // nor gives. Before it, and that is most documents written
         // elsewhere, every paragraph's are.)
-        guard theme.wordRules, document.usesEastAsianLayout, !p.style.rightToLeft, p.text.utf16.count > 2 else { return [:] }
+        // (Outside East Asian layout only the spaces give, below.)
+        let latinOnly = !document.usesEastAsianLayout
+        guard theme.wordRules, !latinOnly || ((document.compatibilityMode ?? 12) >= 15 && p.style.alignment == .justify),
+              !p.style.rightToLeft, p.text.utf16.count > 2 else { return [:] }
         let legacy = (document.compatibilityMode ?? 12) < 15
-        let fitted = p.style.alignment == .justify || legacy
+        let fitted = !latinOnly && (p.style.alignment == .justify || legacy)
         // (The probe is the text alone: the box before it — the first
         // line's indent — is where the first line starts from instead.)
         let lead = 0
@@ -4527,7 +4530,8 @@ public final class RichLayout {
         // (Marks to hang or squeeze, or a letter or digit an automatic
         // space may stand beside.)
         let marked = (hangs || squeezes) && units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) })
-        guard marked || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) }),
+        guard marked || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
+                || (squeezesSpaces && units.contains(0x20)),
               first.computeLineMetrics().count > 1 else { return [:] }
         // What each character's automatic space after it is.
         var gaps: [Int: Double] = [:]
@@ -4854,7 +4858,18 @@ public final class RichLayout {
                 if !fits, squeezesSpaces, !wordSpaces.isEmpty {
                     let need = x + w - after - width
                     let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4
-                    if need <= roomSpaces + hair {
+                    // (And only where each space gives at most half of
+                    // what each would stretch were the word left for the
+                    // next line: lab `jg` (Word for Windows, Times New
+                    // Roman 12, a last word of 3 to 28pt after 8 and 16
+                    // spaces) takes "x" 3.1pt over and "mmm" 10.7 —
+                    // to a tenth of a point, as are lab `jt`'s lines of
+                    // "ab" and "abcd". bug65649's Cyrillic took a word
+                    // Word leaves, or left one it takes, line after line.)
+                    let stretch = width - (x - wordSpaces[wordSpaces.count - 1].w)
+                    let halfStretch = wordSpaces.count < 2
+                        || need / Double(wordSpaces.count) <= stretch / Double(wordSpaces.count - 1) / 2 + hair
+                    if need <= roomSpaces + hair, halfStretch {
                         let each = (need + 0.02) / Double(wordSpaces.count)
                         for space in wordSpaces { adjust[space.k, default: 0] -= each }
                         if after > 0 { adjust[last - 1, default: 0] -= after }
@@ -4952,8 +4967,15 @@ public final class RichLayout {
     private static func _glued(_ a: UInt16, _ b: UInt16) -> Bool {
         if _noStart.contains(b) || _noEnd.contains(a) || _quotes.contains(a) || _quotes.contains(b) { return true }
         if a == 0xA0 || b == 0xA0 { return true }
+        // (Nor after a guillemet that opens, or before one that closes.)
+        if a == 0xAB || b == 0xBB { return true }
+        // (Greek and Cyrillic words are whole as Latin ones are: each
+        // letter of bug65649's Russian was a stretch of its own, so a
+        // word over the margin looked like a letter over, and the spaces
+        // never gave for it.)
         func word(_ u: UInt16) -> Bool {
             (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) || (u >= 0xC0 && u <= 0x24F)
+                || (u >= 0x300 && u <= 0x52F) || (u >= 0x1E00 && u <= 0x1FFF)
         }
         func digit(_ u: UInt16) -> Bool { u >= 0x30 && u <= 0x39 }
         if word(a) && word(b) { return true }
