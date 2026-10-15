@@ -182,8 +182,19 @@ final class ChartTests: XCTestCase {
     }
 
     func testAKindThisAppCannotDrawIsKept() {
-        let radar = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:radarChart><c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser></c:radarChart></c:plotArea></c:chart></c:chartSpace>"
-        XCTAssertNil(ChartXML.read(XNode.parse(Data(radar.utf8))!, color: { _ in nil }))
+        let stock = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:stockChart><c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser></c:stockChart></c:plotArea></c:chart></c:chartSpace>"
+        XCTAssertNil(ChartXML.read(XNode.parse(Data(stock.utf8))!, color: { _ in nil }))
+    }
+
+    /// A radar chart is read and drawn: its style, and its series' lines
+    /// not taken for outlines.
+    func testARadarChartIsAChart() throws {
+        let radar = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><c:chart><c:plotArea><c:radarChart><c:radarStyle val=\"filled\"/><c:ser><c:spPr><a:ln w=\"28575\"><a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill></a:ln></c:spPr><c:val><c:numLit><c:ptCount val=\"3\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt><c:pt idx=\"1\"><c:v>2</c:v></c:pt><c:pt idx=\"2\"><c:v>3</c:v></c:pt></c:numLit></c:val></c:ser></c:radarChart></c:plotArea></c:chart></c:chartSpace>"
+        let c = try XCTUnwrap(ChartXML.read(XNode.parse(Data(radar.utf8))!, color: { _ in Color(0xFFFF0000) }))
+        XCTAssertEqual(c.type, .radar)
+        XCTAssertTrue(c.radarFilled)
+        XCTAssertNil(c.series[0].outline)
+        XCTAssertTrue(c.plainText, "no colour given: the theme's text colour")
     }
 
     func testADoughnutIsAPieWithAHole() throws {

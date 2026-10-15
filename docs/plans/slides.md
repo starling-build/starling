@@ -1357,6 +1357,23 @@ is kept whole and draws itself, and it handed on nothing. HowWeRefactor's
 mirrored wrenches over its "R" boxes were missing. A kept member with
 nothing to hand on and a freeform of its own is drawn as itself now.
 
+**Radar charts, and a chart that colours no text, 2026-10-15** (POI's
+bar, pie, line and scatter charts −0.02 to −0.06; radar-chart 1.68 →
+1.99). A `c:radarChart` was kept as an undrawn object. It is a chart
+type now (`ChartType.radar`, read, drawn and written): a spoke a
+category from the top clockwise, a ring at each value step, the values
+up the first spoke, and each series a closed line (or a filled shape,
+`radarStyle filled`), its legend key a line. Its score is worse than
+the empty frame's: the drawing is PowerPoint's to a few points, and a
+near miss counts twice where nothing counted once. A chart whose text
+has no colour at all (`Chart.plainText`, POI's 2007-style charts) is
+set in the theme's text colour — black in PowerPoint's print — where
+ours were all 65% grey; a chart that says the standard grey (a new
+one, PowerPoint 2013's) keeps it, and the legend's own colour is read.
+Tried and dropped: PowerPoint's mid grey (#868686) for gridlines that
+say nothing — radar +0.77, scatter +0.95: ours are a little off its
+lines, and a darker miss costs more.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

@@ -15,7 +15,7 @@ import FluentSystemIcons
 import Foundation
 
 enum ChartType: String, CaseIterable {
-    case column, bar, line, pie, area, scatter, doughnut
+    case column, bar, line, pie, area, scatter, doughnut, radar
 
     var name: String {
         switch self {
@@ -26,6 +26,7 @@ enum ChartType: String, CaseIterable {
         case .area: return "Area"
         case .scatter: return "Scatter"
         case .doughnut: return "Doughnut"
+        case .radar: return "Radar"
         }
     }
 
@@ -42,6 +43,7 @@ enum ChartType: String, CaseIterable {
         case .area: return FluentSystemIcons.chartArea
         case .scatter: return FluentSystemIcons.chartScatter
         case .doughnut: return FluentSystemIcons.chartPie
+        case .radar: return FluentSystemIcons.chartLine
         }
     }
 }
@@ -132,6 +134,9 @@ struct Chart: Equatable {
     var overlap: Int? = nil
     /// A doughnut's hole, in percent of its diameter (`c:holeSize`).
     var holeSize = 50
+    /// A radar chart's series filled (`c:radarStyle val="filled"`), not
+    /// lines.
+    var radarFilled = false
     /// A 3-D pie's tilt toward the viewer (`c:view3D/c:rotX`, degrees): drawn
     /// as a disc seen from above at that angle, its rim showing below. nil
     /// is a flat pie.
@@ -169,6 +174,15 @@ struct Chart: Equatable {
     /// the usual 12: what its labels and legend are set in when they say
     /// nothing, and an unsized title 1.2 times it.
     var textSize: Double? = nil
+    /// The chart's text colour (`c:chartSpace/c:txPr`) and its legend's
+    /// (`c:legend/c:txPr`), where the file gives them. `plainText`: the
+    /// chart gives its text no colour at all, and it is the theme's text
+    /// colour — POI's 2007-style charts are black in PowerPoint's print;
+    /// otherwise (a new chart, PowerPoint 2013's own) it is that colour
+    /// at 65%, which the file spells `tx1` lumMod 65% lumOff 35%.
+    var textColor: Color? = nil
+    var legendColor: Color? = nil
+    var plainText = false
     /// The plot area's own fill (`c:plotArea/c:spPr`).
     var plotFill: Color? = nil
     /// The value axis draws its gridlines (`c:majorGridlines`).
@@ -280,6 +294,7 @@ enum ChartXML {
         case "c:doughnutChart": type = .doughnut
         case "c:areaChart", "c:area3DChart": type = .area
         case "c:scatterChart", "c:bubbleChart": type = .scatter
+        case "c:radarChart": type = .radar
         default: return nil
         }
         let grouping = el.first("c:grouping")?["val"] ?? "standard"
@@ -299,7 +314,7 @@ enum ChartXML {
             let values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
             let pr = ser.first("c:spPr")
-            if type != .line, type != .scatter, let ln = pr?.first("a:ln"), let f = ln.first("a:solidFill") {
+            if type != .line, type != .scatter, type != .radar, let ln = pr?.first("a:ln"), let f = ln.first("a:solidFill") {
                 s.outline = color(f)
                 s.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
             }
@@ -387,6 +402,13 @@ enum ChartXML {
         let spaceRun = space.first("c:txPr")?.descendant("a:defRPr")
         var c = Chart(type: type, title: title, categories: categories, series: series)
         if let sz = spaceRun?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.textSize = sz / 100 }
+        if let f = spaceRun?.first("a:solidFill") {
+            let mods = f.first("a:schemeClr").map { n in n.children.map { "\($0.name)=\($0["val"] ?? "")" }.sorted() } ?? []
+            let standard = f.first("a:schemeClr")?["val"] == "tx1" && mods == ["a:lumMod=65000", "a:lumOff=35000"].sorted()
+            if !standard { c.textColor = color(f) }
+        } else {
+            c.plainText = true
+        }
         c.titleSize = titleSize
         c.titleBold = titleBold
         c.titleColor = titleColor
@@ -397,6 +419,7 @@ enum ChartXML {
             if let sz = l.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
                 c.legendSize = sz / 100
             }
+            if let f = l.first("c:txPr")?.descendant("a:defRPr")?.first("a:solidFill") { c.legendColor = color(f) }
         }
         c.stacked = grouping == "stacked" || grouping == "percentStacked"
         c.percent = grouping == "percentStacked"
@@ -411,6 +434,7 @@ enum ChartXML {
         }
         c.dataLabels = shows(el.first("c:dLbls")) || el.all("c:ser").contains { shows($0.first("c:dLbls")) }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
+        if type == .radar { c.radarFilled = el.first("c:radarStyle")?["val"] == "filled" }
         if el.name == "c:bar3DChart" {
             let v = chart.first("c:view3D")
             c.barView = Chart.BarView(x: v?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15,
@@ -621,6 +645,9 @@ enum ChartXML {
             case .scatter:
                 let join = c.series[i].joined ? _solid(c, i) : "<a:noFill/>"
                 sers += "<c:ser>\(head)<c:spPr><a:ln w=\"\(c.series[i].joined ? 19050 : 25400)\" cap=\"rnd\">\(join)<a:round/></a:ln></c:spPr><c:marker><c:symbol val=\"circle\"/><c:size val=\"5\"/><c:spPr>\(_solid(c, i))<a:ln w=\"9525\">\(_solid(c, i))</a:ln></c:spPr></c:marker><c:xVal>\(catCache)</c:xVal><c:yVal>\(val)</c:yVal><c:smooth val=\"0\"/></c:ser>"
+            case .radar:
+                let look = c.radarFilled ? "\(_solid(c, i))<a:ln><a:noFill/></a:ln>" : "<a:ln w=\"28575\" cap=\"rnd\">\(_solid(c, i))<a:round/></a:ln>"
+                sers += "<c:ser>\(head)<c:spPr>\(look)</c:spPr><c:marker><c:symbol val=\"none\"/></c:marker><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
             case .pie, .doughnut:
                 var dpts = ""
                 for p in 0 ..< n {
@@ -646,6 +673,8 @@ enum ChartXML {
             plot = "<c:scatterChart><c:scatterStyle val=\"lineMarker\"/><c:varyColors val=\"0\"/>\(sers)\(labels)\(ax)</c:scatterChart>"
         case .pie:
             plot = "<c:pieChart><c:varyColors val=\"1\"/>\(sers)\(labels)<c:firstSliceAng val=\"0\"/></c:pieChart>"
+        case .radar:
+            plot = "<c:radarChart><c:radarStyle val=\"\(c.radarFilled ? "filled" : "marker")\"/><c:varyColors val=\"0\"/>\(sers)\(labels)\(ax)</c:radarChart>"
         case .doughnut:
             plot = "<c:doughnutChart><c:varyColors val=\"1\"/>\(sers)\(labels)<c:firstSliceAng val=\"0\"/><c:holeSize val=\"\(c.holeSize)\"/></c:doughnutChart>"
         }
@@ -670,7 +699,9 @@ enum ChartXML {
         } ?? ""
         let plotFill = c.plotFill.map { "<c:spPr><a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill></c:spPr>" } ?? ""
         let legend = c.legend ? "<c:legend><c:legendPos val=\"\(c.legendPosition)\"/><c:overlay val=\"0\"/></c:legend>" : ""
-        let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"\(Int(((c.textSize ?? 12) * 100).rounded()))\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
+        let ink = c.textColor.map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" }
+            ?? (c.plainText ? "" : "<a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill>")
+        let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"\(Int(((c.textSize ?? 12) * 100).rounded()))\">\(ink)</a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>\(c.style.map { "<c:style val=\"\($0)\"/>" } ?? "")<c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)\(plotFill)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
@@ -716,7 +747,11 @@ enum ChartXML {
 enum ChartPainter {
     static func paint(_ c: Chart, _ canvas: any Canvas, _ r: Rect, pxPerPt k: Double, theme: DeckTheme) {
         guard r.width > 4, r.height > 4, !c.series.isEmpty else { return }
-        let ink = _mix(theme.text, theme.background, 0.65)
+        // The text in the file's colour, else the theme's text colour:
+        // a chart that says nothing (POI's radar-chart, a 2007 style) is
+        // black in PowerPoint's print. A 2013 chart's grey is the file's
+        // own, on each part's text.
+        let ink = c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65))
         let grid = _mix(theme.text, theme.background, 0.15)
         let font = OfficeFonts.substitute(theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
@@ -759,7 +794,7 @@ enum ChartPainter {
             let names = pie ? c.categories : c.series.map(\.name)
             // In the legend's own size, its keys and gaps in proportion.
             let size = c.legendSize ?? c.textSize ?? 12, m = size / 12
-            var entries = names.enumerated().map { (i: $0.offset, tp: text($0.element, size)) }
+            var entries = names.enumerated().map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: false, color: c.legendColor)) }
             let key = 7 * k * m, gap = 4 * k * m, spacing = 12 * k * m
             // Beside the plot (`legendPos` r, l, tr): a column, an entry to
             // a line, in the middle of the side; above or below: rows.
@@ -807,7 +842,7 @@ enum ChartPainter {
                     p.style = .fill
                     p.isAntiAlias = true
                     p.color = pie ? c.pointColor(e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
-                    if c.type == .line {
+                    if c.type == .line || (c.type == .radar && !c.radarFilled) {
                         p.style = .stroke
                         p.strokeWidth = 2.25 * k
                         canvas.drawLine(Offset(x - 2 * k, y + lineH / 2), Offset(x + key + 2 * k, y + lineH / 2), p)
@@ -827,7 +862,11 @@ enum ChartPainter {
         if pie, let l = c.plotLayout {
             area = Rect.fromLTWH(r.left + l.left * r.width, r.top + l.top * r.height, l.width * r.width, l.height * r.height)
         }
-        if pie, let tilt = c.pieTilt {
+        if c.type == .radar {
+            _radar(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? grid,
+                   text: { styled($0, $1, $2, bold: false, color: c.valueLabelColor) },
+                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) })
+        } else if pie, let tilt = c.pieTilt {
             // A 3-D pie's plot is the box the tilted disc stands in, a
             // little inside the room left to it (LIBRE_OFFICE-100610-0's
             // grey plots, 345 × 196 pt where ours had 401 × 235).
@@ -1320,7 +1359,7 @@ enum ChartPainter {
                     labels.append((dataLabel(c, v), Offset(x, vpos(v) - 9 * k)))
                 }
             }
-        case .pie, .doughnut:
+        case .pie, .doughnut, .radar:
             break
         }
         if clipped { canvas.restore() }
@@ -1406,6 +1445,91 @@ enum ChartPainter {
 }
 
 extension ChartPainter {
+    /// A radar chart: a spoke for each category from the middle, rings of
+    /// the value axis's steps joining the spokes, and each series a closed
+    /// line (or a filled shape) through its values, category 1 at the top
+    /// and the rest clockwise — POI's radar-chart as PowerPoint draws it.
+    static func _radar(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme, grid: Color,
+                       text: (String, Double, Double) -> TextPainter,
+                       categoryText: (String, Double, Double) -> TextPainter) {
+        let n = c.categories.count
+        guard n >= 3 else { return }
+        let values = c.series.flatMap { $0.values.compactMap { $0 } }
+        let auto = scale(min(0, values.min() ?? 0), values.max() ?? 1)
+        let sc = fixedScale(auto: auto, min: c.valueMin, max: c.valueMax, step: c.valueStep)
+        let labelSize = c.valueLabelSize ?? c.textSize ?? 12
+        let catSize = c.categoryLabelSize ?? c.textSize ?? 12
+        let catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, .infinity) }
+        let room = (catLabels.map(\.height).max() ?? 12 * k) + 4 * k
+        let wide = (catLabels.map(\.width).max() ?? 0) + 4 * k
+        let radius = max(4, min(area.width / 2 - wide, area.height / 2 - room))
+        let centre = area.center
+        func point(_ i: Int, _ r: Double) -> Offset {
+            let a = -Double.pi / 2 + Double(i) * 2 * .pi / Double(n)
+            return Offset(centre.dx + cos(a) * r, centre.dy + sin(a) * r)
+        }
+        func r(_ v: Double) -> Double { radius * (v - sc.lo) / max(1e-9, sc.hi - sc.lo) }
+        let gridPaint = Paint()
+        gridPaint.style = .stroke
+        gridPaint.strokeWidth = max(0.5, (c.gridWidth ?? 0.75) * k)
+        gridPaint.color = grid
+        // The spokes, then a ring at each step.
+        for i in 0 ..< n { canvas.drawLine(centre, point(i, radius), gridPaint) }
+        let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step * 1e-6, by: sc.step))
+        if c.valueGrid {
+            for v in ticks where v > sc.lo {
+                let ring = Path()
+                let p0 = point(0, r(v))
+                ring.moveTo(p0.dx, p0.dy)
+                for i in 1 ..< n { let q = point(i, r(v)); ring.lineTo(q.dx, q.dy) }
+                ring.close()
+                canvas.drawPath(ring, gridPaint)
+            }
+        }
+        // The value axis's labels up the first spoke, to its left.
+        if !c.valueAxisDeleted {
+            for v in ticks {
+                let tp = text(label(v, percent: c.percent), labelSize, .infinity)
+                let at = point(0, r(v))
+                tp.paint(canvas, Offset(at.dx - 4 * k - tp.width, at.dy - tp.height / 2))
+                tp.dispose()
+            }
+        }
+        // The categories outside the spokes' ends.
+        for (i, tp) in catLabels.enumerated() {
+            let a = -Double.pi / 2 + Double(i) * 2 * .pi / Double(n)
+            let end = point(i, radius + 3 * k)
+            let dx = cos(a), dy = sin(a)
+            let x = abs(dx) < 0.2 ? end.dx - tp.width / 2 : dx > 0 ? end.dx : end.dx - tp.width
+            let y = abs(dy) < 0.2 ? end.dy - tp.height / 2 : dy > 0 ? end.dy : end.dy - tp.height
+            tp.paint(canvas, Offset(x, y))
+            tp.dispose()
+        }
+        // The series.
+        for (j, series) in c.series.enumerated() {
+            let path = Path()
+            var started = false
+            for i in 0 ..< n {
+                guard let v = series.values[safe: i] ?? nil else { continue }
+                let q = point(i, r(v))
+                if started { path.lineTo(q.dx, q.dy) } else { path.moveTo(q.dx, q.dy); started = true }
+            }
+            guard started else { continue }
+            path.close()
+            let p = Paint()
+            p.isAntiAlias = true
+            p.color = c.color(series: j, accents: theme.accents)
+            if c.radarFilled {
+                p.style = .fill
+            } else {
+                p.style = .stroke
+                p.strokeWidth = max(0.5, 2.25 * k)
+                p.strokeJoin = .round
+            }
+            canvas.drawPath(path, p)
+        }
+    }
+
     /// A colour's channels times `f`.
     static func _scaled(_ c: Color, _ f: Double) -> Color {
         let v = c.value
