@@ -4371,7 +4371,10 @@ public final class RichLayout {
             // (Twice where the document balances its widths: see `_span`.)
             if document.balancesSpaceWidth { spacing *= 2 }
             let grid: Double = _grid(index, document).chars ?? 0
-            return chars / 100 * (size + spacing + grid) - _topLineSqueeze(p, document)
+            // (In whole twips, as Word keeps an indent: 2 characters of
+            // 14.6465pt are 586 twips, 29.3pt — lab `hc` sets the line as
+            // it does `w:firstLine="586"`, not as 29.293.)
+            return (chars / 100 * (size + spacing + grid) * 20).rounded() / 20 - _topLineSqueeze(p, document)
         }
         return p.style.firstLineIndent - _topLineSqueeze(p, document)
     }
@@ -4428,10 +4431,10 @@ public final class RichLayout {
         // leftChars -45 and hangingChars 280 at 14pt: text at 33.8pt
         // from the margin, the first line at -5.4.)
         if let c = Double(p.style.eastAsian["w:leftChars"] ?? p.style.eastAsian["w:startChars"] ?? ""), c != 0 {
-            left = c * unit
+            left = (c * unit * 20).rounded() / 20
             if let h = Double(p.style.eastAsian["w:hangingChars"] ?? ""), h > 0 { left += max(0, -firstLineIndent(p, document)) }
         }
-        if let c = Double(p.style.eastAsian["w:rightChars"] ?? p.style.eastAsian["w:endChars"] ?? ""), c != 0 { right = c * unit }
+        if let c = Double(p.style.eastAsian["w:rightChars"] ?? p.style.eastAsian["w:endChars"] ?? ""), c != 0 { right = (c * unit * 20).rounded() / 20 }
         return (left, right)
     }
 
@@ -5010,7 +5013,11 @@ public final class RichLayout {
                     && tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
                 let hang = hangs && !holdsFinal && Self._hangingUnits.contains(units[tail]) && (squeezes || !document.hangsHalf)
                     ? min(ems[tail] * (closesUp(tail) || document.hangsHalf ? 0.5 : 1), boxes(tail, tail + 1)) : 0
-                if hang > 0, over <= hang + hair {
+                // (No hair over the hang: lab `hc`, a two-character indent
+                // and 28 ideographs and "。" on zh-d68ac84a's grid, the
+                // mark 0.003pt past its em at 586 twips of indent, is
+                // wrapped by Word and hangs at 580.)
+                if hang > 0, over <= hang + 0.0001 {
                     // (All of it, the hair too: the engine has none.)
                     adjust[tail, default: 0] -= over + 0.02
                     fits = true

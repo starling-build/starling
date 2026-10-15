@@ -2530,6 +2530,20 @@ fitter dropped the paragraph's tail).
   pages. Chinese sample 92.91 -> 94.2. A section of columns over whole
   pages (zh-6cd1befe's seventh) is still set in one column.
 
+- **A mark hangs to its em and not a hair past; an indent in
+  characters is whole twips (2026-10-15).** Lab `hc` (Word for Windows,
+  zh-d68ac84a's grid — 16pt on `linesAndChars` at -5544, a 439.4pt
+  column — a first-line indent then 28 ideographs and "。"): at 586
+  twips of indent, or 200 hundredths of a character, the mark would end
+  0.003pt past its em of hang and Word wraps "献。"; at 580 it hangs.
+  Ours allowed the hang a 0.005pt hair and took 200 hundredths as
+  29.293pt; now the hang has no hair and a character-counted indent
+  (first line, left, right) is rounded to twips, as Word keeps it (586,
+  29.3). The lab matches Word in all five of its indents; zh-d68ac84a
+  81.4% -> 83.8% (its page 22 "…计算地方综合贡献。" wraps "献。" as
+  Word's does). Rounding every grid character's width to twips instead
+  was tried and was worse (75.6%).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
