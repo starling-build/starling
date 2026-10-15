@@ -4037,7 +4037,9 @@ public final class RichLayout {
             for run in p.runs {
                 let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
                 if run.style.inlineImage != nil { return nil }
-                if p.text.utf16[at ..< end].contains(where: { $0 != 0x20 }) { best = max(best ?? 0, size(run.style)) }
+                // (Nor does a tab: IllustrativeCases' line of 11pt spaces
+                // and tabs under an 8pt mark is the mark's line.)
+                if p.text.utf16[at ..< end].contains(where: { $0 != 0x20 && $0 != 0x09 }) { best = max(best ?? 0, size(run.style)) }
                 at = end
             }
             if let best { return (best, false) }
@@ -4072,7 +4074,7 @@ public final class RichLayout {
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
                 // (A run of spaces alone takes the line's height, not its own.)
-                if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " }), let px = s.fontSize, px > 0.5, s.height != nil {
+                if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " || $0 == "\t" }), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                     if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01) {
                         var sized = run
@@ -4080,7 +4082,17 @@ public final class RichLayout {
                         let r = theme.textStyle(for: sized, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                                 eastAsian: kind < 0, gridPitch: pitch, characterClass: classed && kind >= 0 ? kind : nil,
                                                 characterGrid: grid, scriptHidden: true)
-                        if let rs = r.fontSize, let rh = r.height { s = s.copyWith(height: rs * rh / px) }
+                        if let rs = r.fontSize, let rh = r.height, s.height != nil { s = s.copyWith(height: rs * rh / px) }
+                        else if s.height == nil, r.height == nil {
+                            // (Single lines in a face of its own metrics
+                            // have no height to scale: the spaces are set
+                            // at the mark's size, as wide as their own —
+                            // IllustrativeCases' line of 11pt spaces under
+                            // an 8pt mark is 9.2pt in Word's print, and at
+                            // 12.65 the last of three empty lines under a
+                            // table went over the page.)
+                            s = r.copyWith(letterSpacing: (r.letterSpacing ?? 0) + _spaceWidth(s) - _spaceWidth(r))
+                        }
                     }
                 }
                 styles[kind] = s

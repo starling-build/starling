@@ -3527,6 +3527,17 @@ fitter dropped the paragraph's tail).
   16 pages; 61991 and 51921-Word-Crash067 carry the same marks but their
   margins already hold them. The art page border it also has changes
   nothing (lab `pb1`).
+- **A line of spaces and tabs is its mark's line, single spacing too
+  (2026-10-15).** The rule that a line holding only spaces takes the
+  paragraph mark's size (2026-10-13) applied only where the style
+  stated a line height to scale, and counted a tab as text.
+  IllustrativeCases' paragraph of 11pt spaces and tabs under an 8pt
+  mark, single-spaced, is a 9.2pt line in Word's print (its three empty
+  lines fit under a table at a page's foot); ours set it 12.65 and the
+  last went over, every line of page 4 a line low. Such spaces are now
+  set at the mark's size and kept their own width by letter spacing,
+  and a tab sets no line's height. IllustrativeCases 76.0% -> 100;
+  nothing else moved.
 - **Lead, not taken: a page-anchored floating table that Word breaks
   after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
   the rest of the table, which would fit, goes to page 21 in Word's
