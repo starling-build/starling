@@ -3454,6 +3454,16 @@ fitter dropped the paragraph's tail).
   whole with a line of each cell fitting at page 19's foot — the cause
   is not known; seen in modes 12 and 15. zh-1a3c7aa0 91.7% -> 98.1,
   bug65649 58.4 -> 67.8; nothing down.
+- **A word wider than its cell's line opens a line of its own
+  (2026-10-15).** bug65649's unit cell "1 направление" is 49pt wide and
+  the word 55: Word's print has "1" / "направлен" / "ие" — the word
+  taken to a new line, then parted by characters — where the engine
+  parts it where the first line runs out, "1 направле" / "ние". The
+  estimate rows below were a line out of step from page 58 on. Now a
+  word (three letters or more, no ideographs) that follows a space in
+  a cell narrower than 150pt and is wider than the cell's line starts
+  a line of its own, through a line separator put in before it.
+  bug65649 67.8% -> 79.0; nothing else moved (clean A/B, n201 vs n200).
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16

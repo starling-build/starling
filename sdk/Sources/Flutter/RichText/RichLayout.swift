@@ -4003,6 +4003,7 @@ public final class RichLayout {
         let kinsokuOff = theme.wordRules && p.style.eastAsian["w:kinsoku"] == "0"
         let fullQuotes = theme.wordRules && document.usesEastAsianLayout
         let loose = _looseWordOffsets(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        let wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
         // The spaces Word sets half an em wide (UTF-16 offsets): every
         // run of them but one between two Latin characters — see
         // `RichDocument.balancesSpaceWidth`.
@@ -4169,7 +4170,13 @@ public final class RichLayout {
                 // (One too long for any line Word parts wherever the
                 // line ends, starting where it stands: a zero-width
                 // space before each of its characters.)
-                if loose.contains(offset) {
+                if wideStarts.contains(offset) {
+                    // (A word wider than the line opens a line of its own,
+                    // and is parted there: see `_wideWordStarts`.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2028}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if loose.contains(offset) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -5614,6 +5621,42 @@ public final class RichLayout {
     /// one where the paragraph says so. A word here is a stretch of
     /// ASCII with no space in it; only one of twenty characters or more
     /// is measured.
+    /// Where a word wider than the line itself starts, after other text:
+    /// Word takes such a word to a line of its own before it parts it by
+    /// characters — bug65649's cell "1 направление" (49pt wide, the word
+    /// 55) is "1" / "направлен" / "ие" in Word's print; the engine
+    /// parted the word where the line ran out, "1 направле" / "ние", and
+    /// the estimate pages after ran a line long. Measured only in cells
+    /// narrower than 150pt, for words of three letters or more.
+    private func _wideWordStarts(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
+                                 named: RichNamedStyle?, pitch: Double?) -> Set<Int> {
+        guard theme.wordRules, p.cell != nil, textWidth > 1, textWidth < _px(150), !p.runs.isEmpty else { return [] }
+        let units = Array(p.text.utf16)
+        var out: Set<Int> = []
+        var k = 0
+        while k < units.count {
+            guard units[k] != 0x20, units[k] != 0x0A, units[k] != 0x2028 else { k += 1; continue }
+            var end = k
+            while end < units.count, units[end] != 0x20, units[end] != 0x0A, units[end] != 0x2028 { end += 1 }
+            // (Only after a space: a word that opens the paragraph is on a
+            // line of its own already.)
+            if k > 0, units[k - 1] == 0x20, end - k >= 3,
+               !(k ..< end).contains(where: { units[$0] >= 0x2E80 }) {
+                var at = 0
+                var run = p.runs[0].style
+                for r in p.runs { if k < at + r.length { run = r.style; break }; at += r.length }
+                let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let word = String(decoding: units[k ..< end], as: UTF16.self)
+                let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
+                painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                if painter.width > textWidth { out.insert(k) }
+                painter.dispose()
+            }
+            k = end
+        }
+        return out
+    }
+
     private func _looseWordOffsets(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
                                    named: RichNamedStyle?, pitch: Double?) -> Set<Int> {
         guard theme.wordRules else { return [] }
