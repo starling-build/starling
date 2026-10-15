@@ -217,7 +217,7 @@ lo-smartart-text.pptx	summary pages=1 worst=0.27% mean=0.27%
 lo-smartart-vertical-block-list.pptx	summary pages=1 worst=0.59% mean=0.59%
 lo-smartart-vertical-box-list.pptx	summary pages=1 worst=5.88% mean=5.88%
 lo-smartart1.pptx	summary pages=1 worst=4.33% mean=4.33%
-lo-subtitle-animation-save.pptx	summary pages=1 worst=0.70% mean=0.70%
+lo-subtitle-animation-save.pptx	summary pages=1 worst=0.67% mean=0.67%
 lo-table-list.pptx	summary pages=1 worst=0.67% mean=0.67%
 lo-tableBorderLineStyle.pptx	summary pages=1 worst=2.65% mean=2.65%
 lo-tablescale.pptx	summary pages=1 worst=0.04% mean=0.04%
@@ -356,7 +356,7 @@ lo-tdf147459.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf147586.pptx	summary pages=1 worst=1.11% mean=1.11%
 lo-tdf148478_transitionMusic.pptx	summary pages=2 worst=0.00% mean=0.00%
 lo-tdf148665.pptx	summary pages=1 worst=0.07% mean=0.07%
-lo-tdf148685.pptx	summary pages=1 worst=0.58% mean=0.58%
+lo-tdf148685.pptx	summary pages=1 worst=0.45% mean=0.45%
 lo-tdf148810_PARA_OUTLLEVEL.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-tdf148921.pptx	summary pages=1 worst=0.44% mean=0.44%
 lo-tdf148965.pptx	summary pages=3 worst=0.05% mean=0.02%
@@ -421,7 +421,7 @@ lo-tdf168755_anim_on_SmartArt.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-tdf168835.pptx	summary pages=1 worst=0.62% mean=0.62%
 lo-tdf169088.pptx	summary pages=1 worst=0.34% mean=0.34%
 lo-tdf169496_hidden_graphic.pptx	summary pages=1 worst=0.03% mean=0.03%
-lo-tdf169524.pptx	summary pages=1 worst=7.34% mean=7.34%
+lo-tdf169524.pptx	summary pages=1 worst=7.23% mean=7.23%
 lo-tdf169694.pptx	summary pages=1 worst=0.46% mean=0.46%
 lo-tdf169781.pptx	summary pages=2 worst=5.72% mean=4.02%
 lo-tdf169825_vertical_layouts.pptx	summary pages=2 worst=0.58% mean=0.47%

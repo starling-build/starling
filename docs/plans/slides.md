@@ -1221,8 +1221,19 @@ paid for by a deck the broad one made worse:
   grey backgrounds; a boost leaves a grey grey);
 - and not a picture's **duotone** (Treck's background in themes, tint
   95% satMod 120%).
-The 2026-10-14 attempt below that made themes 18.28 had none of these.
+The earlier attempt that made themes 18.28 had none of these.
 What PowerPoint actually does is still unknown; this is a fit.
+
+**A master with no text styles, 2026-10-14** (sweep 71: 1.7451 →
+1.7446%; tdf148685 0.58 → 0.45, tdf169524 7.34 → 7.23,
+subtitle-animation-save 0.70 → 0.67; nothing worse). Masters written by
+other programs can leave out `p:txStyles`; we then set every
+placeholder at 18 pt. PowerPoint keeps its own: a title at 44 pt in the
+heading face, a body or subtitle at 28 pt with an Arial "•", both at 90%
+line spacing and the body 10 pt before each paragraph — the PDF's lines
+are those to a tenth of a point. A content placeholder (`p:ph` with no
+type) takes the same but no bullet (outliner-list-style's first level
+has none).
 
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,

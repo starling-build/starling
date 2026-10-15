@@ -2135,15 +2135,38 @@ private struct SlideContext {
     }
 
     /// The master text style a placeholder (or plain shape) draws from.
+    /// A master that has no title or body style (one written by another
+    /// program: subtitle-animation-save's has no `p:txStyles` at all)
+    /// leaves PowerPoint's own: a title at 44 pt in the heading face, a
+    /// body at 28 with a "•", both at 90% line spacing.
     private func _masterStyle(_ ph: XNode?) -> XNode? {
         let styles = master?.first("p:txStyles")
         guard let ph else { return nil }
         switch ph["type"] ?? "obj" {
-        case "title", "ctrTitle": return styles?.first("p:titleStyle")
-        case "body", "subTitle", "obj": return styles?.first("p:bodyStyle")
+        case "title", "ctrTitle": return styles?.first("p:titleStyle") ?? Self.builtInTitleStyle
+        // (A content placeholder, `p:ph` with no type, does not take the
+        // built-in bullet: outliner-list-style's unbulleted first level.)
+        case "body", "subTitle": return styles?.first("p:bodyStyle") ?? Self.builtInBodyStyle
+        case "obj": return styles?.first("p:bodyStyle") ?? Self.builtInContentStyle
         default: return styles?.first("p:otherStyle")
         }
     }
+
+    private static let builtInTitleStyle = MiniXML.parse(Array("""
+        <p:titleStyle><a:lvl1pPr><a:lnSpc><a:spcPct val="90000"/></a:lnSpc><a:spcBef><a:spcPct val="0"/></a:spcBef>\
+        <a:buNone/><a:defRPr sz="4400"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mj-lt"/>\
+        <a:ea typeface="+mj-ea"/><a:cs typeface="+mj-cs"/></a:defRPr></a:lvl1pPr></p:titleStyle>
+        """.utf8))
+    private static let builtInContentStyle = MiniXML.parse(Array("""
+        <p:bodyStyle><a:lvl1pPr><a:lnSpc><a:spcPct val="90000"/></a:lnSpc><a:spcBef><a:spcPts val="1000"/></a:spcBef>\
+        <a:defRPr sz="2800"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill>\
+        <a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/><a:cs typeface="+mn-cs"/></a:defRPr></a:lvl1pPr></p:bodyStyle>
+        """.utf8))
+    private static let builtInBodyStyle = MiniXML.parse(Array("""
+        <p:bodyStyle><a:lvl1pPr><a:lnSpc><a:spcPct val="90000"/></a:lnSpc><a:spcBef><a:spcPts val="1000"/></a:spcBef>\
+        <a:buFont typeface="Arial"/><a:buChar char="&#8226;"/><a:defRPr sz="2800"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill>\
+        <a:latin typeface="+mn-lt"/><a:ea typeface="+mn-ea"/><a:cs typeface="+mn-cs"/></a:defRPr></a:lvl1pPr></p:bodyStyle>
+        """.utf8))
 
     /// Level `n` (0-based) as the whole chain resolves it, lowest layer first.
     private func _level(_ n: Int, shapeList: XNode?, ph: XNode?, inherited: (layout: XNode?, master: XNode?)) -> LevelStyle {
