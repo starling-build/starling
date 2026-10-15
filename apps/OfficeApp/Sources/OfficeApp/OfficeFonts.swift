@@ -406,6 +406,15 @@ enum OfficeFonts {
             default: baseline = 0.938
             }
             var face = RichResolvedFace(family: clone, baseline: baseline)
+            // (Aptos, drawn as the sans clone, keeps its own line: 1.22
+            // ems, its baseline .94 down — lab `ap`, Word for Windows,
+            // 12pt lines 14.64 apart and the first baseline 11.28 down,
+            // where the clone's 13.8 put table-alignment's paragraphs
+            // between tables 2pt short.)
+            if family.trimmingWhitespace().lowercased() == "aptos" {
+                face.naturalHeight = 1.22
+                face.baseline = 0.94
+            }
             if clone != calibri {
                 face.otherAdvances = circled(1.2007)
                 face.boldOtherAdvances = circled(1.2207)

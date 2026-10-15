@@ -2414,6 +2414,12 @@ fitter dropped the paragraph's tail).
   of ours on every line. With kerning gone that was enough to carry
   "logistic" to the next line of page 6 and every page after it.
 
+- **Aptos keeps its own line (2026-10-14).** It is drawn as the sans
+  clone, whose line is 1.15 ems; Word's Aptos line is 1.22, its
+  baseline .94 down (lab `ap`, Word for Windows: 12pt lines 14.64
+  apart, the first baseline 11.28 under the margin). table-alignment's
+  empty paragraphs between its tables were each 2pt short.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
