@@ -1560,6 +1560,14 @@ print, ours 7.7 from the full size. The stored scale multiplies it now
 (36.0) and scores worse: its first line is 1.2 pt high, which the
 too-wide gaps had been making up for.
 
+**A placeholder drawn as a preset of its own, 2026-10-15** (customGeo
+6.49 → 6.11, its oval page 22.3 → 3.9; tdf162283 2.21 → 0.09,
+tdf157019_objPlaceholderCustomShape 0.94 → 0.53; the five decks with
+one, none worse). Only a placeholder's inherited preset was read; one
+the slide gives it (`prstGeom prst="ellipse"` on a content
+placeholder) was drawn as a rectangle with its text across the frame.
+It is drawn as the preset now, its text in the preset's text rectangle.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

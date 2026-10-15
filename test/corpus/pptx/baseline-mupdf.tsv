@@ -20,7 +20,7 @@ OverlappingRelations.pptx	summary pages=4 worst=0.56% mean=0.36%
 SampleShow.pptx	summary pages=2 worst=1.80% mean=1.35%
 SmartArt.pptx	summary pages=1 worst=0.00% mean=0.00%
 WithMaster.pptx	summary pages=2 worst=1.41% mean=1.24%
-aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=12.42% mean=5.65%
+aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=12.38% mean=5.65%
 aascu.org_workarea_downloadasset.aspx_id=5864.pptx	summary pages=34 worst=74.34% mean=8.84%
 ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=14.40% mean=8.12%
 alterman_security.pptx	summary pages=23 worst=11.70% mean=6.69%
@@ -53,7 +53,7 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=3.81% mean=3.81%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=22.27% mean=6.49%
+customGeo.pptx	summary pages=48 worst=18.54% mean=6.11%
 ececapstonespring2012.pptx	summary pages=24 worst=3.22% mean=1.96%
 highlight-test-case.pptx	summary pages=1 worst=0.80% mean=0.80%
 layouts.pptx	summary pages=10 worst=1.59% mean=0.65%
@@ -405,7 +405,7 @@ lo-tdf158512.pptx	summary pages=2 worst=0.76% mean=0.72%
 lo-tdf160487.pptx	summary pages=1 worst=0.70% mean=0.70%
 lo-tdf160490.pptx	summary pages=2 worst=0.64% mean=0.62%
 lo-tdf160591.pptx	summary pages=1 worst=0.18% mean=0.18%
-lo-tdf162283.pptx	summary pages=1 worst=2.21% mean=2.21%
+lo-tdf162283.pptx	summary pages=1 worst=0.09% mean=0.09%
 lo-tdf163239.pptx	summary pages=2 worst=0.00% mean=0.00%
 lo-tdf163239_v2.pptx	summary pages=2 worst=0.00% mean=0.00%
 lo-tdf163852.pptx	summary pages=1 worst=0.12% mean=0.12%
@@ -522,7 +522,7 @@ oox-tdf163803_image_with_fill.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf164623.pptx	summary pages=1 worst=0.29% mean=0.29%
 oox-tdf170095.pptx	summary pages=1 worst=0.10% mean=0.10%
 oox-testTdf132557_footerCustomShapes.pptx	summary pages=1 worst=0.07% mean=0.07%
-oox-testTdf157019_objPlaceholderCustomShape.pptx	summary pages=1 worst=0.94% mean=0.94%
+oox-testTdf157019_objPlaceholderCustomShape.pptx	summary pages=1 worst=0.53% mean=0.53%
 oox-theme-tint.pptx	summary pages=1 worst=0.40% mean=0.40%
 oox-theme.pptx	summary pages=1 worst=0.04% mean=0.04%
 oox-transparent-text.pptx	summary pages=1 worst=0.04% mean=0.04%

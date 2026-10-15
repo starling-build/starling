@@ -1434,6 +1434,24 @@ private struct SlideContext {
                 }
             }
         }
+        // A placeholder drawn as a preset of its own: the shape, and its
+        // text in the preset's text rectangle (customGeo's content oval
+        // wraps in the inscribed box, as any oval does).
+        if ph != nil, let p = prst, p != "rect" {
+            st.inheritedPreset = ShapePreset(rawValue: p)
+            if let g = PresetGeometry.geometry(p, width: frame.width * Pptx.emu, height: frame.height * Pptx.emu,
+                                               adjustments: PresetGeometry.adjustments(spPr?.first("a:prstGeom"))) {
+                st.customPath = g
+                if txBox == nil, let box = g.textRect {
+                    st.shapeInsets = EdgeInsets(left: box.left * frame.width, top: box.top * frame.height,
+                                                right: (1 - box.right) * frame.width, bottom: (1 - box.bottom) * frame.height)
+                    st.insets = EdgeInsets(left: st.insets.left + box.left * frame.width,
+                                           top: st.insets.top + box.top * frame.height,
+                                           right: st.insets.right + (1 - box.right) * frame.width,
+                                           bottom: st.insets.bottom + (1 - box.bottom) * frame.height)
+                }
+            }
+        }
         // A placeholder with no geometry of its own takes its layout's or
         // master's (custgeom-placeholder: a notched ellipse from the layout).
         if ph != nil, spPr?.first("a:prstGeom") == nil, spPr?.first("a:custGeom") == nil {
