@@ -1374,6 +1374,14 @@ Tried and dropped: PowerPoint's mid grey (#868686) for gridlines that
 say nothing — radar +0.77, scatter +0.95: ours are a little off its
 lines, and a darker miss costs more.
 
+Tried and dropped, 2026-10-15: vertical-box-list (list1) in PowerPoint
+keeps its natural height, centred in the frame — parentText 0.82 of the
+font size in mm, the child box 0.7, the overlap −0.41 — where we fill
+the frame. Growing only children with an INF *rule*, not an INF
+*constraint*, made it 5.88 → 11.11 and linear-rule-vert +0.43: the
+negative space's `op="lte"` caps (−0.82 × the parent box) are what
+PowerPoint does not follow, and they are the thing to look at.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
