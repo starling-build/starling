@@ -74,11 +74,17 @@ Each has its entry in `office.md`.
 
 ## Open tasks
 
+Two sessions now share the Mac and its one Word. Word prints (labs,
+`docx-word-render.sh`) must not overlap: before printing, check
+`pgrep -fl "[o]sascript"` and that no other print is mid-dialog.
+Sweeps are per checkout (`lab/tools/sweep.sh` run from inside the
+worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
+
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
 ### T1. Autofit tables
-Owner: —
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree), from 2026-10-15 — after T8
 Documents: zh-0aac9d1a (63%), and likely others among the forms.
 Known: `w:tblLayout autofit`, grid 1350/3022/1526/2680 twips; Word draws
 the columns 34.5/187.7/110.4/156.5pt, wider than `tblW` and the text
@@ -166,7 +172,7 @@ Latin base family; and then YaHei's 1.715-em pitch. zh-799c91cd 82.3%
 -> 91.2%.
 
 ### T8. Load embedded fonts
-Owner: —
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree), from 2026-10-15
 Documents: zh-e37f8d40 (already 92.8% with the square model),
 saut_page.
 Known: `word/fonts/*.odttf`, obfuscated with the `w:fontKey` GUID
