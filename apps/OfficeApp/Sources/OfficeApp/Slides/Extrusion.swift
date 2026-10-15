@@ -10,7 +10,7 @@ import Foundation
 /// face, far ones first, each in the shape's colour lit by how it faces.
 ///
 /// What this is not: PowerPoint's renderer. There are no bevels, no
-/// materials and one fixed light, and a perspective camera is drawn as
+/// materials and two measured light rigs, and a perspective camera is drawn as
 /// the parallel one that looks along the same line — the solid's outline
 /// and which sides show are right, its shading is plausible.
 enum Extrusion {
@@ -54,10 +54,16 @@ enum Extrusion {
             s.perspective = name.hasPrefix("legacyPerspective")
             s.oblique = s.depth > 0 ? oblique(name) : nil
             if let c = cameras[name] { (s.lat, s.lon, s.rev) = c }
+            s.legacy = name.hasPrefix("legacy")
             if let rot = camera.first("a:rot") {
                 func deg(_ a: String) -> Double { (rot[a].flatMap(Double.init) ?? 0) / 60000 }
                 (s.lat, s.lon, s.rev) = (deg("lat"), deg("lon"), deg("rev"))
             }
+        }
+        if let rig = spPr?.first("a:scene3d")?.first("a:lightRig") {
+            s.rig = rig["rig"] ?? "threePt"
+            let turns: [String: Double] = ["t": 0, "tr": 45, "r": 90, "br": 135, "b": 180, "bl": 225, "l": 270, "tl": 315]
+            s.rigTurn = turns[rig["dir"] ?? "t"] ?? 0
         }
         // Looked at square on, a solid is its own front.
         if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0 { return nil }
@@ -117,6 +123,30 @@ enum Extrusion {
         // the shape has one (PowerPoint's "automatic" depth colour), else
         // the fill's.
         let side = scene.extrusionColor ?? shape.outline ?? fill
+        // PowerPoint's rigs light the shape in its own frame (x right, y
+        // down, z out of the slide), so a face is as bright whatever the
+        // camera: an ambient share and lights given as direction times
+        // strength, for `dir="t"`. Read off PowerPoint's prints of the
+        // Scene3d decks — threePt (its default) leaves a face turned right
+        // at 0.12 of its colour, up and right 0.30, up 0.74, left 0.69 and
+        // the front 1.04; harsh lights the left at 1.51, the top 0.80 and
+        // the front 0.83, and `dir="r"` moves that light to the top and
+        // brings one from below round to the left (0.86). Other rigs are
+        // drawn as threePt.
+        let rig: (ambient: Double, lights: [P3]) = scene.rig == "harsh"
+            ? (0.1, [P3(x: -1.41, y: -0.7, z: 0.43), P3(x: 0, y: 0.76, z: 0.3)])
+            : (0.12, [P3(x: -0.37, y: -0.62, z: 0.6), P3(x: -0.2, y: 0, z: 0.32)])
+        let turnRig = scene.rigTurn * .pi / 180
+        let lights = rig.lights.map { l in
+            P3(x: l.x * cos(turnRig) - l.y * sin(turnRig), y: l.x * sin(turnRig) + l.y * cos(turnRig), z: l.z)
+        }
+        func litLocal(_ base: Color, _ n: P3) -> Color {
+            let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
+            var k = rig.ambient
+            for l in lights { k += max(0, (n.x * l.x + n.y * l.y + n.z * l.z) / len) }
+            func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * k).rounded()))) }
+            return Color(argb: base.alpha, ch(base.red), ch(base.green), ch(base.blue))
+        }
         func lit(_ base: Color, _ n: P3) -> Color {
             // One light, in front and a little to the left and below — the
             // side PowerPoint's default rig leaves a top face darkest.
@@ -183,7 +213,7 @@ enum Extrusion {
         // right angle — away, and then the back is what is seen.
         let n0 = turn(P3(x: 0, y: 0, z: 1))
         let frontShows = n0.z + n0.x * (scene.oblique?.dx ?? 0) + n0.y * (scene.oblique?.dy ?? 0) >= 0
-        face(frontShows ? back : front, lit(side, P3(x: -n0.x, y: -n0.y, z: -abs(n0.z))), edge: nil)
+        face(frontShows ? back : front, scene.legacy ? lit(side, P3(x: -n0.x, y: -n0.y, z: -abs(n0.z))) : litLocal(side, P3(x: 0, y: 0, z: frontShows ? -1 : 1)), edge: nil)
         // The sides, far ones first.
         var quads: [(z: Double, pts: [Offset], color: Color)] = []
         for (ri, ring) in front.enumerated() {
@@ -195,7 +225,14 @@ enum Extrusion {
                 let u = P3(x: b.x - a.x, y: b.y - a.y, z: b.z - a.z), v = P3(x: a2.x - a.x, y: a2.y - a.y, z: a2.z - a.z)
                 var n = P3(x: u.y * v.z - u.z * v.y, y: u.z * v.x - u.x * v.z, z: u.x * v.y - u.y * v.x)
                 if n.z < 0 { n = P3(x: -n.x, y: -n.y, z: -n.z) }
-                quads.append(((a.z + b.z + a2.z + b2.z) / 4, [flat(a), flat(b), flat(b2), flat(a2)], lit(side, n)))
+                // The same side in the shape's own frame: across its edge
+                // in the outline, the way that faces the eye.
+                let e = Offset(rings[ri][j].dx - rings[ri][i].dx, rings[ri][j].dy - rings[ri][i].dy)
+                var local = P3(x: e.dy, y: -e.dx, z: 0)
+                let seen = turn(local)
+                if seen.x * n.x + seen.y * n.y + seen.z * n.z < 0 { local = P3(x: -local.x, y: -local.y, z: 0) }
+                quads.append(((a.z + b.z + a2.z + b2.z) / 4, [flat(a), flat(b), flat(b2), flat(a2)],
+                              scene.legacy ? lit(side, n) : litLocal(side, local)))
             }
         }
         for q in quads.sorted(by: { $0.z < $1.z }) { polygon(q.pts, q.color) }
@@ -208,7 +245,8 @@ enum Extrusion {
         func dark(_ c: Color) -> Color {
             Color(argb: c.alpha, Int(Double(c.red) * 0.3), Int(Double(c.green) * 0.3), Int(Double(c.blue) * 0.3))
         }
-        face(frontShows ? front : back, frontShows ? bright(fill) : dark(side), edge: frontShows ? shape.outline : nil)
+        let shown = !frontShows ? dark(side) : scene.legacy ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
+        face(frontShows ? front : back, shown, edge: frontShows ? shape.outline : nil)
         return true
     }
 }

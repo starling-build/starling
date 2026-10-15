@@ -1591,6 +1591,25 @@ the underline a pixel off). A run with `hlinkClick` was drawn as plain
 text; it is underlined now, in the theme's `hlink` colour unless the
 link keeps the text's own (`ahyp:hlinkClr val="tx"`).
 
+**PowerPoint's light rigs, measured, 2026-10-15** (the extruded decks:
+lightRig_default 12.31 → 1.35, dir_rotation 7.44 → 1.18,
+material_highlight 13.94 → 8.58, perspectiveContrastingLeft 6.77 →
+2.07, rot_rotation −2.92, shape_rotation −2.11, obliqueTopRight
+−1.82, isometricRightUp −1.54, modernCamera −0.81; none worse; 36
+points over nine decks). An extruded solid was shaded by one made-up
+light in the viewer's frame. A probe (each face painted in an id
+colour, PowerPoint's page sampled under it) showed the rigs light the
+shape in its OWN frame — a face is as bright whatever the camera
+(threePt's front 1.00–1.13 from four cameras) — and gave each rig's
+numbers: threePt (the default) turned right 0.12 of the colour, up
+and right 0.30, up 0.74, left 0.69, front 1.04; harsh left 1.51, top
+0.80, front 0.83, and with `dir="r"` top 1.51 and left 0.86 — a second
+light from below turned round. Those are now an ambient share plus two
+lights per rig, turned by `dir`; other rigs use threePt, the legacy
+cameras keep the old shading, and a solid seen from behind its old dark
+back. Not modelled: `lightRig rot` (rot_rotation's front is 0.45 in
+PowerPoint), materials' highlights, bevels.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
