@@ -1393,6 +1393,18 @@ dash) was drawn solid. `CellRef.CellLine` carries a dash now (shared
 SDK, additive: nil is solid, as every Word border is), and the layout
 draws the edge in its pieces from its start.
 
+Sweep 77, 2026-10-15 (1.5902 → 1.5892%): no Slides change — the
+Writer session's shared commits since sweep 76 (fonts, tables) moved
+seventeen decks, tdf140852 −0.25 and tdf98603 −0.22 the most, none more
+than +0.09 the other way.
+
+Tried and dropped: the themes deck's centred radial background is, in
+PowerPoint's print, the stops at t² of the way out (251, 246, 234, 211,
+181 at t = 0, 0.2 … 0.8 — ours an even ramp, 30 levels dark half way).
+Taking t² for every path gradient of theme colours made GeomLec1 +5.07,
+tdf94238 +3.69 and tdf114848 +2.34 and did not register on themes'
+score. What sets the curve is not known.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
