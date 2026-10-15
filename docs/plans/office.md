@@ -2432,6 +2432,13 @@ fitter dropped the paragraph's tail).
   where the level says none): zh-90e0cea8's "1　" is all SimSun.
   zh-06c46ba9 +1.1; nothing down.
 
+- **A floating chart takes its room like a picture (2026-10-14).**
+  Text wrapped round floating pictures only; a chart (kept, and drawn
+  as an empty box) was passed over, so the text ran up under it.
+  zh-37b6536f's caption stands under its 145pt chart in Word's print,
+  where ours stood 29pt into it. zh-37b6536f 30.8% -> 91.5%; nothing
+  else has one. (Charts themselves are still not drawn in documents.)
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

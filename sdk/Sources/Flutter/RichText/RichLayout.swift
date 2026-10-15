@@ -5841,7 +5841,10 @@ public final class RichLayout {
         var out: [(id: String, rect: Rect)] = []
         for image in images {
             guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil,
-                  ["paragraph", "line"].contains(float.verticalFrom), float.horizontalFrom != "page", !image.data.isEmpty else { continue }
+                  ["paragraph", "line"].contains(float.verticalFrom), float.horizontalFrom != "page",
+                  // (A chart, drawn or not, takes its room like a picture:
+                  // zh-37b6536f's caption stands under its 145pt chart.)
+                  !image.data.isEmpty || (image.textBox == nil && image.sourceXML?.containsSubstring("drawingml/2006/chart") == true) else { continue }
             out.append((image.id, _floatRect(float, image, g, i)))
         }
         return out
