@@ -50,36 +50,90 @@ enum WriterCharts {
         lock.lock()
         entries[id] = entry
         lock.unlock()
+        installHooks()
+        return true
+    }
+
+    /// Whether a chart is registered for `attachment`.
+    static func has(_ attachment: ImageAttachment) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries[attachment.id] != nil
+    }
+
+    /// Draws the chart registered for `attachment` into `rect`; false
+    /// where none is.
+    static func paint(_ attachment: ImageAttachment, _ canvas: any Canvas, _ rect: Rect, _ pxPerPt: Double) -> Bool {
+        lock.lock()
+        let entry = entries[attachment.id]
+        lock.unlock()
+        guard let entry else { return false }
+        if let fill = entry.fill {
+            let p = Paint()
+            p.style = .fill
+            p.color = fill
+            canvas.drawRect(rect, p)
+        }
+        ChartPainter.paint(entry.chart, canvas, rect, pxPerPt: pxPerPt, theme: entry.theme)
+        if let line = entry.line {
+            let p = Paint()
+            p.style = .stroke
+            p.strokeWidth = max(1, entry.lineWidth * pxPerPt)
+            p.color = line
+            canvas.drawRect(rect, p)
+        }
+        return true
+    }
+
+    /// The layout's hooks for the objects Writer draws itself: charts,
+    /// and the metafile pictures of embedded objects (`WriterMetafiles`).
+    static func installHooks() {
         if RichLayout.drawsObject == nil {
-            RichLayout.drawsObject = { attachment in
-                lock.lock()
-                defer { lock.unlock() }
-                return entries[attachment.id] != nil
-            }
+            RichLayout.drawsObject = { WriterCharts.has($0) || WriterMetafiles.has($0) }
         }
         if RichLayout.objectPainter == nil {
             RichLayout.objectPainter = { attachment, canvas, rect, pxPerPt in
-                lock.lock()
-                let entry = entries[attachment.id]
-                lock.unlock()
-                guard let entry else { return false }
-                if let fill = entry.fill {
-                    let p = Paint()
-                    p.style = .fill
-                    p.color = fill
-                    canvas.drawRect(rect, p)
-                }
-                ChartPainter.paint(entry.chart, canvas, rect, pxPerPt: pxPerPt, theme: entry.theme)
-                if let line = entry.line {
-                    let p = Paint()
-                    p.style = .stroke
-                    p.strokeWidth = max(1, entry.lineWidth * pxPerPt)
-                    p.color = line
-                    canvas.drawRect(rect, p)
-                }
-                return true
+                WriterCharts.paint(attachment, canvas, rect, pxPerPt) || WriterMetafiles.paint(attachment, canvas, rect)
             }
         }
+    }
+}
+
+/// Metafile pictures in Writer: an embedded object (`w:object`, an OLE
+/// package or document) shows the WMF or EMF its `v:imagedata` names —
+/// the icon and its caption, or the first page of the document. No image
+/// codec reads those, so the object printed as nothing (tika-3388's
+/// "約翰的測試文件 .msg", WordWithAttachments' five attachments). Played
+/// by Slides' player, by the attachment's id; the bitmaps a metafile
+/// carries are not drawn here.
+enum WriterMetafiles {
+    private nonisolated(unsafe) static var entries: [String: Metafile] = [:]
+    private static let lock = NSLock()
+
+    /// Plays `data` for the object attachment `id`; false where it is no
+    /// metafile this can draw.
+    @discardableResult
+    static func register(_ data: Data, for id: String) -> Bool {
+        guard let played = Metafile(data, id: id) else { return false }
+        lock.lock()
+        entries[id] = played
+        lock.unlock()
+        WriterCharts.installHooks()
+        return true
+    }
+
+    static func has(_ attachment: ImageAttachment) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries[attachment.id] != nil
+    }
+
+    static func paint(_ attachment: ImageAttachment, _ canvas: any Canvas, _ rect: Rect) -> Bool {
+        lock.lock()
+        let played = entries[attachment.id]
+        lock.unlock()
+        guard let played else { return false }
+        played.paint(canvas, in: rect, image: { _ in nil }, font: OfficeFonts.substitute)
         return true
     }
 }

@@ -2642,6 +2642,13 @@ enum DocxFormat {
                     att.textBox = box
                 }
             }
+            // An embedded object's picture, a WMF or EMF its VML names
+            // (`WriterMetafiles`): the icon and caption of an attached
+            // file, or the first page of a document.
+            if att.textBox == nil, let rid = node.descendant("v:imagedata")?["r:id"], let rel = notes.rels[rid], !rel.external,
+               let data = notes.part(_resolvePath("word", rel.target)) {
+                WriterMetafiles.register(data, for: att.id)
+            }
             // A chart: its part read and drawn as Slides does one
             // (`WriterCharts`), in the document's theme.
             if let rid = node.descendant("c:chart")?["r:id"], let rel = notes.rels[rid], !rel.external,

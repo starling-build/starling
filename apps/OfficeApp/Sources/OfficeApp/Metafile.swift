@@ -387,7 +387,11 @@ private struct Player {
         if let r = opaque {
             steps.append(.fill(rect(r.left, r.top, r.right, r.bottom), dc.bkColor))
         }
-        let shown = Self.symbols(string.filter { $0 != "\0" }, face: dc.font.face)
+        // (Half of a surrogate pair, split over two records, decodes as a
+        // replacement mark: tika-3388's attachment caption carries one at
+        // the end of one line and the start of the next, and Word draws
+        // neither.)
+        let shown = Self.symbols(string.filter { $0 != "\0" && $0 != "\u{FFFD}" }, face: dc.font.face)
         guard !shown.isEmpty, !shown.allSatisfy({ $0 == " " }) else { return }
         // lfHeight below zero is the character height; above, the cell's
         // (ascent and descent, a sixth or so more than the size).

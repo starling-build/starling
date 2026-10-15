@@ -3625,6 +3625,19 @@ fitter dropped the paragraph's tail).
   page-tall box. 60316 81.8 -> 97.0; nothing else moved. Groups whose
   boxes stand side by side or differ in width are left as before
   (shapes-with-text).
+- **An embedded object shows its metafile (2026-10-15).** An embedded
+  object (`w:object`: an attached file, a sheet, a document) is drawn by
+  the WMF or EMF its `v:imagedata` names, played by Slides' metafile
+  player (`WriterMetafiles`, through `RichLayout.objectPainter`, which it
+  now shares with `WriterCharts`). Writer drew no metafile at all, so
+  these printed as grey boxes or nothing. tika-3388's attachment icon
+  and caption, "約翰的測試文件 .msg", is a whole page. Its EMF splits a
+  surrogate pair over two text records, and the halves decoded as
+  replacement marks that Word does not draw. They are now dropped.
+  The bitmaps a metafile carries, such as an attachment's icon, are not
+  drawn yet. tika-3388 0 -> 100, EmbeddedDocument 50 -> 100,
+  WordWithAttachments 0 -> 2.6 (Word printed it with its comment
+  balloons); nothing down. Five documents carry metafiles.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the
