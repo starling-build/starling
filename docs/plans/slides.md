@@ -1250,6 +1250,17 @@ The blend of the two colours by share stands for the fill wherever a
 single colour is wanted. (The other moves in this sweep — table decks
 ±0.1 — come from the Writer session's shared table changes, not this.)
 
+**Medium Style 2 in every colour, 2026-10-15** (sweep 73: 1.7353 →
+1.7284%; predefined-table-style 3.83 → 0.57, tdf149785 3.04 → 2.53;
+nothing worse). A table that names a built-in style its deck does not
+define was drawn in a guess: Medium Style 2 in the first accent. The
+style's seven colourings (dk1 and the six accents) are built in now
+(`PptxTemplates.mediumStyle2`, by their ids), so predefined-table-style's
+`{073A0DAA…}` comes out black and grey as PowerPoint draws it, and the
+first-accent one follows the style itself (tdf149785's emphasised
+edges). Other built-in families (Light, Medium 1/3/4, Dark, Themed) are
+still the guess.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

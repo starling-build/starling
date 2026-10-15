@@ -233,7 +233,47 @@ struct PptxTemplates {
     /// has been seen to need, each as PowerPoint draws it.
     static let builtinTableStyles: [String: String] = [
         "{3B4B98B0-60AC-42C2-AFA5-B58CD77FA1E5}": "<a:tblStyle xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" styleId=\"{3B4B98B0-60AC-42C2-AFA5-B58CD77FA1E5}\" styleName=\"Light Style 1 - Accent 1\"><a:wholeTbl><a:tcTxStyle><a:fontRef idx=\"minor\"><a:scrgbClr r=\"0\" g=\"0\" b=\"0\"/></a:fontRef><a:schemeClr val=\"tx1\"/></a:tcTxStyle><a:tcStyle><a:tcBdr><a:left><a:ln><a:noFill/></a:ln></a:left><a:right><a:ln><a:noFill/></a:ln></a:right><a:top><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></a:ln></a:top><a:bottom><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></a:ln></a:bottom><a:insideH><a:ln><a:noFill/></a:ln></a:insideH><a:insideV><a:ln><a:noFill/></a:ln></a:insideV></a:tcBdr><a:fill><a:noFill/></a:fill></a:tcStyle></a:wholeTbl><a:band1H><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val=\"accent1\"><a:alpha val=\"20000\"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:band1H><a:band2H><a:tcStyle><a:tcBdr/></a:tcStyle></a:band2H><a:band1V><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val=\"accent1\"><a:alpha val=\"20000\"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:band1V><a:band2V><a:tcStyle><a:tcBdr/></a:tcStyle></a:band2V><a:lastCol><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr/></a:tcStyle></a:lastCol><a:firstCol><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr/></a:tcStyle></a:firstCol><a:lastRow><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr><a:top><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></a:ln></a:top></a:tcBdr><a:fill><a:noFill/></a:fill></a:tcStyle></a:lastRow><a:firstRow><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr><a:bottom><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"accent1\"/></a:solidFill></a:ln></a:bottom></a:tcBdr><a:fill><a:noFill/></a:fill></a:tcStyle></a:firstRow></a:tblStyle>",
-    ]
+    ].merging(mediumStyle2, uniquingKeysWith: { a, _ in a })
+
+    /// Medium Style 2 in each colour PowerPoint offers it in: a deck that
+    /// names one and does not define it is drawn in that colour, not the
+    /// first accent's (predefined-table-style's black header and grey
+    /// bands, `{073A0DAA…}`), and as the style says rather than as the
+    /// guess for an undefined style (tdf149785's emphasised edges). The
+    /// style as PowerPoint writes it: white rules, the colour at 20% tint
+    /// over the table and 40% on alternate bands, the header and
+    /// emphasised edges solid.
+    static let mediumStyle2: [String: String] = {
+        let variants = [
+            "{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}": ("Medium Style 2", "dk1"),
+            "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}": ("Medium Style 2 - Accent 1", "accent1"),
+            "{21E4AEA4-8DFA-4A89-87EB-49C32662AFE8}": ("Medium Style 2 - Accent 2", "accent2"),
+            "{F5AB1C69-6EDB-4FF4-983F-18BD219EF322}": ("Medium Style 2 - Accent 3", "accent3"),
+            "{00A15C55-8517-42AA-B614-E9B94910E393}": ("Medium Style 2 - Accent 4", "accent4"),
+            "{7DF18680-E054-41AD-8BC1-D1AEF772440D}": ("Medium Style 2 - Accent 5", "accent5"),
+            "{93296810-A885-4BE3-A3E7-6D5BEEA58F35}": ("Medium Style 2 - Accent 6", "accent6"),
+        ]
+        var out: [String: String] = [:]
+        for (id, (name, c)) in variants {
+            let rule = "<a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"lt1\"/></a:solidFill></a:ln>"
+            let thick = "<a:ln w=\"38100\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"lt1\"/></a:solidFill></a:ln>"
+            let light = "<a:tcTxStyle b=\"on\"><a:fontRef idx=\"minor\"><a:prstClr val=\"black\"/></a:fontRef><a:schemeClr val=\"lt1\"/></a:tcTxStyle>"
+            let solid = "<a:fill><a:solidFill><a:schemeClr val=\"\(c)\"/></a:solidFill></a:fill>"
+            func tint(_ t: Int) -> String { "<a:fill><a:solidFill><a:schemeClr val=\"\(c)\"><a:tint val=\"\(t)\"/></a:schemeClr></a:solidFill></a:fill>" }
+            out[id] = "<a:tblStyle xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" styleId=\"\(id)\" styleName=\"\(name)\">"
+                + "<a:wholeTbl><a:tcTxStyle><a:fontRef idx=\"minor\"><a:prstClr val=\"black\"/></a:fontRef><a:schemeClr val=\"dk1\"/></a:tcTxStyle>"
+                + "<a:tcStyle><a:tcBdr><a:left>\(rule)</a:left><a:right>\(rule)</a:right><a:top>\(rule)</a:top><a:bottom>\(rule)</a:bottom>"
+                + "<a:insideH>\(rule)</a:insideH><a:insideV>\(rule)</a:insideV></a:tcBdr>\(tint(20000))</a:tcStyle></a:wholeTbl>"
+                + "<a:band1H><a:tcStyle><a:tcBdr/>\(tint(40000))</a:tcStyle></a:band1H><a:band2H><a:tcStyle><a:tcBdr/></a:tcStyle></a:band2H>"
+                + "<a:band1V><a:tcStyle><a:tcBdr/>\(tint(40000))</a:tcStyle></a:band1V><a:band2V><a:tcStyle><a:tcBdr/></a:tcStyle></a:band2V>"
+                + "<a:lastCol>\(light)<a:tcStyle><a:tcBdr/>\(solid)</a:tcStyle></a:lastCol>"
+                + "<a:firstCol>\(light)<a:tcStyle><a:tcBdr/>\(solid)</a:tcStyle></a:firstCol>"
+                + "<a:lastRow>\(light)<a:tcStyle><a:tcBdr><a:top>\(thick)</a:top></a:tcBdr>\(solid)</a:tcStyle></a:lastRow>"
+                + "<a:firstRow>\(light)<a:tcStyle><a:tcBdr><a:bottom>\(thick)</a:bottom></a:tcBdr>\(solid)</a:tcStyle></a:firstRow>"
+                + "</a:tblStyle>"
+        }
+        return out
+    }()
 
     static func core() -> String {
         let now = OfficeDates.iso8601(Date())

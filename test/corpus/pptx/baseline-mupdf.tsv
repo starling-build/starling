@@ -53,7 +53,7 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=3.81% mean=3.81%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=22.28% mean=7.12%
+customGeo.pptx	summary pages=48 worst=22.28% mean=7.11%
 ececapstonespring2012.pptx	summary pages=24 worst=3.28% mean=1.99%
 highlight-test-case.pptx	summary pages=1 worst=0.96% mean=0.96%
 layouts.pptx	summary pages=10 worst=1.59% mean=0.65%
@@ -166,7 +166,7 @@ lo-paraMarginAndIndentation.pptx	summary pages=1 worst=0.14% mean=0.14%
 lo-pic-placeholder-with-text.pptx	summary pages=1 worst=0.62% mean=0.62%
 lo-picture-placeholder-custom-prompt.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-picture-placeholder-one-layout.pptx	summary pages=1 worst=0.58% mean=0.58%
-lo-predefined-table-style.pptx	summary pages=1 worst=3.83% mean=3.83%
+lo-predefined-table-style.pptx	summary pages=1 worst=0.57% mean=0.57%
 lo-pres-with-notes.pptx	summary pages=2 worst=0.00% mean=0.00%
 lo-presLeftAlign.pptx	summary pages=1 worst=0.14% mean=0.14%
 lo-presetDashDot.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -370,7 +370,7 @@ lo-tdf149551_SmartArt_Pyramid.pptx	summary pages=1 worst=1.33% mean=1.33%
 lo-tdf149551_SmartArt_Venn.pptx	summary pages=1 worst=0.70% mean=0.70%
 lo-tdf149588_transparentSolidFill.pptx	summary pages=1 worst=0.33% mean=0.33%
 lo-tdf149697.pptx	summary pages=1 worst=0.10% mean=0.10%
-lo-tdf149785.pptx	summary pages=1 worst=3.04% mean=3.04%
+lo-tdf149785.pptx	summary pages=1 worst=2.53% mean=2.53%
 lo-tdf149803.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf149865.pptx	summary pages=1 worst=1.32% mean=1.32%
 lo-tdf149961-autofitIndentation.pptx	summary pages=1 worst=0.45% mean=0.45%
