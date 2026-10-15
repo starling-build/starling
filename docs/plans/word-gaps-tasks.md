@@ -550,3 +550,20 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   - zh-84702a67 p3: Word's ideograph–digit automatic space is 3.1pt at
     10.5pt (0.295 em) on a line whose runs mix 10.5 and 16pt; ours 2.6,
     so the line squeezes three marks to take one ideograph Word leaves.
+- Windows box, 2026-10-15, leads for whoever takes them (shapes and
+  rows are the Mac's ground now): 60316 (84.8%) — its address block is
+  the second text box of a drawing group (`wpg:wgp`, "Text Box 12" at
+  y 4429125 EMU in the group); the reader takes only the first
+  `w:txbxContent` of a drawing, so the group's other boxes are never
+  read (shapes-with-text's "Where some contain text" too).
+  bug57031 p12 — its two-line "Note:" row (an HTML table with 15-twip
+  cell spacing and margins) goes whole to page 12 in Word and parts 1+1
+  in ours; and Word sets that table's first-column text exactly at the
+  margin (72.0), where a lab table of the same spacing and margins
+  (`cso`, any compat mode) sets it m + 2s + half a line in. zh-2b955411
+  — three cells of `w:textDirection` tbLrV/tbRlV (upright stacked
+  ideographs), read as horizontal or turned. PageSpecificHeadFoot p2 —
+  its footer's table floats (`w:tblpPr`, 1 twip under the paragraph
+  after it) and hangs below the footer's text in Word; ours lays it in
+  the flow above. zh-90e0cea8 p1 — a standard's cover of body frames
+  (page- and margin-anchored), laid in the flow by ours.
