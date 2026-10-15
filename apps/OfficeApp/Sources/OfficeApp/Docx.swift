@@ -1340,6 +1340,9 @@ enum DocxFormat {
                 if let hit = read[path] { return hit }
                 read[path] = []
                 guard let data = part(path), let node = XNode.parse(data) else { return [] }
+                // (Their theme font references too: zh-a4b0f6ea's page
+                // numbers are `majorEastAsia`, 宋体, in a footer.)
+                _resolveThemeFonts(node, theme)
                 var comps = path.split(separator: "/").map(String.init)
                 let file = comps.popLast() ?? ""
                 let dir = comps.joined(separator: "/")
@@ -1382,6 +1385,7 @@ enum DocxFormat {
         var footnoteParagraphs: [Int: [RichParagraph]] = [:]
         var footnoteSeparator: [RichParagraph] = []
         if notes.footnotes, let data = part("word/footnotes.xml"), let root = XNode.parse(data) {
+            _resolveThemeFonts(root, theme)
             let bodyParagraphs = paragraphs, bodyRels = rels, bodyInfo = notes.rels
             rels = [:]
             var info: [String: KeptRel] = [:]
@@ -2142,16 +2146,54 @@ enum DocxFormat {
         return kept
     }
 
-    /// The theme's major and minor Latin faces, for the theme font
-    /// references runs and styles make.
-    private static func _themeFonts(_ entries: [ZipEntry]) -> (major: String?, minor: String?) {
+    /// The theme's faces, for the theme font references runs and styles
+    /// make: each of major and minor, its Latin face and its East Asian
+    /// one. A theme's `a:ea` is usually empty, and Word then takes the
+    /// face the theme lists for the document's East Asian script
+    /// (`w:themeFontLang w:eastAsia`, zh-CN → `Hans`): zh-a4b0f6ea's page
+    /// numbers say `asciiTheme="majorEastAsia"`, which is 宋体 there —
+    /// Word's print sets their digits in SimSun — where ours took the
+    /// major Latin face.
+    struct ThemeFonts {
+        var major: String?
+        var minor: String?
+        var majorEastAsia: String?
+        var minorEastAsia: String?
+        var isEmpty: Bool { major == nil && minor == nil && majorEastAsia == nil && minorEastAsia == nil }
+        /// The face a reference (`minorHAnsi`, `majorEastAsia`, …) names.
+        func face(_ ref: String) -> String? {
+            let major = ref.hasPrefix("major")
+            if ref.hasSuffix("EastAsia") { return major ? majorEastAsia : minorEastAsia }
+            if ref.hasSuffix("Bidi") { return nil }
+            return major ? self.major : minor
+        }
+    }
+
+    private static func _themeFonts(_ entries: [ZipEntry]) -> ThemeFonts {
         guard let e = entries.first(where: { $0.name.hasPrefix("word/theme/") && $0.name.hasSuffix(".xml") }),
-              let root = XNode.parse(e.data), let scheme = root.descendant("a:fontScheme") else { return (nil, nil) }
-        func face(_ name: String) -> String? {
+              let root = XNode.parse(e.data), let scheme = root.descendant("a:fontScheme") else { return ThemeFonts() }
+        let lang = entries.first(where: { $0.name == "word/settings.xml" }).flatMap { XNode.parse($0.data) }?
+            .first("w:themeFontLang")?["w:eastAsia"]?.lowercased()
+        let script: String? = switch lang {
+        case "zh-cn", "zh-sg": "Hans"
+        case "zh-tw", "zh-hk", "zh-mo": "Hant"
+        case "ja-jp": "Jpan"
+        case "ko-kr": "Hang"
+        default: nil
+        }
+        func latin(_ name: String) -> String? {
             let f = scheme.first(name)?.first("a:latin")?["typeface"] ?? ""
             return f.isEmpty ? nil : f
         }
-        return (face("a:majorFont"), face("a:minorFont"))
+        func eastAsian(_ name: String) -> String? {
+            guard let font = scheme.first(name) else { return nil }
+            if let f = font.first("a:ea")?["typeface"], !f.isEmpty { return f }
+            guard let script else { return nil }
+            let f = font.all("a:font").first { $0["script"] == script }?["typeface"] ?? ""
+            return f.isEmpty ? nil : f
+        }
+        return ThemeFonts(major: latin("a:majorFont"), minor: latin("a:minorFont"),
+                          majorEastAsia: eastAsian("a:majorFont"), minorEastAsia: eastAsian("a:minorFont"))
     }
 
     /// Rewrites every `w:rFonts` under `node` whose ascii/hAnsi face is a
@@ -2169,14 +2211,14 @@ enum DocxFormat {
         }
     }
 
-    private static func _resolveThemeFonts(_ root: XNode, _ theme: (major: String?, minor: String?)) {
-        guard theme.major != nil || theme.minor != nil else { return }
+    private static func _resolveThemeFonts(_ root: XNode, _ theme: ThemeFonts) {
+        guard !theme.isEmpty else { return }
         var stack = [root]   // iterative: a fuzzer's tree is deeper than the call stack
         while let node = stack.popLast() {
             if node.name == "w:rFonts" {
-                for (ref, attr) in [("w:asciiTheme", "w:ascii"), ("w:hAnsiTheme", "w:hAnsi")] {
+                for (ref, attr) in [("w:asciiTheme", "w:ascii"), ("w:hAnsiTheme", "w:hAnsi"), ("w:eastAsiaTheme", "w:eastAsia")] {
                     guard let t = node.attrs[ref] else { continue }
-                    if let face = t.hasPrefix("major") ? theme.major : theme.minor { node.attrs[attr] = face }
+                    if let face = theme.face(t) { node.attrs[attr] = face }
                 }
             }
             stack.append(contentsOf: node.children)

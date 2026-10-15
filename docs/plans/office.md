@@ -3328,6 +3328,18 @@ fitter dropped the paragraph's tail).
   trigger the re-fit. So nothing is built yet: a min-width model
   without that break rule changes nothing in the one measured
   document.
+- **Theme fonts by script, and in every part (2026-10-15).** A theme
+  font reference names a slot: `majorEastAsia`/`minorEastAsia` the
+  theme's East Asian face, which is its `a:ea` or, that being empty as
+  it usually is, the face it lists for the document's East Asian script
+  (`w:themeFontLang w:eastAsia`, zh-CN → `Hans`, zh-TW → `Hant`, ja-JP,
+  ko-KR). The importer read every reference as the Latin face, so
+  `asciiTheme="majorEastAsia"` set digits in Cambria where Word's print
+  has SimSun; and it resolved none in headers, footers or footnotes.
+  Both fixed, `w:eastAsiaTheme` with them. zh-1a3c7aa0 78.0% -> 91.7;
+  nothing down. zh-a4b0f6ea's page numbers (a fit-to-text box, "— PAGE
+  —") still differ: on two-digit pages Word wraps the closing dash onto
+  a second line, as if the box kept a one-digit page's width.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
