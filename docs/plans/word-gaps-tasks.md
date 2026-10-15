@@ -230,6 +230,8 @@ Documents: 61745 (two charts, nothing else), chartex, zh-37b6536f (p3).
 Known: a chart (`c:chart` in a drawing) is kept as an empty box of its
 size. Slides reads and paints charts (`ChartXML.read`, `ChartPainter`);
 the plan is to paint them in Writer through a hook in RichLayout.
+Progress: drawn (61745 0 -> 15/17 lines, zh-37b6536f 31% -> 96%).
+Left: `cx:` charts (chartex), a pie's automatic title.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.

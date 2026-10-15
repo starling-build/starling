@@ -2276,6 +2276,13 @@ enum DocxFormat {
                     att.textBox = box
                 }
             }
+            // A chart: its part read and drawn as Slides does one
+            // (`WriterCharts`), in the document's theme.
+            if let rid = node.descendant("c:chart")?["r:id"], let rel = notes.rels[rid], !rel.external,
+               let data = notes.part(_resolvePath("word", rel.target)), let space = XNode.parse(data) {
+                let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
+                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
+            }
             return att
         }
         func addImage(_ drawing: XNode) {

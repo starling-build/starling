@@ -2288,6 +2288,18 @@ fitter dropped the paragraph's tail).
   (its score moves little: the lines were at the right heights); the
   pattern is in no other document of the sample.
 
+- **Charts are drawn (2026-10-14).** A chart in a .docx (`c:chart` in a
+  drawing) was kept as an empty box of its size. Its part is now read
+  as Slides reads one (`ChartXML.read`, against the document's theme)
+  and drawn by Slides' painter, with the chart area's own fill and
+  border, through a hook the layout calls for an object it cannot draw
+  (`RichLayout.objectPainter`; `drawsObject` lets such an object float
+  and be wrapped round as a picture is). `WriterCharts`. 61745 (two
+  charts and nothing else) 0 -> 15 of Word's 17 lines; zh-37b6536f
+  30.8% -> 96.2%, its page-3 pie now where Word's is and the text
+  below it. Not yet: Word 2016's `cx:` charts (chartex), and a pie's
+  automatic title ("Series 1" where Word's print says "Chart Title").
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

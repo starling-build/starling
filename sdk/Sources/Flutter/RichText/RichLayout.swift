@@ -4821,16 +4821,35 @@ public final class RichLayout {
 
     // MARK: Pictures
 
-    /// A kept shape's line or box (`ImageAttachment.outline`), in `rect`.
-    private func _paintOutline(_ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas) {
-        guard theme.wordRules, let outline = image.outline else { return }
+    /// Draws an object the layout keeps but cannot draw itself (a chart),
+    /// in its box: the attachment, the canvas, the box (px) and pixels per
+    /// point; true where it drew it. Process-wide, like
+    /// `RichTextTheme.glyphFallback`: an app answers for the kinds of
+    /// object it knows.
+    public nonisolated(unsafe) static var objectPainter: ((ImageAttachment, any Canvas, Rect, Double) -> Bool)? = nil
+    /// Whether `objectPainter` draws an object: one it draws floats and
+    /// is wrapped round as a picture is (`_wrapBoxes`).
+    public nonisolated(unsafe) static var drawsObject: ((ImageAttachment) -> Bool)? = nil
+
+    /// A kept shape's line or box (`ImageAttachment.outline`), in `rect`
+    /// — or what `objectPainter` draws for it, and then true.
+    @discardableResult
+    private func _paintOutline(_ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas) -> Bool {
+        guard theme.wordRules else { return false }
+        var drawn = false
+        if image.data.isEmpty, let paint = Self.objectPainter {
+            canvas.save()
+            drawn = paint(image, canvas, rect, theme.pixelsPerPoint * scale)
+            canvas.restore()
+        }
+        guard let outline = image.outline else { return drawn }
         if outline.kind == .box, let fill = outline.fill {
             let paint = Paint()
             paint.style = .fill
             paint.color = fill
             canvas.drawRect(rect, paint)
         }
-        guard let color = outline.color else { return }
+        guard let color = outline.color else { return drawn }
         let stroke = Paint()
         stroke.style = .stroke
         stroke.strokeWidth = max(1, _px(outline.width))
@@ -4840,6 +4859,7 @@ public final class RichLayout {
         case .line:
             canvas.drawLine(outline.flipped ? rect.bottomLeft : rect.topLeft, outline.flipped ? rect.topRight : rect.bottomRight, stroke)
         }
+        return drawn
     }
 
     /// Whether a picture of the document — the body's, a header's or
@@ -5386,7 +5406,7 @@ public final class RichLayout {
         if part == .rules { return }
         if theme.wordRules, i < document.paragraphs.count, document.paragraphs[i].style.lineCollapsed, document.paragraphs[i].image == nil { return }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
-            if _decoded[image.id] == nil { _paintOutline(image, box, canvas) }
+            let drawn = _decoded[image.id] == nil && _paintOutline(image, box, canvas)
             if let decoded = _decoded[image.id] {
                 _drawPicture(decoded, image, box, canvas)
             } else if let inside = _textBox(image, document), let text = image.textBox {
@@ -5396,7 +5416,7 @@ public final class RichLayout {
                 inside.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: inside.document,
                                     selection: nil, caret: nil)
                 canvas.restore()
-            } else if !(theme.wordRules && image.float.map({ !$0.takesRoom }) == true) {
+            } else if !drawn, !(theme.wordRules && image.float.map({ !$0.takesRoom }) == true) {
                 // (No stand-in for a floating object the editor cannot
                 // draw: it would lie over the text it floats beside.)
                 let paint = Paint()
@@ -5858,8 +5878,10 @@ public final class RichLayout {
             guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil,
                   ["paragraph", "line"].contains(float.verticalFrom), float.horizontalFrom != "page",
                   // (A chart, drawn or not, takes its room like a picture:
-                  // zh-37b6536f's caption stands under its 145pt chart.)
-                  !image.data.isEmpty || (image.textBox == nil && image.sourceXML?.containsSubstring("drawingml/2006/chart") == true) else { continue }
+                  // zh-37b6536f's caption stands under its 145pt chart; so
+                  // does any object the app draws, `drawsObject`.)
+                  !image.data.isEmpty || Self.drawsObject?(image) == true
+                    || (image.textBox == nil && image.sourceXML?.containsSubstring("drawingml/2006/chart") == true) else { continue }
             out.append((image.id, _floatRect(float, image, g, i)))
         }
         return out
