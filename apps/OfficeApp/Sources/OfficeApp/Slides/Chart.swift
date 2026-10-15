@@ -101,6 +101,11 @@ struct Chart: Equatable {
     /// them (`c:catAx/c:txPr`); nil is the default, 12.
     var categoryLabelSize: Double? = nil
     var categoryLabelBold = false
+    /// The turn the file gives the category labels (`c:txPr/a:bodyPr rot`),
+    /// degrees, anticlockwise positive: 45 for aascu 5864's country names.
+    /// nil where it gives none, and the labels are set aslant only when
+    /// they do not fit.
+    var categoryLabelTurn: Double? = nil
     /// The value axis's number format, an Excel format code ("#,##0"),
     /// where the file gives one other than General: the axis's own, or —
     /// "linked to source" — the one its first series' numbers came with.
@@ -402,6 +407,10 @@ enum ChartXML {
         if let run = categoryAxis?.first("c:txPr")?.descendant("a:defRPr") {
             if let sz = run["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.categoryLabelSize = sz / 100 }
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
+        }
+        // (-60000000 is the charts' "automatic", PowerPoint's own default.)
+        if let rot = categoryAxis?.first("c:txPr")?.first("a:bodyPr")?["rot"].flatMap(Double.init), abs(rot) <= 5_400_000 {
+            c.categoryLabelTurn = -rot / 60000
         }
         c.pointColors = pointColors
         let styleNode = space.first("c:style") ?? space.first("mc:AlternateContent")?.first("mc:Fallback")?.first("c:style")
@@ -921,14 +930,45 @@ enum ChartPainter {
         if let placed, !c.plotLayoutInner { area = placed }
         // Tick labels: values along one axis, categories (or x values) along the other.
         let catSize = c.categoryLabelSize ?? c.textSize ?? 12
-        let catLabels: [TextPainter]
+        var catLabels: [TextPainter]
+        // Categories too long for their slot even word by word are set
+        // aslant, a quarter of a right angle up to the right and ending
+        // at their tick, as PowerPoint sets them (aascu 5864's country
+        // names); we had broken them inside words.
+        var aslant = false
+        var slant = Double.pi / 4
         if c.type == .scatter {
             catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { categoryText(label($0, percent: false), catSize, .infinity) }
         } else {
             let along = placed.flatMap { c.plotLayoutInner ? $0 : nil } ?? area
             let slot = (horizontal ? along.height : along.width) / Double(n)
             catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? area.width * 0.3 : max(slot - 2 * k, 8 * k)) }
+            if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
+                // As the file says: turned (up to a quarter, either way) or
+                // level.
+                if turn != 0 {
+                    aslant = true
+                    slant = min(90, abs(turn)) * .pi / 180
+                    for t in catLabels { t.dispose() }
+                    catLabels = c.categories.map { categoryText($0, catSize, .infinity) }
+                }
+            } else if !horizontal, c.type != .area, !c.categoryAxisDeleted {
+                let room = max(slot - 2 * k, 8 * k)
+                let words = c.categories.flatMap { $0.split(separator: " ").map(String.init) }
+                let widest = words.map { w -> Double in
+                    let t = categoryText(w, catSize, .infinity)
+                    defer { t.dispose() }
+                    return t.width
+                }.max() ?? 0
+                if widest > room {
+                    aslant = true
+                    for t in catLabels { t.dispose() }
+                    catLabels = c.categories.map { categoryText($0, catSize, .infinity) }
+                }
+            }
         }
+        // An aslant label's drop below its tick.
+        func drop(_ t: TextPainter) -> Double { t.width * sin(slant) + t.height * cos(slant) }
         let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step * 1e-6, by: sc.step))
         // In the axis's own number format where it has one: "1,600", and
         // an accounting format's "-" for nought. (Its padding is a cell's.)
@@ -946,7 +986,8 @@ enum ChartPainter {
                                  area.bottom - lineH - 4 * k)
         } else {
             var left = (valueLabels.map(\.width).max() ?? 0) + 8.5 * k
-            let bottom = (catLabels.map(\.height).max() ?? lineH) + 7.6 * k
+            let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
+            let bottom = tallest + 7.6 * k
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -1006,7 +1047,16 @@ enum ChartPainter {
             let slot = plot.width / Double(n)
             for (i, tp) in catLabels.enumerated() {
                 let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
-                tp.paint(canvas, Offset(cx - tp.width / 2, plot.bottom + 7.6 * k))
+                if aslant {
+                    // Its end's middle at the tick, the rest down to the left.
+                    canvas.save()
+                    canvas.translate(cx, plot.bottom + 7.6 * k)
+                    canvas.rotate(-slant)
+                    tp.paint(canvas, Offset(-tp.width, -tp.height / 2))
+                    canvas.restore()
+                } else {
+                    tp.paint(canvas, Offset(cx - tp.width / 2, plot.bottom + 7.6 * k))
+                }
             }
         }
         for t in valueLabels + catLabels { t.dispose() }

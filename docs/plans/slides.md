@@ -1261,6 +1261,18 @@ first-accent one follows the style itself (tdf149785's emphasised
 edges). Other built-in families (Light, Medium 1/3/4, Dark, Themed) are
 still the guess.
 
+**Aslant category labels, 2026-10-15** (aascu 5864 9.84 → 9.80; its
+census and OECD charts 16.5 → 15.5 a page). A column chart's category
+labels that did not fit their slot were wrapped, and a word wider than
+the slot broken inside itself ("Mexi / co"). The axis's `c:txPr/a:bodyPr
+rot` is read now (`Chart.categoryLabelTurn`; -60000000 is the charts'
+"automatic" and reads as none): a turn sets the labels aslant, each
+ending at its tick and running down to the left, the plot raised by
+their drop. With no turn given they are set at 45° when a single word
+of one is wider than its slot, as PowerPoint does. Left: the labels'
+own colour (the file's black, ours grey), the bars' outline
+(`ser/spPr/a:ln`), and the plot area's border.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
