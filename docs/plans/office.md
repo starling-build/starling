@@ -2796,6 +2796,15 @@ fitter dropped the paragraph's tail).
   zh-4b8e0abc's "同" went down a line as in Word's print, onto a page
   already a line long — 89.7 until the comma.)
 
+- **A picture paragraph's picture stands where the paragraph aligns it
+  (2026-10-15).** A paragraph of one picture is the editor's picture
+  paragraph, and its picture was set at the text's left whatever the
+  paragraph's alignment. zh-9c5d0c3f's road signs are centred in their
+  cells in Word's print (jc center), at the cells' left in ours. A
+  picture now stands centred or to the right as its paragraph says
+  (one wider than its line keeps to the left). No text line moves by
+  it.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

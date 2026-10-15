@@ -662,6 +662,9 @@ public final class RichLayout {
     private var _decoded: [String: Image] = [:]
     private var _decoding: Set<String> = []
     private var _imageSize: [Size?] = []
+    /// How far a picture paragraph's picture stands in from its text's
+    /// left, as the paragraph aligns it (pixels).
+    private var _imageShift: [Double] = []
     /// Per paragraph, its inline pictures in placeholder order.
     private var _inline: [[ImageAttachment]] = []
     /// A picture paragraph's float, when its picture is anchored.
@@ -887,6 +890,7 @@ public final class RichLayout {
     private func _resize(_ n: Int) {
         _painters = Array(repeating: nil, count: n)
         _imageSize = Array(repeating: nil, count: n)
+        _imageShift = Array(repeating: 0, count: n)
         _inline = Array(repeating: [], count: n)
         _floats = Array(repeating: nil, count: n)
         _floatImages = Array(repeating: nil, count: n)
@@ -953,6 +957,7 @@ public final class RichLayout {
                 let at = min(at, _painters.count)
                 _painters.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _imageSize.insert(contentsOf: Array(repeating: nil, count: n), at: at)
+                _imageShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inline.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _floats.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _floatImages.insert(contentsOf: Array(repeating: nil, count: n), at: at)
@@ -985,6 +990,7 @@ public final class RichLayout {
                 for i in at ..< end { _painters[i]?.dispose() }
                 _painters.removeSubrange(at ..< end)
                 _imageSize.removeSubrange(at ..< end)
+                _imageShift.removeSubrange(at ..< end)
                 _inline.removeSubrange(at ..< end)
                 _floats.removeSubrange(at ..< end)
                 _floatImages.removeSubrange(at ..< end)
@@ -3908,6 +3914,11 @@ public final class RichLayout {
             // (A table nested in a cell: as tall as it lays out.)
             if image.textBox?.growsToFit == true, let inside = _textBox(image, document) { h = inside.height }
             _imageSize[i] = Size(w.rounded(), h.rounded())
+            // (Where its paragraph sets it: zh-9c5d0c3f's road signs stand
+            // in the middle of their cells in Word's print, at the cells'
+            // left in ours. One wider than the line keeps to its left.)
+            let spare = theme.wordRules ? max(0, textWidth - w.rounded()) : 0
+            _imageShift[i] = style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0
             // A floating object stands clear of the flow: its paragraph
             // is the height of its (empty) line, as Word sets it.
             if theme.wordRules, let float = image.float, !float.takesRoom {} else { bodyHeight = h.rounded() }
@@ -3917,6 +3928,7 @@ public final class RichLayout {
             _ensureDecoded(image)
         } else {
             _imageSize[i] = nil
+            _imageShift[i] = 0
         }
         // A line holding a picture keeps to the line grid too: as many
         // whole pitches as it needs, the rest above the picture. (The
@@ -6064,7 +6076,8 @@ public final class RichLayout {
             return _floatRect(float, image, g, i)
         }
         // (Lower by its line's grid extra, `_layoutParagraph`.)
-        return Rect.fromLTWH(g.textLeft, g.inkTop, size.width, size.height)
+        // (And in from its left as its paragraph aligns it.)
+        return Rect.fromLTWH(g.textLeft + (i < _imageShift.count ? _imageShift[i] : 0), g.inkTop, size.width, size.height)
     }
 
     // MARK: Geometry queries (call ensureLaidOut first)
