@@ -169,7 +169,7 @@ Known: `word/fonts/*.odttf`, obfuscated with the `w:fontKey` GUID
 face model.
 
 ### T9. Nested tables with hidden text
-Owner: —
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-15
 Documents: zh-454e2e29 (49%), row 2.
 
 ### T10. A section of one empty paragraph: a page or none? — DONE (2026-10-14)
