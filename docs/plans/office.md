@@ -2721,6 +2721,17 @@ fitter dropped the paragraph's tail).
   carried the Mac's b18da088 and 95d61f1d: bib-chernigovka 0 -> 91.7,
   zh-15728c84 91.5 -> 94.0).
 
+- **A cell's own margins (2026-10-15).** The reader kept a cell's
+  `w:tcMar` for the save only; the layout set every cell at the
+  table's margins, or at those most of its cells carry. zh-6cd1befe's
+  list of emergency departments narrows a few cells' margins to 51
+  twips where the table says 108, and "生物灾害指因病" at 10pt fills
+  their 70.5pt lines in Word's print; ours held six characters. A cell
+  that states margins now has them, over the table's. zh-91e44bcb 95.7%
+  -> 96.4, zh-37b6536f 96.9 -> 97.7; zh-6cd1befe's page 48 rows as
+  Word's, the last one then ending beside its footer's page number
+  (next entry).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

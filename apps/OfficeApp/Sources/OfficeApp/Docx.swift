@@ -1175,6 +1175,15 @@ enum DocxFormat {
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         currentCell?.bordersXML = tcPr?.first("w:tcBorders").map { PptxXML.serialize($0) }
                         currentCell?.marginsXML = tcPr?.first("w:tcMar").map { PptxXML.serialize($0) }
+                        // (Its own margins, over the table's: zh-6cd1befe's
+                        // list of emergency departments narrows its cells'
+                        // margins to 51 twips where the table says 108, and
+                        // "生物灾害指因病" at 10pt fills its 70.5pt line in
+                        // Word's print; at the table's margins ours held six.)
+                        if tcPr?.first("w:tcMar") != nil {
+                            let m = _cellMargins(tcPr, "w:tcMar").under(margins)
+                            currentCell?.padding = EdgeInsets(left: m.left ?? 5.4, top: m.top ?? 0, right: m.right ?? 5.4, bottom: m.bottom ?? 0)
+                        }
                         let keptCell = ["w:noWrap", "w:tcFitText", "w:hideMark"].compactMap { tcPr?.first($0) }.map { PptxXML.serialize($0) }.joined()
                         currentCell?.keptPropertiesXML = keptCell.isEmpty ? nil : keptCell
                         if let grid = tableColumns[id], column + span <= grid.count {
