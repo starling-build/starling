@@ -2565,6 +2565,16 @@ fitter dropped the paragraph's tail).
   79.3% -> 82.5%, bug57031 14.7 -> 24.2, chartex 7.0 -> 32.4; nothing
   down.
 
+- **Every zero-width character the layout puts in is in the Latin
+  kind's style (2026-10-14).** The rule two entries above, for the
+  break after held spaces, holds for the others too — the break before
+  an opening quote or after a closing one, before a loose word's
+  characters, the joiner in a Latin word: in the East Asian style the
+  glyph is the Latin base family's and the line grows. zh-15728c84
+  90.4% -> 90.9%; nothing down. (It is what let the `w:kinsoku` rule
+  under this one stand: with the breaks in the East Asian style every
+  line of zh-799c91cd grew to 21–22pt.)
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right

@@ -3591,6 +3591,14 @@ public final class RichLayout {
                 styles[kind] = s
                 return s
             }
+            // (A zero-width character the layout puts in — a break the
+            // engine would not make, or a joiner — in the Latin kind's
+            // style whatever the text around it: in the East Asian style
+            // its glyph is the Latin base family's, whose ascent and
+            // descent split the em otherwise than the CJK face's, and a
+            // line with both grew 0.9pt at 12pt — zh-799c91cd's held
+            // spaces, and every line with a break before a quote.)
+            func zeroWidth(_ kind: Int) -> TextStyle { style(kind < 0 ? 0 : kind) }
             var spans: [TextSpan] = []
             var start = text.startIndex
             var current: Int? = nil
@@ -3618,11 +3626,11 @@ public final class RichLayout {
                 // space before each of its characters.)
                 if loose.contains(offset) {
                     flush(i)
-                    spans.append(TextSpan(text: "\u{200B}", style: style(current ?? kind)))
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 } else if theme.wordRules, let b = before, Self._joinsLatin(b, ch) {
                     flush(i)
-                    spans.append(TextSpan(text: "\u{2060}", style: style(current ?? kind)))
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 }
                 // In East Asian text a curly quote is a full-width mark,
@@ -3645,12 +3653,12 @@ public final class RichLayout {
                     // family's, whose ascent and descent split the em
                     // otherwise than the CJK face's, and the line grew
                     // 0.9pt at 12pt — zh-799c91cd's page 1 lost a line.)
-                    spans.append(TextSpan(text: "\u{200B}", style: style(heldKind ?? current ?? kind)))
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(heldKind ?? current ?? kind)))
                     inserts.append(offset)
                     afterHeld = false
                 } else if breaksAtQuotes, let b = before, Self._breaksBetween(b, ch) {
                     flush(i)
-                    spans.append(TextSpan(text: "\u{200B}", style: style(current ?? kind)))
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 }
                 // (The opening quote's blank: a word joiner as wide as
