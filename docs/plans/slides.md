@@ -1307,6 +1307,16 @@ under the relationship `vmlDrawing` only, and Office 2007 names it
 `legacyDrawing` (in its own namespace). Both are read now, and both
 are carried on a save.
 
+**A picture's brightness, contrast and black-and-white, 2026-10-15**
+(tdf79007 1.43 → 0.20, tdf89928 1.74 → 0.86). `a:lum` and `a:biLevel`
+on a picture or picture fill were not read. They are a colour matrix
+now (`PptxReader.blipLevels`, applied with any duotone after it), fitted
+to PowerPoint's print: contrast c scales about the middle by 1 + c
+(1 / (1 − c) above nought), then brightness b blends toward white by b
+— Washout (70%, −70%) takes black to 205 — and black-and-white turns a
+pixel whose luminance is under the threshold black and the rest white
+(a 74% grey under a 75% threshold black, a 76% one white).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

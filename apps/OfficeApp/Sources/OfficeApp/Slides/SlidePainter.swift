@@ -561,7 +561,7 @@ final class SlidePainter: CustomPainter {
                     canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
                     canvas.translate(-c.dx, -c.dy)
                 }
-                canvas.drawImageRect(decoded, src, r, imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone))
+                canvas.drawImageRect(decoded, src, r, imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone, levels: shape.pictureLevels))
                 canvas.restore()
             } else {
                 let p = Paint()
@@ -952,7 +952,7 @@ final class SlidePainter: CustomPainter {
         if fill.image == nil || fill.color != nil || p.shader != nil { canvas.drawRect(r, p) }
         if let image = fill.image, let decoded = cache.image(image) {
             let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
-            let paint = imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone)
+            let paint = imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
             let tw = max(1, Double(decoded.width) * 0.75 * fill.tileScale * pxPerPt)
             let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
             // A tile larger than the area in both directions is a photo
@@ -1007,10 +1007,11 @@ final class SlidePainter: CustomPainter {
 
     /// The paint for a picture: its transparency, and a duotone as a colour
     /// matrix (luminance maps from the first colour to the second).
-    static func imagePaint(alpha: Double, duotone: [Color]?) -> Paint {
+    static func imagePaint(alpha: Double, duotone: [Color]?, levels: [Double]? = nil) -> Paint {
         let p = Paint()
         p.filterQuality = .medium
         if alpha < 1 { p.color = Color(0xFFFFFFFF).withOpacity(alpha) }
+        var matrix = levels
         if let d = duotone, d.count == 2 {
             func ch(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
             var m: [Double] = []
@@ -1019,9 +1020,24 @@ final class SlidePainter: CustomPainter {
                 m += [0.299 * k / 255, 0.587 * k / 255, 0.114 * k / 255, 0, lo]
             }
             m += [0, 0, 0, 1, 0]
-            p.colorFilter = ColorFilter(matrix: m)
+            // The levels first, then the duotone over what they give.
+            matrix = levels.map { Self.compose(m, $0) } ?? m
         }
+        if let matrix { p.colorFilter = ColorFilter(matrix: matrix) }
         return p
+    }
+
+    /// The 4×5 colour matrix that applies `b`, then `a`.
+    static func compose(_ a: [Double], _ b: [Double]) -> [Double] {
+        var out = [Double](repeating: 0, count: 20)
+        for r in 0 ..< 4 {
+            for c in 0 ..< 5 {
+                var v = c == 4 ? a[r * 5 + 4] : 0
+                for k in 0 ..< 4 { v += a[r * 5 + k] * b[k * 5 + c] }
+                out[r * 5 + c] = v
+            }
+        }
+        return out
     }
 
     /// The presets `geometryPath` draws as themselves (at their default

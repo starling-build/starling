@@ -273,6 +273,9 @@ struct SlideFill: Equatable {
     /// (`a:duotone`: the two colours luminance maps between).
     var imageAlpha = 1.0
     var duotone: [Color]? = nil
+    /// Brightness and contrast (`a:lum`) or black and white (`a:biLevel`),
+    /// as a colour matrix (`PptxReader.blipLevels`).
+    var imageLevels: [Double]? = nil
     /// `a:tile`: the picture repeats at its own size (times `tileScale`
     /// across and `tileScaleY` down) instead of stretching. One tile is
     /// put at `tileAlign` within the area — fractions of the room left
@@ -476,6 +479,8 @@ final class SlideShape {
     /// A picture's transparency and duotone recolouring, as read.
     var pictureAlpha = 1.0
     var pictureDuotone: [Color]? = nil
+    /// Brightness and contrast, or black and white, as a colour matrix.
+    var pictureLevels: [Double]? = nil
     /// PowerPoint's Set Transparent Color (`a:clrChange`): the colour of
     /// the picture that is drawn as another — in every file seen, as
     /// nothing at all — as [from, to]. Drawn for a metafile's fills,

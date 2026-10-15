@@ -668,6 +668,7 @@ struct PptxReader {
            package.parts[rel.target] != nil {
             var f = SlideFill(image: images.attachment(rel.target, package))
             (f.imageAlpha, f.duotone) = Self.blipEffects(blip, colors: colors)
+            f.imageLevels = Self.blipLevels(blip)
             // Tiled when it says so — and when it says neither that nor
             // `a:stretch`: a bare `a:blip` repeats at its own size
             // (tdf128596's sheet of ticks, which was one tick stretched).
@@ -795,6 +796,40 @@ struct PptxReader {
         guard let fr = blipFill.first("a:stretch")?.first("a:fillRect") else { return .zero }
         func v(_ k: String) -> Double { (fr[k].flatMap(Double.init) ?? 0) / 100000 }
         return EdgeInsets(left: v("l"), top: v("t"), right: v("r"), bottom: v("b"))
+    }
+
+    /// A blip's brightness and contrast (`a:lum`) or black and white
+    /// (`a:biLevel`) as a colour matrix over 0…255 channels, as
+    /// PowerPoint's print has them: contrast c scales about the middle by
+    /// 1 + c (below nought; 1 / (1 − c) above), then brightness b blends
+    /// toward white by b (toward black by −b) — Washout (b 70%, c −70%)
+    /// takes black to 205 (tdf79007); black and white turns a pixel whose
+    /// luminance is under the threshold black, the rest white (189 under
+    /// 75% black, 194 white: tdf89928).
+    static func blipLevels(_ blip: XNode) -> [Double]? {
+        if let b = blip.first("a:biLevel") {
+            let t = (b["thresh"].flatMap(Double.init) ?? 50000) / 100000
+            let k = 100.0
+            var m: [Double] = []
+            for _ in 0 ..< 3 { m += [0.299 * k, 0.587 * k, 0.114 * k, 0, -k * t * 255 + 127.5] }
+            return m + [0, 0, 0, 1, 0]
+        }
+        guard let l = blip.first("a:lum") else { return nil }
+        let bright = (l["bright"].flatMap(Double.init) ?? 0) / 100000
+        let contrast = (l["contrast"].flatMap(Double.init) ?? 0) / 100000
+        guard bright != 0 || contrast != 0 else { return nil }
+        let cf = contrast < 0 ? 1 + contrast : 1 / max(0.01, 1 - contrast)
+        // c' = cf·x + 127.5·(1 − cf); then toward white: c'·(1 − b) + 255·b.
+        var scale = cf, offset = 127.5 * (1 - cf)
+        if bright > 0 { scale *= 1 - bright; offset = offset * (1 - bright) + 255 * bright }
+        else if bright < 0 { scale *= 1 + bright; offset *= 1 + bright }
+        var m: [Double] = []
+        for ch in 0 ..< 3 {
+            var row = [0.0, 0, 0, 0, offset]
+            row[ch] = scale
+            m += row
+        }
+        return m + [0, 0, 0, 1, 0]
     }
 
     /// A blip's transparency (`a:alphaModFix amt`) and duotone (its two
@@ -1177,6 +1212,7 @@ private struct SlideContext {
             // ticks, which was one tick stretched).
             var f = SlideFill(image: images.attachment(rel.target, package))
             (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
+            f.imageLevels = PptxReader.blipLevels(blip)
             f.imageInset = PptxReader.stretchInset(b)
             if b.first("a:tile") != nil || b.first("a:stretch") == nil {
                 PptxReader.tile(b.first("a:tile"), image: package.parts[rel.target], into: &f)
@@ -1540,6 +1576,7 @@ private struct SlideContext {
         }
         if let blip = el.first("p:blipFill")?.first("a:blip") {
             (s.pictureAlpha, s.pictureDuotone) = PptxReader.blipEffects(blip, colors: colors)
+            s.pictureLevels = PptxReader.blipLevels(blip)
             if let change = blip.first("a:clrChange"), let from = change.first("a:clrFrom").flatMap({ colors.color(in: $0) }),
                let to = change.first("a:clrTo").flatMap({ colors.color(in: $0) }) {
                 s.pictureColorChange = [from, to]
@@ -1886,6 +1923,7 @@ private struct SlideContext {
                package.parts[img.target] != nil {
                 var f = SlideFill(image: images.attachment(img.target, package))
                 (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
+                f.imageLevels = PptxReader.blipLevels(blip)
                 f.imageInset = PptxReader.stretchInset(b)
                 // Tiled as a shape's picture fill is (chart-texture-bg's
                 // paper at its own size, where it was one sheet stretched).
@@ -2468,6 +2506,7 @@ private struct SlideContext {
                   package.parts[rel.target] != nil {
             var f = SlideFill(image: images.attachment(rel.target, package))
             (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
+            f.imageLevels = PptxReader.blipLevels(blip)
             if b.first("a:tile") != nil || b.first("a:stretch") == nil {
                 PptxReader.tile(b.first("a:tile"), image: package.parts[rel.target], into: &f)
             }

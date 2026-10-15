@@ -35,6 +35,7 @@ struct ShapeState: Equatable {
     var pictureGeometry: ShapePreset? = nil
     var pictureAlpha = 1.0
     var pictureDuotone: [Color]? = nil
+    var pictureLevels: [Double]? = nil
     var pictureColorChange: [Color]? = nil
     var pictureInset = EdgeInsets.zero
     var fillsWithBackground = false
@@ -1133,6 +1134,7 @@ final class DeckController: ChangeNotifier {
                    keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
+        st.pictureLevels = s.pictureLevels
         st.sizeGroup = s.sizeGroup
         st.outlineDash = s.outlineDash
         st.textTurn = s.textTurn
@@ -1177,6 +1179,7 @@ final class DeckController: ChangeNotifier {
         shape.pictureGeometry = st.pictureGeometry
         shape.pictureAlpha = st.pictureAlpha
         shape.pictureDuotone = st.pictureDuotone
+        shape.pictureLevels = st.pictureLevels
         shape.pictureColorChange = st.pictureColorChange
         shape.pictureInset = st.pictureInset
         shape.fillsWithBackground = st.fillsWithBackground
