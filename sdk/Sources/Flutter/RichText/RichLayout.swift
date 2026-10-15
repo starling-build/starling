@@ -5568,7 +5568,21 @@ public final class RichLayout {
             // those it ends with stretch nothing.)
             if (a ..< piece.b).contains(where: { units[$0] == 0x20 }) { lineBlank = true }
             for k in a ..< last {
-                if isSpace(units[k]) { if lineWide > 0 { lineOther = true } } else { lineWide += 1; lineEms += ems[k]; if units[k] < 0x2E80 { lineLatin = true } }
+                if isSpace(units[k]) { if lineWide > 0 { lineOther = true } }
+                else {
+                    // (A run of Latin characters — a number, a word — is
+                    // one character of the line, of its run's em: lab
+                    // `dg` (Word 16, mode 15, SimSun 16pt, justified), a
+                    // line of 15 ideographs, two commas among them, and
+                    // "1234", "5678" takes the next ideograph 12.6pt over
+                    // and not 12.8, where 23 ideographs take it 11.8 over
+                    // and not 12.0. zh-457a8d62's "…之女104年10" takes
+                    // "月" 12.86 over in Word's print.)
+                    let latin = units[k] < 0x2E80
+                    let continues = latin && k > 0 && lineWide > 0 && units[k - 1] < 0x2E80 && !isSpace(units[k - 1])
+                    if !continues { lineWide += 1; lineEms += ems[k] }
+                    if latin { lineLatin = true }
+                }
             }
             if last < piece.b, lineWide > 0 { lineSpaced = true }
             x += w + piece.trail

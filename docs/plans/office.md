@@ -2745,6 +2745,26 @@ fitter dropped the paragraph's tail).
   96.87 over both (the Mac's commits of the same sweeps aside); POI
   unchanged by either.
 
+- **In the squeeze test a Latin run is one character (2026-10-15).**
+  From 2013's layout on a justified line takes the next character where
+  its marks give less, as a share of their halves, than the line would
+  stretch, as a share of a sixty-fourth of an em at each of its gaps.
+  The line's characters were counted one by one, digits too. Lab `dg`
+  (Word 16, mode 15, SimSun 16pt, no automatic spaces, in
+  ~/starling-doc-check/lab/dg): a line of 15 ideographs, two commas
+  among them, and "1234" and "5678" takes the next ideograph 12.6pt
+  over and not 12.8, where 23 ideographs take it 11.8 and not 12.0 —
+  each digit counted as a character would stop it at 11.9. Counted as
+  one character of the run's em, a Latin run gives both. (Set left,
+  neither line takes anything, even 2pt over, as the code has it.)
+  zh-457a8d62's "…之女104年10" now takes "月" 12.86 over as Word does:
+  94.7% -> 95.1; nothing else moved. Still open: with the automatic
+  spaces on (lab `dg5`, the same line, a quarter em at each of the four
+  boundaries) Word takes the ideograph 9.0pt over and not 9.5, where
+  ours takes it to 13 — before this change and after; and
+  zh-457a8d62's "35筆…都更案)，" (a character grid, automatic spaces)
+  leaves "經" 12.44 over, which this now takes.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
