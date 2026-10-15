@@ -3547,8 +3547,14 @@ public final class RichLayout {
             // PowerPoint's tabs on the lines the paragraph wraps into, as
             // laid out with the tabs so far: measured again from where
             // each line starts until the lines stop moving (HowWeRefactor's
-            // "– Martin Fowler", on the third line of its quote).
-            if theme.markersAtHang {
+            // "– Martin Fowler", on the third line of its quote). Word's
+            // the same way: bug65649's cell "…кнопка выхода<tab> ST-EX011SM,
+            // Замок электромагнитный<tab> VIZIT-ML400M-40)" sets each tab at
+            // the default stop next after where its line has got to — 241.0
+            // and 276.4 in Word's print, 35.4pt apart from the cell's edge;
+            // measured along the unwrapped paragraph, ours were 227.0 and
+            // 284.5, and "40)" went to a line of its own.
+            if theme.markersAtHang || theme.wordRules {
                 var wraps: [Int] = []
                 for _ in 0 ..< 3 {
                     let (s1, in1, ins1) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: tabs)

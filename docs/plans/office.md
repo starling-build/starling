@@ -3488,6 +3488,17 @@ fitter dropped the paragraph's tail).
   a cell narrower than 150pt and is wider than the cell's line starts
   a line of its own, through a line separator put in before it.
   bug65649 67.8% -> 79.0; nothing else moved (clean A/B, n201 vs n200).
+- **A tab on a wrapped line goes to the stop after where its own line
+  has got to (2026-10-15).** The tabs were measured along the paragraph
+  laid out on one line, so a tab on a second or third line went to the
+  stop after where it would have stood unwrapped. bug65649's cell
+  "…кнопка выхода<tab> ST-EX011SM, Замок электромагнитный<tab>
+  VIZIT-ML400M-40)" has its tabs at 241.0 and 276.4 in Word's print —
+  default stops 35.4pt apart from the cell's edge — and ours at 227.0
+  and 284.5, so "40)" took a line of its own. The measure-again-on-the-
+  wrapped-lines pass that PowerPoint's tabs had (HowWeRefactor) now
+  runs for Word's too. bug65649 79.0% -> 83.8; nothing else moved
+  (clean A/B, n203 vs n202).
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
