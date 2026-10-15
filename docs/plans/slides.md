@@ -1576,6 +1576,14 @@ customGeo, whose boxes PowerPoint sets in Calibri. The style's face now
 ranks as its colour does: over the layout, master and deck defaults,
 under the shape's own list style and paragraph.
 
+**A shadow in the shape's own outline, 2026-10-15** (sweep 85: 1.4886
+→ 1.4872%; customGeo 4.88 → 4.28, tdf125551 −0.08, four more a little;
+none worse). Shadows, glows and soft edges took their outline from the
+preset's name, at its default adjust values: customGeo's three pie
+slices each cast a three-quarter pie, a grey slab over the chart. They
+take the evaluated path now (its filled parts as one, so a can's lid
+does not cut a hole in it).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

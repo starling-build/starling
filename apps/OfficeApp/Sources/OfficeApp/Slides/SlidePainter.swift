@@ -448,6 +448,16 @@ final class SlidePainter: CustomPainter {
         }
         // The outline as drawn, for the effects round it.
         func effectOutline() -> Path {
+            // (A preset's evaluated path first: it has the shape's adjust
+            // values, where the preset's name alone draws its defaults —
+            // customGeo's three pie slices each cast a three-quarter pie.)
+            if shape.pictureGeometry == nil, let free = shape.opaque?.freeform { return Self.combinedPath(free, r) }
+            if shape.pictureGeometry == nil, let g = shape.customPath {
+                // (Its parts together: a can's lid lies over its body.)
+                let path = Path()
+                for sub in g.subpaths where sub.fill { path.addPath(FreeformGeometry.path(sub, in: r), Offset.zero) }
+                return path
+            }
             if let g = shape.pictureGeometry ?? shape.preset ?? shape.inheritedPreset, !g.isLine {
                 return PresetGeometry.path(g.rawValue, in: r) ?? Self.geometryPath(g, r)
             }

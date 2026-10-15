@@ -7,7 +7,7 @@
 54542_cropped_bitmap.pptx	summary pages=1 worst=0.89% mean=0.89%
 56812.pptx	summary pages=1 worst=0.60% mean=0.60%
 60042.pptx	summary pages=2 worst=0.00% mean=0.00%
-60810.pptx	summary pages=25 worst=11.06% mean=5.88%
+60810.pptx	summary pages=25 worst=11.06% mean=5.87%
 61515.pptx	summary pages=1 worst=0.00% mean=0.00%
 63200.pptx	summary pages=1 worst=0.00% mean=0.00%
 ArtisticEffectSample.pptx	summary pages=2 worst=50.61% mean=25.84%
@@ -53,7 +53,7 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=3.81% mean=3.81%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=13.91% mean=4.88%
+customGeo.pptx	summary pages=48 worst=13.91% mean=4.28%
 ececapstonespring2012.pptx	summary pages=24 worst=3.22% mean=1.96%
 highlight-test-case.pptx	summary pages=1 worst=0.80% mean=0.80%
 layouts.pptx	summary pages=10 worst=1.59% mean=0.65%
@@ -86,13 +86,13 @@ lo-bnc480256.pptx	summary pages=1 worst=0.72% mean=0.72%
 lo-bnc584721_1_2.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-bnc584721_4.pptx	summary pages=2 worst=0.55% mean=0.28%
 lo-bnc591147.pptx	summary pages=2 worst=0.00% mean=0.00%
-lo-bnc862510_5.pptx	summary pages=1 worst=1.88% mean=1.88%
+lo-bnc862510_5.pptx	summary pages=1 worst=1.87% mean=1.87%
 lo-bnc862510_6.pptx	summary pages=1 worst=0.49% mean=0.49%
 lo-bnc862510_7.pptx	summary pages=1 worst=1.34% mean=1.34%
 lo-bnc870233_1.pptx	summary pages=1 worst=0.63% mean=0.63%
 lo-bnc870233_2.pptx	summary pages=1 worst=0.19% mean=0.19%
-lo-bnc870237.pptx	summary pages=1 worst=0.03% mean=0.03%
-lo-bnc880763.pptx	summary pages=1 worst=0.52% mean=0.52%
+lo-bnc870237.pptx	summary pages=1 worst=0.01% mean=0.01%
+lo-bnc880763.pptx	summary pages=1 worst=0.48% mean=0.48%
 lo-bnc887225.pptx	summary pages=1 worst=0.61% mean=0.61%
 lo-bnc887230.pptx	summary pages=1 worst=0.10% mean=0.10%
 lo-bnc904423.pptx	summary pages=1 worst=1.37% mean=1.37%
@@ -155,7 +155,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.29% mean=0.29%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=1.74% mean=1.74%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.06% mean=0.04%
+lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.04%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.25% mean=0.25%
 lo-ole.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -288,7 +288,7 @@ lo-tdf125346_2.pptx	summary pages=3 worst=0.00% mean=0.00%
 lo-tdf125360.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf125360_1.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf125360_2.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-tdf125551.pptx	summary pages=1 worst=2.49% mean=2.49%
+lo-tdf125551.pptx	summary pages=1 worst=2.41% mean=2.41%
 lo-tdf125554.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-tdf125573_FontWorkScaleX.pptx	summary pages=2 worst=3.72% mean=3.52%
 lo-tdf126234.pptx	summary pages=1 worst=0.78% mean=0.78%
@@ -358,7 +358,7 @@ lo-tdf148478_transitionMusic.pptx	summary pages=2 worst=0.00% mean=0.00%
 lo-tdf148665.pptx	summary pages=1 worst=0.16% mean=0.16%
 lo-tdf148685.pptx	summary pages=1 worst=0.45% mean=0.45%
 lo-tdf148810_PARA_OUTLLEVEL.pptx	summary pages=1 worst=0.06% mean=0.06%
-lo-tdf148921.pptx	summary pages=1 worst=0.44% mean=0.44%
+lo-tdf148921.pptx	summary pages=1 worst=0.42% mean=0.42%
 lo-tdf148965.pptx	summary pages=3 worst=0.05% mean=0.02%
 lo-tdf148966.pptx	summary pages=1 worst=2.23% mean=2.23%
 lo-tdf149124.pptx	summary pages=1 worst=0.13% mean=0.13%
