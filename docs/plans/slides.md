@@ -1568,6 +1568,14 @@ the slide gives it (`prstGeom prst="ellipse"` on a content
 placeholder) was drawn as a rectangle with its text across the frame.
 It is drawn as the preset now, its text in the preset's text rectangle.
 
+**A shape's style names its face, 2026-10-15** (sweep 84: 1.4909 →
+1.4886%; customGeo 6.11 → 4.88, AES −0.04, linear-rule-vert −0.02;
+none worse). A drawn shape's `fontRef idx="minor"` was read for its
+colour only, so its text took the deck's default face — Arial in
+customGeo, whose boxes PowerPoint sets in Calibri. The style's face now
+ranks as its colour does: over the layout, master and deck defaults,
+under the shape's own list style and paragraph.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

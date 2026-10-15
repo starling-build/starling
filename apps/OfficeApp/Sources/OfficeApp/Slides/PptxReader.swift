@@ -2397,10 +2397,17 @@ private struct SlideContext {
 
         // The style's text colour (fontRef) beats what the layout and master
         // say, not what the shape's own list style or paragraph says.
+        // So does its face (`fontRef idx`): customGeo's boxes say "minor"
+        // (Calibri) over a deck default of Arial, and PowerPoint sets them
+        // in Calibri.
+        let styleFont: String? = sp.first("p:style")?.first("a:fontRef")?["idx"].flatMap {
+            $0 == "major" ? "+mj-lt" : $0 == "minor" ? "+mn-lt" : nil
+        }
         func styled(_ l: LevelStyle, _ n: Int, _ pPr: XNode?) -> LevelStyle {
-            guard let sc = styleColor, LevelStyle.paragraph(pPr, colors).color == nil,
-                  LevelStyle.paragraph(list?.first("a:lvl\(n + 1)pPr"), colors).color == nil else { return l }
             var l = l
+            let own = LevelStyle.paragraph(pPr, colors), listed = LevelStyle.paragraph(list?.first("a:lvl\(n + 1)pPr"), colors)
+            if let sf = styleFont, own.font == nil, listed.font == nil { l.font = sf }
+            guard let sc = styleColor, own.color == nil, listed.color == nil else { return l }
             l.color = sc
             return l
         }
