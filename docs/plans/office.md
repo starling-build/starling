@@ -3256,6 +3256,21 @@ fitter dropped the paragraph's tail).
   they now give outside cells too (cells keep the older finding). The
   modern taken-test is unchanged. zh-4b8e0abc 89.2% -> 96.6,
   zh-33aa9899 98.6 -> 99.0; nothing down (clean A/B, n172 vs n171).
+- **Open, measured (2026-10-15): a squeeze Word refuses on a line with
+  Latin quotes.** zh-1563bd74 (mode 14, 16pt, YaHei for 方正仿宋_GBK)
+  has a line "“因灾房屋…无房可住、无生活来源和自救能力”" that Word leaves
+  without "的", 3.95pt over with one "、" — the legacy half-em rule
+  takes it. Lab `sq15` (variants of that paragraph, in
+  ~/starling-word-check/lab/in): the same with "，" or "。" for "、", in
+  宋体, without `w:snapToGrid` or `w:textAlignment`: refused; the
+  opening quote as '"' (3.38 over): taken; as '^' (4.36) or '~':
+  refused; either quote as ASCII ")" or "(" (2.15): taken; no quotes and
+  an ideograph more (5.75, no Latin on the line): taken. So with Latin
+  on the line the limit falls between 3.38 and 3.95 — about a quarter
+  em. Tried as a rule: for any Latin character on the line it cost 24
+  documents up to 64 points (digits are everywhere); for curly quotes
+  alone it moved nothing it was meant to and cost zh-6c568ae9 1.3 and
+  zh-d68ac84a 0.8. Not built; the rule is narrower than either.
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
