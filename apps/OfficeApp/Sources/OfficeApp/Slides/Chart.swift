@@ -132,6 +132,10 @@ struct Chart: Equatable {
     var overlap: Int? = nil
     /// A doughnut's hole, in percent of its diameter (`c:holeSize`).
     var holeSize = 50
+    /// A 3-D pie's tilt toward the viewer (`c:view3D/c:rotX`, degrees): drawn
+    /// as a disc seen from above at that angle, its rim showing below. nil
+    /// is a flat pie.
+    var pieTilt: Double? = nil
     /// The value axis's bounds and step where the file fixes them
     /// (`c:scaling/c:min`, `c:max`, `c:majorUnit`); nil is automatic.
     var valueMin: Double? = nil
@@ -403,6 +407,9 @@ enum ChartXML {
         }
         c.dataLabels = shows(el.first("c:dLbls")) || el.all("c:ser").contains { shows($0.first("c:dLbls")) }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
+        if el.name == "c:pie3DChart" {
+            c.pieTilt = chart.first("c:view3D")?.first("c:rotX")?["val"].flatMap(Double.init) ?? 30
+        }
         func axisTitle(_ ax: XNode?) -> String? {
             guard let t = ax?.first("c:title") else { return nil }
             let s = _texts(t, "a:t").joined()
@@ -808,7 +815,20 @@ enum ChartPainter {
         if pie, let l = c.plotLayout {
             area = Rect.fromLTWH(r.left + l.left * r.width, r.top + l.top * r.height, l.width * r.width, l.height * r.height)
         }
-        if pie {
+        if pie, let tilt = c.pieTilt {
+            // A 3-D pie's plot is the box the tilted disc stands in, a
+            // little inside the room left to it (LIBRE_OFFICE-100610-0's
+            // grey plots, 345 × 196 pt where ours had 401 × 235).
+            let inner = Rect.fromLTRB(area.left + area.width * 0.07, area.top + area.height * 0.085,
+                                      area.right - area.width * 0.07, area.bottom - area.height * 0.085)
+            if let f = c.plotFill {
+                let p = Paint()
+                p.style = .fill
+                p.color = f
+                canvas.drawRect(inner, p)
+            }
+            _pie3D(c, canvas, inner, tilt: tilt, k: k, theme: theme)
+        } else if pie {
             if let f = c.plotFill {
                 // A pie's plot is the square it stands in.
                 let p = Paint()
@@ -1327,6 +1347,99 @@ enum ChartPainter {
                     fontFamily: OfficeFonts.substitute(theme.bodyFont))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
+                tp.dispose()
+            }
+        }
+    }
+}
+
+extension ChartPainter {
+    /// A 3-D pie: the disc tilted by `tilt` degrees, its rim showing below
+    /// in each slice's colour darkened toward the front — as PowerPoint's
+    /// print of LIBRE_OFFICE-100610-0 has it at 30°: the disc 0.473 as
+    /// tall as wide, the rim 0.228 of the radius deep, filling 94% of the
+    /// plot's width or 97% of its height, the rim 0.575 of the colour at
+    /// the front and 0.875 at the sides.
+    static func _pie3D(_ c: Chart, _ canvas: any Canvas, _ plot: Rect, tilt: Double, k: Double, theme: DeckTheme) {
+        let values = c.series[0].values.map { max(0, $0 ?? 0) }
+        let sum = values.reduce(0, +)
+        guard sum > 0 else { return }
+        let squash = sin(max(5, min(90, tilt)) * .pi / 180) * 0.946
+        let deep = 0.228
+        let rx = min(plot.width * 0.941 / 2, plot.height * 0.972 / (2 * squash + deep))
+        let ry = rx * squash, depth = rx * deep
+        let centre = Offset(plot.center.dx, plot.center.dy - depth / 2)
+        func at(_ a: Double, _ drop: Double = 0) -> Offset { Offset(centre.dx + cos(a) * rx, centre.dy + sin(a) * ry + drop) }
+        // The slices, clockwise from twelve o'clock.
+        var slices: [(from: Double, to: Double, color: Color, value: Double)] = []
+        var angle = -Double.pi / 2
+        for (i, v) in values.enumerated() where v > 0 {
+            let sweep = v / sum * 2 * .pi
+            slices.append((angle, angle + sweep, c.pointColor(i, accents: theme.accents), v))
+            angle += sweep
+        }
+        let fill = Paint()
+        fill.style = .fill
+        fill.isAntiAlias = true
+        // The rim: the front half (angles 0…π, below the centre), in steps
+        // a few degrees wide, each shaded for the way it faces.
+        func scaled(_ c: Color, _ f: Double) -> Color {
+            let v = c.value
+            func ch(_ sh: Int) -> Int64 { Int64((Double((v >> sh) & 0xFF) * f).rounded()) }
+            return Color(Int64(0xFF00_0000) | ch(16) << 16 | ch(8) << 8 | ch(0))
+        }
+        for s in slices {
+            var a = s.from
+            while a < s.to {
+                let b = min(s.to, a + 3 * .pi / 180)
+                // The same part of the circle a turn on, where it shows.
+                for turn in [-2 * Double.pi, 0, 2 * Double.pi] {
+                    // (Each step a little past the next, so no seam shows
+                    // between them; the next one covers the overlap.)
+                    let lo = max(a + turn, 0), hi = min(b + turn + 0.01, .pi)
+                    guard hi > lo else { continue }
+                    let p = Path()
+                    let p0 = at(lo)
+                    p.moveTo(p0.dx, p0.dy)
+                    let steps = max(1, Int((hi - lo) / (0.5 * .pi / 180)))
+                    for j in 1 ... steps { let q = at(lo + (hi - lo) * Double(j) / Double(steps)); p.lineTo(q.dx, q.dy) }
+                    for j in stride(from: steps, through: 0, by: -1) {
+                        let q = at(lo + (hi - lo) * Double(j) / Double(steps), depth); p.lineTo(q.dx, q.dy)
+                    }
+                    p.close()
+                    fill.color = scaled(s.color, 0.575 + 0.3 * abs(cos((lo + hi) / 2)))
+                    canvas.drawPath(p, fill)
+                }
+                a = b
+            }
+        }
+        // The top: each slice a wedge of the ellipse.
+        let edge = Paint()
+        edge.style = .stroke
+        edge.isAntiAlias = true
+        edge.strokeWidth = max(0.5, 1 * k)
+        edge.color = theme.background
+        for s in slices {
+            let p = Path()
+            p.moveTo(centre.dx, centre.dy)
+            let steps = max(2, Int((s.to - s.from) / (1 * .pi / 180)))
+            for j in 0 ... steps { let q = at(s.from + (s.to - s.from) * Double(j) / Double(steps)); p.lineTo(q.dx, q.dy) }
+            p.close()
+            fill.color = s.color
+            canvas.drawPath(p, fill)
+            canvas.drawPath(p, edge)
+        }
+        if c.dataLabels {
+            for s in slices {
+                let mid = (s.from + s.to) / 2
+                let pt = Offset(centre.dx + cos(mid) * rx * 0.7, centre.dy + sin(mid) * ry * 0.7)
+                let v = s.color.value
+                let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
+                let tp = TextPainter(text: TextSpan(text: dataLabel(c, s.value), style: Flutter.TextStyle(
+                    color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.textSize ?? 12) * k),
+                    fontFamily: OfficeFonts.substitute(theme.bodyFont))), textDirection: .ltr)
+                tp.layout(minWidth: 0, maxWidth: .infinity)
+                tp.paint(canvas, Offset(pt.dx - tp.width / 2, pt.dy - tp.height / 2))
                 tp.dispose()
             }
         }

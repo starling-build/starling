@@ -1279,6 +1279,18 @@ value labels' weight (`c:txPr`), and gridlines in a colour of their own
 (not the standard `tx1` at 15%, which is our default look and what a
 save writes, so a written chart reads back as it was).
 
+**3-D pies, 2026-10-15** (LIBRE_OFFICE-100610-0 5.20 → 3.13; its worst
+page 18.7 → 11.4). A `c:pie3DChart` was drawn as a flat circle in a
+grey square. It is a tilted disc now (`Chart.pieTilt`, from
+`c:view3D/c:rotX`), measured from PowerPoint's print at 30°: the disc
+0.473 as tall as it is wide (sin 30° × 0.946, the perspective's share),
+the rim 0.228 of the radius deep, the whole filling 94% of the plot's
+width or 97% of its height, the plot 7% and 8.5% inside the room left
+by title and legend, and the rim the slice's colour × (0.575 + 0.3 |cos
+θ|) — 0.575 at the front, 0.875 at the sides. Left: the deck's 3-D
+column chart (boxes with depth), and its horizontal bar chart's legend,
+which PowerPoint lists last series first.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
