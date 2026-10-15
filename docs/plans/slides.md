@@ -1195,6 +1195,15 @@ only. Its underline, strike, highlight and link are dropped now. (The
 same deck's one wrap that differs, "it's more", is Verdana against
 DejaVu Sans, a point short at the edge.)
 
+**Webdings' disc and square in a metafile, 2026-10-14** (sweep 69:
+1.7474 → 1.7468%; 45545_Comment 6.89 → 6.78, both 45541 decks 6.92 →
+6.81). The three decks share a slide whose picture is a WMF grid of
+Webdings "n" and "g". We drew them as "●" and "■" in a stand-in face,
+under half an em across; Webdings' are a whole em. Measured on
+PowerPoint's print: 1.0 em wide, 1.06 em apart, centred 0.29 em above
+the baseline. A run of only those two, set on its baseline from the
+left, is drawn as discs and squares of that size now.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

@@ -394,6 +394,23 @@ private struct Player {
         let h = dc.font.height
         let size = (h < 0 ? -h : h * 0.86) * scaleY
         let ref = dc.textAlign & 1 == 1 ? dc.pos : at
+        // Webdings' "n" and "g" are a disc and a square a whole em across
+        // that no stand-in face has (theirs "●" is under half that): drawn
+        // as such, where the run is set on its baseline from the left.
+        // PowerPoint's print of 45545's feasibility grid and its legend:
+        // 1.0 em wide, 1.06 em apart, centred 0.29 em above the baseline.
+        if dc.font.face.lowercased().hasPrefix("webdings"), dc.textAlign & 31 == 24, dc.font.escapement == 0, abs(turn) < 1e-9,
+           shown.allSatisfy({ $0 == "●" || $0 == "■" }) {
+            let o = map(ref), wide = size / scaleY * scaleX
+            let disc = Path()
+            for (i, ch) in shown.enumerated() {
+                let cx = o.dx + (Double(i) * 1.06 + 0.53) * wide, cy = o.dy - 0.29 * size
+                let box = Rect.fromLTRB(cx - wide / 2, cy - size / 2, cx + wide / 2, cy + size / 2)
+                if ch == "●" { disc.addOval(box) } else { disc.addRect(box) }
+            }
+            steps.append(.fill(disc, dc.textColor))
+            return
+        }
         steps.append(.text(Metafile.TextRun(
             text: shown, at: map(ref), size: size, face: dc.font.face, bold: dc.font.bold, italic: dc.font.italic,
             underline: dc.font.underline, color: dc.textColor, align: dc.textAlign,
