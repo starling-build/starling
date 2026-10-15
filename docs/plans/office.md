@@ -2899,6 +2899,21 @@ fitter dropped the paragraph's tail).
   point of width; the aligned kinds keep their floor at nothing.
   (Below the sweep's 0.3-point threshold on its own; the page is
   Word's line for line now.)
+- **A line may part after a hyphen before a digit, outside East Asian
+  layout (2026-10-15).** Lab `hy3` in bug65649's package (34 right
+  indents, 1.75pt apart, Times New Roman): where a line ends inside
+  "КС-2", "А-5" or "2024-10" Word parts it after the hyphen — "КС-" |
+  "2).", "2024-" | "10)." — never before it; the engine, keeping a
+  number whole with its sign (`_glued`), takes "КС-2)." over whole.
+  bug65649's page 14 "(форма № КС-" / "2)." is Word's now; 42.9% ->
+  43.3. Not under East Asian layout: zh-64044a1d's contact table
+  holds "0988-228598" in a cell too narrow for it, and Word parts it
+  after the tenth digit, not at the hyphen (its print, YaHei digits
+  7.04pt as ours); the rule on, ours parted "0988-" | "228598" and
+  "332-" | "529", the row grew, 88.6 -> 83.0. Lab `hyz` in that
+  package (標楷體, mode 11) could not tell — its Chinese text always
+  offered the line a break elsewhere — so the East Asian side stands
+  on the document alone.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

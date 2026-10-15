@@ -3705,6 +3705,7 @@ public final class RichLayout {
         // character at hand (across runs).
         var inserts: [Int] = []
         var before: Character? = nil
+        var beforeBefore: Character? = nil
         let breaksAtQuotes = theme.wordRules && document.usesEastAsianLayout
         // (A paragraph that turns the line-breaking rules off —
         // `w:kinsoku` 0 — may start a line with a closing mark and end
@@ -3876,6 +3877,20 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, !document.usesEastAsianLayout, before == "-", ch.isNumber,
+                          let bb = beforeBefore, bb.isLetter || bb.isNumber {
+                    // (Word parts a line after a hyphen before a digit —
+                    // "КС-" from "2).", "А-" from "5", "2024-" from "10"
+                    // — which the engine, keeping a number whole with
+                    // its sign, does not. Lab `hy3` in bug65649's
+                    // package, Word 16, 2026-10-15, every width that
+                    // ends a line between them; its page 14's "КС-2)".
+                    // Not under East Asian layout: zh-64044a1d's
+                    // "0988-228598", a cell too narrow for it, Word
+                    // parts after the tenth digit, not at the hyphen.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 }
                 // In East Asian text a curly quote is a full-width mark,
                 // an em with the blank half outside it, as 宋体 and
@@ -3917,6 +3932,7 @@ public final class RichLayout {
                     inserts.append(offset)
                     led = true
                 }
+                beforeBefore = before
                 before = ch
                 if let c = current, c != kind { flush(i) }
                 current = kind
