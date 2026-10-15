@@ -343,6 +343,8 @@ Owner: none — notes for whoever takes them.
   (12pt over, more than its half em) rather than "憑。" together. The
   fitter would need, for such paragraphs, to test a closing mark as its
   own piece against the half-em rule. Six documents carry the switch.
+  DONE by the Windows box, 2026-10-15: zh-799c91cd 92.0 -> 97.6,
+  zh-9e08ed28 85.4 -> 91.2.
 - zh-6600d539 p7 (Mac, 2026-10-14): "口(網址：http://law.ndc.gov.tw/)" fills
   Word's line and the next starts with "，針對平臺" — a full-width comma
   at a line's start, with kinsoku on and the comma after a Latin word

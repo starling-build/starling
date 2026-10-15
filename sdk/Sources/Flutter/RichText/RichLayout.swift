@@ -4843,8 +4843,16 @@ public final class RichLayout {
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
         // the other thing `_span` puts in, does the opposite).
+        // (Under `w:kinsoku` off, too, where `_span` lets a closing mark
+        // start a line or an opening one end it: the mark is a piece of
+        // its own, judged alone — zh-9e08ed28's cell line "，以落實成效。"
+        // is 0.5 over and taken in Word, the "，" having gone down from
+        // "目" before it; glued as "目，" the line ran a piece behind and
+        // the "。" went down alone.)
+        let kinsokuOff = p.style.eastAsian["w:kinsoku"] == "0"
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
+            if kinsokuOff, Self._closingMarks.contains(Character(b)) || Self._openingMarks.contains(Character(a)) { return true }
             return Self._breaksBetween(Character(a), Character(b))
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),

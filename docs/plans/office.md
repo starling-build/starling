@@ -2556,6 +2556,16 @@ fitter dropped the paragraph's tail).
   The tolerance now stands only for a line off a character grid.
   zh-d68ac84a 83.8% -> 99.2%; nothing else moved. (T12.)
 
+- **Under `w:kinsoku` off a mark is a piece of its own to the fitter
+  (2026-10-15).** `_span` lets such a paragraph start a line with a
+  closing mark and end one with an opening mark (2058f789), but the
+  fitter still glued "目，" into one piece, so its lines ran a piece
+  behind the engine's: zh-9e08ed28's cell line "，以落實成效。" is 0.5pt
+  over and taken in Word (the "，" gone down from "目"); ours sent the
+  "。" down alone. The mark is now judged alone, as the Mac's T16 lead
+  on zh-799c91cd's "各執1份為憑。" asked. zh-9e08ed28 85.4% -> 91.2%,
+  zh-799c91cd 92.0 -> 97.6; nothing else moved. Chinese sample 94.6.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
