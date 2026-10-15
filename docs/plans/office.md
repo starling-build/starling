@@ -3417,6 +3417,19 @@ fitter dropped the paragraph's tail).
   82.0% -> 88.0, zh-5901e2b0 94.4 -> 100, zh-84702a67 91.5 -> 92.5;
   nothing down (against a clean baseline at the same tip). Not done: the
   halved spaces.
+- **An "at least" row is that tall between its cells' margins; an
+  empty hidden-mark cell asks nothing (2026-10-15).** Labs `rm1`–`rm6`
+  (Word 16, modes 14 and 15): rows stated at least 28.65pt are 29.15
+  with no cell margin, 29.9 with a 0.75pt top margin, 34.15 with 5pt
+  above, 39.15 with 5pt above and below; the table's `tblCellMar` adds
+  the same, a cell's `tcMar` replaces it, a row with no `w:hRule` is
+  "at least" too, zero cell spacing changes nothing, and an exact row
+  stays 28.65. Ours added only the rules. And an empty cell marked
+  `w:hideMark` adds nothing to its row: zh-ae655121's floating signature
+  table is 5pt shorter in Word with the marks than without, and ours
+  counted the cells' empty paragraphs either way (which the missing
+  margins had hidden). zh-a4b0f6ea's page-18 form 10pt short is fixed,
+  +0.6; nothing else moved against a clean baseline.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

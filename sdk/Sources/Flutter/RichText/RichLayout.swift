@@ -1354,19 +1354,27 @@ public final class RichLayout {
                 var stack: [Int: Double] = [:]
                 var rowHeight = 0.0
                 var ruled = 0.0
+                var padded = 0.0
                 let ruleAbove = rows.isEmpty ? rule("top", ts?.edges?.top) : 0
                 let lastRow = !(j < n && _cells[j]?.table == table)
                 let ruleBelow = lastRow ? rule("bottom", ts?.edges?.bottom) : rule("insideH", ts?.edges?.insideH)
                 for k in k0 ..< j {
                     let cell = _cells[k]!
-                    if cell.rowSpan == 1 { ruled = max(ruled, cell.rules) }
+                    if cell.rowSpan == 1 { ruled = max(ruled, cell.rules); padded = max(padded, cell.pad.top + cell.pad.bottom) }
                     let offset = stack[cell.column] ?? 0
                     _tops[k] = y + ruleAbove + cell.pad.top + offset
                     _rowTops[k] = y
                     stack[cell.column] = offset + _heights[k]
                     // A spanning cell's content counts against the rows it
                     // spans, below; a turned cell's against the placed height.
-                    if cell.rowSpan == 1, !cell.vertical {
+                    // (An empty cell whose end mark the file hides
+                    // (`w:hideMark`) asks nothing of its row: Word sizes the
+                    // row by its other cells and its stated height — lab
+                    // `rm6`, zh-ae655121's floating signature table, 5pt
+                    // shorter with the marks hidden than without.)
+                    let hidden = theme.wordRules && document.paragraphs[k].text.isEmpty
+                        && (document.paragraphs[k].cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false)
+                    if cell.rowSpan == 1, !cell.vertical, !hidden {
                         rowHeight = max(rowHeight, offset + _heights[k] + cell.pad.top + cell.pad.bottom)
                     }
                 }
@@ -1378,7 +1386,16 @@ public final class RichLayout {
                 // An exact one is that tall with its rules, whatever is in it.
                 if let least = document.tableStyles[table]?.rowHeights[d.row] {
                     let exact = theme.wordRules && (document.tableStyles[table]?.rowsExactHeight.contains(d.row) ?? false)
-                    rowHeight = exact ? _px(least) : max(rowHeight, _px(least) + ruled)
+                    // (An "at least" height is the room between the
+                    // cells' margins, too, under Word's rules: labs `rm1`–
+                    // `rm3`, Word 16 in modes 14 and 15, 2026-10-15 — rows
+                    // that say at least 28.65pt are 29.15 with no margin,
+                    // 29.9 with a cell's 0.75pt top margin, 34.15 with 5pt
+                    // above, 39.15 with 5pt above and below, the table's
+                    // margins as the cell's; an exact one stays 28.65.
+                    // zh-a4b0f6ea's form of such rows ran 10pt short.)
+                    let around = theme.wordRules ? max(ruled, padded) : ruled
+                    rowHeight = exact ? _px(least) : max(rowHeight, _px(least) + around)
                 }
                 rowHeight += ruleAbove + ruleBelow
                 rules.append((ruleAbove, ruleBelow))
