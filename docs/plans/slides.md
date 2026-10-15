@@ -1204,6 +1204,26 @@ PowerPoint's print: 1.0 em wide, 1.06 em apart, centred 0.29 em above
 the baseline. A run of only those two, set on its baseline from the
 left, is drawn as discs and squares of that size now.
 
+**A tint before a strong saturation boost mixes in sRGB, 2026-10-14**
+(sweep 70: 1.7468 → 1.7451%; customGeo 7.57 → 7.12, tdf114848 8.01 →
+7.73, backgrounds 2.03 → 1.83; nothing worse). The Office 2007 themes'
+gradient fills are `tint 50% satMod 300%` and the like. customGeo's
+orange diagram boxes measure (255, 200, 154) at the deep end in
+PowerPoint's print; the sRGB tint then the boost gives (255, 202, 159),
+the linear-light tint (255, 208, 188). The rule is narrow, each part
+paid for by a deck the broad one made worse:
+- the boost must come **straight after** the tint (subtitle-animation's
+  background, `tint hueMod satMod lumMod`, is linear light's);
+- it must be **155% or more** (GeomLec1's and aascu's blue bands, tint
+  86% satMod 149%, are linear light's: +0.83 and +0.31 with every
+  boost);
+- the colour must not be **grey** (tdf94238's black glow and GeomLec1's
+  grey backgrounds; a boost leaves a grey grey);
+- and not a picture's **duotone** (Treck's background in themes, tint
+  95% satMod 120%).
+The 2026-10-14 attempt below that made themes 18.28 had none of these.
+What PowerPoint actually does is still unknown; this is a fit.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

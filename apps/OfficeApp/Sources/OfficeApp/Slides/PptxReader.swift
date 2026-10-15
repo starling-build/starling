@@ -153,7 +153,10 @@ struct ColorContext {
     }
 
     /// The colour an element like `a:solidFill` holds, with its modifiers.
-    func color(in fill: XNode) -> Color? {
+    func color(in fill: XNode) -> Color? { color(in: fill, duotone: false) }
+
+    /// The same, for one of a picture's duotone pair.
+    func color(in fill: XNode, duotone: Bool) -> Color? {
         for child in fill.children {
             var base: Color?
             switch child.name {
@@ -164,7 +167,7 @@ struct ColorContext {
             default: continue
             }
             guard let b = base else { continue }
-            return Self.modify(b, child)
+            return Self.modify(b, child, duotone: duotone)
         }
         return nil
     }
@@ -178,13 +181,14 @@ struct ColorContext {
     /// lumMod/lumOff, satMod/satOff and hueMod/hueOff (in HSL), tint,
     /// shade and alpha, as DrawingML applies them. (satMod is what makes a
     /// theme's near-grey `lt2` the warm cream of its radial backgrounds.)
-    static func modify(_ c: Color, _ node: XNode) -> Color {
+    static func modify(_ c: Color, _ node: XNode, duotone: Bool = false) -> Color {
         var r = Double((c.value >> 16) & 0xFF) / 255, g = Double((c.value >> 8) & 0xFF) / 255, b = Double(c.value & 0xFF) / 255
         var alpha = 1.0
         // Between `a:gamma` and `a:invGamma` (how a converted .ppt spells
         // its shades) a tint or shade works on the sRGB values as they are.
         var gammaShifted = false
-        for m in node.children {
+        let kids = node.children
+        for (k, m) in kids.enumerated() {
             let v = (m["val"].flatMap(Double.init) ?? 100000) / 100000
             switch m.name {
             case "a:gamma": gammaShifted = true
@@ -214,8 +218,19 @@ struct ColorContext {
                 func lin(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
                 func srgb(_ l: Double) -> Double { l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055 }
                 let tint = m.name == "a:tint"
+                // A tint of a colour that a strong saturation boost follows
+                // straight after mixes in sRGB: the Office 2007 themes' gradient fills
+                // (tint 50%, satMod 300%) are PowerPoint's to a level so,
+                // and a third too pale in linear light (customGeo's orange
+                // diagram boxes). A milder boost's stays linear (GeomLec1's
+                // blue band, tint 86%, satMod 149%), as do a grey's (its
+                // dark backgrounds, which the boost leaves grey) and a
+                // picture's duotone (Treck's background).
+                let sRGBTint = tint && !duotone && _hsl(r, g, b).1 > 0.1
+                    && kids.indices.contains(k + 1) && kids[k + 1].name == "a:satMod"
+                    && (kids[k + 1]["val"].flatMap(Double.init) ?? 0) >= 155000
                 func apply(_ c: Double) -> Double {
-                    if gammaShifted { return tint ? 1 - (1 - c) * v : c * v }
+                    if gammaShifted || sRGBTint { return tint ? 1 - (1 - c) * v : c * v }
                     return srgb(tint ? 1 - (1 - lin(c)) * v : lin(c) * v)
                 }
                 r = apply(r); g = apply(g); b = apply(b)
@@ -785,7 +800,7 @@ struct PptxReader {
             var pair: [Color] = []
             for c in d.children {
                 holder.children = [c]
-                if let col = colors.color(in: holder) { pair.append(col) }
+                if let col = colors.color(in: holder, duotone: true) { pair.append(col) }
             }
             if pair.count == 2 { duotone = pair }
         }

@@ -27,7 +27,7 @@ alterman_security.pptx	summary pages=23 worst=12.03% mean=7.18%
 aptia.pptx	summary pages=9 worst=6.93% mean=3.50%
 at.ecodesign.www_downloads_Vertiefungsvortrag_elektronik.pptx	summary pages=34 worst=8.85% mean=3.55%
 au.asn.aes.www_conferences_2011_presentations_Fri_20Room4Level4_20930_20Maloney.pptx	summary pages=28 worst=15.08% mean=8.22%
-backgrounds.pptx	summary pages=4 worst=2.31% mean=2.03%
+backgrounds.pptx	summary pages=4 worst=2.26% mean=1.83%
 bar-chart.pptx	summary pages=1 worst=2.81% mean=2.81%
 bug54570.pptx	summary pages=1 worst=2.62% mean=2.62%
 bug58144-headers-footers-2007.pptx	summary pages=1 worst=0.43% mean=0.43%
@@ -53,7 +53,7 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=3.81% mean=3.81%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=31.37% mean=7.57%
+customGeo.pptx	summary pages=48 worst=22.28% mean=7.12%
 ececapstonespring2012.pptx	summary pages=24 worst=3.28% mean=1.99%
 highlight-test-case.pptx	summary pages=1 worst=0.96% mean=0.96%
 layouts.pptx	summary pages=10 worst=1.59% mean=0.65%
@@ -266,7 +266,7 @@ lo-tdf113818-swivel.pptx	summary pages=1 worst=0.39% mean=0.39%
 lo-tdf113822underline.pptx	summary pages=1 worst=0.47% mean=0.47%
 lo-tdf114821.pptx	summary pages=1 worst=0.97% mean=0.97%
 lo-tdf114845_rotateShape.pptx	summary pages=1 worst=0.34% mean=0.34%
-lo-tdf114848.pptx	summary pages=6 worst=18.40% mean=8.01%
+lo-tdf114848.pptx	summary pages=6 worst=18.40% mean=7.73%
 lo-tdf114913.pptx	summary pages=1 worst=0.12% mean=0.12%
 lo-tdf115394-zero.pptx	summary pages=1 worst=1.00% mean=1.00%
 lo-tdf115394.pptx	summary pages=5 worst=1.22% mean=0.96%
