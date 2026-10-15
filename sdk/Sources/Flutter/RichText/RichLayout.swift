@@ -5123,7 +5123,12 @@ public final class RichLayout {
                     // "…團。", "…團、" go down; "）" and "』" as "」".)
                     let kept = hang > 0 || holdsFinal || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
                     let all = (marks + own).filter { !kept || $0 != tail }
-                    let given = legacy ? spaces + ownSpaces : []
+                    // (From 2013's layout on too, in the body: zh-4b8e0abc
+                    // (mode 15) takes "PCR(共" 12.1 over with a full-width
+                    // colon at its half and the four automatic spaces
+                    // between ideographs and Latin set at 2.3 of their
+                    // 3.5 — the marks first, the spaces the rest.)
+                    let given = legacy || !inCell ? spaces + ownSpaces : []
                     // (A curly quote in a Latin face is as wide as it is.)
                     // (… as it is set: spaced wider, an ideograph 16.6
                     // apart is 8.4 over where its em would be 7.8 over,

@@ -3233,6 +3233,17 @@ fitter dropped the paragraph's tail).
   part only from what is wide — so ours carried "统”-“企" as one piece
   and the line ran a character short, page 3 on. zh-84702a67 88.3% ->
   91.5; nothing else moved.
+- **From 2013's layout on the automatic spaces give in the body too
+  (2026-10-15).** zh-4b8e0abc (mode 15, 標楷體 14pt, justified) holds
+  "…各辦理1次PCR(共" on one line in Word's print, 12.1pt over at the
+  natural widths: its full-width "：" is set at its half (7pt) and the
+  four automatic spaces between ideographs and Latin (理|1, 1|次,
+  次|P, R|及) at 2.3 of their 3.5 — the marks first, the spaces what
+  is still needed, as lab `ovc` found for a cell before 2013's layout.
+  The fitter let the spaces give only before that layout; from it on
+  they now give outside cells too (cells keep the older finding). The
+  modern taken-test is unchanged. zh-4b8e0abc 89.2% -> 96.6,
+  zh-33aa9899 98.6 -> 99.0; nothing down (clean A/B, n172 vs n171).
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
