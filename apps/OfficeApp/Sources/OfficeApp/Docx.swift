@@ -1391,13 +1391,21 @@ enum DocxFormat {
                 font.first("w:embedRegular") != nil || font.first("w:embedBold") != nil ? font["w:name"] : nil
             })
             var alts: [String: String] = [:]
+            var entries: [String: OfficeFonts.FontEntry] = [:]
             for font in table.all("w:font") {
-                if let name = font["w:name"], let alt = font.first("w:altName")?["w:val"], !alt.isEmpty { alts[name] = alt }
+                guard let name = font["w:name"] else { continue }
+                let alt = font.first("w:altName")?["w:val"]
+                if let alt, !alt.isEmpty { alts[name] = alt }
+                let panose = font.first("w:panose1")?["w:val"] ?? ""
+                entries[name] = OfficeFonts.FontEntry(alt: alt, family: font.first("w:family")?["w:val"] ?? "auto",
+                                                      panoseZero: !panose.isEmpty && panose.allSatisfy { $0 == "0" })
             }
             OfficeFonts.noteAltNames(alts)
+            OfficeFonts.noteFontEntries(entries)
         } else {
             OfficeFonts.noteEmbedded([])
             OfficeFonts.noteAltNames([:])
+            OfficeFonts.noteFontEntries([:])
         }
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }

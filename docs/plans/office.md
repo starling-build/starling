@@ -3048,6 +3048,36 @@ fitter dropped the paragraph's tail).
   continuation piece's clip now starts 0.75pt under the cut; a first
   or whole piece is as it was. No score moved by 0.3 — the phantom
   rows matched nothing and cost only their count.
+- **A Latin name Word has no face for goes by the font table
+  (2026-10-15).** bug59058's body is "MinionPro-Regular", 13pt, which
+  Word's print sets in Cambria — not the Times New Roman its font
+  table names as the alternate — and ours set in Liberation Sans,
+  wrapping differently on every line of 52 pages. Labs `fs`, `fs2`,
+  `fs3` (Word 16 for Mac; bug59058's package and two of other
+  themes, `fs3` with entries written into the font table): a table
+  entry with an alternate and a PANOSE that is not all zeros, or
+  none, is set in the alternate (`agencyr` → Times New Roman, `TestD`
+  and `TestE` → Arial); an entry whose PANOSE is all zeros keeps no
+  alternate and goes by family — roman is Cambria (MinionPro-Regular,
+  MinionPro-It, "inherit"), auto is Calibri (`TestB`); an entry with
+  neither alternate nor PANOSE is Calibri whatever its family (`xits-
+  math`, `TestC` swiss, `TestF` auto — and "S宋体", measured before);
+  and a name the table does not hold is Cambria in a file of any
+  theme (FooSerif Book, BarSans Light, under Cambria/Calibri, Arial
+  and Aptos themes alike). `substitute` ends so for a name Word on a
+  Mac has no face for — not one of the 577 families it bundles or
+  the Mac holds (`wordMacFamilies`, read off this box), and not an
+  East Asian name set for Latin characters (zh-6d1afa56's "√" in
+  仿宋 is FangSong's in the print; the rule unguarded set it in
+  Calibri, 96.8% -> 94.3, and "Lucida Sans Unicode" in Caladea,
+  failing its test) — in place of "declared Latin → Calibri, else
+  Liberation Sans"; the importer notes each entry's alternate, family
+  and PANOSE. Caladea's advances are Cambria's to the unit, so
+  bug59058's MinionPro runs wrap as Word's: 52.1% -> 53.3 (its bulk
+  is "Times" and the theme's Calibri, which were right already).
+  (Unguarded, SampleDoc had jumped 50 -> 66.7 by accident: its Arial
+  Black in Carlito happened to wrap as Word's Arial Black; a width
+  model for Arial Black is the honest fix.)
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

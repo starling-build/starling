@@ -81,6 +81,36 @@ enum OfficeFonts {
                 || n.containsSubstring("baskerville") || n.containsSubstring("didot") {
                 return serif
             }
+            // A Latin name Word on a Mac has no face for goes by the
+            // file's font table (labs `fs`, `fs2`, `fs3` in bug59058's
+            // package and two others, Word 16, 2026-10-15): an entry
+            // with an alternate and a PANOSE that is not all zeros, or
+            // none, is set in the alternate ("agencyr" in Times New
+            // Roman, "TestE" in Arial); one whose PANOSE is all zeros
+            // keeps no alternate — of family roman it is Cambria
+            // ("MinionPro-Regular", alternate Times, is Cambria in the
+            // print), else Calibri; an entry with neither alternate nor
+            // PANOSE is Calibri whatever its family ("S宋体", "xits-math";
+            // zh-a4b0f6ea's digits are Calibri's 8.15pt at 16pt); and a
+            // name the table does not hold at all is Cambria, in a file
+            // of any theme ("FooSerif Book", "BarSans Light"). bug59058's
+            // body, MinionPro-Regular, had been Liberation Sans here and
+            // wrapped on every line of 52 pages; Caladea's advances are
+            // Cambria's to the unit.
+            // (Only for a name Word on a Mac has no face for: one of its
+            // own or the Mac's — `wordMacFamilies` — keeps the guesses
+            // above and below, as does an East Asian name set for Latin
+            // characters, whose face Word has too: zh-6d1afa56's "√" in
+            // 仿宋 is FangSong's in the print.)
+            let eastAsianName = family.unicodeScalars.contains { $0.value >= 0x2E80 }
+            if !eastAsianName, !wordMacFamilies.contains(n) {
+                if let e = fontEntry(family) {
+                    if let alt = e.alt, !alt.isEmpty, !e.panoseZero, alt.trimmingWhitespace().lowercased() != n { return substitute(alt) }
+                    if e.panoseZero { return e.family == "roman" ? cambria : calibri }
+                    return calibri
+                }
+                return cambria
+            }
             // (A name the font table declares Latin and Word has no face
             // for — "S宋体" — Word sets in Calibri: zh-a4b0f6ea's digits
             // are Calibri's 8.15pt at 16pt in its print, and Arial's 8.9
@@ -137,6 +167,149 @@ enum OfficeFonts {
         declaredLock.lock()
         defer { declaredLock.unlock() }
         return altNames[family.trimmingWhitespace().lowercased()]
+    }
+    /// The font table's whole say on each name: its alternate, its
+    /// `w:family` and whether its PANOSE is all zeros — what Word on a
+    /// Mac goes by for a Latin name it has no face for (`substitute`).
+    struct FontEntry { var alt: String?; var family: String; var panoseZero: Bool }
+    nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:]
+    static func noteFontEntries(_ entries: [String: FontEntry]) {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        fontEntries = Dictionary(entries.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
+    }
+    /// The Latin and other families Word 16 for Mac can set text in:
+    /// the faces it bundles (its DFonts) and the Mac's own, by family
+    /// name, lowercased — read off this box on 2026-10-15. A name not
+    /// here is one Word has no face for, and `substitute` goes by the
+    /// file's font table for it.
+    static let wordMacFamilies: Set<String> = [
+        "abadi mt condensed extra bold", "abadi mt condensed light", "academy engraved let", "al bayan",
+        "al nile", "al tarikh", "american typewriter", "andale mono", "angsana new", "apple braille",
+        "apple chancery", "apple color emoji", "apple sd gothic neo", "apple symbols", "applegothic",
+        "applemyungjo", "aptos", "aptos black", "aptos extrabold", "aptos light", "aptos narrow",
+        "aptos semibold", "arial", "arial black", "arial hebrew", "arial hebrew scholar", "arial narrow",
+        "arial rounded mt bold", "arial unicode ms", "athelas", "avenir", "avenir black",
+        "avenir black oblique", "avenir book", "avenir heavy", "avenir light", "avenir medium",
+        "avenir next", "avenir next condensed", "avenir next condensed demi bold",
+        "avenir next condensed heavy", "avenir next condensed medium", "avenir next condensed ultra light",
+        "avenir next demi bold", "avenir next heavy", "avenir next medium", "avenir next ultra light",
+        "ayuthaya", "baghdad", "bangla mn", "bangla sangam mn", "baskerville", "baskerville old face",
+        "batang", "batangche", "bauhaus 93", "beirut", "bell mt", "bernard mt condensed", "big caslon",
+        "bodoni 72", "bodoni 72 oldstyle", "bodoni 72 smallcaps", "bodoni ornaments", "book antiqua",
+        "bookman old style", "bookshelf symbol 7", "bradley hand", "braggadocio", "britannic bold",
+        "brush script mt", "calibri", "calibri light", "calisto mt", "cambria", "cambria math", "candara",
+        "century", "century gothic", "century schoolbook", "chalkboard", "chalkboard se", "chalkduster",
+        "charter", "charter black", "cochin", "colonna mt", "comic sans ms", "consolas", "constantia",
+        "cooper black", "copperplate", "copperplate gothic bold", "corbel", "cordia new", "cordiaupc",
+        "corsiva hebrew", "courier", "courier new", "curlz mt", "damascus", "david", "decotype naskh",
+        "dengxian", "dengxian light", "desdemona", "devanagari mt", "devanagari sangam mn", "didot",
+        "din alternate", "din condensed", "diwan kufi", "diwan thuluth", "dotum", "dotumche", "dubai",
+        "dubai light", "dubai medium", "edwardian script itc", "engravers mt", "euphemia ucas", "eurostile",
+        "fangsong", "farah", "farisi", "footlight mt light", "franklin gothic book", "franklin gothic demi",
+        "franklin gothic demi cond", "franklin gothic heavy", "franklin gothic medium",
+        "franklin gothic medium cond", "futura", "gabriola", "galvji", "garamond", "gautami",
+        "gb18030 bitmap", "geeza pro", "geneva", "georgia", "gill sans", "gill sans mt",
+        "gill sans mt condensed", "gill sans mt ext condensed bold", "gill sans ultra bold",
+        "gloucester mt extra condensed", "goudy old style", "grantha sangam mn", "gujarati mt",
+        "gujarati sangam mn", "gulim", "gulimche", "gungsuh", "gungsuhche", "gurmukhi mn", "gurmukhi mt",
+        "gurmukhi sangam mn", "haettenschweiler", "harrington", "heiti sc", "heiti tc", "helvetica",
+        "helvetica neue", "herculanum", "hggothice", "hgmarugothicmpro", "hgminchoe", "hgpgothice",
+        "hgpminchoe", "hgpsoeikakugothicub", "hgsgothice", "hgsminchoe", "hgsoeikakugothicub",
+        "hgssoeikakugothicub", "hiragino kaku gothic pro", "hiragino kaku gothic pro w3",
+        "hiragino kaku gothic pro w6", "hiragino kaku gothic pron", "hiragino kaku gothic pron w3",
+        "hiragino kaku gothic pron w6", "hiragino kaku gothic std", "hiragino kaku gothic std w8",
+        "hiragino kaku gothic stdn", "hiragino kaku gothic stdn w8", "hiragino maru gothic pro",
+        "hiragino maru gothic pro w4", "hiragino maru gothic pron", "hiragino maru gothic pron w4",
+        "hiragino mincho pro", "hiragino mincho pro w3", "hiragino mincho pro w6", "hiragino mincho pron",
+        "hiragino mincho pron w3", "hiragino mincho pron w6", "hiragino sans", "hiragino sans gb",
+        "hiragino sans gb w3", "hiragino sans gb w6", "hiragino sans w0", "hiragino sans w1",
+        "hiragino sans w2", "hiragino sans w3", "hiragino sans w4", "hiragino sans w5", "hiragino sans w6",
+        "hiragino sans w7", "hiragino sans w8", "hiragino sans w9", "hoefler text", "hoefler text ornaments",
+        "impact", "imprint mt shadow", "inaimathi", "iowan old style", "iowan old style black",
+        "itf devanagari", "itf devanagari marathi", "kailasa", "kaiti", "kannada mn", "kannada sangam mn",
+        "kartika", "kefa iii", "khmer mn", "khmer sangam mn", "kino mt", "kohinoor bangla",
+        "kohinoor devanagari", "kohinoor gujarati", "kohinoor telugu", "kokonor", "krungthep",
+        "kufistandardgk", "lao mn", "lao sangam mn", "latha", "lucida blackletter", "lucida bright",
+        "lucida calligraphy", "lucida console", "lucida fax", "lucida grande", "lucida handwriting",
+        "lucida sans", "lucida sans typewriter", "lucida sans unicode", "luminari", "malayalam mn",
+        "malayalam sangam mn", "malgun gothic", "malgun gothic semilight", "mangal", "marion", "marker felt",
+        "marlett", "matura mt script capitals", "meiryo", "meiryo ui", "menlo", "microsoft himalaya",
+        "microsoft jhenghei", "microsoft new tai lue", "microsoft sans serif", "microsoft tai le",
+        "microsoft yahei", "microsoft yahei light", "microsoft yahei ui", "microsoft yahei ui light",
+        "microsoft yi baiti", "mingliu", "mingliu-extb", "mingliu_hkscs", "mingliu_hkscs-extb", "mishafi",
+        "mishafi gold", "mistral", "modern no. 20", "monaco", "mongolian baiti", "monotype corsiva",
+        "monotype sorts", "ms gothic", "ms mincho", "ms pgothic", "ms pmincho", "ms reference sans serif",
+        "ms reference specialty", "ms ui gothic", "mshtakan", "mt extra", "mukta mahee", "muktamahee bold",
+        "muktamahee extrabold", "muktamahee extralight", "muktamahee light", "muktamahee medium",
+        "muktamahee regular", "muktamahee semibold", "muna", "myanmar mn", "myanmar sangam mn",
+        "myanmar text", "nadeem", "new peninim mt", "news gothic mt", "noteworthy", "noto nastaliq urdu",
+        "noto sans adlam", "noto sans armenian", "noto sans armenian blk", "noto sans armenian extbd",
+        "noto sans armenian extlt", "noto sans armenian light", "noto sans armenian med",
+        "noto sans armenian sembd", "noto sans armenian thin", "noto sans avestan", "noto sans bamum",
+        "noto sans bassa vah", "noto sans batak", "noto sans bhaiksuki", "noto sans buginese",
+        "noto sans buhid", "noto sans carian", "noto sans caucalban", "noto sans caucasian albanian",
+        "noto sans chakma", "noto sans cham", "noto sans coptic", "noto sans cuneiform", "noto sans cypriot",
+        "noto sans duployan", "noto sans egypthiero", "noto sans egyptian hieroglyphs", "noto sans elbasan",
+        "noto sans glagolitic", "noto sans gothic", "noto sans gunjala gondi", "noto sans hanifi rohingya",
+        "noto sans hanifirohg", "noto sans hanunoo", "noto sans hatran", "noto sans imparamaic",
+        "noto sans imperial aramaic", "noto sans inscriptional pahlavi", "noto sans inscriptional parthian",
+        "noto sans inspahlavi", "noto sans insparthi", "noto sans javanese", "noto sans kaithi",
+        "noto sans kannada", "noto sans kannada black", "noto sans kannada extrabold",
+        "noto sans kannada extralight", "noto sans kannada light", "noto sans kannada medium",
+        "noto sans kannada semibold", "noto sans kannada thin", "noto sans kayah li", "noto sans kharoshthi",
+        "noto sans khojki", "noto sans khudawadi", "noto sans lepcha", "noto sans limbu",
+        "noto sans linear a", "noto sans linear b", "noto sans lisu", "noto sans lycian", "noto sans lydian",
+        "noto sans mahajani", "noto sans mandaic", "noto sans manichaean", "noto sans marchen",
+        "noto sans masaram gondi", "noto sans meetei mayek", "noto sans meeteimayek",
+        "noto sans mende kikakui", "noto sans meroitic", "noto sans miao", "noto sans modi",
+        "noto sans mongolian", "noto sans mro", "noto sans multani", "noto sans myanmar",
+        "noto sans myanmar blk", "noto sans myanmar extbd", "noto sans myanmar extlt",
+        "noto sans myanmar light", "noto sans myanmar med", "noto sans myanmar sembd",
+        "noto sans myanmar thin", "noto sans nabataean", "noto sans nag mundari", "noto sans new tai lue",
+        "noto sans newa", "noto sans newtailue", "noto sans nko", "noto sans ol chiki",
+        "noto sans old hungarian", "noto sans old italic", "noto sans old north arabian",
+        "noto sans old permic", "noto sans old persian", "noto sans old south arabian",
+        "noto sans old turkic", "noto sans oldhung", "noto sans oldnorarab", "noto sans oldpersian",
+        "noto sans oldsouarab", "noto sans oriya", "noto sans osage", "noto sans osmanya",
+        "noto sans pahawh hmong", "noto sans palmyrene", "noto sans pau cin hau", "noto sans paucinhau",
+        "noto sans phagspa", "noto sans phoenician", "noto sans psalter pahlavi", "noto sans psapahlavi",
+        "noto sans rejang", "noto sans samaritan", "noto sans saurashtra", "noto sans sharada",
+        "noto sans siddham", "noto sans sora sompeng", "noto sans sorasomp", "noto sans sundanese",
+        "noto sans sunuwar", "noto sans syloti nagri", "noto sans syriac", "noto sans tagalog",
+        "noto sans tagbanwa", "noto sans tai le", "noto sans tai tham", "noto sans tai viet",
+        "noto sans takri", "noto sans thaana", "noto sans tifinagh", "noto sans tirhuta",
+        "noto sans ugaritic", "noto sans vai", "noto sans wancho", "noto sans warang citi",
+        "noto sans warangciti", "noto sans yi", "noto sans zawgyi", "noto sans zawgyi blk",
+        "noto sans zawgyi extbd", "noto sans zawgyi extlt", "noto sans zawgyi light", "noto sans zawgyi med",
+        "noto sans zawgyi sembd", "noto sans zawgyi thin", "noto serif ahom", "noto serif balinese",
+        "noto serif hmong nyiakeng", "noto serif myanmar", "noto serif myanmar blk",
+        "noto serif myanmar extbd", "noto serif myanmar extlt", "noto serif myanmar light",
+        "noto serif myanmar med", "noto serif myanmar sembd", "noto serif myanmar thin", "noto serif yezidi",
+        "nsimsun", "nyala", "onyx", "optima", "oriya mn", "oriya sangam mn", "palatino", "palatino linotype",
+        "papyrus", "party let", "perpetua", "perpetua titling mt", "phosphate", "plantagenet cherokee",
+        "pmingliu", "pmingliu-extb", "pt mono", "pt sans", "pt sans caption", "pt sans narrow", "pt serif",
+        "pt serif caption", "raanana", "rockwell", "rockwell condensed", "rockwell extra bold", "sana",
+        "sathu", "savoye let", "segoe print", "segoe script", "segoe ui historic", "segoe ui symbol",
+        "seravek", "seravek extralight", "seravek light", "seravek medium", "shree devanagari 714",
+        "signpainter", "signpainter-housescript", "silom", "simhei", "simsun", "simsun-extb", "sinhala mn",
+        "sinhala sangam mn", "skia", "snell roundhand", "songti sc", "songti tc", "stencil", "sthupo",
+        "stix two math", "stix two text", "stixgeneral", "stixintegralsd", "stixintegralssm",
+        "stixintegralsup", "stixintegralsupd", "stixintegralsupsm", "stixnonunicode", "stixsizefivesym",
+        "stixsizefoursym", "stixsizeonesym", "stixsizethreesym", "stixsizetwosym", "stixvariants", "stliti",
+        "stsong", "stxingkai", "stxinwei", "stzhongsong", "sukhumvit set", "superclarendon", "symbol",
+        "system font", "tahoma", "tamil mn", "tamil sangam mn", "telugu mn", "telugu sangam mn",
+        "th sarabunpsk", "thonburi", "times", "times new roman", "trattatello", "trebuchet ms", "tunga",
+        "tw cen mt", "tw cen mt condensed", "tw cen mt condensed extra bold", "verdana", "waseem",
+        "webdings", "wide latin", "wingdings", "wingdings 2", "wingdings 3", "yu gothic", "yu gothic light",
+        "yu gothic medium", "yu gothic ui", "yu gothic ui light", "yu gothic ui semibold",
+        "yu gothic ui semilight", "yu mincho", "yu mincho demibold", "yu mincho light", "zapf dingbats",
+        "zapfino",
+    ]
+    private static func fontEntry(_ family: String) -> FontEntry? {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        return fontEntries[family.trimmingWhitespace().lowercased()]
     }
     static func noteEmbedded(_ names: [String]) {
         declaredLock.lock()
