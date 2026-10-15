@@ -498,7 +498,9 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   (U+F900–FAFF, Big5 leftovers: 料 U+F9BE, 狀 U+F9FA, 行 U+FA08) that
   YaHei lacks in NotoSansSC-Thin — or as YaHei's empty box (零, 金, 領)
   where Noto has none; a line holding a Noto glyph is ~0.9pt taller,
-  and page 5 runs out a line early. Five more references show the Noto
+  (Correction, same day: zh-8e8d4c40's page was the table grid —
+  40a6bf9e took it to 98.9% — so the taller Noto lines matter less
+  than this note first said.) Five more references show the Noto
   fallback (zh-06c46ba9, zh-64044a1d, zh-7dc3afad, zh-89385c94,
   zh-ae655121). Noto Sans SC is not on the Windows box; its coverage of
   U+F900–FAFF and its line on the Mac would let the layout do the same.
