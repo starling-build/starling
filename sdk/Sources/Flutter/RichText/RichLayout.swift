@@ -3100,7 +3100,12 @@ public final class RichLayout {
         }
         let style = p.style
         // Word's auto spacing: 14pt, none between items of a list.
-        let autoGap = style.list == nil ? 14.0 : 0.0
+        // (None between two items of one list; the first item, under a
+        // paragraph of no list or another, keeps the web's 14pt — Word
+        // sets bug59058's first reference 30pt under its "References"
+        // (9pt after), its others 24 apart, where ours gave the first
+        // none and stood it 5pt high.)
+        let autoGap = style.list == nil || !(i > 0 && document.paragraphs[i - 1].style.list == style.list) ? 14.0 : 0.0
         // Contextual spacing: no space against a neighbour of the same style.
         func sameStyle(_ j: Int) -> Bool {
             guard j >= 0, j < document.paragraphs.count else { return false }
@@ -4439,7 +4444,7 @@ public final class RichLayout {
                     // makes; its glyphs stand on the same baseline.)
                     flush(i)
                     let s = style(kind)
-                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra, height: (s.height ?? 1) * 0.8)))
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra, height: (s.height ?? 1) * 0.6)))
                     start = after
                 } else if ea, theme.wordRules, let cjk = Self._cjkSymbolFamily, Self._cjkSymbols.contains(ch) {
                     // (A dash or an ellipsis in East Asian text is the

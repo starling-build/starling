@@ -3716,6 +3716,15 @@ fitter dropped the paragraph's tail).
   16.4pt lines became 15.4-15.8 (Word 15.2). bug59058 57.1% -> 71.9; it
   now runs 53 pages to Word's 52 — the remaining half point a math line
   is the next thing there (subscript runs and the private-use blanks).
+  Then: the math face's characters at three fifths of the run's height
+  (at four fifths they still made a line 0.2pt taller than Word's), and
+  automatic spacing (`beforeAutospacing`) gives a list's FIRST item the
+  web's 14pt — none only between two items of one list: Word sets the
+  first reference 30pt under "References" (9pt after), ours had 24.7.
+  bug59058 71.9% -> 73.9 against a clean baseline, nothing else moved.
+  Tried and left: holding lines of near-equal run heights (Times "at
+  least" 15 and Cambria 15.24) to the taller as one strut — Word's mixed
+  reference lines are 15.2 and ours 15.5, but it cost bug59058 a point.
 - **Lead, not taken: a page-anchored floating table that Word breaks
   after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
   the rest of the table, which would fit, goes to page 21 in Word's
