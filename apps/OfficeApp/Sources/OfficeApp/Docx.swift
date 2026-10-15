@@ -2545,6 +2545,21 @@ enum DocxFormat {
                         if let v = Double(body["tIns"] ?? "") { box.insetTop = v / 12700 }
                         if let v = Double(body["rIns"] ?? "") { box.insetRight = v / 12700 }
                         if let v = Double(body["bIns"] ?? "") { box.insetBottom = v / 12700 }
+                        // (A shape that is not a rectangle sets its text in
+                        // the preset's text rectangle, as Slides does: Word
+                        // wraps shapes-with-text's "An ellipse with text
+                        // inside" in the ellipse's inscribed box, two lines
+                        // where the whole box held one.)
+                        if let geom = node.descendant("a:prstGeom"), let prst = geom["prst"], prst != "rect",
+                           att.width > 0, att.height > 0,
+                           let g = PresetGeometry.geometry(prst, width: att.width * 12700, height: att.height * 12700,
+                                                           adjustments: PresetGeometry.adjustments(geom)),
+                           let r = g.textRect {
+                            box.insetLeft += r.left * att.width
+                            box.insetTop += r.top * att.height
+                            box.insetRight += (1 - r.right) * att.width
+                            box.insetBottom += (1 - r.bottom) * att.height
+                        }
                     } else if let textbox = node.descendant("v:textbox"), let inset = textbox["inset"] {
                         let shapeStyle = (node.name == "v:shape" ? node : node.descendant("v:shape"))?["style"] ?? ""
                         box.fitsText = shapeStyle.containsSubstring("mso-wrap-style:none")

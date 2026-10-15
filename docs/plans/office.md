@@ -3545,6 +3545,16 @@ fitter dropped the paragraph's tail).
   set at the mark's size and kept their own width by letter spacing,
   and a tab sets no line's height. IllustrativeCases 76.0% -> 100;
   nothing else moved.
+- **A shape's text is set in its preset's text rectangle (2026-10-15).**
+  A `wps` shape that is not a rectangle wraps its text inside the
+  preset's `a:rect`, as Slides already did: shapes-with-text's "An
+  ellipse with text inside" is two lines in Word's print, in the
+  ellipse's inscribed box; the importer now adds the rectangle's margins
+  (`PresetGeometry.geometry(...).textRect`) to the box's insets.
+  shapes-with-text 37.5% -> 62.5; nothing else moved. Left: text in
+  group shapes (`wpg:wgp`) — the importer takes the first body it finds
+  and places it by the group; five corpus files have such groups
+  (60316, shapes-with-text, zh-06c46ba9, zh-6cd1befe, zh-799c91cd).
 - **Lead, not taken: a page-anchored floating table that Word breaks
   after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
   the rest of the table, which would fit, goes to page 21 in Word's
