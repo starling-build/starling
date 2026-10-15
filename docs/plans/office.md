@@ -2340,6 +2340,19 @@ fitter dropped the paragraph's tail).
   a space after it) went through the inline path, which never asked
   `objectPainter`: drawn now too. chartex has its three pages; its
   radar chart stays a grey box (Slides reads no radar charts).
+  (Its line match fell 12.5% -> 6.9%: the charts' own labels stand a
+  few points from Word's, where before, with no charts, unrelated lines
+  happened to meet.)
+
+- **A picture on the first line of several keeps to the grid
+  (2026-10-14).** The snap of a picture's line (cab83667) was for a
+  paragraph of one line. zh-9c5d0c3f's fifth column holds its sign, a
+  break and its caption in one paragraph; Word stands the sign level
+  with the other columns' on their 90pt lines, ours 9.7pt higher. Now
+  the first line is snapped the same way — on its baseline, the text's
+  descent under it (taken from the caption's line: the picture's own
+  has none) — and the sign is within 2pt. zh-9c5d0c3f +1.0,
+  zh-37b6536f +0.7; nothing down.
 
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with

@@ -3426,6 +3426,26 @@ public final class RichLayout {
             // under it may hang past: zh-90e0cea8's last picture ends at
             // the foot of its page in Word's print, its line 2.6pt past.)
             if p.image != nil, i < _overhang.count { _overhang[i] = max(_overhang[i], descent) }
+        } else if theme.wordRules, p.image == nil, p.inlineImages.values.contains(where: { $0.float == nil }),
+                  style.lineHeightPoints == nil, style.eastAsian["w:snapToGrid"] != "0",
+                  let pitch = _grid(i, document).pitch, pitch > 0,
+                  case let lines = painter.computeLineMetrics(), lines.count > 1,
+                  let box = painter.inlinePlaceholderBoxes?.first, box.bottom <= lines[0].height + 0.5 {
+            // (… and a picture on the first line of several, the extra
+            // above it as well: zh-9c5d0c3f's fifth column holds its sign,
+            // a break and its caption in one paragraph, and Word stands
+            // the sign level with the others' on their 90pt lines, where
+            // ours stood 11pt higher.)
+            // (On its baseline with the text's descent under it, as above:
+            // the text's, from the line after it — the picture's own line
+            // has none, and the sign then stood 4pt below its row's.)
+            let px = _px(pitch)
+            let first = lines[0].height, descent = max(lines[0].descent, lines[1].descent)
+            let snapped = ((first + descent) / px - 0.002).rounded(.up) * px
+            if snapped > first + 0.01 {
+                _inkShift[i] += max(0, snapped - first - descent)
+                bodyHeight += snapped - first
+            }
         }
         _heights[i] = (before + push + bodyHeight + after).rounded(.up)
         // An empty paragraph that only ends a section stands for the
