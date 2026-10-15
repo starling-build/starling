@@ -2300,6 +2300,14 @@ fitter dropped the paragraph's tail).
   below it. Not yet: Word 2016's `cx:` charts (chartex), and a pie's
   automatic title ("Series 1" where Word's print says "Chart Title").
 
+- **No ligatures (2026-10-14).** Word sets a face's ligatures only
+  where a run asks for them (`w14:ligatures`); ours took Carlito's "ti"
+  and "tt", narrower than the letters, and "Section" in Headers came out
+  of the PDF as one glyph. Writer now sets letters one by one, as
+  Slides does (`RichTextTheme.disablesLigatures`). POI set on Windows
+  67.1% -> 69.7% with the charts: Headers, 59030 and TestTableCellA
+  -> 100%; nothing down. Chinese sample 90.6%.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

@@ -92,6 +92,9 @@ final class OfficeSession {
         theme.faceResolver = OfficeFonts.face
         theme.averageCharWidth = OfficeFonts.averageCharWidth
         theme.wordRules = true
+        // (Letters one by one: Word sets a face's ligatures only where a
+        // run asks for them, `w14:ligatures` — "Section" is no "ti" in Headers.)
+        theme.disablesLigatures = true
         return theme
     }()
 

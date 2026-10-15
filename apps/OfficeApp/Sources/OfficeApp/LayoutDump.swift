@@ -16,6 +16,7 @@ enum OfficeLayoutDump {
         theme.faceResolver = OfficeFonts.face
         theme.averageCharWidth = OfficeFonts.averageCharWidth
         theme.wordRules = true
+        theme.disablesLigatures = true
         let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
         // (LAYOUT_SCALE=15 dumps the layout a PDF is written from.)
         let zoom = Double(ProcessInfo.processInfo.environment["LAYOUT_SCALE"] ?? "") ?? 1.0
