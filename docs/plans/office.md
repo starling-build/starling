@@ -2817,6 +2817,25 @@ fitter dropped the paragraph's tail).
   "附件3" in a 1272-twip column with the title beside it on Word's page
   51, which ours sets a page apart, so the first table ends on page 53
   and the break now costs the page.
+- **With `w:wordWrap` off, what may begin a line is the document's
+  East Asian language's list (2026-10-15).** Word's Simplified Chinese
+  list of characters that may not begin a line holds "%", "'" and ">";
+  its Traditional one (`!),.:;?]}¢·–—…`) does not. Ours used the one
+  list for both, so a Traditional document's "權重為70%。" could part
+  only before the "0": zh-f94d11c5 (`zh-TW`, 332 paragraphs with the
+  switch off) has "權重為70" and "%。2.活動參與人次：" in Word's print,
+  and "權重為30" over "%。"; ours set "權重為7" over "0%。2.活動參與人".
+  The language is the kept `w:noLineBreaksBefore`'s, else the settings'
+  `w:themeFontLang`, else the defaults' `w:lang`. zh-f94d11c5 85.9% ->
+  86.5, zh-04f73697 96.9 -> 97.3; the ten other `zh-TW` documents with
+  the switch off unchanged. (Found on the way: the 6pt gaps either side
+  of a digit run in these prints are not the automatic space, which is
+  3pt in every lab — labs `asp`, `asp2` from zh-f94d11c5's package —
+  but Word's justification of a mixed line, which doubles the
+  automatic spaces first and spreads what is left over every gap,
+  Latin ones too; ours spreads it over the East Asian gaps alone. And
+  zh-04f73697's "本署海巡118報案專線" is a hair: 118.91pt in a cell
+  Word gives 118.8 — autofit, T1.)
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

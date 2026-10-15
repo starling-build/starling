@@ -5033,8 +5033,15 @@ public final class RichLayout {
         // word parts at any character — but not so as to begin a line
         // with what may not begin one, or end it with what may not end.)
         if p.style.eastAsian["w:wordWrap"] == "0" {
+            // (What may not begin a line is the document's East Asian
+            // language's list: Word's Simplified Chinese one holds "%",
+            // "'" and ">", its Traditional one does not — zh-f94d11c5,
+            // `zh-TW`, parts "權重為70" from "%。2.活動…" in Word's print,
+            // and "權重為30" from "%。"; ours took "0%。" over together.)
+            let traditional = Self._traditionalChinese(document)
             for k in units.indices.dropFirst() where units[k] > 0x20 && units[k] < 0x7F && units[k - 1] > 0x20 && units[k - 1] < 0x7F {
-                if !Self._noStart.contains(units[k]), !Self._noEnd.contains(units[k - 1]) { out.insert(k) }
+                let mayStart = !Self._noStart.contains(units[k]) || traditional && (units[k] == 0x25 || units[k] == 0x27 || units[k] == 0x3E)
+                if mayStart, !Self._noEnd.contains(units[k - 1]) { out.insert(k) }
             }
             return out
         }
@@ -5058,6 +5065,22 @@ public final class RichLayout {
             k = end
         }
         return out
+    }
+
+    /// Whether the document's East Asian text is Traditional Chinese,
+    /// so that Word's `zh-TW` line-breaking lists hold: by the kept
+    /// `w:noLineBreaksBefore`'s language, else the settings' theme
+    /// font language, else the defaults' `w:lang`.
+    private static func _traditionalChinese(_ document: RichDocument) -> Bool {
+        func traditional(_ xml: String?) -> Bool? {
+            guard let xml, let r = xml.range(of: "w:eastAsia=\"") else { return nil }
+            let tag = xml[r.upperBound...].prefix { $0 != "\"" }
+            return tag == "zh-TW" || tag == "zh-HK" || tag == "zh-MO"
+        }
+        if let kept = document.keptSettings["w:noLineBreaksBefore"] {
+            return kept.containsSubstring("w:lang=\"zh-TW\"") || kept.containsSubstring("w:lang=\"zh-HK\"")
+        }
+        return traditional(document.themeFontLangXML) ?? traditional(document.defaultLangXML) ?? false
     }
 
     /// Whether a word joiner goes between `a` and `b`: two characters
