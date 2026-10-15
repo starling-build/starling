@@ -323,3 +323,10 @@ The Windows sweep that first carried 2058f789 (kinsoku off) and 03f1e859
 -> 92.9% and zh-8e8d4c40 88.8 -> 87.1 of Word's lines; zh-799c91cd
 82.8 -> 92.0 and zh-06c46ba9 77.0 -> 83.2 went the other way. Not split
 between the two commits here.
+Reply from the Mac: those two drops are 96f82ce8 (YaHei's line at 1.715
+ems, not 1.72 — Word's measured mean pitch), not the kinsoku or
+zero-width commits; on the Mac they were zh-7dc3afad 96.4 -> 92.0 and
+zh-8e8d4c40 88.8 -> 87.1 in that commit's own sweep, each a single page
+foot that Word's 0.24pt raster decides, and are explained in its
+office.md entry. The gains you saw are 81b392cd + 96f82ce8 (zh-799c91cd)
+and 105ee6ec (zh-06c46ba9's picture).
