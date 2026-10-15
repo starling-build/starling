@@ -4147,9 +4147,37 @@ public final class RichLayout {
             // the line out to the left and leaves it that much longer.
             // It is one more character in the painter's text than in the
             // paragraph's: `_lead` says so to every offset that crosses.
-            let style = theme.textStyle(for: p.runs[0].style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+            var leadChar = p.runs[0].style
+            // (A list paragraph's first line is as tall as its number's
+            // face asks: Word sets the bullet in its level's font, and
+            // form_footnotes' Symbol bullets make its 10pt lines 12.24
+            // in Word's print where the text's face gives 11.5 — so the
+            // box before the text takes the level's face.)
+            var symbolLevel = false
+            if theme.wordRules, p.style.list != nil,
+               let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+               let r = xml.range(of: "w:ascii=\"") ?? xml.range(of: "w:hAnsi=\"") {
+                let family = String(xml[r.upperBound...].prefix { $0 != "\"" })
+                // (Only the symbol faces, whose lines differ from any
+                // text face's: a zero-width space before every list
+                // paragraph's text, in whatever face, cost zh-90e0cea8
+                // 20 points — the first character's place is read by
+                // more than the offset map.)
+                if ["symbol", "wingdings", "wingdings 2", "wingdings 3"].contains(family.lowercased()) {
+                    leadChar.fontFamily = family
+                    symbolLevel = true
+                }
+            }
+            let style = theme.textStyle(for: leadChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
             children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
             inline.append((nil, PlaceholderDimensions(size: Size(lead, 0.01), alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: 0.01)))
+            // (A box sets no line height of its own: the level's face
+            // reaches the line through a zero-width space in it, one
+            // more character before the text.)
+            if symbolLevel {
+                children.append(TextSpan(text: "\u{200B}", style: style))
+                inserts.append(0)
+            }
         }
         var pos = 0
         let utf16 = p.text.utf16

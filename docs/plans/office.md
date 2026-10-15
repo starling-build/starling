@@ -2971,6 +2971,30 @@ fitter dropped the paragraph's tail).
   first try). `STARLING_RICHTEXT_ROWS=<page>` now prints each row set
   on a page — where it stands, what is left, what it asks — which is
   how this was found. bug65649 53.8% -> 58.1.
+- **Word's symbol faces keep their own lines (2026-10-15).** Word's
+  bundled `symbol.ttf` has an hhea ascent of 1.005 and descent of
+  0.220 ems (its Wingdings .899/.211, Wingdings 2 .843/.211,
+  Wingdings 3 .928/.211; the Mac's own Symbol.ttf is .701/.299, a
+  different face), so a line with a Symbol glyph on it — a `w:sym`
+  box, a bullet from a Symbol-faced list level — is 1.225 ems tall.
+  form_footnotes: its 10pt lines with a Symbol box or bullet are
+  12.24pt apart in Word's print (PyMuPDF baselines), ours were 11.5,
+  the clone's; four such lines put our page 1 four points short, the
+  "H - Observações / I - Assinaturas" row — Word's page 2's first —
+  on page 1, and the instructions off page 3. The resolved face for
+  those four names carries the height and baseline; a `w:sym` run
+  takes it as its own face, and a list paragraph whose level names
+  one of them takes it on its first line through a zero-width space
+  in that face before the text (the box before the text sets no line
+  height of its own). Only the symbol faces: the space before every
+  list paragraph's text, in whatever face, cost zh-90e0cea8 20 points
+  — the first character's place is read by more than the offset map,
+  a trap left for whoever needs a level's face on the line in general.
+  form_footnotes 47.1% -> 48.3, its Symbol lines 12.25 now; still two
+  pages to Word's three — the "D - ☐ Concessão" row is 1.5pt short of
+  Word's yet, the Symbol glyph's own ascent not placing the baseline.
+  (delins 5.0 -> 3.3 is its Symbol bullets 12.25 apart in a Word print
+  that is a scaled markup-balloon page, not a layout.)
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
