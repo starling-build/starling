@@ -55,7 +55,7 @@ enum OfficeFonts {
         let n = family.trimmingWhitespace().lowercased()
         switch n {
         case "liberation sans", "arial", "helvetica", "helvetica neue", "tahoma",
-             "segoe ui", "aptos", "arimo":
+             "segoe ui", "aptos", "arimo", "arial black":
             return sans
         case "verdana", "dejavu sans", "bitstream vera sans":
             return verdana
@@ -546,6 +546,17 @@ enum OfficeFonts {
     // The horizontal advances of U+0020 to U+007E in the faces whose
     // Latin is drawn by a stand-in, in ems, read from the faces' own
     // tables (2026-10-12): what Word breaks a line by.
+    /// Arial Black's widths for U+0020 to U+007E, in ems (Word's
+    /// DFonts ariblk.ttf).
+    private static let arialBlackAdvances: [Double] = [
+        0.3335, 0.333, 0.5, 0.6602, 0.667, 1, 0.8892, 0.2778, 0.3892, 0.3892, 0.5562, 0.6602, 0.333, 0.333, 0.333,
+        0.2778, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.333, 0.333, 0.6602, 0.6602,
+        0.6602, 0.6108, 0.7402, 0.7778, 0.7778, 0.7778, 0.7778, 0.7222, 0.667, 0.833, 0.833, 0.3892, 0.667, 0.833, 0.667,
+        0.9438, 0.833, 0.833, 0.7222, 0.833, 0.7778, 0.7222, 0.7222, 0.833, 0.7778, 1, 0.7778, 0.7778, 0.7222, 0.3892,
+        0.2778, 0.3892, 0.6602, 0.5, 0.333, 0.667, 0.667, 0.667, 0.667, 0.667, 0.3892, 0.667, 0.667, 0.333, 0.333,
+        0.667, 0.333, 1, 0.667, 0.667, 0.667, 0.667, 0.4438, 0.6108, 0.4438, 0.667, 0.6108, 0.9438, 0.667, 0.6108,
+        0.5562, 0.3892, 0.2778, 0.3892, 0.6602,
+    ]
     private static let yaHeiAdvances: [Double] = [
         0.2959, 0.3125, 0.4355, 0.6382, 0.5864, 0.8896, 0.8701, 0.2563, 0.334, 0.334, 0.4551, 0.7417, 0.2407, 0.4326, 0.2407,
         0.4272, 0.5864, 0.5864, 0.5864, 0.5864, 0.5864, 0.5864, 0.5864, 0.5864, 0.5864, 0.5864, 0.2407, 0.2407, 0.7417, 0.7417,
@@ -766,6 +777,16 @@ enum OfficeFonts {
                 face.boldOtherAdvances?.merge(verdanaBoldOtherAdvances) { $1 }
                 face.naturalHeight = 1.2153
                 face.baseline = 1.0054
+            }
+            // (Arial Black, which Word has and the stand-in is far
+            // narrower than — its letters 15% wider than Liberation Sans
+            // Bold's on average: its own widths and line, 1.41 ems by
+            // its hhea, the ascent 1.1006. SampleDoc's 16pt heading.)
+            if family.trimmingWhitespace().lowercased() == "arial black" {
+                face.advances = arialBlackAdvances
+                face.boldAdvances = arialBlackAdvances
+                face.naturalHeight = 1.4102
+                face.baseline = 1.1006
             }
             if clone == serif {
                 face.otherAdvances?.merge(timesNumerals) { $1 }

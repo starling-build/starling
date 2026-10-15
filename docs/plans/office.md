@@ -3271,6 +3271,13 @@ fitter dropped the paragraph's tail).
   documents up to 64 points (digits are everywhere); for curly quotes
   alone it moved nothing it was meant to and cost zh-6c568ae9 1.3 and
   zh-d68ac84a 0.8. Not built; the rule is narrower than either.
+- **Arial Black at its own widths (2026-10-15).** Word has Arial Black
+  (its DFonts' ariblk.ttf); ours drew it as the sans stand-in at the
+  stand-in's widths, some 15% narrower letter for letter, so SampleDoc's
+  16pt heading broke a word later than Word's. The resolved face now
+  carries Arial Black's advances for U+0020–U+007E and its line (1.41
+  ems by its hhea, the ascent 1.1006), as Verdana's and YaHei's do.
+  SampleDoc 50% -> 100; nothing else moved.
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
