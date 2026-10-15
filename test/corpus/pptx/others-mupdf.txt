@@ -6,7 +6,6 @@
 54542_cropped_bitmap.pptx
 56812.pptx
 60810.pptx
-63200.pptx
 ArtisticEffectSample.pptx
 Divino_Revelado.pptx
 KEY02.pptx
@@ -71,7 +70,6 @@ lo-activex_spinbutton.pptx
 lo-activex_textbox.pptx
 lo-activex_togglebutton.pptx
 lo-altdescription.pptx
-lo-arc-validiert.pptx
 lo-bnc480256-2.pptx
 lo-bnc480256.pptx
 lo-bnc584721_1_2.pptx
@@ -109,7 +107,6 @@ lo-fill-color-list.pptx
 lo-font-scale.pptx
 lo-formatting-bullet-indent.pptx
 lo-forum-mso-de-138303.pptx
-lo-glue_point_leaving_directions.pptx
 lo-greysscale-graphic.pptx
 lo-group.pptx
 lo-hyperlinkOnImage.pptx
@@ -147,7 +144,6 @@ lo-predefined-table-style.pptx
 lo-presLeftAlign.pptx
 lo-rightToLeftParagraph.pptx
 lo-shape-blur-effect.pptx
-lo-shape-glow-effect.pptx
 lo-shape-soft-edges.pptx
 lo-shape-text-glow-effect.pptx
 lo-shape-text-rotate.pptx
@@ -213,12 +209,10 @@ lo-tdf104789.pptx
 lo-tdf104792-smart-art-animation.pptx
 lo-tdf105739.pptx
 lo-tdf106638.pptx
-lo-tdf107608.pptx
 lo-tdf109067.pptx
 lo-tdf109187.pptx
 lo-tdf111786.pptx
 lo-tdf111789.pptx
-lo-tdf112088.pptx
 lo-tdf112089.pptx
 lo-tdf112209.pptx
 lo-tdf112334.pptx
@@ -244,11 +238,6 @@ lo-tdf123090.pptx
 lo-tdf123684.pptx
 lo-tdf124457.pptx
 lo-tdf125071.pptx
-lo-tdf125346.pptx
-lo-tdf125346_2.pptx
-lo-tdf125360.pptx
-lo-tdf125360_1.pptx
-lo-tdf125360_2.pptx
 lo-tdf125551.pptx
 lo-tdf125554.pptx
 lo-tdf125573_FontWorkScaleX.pptx
@@ -256,7 +245,6 @@ lo-tdf126234.pptx
 lo-tdf126324.pptx
 lo-tdf127129.pptx
 lo-tdf127237.pptx
-lo-tdf127964.pptx
 lo-tdf128206.pptx
 lo-tdf128212.pptx
 lo-tdf128213-shaperot.pptx
@@ -274,7 +262,6 @@ lo-tdf132282.pptx
 lo-tdf132302_SmartArt_rightArrow.pptx
 lo-tdf132472.pptx
 lo-tdf134053_dashdot.pptx
-lo-tdf134210.pptx
 lo-tdf134862.pptx
 lo-tdf135843.pptx
 lo-tdf135843_export.pptx
@@ -300,7 +287,6 @@ lo-tdf143624.pptx
 lo-tdf144092-emptyShapeTextProps.pptx
 lo-tdf144092-tableHeight.pptx
 lo-tdf144616.pptx
-lo-tdf144917.pptx
 lo-tdf144918.pptx
 lo-tdf145162.pptx
 lo-tdf145528_SmartArt_Matrix.pptx
@@ -341,7 +327,6 @@ lo-tdf153466.pptx
 lo-tdf154363.pptx
 lo-tdf156649.pptx
 lo-tdf156718.pptx
-lo-tdf156829.pptx
 lo-tdf156856.pptx
 lo-tdf157216.pptx
 lo-tdf157285.pptx
@@ -386,7 +371,6 @@ lo-tdf89927.pptx
 lo-tdf89928-blackWhiteEffectThreshold.pptx
 lo-tdf90626.pptx
 lo-tdf91378.pptx
-lo-tdf91999_rotateShape.pptx
 lo-tdf92222.pptx
 lo-tdf93097.pptx
 lo-tdf93830.pptx
@@ -418,7 +402,6 @@ oox-Scene3d_orthographicFront.pptx
 oox-Scene3d_perspectiveContrastingLeft.pptx
 oox-Scene3d_pureImage.pptx
 oox-Scene3d_shape_rotation.pptx
-oox-ThemeShapesReference.pptx
 oox-camera-rotation-revolution-nonwps.pptx
 oox-chart-theme-override.pptx
 oox-connectorConnection.pptx

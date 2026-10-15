@@ -112,11 +112,17 @@ struct PptxTheme {
     var fillStyles: [XNode] = []
     /// Its effect styles (`a:effectStyleLst`), referred to the same way.
     var effectStyles: [XNode] = []
+    /// Its line styles' widths (`a:lnStyleLst`, points): a shape whose
+    /// style refers to one and whose own line names no width is that wide.
+    var lineWidths: [Double] = []
 
     init(_ root: XNode?) {
         guard let root, let elements = root.descendant("a:themeElements") else { return }
         fillStyles = elements.first("a:fmtScheme")?.first("a:fillStyleLst")?.children ?? []
         effectStyles = elements.first("a:fmtScheme")?.first("a:effectStyleLst")?.children ?? []
+        lineWidths = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map {
+            ($0["w"].flatMap(Double.init) ?? 9525) / 12700
+        }
         if let scheme = elements.first("a:clrScheme") {
             for child in scheme.children {
                 let name = String(child.name.drop { $0 != ":" }.dropFirst())
@@ -1274,6 +1280,12 @@ private struct SlideContext {
                     fillStyle = gradient
                 }
             }
+        }
+        // The width of the theme's line style the shape's style refers to,
+        // where its own line names none: 2 pt for an Office 2007 theme's
+        // second (aascu 5864's ovals), where ours were ¾ pt.
+        if let idx = style?.first("a:lnRef")?["idx"].flatMap(Int.init), theme.lineWidths.indices.contains(idx - 1) {
+            outlineWidth = theme.lineWidths[idx - 1]
         }
         if let ln = spPr?.first("a:ln") {
             outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? outlineWidth

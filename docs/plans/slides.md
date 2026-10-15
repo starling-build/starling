@@ -1446,6 +1446,17 @@ and the wider labels tipped into the aslant rule where PowerPoint's
 stand level. `Chart.baseTextSize`; a 2013-style chart (and a new one)
 keeps 12. The legend's bold (`c:legend/c:txPr`) is read too.
 
+**A theme line style's width, 2026-10-15** (sweep 79: 1.5811 →
+1.5549%; 61 decks closer — tdf127964 0.89 → 0.00, tdf114848 −0.88,
+group −0.79, backgrounds −0.68, the connector decks −0.6, customGeo
+−0.58, aascu 5864 −0.42 — five 3-D decks +0.02 to +0.11). A shape whose
+style refers to a line style (`p:style/a:lnRef idx`) and whose own line
+names no width was drawn ¾ pt wide whatever the theme said. It takes
+that line style's width now (`PptxTheme.lineWidths`, from
+`a:lnStyleLst`): ¾, 2 and 3 pt in an Office 2007 theme, ½, 1 and 1½ in
+a 2013 one — aascu's ovals' 2 pt red rims, every default connector's
+1 pt.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
