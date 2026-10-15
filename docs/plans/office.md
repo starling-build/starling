@@ -2435,6 +2435,13 @@ fitter dropped the paragraph's tail).
   space — a no-break space as wide, a zero-width space after it for
   the break.
 
+- **A table's columns are whole pixels from a hair over (2026-10-14).**
+  63.5pt is 1270px at the print's scale, which 4/3 times 15 makes
+  1269.9999…, and flooring lost a pixel: bug57031's autofit column,
+  exactly as wide as "Transform" in its cell (55.99pt in 56), wrapped it
+  — and "[Lower" in the next table — once kerning stopped saving the
+  twentieth of a point.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

@@ -1221,7 +1221,11 @@ public final class RichLayout {
                     // print has it.)
                     else if theme.wordRules, ts.fixedLayout { scale = 1 }
                 }
-                widths[c.table] = pts.map { (_px($0) * scale).rounded(.down) }
+                // (Whole pixels, down — from a hair over: 63.5pt is 1270px
+                // at the print's scale, which the scale's 4/3 times 15
+                // makes 1269.9999…, and bug57031's autofit column, exactly
+                // as wide as "Transform", lost a pixel and wrapped it.)
+                widths[c.table] = pts.map { (_px($0) * scale + 0.001).rounded(.down) }
             } else {
                 widths[c.table] = Array(repeating: (width / Double(cols)).rounded(.down), count: cols)
             }
@@ -2676,7 +2680,8 @@ public final class RichLayout {
     /// `STARLING_RICHTEXT_FIT=<text>`: the East Asian line fitting of
     /// every paragraph that contains the text, stretch by stretch, on
     /// standard error (points) — where a line of ours and of Word's end
-    /// a character apart, this says which rule let it on.
+    /// a character apart, this says which rule let it on. Every such
+    /// paragraph's width against its column's, too.
     static let debugFit = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_FIT"]
 
     /// The room a cell's rule of this style and width (points) takes:
@@ -3229,6 +3234,10 @@ public final class RichLayout {
             // the sum of its advances may come out a hair above.)
             let slack = theme.wordRules ? _px(0.005) : 0
             painter.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
+            if let key = Self.debugFit, !key.isEmpty, p.text.containsSubstring(key) {
+                let line = "width \(i): column \(textWidth / _px(1))pt, text \(painter.maxIntrinsicWidth / _px(1))pt, \(painter.computeLineMetrics().count) lines\n"
+                FileHandle.standardError.write(Data(line.utf8))
+            }
             // One line of stretches of several heights is as tall as
             // its tallest and no more (a 14pt dash either side of a 9pt
             // page number): each face splits its height its own way,
