@@ -4145,17 +4145,40 @@ public final class RichLayout {
         // East Asian numbers in the run's East Asian face, as the text.
         let ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
         let markerStyle = theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: ea, gridPitch: pitch)
+        // (Its Latin characters in the Latin face all the same: the "1"
+        // of zh-06c46ba9's "（1）" is Times New Roman's 7pt in Word's
+        // print, the number fits its 35.45pt hanging indent, and the
+        // text starts at the indent; in the East Asian face it was 0.8pt
+        // wider, ran past the indent, and the text went to the next tab
+        // stop, a character later.)
+        // (Not where the number's hint says East Asian — its level's, or
+        // the text's where the level says none: zh-90e0cea8's "1　" is
+        // all SimSun in Word's print, its level hinted so.)
+        let levelHint: String? = {
+            guard let xml = _wordList(p, document)?.format?.numberRPrXML, let r = xml.range(of: "w:hint=\"") else { return nil }
+            return String(xml[r.upperBound...].prefix { $0 != "\"" })
+        }()
+        let hintedEast = (levelHint ?? markerChar.fontHint) == "eastAsia"
+        let latinStyle = ea && theme.wordRules && !hintedEast && label.contains(where: { !Self.isEastAsian($0, hinted: true) })
+            ? theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: false, gridPitch: pitch)
+            : nil
         // The number is on the document's character grid like the text
         // after it — each character wider by the grid's addition, a
         // half-width one by half of it where widths are balanced: Word
         // sets "（2）" 43.97pt wide at 16pt on a grid of 1.008, and the
         // text begins there (zh-457a8d62; it was 41.4 here, and the
         // line took a character more).
-        var span = TextSpan(text: label, style: markerStyle)
+        var span = latinStyle.map { latin in
+            TextSpan(children: label.map { TextSpan(text: String($0), style: Self.isEastAsian($0, hinted: true) ? markerStyle : latin) })
+        } ?? TextSpan(text: label, style: markerStyle)
         if theme.wordRules, let g = _grid(i, document).chars, g != 0, !(markerChar.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false) {
-            let full = markerStyle.copyWith(letterSpacing: (markerStyle.letterSpacing ?? 0) + _px(g))
-            let half = document.balancesSpaceWidth ? markerStyle.copyWith(letterSpacing: (markerStyle.letterSpacing ?? 0) + _px(g) / 2) : full
-            span = TextSpan(children: label.map { TextSpan(text: String($0), style: Self.isEastAsian($0, hinted: true) ? full : half) })
+            func spaced(_ st: TextStyle, _ by: Double) -> TextStyle { st.copyWith(letterSpacing: (st.letterSpacing ?? 0) + by) }
+            let latin = latinStyle ?? markerStyle
+            span = TextSpan(children: label.map { ch in
+                Self.isEastAsian(ch, hinted: true)
+                    ? TextSpan(text: String(ch), style: spaced(markerStyle, _px(g)))
+                    : TextSpan(text: String(ch), style: spaced(latin, document.balancesSpaceWidth ? _px(g) / 2 : _px(g)))
+            })
         }
         let marker = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: strut)
         marker.layout(minWidth: 0, maxWidth: 100_000)

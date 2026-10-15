@@ -2411,6 +2411,17 @@ fitter dropped the paragraph's tail).
   zh-f94d11c5 -0.6 (its columns 1pt over, some nearer Word's and some
   further). Word's autofit proper is task T1.
 
+- **A list number's Latin characters are in the Latin face
+  (2026-10-14).** A number with East Asian characters in it was set
+  wholly in the East Asian face; Word sets each character in its own
+  script's face — the "1" of zh-06c46ba9's "（1）" is Times New Roman's
+  7pt, the number fits its 35.45pt hanging indent and the text starts
+  at the indent, where at YaHei's 7.8 it ran 0.34pt past and the text
+  went to the next tab stop, a character later. Not where the number's
+  hint says East Asian (its level's `w:rFonts w:hint`, or the text's
+  where the level says none): zh-90e0cea8's "1　" is all SimSun.
+  zh-06c46ba9 +1.1; nothing down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
