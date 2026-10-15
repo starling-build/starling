@@ -162,6 +162,9 @@ final class DgmPresNode {
     /// Grown past its contents by its parent's line: its own children fill
     /// it across.
     var fillCross = false
+    /// Its height capped by its own width (`h` ≤ a share of `w`): a box
+    /// whose text the layout shrinks to fit (accent-process's heading).
+    var heightCappedByWidth = false
     /// A size that follows the node's other size (h = 0.6 w): kept in step
     /// when the layout scales the node.
     var derived: [String: (ref: String, fact: Double)] = [:]
@@ -262,6 +265,26 @@ struct DiagramLayout {
             // Nothing outside the frame, and no box sized in font sizes
             // squeezed smaller than that by the room it was given.
             func squeezed(_ n: DgmPresNode) -> Bool {
+                // A text box held under its font-sized height by a cap, too
+                // short for its text at the font size: its lines (one a
+                // paragraph) at 1.2 of the size, and its top and bottom
+                // margins — accent-process's heading, capped at 0.4 of its
+                // width, holds "a" at 33 pt in PowerPoint's print, and
+                // every box sized in font sizes follows.
+                if n.algType == "tx", n.heightCappedByWidth, n.rect.height > 0, let cap = n.caps["h"], let asked = n.vals["h"], asked > cap + 0.5 {
+                    let lines = n.presOf.compactMap { $0.text }.flatMap { $0.all("a:p") }
+                        .filter { p in p.all("a:r").contains { !($0.first("a:t")?.text ?? "").isEmpty } }.count
+                    if lines > 0 {
+                        let prim = n.value("primFontSz") ?? 65
+                        // (A size the text states is the text's: fill-color-
+                        // list's 18 pt headings, whatever the rule's.)
+                        let stated = n.presOf.compactMap { $0.text }.flatMap { $0.all("a:p") }.flatMap { $0.all("a:r") }
+                            .compactMap { $0.first("a:rPr")?["sz"].flatMap(Double.init) }.max().map { $0 / 100 }
+                        let size = stated ?? prim
+                        let need = Double(lines) * 1.2 * size + (n.value("tMarg") ?? 0.56 * prim) + (n.value("bMarg") ?? 0.56 * prim)
+                        if need > n.rect.height + 0.5 { return true }
+                    }
+                }
                 if n.shapeType != nil, !n.hideGeom {
                     // (The size asked for: once laid out, `value` is the slot.)
                     func asked(_ d: String) -> Double? { n.vals[d].map { min($0, n.caps[d] ?? .infinity) } }
@@ -622,6 +645,7 @@ struct DiagramLayout {
                     set(t, type, base * fact, op)
                     if t === node, op == "equ" { t.selfSet.insert(type) }
                     if ref !== t, op == "equ" { t.sizeRef[type] = ref.name }
+                    if op == "lte", ref === t, type == "h", refType == "w" { t.heightCappedByWidth = true }
                     // (A factor of a thousand is not a proportion: `h` = 1000 `w`
                     // is how a layout says "as tall as it needs", and kept in
                     // step with it, a step as tall as the frame was a third

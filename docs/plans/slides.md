@@ -1490,6 +1490,19 @@ the engine's own proportional share (0.75) — and ours stood 7.3 and
 1.9 pt low. `baselineShift` is nought over single now (shared SDK,
 Slides-only path: Word's is nought already).
 
+**A diagram's text that must fit a capped box, 2026-10-15**
+(accent-process 9.35 → 2.29; no other diagram deck moves). process3's
+heading box is held to 0.4 of its width (`h` ≤ 0.4 `w`, its own), and
+its text must fit in it: PowerPoint sets "a" at 33 pt there — 1.2 ×
+33 for the line and 0.56 and 0.3 of it for the margins come to the
+68 pt the cap leaves — and every box sized in font sizes (the shape at
+1.2, the child at 1.6) follows; we kept 55 pt, the boxes a third too
+tall. The layout's fit now counts such a box squeezed when its lines
+and margins at the font size (or the size its text states) do not fit
+— only for a height capped by the box's own width: a cap from a user
+variable (linear-rule's hProcess3) PowerPoint lets the text outgrow,
+and with every cap counted that deck went +2.87.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
