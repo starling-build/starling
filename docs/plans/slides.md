@@ -1683,6 +1683,19 @@ carries in its `c:userShapes` drawing — tdf149985's grey oval and
 offset and size) places its shape there, drawn over the chart and
 never written (the chart part keeps them).
 
+**Numbered lists as PowerPoint counts them, 2026-10-15** (the 18 decks
+with `buAutoNum`: n90255 −0.12, NumberedList-12ab-ab-34 −0.08,
+tdf173712 −0.06; n83889 +0.01). Every numbered level was "1." and an
+unnumbered line restarted every level: NumberedList's sub-items read
+1, 2 where PowerPoint has a, b, and its outer items after them began
+again at 1. PowerPoint's runs are per level — a level numbers on past
+deeper items and starts again after a line at its own level or
+shallower that is unnumbered or numbered another way — and each run
+now is a list of its own in the document, in its scheme's format (a. /
+c) / (i) …) from `startAt`; an empty paragraph neither counts nor
+breaks. A save writes the scheme back (it wrote `arabicPeriod` for
+every list). The shared numbering rules (Word's) are untouched.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

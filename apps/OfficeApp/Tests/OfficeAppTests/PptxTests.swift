@@ -281,4 +281,39 @@ final class GroupAndConnectorTests: XCTestCase {
         XCTAssertFalse(edited.contains("curvedConnector3"), "recoloured: our own line")
         XCTAssertTrue(edited.contains("FF0000"))
     }
+
+    /// PowerPoint's runs of numbers: a level numbers on past deeper items
+    /// and starts again after an unnumbered line at its own level, each
+    /// in its scheme; a save keeps the scheme.
+    func testNumberedListRunsAndSchemes() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(data: package.parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        func p(_ lvl: Int, _ bu: String, _ t: String) -> String {
+            "<a:p><a:pPr lvl=\"\(lvl)\">\(bu)</a:pPr><a:r><a:rPr lang=\"en-US\"/><a:t>\(t)</a:t></a:r></a:p>"
+        }
+        let num = "<a:buAutoNum type=\"arabicPeriod\"/>", alpha = "<a:buAutoNum type=\"alphaLcParenR\" startAt=\"3\"/>"
+        let list = [p(0, num, "one"), p(0, num, "two"), p(1, alpha, "c"), p(1, alpha, "d"), p(1, "<a:buNone/>", "plain"),
+                    p(1, alpha, "c again"), p(0, num, "three")].joined()
+        // The body: the slide's second text body.
+        let bodies = slide.components(separatedBy: "<p:txBody>")
+        XCTAssertGreaterThanOrEqual(bodies.count, 3)
+        let body = bodies[2]
+        let lst = try XCTUnwrap(body.range(of: "</a:lstStyle>") ?? body.range(of: "<a:lstStyle/>"))
+        let end = try XCTUnwrap(body.range(of: "</p:txBody>"))
+        let rebuilt = String(body[..<lst.upperBound]) + list + String(body[end.lowerBound...])
+        slide = bodies[0] + "<p:txBody>" + bodies[1] + "<p:txBody>" + rebuilt + bodies.dropFirst(3).map { "<p:txBody>" + $0 }.joined()
+        package.parts["ppt/slides/slide2.xml"] = Data(slide.utf8)
+        let (state, theme, pkg) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let doc = try XCTUnwrap(state.slides[1].shapes.first { $0.phIdx == "1" }?.text)
+        XCTAssertEqual(RichListNumbering.labels(doc), ["1.", "2.", "c)", "d)", nil, "c)", "3."])
+        // Edited, so the body is written afresh rather than kept as read.
+        var edited = state
+        let i = try XCTUnwrap(edited.slides[1].shapes.firstIndex { $0.phIdx == "1" })
+        edited.slides[1].shapes[i].text?.paragraphs[0].text = "uno"
+        let out = String(data: PptxPackage(try Zip.read(try PptxWriter.write(edited, theme: theme, package: pkg)))
+            .parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(out.contains("<a:buAutoNum type=\"alphaLcParenR\" startAt=\"3\"/>"),
+                      out.components(separatedBy: "buAutoNum").dropFirst().map { String($0.prefix(40)) }.joined(separator: " | "))
+    }
 }

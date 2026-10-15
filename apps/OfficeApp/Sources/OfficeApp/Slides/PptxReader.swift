@@ -325,6 +325,10 @@ private struct LevelStyle {
     var highlight: Color?
     /// `a:buBlip`: the picture bullet, resolved from the part it is in.
     var bulletPicture: ImageAttachment?
+    /// `a:buAutoNum`'s scheme ("arabicPeriod", "alphaLcParenR"…) and
+    /// `startAt`.
+    var autoNumType: String?
+    var autoNumStart: Int?
     /// `a:tabLst` (points from the text's left edge) and `defTabSz`.
     var tabs: [TabStop]?
     var defTab: Double?
@@ -338,6 +342,7 @@ private struct LevelStyle {
         if s.beforePoints == nil && s.beforePercent == nil { s.beforePoints = lower.beforePoints; s.beforePercent = lower.beforePercent }
         if s.afterPoints == nil && s.afterPercent == nil { s.afterPoints = lower.afterPoints; s.afterPercent = lower.afterPercent }
         s.bullet = s.bullet ?? lower.bullet
+        if s.autoNumType == nil { s.autoNumType = lower.autoNumType; s.autoNumStart = s.autoNumStart ?? lower.autoNumStart }
         if s.bulletChar == nil { s.bulletChar = lower.bulletChar; s.bulletFont = s.bulletFont ?? lower.bulletFont; s.bulletPicture = lower.bulletPicture }
         if s.bulletColor == nil, !s.bulletColorFollows { s.bulletColor = lower.bulletColor; s.bulletColorFollows = lower.bulletColorFollows }
         if s.bulletScale == nil, !s.bulletSizeFollows { s.bulletScale = lower.bulletScale; s.bulletSizeFollows = lower.bulletSizeFollows }
@@ -385,7 +390,11 @@ private struct LevelStyle {
         if p.has("a:buClrTx") { s.bulletColorFollows = true }
         if let v = p.first("a:buSzPct")?["val"].flatMap(Double.init) { s.bulletScale = v / 100000 }
         if p.has("a:buSzTx") { s.bulletSizeFollows = true }
-        if p.has("a:buAutoNum") { s.bullet = .number }
+        if let n = p.first("a:buAutoNum") {
+            s.bullet = .number
+            s.autoNumType = n["type"] ?? "arabicPeriod"
+            s.autoNumStart = n["startAt"].flatMap(Int.init)
+        }
         // A picture bullet (`a:buBlip`): a list paragraph whose marker is
         // not drawn yet — its text where a bullet's is, not hung out to
         // the left as an unbulleted paragraph's first line is.
@@ -2494,6 +2503,10 @@ private struct SlideContext {
         var runLooks: [[RunLook]] = []
         var paragraphs: [RichParagraph] = []
         let allParagraphs = body?.all("a:p") ?? []
+        // Each paragraph's level and numbering scheme, for the runs of
+        // numbers below.
+        var paragraphLevels: [Int] = []
+        var numbering: [(type: String, start: Int)?] = []
         for p in allParagraphs {
             let pPr = p.first("a:pPr")
             let lvl = pPr?["lvl"].flatMap(Int.init) ?? 0
@@ -2536,6 +2549,8 @@ private struct SlideContext {
             // (Nor in points: bnc904423's centred boxes, 11.5 pt after their
             // one paragraph, stood 5.75 high.)
             if p === allParagraphs.last { style.spaceAfter = 0 }
+            paragraphLevels.append(lvl)
+            numbering.append(level.bullet == .number ? (level.autoNumType ?? "arabicPeriod", level.autoNumStart ?? 1) : nil)
             switch level.bullet {
             case .char?, .number?:
                 style.list = level.bullet == .char ? .bullet : .numbered
@@ -2652,6 +2667,7 @@ private struct SlideContext {
         // Tabs go to the next stop a default distance apart (`defTabSz`,
         // an inch unless the level says otherwise) from the text's left.
         var bodyDocument = RichDocument(paragraphs: paragraphs)
+        Self._numberRuns(&bodyDocument, levels: paragraphLevels, numbering: numbering)
         bodyDocument.defaultTabStop = level0.defTab ?? 72
         var body0 = TextBody(document: bodyDocument, anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,
@@ -2675,6 +2691,44 @@ private struct SlideContext {
 
     /// A run's WordArt look: a gradient or picture fill, no fill, an
     /// outline. Nil for a run that is plain coloured text.
+    /// PowerPoint's runs of numbers: a level numbers on past deeper
+    /// paragraphs, and starts again after a paragraph at its own level or
+    /// shallower that is not numbered (or numbered another way) —
+    /// NumberedList-12ab-ab-34's outer 3 and 4 after its sub-lists, whose
+    /// second "a, b" follows an unnumbered line. Each run is a list of its
+    /// own, in its scheme's format (a, b / i, ii / 1)…), from `startAt`.
+    /// An empty paragraph shows no number and neither counts nor breaks.
+    static func _numberRuns(_ doc: inout RichDocument, levels: [Int], numbering: [(type: String, start: Int)?]) {
+        guard numbering.contains(where: { $0 != nil }), levels.count == doc.paragraphs.count else { return }
+        var broken = Array(repeating: true, count: 9), run = Array(repeating: 0, count: 9)
+        var scheme = Array(repeating: "", count: 9)
+        for i in doc.paragraphs.indices {
+            let lvl = min(8, max(0, levels[i]))
+            for deeper in (lvl + 1) ..< 9 { broken[deeper] = true }
+            guard doc.paragraphs[i].style.list == .numbered, let n = numbering[i] else { broken[lvl] = true; continue }
+            if doc.paragraphs[i].text.isEmpty {
+                doc.paragraphs[i].style.listId = "pptx-empty-\(i)"
+                continue
+            }
+            let key = "\(n.type)/\(n.start)"
+            if broken[lvl] || scheme[lvl] != key { run[lvl] += 1; broken[lvl] = false; scheme[lvl] = key }
+            let id = "pptx-\(lvl)-\(run[lvl])"
+            doc.paragraphs[i].style.listId = id
+            if doc.listFormats[id] == nil {
+                let t = n.type.lowercased()
+                let format: ListNumberFormat = t.hasPrefix("alphalc") ? .lowerLetter : t.hasPrefix("alphauc") ? .upperLetter
+                    : t.hasPrefix("romanlc") ? .lowerRoman : t.hasPrefix("romanuc") ? .upperRoman : .decimal
+                let counter = "%\(lvl + 1)"
+                let text = t.hasSuffix("parenboth") ? "(\(counter))" : t.hasSuffix("parenr") ? "\(counter))"
+                    : t.hasSuffix("plain") ? counter : "\(counter)."
+                var levelsOf: [Int: ListLevelFormat] = [:]
+                levelsOf[lvl] = ListLevelFormat(text: text, format: format)
+                doc.listFormats[id] = levelsOf
+                if n.start != 1 { doc.listRestarts[id] = [lvl: n.start] }
+            }
+        }
+    }
+
     private func _runLook(_ rPr: XNode?) -> RunLook? {
         guard let rPr else { return nil }
         var look = RunLook()

@@ -1030,7 +1030,7 @@ enum PptxText {
                 if let k = st.bulletScale { inner += "<a:buSzPct val=\"\(Int((k * 100000).rounded()))\"/>" }
                 inner += st.list == .bullet
                     ? "<a:buFont typeface=\"\(PptxXML.escape(st.bulletFontFamily ?? "Arial", attribute: true))\"/><a:buChar char=\"\(PptxXML.escape(st.bulletText ?? "•", attribute: true))\"/>"
-                    : "<a:buFont typeface=\"+mj-lt\"/><a:buAutoNum type=\"arabicPeriod\"/>"
+                    : "<a:buFont typeface=\"+mj-lt\"/>" + Self._autoNum(doc, st)
             case nil: inner += "<a:buNone/>"
             }
             out += "<a:p><a:pPr\(pPr)>\(inner)</a:pPr>"
@@ -1094,6 +1094,25 @@ enum PptxText {
     }
 
     /// Notes: plain paragraphs, no looks.
+    /// A numbered paragraph's `a:buAutoNum`: the scheme and start its
+    /// list was read with (a, b / i, ii / 1)…), "1." for a list made here.
+    private static func _autoNum(_ doc: RichDocument, _ st: RichParagraphStyle) -> String {
+        let lvl = min(8, max(0, st.listLevel))
+        guard let id = st.listId, let f = doc.listFormats[id]?[lvl] else { return "<a:buAutoNum type=\"arabicPeriod\"/>" }
+        let scheme: String
+        switch f.format {
+        case .lowerLetter: scheme = "alphaLc"
+        case .upperLetter: scheme = "alphaUc"
+        case .lowerRoman: scheme = "romanLc"
+        case .upperRoman: scheme = "romanUc"
+        default: scheme = "arabic"
+        }
+        let t = f.text
+        let suffix = t.hasPrefix("(") ? "ParenBoth" : t.hasSuffix(")") ? "ParenR" : t.hasSuffix(".") ? "Period" : "Plain"
+        let start = doc.listRestarts[id]?[lvl].map { " startAt=\"\($0)\"" } ?? ""
+        return "<a:buAutoNum type=\"\(scheme)\(suffix)\"\(start)/>"
+    }
+
     static func paragraphsPlain(_ doc: RichDocument) -> String {
         doc.paragraphs.map { p in
             let parts = p.text.components(separatedBy: "\n").map {
