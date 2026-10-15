@@ -3553,6 +3553,14 @@ fitter dropped the paragraph's tail).
   to layout only (`rowBordersXML`), and a save writes the row's
   exception back as before. form_footnotes 48.3 -> 90.8; nothing else
   moved (the Chinese files' exceptions repeat their tables').
+- **Separated cells hold both their side lines (2026-10-15).** In a
+  table with cell spacing each cell's lines lie inside its own box, so
+  its text loses the whole of its left and right line widths. Ours took
+  a collapsed table's share, half a line on the right and none past the
+  first half on the left. bib-chernigovka's 51pt year column of outset
+  lines held "90 лет" on one line in ours, where Word's print wraps it
+  and every row of the calendar stands a line taller. bib-chernigovka
+  90.3 -> 99.6; nothing else moved.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the

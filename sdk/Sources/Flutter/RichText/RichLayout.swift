@@ -3332,7 +3332,15 @@ public final class RichLayout {
                 }
                 let l = sideLine(c, "left"), r = sideLine(c, "right")
                 if l > 0 || r > 0 {
-                    pad = EdgeInsets(left: max(pad.left + l / 2, l), top: pad.top, right: max(pad.right - r / 2, 0), bottom: pad.bottom)
+                    if ts.cellSpacing != nil {
+                        // (Separated, each cell's lines lie inside its own
+                        // box, both of them: bib-chernigovka's 51pt year
+                        // column of outset lines holds "90 лет" on one line
+                        // in ours and on two in Word's print.)
+                        pad = EdgeInsets(left: pad.left + l, top: pad.top, right: pad.right + r, bottom: pad.bottom)
+                    } else {
+                        pad = EdgeInsets(left: max(pad.left + l / 2, l), top: pad.top, right: max(pad.right - r / 2, 0), bottom: pad.bottom)
+                    }
                 }
                 var below = 0.0
                 var top = rule(c, "top")
