@@ -2407,6 +2407,13 @@ fitter dropped the paragraph's tail).
   its Times New Roman bold caption no longer fits "State," where Word's
   line ends "Women by" ("Wo" alone kerned 0.67pt).
 
+- **An autofit table keeps a grid wider than the width it states in
+  points (2026-10-14).** As it does one wider than its share
+  (zh-06c46ba9, above): bug59058's centred article table says 552.75pt
+  over a grid of 553.5, and Word centres the grid, its text 0.39pt left
+  of ours on every line. With kerning gone that was enough to carry
+  "logistic" to the next line of page 6 and every page after it.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

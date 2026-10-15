@@ -1207,7 +1207,14 @@ public final class RichLayout {
                         // grid has them.)
                         if theme.wordRules, !ts.fixedLayout, scale < 1 { scale = 1 }
                     }
-                    else if let w = ts.width { scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum) }
+                    else if let w = ts.width {
+                        scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum)
+                        // (So too one that states points: bug59058's
+                        // centred article table says 552.75pt over a grid
+                        // of 553.5, and Word centres the grid — ours stood
+                        // 0.4pt right, and "logistic" no longer fitted.)
+                        if theme.wordRules, !ts.fixedLayout, scale < 1 { scale = 1 }
+                    }
                     // (A fixed layout keeps its grid, past the margin too:
                     // zh-454e2e29's 482pt in a column of 468, whose second
                     // column then holds "個案事實" on one line, as Word's
