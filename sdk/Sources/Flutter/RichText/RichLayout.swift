@@ -4138,7 +4138,13 @@ public final class RichLayout {
     private func _wordList(_ p: RichParagraph, _ document: RichDocument) -> (left: Double, first: Double, format: ListLevelFormat?)? {
         guard theme.wordRules, p.style.list != nil, p.image == nil else { return nil }
         let f = p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)] }
-        guard let left = p.style.listIndentLeft ?? f?.indentLeft else { return nil }
+        // (A level that states no indents leaves the paragraph's own:
+        // zh-5901e2b0's "（二）" levels say none, the paragraphs indent
+        // their first lines two characters, and Word sets the number
+        // there with the text straight after it — in the editor's own
+        // slot the number wrapped its "）" onto a line of its own.)
+        guard let left = p.style.listIndentLeft ?? f?.indentLeft ?? (f != nil && p.style.listFirstLine != nil ? p.style.indentLeft : nil)
+        else { return nil }
         return (left, p.style.listFirstLine ?? -(f?.hanging ?? 0), f)
     }
 

@@ -2445,6 +2445,15 @@ fitter dropped the paragraph's tail).
   spaced, has its title row 14pt shorter in Word's print than ours
   was. zh-a4b0f6ea 78.4% -> 81.7%; nothing else moved.
 
+- **A list level that states no indents leaves the paragraph's
+  (2026-10-14).** Where neither the level nor the paragraph gives a
+  left indent but the paragraph gives its first line one, the number
+  stands at that first-line indent with the text after it, as Word
+  sets it: zh-5901e2b0's "（二）" levels say no indents, the paragraphs
+  indent two characters, and the number was drawn in the editor's own
+  slot instead — at the margin, its "）" wrapped onto a line of its
+  own. zh-5901e2b0 93.4% -> 94.4%; nothing down.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
