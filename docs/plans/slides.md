@@ -1621,6 +1621,12 @@ Also tried: `lightRig rot` as a turn of the rig's lights — no order or
 sign of lat/lon gives rot_rotation's left 1.51, top and front 0.45
 from the two lights as fitted.
 
+**A line of no width is no line, 2026-10-15** (vert_and_padding 1.99
+→ 1.39, ThemeColorTransparency 8.83 → 8.49, trailing-paragraphs 0.09
+→ 0.03; the eight decks with one, none worse). `a:ln w="0"` with a
+colour — LibreOffice's hairline — was drawn a pixel wide; PowerPoint
+draws nothing.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

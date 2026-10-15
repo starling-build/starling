@@ -320,7 +320,7 @@ lo-tdf134174.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf134210.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf134862.pptx	summary pages=1 worst=0.18% mean=0.18%
 lo-tdf135843.pptx	summary pages=1 worst=0.26% mean=0.26%
-lo-tdf135843_export.pptx	summary pages=1 worst=1.77% mean=1.77%
+lo-tdf135843_export.pptx	summary pages=1 worst=1.76% mean=1.76%
 lo-tdf135843_insideH.pptx	summary pages=1 worst=4.36% mean=4.36%
 lo-tdf135953_SmartArt_textposition.pptx	summary pages=1 worst=2.98% mean=2.98%
 lo-tdf136830.pptx	summary pages=1 worst=3.22% mean=3.22%
@@ -458,7 +458,7 @@ lo-tdf99030.pptx	summary pages=1 worst=1.70% mean=1.70%
 lo-tdfpictureplaceholder.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdt142291.pptx	summary pages=1 worst=0.27% mean=0.27%
 lo-testShapeAutofit.pptx	summary pages=1 worst=0.32% mean=0.32%
-lo-trailing-paragraphs.pptx	summary pages=1 worst=0.09% mean=0.09%
+lo-trailing-paragraphs.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-trigger.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-vertical-bracket-list.pptx	summary pages=1 worst=1.57% mean=1.57%
 minimal-gradient-fill-issue.pptx	summary pages=1 worst=3.30% mean=3.30%
@@ -503,7 +503,7 @@ oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=3.71% mean=3.71%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
 oox-tdf131082.pptx	summary pages=1 worst=0.15% mean=0.15%
 oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=18.12% mean=18.12%
-oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=8.83% mean=8.83%
+oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=8.49% mean=8.49%
 oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=16.83% mean=16.83%
 oox-tdf141463_GroupTransform.pptx	summary pages=1 worst=0.68% mean=0.68%
 oox-tdf144742_funnel.pptx	summary pages=1 worst=1.46% mean=1.46%
@@ -512,7 +512,7 @@ oox-tdf147978_enhancedPath_subpath.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf149538_upright.pptx	summary pages=1 worst=1.01% mean=1.01%
 oox-tdf149551_TextRot.pptx	summary pages=1 worst=0.50% mean=0.50%
 oox-tdf149551_vert270AndTextRot.pptx	summary pages=1 worst=0.48% mean=0.48%
-oox-tdf149551_vert_and_padding.pptx	summary pages=1 worst=1.99% mean=1.99%
+oox-tdf149551_vert_and_padding.pptx	summary pages=1 worst=1.39% mean=1.39%
 oox-tdf149918_pie_textarea.pptx	summary pages=1 worst=2.30% mean=2.30%
 oox-tdf151008_eaVertAnchor.pptx	summary pages=1 worst=3.28% mean=3.28%
 oox-tdf154074_freeConnector.pptx	summary pages=1 worst=0.45% mean=0.45%
