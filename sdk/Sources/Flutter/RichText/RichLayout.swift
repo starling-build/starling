@@ -3469,6 +3469,13 @@ public final class RichLayout {
         var inserts: [Int] = []
         var before: Character? = nil
         let breaksAtQuotes = theme.wordRules && document.usesEastAsianLayout
+        // (A paragraph that turns the line-breaking rules off —
+        // `w:kinsoku` 0 — may start a line with a closing mark and end
+        // one with an opening mark; the engine allows neither, so a mark
+        // that did not fit stayed on its line past the margin where Word
+        // carries it over: zh-799c91cd's "各執1份為憑" and the "。" alone
+        // under it, whose page 2 then ran a line long.)
+        let kinsokuOff = theme.wordRules && p.style.eastAsian["w:kinsoku"] == "0"
         let fullQuotes = theme.wordRules && document.usesEastAsianLayout
         let loose = _looseWordOffsets(p, document, textWidth: textWidth, named: named, pitch: pitch)
         // The spaces Word sets half an em wide (UTF-16 offsets): every
@@ -3656,7 +3663,8 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(heldKind ?? current ?? kind)))
                     inserts.append(offset)
                     afterHeld = false
-                } else if breaksAtQuotes, let b = before, Self._breaksBetween(b, ch) {
+                } else if breaksAtQuotes, let b = before,
+                          Self._breaksBetween(b, ch) || (kinsokuOff && (Self._closingMarks.contains(ch) || Self._openingMarks.contains(b))) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)

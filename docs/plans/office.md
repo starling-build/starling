@@ -2575,6 +2575,17 @@ fitter dropped the paragraph's tail).
   under this one stand: with the breaks in the East Asian style every
   line of zh-799c91cd grew to 21–22pt.)
 
+- **A paragraph with `w:kinsoku` off may start a line with a closing
+  mark and end one with an opening mark (2026-10-14).** The engine
+  allows neither, so such a mark that did not fit stayed on its line
+  past the margin where Word carries it over; now a break stands
+  before each closing mark and after each opening one in such a
+  paragraph (the fitter still joins the mark to the character before it
+  for its half-em rules). zh-9e08ed28 81.0% -> 81.8%; nothing down.
+  zh-799c91cd's "各執1份為憑。", the line that showed the gap, still
+  fits in ours where Word wraps the "。" — its width is the open
+  question now, not the break.
+
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
 page the indents are as written. On an odd page Word sets the right
