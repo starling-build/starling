@@ -3203,6 +3203,17 @@ fitter dropped the paragraph's tail).
   and U+2025 whichever kind the layout counts them, and U+2022 in an
   East Asian run. zh-190d730c 43.4% -> 97.8; zh 91.5 -> 92.3; nothing
   down.
+- **A centred cell in a parted row stands midway in the part on the
+  page (2026-10-15).** c2542ff6 set a centred cell in the part only
+  where centring in the whole row would have put it over the foot;
+  Word does it wherever the row parts, and the part is as tall as what
+  the row's other cells keep on the page — their last kept line and
+  margin — not the room to the foot (Word draws the part's bottom rule
+  there). zh-1a3c7aa0's row "65" on page 22: Word's number at 169.7,
+  ours at 145 centred in the whole row, 162 centred to the foot, 169
+  now; its page-51 "127" is the same case (the Windows box's lead).
+  zh-abe7e063 91.4% -> 98.3, zh-1a3c7aa0 76.3 -> 78.0, zh-69bbcc3c and
+  zh-84702a67 +0.5; nothing down.
 - **A file's embedded East Asian faces are drawn (2026-10-15, T8).**
   `w:embedRegular` (or `w:embedBold`) names a part under `word/fonts/`
   whose first 32 bytes are XORed with the `w:fontKey` GUID, read as 16
