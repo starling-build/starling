@@ -3816,7 +3816,10 @@ fitter dropped the paragraph's tail).
     15.2; ours gives each run its own "at least" height, which the
     engine splits by each font's own ratio, and the line comes out
     15.45 (lab `mx3`/`mx4`: removing the Cambria runs gives 15.0). A
-    near-equal-height strut was tried twice and loses elsewhere. This is
+    near-equal-height strut was tried twice and loses elsewhere; so
+    does giving "at least" runs their natural height with the minimum as
+    an unforced strut (lines 15.65, bug59058 to 39.9%: the engine's
+    natural line counts each face's line gap, Word's does not). This is
     what keeps bug59058 a page long.
   - bib-chernigovka p15: an autofit two-column table whose 51.1pt first
     column (7.5pt margins, outset borders, 0.75 spacing) holds "90 лет"
