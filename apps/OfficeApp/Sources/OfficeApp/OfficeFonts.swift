@@ -65,7 +65,7 @@ enum OfficeFonts {
         case "verdana", "dejavu sans", "bitstream vera sans":
             return verdana
         case "liberation serif", "times new roman", "times", "georgia", "book antiqua",
-             "garamond", "palatino", "tinos":
+             "garamond", "palatino", "palatino linotype", "tinos":
             return serif
         case "liberation mono", "courier new", "courier", "consolas", "menlo", "monaco",
              "lucida console", "cousine":

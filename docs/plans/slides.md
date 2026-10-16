@@ -2014,6 +2014,14 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Palatino Linotype is a serif, 2026-10-16** (aascu 5864 8.71 → 8.66,
+its "Excellence with Equity" page 16.8 → 15.4). The shared stand-ins
+listed "palatino" with the serifs but not "palatino linotype", Windows'
+name for it, which fell through to the sans; it now goes with Palatino
+(Liberation Serif, narrower than Palatino — P052, its metric clone, is
+on this machine but not bundled). No Word document in the corpus names
+it.
+
 **Gradient-filled text outside WordArt, 2026-10-16** (tdf114848 4.00 →
 3.75, n862510_4 0.35 → 0.30; the other sixteen decks with such runs
 unchanged). A run's `a:gradFill` is drawn as a gradient only in WordArt
