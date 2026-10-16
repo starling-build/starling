@@ -2024,7 +2024,10 @@ widths by face, which also showed Consolas 8.7% wide in Liberation Mono
 (one fuzzed deck) and Lucida Sans Unicode 9% narrow (two decks; DejaVu
 tried before and dropped).
 Consolas is now set 0.05 em tighter, its own 0.55 em advance
-(clusterfuzz 4986 3.27 → 3.20).
+(clusterfuzz 4986 3.27 → 3.20). The same for Lucida Sans Unicode
+(+0.052 em, bold +0.022) was tried and dropped: its own deck,
+GeomLec1, went 8.12 → 8.23 while aascu 5864 gained 0.07 — that
+deck's gap is not line width.
 
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
