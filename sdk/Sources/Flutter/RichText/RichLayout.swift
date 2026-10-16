@@ -2374,6 +2374,14 @@ public final class RichLayout {
             // where ours parted it three lines and two.)
             guard let ts, !ts.rowsCantSplit.contains(c.row), c.row >= headerRows(c.table),
                   !(theme.wordRules && ts.headerRow && c.row < ts.headerRowCount) else { return false }
+            // (Nor a row whose first paragraph is kept with the next: lab
+            // `kr` (Word 16, modes 15 and legacy), a one-row table of
+            // twelve paragraphs with room for eight at a page's foot goes
+            // to the next page whole where its first paragraph — the
+            // first cell's — says `w:keepNext`, and parts where a middle
+            // or last one does, or the second cell's first. form_footnotes'
+            // "INSTRUCTIONS" box opens with a Heading 5.)
+            if theme.wordRules, document.paragraphs[i].style.keepNext { return false }
             for k in i ..< j { guard let d = _cells[k], !d.vertical else { return false } }
             var fresh = atTop
             let rowBottom = c.rowTop + c.ownRowHeight
@@ -2747,6 +2755,35 @@ public final class RichLayout {
                     newPage()
                     goOn()
                     shown = pageHeight()
+                } else if theme.wordRules, !atTop, y > 0.01, j < count, _cells[j] == nil, document.paragraphs[i].style.keepNext,
+                          !_pageBreak[j], !document.paragraphs[j].style.pageBreakBefore {
+                    // (A row whose first paragraph keeps with the next is
+                    // kept with the paragraph after its table, as a
+                    // paragraph is: that one's first line, two under widow
+                    // control, all of a short one. Lab `kn` (Word 16, modes
+                    // 14, 15 and legacy): a four-paragraph row that fits a
+                    // page's foot with no room for the line after the
+                    // table goes over with it. form_footnotes'
+                    // "INSTRUCTIONS" box, opened by a Heading 5, fits page
+                    // 2's foot by 5pt but not with the document's last mark
+                    // under it, and Word takes both to page 3. Not where
+                    // that paragraph opens a page of its own: zh-9e08ed28's
+                    // row "3、推廣…" stays at page 15's foot, the heading
+                    // after it led by a page break. Nor, unmeasured, with
+                    // the table's next row: zh-64044a1d's equipment list
+                    // keeps every row with the next and Word parts it
+                    // between "8" and "9".)
+                    let st = document.paragraphs[j].style
+                    let g = geometry(j)
+                    let lines = g.painter.computeLineMetrics().count
+                    let bottoms = Self._lineBottoms(g.painter)
+                    let need = st.keepLines || lines <= 1 || (st.widowControl && lines <= 3) || bottoms.isEmpty ? _heights[j]
+                        : (g.textTop - g.top) + bottoms[min(bottoms.count - 1, st.widowControl ? 1 : 0)]
+                    if shown + ruleUnder(c) + need > contentH - y + 0.01 {
+                        newPage()
+                        goOn()
+                        shown = pageHeight()
+                    }
                 }
                 if abs(shown - c.ownRowHeight) > 0.01 {
                     // Its cells' text from where each stands in a row of

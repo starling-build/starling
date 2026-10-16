@@ -3119,6 +3119,23 @@ fitter dropped the paragraph's tail).
   took a character Word wraps. zh-457a8d62 97.2% -> 98.6; nothing else
   moved.
 
+- **A row opened by a paragraph kept with the next neither parts nor
+  leaves what follows its table (2026-10-16).** Labs `kr` and `kn` (Word
+  16, modes 14, 15 and legacy, in ~/starling-doc-check/lab/kr): a
+  one-row table of twelve paragraphs with room for eight at a page's
+  foot goes to the next page whole where its first paragraph (the first
+  cell's) says `w:keepNext`, and parts where a middle or last one does,
+  or the second cell's first; and a four-paragraph row that fits the
+  foot, with no room for the paragraph after the table, goes over with
+  it. form_footnotes' "INSTRUCTIONS" box opens with a Heading 5 and fits
+  page 2's foot by 5pt, but not with the document's last mark under it:
+  Word prints it on page 3. Not where the paragraph after opens a page
+  of its own (zh-9e08ed28's row "3、推廣…" stays at page 15's foot, the
+  heading after it led by a page break), and not with the table's next
+  row — unmeasured, and zh-64044a1d's equipment list, every row kept
+  with the next, Word parts between "8" and "9". form_footnotes 92.0% ->
+  97.7, Word's three pages; nothing else moved.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
