@@ -83,7 +83,6 @@
 56502.xlsx
 56511.xlsx
 56514.xlsx
-56557.xlsx
 56574.xlsx
 56644.xlsx
 56688_1.xlsx
@@ -285,7 +284,6 @@ chart-deleted_legend_entry.xlsx
 chart-deleted_legend_entry2.xlsx
 chart-dispBlanksAs_2007.xlsx
 chart-dispBlanksAs_2013.xlsx
-chart-empty_chart.xlsx
 chart-external_str_ref.xlsx
 chart-fdo54361-1.xlsx
 chart-fdo54361.xlsx

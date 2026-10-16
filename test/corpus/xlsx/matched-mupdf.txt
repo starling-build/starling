@@ -6,6 +6,7 @@
 55640.xlsx
 55924.xlsx
 56017.xlsx
+56557.xlsx
 57893-many-merges.xlsx
 58760.xlsx
 60825.xlsx
@@ -13,6 +14,7 @@ AmpersandHeader.xlsx
 BrNotClosed.xlsx
 HeaderFooterComplexFormats.xlsx
 SheetTabColors.xlsx
+chart-empty_chart.xlsx
 lo-RowImportCellStyleIssue.xlsx
 lo-button-form-control.xlsx
 lo-column-style.xlsx

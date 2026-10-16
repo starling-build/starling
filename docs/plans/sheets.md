@@ -150,8 +150,9 @@ round-trips with its cached value.
 
 ## Where it stands
 
-**Sweep 9 (2026-10-16): mean 1.50%, median 0.39%**, 45 exact (not yet
-the baseline file). **Sweep 7 (2026-10-16): mean 1.55%, median 0.41%**, 751 scored, 5 with a
+**Sweep 14 (2026-10-16): mean 1.43%, median 0.39%**, 751 scored, 1 with
+a page only one side has, 45 exact (`baseline-mupdf.tsv`). Sweep 9 was
+1.50%. **Sweep 7 (2026-10-16): mean 1.55%, median 0.41%**, 751 scored, 5 with a
 page only one side has, 43 exact (`baseline-mupdf.tsv`; sweep 4 was 1.93%).
 
 **One workbook at a time, 2026-10-15/16** (Windows, Excel 16 at 200% as
@@ -181,6 +182,13 @@ Excel was found to do, each checked on its workbook and its neighbours:
 - *More number formats.* General shows eleven characters at most in a
   cell (the sign not counted), whatever the column's width. TEXT()
   refuses a scientific format with a small e (#VALUE!).
+- *Paper.* At a stated print scale every row is a whole number of
+  printer dots. A page keeps 8 dots free at its foot and at its side:
+  rows and columns that fill it exactly, or within 7 dots, go on.
+  Every row whose height is only a fit is fitted afresh (Excel keeps no
+  such height: a lab of 30 pt rows without customHeight="1" printed at
+  12.36), in its fonts' weight — save a row with raised or lowered rich
+  text, which keeps the file's fit.
 - *Print areas* keep the columns they name, empty or not; only a
   whole-row area is cut to the sheet's columns.
 - *Charts on a sheet.* The chart area's own fill and edge; a size the
@@ -200,13 +208,12 @@ height" says lo-tdf113271 makes twelve pages: it still makes eleven. Its
 first page is Excel's now; its later pages hold a row more than Excel's,
 whose repeated title seems to take a little more than the row did.)
 
-Tried and taken back, 2026-10-16: fitting afresh every row whose height
-is only a fit, in every sheet — bug66675's rows of Arial 7 written 18 pt
-print at Calibri's 14.52 in Excel — moved 26 workbooks closer and 22
-away, Excel's own fits being surer than ours for faces we measure
-roughly (49156's Arial 12 rows). And Lucida Sans Typewriter drawn in
+Tried and taken back, 2026-10-16: Lucida Sans Typewriter drawn in
 Liberation Mono: the right widths, a serifed face where Excel's is
-sans, a little further from Excel's pages.
+sans, a little further from Excel's pages. And rows in whole dots at a
+fitted scale (cut once, then again at the scale the cut came to):
+further from Excel's pages, 165.9 -> 170.1 over the scaled and fitted
+workbooks.
 
 Tried and taken back: "any formatted cell widens what prints, though it
 does not lengthen it" gave FormatConditionTests Excel's fourth page (29.6%

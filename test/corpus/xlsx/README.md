@@ -8,7 +8,7 @@ baseline of how far this app's printing is from it.
     books/         the workbooks, as downloaded
     SHA256SUMS     of books/, to tell a changed workbook from a changed painter
     excel/         NAME-orig.pdf — Excel's print of books/NAME.xlsx, and export.tsv
-    baseline-mupdf.tsv   each workbook's score at sweep 7 (2026-10-16, Windows, MuPDF's page diff)
+    baseline-mupdf.tsv   each workbook's score at sweep 14 (2026-10-16, Windows, MuPDF's page diff)
     matched-mupdf.txt, others-mupdf.txt   the two groups of that baseline
 
 ## What works today
@@ -135,7 +135,14 @@ exact.
 2026-10-16, after a day and a night of the same (`docs/plans/sheets.md`,
 "One workbook at a time"). 751 scored: mean 1.55%, median 0.41%; 600 at
 or under 2%, 149 between 2 and 20, 2 over 20; 5 have a page only one side
-has; 43 exact. This is `baseline-mupdf.tsv`.
+has; 43 exact.
+
+## Sweep 14
+
+The same day, later (`docs/plans/sheets.md`). 751 scored: mean 1.43%,
+median 0.39%; 604 at or under 2%, 146 between 2 and 20, 1 over 20 (the
+not-understood FormatConditionTests); 1 has a page only one side has;
+45 exact. This is `baseline-mupdf.tsv`.
 
 ## Where the workbooks come from, and their licences
 
