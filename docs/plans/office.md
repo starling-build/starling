@@ -2835,6 +2835,22 @@ fitter dropped the paragraph's tail).
   "拾、". The legal forms — Traditional and Simplified — now keep their
   壹. zh-64044a1d's page 69 whole; nothing else moved.
 
+- **The East Asian line rules hold only for East Asian text
+  (2026-10-15).** Word keeps a closing mark from starting a line, an
+  opening one from ending it, and lets a mark hang past the margin,
+  by the rules of the text's East Asian language — and an English one
+  has none. Lab `kc` (Word 16, mode 14, SimSun 12): with the defaults'
+  `w:eastAsia` en-US, "…abcdefgh" and "…測試測試測試" leave "，" and
+  "）" to open the next line; under zh-CN they stay (the comma hung).
+  zh-6600d539 tags most of its runs zh-TW over an en-US default, but
+  not its "，針對平臺…": Word's print starts a line with that comma.
+  The rules now go by each run's own `w:lang` East Asian language,
+  else the document's (Chinese, Japanese or Korean keep them). Taken
+  for the whole document it was wrong — seven documents of the same
+  en-US default whose runs say zh-TW fell 1 to 5 points. zh-6600d539
+  97.8% -> 100, zh-64044a1d 93.0 -> 95.6; Chinese sample 97.23 ->
+  97.30; POI unchanged.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

@@ -4187,6 +4187,9 @@ public final class RichLayout {
             let hinted = (run.fontHint ?? named?.char.fontHint) == "eastAsia" || (latinFace?.isEastAsian ?? false)
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             let closes = _closesUpMarks(run, named, document)
+            // (So may text whose East Asian language has no such rules —
+            // its run's own, else the document's: `eastAsianLineRules`.)
+            let lineRulesOff = kinsokuOff || (theme.wordRules && !Self._eastAsianLineRules(run, document))
             // A stretch is of one script, and — where the Latin face
             // stands in at a scale for each kind of character — of one
             // kind: -1 East Asian, else the kind (0 where there is one
@@ -4348,7 +4351,7 @@ public final class RichLayout {
                     inserts.append(offset)
                     afterHeld = false
                 } else if breaksAtQuotes, let b = before,
-                          Self._breaksBetween(b, ch) || (kinsokuOff && (Self._closingMarks.contains(ch) || Self._openingMarks.contains(b))) {
+                          Self._breaksBetween(b, ch) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._openingMarks.contains(b))) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -5202,9 +5205,17 @@ public final class RichLayout {
         // "目" before it; glued as "目，" the line ran a piece behind and
         // the "。" went down alone.)
         let kinsokuOff = p.style.eastAsian["w:kinsoku"] == "0"
+        // (Or where the mark's run has no East Asian line rules.)
+        var runOf: [Int] = []
+        for (k, r) in p.runs.enumerated() { runOf.append(contentsOf: repeatElement(k, count: r.length)) }
+        let wordRules = theme.wordRules
+        let runRulesOff: (Int) -> Bool = { o in
+            guard wordRules, o >= 0, o < runOf.count else { return false }
+            return !Self._eastAsianLineRules(p.runs[runOf[o]].style, document)
+        }
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
-            if kinsokuOff, Self._closingMarks.contains(Character(b)) || Self._openingMarks.contains(Character(a)) { return true }
+            if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._openingMarks.contains(Character(a)) { return true }
             return Self._breaksBetween(Character(a), Character(b))
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
@@ -5413,6 +5424,7 @@ public final class RichLayout {
                 // "pusat," 2.7pt past the margin in Word's print.)
                 let latinComma = !legacy && units[tail] == 0x2C
                 let hang = hangs && !holdsFinal && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
+                    && !runRulesOff(tail)
                     ? min(ems[tail] * (closesUp(tail) || document.hangsHalf ? 0.5 : 1), boxes(tail, tail + 1)) : 0
                 // (No hair over the hang: lab `hc`, a two-character indent
                 // and 28 ideographs and "。" on zh-d68ac84a's grid, the
@@ -5791,6 +5803,16 @@ public final class RichLayout {
     #endif
     private static let _closingMarks: Set<Character> = ["，", "。", "、", "；", "：", "！", "）", "》", "」", "』", "】", "〕", "〉", "｝", "］", "．"]
     private static let _openingMarks: Set<Character> = ["（", "《", "「", "『", "【", "〔", "〈", "｛", "［"]
+
+    /// Whether `run`'s East Asian line-breaking rules hold: by its own
+    /// `w:lang` East Asian language where it states one, else by the
+    /// document's (`RichDocument.eastAsianLineRules`).
+    static func _eastAsianLineRules(_ run: CharStyle, _ document: RichDocument) -> Bool {
+        if let xml = run.keptXML, let r = xml.range(of: "w:eastAsia=\"") {
+            return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
+        }
+        return document.eastAsianLineRules
+    }
 
     static func closesUp(_ a: Character, _ b: Character) -> Bool {
         if _closingMarks.contains(a) { return _closingMarks.contains(b) || _openingMarks.contains(b) }

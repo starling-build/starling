@@ -1895,6 +1895,17 @@ public struct RichDocument: Hashable, Sendable {
     /// compatibility mode, where Taiwan's centred marks keep their em
     /// before Word 2013's layout.
     public var marksSitLeft: Bool { defaultLangXML?.containsSubstring("w:eastAsia=\"zh-CN\"") ?? false }
+    /// Whether Word's East Asian line-breaking rules hold — no closing
+    /// mark to start a line nor opening one to end it, and a mark that
+    /// may hang past the margin: only where that language is Chinese,
+    /// Japanese or Korean. Lab `kc` (Word 16): with the defaults'
+    /// `w:eastAsia` en-US, "…abcdefgh)" and "…測試測試測試" leave "，" and
+    /// "）" to open the next line, where under zh-CN they stay; and
+    /// zh-6600d539 (en-US) starts a line "，針對平臺…" in Word's print.
+    public var eastAsianLineRules: Bool {
+        guard let xml = defaultLangXML, let r = xml.range(of: "w:eastAsia=\"") else { return true }
+        return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
+    }
     public var themeFontLangXML: String? = nil
     /// The settings' `w:characterSpacingControl` value when the file
     /// states one ("compressPunctuation" in Chinese documents: Word then
