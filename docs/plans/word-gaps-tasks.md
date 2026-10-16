@@ -654,6 +654,17 @@ Word's x. No score moved (the match is by height). Left on p70-72: the
 page starts ~80pt higher than Word's, after a group of text boxes on
 p69 whose text Word's PDF does not carry (shapes: the Mac's).
 
+### T42. A line of ideographic spaces alone is its mark's line
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: zh-64044a1d (p100, the lead "rows whose cells hold only
+U+3000" in the Mac's notes below; costs p100's foot and p101).
+Known: reproduced on Linux in a paragraph alone (the table's own style
+"．表文", 11pt 標楷體 over Times, on an 18pt line grid): "　" is two
+pitches in ours, " " and an empty paragraph one; Word's print sets the
+U+3000 rows as the empty ones (18.5). The space rule (spaces set no
+line's height) counts U+0020 and tabs only, and U+3000 is set in the
+East Asian face, whose 11pt line takes two pitches.
+
 ### Leads from the Windows box (2026-10-16, measured, not built)
 - Lab `ps` (~/starling-doc-check/lab/ps, Word 16): before 2013's
   layout (mode 14) a space after an inline picture wider than the line
