@@ -4119,6 +4119,31 @@ fitter dropped the paragraph's tail).
   no header), but Word still parts none of them: its "民政局社会救助股意见"
   row, five lines, goes whole to page 14 where ours parted it three and
   two. zh-e37f8d40 96.7% -> 100%; nothing else moved.
+- **A full-width closing quote closes up like a closing mark (2026-10-16;
+  Linux, from Word's print).** zh-15728c84's "线上线下”、“舆情" is set with
+  "”" and "、" 5.2 and 5.3pt wide at 10.5pt: the quote gives its blank
+  half before a mark as "、" does before "“". Ours kept the quote's em,
+  and a cell line left for the next the "涉" Word takes. Across the
+  Chinese prints the rule holds wherever punctuation kerns; under
+  `w:noPunctuationKerning` (zh-d68ac84a's "”（", zh-69bbcc3c's "”，") the
+  quote keeps its em, as the marks do. zh-15728c84 94.0% -> 96.0%,
+  zh-e27cd8bf 99.8 -> 100; nothing else moved. What is left of
+  zh-15728c84 is a parted row (the board's note under the Mac's leads).
+- **On a character grid a line's stretch is its characters as the grid
+  sets them (2026-10-16; Linux, from Word's print).** Mode 15's test for
+  squeezing a character onto a line compares what the marks must give,
+  as a share of their halves, with what the line would stretch by, a
+  64th of each character's em. The halves were taken as set, the grid's
+  addition with them, and the ems without it: zh-457a8d62 (16pt on a grid
+  of 17.0) left "經" 12.44pt over with two marks and 25 characters, which
+  Word leaves for the next line and ours took (77.7 against 74.6; with
+  the grid both sides, 77.7 against 79.4). zh-457a8d62 97.2% -> 97.3%;
+  nothing else moved. Two lines of it still take a character Word does
+  not (p47 "…規定：「本法" then "第" 6.6 over, two marks; p52 "…虛報薪資"
+  then "之"). Tried: a mark that its neighbour has closed up on (the "」"
+  of "。」", the "「" of "：「") gives nothing more — it fixes p47's line
+  in the arithmetic but costs seven documents (zh-1a3c7aa0 92.7 -> 82.1,
+  zh-6d1afa56 97.4 -> 87.5), so it is not Word's rule.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

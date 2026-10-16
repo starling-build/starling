@@ -741,6 +741,14 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   centred cells sit in that part; ours runs the part, and its rule, to
   the page's foot, so the 4-line name cell stands 3.6pt low (p22) and
   "111"/"2,4-滴丁酯" split 5pt high and 9pt low (p32). Left alone.
+  Linux box, 2026-10-16: zh-15728c84 p3 is the same case, with one
+  thing more — the part is never shorter than the row's own height.
+  Row 9 (`trHeight` 1655 atLeast, 82.75pt; cells centred; 15pt exact
+  lines) keeps five lines (75pt) on p3, and Word's part runs 407.8 to
+  491.0 (83.2, the row's height and its rule), the text centred in it
+  3.9pt down; ours runs to the page foot (505) with the text at the
+  top, every line 5pt high. The sixth line would not have fitted
+  (14pt left). Left alone (parted rows).
 - Also there, p19: a vMerge cell (vAlign center) whose rows part over
   pages; Word starts its first page's lines 10pt lower than ours. Not
   measured.
