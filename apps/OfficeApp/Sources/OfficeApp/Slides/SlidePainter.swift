@@ -689,6 +689,12 @@ final class SlidePainter: CustomPainter {
                     p.strokeWidth = max(0.5, shape.outlineWidth * px)
                     p.color = line
                     canvas.drawPath(Self.dashed(path, shape.outlineDash, width: p.strokeWidth), p)
+                    // A connector's arrowheads, at its path's two ends.
+                    if shape.headEnd != nil || shape.tailEnd != nil, let ends = Self.pathEnds(sub, in: r) {
+                        let base = max(shape.outlineWidth, 2) * px
+                        if let e = shape.headEnd { Self.lineEnd(e, tip: ends.start, from: ends.startFrom, base: base, paint: p, canvas) }
+                        if let e = shape.tailEnd { Self.lineEnd(e, tip: ends.end, from: ends.endFrom, base: base, paint: p, canvas) }
+                    }
                 }
             }
             if mirrored { canvas.restore() }
@@ -1262,6 +1268,37 @@ final class SlidePainter: CustomPainter {
         }
         p.style = .fill
         canvas.drawPath(path, p)
+    }
+
+    /// A path's two ends and the points they come from (the next point,
+    /// or a curve's control point), for its arrowheads.
+    static func pathEnds(_ s: FreeformGeometry.Subpath, in r: Rect)
+        -> (start: Offset, startFrom: Offset, end: Offset, endFrom: Offset)? {
+        func at(_ u: Double, _ v: Double) -> Offset { Offset(r.left + u * r.width, r.top + v * r.height) }
+        var pts: [(Offset, Offset)] = []   // (point, the control it leaves toward / arrives from)
+        var current: Offset? = nil
+        var firstOut: Offset? = nil
+        var lastIn: Offset? = nil
+        var start: Offset? = nil
+        for c in s.commands {
+            switch c {
+            case .move(let u, let v): current = at(u, v); start = current
+            case .line(let u, let v):
+                let p = at(u, v)
+                if firstOut == nil { firstOut = p }
+                lastIn = current; current = p
+            case .quad(let u1, let v1, let u, let v):
+                if firstOut == nil { firstOut = at(u1, v1) }
+                lastIn = at(u1, v1); current = at(u, v)
+            case .cubic(let u1, let v1, let u2, let v2, let u, let v):
+                if firstOut == nil { firstOut = at(u1, v1) }
+                lastIn = at(u2, v2); current = at(u, v)
+            default: break
+            }
+        }
+        _ = pts
+        guard let s0 = start, let f0 = firstOut, let e = current, let l = lastIn else { return nil }
+        return (s0, f0, e, l)
     }
 
     static func geometryPath(_ preset: ShapePreset, _ r: Rect) -> Path {

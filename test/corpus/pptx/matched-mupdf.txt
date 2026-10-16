@@ -11,6 +11,7 @@ lo-animation-sound-external.pptx
 lo-arc-validiert.pptx
 lo-bnc591147.pptx
 lo-connector-shape-animations.pptx
+lo-connectors.pptx
 lo-crop-to-shape.pptx
 lo-glue_point_leaving_directions.pptx
 lo-group-rot.pptx
@@ -76,6 +77,8 @@ lo-tdf98477grow.pptx
 lo-tdfpictureplaceholder.pptx
 lo-trigger.pptx
 oox-ThemeShapesReference.pptx
+oox-connectorConnection.pptx
+oox-elbowConnectors.pptx
 oox-endParaRPr-newline-textsize.pptx
 oox-gradient-multistep-transparency.pptx
 oox-tdf144742_mathEqual_mathNotEqual.pptx

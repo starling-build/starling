@@ -89,7 +89,6 @@ lo-bullet-indent.pptx
 lo-bulletColor.pptx
 lo-bulletMarginAndIndent.pptx
 lo-chart_pt_color_bg1.pptx
-lo-connectors.pptx
 lo-content-placeholder-cases.pptx
 lo-control_background_color.pptx
 lo-crop-position.pptx
@@ -404,9 +403,7 @@ oox-Scene3d_pureImage.pptx
 oox-Scene3d_shape_rotation.pptx
 oox-camera-rotation-revolution-nonwps.pptx
 oox-chart-theme-override.pptx
-oox-connectorConnection.pptx
 oox-curvedConnectors.pptx
-oox-elbowConnectors.pptx
 oox-graphic-stroke.pptx
 oox-import-characters.pptx
 oox-import-mce.pptx

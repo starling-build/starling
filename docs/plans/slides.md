@@ -1935,6 +1935,17 @@ Left: lo-tdf125573's `fromWordArt` arch (its text grown to fill the
 arc in PowerPoint's print, 18 pt here) — the only such shape in the
 corpus.
 
+**Elbow and curved connectors, 2026-10-15** (sweep 91: 1.2511 →
+1.2432%; lo-connectors 1.27 → 0.00, elbowConnectors, curvedConnectors,
+tdf154074_freeConnector, connectorConnection, tdf164623 and tdf89449
+to 0.00–0.03, tdf141058-1 −0.23; none worse). Every `p:cxnSp` was drawn
+as a straight line from one corner of its box to the other, so an
+elbow or a curve was a diagonal. A bentConnector or curvedConnector is
+now its preset path in its box, turned and mirrored as a shape is,
+stroked and never filled, with its arrowheads at the path's ends along
+its first and last segments. Unedited it is written back as read; an
+edited one keeps its preset.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

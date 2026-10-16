@@ -1576,6 +1576,34 @@ private struct SlideContext {
     private func _connector(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
         guard let x = el.first("p:spPr")?.first("a:xfrm"), var box = _xfrmRect(x) else { return nil }
         if let t = transform { box = t(box) }
+        // An elbow or a curve: its own path in its box, turned and mirrored
+        // as a shape is (tdf141058's tree, whose elbows were diagonals).
+        let prst = el.first("p:spPr")?.first("a:prstGeom")?["prst"] ?? "line"
+        if prst.hasPrefix("bentConnector") || prst.hasPrefix("curvedConnector"),
+           let g = PresetGeometry.geometry(prst, width: box.width * Pptx.emu, height: box.height * Pptx.emu,
+                                           adjustments: PresetGeometry.adjustments(el.first("p:spPr")?.first("a:prstGeom"))) {
+            let ln = el.first("p:spPr")?.first("a:ln")
+            let color = ln?.has("a:noFill") == true ? nil : ln?.first("a:solidFill").flatMap(colors.color(in:))
+                ?? el.first("p:style")?.first("a:lnRef").flatMap(colors.color(in:)) ?? colors.scheme("tx1")
+            var width = ln?["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
+            if ln?["w"] == nil, let idx = el.first("p:style")?.first("a:lnRef")?["idx"].flatMap(Int.init),
+               theme.lineWidths.indices.contains(idx - 1) { width = theme.lineWidths[idx - 1] }
+            var st = ShapeState(id: id(), name: el.first("p:nvCxnSpPr")?.first("p:cNvPr")?["name"] ?? "Connector",
+                                kind: .geometry(ShapePreset(rawValue: prst)), frame: box,
+                                rotation: (x["rot"].flatMap(Double.init) ?? 0) / 60000, fill: nil, outline: color,
+                                outlineWidth: width, anchor: .middle, insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0),
+                                prompt: nil, text: nil, font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)
+            st.flipH = x["flipH"] == "1"
+            st.flipV = x["flipV"] == "1"
+            st.customPath = g
+            st.sourceXML = PptxXML.serialize(el)
+            st.sourcePart = part
+            st.keptLine = KeptLine(line: box, box: box, outline: color, width: width)
+            st.outlineDash = PptxReader.dash(ln)
+            st.headEnd = PptxReader.lineEnd(ln?.first("a:headEnd"))
+            st.tailEnd = PptxReader.lineEnd(ln?.first("a:tailEnd"))
+            return st
+        }
         // Flips turn the box's diagonal into the line's direction, and the
         // rotation turns both ends about the box's centre.
         var x1 = box.left, x2 = box.right, y1 = box.top, y2 = box.bottom

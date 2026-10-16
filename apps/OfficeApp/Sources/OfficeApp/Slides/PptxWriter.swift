@@ -707,7 +707,8 @@ private struct SlideXML {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId)
             }
             return _chart(chart, s, name: name, media: &media, builder: &builder)
-        case .geometry(let preset) where preset.isLine && s.text == nil:
+        case .geometry(let preset) where (preset.isLine || preset.rawValue.hasPrefix("bentConnector")
+                                          || preset.rawValue.hasPrefix("curvedConnector")) && s.text == nil:
             // A connector as read, while its line and outline are: the
             // original, at its frame on the slide.
             if let xml = s.sourceXML, let k = s.keptLine, k.line == s.frame, k.outline == s.outline,
@@ -719,7 +720,7 @@ private struct SlideXML {
             let box = Rect.fromLTRB(min(f.left, f.right), min(f.top, f.bottom), max(f.left, f.right), max(f.top, f.bottom))
             let line = s.outline.map { "<a:ln w=\"\(Self._emu(s.outlineWidth))\">\(Self._fill($0))</a:ln>" } ?? "<a:ln><a:noFill/></a:ln>"
             return "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
-                + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: f.right < f.left, flipV: f.bottom < f.top))"
+                + "<p:spPr>\(Self._xfrm(box, rotation: s.rotation, flipH: s.flipH != (f.right < f.left), flipV: s.flipV != (f.bottom < f.top)))"
                 + "<a:prstGeom prst=\"\(preset.rawValue)\"><a:avLst/></a:prstGeom>\(line)</p:spPr></p:cxnSp>"
         default:
             // Unchanged since it was read, text and all: the shape as it

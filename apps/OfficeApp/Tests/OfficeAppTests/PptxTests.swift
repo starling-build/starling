@@ -262,13 +262,18 @@ final class GroupAndConnectorTests: XCTestCase {
     func testConnectorsDrawTheirRealDirectionAndKeepTheirShape() throws {
         var (state, theme, pkg) = try reread(try package())
         let i = try XCTUnwrap(state.slides[5].shapes.firstIndex { $0.name == "Arrow" })
-        let f = state.slides[5].shapes[i].frame
-        // Box 100,100 100x50; flipped both ways it runs (200,150)→(100,100),
-        // and a quarter turn about (150,125) makes that (125,175)→(150,75).
-        XCTAssertEqual(f.left, 125, accuracy: 0.01)
-        XCTAssertEqual(f.top, 175, accuracy: 0.01)
-        XCTAssertEqual(f.right, 175, accuracy: 0.01)
-        XCTAssertEqual(f.bottom, 75, accuracy: 0.01)
+        let shape = state.slides[5].shapes[i]
+        let f = shape.frame
+        // A curve is drawn as its own path: its box (100,100 100x50) turned
+        // a quarter and flipped both ways, as the file places it.
+        XCTAssertEqual(f.left, 100, accuracy: 0.01)
+        XCTAssertEqual(f.top, 100, accuracy: 0.01)
+        XCTAssertEqual(f.right, 200, accuracy: 0.01)
+        XCTAssertEqual(f.bottom, 150, accuracy: 0.01)
+        XCTAssertEqual(shape.rotation, 90, accuracy: 0.01)
+        XCTAssertTrue(shape.flipH && shape.flipV)
+        XCTAssertNotNil(shape.customPath)
+        XCTAssertEqual(shape.tailEnd?.kind, "triangle")
         func slide6(_ s: DeckState) throws -> String {
             String(data: PptxPackage(try Zip.read(try PptxWriter.write(s, theme: theme, package: pkg)))
                 .parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
@@ -278,7 +283,7 @@ final class GroupAndConnectorTests: XCTestCase {
         XCTAssertTrue(kept.contains("<a:off x=\"1270000\" y=\"1270000\"/><a:ext cx=\"1270000\" cy=\"635000\"/>"))
         state.slides[5].shapes[i].outline = Color(0xFFFF0000)
         let edited = try slide6(state)
-        XCTAssertFalse(edited.contains("curvedConnector3"), "recoloured: our own line")
+        XCTAssertTrue(edited.contains("prst=\"curvedConnector3\""), "recoloured: still the curve")
         XCTAssertTrue(edited.contains("FF0000"))
     }
 
