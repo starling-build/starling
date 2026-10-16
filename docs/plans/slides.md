@@ -2014,6 +2014,16 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A diagram shape's one adjustment, 2026-10-16** (smartart-children
+3.42 → 3.15, cycle-matrix 2.61 → 2.34, accent-process −0.21,
+autofit-sync −0.20, smartart-text −0.20, composite-infer-right −0.18,
+missing-bullet −0.14, cnt −0.13; none worse). A layout's `dgm:adj
+idx="1"` went to the shape as `adj1`, which a preset with a single
+adjustment — the rounded rectangle's corner, `adj` — never reads: every
+diagram rounded rectangle had the default corner, two-thirds again as
+round as the 0.1 the layouts ask. The first is now given under both
+names.
+
 **Kerned where the run says so, on the grid, 2026-10-16** (sweep 108:
 the decks' means 5.74 lower in sum; font-scale 5.47 → 3.39, pptx2svg
 6.70 → 5.44, 3columns −0.45, 60810 −0.42, cooper −0.21, fifteen more;

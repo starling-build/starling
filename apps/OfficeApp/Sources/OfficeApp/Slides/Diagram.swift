@@ -1463,6 +1463,11 @@ struct DiagramLayout {
             let av = XNode(name: "a:avLst", attrs: [:])
             for (i, v) in n.adjustments {
                 av.children.append(XNode(name: "a:gd", attrs: ["name": "adj\(i)", "fmla": "val \(Self.whole(v * 100000))"]))
+                // (A preset with one adjustment calls it plain "adj":
+                // hierarchy4's boxes, `adj idx="1" val="0.1"`, had the
+                // rounded rectangle's default corners, two-thirds again
+                // as round as PowerPoint's.)
+                if i == 1 { av.children.append(XNode(name: "a:gd", attrs: ["name": "adj", "fmla": "val \(Self.whole(v * 100000))"])) }
             }
             geometry.children = [av]
         }
