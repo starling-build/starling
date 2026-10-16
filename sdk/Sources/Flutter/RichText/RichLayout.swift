@@ -665,6 +665,9 @@ public final class RichLayout {
     /// How far a picture paragraph's picture stands in from its text's
     /// left, as the paragraph aligns it (pixels).
     private var _imageShift: [Double] = []
+    /// How far down its line a picture paragraph's picture stands: its
+    /// character border's and effect extent's room above it (pixels).
+    private var _imageDrop: [Double] = []
     /// Per paragraph, its inline pictures in placeholder order.
     private var _inline: [[ImageAttachment]] = []
     /// A picture paragraph's float, when its picture is anchored.
@@ -894,6 +897,7 @@ public final class RichLayout {
         _painters = Array(repeating: nil, count: n)
         _imageSize = Array(repeating: nil, count: n)
         _imageShift = Array(repeating: 0, count: n)
+        _imageDrop = Array(repeating: 0, count: n)
         _inline = Array(repeating: [], count: n)
         _floats = Array(repeating: nil, count: n)
         _floatImages = Array(repeating: nil, count: n)
@@ -961,6 +965,7 @@ public final class RichLayout {
                 _painters.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _imageSize.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _imageShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _imageDrop.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inline.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _floats.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _floatImages.insert(contentsOf: Array(repeating: nil, count: n), at: at)
@@ -994,6 +999,7 @@ public final class RichLayout {
                 _painters.removeSubrange(at ..< end)
                 _imageSize.removeSubrange(at ..< end)
                 _imageShift.removeSubrange(at ..< end)
+                _imageDrop.removeSubrange(at ..< end)
                 _inline.removeSubrange(at ..< end)
                 _floats.removeSubrange(at ..< end)
                 _floatImages.removeSubrange(at ..< end)
@@ -3950,11 +3956,15 @@ public final class RichLayout {
             // (Where its paragraph sets it: zh-9c5d0c3f's road signs stand
             // in the middle of their cells in Word's print, at the cells'
             // left in ours. One wider than the line keeps to its left.)
-            let spare = theme.wordRules ? max(0, textWidth - w.rounded()) : 0
-            _imageShift[i] = style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0
+            // (Its line holds its character border and its effects too,
+            // and the border stands beside it as well.)
+            let room = theme.wordRules && image.float == nil ? _pictureRoom(image) : (top: 0.0, bottom: 0.0, side: 0.0)
+            _imageDrop[i] = room.top
+            let spare = theme.wordRules ? max(0, textWidth - w.rounded() - 2 * room.side) : 0
+            _imageShift[i] = (style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0) + room.side
             // A floating object stands clear of the flow: its paragraph
             // is the height of its (empty) line, as Word sets it.
-            if theme.wordRules, let float = image.float, !float.takesRoom {} else { bodyHeight = h.rounded() }
+            if theme.wordRules, let float = image.float, !float.takesRoom {} else { bodyHeight = (h + room.top + room.bottom).rounded() }
             // (A horizontal rule's paragraph is a line of its text: the
             // reader's "hr", lab `hr`.)
             if theme.wordRules, image.name == "hr" { bodyHeight = max(bodyHeight, _markLineHeight(i, document)) }
@@ -3962,6 +3972,7 @@ public final class RichLayout {
         } else {
             _imageSize[i] = nil
             _imageShift[i] = 0
+            _imageDrop[i] = 0
         }
         // A line holding a picture keeps to the line grid too: as many
         // whole pitches as it needs, the rest above the picture. (The
@@ -4602,6 +4613,12 @@ public final class RichLayout {
                 if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
                 // (A floating object takes no room in the line.)
                 if theme.wordRules, let float = image.float, !float.takesRoom { w = 0; h = 0 }
+                // (With its character border and effects round it.)
+                if theme.wordRules, image.float == nil {
+                    let room = _pictureRoom(image)
+                    w += 2 * room.side
+                    h += room.top + room.bottom
+                }
                 let size = Size(w.rounded(), h.rounded())
                 // (Word's `w:textAlignment` "center" sets what is on a
                 // line by its middle: a letterhead's words half way up
@@ -6146,7 +6163,8 @@ public final class RichLayout {
         }
         // (Lower by its line's grid extra, `_layoutParagraph`.)
         // (And in from its left as its paragraph aligns it.)
-        return Rect.fromLTWH(g.textLeft + (i < _imageShift.count ? _imageShift[i] : 0), g.inkTop, size.width, size.height)
+        return Rect.fromLTWH(g.textLeft + (i < _imageShift.count ? _imageShift[i] : 0), g.inkTop + (i < _imageDrop.count ? _imageDrop[i] : 0),
+                             size.width, size.height)
     }
 
     // MARK: Geometry queries (call ensureLaidOut first)
@@ -6676,6 +6694,7 @@ public final class RichLayout {
             let drawn = _decoded[image.id] == nil && _paintOutline(image, box, canvas)
             if let decoded = _decoded[image.id] {
                 _drawPicture(decoded, image, box, canvas)
+                _paintFrame(image, box, canvas)
             } else if let inside = _textBox(image, document), let text = image.textBox {
                 // A text box: its text, set inside it.
                 canvas.save()
@@ -6878,8 +6897,13 @@ public final class RichLayout {
                     }
                 }
                 let paint = Paint()
+                if theme.wordRules, image.float == nil {
+                    let room = _pictureRoom(image)
+                    rect = Rect.fromLTRB(rect.left + room.side, rect.top + room.top, rect.right - room.side, rect.bottom - room.bottom)
+                }
                 if let decoded = _decoded[image.id] {
                     _drawPicture(decoded, image, rect, canvas)
+                    _paintFrame(image, rect, canvas)
                 } else if let inside = _textBox(image, document), let text = image.textBox {
                     canvas.save()
                     canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
@@ -7167,6 +7191,30 @@ public final class RichLayout {
         guard Self._quarterTurned(image) else { return box }
         let c = box.center
         return Rect.fromLTWH(c.dx - h / 2, c.dy - w / 2, h, w)
+    }
+
+    /// The room a picture in the line takes round its box, in pixels:
+    /// its effect extent above and below, and its run's character border
+    /// (`ImageAttachment.frame`) `space + width` out on every side.
+    /// (Only at the size the file gave it: resized in the editor, the
+    /// picture is written afresh, without either.)
+    func _pictureRoom(_ image: ImageAttachment) -> (top: Double, bottom: Double, side: Double) {
+        guard image.sourceWidth == image.width, image.sourceHeight == image.height else { return (0, 0, 0) }
+        let frame = image.frame.map { _px($0.space + $0.width) } ?? 0
+        return (_px(image.effectTop) + frame, _px(image.effectBottom) + frame, frame)
+    }
+
+    /// A picture's character border, round `box` (the picture's own) and
+    /// its effect extent.
+    private func _paintFrame(_ image: ImageAttachment, _ box: Rect, _ canvas: any Canvas) {
+        guard theme.wordRules, let frame = image.frame, frame.width > 0 else { return }
+        let out = _px(frame.space + frame.width / 2)
+        let paint = Paint()
+        paint.style = .stroke
+        paint.strokeWidth = _px(frame.width)
+        paint.color = frame.color ?? theme.textColor
+        canvas.drawRect(Rect.fromLTRB(box.left - out, box.top - _px(image.effectTop) - out,
+                                      box.right + out, box.bottom + _px(image.effectBottom) + out), paint)
     }
 
     /// Whether a floating picture is turned by an odd number of quarters.

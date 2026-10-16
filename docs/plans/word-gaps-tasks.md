@@ -366,7 +366,7 @@ picture is tall, its descent not counted): 81.6% -> 90.8. Left: page
 under it, "at least" 19.2) 9pt high; p4's "車道縮減" (snapToGrid off,
 "at least" 11) 21pt high.
 
-### T18. bug59058: a bordered run's picture line
+### T18. bug59058: a bordered run's picture line — DONE (2026-10-15)
 Owner: session starling-office1-df (Linux dev box, no Word; starling-office1 worktree), from 2026-10-15
 Documents: bug59058 (73.9% on Linux, 53 pages to Word's 52).
 Known: from p27 its "tab1"/"tab2" pictures are inline in runs with a
@@ -375,6 +375,10 @@ picture lines are 75 and 31.56pt for pictures of 72.75 (+0.75 effect
 extent) and 30 — the border's 0.75 above and below; ours 72.75 and 30,
 with no border drawn. Text runs with borders (zh-06c46ba9, 42) are left
 alone until measured.
+Built (office.md): the line holds the border and the effect extent,
+the border is drawn. p27 within 0.3pt; bug59058 73.9 -> 74.9% (Linux),
+nothing else moved. Its next parting is p38: the references drift about
+0.1pt a paragraph lower than Word's (2.3pt by the page's foot).
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.

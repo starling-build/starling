@@ -1017,6 +1017,29 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(resized.contains("cx=\"1828800\""), resized)
     }
 
+    func testPictureInABorderedRunReadsItsFrameAndEffects() throws {
+        // bug59058: "tab1", an inline picture in a run with a 0.75pt grey
+        // character border, its effect extent 0.75pt below; Word's line
+        // holds both.
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 72, height: 36))]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<wp:docPr", with: "<wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"9525\"/><wp:docPr")
+        xml = xml.replacingAll("<w:r><w:drawing>", with: "<w:r><w:rPr><w:bdr w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"CCCCCC\" w:frame=\"1\"/></w:rPr><w:drawing>")
+        XCTAssertTrue(xml.contains("<w:bdr "), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let att = try XCTUnwrap(try DocxFormat.read(try Zip.write(entries)).document.paragraphs[0].image)
+        XCTAssertEqual(att.frame?.width, 0.75)
+        XCTAssertEqual(att.frame?.space, 0)
+        XCTAssertEqual(att.effectBottom, 0.75)
+        XCTAssertEqual(att.effectTop, 0)
+        // (A border of no line is none.)
+        let none = xml.replacingAll("w:val=\"single\" w:sz=\"6\"", with: "w:val=\"none\" w:sz=\"0\"")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(none.utf8))
+        XCTAssertNil(try DocxFormat.read(try Zip.write(entries)).document.paragraphs[0].image?.frame)
+    }
+
     func testMergedCellKeepsEachContinuationRowsSides() throws {
         // bug65649: a header cell merged down three rows, its first cell
         // ruled on top and open below, its last continuation ruled below.

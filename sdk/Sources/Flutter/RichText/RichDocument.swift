@@ -734,6 +734,16 @@ public struct ImageAttachment: Hashable, Sendable {
     /// file wrote them: a character border round a thumbnail, the size
     /// that sets the line it stands on. Written back with `sourceXML`.
     public var sourceRunPropertiesXML: String? = nil
+    /// A character border round the picture in its line (`w:bdr` on the
+    /// run it sits in): drawn `space` out from the picture's box, and
+    /// its line taller by `space + width` above and below. bug59058's
+    /// "tab1", 72.75pt in a 0.75pt grey frame, stands on a line of 75 in
+    /// Word's print (with its effect extent below).
+    public var frame: BorderLine? = nil
+    /// How far an inline picture's drawn effects reach above and below its
+    /// box (`wp:effectExtent`'s `t` and `b`, points): its line holds them.
+    public var effectTop = 0.0
+    public var effectBottom = 0.0
     /// For an object anchored to its paragraph rather than standing in
     /// the line (Word's `wp:anchor`): where it floats. The text makes no
     /// room for it in the line, and none above and below unless it

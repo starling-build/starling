@@ -2887,6 +2887,26 @@ fitter dropped the paragraph's tail).
   (its two chance matches against Word's print of its text off the
   page); the Chinese sample unchanged.
 
+- **A picture in a bordered run: its line holds the border (2026-10-15,
+  Linux, from Word's print alone).** bug59058's tables are pictures
+  ("tab1" 75 x 72.75pt, "tab2" 75 x 30), each alone in its paragraph,
+  in a run with a character border (`w:bdr` single, sz 6, space 0,
+  CCCCCC, `w:frame`); tab1 has `wp:effectExtent` b 9525 as well. In
+  Word's print the picture lines are 75.0 and 31.56pt: the border's
+  0.75 above, the picture, its 0.75 of effect, the border's 0.75 below
+  — and the picture 0.75 in from the text's left, the grey lines drawn
+  round picture and effect. Ours set the picture flush in a line of its
+  own height and drew no border, so every line after tab1 stood 2.25pt
+  high and after tab2 3.8pt — enough to miss the ±3pt match from p27.
+  An inline picture now carries its run's border (`frame`) and its
+  effect extent's top and bottom; its line, paragraph or in-line, is
+  taller by both and the border is drawn, while the picture keeps its
+  file's size (resized, it is written without them). p27 now within
+  0.3pt of Word's; bug59058 73.9% -> 74.9% (Linux), its next parting
+  p38; nothing else moved. Text runs with borders (zh-06c46ba9's 42)
+  are untouched: not measured. Left: a picture paragraph's shading is
+  drawn one text line tall, not the picture's line.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

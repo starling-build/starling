@@ -1840,6 +1840,33 @@ enum DocxFormat {
         _eastAsianSwitches.compactMap { tag in style.eastAsian[tag].map { "<\(tag) w:val=\"\($0)\"/>" } }.joined()
     }
 
+    /// One edge of a border — a paragraph's (`w:pBdr`) or a run's
+    /// (`w:bdr`): sz in eighths of a point, space in points, colour hex
+    /// or auto. "nil"/"none" is an edge without a line.
+    static func _borderLine(_ e: XNode) -> BorderLine? {
+        switch e["w:val"] ?? "nil" {
+        case "none":
+            // No line, but Word still stands the text its `space`
+            // off: a header style with four "none" edges a point
+            // away put its text a point lower, and a footer of two
+            // such paragraphs four points higher.
+            guard let space = Double(e["w:space"] ?? ""), space > 0 else { return nil }
+            var gap = BorderLine(width: 0, color: nil, space: space)
+            gap.style = "none"
+            return gap
+        case "nil": return nil
+        default: break
+        }
+        let sz = Double(e["w:sz"] ?? "4") ?? 4
+        var color: Color? = nil
+        if let hex = e["w:color"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
+            color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+        }
+        var l = BorderLine(width: max(0.25, sz / 8), color: color, space: Double(e["w:space"] ?? "0") ?? 0)
+        if let v = e["w:val"], v != "single" { l.style = v }
+        return l
+    }
+
     private static func _paragraphProps(_ pPr: XNode, into style: inout RichParagraphStyle) {
         // (A kind of justified the editor has one of — "distribute" spreads
         // the last line too, the Thai and kashida ones stretch otherwise —
@@ -1927,32 +1954,7 @@ enum DocxFormat {
             style.tabStops = stops.sorted { $0.position < $1.position }
         }
         if let bdr = pPr.first("w:pBdr") {
-            // Each edge: sz in eighths of a point, space in points, colour
-            // hex or auto. "nil"/"none" is an edge without a line.
-            func line(_ name: String) -> BorderLine? {
-                guard let e = bdr.first(name) else { return nil }
-                switch e["w:val"] ?? "nil" {
-                case "none":
-                    // No line, but Word still stands the text its `space`
-                    // off: a header style with four "none" edges a point
-                    // away put its text a point lower, and a footer of two
-                    // such paragraphs four points higher.
-                    guard let space = Double(e["w:space"] ?? ""), space > 0 else { return nil }
-                    var gap = BorderLine(width: 0, color: nil, space: space)
-                    gap.style = "none"
-                    return gap
-                case "nil": return nil
-                default: break
-                }
-                let sz = Double(e["w:sz"] ?? "4") ?? 4
-                var color: Color? = nil
-                if let hex = e["w:color"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
-                    color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
-                }
-                var l = BorderLine(width: max(0.25, sz / 8), color: color, space: Double(e["w:space"] ?? "0") ?? 0)
-                if let v = e["w:val"], v != "single" { l.style = v }
-                return l
-            }
+            func line(_ name: String) -> BorderLine? { bdr.first(name).flatMap(_borderLine) }
             let b = ParagraphBorders(top: line("w:top"), bottom: line("w:bottom"), left: line("w:left"), right: line("w:right"))
             style.borders = b.isEmpty ? nil : b
         }
@@ -2509,9 +2511,11 @@ enum DocxFormat {
         }
         /// A picture or object in the line, where the text has it.
         var runPropertiesXML: String? = nil   // of the run being walked, for a picture in it
+        var runFrame: BorderLine? = nil   // ... and its character border, a line of one
         func addInline(_ att: ImageAttachment) {
             var att = att
             att.sourceRunPropertiesXML = runPropertiesXML
+            if att.float == nil, att.sourceXML?.containsSubstring("<wp:anchor") != true { att.frame = runFrame }
             inlineImages[att.id] = att
             var cs = CharStyle()
             cs.inlineImage = att.id
@@ -2720,6 +2724,10 @@ enum DocxFormat {
             // An inline picture keeps its markup too (effectExtent, docPr,
             // crop), used while the editor has not resized it.
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
+            if let effect = drawing.descendant("wp:effectExtent") {
+                att.effectTop = max(0, (Double(effect["t"] ?? "") ?? 0) / 12700)
+                att.effectBottom = max(0, (Double(effect["b"] ?? "") ?? 0) / 12700)
+            }
             if let frag = _keptFragment(drawing, notes) {
                 att.sourceXML = frag.xml
                 att.sourceRels = frag.rels
@@ -2751,7 +2759,8 @@ enum DocxFormat {
             }
             // (Its style reference would name an id the save may rename.)
             runPropertiesXML = r.first("w:rPr").flatMap { $0.first("w:rStyle") == nil && !$0.children.isEmpty ? PptxXML.serialize($0) : nil }
-            defer { runPropertiesXML = nil }
+            runFrame = r.first("w:rPr")?.first("w:bdr").flatMap(_borderLine).flatMap { $0.width > 0 ? $0 : nil }
+            defer { runPropertiesXML = nil; runFrame = nil }
             if let rPr = r.first("w:rPr") {
                 // The run's character style first, then its own properties.
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
