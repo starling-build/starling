@@ -6,11 +6,11 @@
 #
 # Prints "pdf" or "error: ...". Word is driven over COM with its alerts off
 # and the document opened read-only, without a window, and without
-# converting or repairing anything. A Word already running is used and left
-# running; otherwise the script starts one and quits it afterwards.
-# (`New-Object -ComObject Word.Application` starts a NEW hidden Word every
-# time, never the one there is: when this script left its Word running, two
-# days of lab prints left 259 of them, 32 GB, and the box out of memory.)
+# converting or repairing anything. Each run starts a Word of its own and
+# quits it. (`New-Object -ComObject Word.Application` starts a NEW hidden
+# Word every time, never the one there is: when this script left its Word
+# running, two days of lab prints left 259 of them, 32 GB, and the box out
+# of memory. Attaching to a running one instead races another print's Quit.)
 #
 # Word for Windows has other faces than Word for Mac, and the corpus's
 # prints (test/corpus/docx/word) are the Mac's: a lab printed here settles
@@ -28,12 +28,8 @@ Remove-Item -LiteralPath $Pdf -Force -ErrorAction SilentlyContinue
 
 $wdExportFormatPDF = 17
 $wdAlertsNone = 0
-$started = $false
-try { $app = [System.Runtime.InteropServices.Marshal]::GetActiveObject('Word.Application') }
-catch {
-    try { $app = New-Object -ComObject Word.Application; $started = $true }
-    catch { Write-Output "error: no Word ($($_.Exception.Message -replace '\s+', ' '))"; exit 0 }
-}
+try { $app = New-Object -ComObject Word.Application }
+catch { Write-Output "error: no Word ($($_.Exception.Message -replace '\s+', ' '))"; exit 0 }
 $app.DisplayAlerts = $wdAlertsNone
 try {
     # Open(FileName, ConfirmConversions, ReadOnly, AddToRecentFiles, …, Visible)
@@ -45,6 +41,7 @@ try {
 } catch {
     Write-Output "error: $($_.Exception.Message -replace '\s+', ' ')"
 } finally {
-    if ($started) { try { $app.Quit(0) } catch {} }
+    # (Quit() bare: Quit(0) throws in PowerShell 5.1, its argument a ref.)
+    try { $app.Quit() } catch {}
     [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($app)
 }
