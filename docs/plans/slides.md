@@ -2014,6 +2014,13 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A face at its own widths is kerned and on the grid too, 2026-10-16**
+(the AES deck 5.91 → 5.58, tdf129686 −0.08, ooxtheme −0.06, KEY02 −0.04,
+six more −0.01 or −0.02; pptx2svg +0.02, two +0.01; 51 decks run). Where
+the theme has an advance grid (slides), a character set at its face's
+own width is kerned as the stand-in kerns, where the run kerns, and
+put on the grid, as any other.
+
 **Ten more faces at their own widths, 2026-10-16** (KEY02 4.10 → 2.50,
 ooxtheme 1.56 → 0.63, themes 2.01 → 1.72, bnc862510_7 0.90 → 0.64, ten
 more a little; n862510_4 +0.02). Segoe UI (and Light and Semilight),

@@ -5382,7 +5382,17 @@ public final class RichLayout {
                     let k = Int(u) - 0x20
                     if let table = s.fontWeight == .bold ? face.boldAdvances : face.advances, k < table.count, let px = s.fontSize, px > 0.5 {
                         let classScale = classed ? face.classScales.flatMap { own >= 0 && own < $0.count ? $0[own] : nil } ?? 1 : 1
-                        extra += table[k] * px / (face.sizeScale * classScale) - _glyphWidth(s, ch)
+                        var target = table[k] * px / (face.sizeScale * classScale)
+                        // (On the print's grid too, kerned as the stand-in
+                        // kerns, where the theme has one: `advanceGrid`.)
+                        if let grid = theme.advanceGrid, grid > 0 {
+                            let size = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
+                            let kerns = (run.kerningFrom ?? named?.char.kerningFrom).map { $0 > 0 && size >= $0 } ?? false
+                            if kerns, let following { target += _pairAdvance(s, ch, following) - _glyphWidth(s, ch) }
+                            let g = grid * theme.pixelsPerPoint * scale
+                            if g > 0 { target = (target / g).rounded() * g }
+                        }
+                        extra += target - _glyphWidth(s, ch)
                     }
                 } else if !ea, let grid = theme.advanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline,
                           ch.unicodeScalars.first.map({ $0.value >= 0x20 && $0.value < 0x2E80 }) ?? false {
