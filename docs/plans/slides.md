@@ -1994,6 +1994,15 @@ thinThick reads 1 pt line, 1 pt gap, 3 pt line from outside in, exactly
 PowerPoint's profile; the page scores a little worse for its edges
 (PowerPoint's PDF fills the bands as rectangles, snapped differently).
 
+**A newer chart's value labels and legend, 2026-10-15** (chart-slide-bg,
+-texture-bg, -picture-bg, tdf112089 −0.03 each, tdf114821 −0.05,
+chart-theme-override −0.01; none worse). On a 2013-style chart
+PowerPoint's value labels stand 2.5 pt further off the plot than the
+room it leaves them (at 166.5 where ours were at 169, the plot and
+category labels exactly where PowerPoint's are), and the legend's
+entries are 2.5 pt closer together (9.5 between entries, not 12). Both
+now; a 2007-style chart keeps its own measures.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

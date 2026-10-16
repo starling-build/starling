@@ -940,7 +940,9 @@ enum ChartPainter {
             // In the legend's own size, its keys and gaps in proportion.
             let size = c.legendSize ?? c.baseTextSize, m = size / 12
             var entries = names.enumerated().map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: c.legendBold, color: c.legendColor)) }
-            let key = 7 * k * m, gap = 4 * k * m, spacing = 12 * k * m
+            // (9.5 between a row's entries on a newer chart: chart-slide-bg's
+            // legend pitches 58.6 pt in PowerPoint's print, ours 60.9 at 12.)
+            let key = 7 * k * m, gap = 4 * k * m, spacing = (c.styled2013 ? 9.5 : 12) * k * m
             // Beside the plot (`legendPos` r, l, tr): a column, an entry to
             // a line, in the middle of the side; above or below: rows.
             let box = c.legendBox.map { Rect.fromLTWH(r.left + $0.left * r.width, r.top + $0.top * r.height, $0.width * r.width, $0.height * r.height) }
@@ -1335,7 +1337,12 @@ enum ChartPainter {
                 tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + 4 * k + belowOut))
             } else {
                 if c.valueGrid { canvas.drawLine(Offset(plot.left, p), Offset(plot.right, p), gridPaint) }
-                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - tp.width, p - tp.height / 2))
+                // (A newer chart's labels stand 2.5 pt further off the
+                // plot than the room left for them: chart-slide-bg's and
+                // its three like it, at 166.5 where ours were at 169, the
+                // plot where PowerPoint's is.)
+                let further = c.styled2013 ? 2.5 * k : 0
+                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width, p - tp.height / 2))
             }
         }
         // The category axis line, at zero.

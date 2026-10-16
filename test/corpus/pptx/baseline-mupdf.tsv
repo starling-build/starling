@@ -44,9 +44,9 @@ bug65551.pptx	summary pages=1 worst=0.04% mean=0.04%
 bug65673.pptx	summary pages=1 worst=0.27% mean=0.27%
 bug68703.pptx	summary pages=1 worst=1.17% mean=1.17%
 ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst=7.28% mean=3.70%
-chart-picture-bg.pptx	summary pages=1 worst=2.69% mean=2.69%
-chart-slide-bg.pptx	summary pages=1 worst=2.35% mean=2.35%
-chart-texture-bg.pptx	summary pages=1 worst=2.27% mean=2.27%
+chart-picture-bg.pptx	summary pages=1 worst=2.66% mean=2.66%
+chart-slide-bg.pptx	summary pages=1 worst=2.32% mean=2.32%
+chart-texture-bg.pptx	summary pages=1 worst=2.24% mean=2.24%
 clusterfuzz-testcase-minimized-POIXSLFFuzzer-4986044400861184.pptx	summary pages=23 worst=16.45% mean=3.27%
 clusterfuzz-testcase-minimized-POIXSLFFuzzer-5611274456596480.pptx	summary pages=1 worst=61.55% mean=61.55%
 clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages=1 worst=0.85% mean=0.85%
@@ -254,7 +254,7 @@ lo-tdf111863.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf111884.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf112086.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf112088.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-tdf112089.pptx	summary pages=1 worst=1.81% mean=1.81%
+lo-tdf112089.pptx	summary pages=1 worst=1.78% mean=1.78%
 lo-tdf112209.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-tdf112280.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf112333.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -264,7 +264,7 @@ lo-tdf113163.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf113198.pptx	summary pages=1 worst=0.09% mean=0.09%
 lo-tdf113818-swivel.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-tdf113822underline.pptx	summary pages=1 worst=0.12% mean=0.12%
-lo-tdf114821.pptx	summary pages=1 worst=0.97% mean=0.97%
+lo-tdf114821.pptx	summary pages=1 worst=0.92% mean=0.92%
 lo-tdf114845_rotateShape.pptx	summary pages=1 worst=0.33% mean=0.33%
 lo-tdf114848.pptx	summary pages=6 worst=10.42% mean=4.00%
 lo-tdf114913.pptx	summary pages=1 worst=0.12% mean=0.12%
@@ -481,7 +481,7 @@ oox-Scene3d_pureImage.pptx	summary pages=1 worst=2.54% mean=2.54%
 oox-Scene3d_shape_rotation.pptx	summary pages=1 worst=1.29% mean=1.29%
 oox-ThemeShapesReference.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-camera-rotation-revolution-nonwps.pptx	summary pages=1 worst=0.44% mean=0.44%
-oox-chart-theme-override.pptx	summary pages=2 worst=0.47% mean=0.24%
+oox-chart-theme-override.pptx	summary pages=2 worst=0.46% mean=0.23%
 oox-connectorConnection.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-curvedConnectors.pptx	summary pages=1 worst=0.01% mean=0.01%
 oox-elbowConnectors.pptx	summary pages=1 worst=0.00% mean=0.00%
