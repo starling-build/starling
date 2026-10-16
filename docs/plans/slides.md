@@ -2014,6 +2014,14 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Tried and dropped, 2026-10-16:** the squared ramp for every path
+gradient of theme colours under modifiers (now blended evenly): themes'
+radial background fits it (61 → 5 levels off over its quarters), but
+GeomLec1 went 5.74 → 9.15, ImportWordArtGradient +1.31, tdf94238 +0.88
+(sweep 140, +5.72 in sum). Across the corpus's 52 sampled ramps
+PowerPoint exported, 31 sit nearer the squared curve and 21 nearer an
+even blend, with no rule yet for which.
+
 **A gradient of `gamma` stops ramps as PowerPoint's does, 2026-10-16**
 (the 45541 trio 6.49 → 6.54 each, the score's colour tolerance hiding
 the gain; nothing else has such stops). Their Office 2003 template's
