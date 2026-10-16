@@ -72,7 +72,7 @@ lo-activex_fontproperties.pptx	summary pages=1 worst=0.67% mean=0.67%
 lo-activex_label.pptx	summary pages=1 worst=0.51% mean=0.51%
 lo-activex_listbox.pptx	summary pages=1 worst=0.14% mean=0.14%
 lo-activex_optionbutton.pptx	summary pages=1 worst=0.28% mean=0.28%
-lo-activex_picture.pptx	summary pages=1 worst=3.19% mean=3.19%
+lo-activex_picture.pptx	summary pages=1 worst=3.20% mean=3.20%
 lo-activex_scrollbar.pptx	summary pages=1 worst=1.88% mean=1.88%
 lo-activex_spinbutton.pptx	summary pages=1 worst=0.44% mean=0.44%
 lo-activex_textbox.pptx	summary pages=1 worst=4.02% mean=4.02%
@@ -153,9 +153,9 @@ lo-n90190.pptx	summary pages=1 worst=0.53% mean=0.53%
 lo-n90223.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.17% mean=0.17%
-lo-narration-non-media-shape.pptx	summary pages=1 worst=1.74% mean=1.74%
+lo-narration-non-media-shape.pptx	summary pages=1 worst=1.75% mean=1.75%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.03%
+lo-numfmt.pptx	summary pages=9 worst=0.13% mean=0.04%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.25% mean=0.25%
 lo-ole.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -521,7 +521,7 @@ oox-tdf155412_typeface.pptx	summary pages=1 worst=0.37% mean=0.37%
 oox-tdf163803_image_with_fill.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf164623.pptx	summary pages=1 worst=0.01% mean=0.01%
 oox-tdf170095.pptx	summary pages=1 worst=0.10% mean=0.10%
-oox-testTdf132557_footerCustomShapes.pptx	summary pages=1 worst=0.07% mean=0.07%
+oox-testTdf132557_footerCustomShapes.pptx	summary pages=1 worst=0.08% mean=0.08%
 oox-testTdf157019_objPlaceholderCustomShape.pptx	summary pages=1 worst=0.50% mean=0.50%
 oox-theme-tint.pptx	summary pages=1 worst=0.40% mean=0.40%
 oox-theme.pptx	summary pages=1 worst=0.04% mean=0.04%
