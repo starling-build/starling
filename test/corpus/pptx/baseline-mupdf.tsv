@@ -503,7 +503,7 @@ oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=2.16% mean=2.16%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
 oox-tdf131082.pptx	summary pages=1 worst=0.15% mean=0.15%
 oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=11.99% mean=11.99%
-oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=8.58% mean=8.58%
+oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=7.73% mean=7.73%
 oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=16.83% mean=16.83%
 oox-tdf141463_GroupTransform.pptx	summary pages=1 worst=0.68% mean=0.68%
 oox-tdf144742_funnel.pptx	summary pages=1 worst=0.00% mean=0.00%
