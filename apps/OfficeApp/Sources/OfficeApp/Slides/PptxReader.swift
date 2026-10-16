@@ -1836,6 +1836,7 @@ private struct SlideContext {
         base.font = whole?.font ?? (style == nil ? "+mn-lt" : base.font)
         let rowCount = tbl.all("a:tr").count
         var paragraphs: [RichParagraph] = []
+        var cellListFormats: [String: [Int: ListLevelFormat]] = [:], cellListRestarts: [String: [Int: Int]] = [:]
         for (r, tr) in tbl.all("a:tr").enumerated() {
             var column = 0
             let cells = tr.all("a:tc")
@@ -1941,8 +1942,11 @@ private struct SlideContext {
                     look.color = colors.scheme("lt1") ?? Color(0xFFFFFFFF)
                 }
                 var cellParas: [RichParagraph] = []
+                var cellLevels: [Int] = [], cellNumbering: [(type: String, start: Int)?] = []
                 for p in tc.first("a:txBody")?.all("a:p") ?? [] {
                     let level = LevelStyle.paragraph(p.first("a:pPr"), colors).filled(from: look)
+                    cellLevels.append(p.first("a:pPr")?["lvl"].flatMap(Int.init) ?? 0)
+                    cellNumbering.append(level.bullet == .number ? (level.autoNumType ?? "arabicPeriod", level.autoNumStart ?? 1) : nil)
                     var text = "", runs: [Run] = []
                     for child in p.children where child.name == "a:r" || child.name == "a:br" || child.name == "a:fld" {
                         let t = child.name == "a:br" ? "\n" : (child.first("a:t")?.text ?? "")
@@ -2002,12 +2006,23 @@ private struct SlideContext {
                     var para = RichParagraph(text: "", style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0))
                     para.cell = cell
                     cellParas = [para]
+                } else if cellNumbering.contains(where: { $0 != nil }), cellLevels.count == cellParas.count {
+                    // A cell numbers its own paragraphs, from its own
+                    // `startAt`: customGeo's crosswalk counts 1 to 6 down
+                    // six cells, each starting where the last left off.
+                    var own = RichDocument(paragraphs: cellParas)
+                    Self._numberRuns(&own, levels: cellLevels, numbering: cellNumbering, prefix: "pptx-\(tableId)-\(r)-\(column)")
+                    cellParas = own.paragraphs
+                    for (k, v) in own.listFormats { cellListFormats[k] = v }
+                    for (k, v) in own.listRestarts { cellListRestarts[k] = v }
                 }
                 paragraphs += cellParas
             }
         }
         guard !paragraphs.isEmpty else { return nil }
         var doc = RichDocument(paragraphs: paragraphs)
+        for (k, v) in cellListFormats { doc.listFormats[k] = v }
+        for (k, v) in cellListRestarts { doc.listRestarts[k] = v }
         if !widths.isEmpty { doc.tableColumns[tableId] = widths }
         // The rows' own heights (`a:tr h`), as minimums: PowerPoint keeps a
         // row that tall however little is in it.
@@ -2969,7 +2984,8 @@ private struct SlideContext {
     /// second "a, b" follows an unnumbered line. Each run is a list of its
     /// own, in its scheme's format (a, b / i, ii / 1)…), from `startAt`.
     /// An empty paragraph shows no number and neither counts nor breaks.
-    static func _numberRuns(_ doc: inout RichDocument, levels: [Int], numbering: [(type: String, start: Int)?]) {
+    static func _numberRuns(_ doc: inout RichDocument, levels: [Int], numbering: [(type: String, start: Int)?],
+                            prefix: String = "pptx") {
         guard numbering.contains(where: { $0 != nil }), levels.count == doc.paragraphs.count else { return }
         var broken = Array(repeating: true, count: 9), run = Array(repeating: 0, count: 9)
         var scheme = Array(repeating: "", count: 9)
@@ -2978,12 +2994,12 @@ private struct SlideContext {
             for deeper in (lvl + 1) ..< 9 { broken[deeper] = true }
             guard doc.paragraphs[i].style.list == .numbered, let n = numbering[i] else { broken[lvl] = true; continue }
             if doc.paragraphs[i].text.isEmpty {
-                doc.paragraphs[i].style.listId = "pptx-empty-\(i)"
+                doc.paragraphs[i].style.listId = "\(prefix)-empty-\(i)"
                 continue
             }
             let key = "\(n.type)/\(n.start)"
             if broken[lvl] || scheme[lvl] != key { run[lvl] += 1; broken[lvl] = false; scheme[lvl] = key }
-            let id = "pptx-\(lvl)-\(run[lvl])"
+            let id = "\(prefix)-\(lvl)-\(run[lvl])"
             doc.paragraphs[i].style.listId = id
             if doc.listFormats[id] == nil {
                 let t = n.type.lowercased()

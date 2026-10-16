@@ -2014,6 +2014,13 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A table cell's numbers, 2026-10-16** (customGeo's crosswalk slide).
+A numbered paragraph in a table cell showed "1." whatever its
+`startAt`: the runs of numbers (`_numberRuns`) were worked out for a
+shape's text only. Each cell now numbers its own paragraphs, under list
+names of its own, so customGeo's six cells count 1 to 6 as PowerPoint's
+do.
+
 **A text block centred across its box (`anchorCtr`), 2026-10-16**
 (eaVertAnchor 3.28 → 2.79, tdf165261 −0.11, tdf165341 −0.09,
 tdf149551_TextRot −0.05, slide-section-test −0.04, vert270AndTextRot
