@@ -472,7 +472,10 @@ public final class RichTextTheme {
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
             fontFamily: family,
-            fontFamilyFallback: Self.glyphFallback.isEmpty ? nil : Self.glyphFallback
+            fontFamilyFallback: {
+                let list = (face?.fallback ?? []) + Self.glyphFallback
+                return list.isEmpty ? nil : list
+            }()
         )
     }
 }
@@ -539,6 +542,10 @@ public struct RichResolvedFace: Sendable {
     /// sets a private-use character in where no face has it (drawn
     /// blank in its print). nil: the fallback's glyph.
     public var missingGlyphAdvance: Double? = nil
+    /// Faces to draw what `family` has no glyph for, before the theme's
+    /// `glyphFallback`: a Song face's ideographs in a serif, its letters
+    /// and digits still the Latin stand-in's.
+    public var fallback: [String] = []
     /// A math face (Cambria Math): its characters past ASCII come from
     /// the platform's math face, set inside the run's line.
     public var setsMath = false

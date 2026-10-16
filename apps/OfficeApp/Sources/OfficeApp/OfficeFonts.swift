@@ -766,6 +766,26 @@ enum OfficeFonts {
 
     private static let wordOnMac = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "mac"
 
+    /// The face a Song, Ming or Mincho name's ideographs are drawn in
+    /// where the platform has none of those faces: Noto Serif CJK, in
+    /// the variant of the name's script. Left to the theme's fallback
+    /// every Chinese and Japanese face came out in Noto Sans CJK, where
+    /// Word's print of 宋体, 細明體 and ＭＳ 明朝 is a serif (61470's
+    /// "東京"). Only the square faces: a name Word on a Mac sets in YaHei
+    /// stays sans, as YaHei is. It draws only what the stand-in lacks,
+    /// so letters and digits keep their widths and the lines their breaks.
+    private static func serifIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {
+        #if os(Linux)
+        guard ea.height == square.height else { return nil }
+        let n = family.trimmingWhitespace().lowercased()
+        func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
+        if has("mincho", "明朝") { return "Noto Serif CJK JP" }
+        if has("mingliu", "明體") { return "Noto Serif CJK TC" }
+        if has("simsun", "宋体", "宋體", "songti") { return "Noto Serif CJK SC" }
+        #endif
+        return nil
+    }
+
     /// The theme's `faceResolver`: the shipped face for a name, and for
     /// an East Asian face Word's measure of it — see `EastAsianFace`.
     /// East Asian text in a Latin face is set in the face Word falls
@@ -892,6 +912,9 @@ enum OfficeFonts {
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
             face.fullWidthSymbols = ea.latinAdvances == nil
+            // (Ideographs in a serif where the name is a Song, Ming or
+            // Mincho face: `serifIdeographs`.)
+            if !own || embeddedFamily(family) == nil, let serif = serifIdeographs(family, ea) { face.fallback = [serif] }
             // (YaHei has none of the compatibility ideographs Word sets in
             // Noto Sans SC; PMingLiU and the others it has draw their own —
             // zh-db93607e's in PMingLiU are as any character in Word's print.)
