@@ -37,7 +37,7 @@ bug60993.pptx	summary pages=1 worst=0.12% mean=0.12%
 bug62513.pptx	summary pages=19 worst=8.29% mean=2.93%
 bug62736.pptx	summary pages=1 worst=0.65% mean=0.65%
 bug63290.pptx	summary pages=1 worst=0.66% mean=0.66%
-bug64693.pptx	summary pages=1 worst=0.58% mean=0.58%
+bug64693.pptx	summary pages=1 worst=0.57% mean=0.57%
 bug65228.pptx	summary pages=1 worst=0.37% mean=0.37%
 bug65523.pptx	summary pages=1 worst=0.28% mean=0.28%
 bug65551.pptx	summary pages=1 worst=0.04% mean=0.04%
@@ -155,7 +155,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.17% mean=0.17%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=1.74% mean=1.74%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.04%
+lo-numfmt.pptx	summary pages=9 worst=0.05% mean=0.03%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.25% mean=0.25%
 lo-ole.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -263,7 +263,7 @@ lo-tdf112633.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf113163.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf113198.pptx	summary pages=1 worst=0.09% mean=0.09%
 lo-tdf113818-swivel.pptx	summary pages=1 worst=0.08% mean=0.08%
-lo-tdf113822underline.pptx	summary pages=1 worst=0.16% mean=0.16%
+lo-tdf113822underline.pptx	summary pages=1 worst=0.12% mean=0.12%
 lo-tdf114821.pptx	summary pages=1 worst=0.97% mean=0.97%
 lo-tdf114845_rotateShape.pptx	summary pages=1 worst=0.34% mean=0.34%
 lo-tdf114848.pptx	summary pages=6 worst=10.42% mean=4.02%
@@ -550,4 +550,4 @@ testPPT.pptx	summary pages=3 worst=2.40% mean=1.49%
 text-highlight.pptx	summary pages=1 worst=1.25% mean=1.25%
 themes.pptx	summary pages=10 worst=3.50% mean=2.04%
 tika-2605.pptx	summary pages=14 worst=1.97% mean=0.14%
-with_japanese.pptx	summary pages=1 worst=2.26% mean=2.26%
+with_japanese.pptx	summary pages=1 worst=2.25% mean=2.25%
