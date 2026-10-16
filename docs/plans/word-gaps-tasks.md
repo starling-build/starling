@@ -684,6 +684,15 @@ Built (office.md, "Ruby"): read onto the base's style, the base spread,
 the line made room, the ruby drawn over it, written back as it came.
 61470 0 -> 100%; within 2pt of Word's. Nothing else moved.
 
+### T44. Spaces after ideographs take the ideographs' face
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: zh-1563bd74 (the note below; a page short on Linux).
+Known: the Mac's lab `hfl` (Word 16, the footer's P2 in the body, four
+variants): five trailing spaces after "红河县人民政府发布" in 14pt bold 宋体
+make the paragraph no taller (52.56 with them, 52.80 without; 51.12 and
+51.36 without the X). Ours sets those spaces in the Latin stand-in
+(Liberation Mono), whose depth the line takes: 19.4pt for 18.2.
+
 ### Note from the Linux dev box (2026-10-16): zh-1563bd74 is short a page on Linux only
 Owner: none — a lead (zh-1563bd74's notes are the Windows box's).
 zh-1563bd74 is 88.6% on Linux (29 pages) and 99%+ on the Mac (30). Page
