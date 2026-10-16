@@ -995,6 +995,10 @@ public struct TableStyle: Hashable, Sendable {
     /// text stands (its w:tblpY under w:vertAnchor="text"), in points:
     /// laid out in the flow, it starts that much lower.
     public var floatOffsetY: Double? = nil
+    /// The table floats anchored to the text (w:vertAnchor="text"): in a
+    /// header or footer it takes no room, and stands over the paragraph
+    /// after it (`RichLayout.floatsFrames`).
+    public var floatsOverText = false
     /// The table's own `w:tblCellMar` when the editor's margins were
     /// taken from the cells instead (most of them stating a `w:tcMar`),
     /// with the margins that were current when it was read: written

@@ -1051,6 +1051,7 @@ enum DocxFormat {
                     if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
                         style.floatOffsetY = v / 20
                     }
+                    if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
                 }
                 // A spacing of ZERO is still a statement: Word then rules each
                 // cell on its own rather than collapsing shared edges, and

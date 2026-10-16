@@ -473,6 +473,14 @@ paragraph's height is right (the next one is in place).
 Built: such a paragraph takes the correction; within 0.2pt, no score
 moved anywhere.
 
+### T26. PageSpecificHeadFoot: a footer's floating table — DONE (2026-10-16)
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: PageSpecificHeadFoot (p2's footer, the Windows box's lead).
+Known: the footer's page-number table floats (`w:tblpY` 1 twip, anchored
+to the text); Word lays it over the footer's line, which stands where it
+would with no table. Ours laid the table in the flow above the line.
+Built: in a header or footer such a table takes no room; 90 -> 100%.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a

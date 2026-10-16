@@ -2999,6 +2999,19 @@ fitter dropped the paragraph's tail).
   note's "i" as a row of its own (4pt over "XXX"'s box foot; Word's
   print writes the two as one text line).
 
+- **A table floating over a footer's text takes no room (2026-10-16,
+  Linux).** PageSpecificHeadFoot's second-page footer is a page-number
+  table anchored to the text (`w:tblpPr` vertAnchor text, `w:tblpY` 1
+  twip) and a line after it. Word's print sets the line where it would
+  be with no table and lays the table over it from the line's top, its
+  second row under the footer's bottom: "Page 2" 18pt under the line,
+  where ours had laid the table in the flow above it. In a header or
+  footer (`floatsFrames`) such a table now takes no room and stands its
+  offset under the next paragraph's top (`_floatsOver`); the body keeps
+  laying it in the flow, where a full-width one pushes the text below
+  it anyway. PageSpecificHeadFoot 90% -> 100; the only corpus file with
+  a floating table in a header or footer.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

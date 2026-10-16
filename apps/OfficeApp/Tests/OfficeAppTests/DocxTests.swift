@@ -1055,6 +1055,46 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(p.text, "")
     }
 
+    func testFooterTableFloatingOverTheTextTakesNoRoom() throws {
+        // PageSpecificHeadFoot: a footer's page-number table anchored to
+        // the text (`w:tblpY` 1 twip) lies over the line after it in
+        // Word's print; the line stands where it would with no table.
+        var cell = RichParagraph(text: "Page 2")
+        cell.cell = CellRef(table: "t", row: 0, column: 0)
+        var doc = RichDocument(paragraphs: [cell, RichParagraph(text: "footer")])
+        doc.tableColumns["t"] = [200]
+        var ts = TableStyle()
+        ts.floatOffsetY = 0.05
+        ts.floatsOverText = true
+        doc.tableStyles["t"] = ts
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        func laid(_ floats: Bool) -> RichLayout {
+            let layout = RichLayout(theme: theme, paragraphCount: 2)
+            layout.floatsFrames = floats
+            layout.width = 400
+            layout.ensureLaidOut(doc)
+            return layout
+        }
+        let footer = laid(true)
+        XCTAssertEqual(footer.geometry(1).top, 0, accuracy: 0.01, "the line is the footer's first")
+        XCTAssertEqual(footer.totalHeight, footer.geometry(1).height, accuracy: 0.01, "the table takes no room")
+        XCTAssertEqual(try XCTUnwrap(footer.rowRect(0)).top, 0.05 * theme.pixelsPerPoint, accuracy: 0.01, "and stands its offset under the line's top")
+        // (In the body it is laid in the flow, as before.)
+        XCTAssertGreaterThan(laid(false).geometry(1).top, 0)
+        // Read from the file's anchor.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [cell, RichParagraph(text: "x")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        let xml = String(decoding: entries[di].data, as: UTF8.self)
+            .replacingAll("<w:tblPr>", with: "<w:tblPr><w:tblpPr w:vertAnchor=\"text\" w:tblpY=\"1\"/>")
+        XCTAssertTrue(xml.contains("w:tblpY"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let read = try DocxFormat.read(try Zip.write(entries)).document
+        let style = try XCTUnwrap(read.paragraphs[0].cell.flatMap { read.tableStyles[$0.table] })
+        XCTAssertTrue(style.floatsOverText)
+        XCTAssertEqual(style.floatOffsetY, 0.05)
+    }
+
     func testPictureInABorderedRunReadsItsFrameAndEffects() throws {
         // bug59058: "tab1", an inline picture in a run with a 0.75pt grey
         // character border, its effect extent 0.75pt below; Word's line

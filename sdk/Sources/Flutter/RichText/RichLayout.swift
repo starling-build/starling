@@ -1580,7 +1580,16 @@ public final class RichLayout {
         // the restart index's own top may belong to a paragraph that moved.
         var y = 0.0
         if i > 0 {
-            if let c = _cells[i - 1] { y = c.rowTop + c.ownRowHeight } else { y = _tops[i - 1] + _heights[i - 1] }
+            if let c = _cells[i - 1] {
+                y = c.rowTop + c.ownRowHeight
+                // (A table floating over the text took none: the text
+                // goes on from where the table began.)
+                if _floatsOver(c.table, document) {
+                    var k = i - 1
+                    while k > 0, _cells[k - 1]?.table == c.table { k -= 1 }
+                    y = _cells[k]!.rowTop - _px(document.tableStyles[c.table]?.floatOffsetY ?? 0)
+                }
+            } else { y = _tops[i - 1] + _heights[i - 1] }
         }
         while i < n {
             // Past the last change, a block whose top is unchanged means
@@ -1606,6 +1615,7 @@ public final class RichLayout {
             // The room a rule takes (`theme.tableRulesTakeRoom`): the
             // first row's top one, and every row's bottom one.
             let ts = document.tableStyles[table]
+            let floatsFrom = _floatsOver(table, document) ? y : nil
             if theme.wordRules, let down = ts?.floatOffsetY { y += _px(down) }
             func rule(_ side: String, _ on: Bool?) -> Double {
                 // (Under Word's rules each cell carries its own row's
@@ -1893,10 +1903,19 @@ public final class RichLayout {
                     }
                 }
             }
-            if let last = rows.last { y = last.top + last.height }
+            if let last = rows.last { y = floatsFrom ?? last.top + last.height }
             i = k0
         }
         _flowHeight = y
+    }
+
+    /// Whether `table` floats over the text after it, taking no room: a
+    /// table anchored to the text in a header or footer. Word lays
+    /// PageSpecificHeadFoot's page-number table (`w:tblpY` 1 twip) over
+    /// its footer's line, the line where it would be with no table and
+    /// the table's second row under the footer's bottom.
+    private func _floatsOver(_ table: String, _ document: RichDocument) -> Bool {
+        floatsFrames && theme.wordRules && document.tableStyles[table]?.floatsOverText == true
     }
 
     // MARK: Pagination
