@@ -91,6 +91,10 @@ struct FreeformGeometry: Equatable {
             if box != Rect.fromLTRB(0, 0, 1, 1), box.width > 0, box.height > 0 { textRect = box }
         }
         var subpaths: [Subpath] = []
+        // A path that draws on after its `close` without a `moveTo` makes
+        // PowerPoint drop the whole shape, fill and all: lo-cshapes' six
+        // accent callouts, written so by LibreOffice, are not on its page.
+        var broken = false
         for p in geom.first("a:pathLst")?.all("a:path") ?? [] {
             // The path's own coordinate space, or the shape's when absent.
             let pw = p["w"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil } ?? w
@@ -102,7 +106,10 @@ struct FreeformGeometry: Equatable {
                 guard let xs = n["x"], let ys = n["y"], let x = guides.value(xs), let y = guides.value(ys) else { return nil }
                 return (x / pw, y / ph)
             }
+            var closed = false
             for c in p.children {
+                if closed, ["a:lnTo", "a:arcTo", "a:quadBezTo", "a:cubicBezTo"].contains(c.name) { broken = true }
+                if c.name == "a:moveTo" { closed = false } else if c.name == "a:close" { closed = true }
                 switch c.name {
                 case "a:moveTo":
                     guard let q = c.first("a:pt").flatMap(pt) else { return nil }
@@ -163,6 +170,7 @@ struct FreeformGeometry: Equatable {
             let stroked = !["0", "false"].contains(p["stroke"] ?? "1")
             subpaths.append(Subpath(fill: p["fill"] != "none", stroke: stroked, tone: tone, commands: cmds))
         }
+        if broken { return FreeformGeometry(subpaths: [], textRect: textRect) }
         return subpaths.isEmpty ? nil : FreeformGeometry(subpaths: subpaths, textRect: textRect)
     }
 

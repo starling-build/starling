@@ -108,7 +108,7 @@ lo-control_background_color.pptx	summary pages=1 worst=1.90% mean=1.90%
 lo-crop-position.pptx	summary pages=1 worst=0.23% mean=0.23%
 lo-crop-to-shape.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-croppedTo0.pptx	summary pages=1 worst=1.87% mean=1.87%
-lo-cshapes.pptx	summary pages=1 worst=1.92% mean=1.92%
+lo-cshapes.pptx	summary pages=1 worst=0.07% mean=0.07%
 lo-custgeom-nofill-path.pptx	summary pages=1 worst=0.02% mean=0.02%
 lo-custgeom-overlapping-contours.pptx	summary pages=1 worst=0.09% mean=0.09%
 lo-custgeom-placeholder.pptx	summary pages=1 worst=0.07% mean=0.07%

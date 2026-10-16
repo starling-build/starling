@@ -2014,6 +2014,13 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A freeform that draws on after closing is not drawn, 2026-10-16**
+(lo-cshapes 1.92 → 0.07). LibreOffice writes its accent callouts with a
+path that goes `close` then `lnTo`, no `moveTo` between; PowerPoint
+draws none of such a shape — not its fill, not its other paths — and
+the six were yellow squares here. `FreeformGeometry.parse` now gives
+such a shape no paths. No preset and no other deck has the pattern.
+
 **An arc's angles are the ones seen from its centre, 2026-10-16**
 (sweep 134: 1.129 → 1.119%, eight decks better, none worse; tdf149918
 pie 2.30 → 0.57, tdf144742_funnel 1.46 → 0.00, cshapes 2.39 → 1.92,
