@@ -2014,6 +2014,23 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A face PowerPoint lacks is Calibri, 2026-10-16** (sweep 106:
+tdf168835 0.58 → 0.21, master-slides 5.23 → 5.01, bug65228 0.37 → 0.19,
+tdf119187 0.47 → 0.29, tdf147586 1.12 → 0.95, Divino −0.07, tdf140852
+−0.06, three more a little; n862510_4 0.30 → 0.42, tdf98603 +0.06). The
+shared stand-ins set a name they do not know in the Cambria clone —
+Word on a Mac's rule (2026-10-15). PowerPoint, printing a face its
+machine lacks, uses Calibri: tdf168835's "Marianne", bug65228's
+"Graphik", tdf119187's "BentonSans" are Calibri in its prints. Slides
+now resolve faces through `SlideFonts.resolve`, which does that and
+otherwise defers to the shared rule. Tried on the way and dropped: such
+a name in Liberation Sans (the faces PowerPoint had — Work Sans,
+Poppins — no nearer), and in it only when the file declares the face a
+sans (`pitchFamily` 34: "Myriad Pro" and "Open Sans" are Segoe UI in
+PowerPoint's prints), which left HowWeRefactor 0.10 and tdf98603 0.23
+worse; and a weight of a known face ("Segoe UI Light") as that face
+(n862510_4 0.46).
+
 **Palatino Linotype is a serif, 2026-10-16** (aascu 5864 8.71 → 8.66,
 its "Excellence with Equity" page 16.8 → 15.4). The shared stand-ins
 listed "palatino" with the serifs but not "palatino linotype", Windows'
