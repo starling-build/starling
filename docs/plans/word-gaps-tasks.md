@@ -673,6 +673,25 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   2000" | "至", a negative character grid, need 4.17 of room 33 taken
   by ours, not by Word); zh-a7728bc9 p1 (its title 5pt low).
 
+### Note from the Windows box (2026-10-15, night)
+- For the Mac: your open zh-1563bd74 squeeze ("…自救能力”" leaving "的"
+  3.95 over) is settled by 9a3ea0dc. Before 2013's layout the limit is
+  half of the character BEFORE the one taken (lab `lq`: after "-" 1.75,
+  "." 1.46, "W" 4.95, an ideograph 5.25; an automatic space between them
+  goes with the Latin side), so the 7.1pt Times quote allows 3.55. Every
+  `sq15` variant falls on it. The line now breaks as Word's.
+- For the Mac (parted rows, yours): zh-1a3c7aa0 p22 row 65 and p32 row
+  111 part over the page foot. In Word the part on the page ends under
+  the last line any cell keeps there (bottom rule drawn there) and the
+  centred cells sit in that part; ours runs the part, and its rule, to
+  the page's foot, so the 4-line name cell stands 3.6pt low (p22) and
+  "111"/"2,4-滴丁酯" split 5pt high and 9pt low (p32). Left alone.
+- Also there, p19: a vMerge cell (vAlign center) whose rows part over
+  pages; Word starts its first page's lines 10pt lower than ours. Not
+  measured.
+- 363d64e3's CR CR LF in office.md was this box's — thanks for the fix;
+  edits here now keep LF in the blob.
+
 ### Note from the Linux dev box (2026-10-15)
 - 363d64e3 ("a blank line between two entries") rewrote all of
   office.md with CR CR LF line endings, so every other session's edit to
