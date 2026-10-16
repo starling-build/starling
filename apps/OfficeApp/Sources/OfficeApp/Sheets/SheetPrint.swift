@@ -189,8 +189,14 @@ enum SheetPrintLayout {
     /// (over then down when the setup says so), and the scale they print
     /// at. A manual break starts a page whatever room is left.
     /// `titleWidth`/`titleHeight`: the repeated title columns and rows, in
-    /// points, kept free on every page.
+    /// points, kept free on every page — on every page that starts after
+    /// them, given `titleColsEnd`/`titleRowsEnd` (the last title column or
+    /// row): a page that shows them as its own does not repeat them, and
+    /// has only `headWidth`/`headHeight` (the printed headings) kept free.
+    /// lo-tdf113271's first page holds row 1, its title, once: 42 rows
+    /// under it, as every page has, where ours kept room for it twice.
     static func pages(area: CellRange, setup: SheetPrintSetup, titleWidth: Double = 0, titleHeight: Double = 0,
+                      titleColsEnd: Int? = nil, titleRowsEnd: Int? = nil, headWidth: Double = 0, headHeight: Double = 0,
                       width: (Int) -> Double, height: (Int) -> Double) -> (pages: [SheetPage], scale: Double) {
         let page = setup.pageSize
         let availW0 = max(36, page.width - setup.left - setup.right)
@@ -209,12 +215,15 @@ enum SheetPrintLayout {
             // asked for hold everything.
             s = max(0.1, (s * 100).rounded(.down) / 100)
         }
-        func bands(_ items: [Int], _ size: (Int) -> Double, _ avail: Double, _ breaks: Set<Int>) -> [[Int]] {
+        func bands(_ items: [Int], _ size: (Int) -> Double, _ avail: Double, _ breaks: Set<Int>,
+                   own: (end: Int?, room: Double)) -> [[Int]] {
             var out: [[Int]] = [[]]
             var used = 0.0
+            // (The room of a band that starts on or before the last title.)
+            func room(_ first: Int) -> Double { own.end.map { first <= $0 } ?? false ? own.room : avail }
             for i in items {
                 let w = size(i) * s
-                if !out[out.count - 1].isEmpty && (used + w > avail + 0.01 || breaks.contains(i)) { out.append([]); used = 0 }
+                if let first = out[out.count - 1].first, used + w > room(first) + 0.01 || breaks.contains(i) { out.append([]); used = 0 }
                 out[out.count - 1].append(i)
                 used += w
             }
@@ -225,8 +234,8 @@ enum SheetPrintLayout {
             let availW = max(18, availW0 - titleWidth * s), availH = max(18, availH0 - titleHeight * s)
             // (Fitting ignores manual breaks: they are for the unfitted sheet.)
             let fitting = setup.fitWidth != nil || setup.fitHeight != nil
-            colBands = bands(cols, width, availW, fitting ? [] : setup.colBreaks)
-            rowBands = bands(rows, height, availH, fitting ? [] : setup.rowBreaks)
+            colBands = bands(cols, width, availW, fitting ? [] : setup.colBreaks, own: (titleColsEnd, max(18, availW0 - headWidth * s)))
+            rowBands = bands(rows, height, availH, fitting ? [] : setup.rowBreaks, own: (titleRowsEnd, max(18, availH0 - headHeight * s)))
             // Rows and columns do not split, so the arithmetic's scale can
             // still be a page over: a percent less until it is not.
             let over = (setup.fitWidth.map { $0 > 0 && colBands.count > $0 } ?? false)
@@ -307,6 +316,8 @@ extension SheetGridState {
             // all of them.
             let jobs = areas.map { area -> (pages: [SheetPage], scale: Double) in
                 let job = SheetPrintLayout.pages(area: area, setup: setup, titleWidth: titleW, titleHeight: titleH,
+                                                 titleColsEnd: names.titleCols?.upperBound, titleRowsEnd: names.titleRows?.upperBound,
+                                                 headWidth: head.width, headHeight: head.height,
                                                  width: { ca.size($0) }, height: { ra.size($0) })
                 // (With titles repeating, no page is blank: Excel prints them all.)
                 if names.titleRows != nil || names.titleCols != nil { return job }
