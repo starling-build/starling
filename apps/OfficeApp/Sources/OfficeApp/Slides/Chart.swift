@@ -1490,7 +1490,12 @@ enum ChartPainter {
                 // its three like it, at 166.5 where ours were at 169, the
                 // plot where PowerPoint's is.)
                 let further = c.styled2013 ? 2.5 * k : 2.6 * k
-                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width, p - tp.height / 2))
+                // (A 2007-style chart's stand with their middles 1.45 pt
+                // above their lines, line- and scatter-chart's 18 pt
+                // labels. A newer chart's are measured so too, and came
+                // out no nearer raised.)
+                let lift = c.styled2013 ? 0 : 1.45 * k
+                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width, p - tp.height / 2 - lift))
             }
         }
         // The category axis line, at zero.

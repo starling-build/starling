@@ -2023,7 +2023,10 @@ Pies and the newer charts keep 12 (pie-chart and tdf149985 were 0.26
 and 0.58 worse with it). Their plots also start 2.6 pt further off the
 value labels (line- and scatter-chart's at 152.3, the labels where
 ours were): the room is 11.1 pt there, not 8.5, the labels kept in
-place (line-chart 2.05 → 1.82, cooper −0.06). The bar chart's plot is
+place (line-chart 2.05 → 1.82, cooper −0.06). And their value labels
+stand with their middles 1.45 pt above their gridlines (line- and
+scatter-chart −0.04 each); the newer charts' measure the same but came
+out a hundredth or two worse raised, and are left on their lines. The bar chart's plot is
 also 5 pt shorter at the top and 3.8 at the bottom — not yet followed.
 
 **A diagram shape's one adjustment, 2026-10-16** (smartart-children
