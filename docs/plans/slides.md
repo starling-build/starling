@@ -1913,6 +1913,14 @@ Looked at and left: tdf146223's 2×2 JPEGs, which PowerPoint shows as
 one flat colour — (35,35,35) for pixels decoding to 0, 57, 32 and 92 —
 match no decode tried (a DC-only one gives 44).
 
+**A wave's slant, 2026-10-15** (FontWorkScaleX 3.52 → 3.29; the other
+WordArt decks unchanged). A wave preset's second adjust (`adj2`, ±10%)
+slides its top edge against its bottom one by twice that share of the
+width (the preset's `of2`) — right when negative — as textPlain's
+adjust does; it was ignored, and FontWorkScaleX's −5661 wave stood
+upright where PowerPoint's leans right. It now slants the block the way
+textPlain's does.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

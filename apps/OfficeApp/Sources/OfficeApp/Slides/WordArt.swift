@@ -346,7 +346,13 @@ enum WordArt {
         // textPlain's adjust slants the block: its top and bottom edges slide
         // apart by twice the adjust's distance from the middle, and the
         // text is that much narrower.
-        let slant = warp.preset == "textPlain" ? 2 * ((warp.adjust.first ?? 50000) / 100_000 - 0.5) : 0
+        // A wave's second adjust does the same (its `dx`, ±10%): the top
+        // edge slides right of the bottom one by twice it when negative
+        // (FontWorkScaleX's −5661, its lines leaning right in PowerPoint's
+        // print), left when positive.
+        let waves: Set<String> = ["textWave1", "textWave2", "textDoubleWave1", "textWave4"]
+        let slant = warp.preset == "textPlain" ? 2 * ((warp.adjust.first ?? 50000) / 100_000 - 0.5)
+            : waves.contains(warp.preset) && warp.adjust.count >= 2 ? 2 * max(-0.1, min(0.1, warp.adjust[1] / 100_000)) : 0
         // Fitted to the letters there are: with nothing hanging below the
         // line, the line itself is the foot of the band.
         let descends = lines.contains { $0.glyphs.contains { "gjpqyQ,;".containsSubstring($0.text) } }
