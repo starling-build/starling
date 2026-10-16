@@ -5746,6 +5746,7 @@ public final class RichLayout {
         var lineEms = 0.0       // … and their ems, summed
         var lineLatin = false   // … and whether any is not East Asian (see `edge`)
         let onCharacterGrid = (_grid(i, document).chars ?? 0) != 0
+        let gridAdd = p.style.eastAsian["w:snapToGrid"] == "0" ? 0 : _px(_grid(i, document).chars ?? 0)
         var lineOther = false
         var lineSpaced = false  // … or ends, so far, with one
         var lineBlank = false   // a space character (U+0020) on the line so far
@@ -6132,7 +6133,12 @@ public final class RichLayout {
                     // "月" 12.86 over in Word's print.)
                     let latin = units[k] < 0x2E80
                     let continues = latin && k > 0 && lineWide > 0 && units[k - 1] < 0x2E80 && !isSpace(units[k - 1])
-                    if !continues { lineWide += 1; lineEms += ems[k] }
+                    // (On a character grid, of its em as the grid sets
+                    // it: zh-457a8d62's grid of 17.0 for 16pt text leaves
+                    // "經" 12.44pt over with two marks and 25 characters —
+                    // its marks' halves 8.5 each, as set — which the em
+                    // alone took.)
+                    if !continues { lineWide += 1; lineEms += ems[k] + gridAdd }
                     if latin { lineLatin = true }
                 }
             }
