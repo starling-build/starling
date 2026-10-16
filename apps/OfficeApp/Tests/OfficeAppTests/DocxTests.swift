@@ -1404,6 +1404,43 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 300), [], "under East Asian layout, parted where it stands")
     }
 
+    func testAGroupsBoxesApartKeepTheirOwnPlaces() throws {
+        // shapes-with-text: a group of an arrow with text in it and a text
+        // box under it, at other places and widths. Word sets each box's
+        // text in its own place; ours set the first at the group's left
+        // and never read the second.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        func shape(_ x: Int, _ y: Int, _ cx: Int, _ cy: Int, _ text: String) -> String {
+            "<wps:wsp><wps:cNvSpPr/><wps:spPr><a:xfrm><a:off x=\"\(x)\" y=\"\(y)\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></wps:spPr>"
+                + "<wps:txbx><w:txbxContent><w:p><w:r><w:t>\(text)</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr anchor=\"t\"/></wps:wsp>"
+        }
+        let group = "<w:r><w:drawing xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:wpg=\"http://schemas.microsoft.com/office/word/2010/wordprocessingGroup\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV>"
+            + "<wp:extent cx=\"4333875\" cy=\"1285875\"/><wp:wrapNone/><wp:docPr id=\"9\" name=\"Group 1\"/><a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingGroup\">"
+            + "<wpg:wgp><wpg:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"4333875\" cy=\"1285875\"/><a:chOff x=\"0\" y=\"3209925\"/><a:chExt cx=\"4333875\" cy=\"1285875\"/></a:xfrm></wpg:grpSpPr>"
+            + shape(1076325, 3390900, 2228850, 647700, "A group of shapes") + shape(1447800, 3952875, 1209675, 542925, "Where some contain text")
+            + "</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+        let r = try XCTUnwrap(xml.range(of: "</w:p>"))
+        xml.replaceSubrange(r, with: group + "</w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        var images: [ImageAttachment] = []
+        for p in doc.paragraphs { images += (p.image.map { [$0] } ?? []) + Array(p.inlineImages.values) }
+        let box = try XCTUnwrap(images.compactMap(\.textBox).first)
+        XCTAssertEqual(box.paragraphs.map(\.text), ["A group of shapes", "Where some contain text"], "both boxes read")
+        XCTAssertEqual(box.parts.map(\.first), [0, 1])
+        // (Each in its own column: the shape's left and its 7.2pt inset;
+        // from its own top: the shape's top in the group and its 3.6.)
+        XCTAssertEqual(box.paragraphs[0].style.indentLeft, 1076325 / 12700 + 7.2, accuracy: 0.01)
+        XCTAssertEqual(box.paragraphs[1].style.indentLeft, 1447800 / 12700 + 7.2, accuracy: 0.01)
+        XCTAssertEqual(box.paragraphs[1].style.indentRight, (4333875 - 1447800 - 1209675) / 12700 + 7.2, accuracy: 0.01)
+        XCTAssertEqual(box.parts[1].top, (3952875 - 3209925) / 12700 + 3.6, accuracy: 0.01)
+        XCTAssertEqual(box.insetLeft, 0)
+    }
+
     func testRowPropertyExceptionsKept() throws {
         // form_footnotes: a row that rules itself (w:tblPrEx) over the table.
         var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")

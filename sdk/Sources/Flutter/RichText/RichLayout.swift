@@ -7765,20 +7765,27 @@ public final class RichLayout {
         // (The later boxes of a group, each from its own place in it:
         // its first paragraph set down to where the box stands, or to
         // where its text reaches the box's foot.)
+        // (Measured at its text, and again until it stands there: the
+        // space before it is shared with the space after the paragraph
+        // above — another box's — and shapes-with-text's box under its
+        // arrow stood 8pt high, the arrow's 8pt after taken out of it.)
         for (n, part) in box.parts.enumerated() where part.first < sub.paragraphs.count && part.first < layout._tops.count {
             let end = n + 1 < box.parts.count ? box.parts[n + 1].first : sub.paragraphs.count
-            let top = layout._tops[part.first]
-            let bottom = end < layout._tops.count ? layout._tops[end] : layout.totalHeight
-            var want = _px(part.top - box.insetTop)
-            if part.atFoot { want += _px(part.height) - (bottom - top) }
-            let delta = want - top
-            guard delta > 0.01 else { continue }
-            sub.paragraphs[part.first].style.spaceBefore += delta / _px(1)
-            let width = layout.width
-            layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
-            layout.scale = scale
-            layout.width = width
-            layout.ensureLaidOut(sub)
+            let own = layout._spaceBefore[part.first]
+            for _ in 0 ..< 3 {
+                let top = layout._tops[part.first]
+                let bottom = end < layout._tops.count ? layout._tops[end] : layout.totalHeight
+                var want = _px(part.top - box.insetTop)
+                if part.atFoot { want += _px(part.height) - (bottom - top) }
+                let delta = want + own - (top + layout._spaceBefore[part.first])
+                guard delta > 0.01 else { break }
+                sub.paragraphs[part.first].style.spaceBefore += delta / _px(1)
+                let width = layout.width
+                layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
+                layout.scale = scale
+                layout.width = width
+                layout.ensureLaidOut(sub)
+            }
         }
         // (A box that takes its text's width: as wide as its longest
         // line — zh-1a3c7aa0's footer page number, in a 144pt box set

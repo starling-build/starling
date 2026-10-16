@@ -3122,6 +3122,23 @@ fitter dropped the paragraph's tail).
   went 2.6 -> 5.3 and zh-64044a1d 95.6 -> 95.7; neither names Lucida, and
   another session's commit was in that build too — not traced.
 
+- **A group's text boxes apart from each other keep their own places
+  (2026-10-16, Linux).** cabe6fad read a group's text boxes whole when
+  they stand one above another at one width; any other group kept its
+  first box's text alone, set at the group's left. shapes-with-text's
+  group is an arrow with "A group of shapes" in it and a text box under
+  it at another place and width (two stars beside them, empty): the
+  arrow's text stood 85pt left of Word's and the box's was never read.
+  Now each box's paragraphs take its column in the group — its shape's
+  left and width, the preset's text rectangle (the arrow's) and its
+  insets — as indents, and a part of the group's box from its own top;
+  the group's box has no insets of its own. The parts' placing (the
+  layout's) is measured at the text now, again until it stands: the
+  space before a part's first paragraph was shared with the paragraph
+  above's space after, another box's, and the text box stood 8pt high.
+  shapes-with-text 62.5% -> 100, zh-06c46ba9 +0.2; 60316 as it was.
+  Boxes side by side whose texts overlap in height still stack.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

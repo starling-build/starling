@@ -2710,6 +2710,7 @@ enum DocxFormat {
                 // 60316's résumé sidebar is a name box over an address box
                 // whose text stands at its foot; only the first was read.)
                 var parts: [RichTextBox.Part] = []
+                var perPart = false
                 if let group = node.descendant("wpg:wgp") {
                     let boxes = group.all("wps:wsp").filter { $0.descendant("w:txbxContent") != nil }
                     let gx = group.first("wpg:grpSpPr")?.first("a:xfrm")
@@ -2727,13 +2728,53 @@ enum DocxFormat {
                                                           height: (Double(xfrm?.first("a:ext")?["cy"] ?? "") ?? 0) * k / 12700,
                                                           atFoot: b.first("wps:bodyPr")?["anchor"] == "b"))
                         }
+                    } else if boxes.count > 1, boxes[0].descendant("w:txbxContent") === content {
+                        // (Boxes of other widths or places: each box's text
+                        // in its own column of the group, from its own top —
+                        // its shape's place, the preset's text rectangle and
+                        // its insets. shapes-with-text's group is an arrow
+                        // with "A group of shapes" in it and a text box
+                        // under it: the arrow's text stood at the group's
+                        // left, 85pt from Word's, and the box's was never
+                        // read.)
+                        perPart = true
+                        let kx = Double(gx?.first("a:chExt")?["cx"] ?? "").flatMap { c in Double(gx?.first("a:ext")?["cx"] ?? "").map { c > 0 ? $0 / c : 1 } } ?? 1
+                        let ox = Double(gx?.first("a:chOff")?["x"] ?? "") ?? 0, oy = Double(gx?.first("a:chOff")?["y"] ?? "") ?? 0
+                        let groupWidth = (Double(gx?.first("a:ext")?["cx"] ?? "") ?? 0) / 12700
+                        for (n, b) in boxes.enumerated() {
+                            let xfrm = b.first("wps:spPr")?.first("a:xfrm")
+                            let x = ((Double(xfrm?.first("a:off")?["x"] ?? "") ?? 0) - ox) * kx / 12700
+                            let y = ((Double(xfrm?.first("a:off")?["y"] ?? "") ?? 0) - oy) * k / 12700
+                            let w = (Double(xfrm?.first("a:ext")?["cx"] ?? "") ?? 0) * kx / 12700
+                            let h = (Double(xfrm?.first("a:ext")?["cy"] ?? "") ?? 0) * k / 12700
+                            let body = b.first("wps:bodyPr")
+                            var l = Double(body?["lIns"] ?? "").map { $0 / 12700 } ?? 7.2, t = Double(body?["tIns"] ?? "").map { $0 / 12700 } ?? 3.6
+                            var r = Double(body?["rIns"] ?? "").map { $0 / 12700 } ?? 7.2, bottom = Double(body?["bIns"] ?? "").map { $0 / 12700 } ?? 3.6
+                            if let geom = b.first("wps:spPr")?.first("a:prstGeom"), let prst = geom["prst"], prst != "rect", w > 0, h > 0,
+                               let g = PresetGeometry.geometry(prst, width: w * 12700, height: h * 12700, adjustments: PresetGeometry.adjustments(geom)),
+                               let rect = g.textRect {
+                                l += rect.left * w; t += rect.top * h
+                                r += (1 - rect.right) * w; bottom += (1 - rect.bottom) * h
+                            }
+                            let first = n == 0 ? 0 : inside.count
+                            if n > 0 { read(b.descendant("w:txbxContent")!) }
+                            for q in first ..< inside.count {
+                                inside[q].style.indentLeft += x + l
+                                inside[q].style.indentRight += max(0, groupWidth - (x + w) + r)
+                            }
+                            parts.append(RichTextBox.Part(first: first, top: y + t, height: max(0, h - t - bottom), atFoot: body?["anchor"] == "b"))
+                        }
                     }
                 }
                 notes.inTextBox = false
                 if inside.contains(where: { !$0.text.isEmpty }) {
                     var box = RichTextBox(paragraphs: inside)
                     box.parts = parts
-                    if let body = node.descendant("wps:bodyPr") {
+                    if perPart {
+                        // (Each part carries its own place: the group's
+                        // box has no insets of its own.)
+                        box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
+                    } else if let body = node.descendant("wps:bodyPr") {
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         if let v = Double(body["lIns"] ?? "") { box.insetLeft = v / 12700 }
                         if let v = Double(body["tIns"] ?? "") { box.insetTop = v / 12700 }
