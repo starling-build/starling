@@ -222,6 +222,13 @@ struct Chart: Equatable {
     var valueGrid = true
     /// An axis the file deletes (`c:delete`): no labels, no room for them.
     var valueAxisDeleted = false
+    /// The axes' tick marks stand outside them (`c:majorTickMark` "out" or
+    /// "cross"), and the labels stand that much further off.
+    var valueTicksOut = false
+    /// The chart names an Office chart style (`c:style`): one an Office
+    /// application wrote, not LibreOffice.
+    var officeStyled = true
+    var categoryTicksOut = false
     var categoryAxisDeleted = false
 
     var gap: Double { Double(gapWidth ?? (stacked ? 150 : 219)) / 100 }
@@ -498,6 +505,7 @@ enum ChartXML {
             return n.children.contains(where: greyText)
         }
         c.styled2013 = greyText(space)
+        c.officeStyled = space.descendant("c:style") != nil
         if let f = spaceRun?.first("a:solidFill") {
             let mods = f.first("a:schemeClr").map { n in n.children.map { "\($0.name)=\($0["val"] ?? "")" }.sorted() } ?? []
             let standard = f.first("a:schemeClr")?["val"] == "tx1" && mods == ["a:lumMod=65000", "a:lumOff=35000"].sorted()
@@ -570,6 +578,7 @@ enum ChartXML {
         }
         let categoryAxis = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }
             : axes.first { $0.name != "c:valAx" }
+        c.categoryTicksOut = ["out", "cross"].contains(categoryAxis?.first("c:majorTickMark")?["val"] ?? "")
         if let run = categoryAxis?.first("c:txPr")?.descendant("a:defRPr") {
             if let sz = run["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.categoryLabelSize = sz / 100 }
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
@@ -615,6 +624,7 @@ enum ChartXML {
         if let valueAxis {
             c.valueGrid = valueAxis.first("c:majorGridlines") != nil
             c.valueAxisDeleted = ["1", "true"].contains(valueAxis.first("c:delete")?["val"] ?? "")
+            c.valueTicksOut = ["out", "cross"].contains(valueAxis.first("c:majorTickMark")?["val"] ?? "")
         }
         c.categoryAxisDeleted = ["1", "true"].contains(categoryAxis?.first("c:delete")?["val"] ?? "")
         if let scaling = valueAxis?.first("c:scaling") {
@@ -832,7 +842,7 @@ enum ChartXML {
         let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"\(Int(((c.textSize ?? 12) * 100).rounded()))\">\(ink)</a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>\(c.style.map { "<c:style val=\"\($0)\"/>" } ?? "")<c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)\(plotFill)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
+        <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>\(c.style.map { "<c:style val=\"\($0)\"/>" } ?? (c.officeStyled ? "<c:style val=\"2\"/>" : ""))<c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)\(plotFill)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
         """
     }
 
@@ -898,7 +908,11 @@ enum ChartPainter {
         }
         canvas.save()
         canvas.clipRect(r)
-        var area = r.deflate(9 * k)
+        // (A 2007-style chart sits 6.5 pt in at the left and bottom, where
+        // a newer one keeps 9: line-, bar- and scatter-chart's labels stand
+        // 2.5 pt further out in PowerPoint's print.)
+        let old = c.plainText && !c.styled2013 && c.officeStyled
+        var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + 9 * k, r.right - 9 * k, r.bottom - (old ? 6.5 : 9) * k)
 
         if let title = c.title, !title.isEmpty {
             // In the file's size, weight and colour where it gives them,
@@ -1253,14 +1267,20 @@ enum ChartPainter {
         let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
         let lineH = valueLabels.first?.height ?? 12 * k
         var plot: Rect
+        // Outward tick marks push the labels off: further beside the axis
+        // (5.6 pt on line- and scatter-chart's value axis, 8.8 on
+        // bar-chart's categories) and 3.7 below it, in PowerPoint's print
+        // against charts with none.
+        let besideOut = (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
+        let belowOut = (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         if horizontal {
-            let left = (catLabels.map(\.width).max() ?? 0) + 6 * k
+            let left = (catLabels.map(\.width).max() ?? 0) + 6 * k + besideOut
             plot = Rect.fromLTRB(area.left + left, area.top + 2 * k, area.right - (valueLabels.last?.width ?? 0) / 2,
-                                 area.bottom - lineH - 4 * k)
+                                 area.bottom - lineH - 4 * k - belowOut)
         } else {
-            var left = (valueLabels.map(\.width).max() ?? 0) + 8.5 * k
+            var left = (valueLabels.map(\.width).max() ?? 0) + 8.5 * k + besideOut
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
-            let bottom = tallest + 7.6 * k
+            let bottom = tallest + 7.6 * k + belowOut
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -1312,10 +1332,10 @@ enum ChartPainter {
             let tp = valueLabels[i]
             if horizontal {
                 if c.valueGrid { canvas.drawLine(Offset(p, plot.top), Offset(p, plot.bottom), gridPaint) }
-                tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + 4 * k))
+                tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + 4 * k + belowOut))
             } else {
                 if c.valueGrid { canvas.drawLine(Offset(plot.left, p), Offset(plot.right, p), gridPaint) }
-                tp.paint(canvas, Offset(plot.left - 8.5 * k - tp.width, p - tp.height / 2))
+                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - tp.width, p - tp.height / 2))
             }
         }
         // The category axis line, at zero.
@@ -1325,7 +1345,7 @@ enum ChartPainter {
             for (i, v) in xTicks.enumerated() {
                 let x = plot.left + (v - xs.lo) / (xs.hi - xs.lo) * plot.width
                 canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint)
-                if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, plot.bottom + 4 * k)) }
+                if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, plot.bottom + 4 * k + belowOut)) }
             }
         } else if horizontal {
             canvas.drawLine(Offset(zero, plot.top), Offset(zero, plot.bottom), gridPaint)
@@ -1333,7 +1353,7 @@ enum ChartPainter {
             for (i, tp) in catLabels.enumerated() {
                 // Category 1 at the bottom, as PowerPoint draws a bar chart.
                 let cy = plot.bottom - (Double(i) + 0.5) * slot
-                tp.paint(canvas, Offset(plot.left - 8.5 * k - tp.width, cy - tp.height / 2))
+                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - tp.width, cy - tp.height / 2))
             }
         } else {
             canvas.drawLine(Offset(plot.left, zero), Offset(plot.right, zero), gridPaint)
@@ -1343,12 +1363,12 @@ enum ChartPainter {
                 if aslant {
                     // Its end's middle at the tick, the rest down to the left.
                     canvas.save()
-                    canvas.translate(cx, plot.bottom + 7.6 * k)
+                    canvas.translate(cx, plot.bottom + 7.6 * k + belowOut)
                     canvas.rotate(-slant)
                     tp.paint(canvas, Offset(-tp.width, -tp.height / 2))
                     canvas.restore()
                 } else {
-                    tp.paint(canvas, Offset(cx - tp.width / 2, plot.bottom + 7.6 * k))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, plot.bottom + 7.6 * k + belowOut))
                 }
             }
         }

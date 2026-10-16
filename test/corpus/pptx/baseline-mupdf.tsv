@@ -20,7 +20,7 @@ OverlappingRelations.pptx	summary pages=4 worst=0.56% mean=0.36%
 SampleShow.pptx	summary pages=2 worst=1.80% mean=1.35%
 SmartArt.pptx	summary pages=1 worst=0.00% mean=0.00%
 WithMaster.pptx	summary pages=2 worst=1.41% mean=1.24%
-aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=12.38% mean=5.65%
+aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=12.38% mean=5.79%
 aascu.org_workarea_downloadasset.aspx_id=5864.pptx	summary pages=34 worst=74.34% mean=8.85%
 ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx	summary pages=14 worst=14.46% mean=8.12%
 alterman_security.pptx	summary pages=23 worst=11.67% mean=6.49%
@@ -28,7 +28,7 @@ aptia.pptx	summary pages=9 worst=6.93% mean=3.24%
 at.ecodesign.www_downloads_Vertiefungsvortrag_elektronik.pptx	summary pages=34 worst=10.16% mean=3.40%
 au.asn.aes.www_conferences_2011_presentations_Fri_20Room4Level4_20930_20Maloney.pptx	summary pages=28 worst=15.08% mean=8.10%
 backgrounds.pptx	summary pages=4 worst=1.84% mean=1.15%
-bar-chart.pptx	summary pages=1 worst=2.75% mean=2.75%
+bar-chart.pptx	summary pages=1 worst=2.34% mean=2.34%
 bug54570.pptx	summary pages=1 worst=2.62% mean=2.62%
 bug58144-headers-footers-2007.pptx	summary pages=1 worst=0.43% mean=0.43%
 bug60499.pptx	summary pages=1 worst=0.03% mean=0.03%
@@ -57,7 +57,7 @@ customGeo.pptx	summary pages=48 worst=13.91% mean=4.24%
 ececapstonespring2012.pptx	summary pages=24 worst=3.22% mean=1.96%
 highlight-test-case.pptx	summary pages=1 worst=0.80% mean=0.80%
 layouts.pptx	summary pages=10 worst=1.59% mean=0.65%
-line-chart.pptx	summary pages=1 worst=2.65% mean=2.65%
+line-chart.pptx	summary pages=1 worst=2.04% mean=2.04%
 lo-3columns.pptx	summary pages=1 worst=6.49% mean=6.49%
 lo-NumberedList-12ab-ab-34.pptx	summary pages=1 worst=2.68% mean=2.68%
 lo-ShapeLineProperties.pptx	summary pages=1 worst=1.88% mean=1.88%
@@ -100,7 +100,7 @@ lo-bnc910045.pptx	summary pages=1 worst=0.36% mean=0.36%
 lo-bullet-indent.pptx	summary pages=1 worst=1.24% mean=1.24%
 lo-bulletColor.pptx	summary pages=1 worst=0.21% mean=0.21%
 lo-bulletMarginAndIndent.pptx	summary pages=1 worst=0.16% mean=0.16%
-lo-chart_pt_color_bg1.pptx	summary pages=1 worst=0.76% mean=0.76%
+lo-chart_pt_color_bg1.pptx	summary pages=1 worst=0.62% mean=0.62%
 lo-connector-shape-animations.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-connectors.pptx	summary pages=1 worst=1.25% mean=1.25%
 lo-content-placeholder-cases.pptx	summary pages=4 worst=0.44% mean=0.11%
@@ -527,7 +527,7 @@ oox-theme-tint.pptx	summary pages=1 worst=0.40% mean=0.40%
 oox-theme.pptx	summary pages=1 worst=0.04% mean=0.04%
 oox-transparent-text.pptx	summary pages=1 worst=0.04% mean=0.04%
 picture-transparency.pptx	summary pages=4 worst=0.00% mean=0.00%
-pie-chart.pptx	summary pages=1 worst=1.78% mean=1.78%
+pie-chart.pptx	summary pages=1 worst=1.45% mean=1.45%
 placeholder-layout-color.pptx	summary pages=1 worst=0.75% mean=0.75%
 pptx2svg.pptx	summary pages=1 worst=6.41% mean=6.41%
 prProps.pptx	summary pages=1 worst=0.08% mean=0.08%
@@ -536,7 +536,7 @@ radar-chart.pptx	summary pages=1 worst=1.99% mean=1.99%
 rain.pptx	summary pages=1 worst=0.13% mean=0.13%
 sample.pptx	summary pages=2 worst=1.56% mean=1.30%
 sample_pptx_grouping_issues.pptx	summary pages=1 worst=1.11% mean=1.11%
-scatter-chart.pptx	summary pages=1 worst=2.00% mean=2.00%
+scatter-chart.pptx	summary pages=1 worst=1.87% mean=1.87%
 shapes.pptx	summary pages=6 worst=2.40% mean=0.94%
 smartart-rotated-text.pptx	summary pages=1 worst=0.45% mean=0.45%
 smartart-simple.pptx	summary pages=1 worst=3.55% mean=3.55%

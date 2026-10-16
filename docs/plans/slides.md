@@ -1853,6 +1853,21 @@ Still worse — scatter +0.68, radar +0.46, line +0.21, bar +0.16: the
 lines sit a pixel off PowerPoint's, and the darker the line the more
 the miss costs. Their placement first.
 
+**Outward tick marks, and a 2007 chart's margin, 2026-10-15**
+(line-chart 2.65 → 2.04, bar-chart 2.75 → 2.34, pie-chart 1.78 → 1.45,
+chart_pt_color_bg1 0.76 → 0.62, scatter-chart 2.00 → 1.87; aascu
+cooper +0.14). Where an axis's `c:majorTickMark` is "out" (or
+"cross"), PowerPoint's labels stand further off it: 5.6 pt more beside
+a vertical chart's value axis, 8.8 beside a bar chart's categories,
+3.7 more below — read now (`valueTicksOut`, `categoryTicksOut`). And a
+2007-style chart that Office wrote (`c:style` present, text in no
+colour of its own) keeps 6.5 pt to the frame at its left and bottom,
+not 9: the POI decks' labels stood 2.5 pt in from PowerPoint's; a newer
+chart's 9 holds (moving every chart's left in made the 2013 ones up to
++1.0 worse), and LibreOffice's charts, which name no style, keep it
+too. A chart this app writes names style 2 unless it came from a file
+that named none.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
