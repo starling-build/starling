@@ -274,22 +274,22 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                                          baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
             let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : m.column(Xlsx._widthChars(ws, $0.key, $0.value))) })
             let fitted = ws.customDefaultRowHeight || ws.defaultRowHeightPt <= 0 ? m.rowScale : m.defaultRow / ws.defaultRowHeightPt
-            // The rows Excel fits again: those nobody sized — and, where the
-            // sheet sets its default height, those whose height is only a
-            // fit, which Excel fits afresh from their fonts rather than keep
-            // the file's number or take the default (lo-pivottable_invalid_
-            // formats' Arial 10 rows, written 13.2 pt in a sheet of 15, print
-            // at the printer's 12.35; lo-cool14390_chart_external_ref's 18.5
-            // fits print at its fonts' line, not 18.5).
+            // The rows Excel fits again: every one whose height is only a fit
+            // — Excel keeps no such height, fitting the row afresh from its
+            // fonts (a lab's 30 pt rows of Arial 10 print at 12.36 with
+            // customHeight absent, "0" or "false", and 29.04 with "1";
+            // bug66675's 18 pt rows of Arial 7 at Calibri 11's 14.52) — and,
+            // where the sheet does not set its default height, those nobody
+            // sized.
             let refits: (Int) -> Bool = { r in
-                ws.customDefaultRowHeight ? ws.fittedRows.contains(r) : ws.rowHeights[r] == nil
+                ws.fittedRows.contains(r) || (!ws.customDefaultRowHeight && ws.rowHeights[r] == nil)
             }
             // (A sheet the file gives no view prints its set heights halved:
             // `Worksheet.hasView`.)
             let setScale = ws.hasView ? m.rowScale : m.rowScale / 2
             var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.compactMap { (r, h) -> (Int, Double)? in
                 let fit = ws.fittedRows.contains(r)
-                if fit, h > 0, ws.customDefaultRowHeight { return (r, m.defaultRow) }
+                if fit, h > 0 { return (r, ws.scriptRows.contains(r) ? h * fitted : m.defaultRow) }
                 return (r, fit ? h * fitted : SheetPrintMetrics.setRow(h, scale: setScale))
             })
             // A row fitted afresh is as tall as its tallest font's line —
@@ -300,18 +300,20 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if let known = lines[cell.style] { line = known } else {
                     let st = book.style(cell.style)
                     line = st.fontName == nil && st.fontSize == nil ? 0
-                        : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st)))
+                        : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
                     lines[cell.style] = line
                 }
                 if line > m.defaultRow + 0.01, line > heights[a.row] ?? 0 { heights[a.row] = line }
             }
             cols = GridAxis(def: ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
-            if ws.customDefaultRowHeight || ws.fittedRows.isEmpty {
-                // And as tall as its wrapped text's lines, in the column's width —
-                // where the file's writer left fitting to the reader (one that
-                // fits rows itself says so on the rows it fitted, and those
-                // keep their fit unless they are fitted afresh).
+            do {
+                // And as tall as its wrapped text's lines, in the column's width:
+                // the file's own fit for a row it fitted (Excel's, for its own
+                // files, and surer than this measure), and where the file's
+                // writer left fitting to the reader, the measure.
                 for (a, cell) in ws.cells where cell.style != 0 && refits(a.row) && cell.value.isText {
+                    let fileFit = ws.fittedRows.contains(a.row) ? ws.rowHeights[a.row] : nil
+                    guard fileFit != nil || ws.customDefaultRowHeight || ws.fittedRows.isEmpty else { continue }
                     let st = book.style(cell.style)
                     guard st.wrap, !ws.merges.contains(where: { $0.contains(a) }) else { continue }
                     let width = cols.size(a.col) - 4 * zoom
@@ -324,7 +326,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // wrapping one-line rows print at Arial 10's 12.36, where
                     // this measure made them 12.5 and lost a row a page.)
                     guard lines > texts.painter("X", style).height * 1.5 else { continue }
-                    let tall = lines / scale + 1.5
+                    let tall = fileFit.map { $0 * fitted } ?? lines / scale + 1.5
                     if tall > m.defaultRow, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
                 }
             }

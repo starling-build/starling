@@ -55,8 +55,15 @@ enum Xlsx {
         let themeFonts = _themeFonts(themeNode)
         // Shared strings.
         var sst: [String] = []
+        var sstScripts: Set<Int> = []
         if let s = xml("xl/sharedStrings.xml") {
-            for si in s.kids("si") { sst.append(_text(si)) }
+            for si in s.kids("si") {
+                // (Rich text with a raised or lowered run: its row's fit is Excel's own.)
+                if si.kids("r").contains(where: { ["superscript", "subscript"].contains($0.child("rPr")?.child("vertAlign")?["val"] ?? "") }) {
+                    sstScripts.insert(sst.count)
+                }
+                sst.append(_text(si))
+            }
         }
         // Styles: one CellStyle per cellXfs entry, in order, so a cell's
         // `s` is its index in the book's table.
@@ -93,7 +100,7 @@ enum Xlsx {
             guard let name = s["name"], let rid = s["r:id"], let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
-            if let raw = parts[path] { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, book: book) }
+            if let raw = parts[path] { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
             book.sheets.append(ws)
@@ -149,7 +156,7 @@ enum Xlsx {
 
     /// Returns the part's root with `sheetData` left out (see `sheetRoots`).
     @discardableResult
-    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], book: Workbook) throws -> XNode {
+    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], book: Workbook) throws -> XNode {
         let bytes = [UInt8](raw)
         // The elements we do not model, kept as their original text.
         let split = RawXML.split(bytes)
@@ -262,7 +269,9 @@ enum Xlsx {
                 let vText = c.child("v")?.text
                 var value: CellValue = .empty
                 switch t {
-                case "s": value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
+                case "s":
+                    value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
+                    if let i = Int(vText ?? ""), sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
                 // (An inline string with nothing in it is still a string, the empty
                 // one: a cell with a value, which Excel prints the sheet as far as.)
                 case "inlineStr": value = .text(c.child("is").map { _text($0) } ?? "")

@@ -201,6 +201,10 @@ final class Worksheet {
     /// of 20 pt rows, Excel 16, 2026-10-15: 9.72 pt on paper, 19.32 with an
     /// empty `<sheetView workbookViewId="0"/>` (bug62181, 83 rows a page).
     var hasView = true
+    /// Rows holding rich text with a superscript or subscript run, whose
+    /// height Excel fits taller than their fonts' line: their fit, as the
+    /// file has it, is kept (45544's "Number of Hires⁽¹⁾" header rows).
+    var scriptRows: Set<Int> = []
 
     /// The style a new cell at `a` takes: its row's when the row is
     /// formatted, else its column's, as Excel does.
@@ -286,6 +290,7 @@ final class Worksheet {
         s.formatPrAttrs = formatPrAttrs
         s.viewAttrs = viewAttrs
         s.hasView = hasView
+        s.scriptRows = scriptRows
         s.tables = tables
         s.removedTables = removedTables
         s.notes = notes
