@@ -233,21 +233,26 @@ enum Xlsx {
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
             if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }
-            if row["ht"] != nil, row["customHeight"] != "1", row["customHeight"] != "true" { ws.fittedRows.insert(rowIndex) }
+            let setHeight = row["customHeight"] == "1" || row["customHeight"] == "true"
+            if row["ht"] != nil, !setHeight { ws.fittedRows.insert(rowIndex) }
             // `ht` is the row's height whether or not it is marked custom (a
             // larger font makes a taller row without the flag).
             // A row a filter hid keeps its height; one hidden by hand is height 0.
+            // A height someone set is kept though it is the sheet's default:
+            // the default is a fit, and on paper a fit and a set height differ
+            // (lo-tdf113271's 460 rows set to its default 15 pt print at 15.24,
+            // not the fitted 14.52 — a page more than ours).
             // (xsd:boolean: LibreOffice writes "true" where Excel writes "1".)
             let rowHidden = row["hidden"] == "1" || row["hidden"] == "true"
             if rowHidden, let af = ws.autoFilter, rowIndex > af.range.top, rowIndex <= af.range.bottom {
                 ws.filteredRows.insert(rowIndex)
-                if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
+                if let h = Double(row["ht"] ?? ""), setHeight || abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
             } else if rowHidden {
                 // Hidden by hand or by a collapsed group: its height kept for when it shows again.
                 ws.hiddenRows.insert(rowIndex)
-                if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
+                if let h = Double(row["ht"] ?? ""), setHeight || abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
             }
-            else if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
+            else if let h = Double(row["ht"] ?? ""), setHeight || abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
             var colIndex = 0
             for c in row.kids("c") {
                 let a = c["r"].flatMap { CellAddress($0) } ?? CellAddress(row: rowIndex, col: colIndex)
