@@ -453,7 +453,7 @@ lo-tdf94238.pptx	summary pages=1 worst=0.52% mean=0.52%
 lo-tdf95932.pptx	summary pages=1 worst=0.27% mean=0.27%
 lo-tdf96061.pptx	summary pages=1 worst=0.12% mean=0.12%
 lo-tdf98477grow.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-tdf98603.pptx	summary pages=1 worst=6.14% mean=6.14%
+lo-tdf98603.pptx	summary pages=1 worst=5.92% mean=5.92%
 lo-tdf99030.pptx	summary pages=1 worst=0.44% mean=0.44%
 lo-tdfpictureplaceholder.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdt142291.pptx	summary pages=1 worst=0.27% mean=0.27%
@@ -498,7 +498,7 @@ oox-shape-text-alignment.pptx	summary pages=1 worst=0.44% mean=0.44%
 oox-smartart-groupshape.pptx	summary pages=1 worst=0.10% mean=0.10%
 oox-table-shadow.pptx	summary pages=1 worst=0.68% mean=0.68%
 oox-tdf113187_arcTo_withoutReferences.pptx	summary pages=1 worst=0.02% mean=0.02%
-oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=3.12% mean=3.12%
+oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=2.85% mean=2.85%
 oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=2.16% mean=2.16%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
 oox-tdf131082.pptx	summary pages=1 worst=0.15% mean=0.15%

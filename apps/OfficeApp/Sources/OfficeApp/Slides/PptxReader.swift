@@ -107,6 +107,11 @@ struct PptxTheme {
     var colors: [String: Color] = [:]
     var major = "Calibri Light"
     var minor = "Calibri"
+    /// The complex-script faces (`a:cs`), and each script's own
+    /// (`a:font script="Hebr"`) for when that is empty: what Hebrew,
+    /// Arabic and Thai letters are set in.
+    var majorScript: [String: String] = [:]
+    var minorScript: [String: String] = [:]
     /// The format scheme's fill styles (`a:fillStyleLst`), which a shape's
     /// style refers to by index with its own colour as `phClr`.
     var fillStyles: [XNode] = []
@@ -147,6 +152,12 @@ struct PptxTheme {
         if let fonts = elements.first("a:fontScheme") {
             if let f = fonts.first("a:majorFont")?.first("a:latin")?["typeface"], !f.isEmpty { major = f }
             if let f = fonts.first("a:minorFont")?.first("a:latin")?["typeface"], !f.isEmpty { minor = f }
+            for (key, var table) in [("a:majorFont", [String: String]()), ("a:minorFont", [:])] {
+                guard let font = fonts.first(key) else { continue }
+                for f in font.all("a:font") { if let k = f["script"], let t = f["typeface"], !t.isEmpty { table[k] = t } }
+                if let t = font.first("a:cs")?["typeface"], !t.isEmpty { table["cs"] = t }
+                if key == "a:majorFont" { majorScript = table } else { minorScript = table }
+            }
         }
     }
 
@@ -324,6 +335,8 @@ private struct LevelStyle {
     var underline: Bool?
     var strike: Bool?
     var font: String?
+    /// `a:cs`: the face for complex-script (Hebrew, Arabic, Thai) text.
+    var csFont: String?
     var color: Color?
     var baseline: Double?
     /// Character spacing in points (`spc`, hundredths of a point).
@@ -364,6 +377,7 @@ private struct LevelStyle {
         s.underline = s.underline ?? lower.underline
         s.strike = s.strike ?? lower.strike
         s.font = s.font ?? lower.font
+        s.csFont = s.csFont ?? lower.csFont
         s.color = s.color ?? lower.color
         s.baseline = s.baseline ?? lower.baseline
         s.spc = s.spc ?? lower.spc
@@ -480,6 +494,7 @@ private struct LevelStyle {
         s.baseline = r["baseline"].flatMap(Double.init)
         s.spc = r["spc"].flatMap(Double.init).map { $0 / 100 }
         s.font = r.first("a:latin")?["typeface"]
+        s.csFont = r.first("a:cs")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
         if let h = r.first("a:highlight") { s.highlight = colors.color(in: h) }
         if let link = r.first("a:hlinkClick") {
@@ -2574,6 +2589,28 @@ private struct SlideContext {
         return s
     }
 
+    /// The face a complex script's letters are set in: the run's `a:cs`,
+    /// a theme reference's complex-script face, else the theme's face for
+    /// that script — nil where nothing names one (the Latin face serves).
+    private func _csFont(_ f: String?, script: String) -> String? {
+        switch f {
+        case nil, "+mn-cs", "+mn-lt", "+mn-ea": return theme.minorScript["cs"] ?? theme.minorScript[script]
+        case "+mj-cs", "+mj-lt", "+mj-ea": return theme.majorScript["cs"] ?? theme.majorScript[script]
+        default: return f
+        }
+    }
+
+    /// The complex script a character is written in (the theme's key for
+    /// it), nil for any other.
+    static func complexScript(_ v: UInt32) -> String? {
+        switch v {
+        case 0x0590 ... 0x05FF, 0xFB1D ... 0xFB4F: return "Hebr"
+        case 0x0600 ... 0x06FF, 0x0750 ... 0x077F, 0xFB50 ... 0xFDFF, 0xFE70 ... 0xFEFF: return "Arab"
+        case 0x0E00 ... 0x0E7F: return "Thai"
+        default: return nil
+        }
+    }
+
     private func _font(_ f: String?) -> String {
         switch f {
         case nil, "+mn-lt", "+mn-ea", "+mn-cs": return theme.minor
@@ -2770,6 +2807,7 @@ private struct SlideContext {
                                    color: s.color ?? tx1)
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
+                let plain = cs
                 // Arial Black, which no face shipped here has: Arial's bold
                 // set 0.07 em further apart a letter — its measure in
                 // PowerPoint's prints (1.10 to 1.16 of the bold's across
@@ -2797,7 +2835,45 @@ private struct SlideContext {
                 cs.highlight = s.highlight
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
                 text += t
-                runs.append(Run(length: t.utf16.count, style: cs))
+                // Hebrew, Arabic and Thai letters in the complex-script
+                // face, as PowerPoint sets them: tdf98603's Hebrew title is
+                // in the theme's Times New Roman for Hebrew (one line), not
+                // Calibri Light's fallback (two). Spaces, digits and
+                // punctuation go with the letters before them.
+                let runsBefore = runs.count
+                var pieces: [(length: Int, script: String?)] = []
+                var sawLetter = false
+                for ch in t.unicodeScalars {
+                    let n = ch.utf16.count
+                    let script = Self.complexScript(ch.value)
+                    let letter = script != nil || ch.properties.isAlphabetic
+                    if pieces.isEmpty {
+                        pieces.append((n, script))
+                        sawLetter = letter
+                    } else if letter, !sawLetter {
+                        // The first letter claims what came before it.
+                        pieces[pieces.count - 1].script = script
+                        pieces[pieces.count - 1].length += n
+                        sawLetter = true
+                    } else if letter, script != pieces[pieces.count - 1].script {
+                        pieces.append((n, script))
+                    } else {
+                        pieces[pieces.count - 1].length += n
+                    }
+                }
+                for piece in pieces {
+                    var c = cs
+                    if let script = piece.script, let face = _csFont(s.csFont, script: script), face != plain.fontFamily {
+                        c = plain
+                        c.fontFamily = face
+                        c.shadow = cs.shadow; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
+                    }
+                    if let last = runs.last, last.style == c, runs.count > runsBefore {
+                        runs[runs.count - 1].length += piece.length
+                    } else {
+                        runs.append(Run(length: piece.length, style: c))
+                    }
+                }
             }
             for child in p.children {
                 switch child.name {

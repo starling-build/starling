@@ -2014,6 +2014,17 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Hebrew in its own face, 2026-10-15** (tdf98603 6.14 → 5.92,
+tdf125085 WordArtFontText 3.12 → 2.85; nothing else moved). Hebrew,
+Arabic and Thai letters are set in the run's `a:cs` face, else the
+theme's complex-script face, else the theme's face for that script
+(`a:font script="Hebr"`), as PowerPoint sets them; spaces and
+punctuation go with the letters before them. They were all in the
+Latin face, which has no Hebrew, so they fell to DejaVu Sans. tdf98603's
+title still wraps where PowerPoint's does not: Liberation Serif's Hebrew
+is 12% wider than Times New Roman's (717 pt to 642 for the line), a
+missing face, not tuned for.
+
 **A chart in its own slide's theme font, 2026-10-15** (aascu cooper
 5.26 → 5.16, aascu 5864 −0.02; the chart decks otherwise unchanged).
 A chart that names no face was drawn in the deck's first master's body

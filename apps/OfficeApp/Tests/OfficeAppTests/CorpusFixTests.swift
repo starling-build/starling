@@ -80,4 +80,27 @@ final class CorpusFixTests: XCTestCase {
         let xml = PptxText.paragraphs(s.text!, defaults: s)
         XCTAssertTrue(xml.contains("<a:lnSpc><a:spcPts val=\"3000\"/></a:lnSpc>"))
     }
+
+    /// Hebrew letters are set in the theme's face for Hebrew, the Latin
+    /// ones beside them in the run's own (tdf98603).
+    func testHebrewTakesTheThemesHebrewFace() throws {
+        var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        let themePart = try XCTUnwrap(package.parts.keys.first { $0.hasPrefix("ppt/theme/") })
+        var theme = String(data: package.parts[themePart]!, encoding: .utf8)!
+        let minor = try XCTUnwrap(theme.range(of: "<a:minorFont>"))
+        let cs = try XCTUnwrap(theme.range(of: "<a:cs typeface=\"\"/>", range: minor.upperBound ..< theme.endIndex))
+        theme.insert(contentsOf: "<a:font script=\"Hebr\" typeface=\"Times New Roman\"/>", at: cs.upperBound)
+        package.parts[themePart] = Data(theme.utf8)
+        var slide = String(data: package.parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
+        let t = try XCTUnwrap(slide.range(of: #"<a:t>[^<]*</a:t>"#, options: .regularExpression))
+        slide.replaceSubrange(t, with: "<a:t>Hi, \u{05E9}\u{05DC}\u{05D5}\u{05DD}!</a:t>")
+        // (Our writer names the run's face for complex script too.)
+        slide = slide.replacingOccurrences(of: #"<a:cs typeface="[^"]*"/>"#, with: "", options: .regularExpression)
+        package.parts["ppt/slides/slide6.xml"] = Data(slide.utf8)
+        let (state, _, _) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let p = try XCTUnwrap(state.slides[5].shapes.compactMap { $0.text?.paragraphs.first { $0.text.hasPrefix("Hi, ") } }.first)
+        XCTAssertEqual(p.runs.map(\.length), [4, 5])
+        XCTAssertNotEqual(p.runs[0].style.fontFamily, "Times New Roman")
+        XCTAssertEqual(p.runs[1].style.fontFamily, "Times New Roman", "the Hebrew word and the mark after it")
+    }
 }
