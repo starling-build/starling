@@ -2332,6 +2332,12 @@ private struct SlideContext {
                 if pr["custT"] == "1" { custom.insert(id) }
                 if let o = pr["presAssocID"] { owner[id] = o }
             }
+            // (And a shape that shows such a point's text by a `presOf`
+            // connection, whoever it belongs to: tdf145528's centre tile,
+            // the document's, shows the 72 pt "☺" and keeps it.)
+            for cxn in data.first("dgm:cxnLst")?.all("dgm:cxn") ?? [] where cxn["type"] == "presOf" {
+                if let src = cxn["srcId"], let dst = cxn["destId"], custom.contains(src) { custom.insert(dst) }
+            }
             for sp in tree?.all("p:sp") ?? [] {
                 guard let id = sp["modelId"], custom.contains(id) || owner[id].map(custom.contains) == true else { continue }
                 sp.descendant("p:cNvPr")?.attrs["id"] = String(Self.customTextId)

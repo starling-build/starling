@@ -2014,6 +2014,16 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A diagram shape showing an author-sized point's text keeps its size,
+2026-10-16** (tdf149551_SmartArt_Venn 0.69 → 0.57; tdf145528_SmartArt_Matrix
+2.94 → 3.07). A drawing shape is kept from shrinking its text when its
+point has `custT`, or the point it belongs to; tdf145528's centre tile
+belongs to the document and shows the 72 pt "☺" through a `presOf`
+connection, so it was shrunk to 29 pt. Such connections now count.
+The Matrix deck scores worse for it: its smiley is the right size now,
+but PowerPoint (on a Mac) drew it in Apple Color Emoji, a yellow face,
+and ours is DejaVu's outline.
+
 **A diagram node's own resizing, 2026-10-16** (composite-infer-right
 3.72 → 2.24; the other 72 diagram decks unchanged). A point's
 `custScaleX`/`custScaleY` (the author dragging a shape's size) was not
