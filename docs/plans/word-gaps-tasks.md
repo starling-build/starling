@@ -796,13 +796,24 @@ under the table still on p20.
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below
 
-### T46. The letterhead rule 1pt low (zh-e37f8d40, zh-9dd9ce6d, zh-1563bd74)
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below
+### T46. The letterhead rule 1pt low (zh-e37f8d40, zh-9dd9ce6d, zh-1563bd74) — measured, released
+Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
+Lab `bd1` (Word 16): "none" border sides with w:space take room exactly as
+ours gives them (the header style's top/bottom none sp1 add 1pt each; a
+real 0.5pt line adds its width too; Word's baselines on its 0.24pt grid,
+1.2/0.72 where ours are 1.0/1.0). So the style's none edges are not what
+sets the rule 1pt low; the anchor's reference point is still the open
+question.
 
-### T47. zh-1563bd74 p26: how tall Word's three-paragraph footer is
+### T47. zh-1563bd74 p26: how tall Word's three-paragraph footer is — partly measured
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below,
 with starling-bd's lab `hfl` (a first-line indent past the right margin: Word sets one character on
 the first line; right-aligned text counts its trailing spaces)
+Measured: the footer paragraph ("X" + text, first line past the margin) is two lines in
+Word's footer and in ours alike (ours: X at 750.2, text 768.3; Word's text 768.8), and
+the style's none edges count as in Word (lab bd1). The half point is not those; what is
+left is the body case of `hfl` (one character on an overrun first line; trailing spaces
+under jc=right) — being looked at.
 
 ### T48. A superscript inside a line lands after its line in the PDF (reading order)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16 — handed over by starling-bd
