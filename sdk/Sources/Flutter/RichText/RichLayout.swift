@@ -1658,6 +1658,26 @@ public final class RichLayout {
                         rowHeight = max(rowHeight, offset + _heights[k] + cell.pad.top + cell.pad.bottom)
                     }
                 }
+                // (A cell merged down into this row rules it as its own
+                // cells do, by the top line its continuation states, though
+                // no line is drawn there: zh-ae655121's balance sheet heads
+                // three cells merged over two rows, each continuation
+                // stating a double line on top, and Word's second row is
+                // 37.6pt "at least" and that line's 2.25 — ours took only
+                // its own cells' half-point line, and every row after it
+                // stood 1.75pt high.)
+                if theme.wordRules, d.row > 0 {
+                    var m = k0 - 1
+                    while m >= 0, let e = _cells[m], e.table == table {
+                        if let ref = document.paragraphs[m].cell, ref.row < d.row, ref.row + ref.rowSpan - 1 >= d.row {
+                            let at = d.row - ref.row - 1
+                            if at < ref.continuationBordersXML.count, let side = Self._cellSide(ref.continuationBordersXML[at], "top") {
+                                ruled = max(ruled, _px(Self._ruleRoom(side.style, side.width)))
+                            }
+                        }
+                        m -= 1
+                    }
+                }
                 // (A row of spanning or turned cells alone is still its
                 // margins tall.)
                 rowHeight = max(rowHeight, ins.top + ins.bottom)

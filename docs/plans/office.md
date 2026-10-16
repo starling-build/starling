@@ -4043,6 +4043,17 @@ fitter dropped the paragraph's tail).
   thick by the text for thinThick, outside for thickThin, a double's two
   a width apart). zh-69bbcc3c 98.1% -> 99.5%; nothing else moved. A
   table's compound rules are still drawn as one line.
+- **A cell merged into a row rules it by its continuation's top line
+  (2026-10-15; Linux, from Word's print).** zh-ae655121's balance sheet
+  heads three cells merged over its first two rows, and each
+  continuation (`w:vMerge` without restart) states a double line on top
+  — never drawn, the cell running on through it. Word's second row, 37.6pt
+  "at least", stands 37.6 + 2.25 tall between its lines all the same:
+  the double line's room, where the row's own two cells rule a half-point
+  line. Ours took only its own cells' rules, and every row after it
+  stood 1.75pt high. A spanning cell's continuation borders now count
+  among an "at least" row's rules. zh-ae655121 87.0% -> 94.2%; nothing
+  else moved.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
