@@ -46,6 +46,10 @@ struct CellStyle: Hashable, Sendable {
     var hAlign: HAlign = .general
     var vAlign: VAlign = .bottom
     var wrap = false
+    /// Indent levels (`alignment@indent`), each three spaces of the
+    /// workbook's default font: left-aligned text in from the left, right-
+    /// aligned in from the right.
+    var indent = 0
     var numberFormat = "General"
     var borders = Borders()
     /// The file's cell format this one is, or was derived from: whatever

@@ -533,6 +533,7 @@ enum Xlsx {
                 default: break
                 }
                 s.wrap = al["wrapText"] == "1" || al["wrapText"] == "true"
+                s.indent = max(0, min(250, Int(al["indent"] ?? "") ?? 0))
             }
             out.append(s)
         }
@@ -1365,9 +1366,11 @@ enum Xlsx {
             switch st.hAlign { case .left: align += " horizontal=\"left\""; case .center: align += " horizontal=\"center\""; case .right: align += " horizontal=\"right\""; case .general: break }
             switch st.vAlign { case .top: align += " vertical=\"top\""; case .center: align += " vertical=\"center\""; case .bottom: break }
             if st.wrap { align += " wrapText=\"1\"" }
+            if st.indent > 0 { align += " indent=\"\(st.indent)\"" }
             // Alignment the change left alone keeps its indent, rotation…
             var alignment = align.isEmpty ? "" : "<alignment\(align)/>"
-            if let base, st.hAlign == base.style.hAlign, st.vAlign == base.style.vAlign, st.wrap == base.style.wrap {
+            if let base, st.hAlign == base.style.hAlign, st.vAlign == base.style.vAlign, st.wrap == base.style.wrap,
+               st.indent == base.style.indent {
                 alignment = base.xf.alignment ?? ""
             }
             let inner = alignment + (base?.xf.protection ?? "")

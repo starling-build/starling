@@ -2354,11 +2354,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 }
             }
         }
+        // An indent: so many three-space steps of the workbook's default
+        // font, in from the side the text is aligned to (a lab of indents 1-4
+        // in Calibri 11, Arial 10 and Times 9: 7.56, 8.28 and 6.84 pt a step).
+        var inset = 0.0
+        if st.indent > 0, st.hAlign == .left || st.hAlign == .right {
+            let base = _textStyle(book.style(0), color: nil, ink: ink)
+            inset = Double(st.indent) * max(0, texts.painter("X   X", base).width - texts.painter("XX", base).width)
+        }
         let tx: Double
         switch align {
-        case .right: tx = right - pad - tp.width
+        case .right: tx = right - pad - inset - tp.width
         case .center: tx = left + (width - tp.width) / 2
-        default: tx = left + pad
+        default: tx = left + pad + inset
         }
         let ty: Double
         switch st.vAlign {
