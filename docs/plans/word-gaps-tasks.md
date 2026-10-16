@@ -506,6 +506,12 @@ Built: between paragraphs of one cell, the larger of the space after and
 the space before alone, as in the body. Five documents up, zh-06c46ba9
 down 2.3 (its drift from p41 on lands differently; see office.md).
 
+### T30. Bug51170: the footer's page number at the wrong side — DONE (2026-10-16)
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: Bug51170 (every page's footer), zh-457a8d62.
+Built: a floating frame of no stated width is set at the side it is
+aligned to; both 100%.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a

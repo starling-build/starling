@@ -4049,6 +4049,18 @@ public final class RichLayout {
             default: break
             }
         }
+        // A floating frame of no stated width is as wide as its text, so
+        // set right or centred in its band the text stands there: laid
+        // over the whole band, it is aligned so. (Bug51170's footer page
+        // number, a frame aligned right in the margins, stood at their
+        // left on every page.)
+        if frameLeft != nil, let frame = style.frame, frame.width == nil {
+            switch frame.horizontalAlign {
+            case "right", "outside": align = .right
+            case "center": align = .center
+            default: break
+            }
+        }
         func laidOut(_ span: TextSpan) -> TextPainter {
             let painter = TextPainter(
                 text: span,

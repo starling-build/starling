@@ -3050,6 +3050,16 @@ fitter dropped the paragraph's tail).
   p41, and where its page 44 ends moved with the nearer spacing (a
   heading at the foot now takes its next paragraph's first two lines).
 
+- **A floating frame of no width stands where it is aligned (2026-10-16,
+  Linux).** Bug51170's footer page number is a frame (`w:framePr`)
+  aligned right in the margins (`w:xAlign` right, `w:hAnchor` margin)
+  with no `w:w`: Word sizes such a frame to its text and sets it at the
+  right margin. Ours took the band's whole width for the frame, so the
+  alignment had no room to move it and the number stood at the left
+  margin on every page. Laid over the band, the frame's text is now set
+  right (or centred) as the frame is. Bug51170 96.9% -> 100, zh-457a8d62
+  98.7 -> 100; nothing else moved.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

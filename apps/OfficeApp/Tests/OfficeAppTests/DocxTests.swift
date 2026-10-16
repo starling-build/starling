@@ -1165,6 +1165,33 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(cell.totalHeight, old.totalHeight - 3 * cell.theme.pixelsPerPoint, accuracy: 1, "and the row is that much shorter")
     }
 
+    func testAFrameOfNoWidthStandsWhereItIsAligned() throws {
+        // Bug51170: the footer's page number is a frame aligned right in
+        // the margins with no width of its own; Word sets it at the right
+        // margin, ours stood it at the left on every page.
+        func ends(_ align: String?) -> (left: Double, right: Double) {
+            var p = RichParagraph(text: "2")
+            var frame = ParagraphFrame()
+            frame.horizontalAnchor = "margin"
+            frame.horizontalAlign = align
+            p.style.frame = frame
+            let doc = RichDocument(paragraphs: [p, RichParagraph(text: "footer")])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: 2)
+            layout.floatsFrames = true
+            layout.width = 400
+            layout.ensureLaidOut(doc)
+            let g = layout.geometry(0)
+            let line = g.painter.computeLineMetrics()[0]
+            return (g.textLeft + line.left, g.textLeft + line.left + line.width)
+        }
+        XCTAssertEqual(ends("right").right, 400, accuracy: 1, "at the band's right")
+        let centred = ends("center")
+        XCTAssertEqual((centred.left + centred.right) / 2, 200, accuracy: 1)
+        XCTAssertEqual(ends(nil).left, 0, accuracy: 1, "and at its left with no alignment")
+    }
+
     func testPictureInABorderedRunReadsItsFrameAndEffects() throws {
         // bug59058: "tab1", an inline picture in a run with a 0.75pt grey
         // character border, its effect extent 0.75pt below; Word's line
