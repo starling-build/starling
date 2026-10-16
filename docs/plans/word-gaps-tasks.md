@@ -542,14 +542,6 @@ any non-East-Asian letter or digit. bug65649 99.8%, form_footnotes 97.7.
 Next in bug65649: p122, its lines 3-4pt under Word's from "сотрудниками
 объекта единовременно." on (not looked into).
 
-Note from the Mac (2026-10-16): zh-799c91cd 96.8 -> 95.6 between the
-n225 and n230 sweeps. Page 6's table, whose last row runs to the foot,
-now ends at 84.8pt above the page edge where it ended at 85.0. The
-empty paragraph after it (one space, 12pt 標楷體) no longer fits under
-it and opens page 7 instead, setting all of page 7 14pt low. Word keeps
-it on page 6. Reverting 8cc05b33 changes nothing. Of the commits in that
-window this is a parting row's height, so 10a54e42 or 94ac7235 is the
-likely one; not bisected.
 ### T33. bug65649: a list number's size sets its line's height above only — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
 Documents: bug65649 (p122's "3.1.x." paragraphs, 14pt numbers over
@@ -737,6 +729,14 @@ Progress (Windows): the centred cells now stand so (zh-15728c84 96.0 ->
 98.5). Left: the part's rule still runs to the page's foot, and
 zh-1a3c7aa0 p22/p32 (their rows' heights there).
 
+Note from the Mac (2026-10-16): zh-799c91cd 96.8 -> 95.6 between the
+n225 and n230 sweeps. Page 6's table, whose last row runs to the foot,
+now ends at 84.8pt above the page edge where it ended at 85.0. The
+empty paragraph after it (one space, 12pt 標楷體) no longer fits under
+it and opens page 7 instead, setting all of page 7 14pt low. Word keeps
+it on page 6. Reverting 8cc05b33 changes nothing. Of the commits in that
+window this is a parting row's height, so 10a54e42 or 94ac7235 is the
+likely one; not bisected.
 ### T43. bug57031 p11: a SAS table runs 2.7pt short, a "Note:" row parts — DONE (2026-10-16)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16
 Built: a separated table (cell spacing stated, 0 too) is framed by its
