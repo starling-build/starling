@@ -1792,6 +1792,15 @@ lie on, and PowerPoint shows the lines over the box. Every path is
 filled first now, then every outline drawn. (Its accentCallout1, which
 PowerPoint leaves out altogether, is still drawn here.)
 
+**A header cell two rows tall keeps its fill, 2026-10-15** (tdf149785
+2.43 → 1.38; the other table decks unchanged). Its "Key Functions"
+spans the header row and the one under it; it took no fill of its own
+(the header's is the row's), and the second row's band, painted after
+it across the whole row, covered it. The reader gives such a cell the
+header's fill as its own, and the row shading (shared layout, so
+Word's merged cells too) leaves a gap for any cell from a row above
+that spans down into the row with a fill of its own.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

@@ -6353,6 +6353,20 @@ public final class RichLayout {
                     }
                     j += 1
                 }
+                // Nor over a cell from a row above that spans down into
+                // this one with a fill of its own: drawn first, it was
+                // covered by this row's band (tdf149785's "Key Functions",
+                // a header cell two rows tall).
+                var k = i - 1
+                // (Back fifty rows at most: a long table stays linear.)
+                while k >= 0, let ck = _cells[k], ck.table == c.table, ck.row >= c.row - 50 {
+                    if ck.rowSpan > 1, ck.row < c.row, ck.row + ck.rowSpan > c.row,
+                       let own = document.paragraphs[k].cell?.fill, own.alpha > 0 {
+                        holes.append((ck.colLeft, ck.colLeft + ck.colWidth))
+                    }
+                    k -= 1
+                }
+                holes.sort { $0.0 < $1.0 }
                 if holes.isEmpty {
                     canvas.drawRect(Rect.fromLTWH(left.rounded(), c.rowTop.rounded(), width.rounded(), c.ownRowHeight.rounded()), fill)
                 }

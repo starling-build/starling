@@ -1772,7 +1772,11 @@ private struct SlideContext {
                 if c == columnCount - 1, let p = lastColPart { regional.append(p) }
                 if r == rowCount - 1, r > 0, let p = lastRowPart { regional.append(p) }
                 if r == 0, let p = firstRowPart { regional.append(p) }
-                if let f = regional.compactMap(\.fill).last, r > 0 || firstRowPart == nil { cell.fill = f }
+                // (A header cell spanning rows down takes the header's fill
+                // as its own: left to the row's, the band of the row below
+                // showed through it — tdf149785's "Key Functions".)
+                let tall = (tc["rowSpan"].flatMap(Int.init) ?? 1) > 1
+                if let f = regional.compactMap(\.fill).last, r > 0 || firstRowPart == nil || tall { cell.fill = f }
                 // A built-in style the deck does not define (the guess: the
                 // first accent, white bold header) dresses its first and
                 // last column and its last row like the header when the
@@ -1781,7 +1785,7 @@ private struct SlideContext {
                 let emphasised = style == nil && !plain
                     && ((pr?["firstCol"] == "1" && c == 0) || (pr?["lastCol"] == "1" && c == columnCount - 1)
                         || (pr?["lastRow"] == "1" && r == rowCount - 1 && r > 0))
-                if emphasised, !(r == 0 && firstRow) { cell.fill = theme.colors["accent1"] ?? Color(0xFF4472C4) }
+                if emphasised, !(r == 0 && firstRow) || tall { cell.fill = theme.colors["accent1"] ?? Color(0xFF4472C4) }
                 // The cell's margins: PowerPoint's 0.1" sides and 0.05" top
                 // and bottom unless the cell says otherwise. Its own fill
                 // and edge lines (`a:tcPr`) go over the style's.
