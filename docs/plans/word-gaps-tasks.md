@@ -684,6 +684,27 @@ Built (office.md, "Ruby"): read onto the base's style, the base spread,
 the line made room, the ruby drawn over it, written back as it came.
 61470 0 -> 100%; within 2pt of Word's. Nothing else moved.
 
+### Note from the Linux dev box (2026-10-16): zh-1563bd74 is short a page on Linux only
+Owner: none — a lead (zh-1563bd74's notes are the Windows box's).
+zh-1563bd74 is 88.6% on Linux (29 pages) and 99%+ on the Mac (30). Page
+25's last paragraph, an empty exact-28pt line, misses the foot by 0.4pt
+in the PDF's units (20 to the point), so "第十章 就业救助" and all after
+start a line low. The footer is 0.8pt taller here: its paragraphs are
+20.5/38.9/19.2pt on Linux, 20.5/38.1/19.2 on the Mac (measured both
+sides). The 0.8 is P2's second line, "红河县人民政府发布" + five spaces in
+14pt bold 宋体: 19.4pt where its empty twin (P3) is 18.2. Its ideographs
+are drawn by the platform's CJK fallback (Noto Sans CJK on Linux, ascent
+1.16 / descent 0.288 em) and its spaces in the Latin stand-in (Liberation
+Mono at 5/6, ascent .735 of its line); at one line height of 18.2 each
+splits it its own way, and the engine takes the deeper of each side:
+14.58 above from the CJK face, 4.82 below from the mono one. The
+single-line and on-grid paragraphs already get a strut of the tallest
+stretch for this (`_strut(tallest:)`); P2 is two lines (the "X" in 16pt
+Calibri, 19.5, on its own) off the grid, so neither applies, and a strut
+of its tallest would set both lines at 19.5. What would settle it: a line
+of a square face's ideographs with Latin in it, off the grid, in a
+paragraph whose other line is taller — Word's height for each line.
+
 ### Leads from the Windows box (2026-10-16, measured, not built)
 - Lab `ps` (~/starling-doc-check/lab/ps, Word 16): before 2013's
   layout (mode 14) a space after an inline picture wider than the line
