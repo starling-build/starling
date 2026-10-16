@@ -420,7 +420,6 @@ oox-tdf139618_ImportWordArtGradient.pptx
 oox-tdf139618_ThemeColorTransparency.pptx
 oox-tdf139618_WordArtBitmapFill.pptx
 oox-tdf141463_GroupTransform.pptx
-oox-tdf144742_funnel.pptx
 oox-tdf149538_upright.pptx
 oox-tdf149551_TextRot.pptx
 oox-tdf149551_vert270AndTextRot.pptx

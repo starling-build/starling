@@ -84,6 +84,7 @@ oox-connectorConnection.pptx
 oox-elbowConnectors.pptx
 oox-endParaRPr-newline-textsize.pptx
 oox-gradient-multistep-transparency.pptx
+oox-tdf144742_funnel.pptx
 oox-tdf144742_mathEqual_mathNotEqual.pptx
 oox-tdf147978_enhancedPath_subpath.pptx
 oox-tdf163803_image_with_fill.pptx

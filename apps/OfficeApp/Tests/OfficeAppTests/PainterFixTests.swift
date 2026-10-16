@@ -211,10 +211,19 @@ final class PresetGeometryTests: XCTestCase {
         let g = try XCTUnwrap(PresetGeometry.geometry("pie", width: 4_320_000, height: 2_880_000, adjustments: adj))
         let d = try XCTUnwrap(PresetGeometry.geometry("pie", width: 4_320_000, height: 2_880_000))
         XCTAssertNotEqual(g.subpaths, d.subpaths, "the adjusted pie is not the default three-quarter one")
-        guard case .arc(_, let start, let sweep) = g.subpaths[0].commands[1] else { return XCTFail("an arc from the rim") }
-        XCTAssertEqual(start, 20_345_271 / 60000 * .pi / 180, accuracy: 1e-9)
-        // From 339° on to 90°: 111° of sweep, the long way round avoided.
-        XCTAssertEqual(sweep, (5_405_194 - 20_345_271 + 21_600_000) / 60000 * .pi / 180, accuracy: 1e-9)
+        guard case .arc(let b, let start, let sweep) = g.subpaths[0].commands[1] else { return XCTFail("an arc from the rim") }
+        // From 339° on to 90° as seen from the centre — the angles of the
+        // stretched ellipse's points, not its parameter: the arc ends at
+        // the bottom of the frame, as in PowerPoint's print, the long way
+        // round avoided.
+        XCTAssertGreaterThan(sweep, 0)
+        XCTAssertLessThan(sweep, .pi)
+        let end = (b.center.dx + b.width / 2 * cos(start + sweep), b.center.dy + b.height / 2 * sin(start + sweep))
+        XCTAssertEqual(end.0, 0.5, accuracy: 1e-3)
+        XCTAssertEqual(end.1, 1.0, accuracy: 1e-3)
+        let first = (b.center.dx + b.width / 2 * cos(start), b.center.dy + b.height / 2 * sin(start))
+        let seen = atan2((first.1 - 0.5) * 2_880_000, (first.0 - 0.5) * 4_320_000) + 2 * .pi
+        XCTAssertEqual(seen, 20_345_271 / 60000 * .pi / 180, accuracy: 1e-6)
         // The text sits in the box the definition names (the inscribed one).
         let box = try XCTUnwrap(g.textRect)
         XCTAssertEqual(box.left, 0.5 - cos(.pi / 4) / 2, accuracy: 1e-6)

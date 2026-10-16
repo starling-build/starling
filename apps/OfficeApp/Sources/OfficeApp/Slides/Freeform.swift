@@ -122,7 +122,24 @@ struct FreeformGeometry: Equatable {
                     guard let wr = c["wR"].flatMap(guides.value), let hr = c["hR"].flatMap(guides.value),
                           let st = c["stAng"].flatMap(guides.value), let sw = c["swAng"].flatMap(guides.value) else { return nil }
                     let rx = wr / pw, ry = hr / ph
-                    let start = st / 60000 * .pi / 180, sweep = sw / 60000 * .pi / 180
+                    // The angles are the ones seen from the centre, not the
+                    // ellipse's own parameter: on a stretched ellipse the two
+                    // differ, and a pie of 339° to 90° in a 340 × 227 pt frame
+                    // ended its arc 16 pt short of the bottom (tdf149918).
+                    // (Equal at the quarters, so most presets never noticed.)
+                    let a0 = st / 60000 * .pi / 180, a1 = (st + sw) / 60000 * .pi / 180
+                    // (A flat ellipse — no width or no height — has no
+                    // angles to speak of: the file's are kept.)
+                    let flat = abs(wr) < 1e-9 || abs(hr) < 1e-9
+                    func param(_ a: Double) -> Double { flat ? a : atan2(wr * sin(a), hr * cos(a)) }
+                    let start = param(a0)
+                    var sweep = param(a1) - start
+                    let turns = sw / 60000 * .pi / 180
+                    if flat || abs(turns) >= 2 * .pi - 1e-9 { sweep = turns } else {
+                        while turns > 0, sweep < 0 { sweep += 2 * .pi }
+                        while turns < 0, sweep > 0 { sweep -= 2 * .pi }
+                        if abs(turns) > 1e-9, abs(sweep) < 1e-9 { sweep = 0 }
+                    }
                     // The ellipse's centre: the current point lies on it at
                     // the start angle.
                     let cx = cur.0 - rx * cos(start), cy = cur.1 - ry * sin(start)

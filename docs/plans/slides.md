@@ -2014,6 +2014,18 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**An arc's angles are the ones seen from its centre, 2026-10-16**
+(sweep 134: 1.129 → 1.119%, eight decks better, none worse; tdf149918
+pie 2.30 → 0.57, tdf144742_funnel 1.46 → 0.00, cshapes 2.39 → 1.92,
+tdf125551 −0.26, tdf114848 −0.12). `arcTo`'s `stAng` and `swAng` were
+taken as the ellipse's parameter; they are the angles of its points as
+seen from the centre, and on a stretched ellipse the two differ (equal
+at the quarters, so most presets never showed it). tdf149918's pie,
+339° to 90° in a 340 × 227 pt frame, ended its arc 16 pt short of the
+bottom, its centre off. Converted now (`FreeformGeometry`, for presets
+and freeforms alike); a flat ellipse (no width or no height) keeps the
+file's angles — converting them broke tdf103477's brackets.
+
 **A diagram shape showing an author-sized point's text keeps its size,
 2026-10-16** (tdf149551_SmartArt_Venn 0.69 → 0.57; tdf145528_SmartArt_Matrix
 2.94 → 3.07). A drawing shape is kept from shrinking its text when its
