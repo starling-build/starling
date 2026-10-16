@@ -826,7 +826,8 @@ left is the body case of `hfl` (one character on an overrun first line; trailing
 under jc=right) — being looked at.
 
 ### T48. A superscript inside a line lands after its line in the PDF (reading order)
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16 — handed over by starling-bd
+Owner: starling-bd (Mac), from 2026-10-16 — handed back by 01Xgpbk5: the user's
+go-ahead was given in starling-bd's session.
 Weighed (2026-10-16): it now costs bug65649 three lines ("мм2." read as "мм."),
 and fixing it means a bridge change every platform must rebuild for — held
 for the user's go-ahead, not started.
