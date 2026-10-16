@@ -3704,6 +3704,18 @@ fitter dropped the paragraph's tail).
   a line ahead of Word's at the top, and the 6pt it no longer carries
   lets one line more onto the page, so pages 43 and 44 fall a line out
   of step — the page-42 gap itself is now Word's 56pt.
+- **Two list items either side of a cell's edge are not alike
+  (2026-10-16).** zh-06c46ba9 p39: "（二）現況分析", a numbered List
+  Paragraph of 6pt before (`w:beforeLines` 50), contextual, under a
+  table whose last paragraph is a numbered List Paragraph of another
+  list: Word's print sets it 9pt below the table's last line box (the
+  table's 3 and its own 6), ours 3 — the same-style test held two
+  numbered items alike across the edge because their kinds match, and
+  dropped the 6. Pages 39-46 ran a line ahead of Word's from there.
+  Plain neighbours across an edge stay alike (zh-1a3c7aa0 needs that,
+  see above). zh-06c46ba9 78.9 -> 89.5%, zh-84702a67 98.2 -> 99.6,
+  zh-abe7e063 98.0 -> 100; zh-69bbcc3c's "五、操作规范" went from 25pt
+  high to 5pt low of Word's (one line fewer matched, 99.5 -> 99.4).
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

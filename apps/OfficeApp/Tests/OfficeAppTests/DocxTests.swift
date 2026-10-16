@@ -1165,6 +1165,34 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(cell.totalHeight, old.totalHeight - 3 * cell.theme.pixelsPerPoint, accuracy: 1, "and the row is that much shorter")
     }
 
+    func testAListItemUnderATablesListItemKeepsItsSpaceBefore() throws {
+        // zh-06c46ba9 p39: "（二）現況分析", a numbered List Paragraph of
+        // 6pt before with contextual spacing, under a table whose last
+        // paragraph is a numbered List Paragraph of another list — Word
+        // keeps the 6pt; ours held the two alike and dropped it.
+        func before(inCell: Bool) -> Double {
+            var a = RichParagraph(text: "one")
+            a.style.named = "ListParagraph"
+            a.style.list = .numbered
+            a.style.contextualSpacing = true
+            a.cell = CellRef(table: "t", row: 0, column: 0)
+            var b = a
+            b.style.spaceBefore = 6
+            if !inCell { b.cell = nil }
+            var doc = RichDocument(paragraphs: [a, b])
+            doc.tableColumns["t"] = [200]
+            doc.readFromFile = true
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 2)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return (l.geometry(1).textTop - l.geometry(1).top) / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(before(inCell: false), 6, accuracy: 0.6, "across the table's edge: kept")
+        XCTAssertEqual(before(inCell: true), 0, accuracy: 0.01, "in the same cell: alike, dropped")
+    }
+
     func testAFrameOfNoWidthStandsWhereItIsAligned() throws {
         // Bug51170: the footer's page number is a frame aligned right in
         // the margins with no width of its own; Word sets it at the right

@@ -3592,6 +3592,14 @@ public final class RichLayout {
                document.paragraphs[j].cell == p.cell {
                 return true
             }
+            // (Two list items either side of a cell's edge are not alike,
+            // whatever their kinds: zh-06c46ba9's "（二）現況分析", a
+            // numbered List Paragraph under a table whose last paragraph
+            // is one too, keeps its 6pt before in Word's print.)
+            if theme.wordRules, document.readFromFile, o.list != nil, style.list != nil,
+               document.paragraphs[j].cell != p.cell {
+                return false
+            }
             return o.named == style.named && o.heading == style.heading
                 && (o.list == style.list || (theme.wordRules && style.named != nil && o.list != nil && style.list != nil
                     && document.paragraphs[j].cell == p.cell))
