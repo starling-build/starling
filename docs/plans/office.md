@@ -3663,6 +3663,15 @@ fitter dropped the paragraph's tail).
   1/9/2002, and ours printed the serial numbers. Shared with Slides,
   where no deck of the 3,347 in the PowerPoint corpora has such a cache.
   chartex 33.8 -> 35.2; nothing else moved.
+- **A kept heading needs only the first lines of a row that may part
+  (2026-10-15).** A paragraph kept with the next, followed by a table,
+  asked for the table's whole first row. Word asks only for the row's
+  first line in each cell, unless the row may not part, and then parts
+  the row at the foot. zh-64044a1d's "附件五" heading stands at page
+  88's foot in Word's print, with the first two lines of its form's
+  five-line title row. Ours sent heading and form to page 89, and the
+  next four pages ran a form late. zh-64044a1d 91.1 -> 93.7; nothing
+  else moved.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the

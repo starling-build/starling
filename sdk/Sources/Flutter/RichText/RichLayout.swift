@@ -2625,7 +2625,25 @@ public final class RichLayout {
                 // the lines of an item, and sends another to page 63 from
                 // half a page of room, the foot falling between two.
                 func start(_ k: Int) -> Double {
-                    if let c = _cells[k] { return c.ownRowHeight }
+                    if let c = _cells[k] {
+                        // (A row that may part asks only for its first
+                        // line in each cell: Word sets zh-64044a1d's
+                        // "附件五" heading at page 88's foot with the
+                        // first two lines of its form's five-line title
+                        // row, and parts the row there.)
+                        guard theme.wordRules, document.tableStyles[c.table]?.rowsCantSplit.contains(c.row) != true else { return c.ownRowHeight }
+                        var need = 0.0
+                        var j = k
+                        while j < count, let d = _cells[j], d.table == c.table, d.row == c.row {
+                            if j == k || _cells[j - 1]?.column != d.column {
+                                let g = geometry(j)
+                                let bottoms = Self._lineBottoms(g.painter)
+                                need = max(need, (g.textTop - g.top) + (bottoms.first ?? _heights[j]) + d.pad.top + d.pad.bottom)
+                            }
+                            j += 1
+                        }
+                        return need > 0 ? min(need, c.ownRowHeight) : c.ownRowHeight
+                    }
                     let st = document.paragraphs[k].style
                     let g = geometry(k)
                     let lines = g.painter.computeLineMetrics()
