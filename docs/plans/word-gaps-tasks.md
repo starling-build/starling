@@ -1162,6 +1162,16 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   footer style (styleId 4) puts p26 and the page count right in ours,
   which shows only that the margin is under a point. The question: how
   tall is that three-paragraph footer in Word.
+- Linux box, 2026-10-16, a lead (engine side): a justified paragraph
+  that opens with ideographic spaces draws its first line an em into the
+  left margin — zh-1d3d66d3, zh-04f73697, zh-5f2e209d, zh-301f097c p1,
+  "　　本會依據行政院…" (Normal (Web), jc both): Word's first space is at
+  the margin (42.5), ours at 30.5, the line's end where Word's is. Left
+  aligned, ours is right; with "口口" for the spaces, right. Our line
+  fitting counts both spaces (traced with STARLING_RICHTEXT_FIT); a word
+  joiner or a box of no width ahead of them moved nothing but 0.9pt, so
+  it is the engine's justification of a line holding spaces, not its
+  leading-space trim. Not built.
 - Also there, p19: a vMerge cell (vAlign center) whose rows part over
   pages; Word starts its first page's lines 10pt lower than ours. Not
   measured.
