@@ -650,6 +650,22 @@ final class MetafileTests: XCTestCase {
         XCTAssertEqual(path.getBounds(), Rect.fromLTRB(10, 20, 60, 70), "through the world transform")
     }
 
+    func testTextInAFaceWithoutTheGlyphsFallsBack() {
+        // tika-3388: an attachment icon's caption, "約翰的測試文件" in MS
+        // Gothic — Word prints seven full-width ideographs; ours drew empty
+        // boxes in the Latin face standing in for MS Gothic.
+        _ = OfficeFonts.register()
+        XCTAssertFalse(RichTextTheme.glyphFallback.isEmpty)
+        let run = Metafile.TextRun(text: "約翰的測試文件", at: .zero, size: 9, face: "MS Gothic", bold: false, italic: false,
+                                   underline: false, color: Color(0xFF000000), align: 24, angle: 0)
+        let style = run.style(run.color, family: OfficeFonts.substitute(run.face))
+        XCTAssertEqual(style.fontFamilyFallback ?? [], RichTextTheme.glyphFallback)
+        let tp = TextPainter(text: TextSpan(text: run.text, style: style), textDirection: .ltr)
+        tp.layout(minWidth: 0, maxWidth: .infinity)
+        defer { tp.dispose() }
+        XCTAssertEqual(tp.width, 63, accuracy: 1, "seven ideographs of a 9pt em")
+    }
+
     func testSymbolFacesShowTheirGlyphs() {
         XCTAssertEqual(Metafile.symbols("n g", face: "Webdings"), "● ■")
         XCTAssertEqual(Metafile.symbols("l\u{F06E}", face: "Wingdings 2"), "●■", "the private-range spelling too")

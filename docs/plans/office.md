@@ -3012,6 +3012,16 @@ fitter dropped the paragraph's tail).
   it anyway. PageSpecificHeadFoot 90% -> 100; the only corpus file with
   a floating table in a header or footer.
 
+- **A metafile's text falls back to the documents' faces (2026-10-16,
+  Linux).** tika-3388's attachment icon is an EMF whose caption,
+  "約翰的測試文件", is set in MS Gothic; the player drew it in the Latin
+  face standing in for MS Gothic and nothing else, so the caption was
+  seven empty boxes (written to the PDF as NULs). A metafile's text now
+  carries `RichTextTheme.glyphFallback`, as the body's does: seven
+  full-width ideographs, 63pt to Word's 62.4. tika-3388 50% -> 100. The
+  caption's baseline stands 2.7pt under Word's (the fallback face's
+  ascent, not MS Gothic's): left.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

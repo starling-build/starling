@@ -38,6 +38,18 @@ final class Metafile {
         var align: Int
         /// Clockwise, radians.
         var angle: Double
+
+        /// Its style in `color`, set in `family` — with the documents'
+        /// fallback faces: tika-3388's icon caption, "約翰的測試文件" in
+        /// MS Gothic, was a row of empty boxes in the Latin face that
+        /// stands in for it.
+        func style(_ color: Color, family: String) -> Flutter.TextStyle {
+            let fallback = RichTextTheme.glyphFallback
+            return Flutter.TextStyle(
+                color: color, fontSize: max(1, size), fontWeight: bold ? .bold : .normal,
+                fontStyle: italic ? .italic : .normal, decoration: underline ? .underline : nil, fontFamily: family,
+                fontFamilyFallback: fallback.isEmpty ? nil : fallback)
+        }
     }
 
     /// The picture's extent in the units the steps are in.
@@ -135,12 +147,8 @@ final class Metafile {
                 canvas.drawImageRect(decoded, source.map { $0.intersect(whole) } ?? whole, at, p)
             case .text(let run):
                 guard let ink = drawn(run.color) else { continue }
-                var decoration: TextDecoration? = nil
-                if run.underline { decoration = .underline }
-                let tp = TextPainter(text: TextSpan(text: run.text, style: Flutter.TextStyle(
-                    color: ink, fontSize: max(1, run.size), fontWeight: run.bold ? .bold : .normal,
-                    fontStyle: run.italic ? .italic : .normal, decoration: decoration, fontFamily: font(run.face))),
-                    textDirection: .ltr)
+                let tp = TextPainter(text: TextSpan(text: run.text, style: run.style(ink, family: font(run.face))),
+                                     textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 let dx = run.align & 6 == 6 ? -tp.width / 2 : run.align & 6 == 2 ? -tp.width : 0
                 let dy = run.align & 24 == 24 ? -tp.computeDistanceToActualBaseline(.alphabetic)
