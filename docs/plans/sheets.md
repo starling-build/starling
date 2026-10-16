@@ -188,7 +188,11 @@ Excel was found to do, each checked on its workbook and its neighbours:
   Every row whose height is only a fit is fitted afresh (Excel keeps no
   such height: a lab of 30 pt rows without customHeight="1" printed at
   12.36), in its fonts' weight — save a row with raised or lowered rich
-  text, which keeps the file's fit.
+  text, which keeps the file's fit. A wrapped row is its lines, as our
+  wrapping counts them, of its font's fitted line (LIBRE_OFFICE-116306-0's
+  105 pt row is six of 14.52 in Excel's print).
+- *Packages.* A part's relationships are found whatever the case of its
+  name (chart-tdf100084's Sheet1.xml with _rels/sheet1.xml.rels).
 - *Print areas* keep the columns they name, empty or not; only a
   whole-row area is cut to the sheet's columns.
 - *Charts on a sheet.* The chart area's own fill and edge; a size the
