@@ -3109,6 +3109,19 @@ fitter dropped the paragraph's tail).
   such a word where it stands, as 8788bcef found). bug65649 99.9%, one
   line more matched; nothing else moved.
 
+- **Lucida Sans Unicode at its own widths (2026-10-16, Linux).** Its
+  stand-in is the sans clone at Arial's widths, and Lucida's lower case
+  is 5-37% wider (its digits all 0.632, its space 0.316, its hyphen
+  0.579): bug59058's "SEER 9 Incidence 1975-2011 & U.S. Mortality…"
+  note is two lines in Word's print and was one in ours, and its last
+  four pages stood a line off. Word's print embeds the face's subset
+  with /Widths for the 41 characters the document sets in it, all of
+  them; those are the face's advances now, and the other ASCII are
+  estimates from Arial's (capitals 0.96 of them, lower case 1.12, other
+  signs 1.14). bug59058 92.2% -> 100. In the same build WordWithAttachments
+  went 2.6 -> 5.3 and zh-64044a1d 95.6 -> 95.7; neither names Lucida, and
+  another session's commit was in that build too — not traced.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

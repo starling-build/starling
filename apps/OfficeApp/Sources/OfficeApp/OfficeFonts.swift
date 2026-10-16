@@ -490,6 +490,24 @@ enum OfficeFonts {
                                              latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances, fakeBold: false, baseline: 1.26,
                                              boldHeight: 1.73, boldBaseline: 1.2675)
 
+    // Lucida Sans Unicode's own widths, U+0020 to U+007E: its lower case
+    // is 5-37% wider than Arial's, its digits all 0.632, and the sans
+    // stand-in set bug59058's "SEER 9 Incidence…" note on one line where
+    // Word's print has two (and its last four pages a line off). The
+    // 41 characters that note and the fact sheet use are the /Widths of
+    // the subset Word's print of bug59058 embeds (2026-10-16); the rest
+    // are estimates from Arial's: capitals at 0.96 of them, lower case
+    // at 1.12 ("p" and "q" as "b" and "d"), other signs at 1.14.
+    private static let lucidaSansUnicodeAdvances: [Double] = [
+        0.3160, 0.3167, 0.4047, 0.6340, 0.6340, 1.0136, 0.6970, 0.2176, 0.3796, 0.3796, 0.4436, 0.6657, 0.3160, 0.5790, 0.3160,
+        0.3167, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.3167, 0.3167, 0.6657, 0.6657,
+        0.6657, 0.6340, 1.1573, 0.6900, 0.5750, 0.6920, 0.7490, 0.5420, 0.5864, 0.7467, 0.6933, 0.2880, 0.4800, 0.6403, 0.5339,
+        0.8610, 0.7390, 0.7467, 0.6403, 0.7467, 0.6320, 0.5390, 0.6320, 0.6930, 0.6540, 0.9061, 0.6403, 0.6230, 0.5864, 0.3167,
+        0.3167, 0.3167, 0.5349, 0.6340, 0.3796, 0.5520, 0.6290, 0.5120, 0.6290, 0.5570, 0.3112, 0.6240, 0.6210, 0.2890, 0.3040,
+        0.5600, 0.2890, 0.9330, 0.6210, 0.6140, 0.6290, 0.6290, 0.4090, 0.5100, 0.3740, 0.6210, 0.5180, 0.7710, 0.6130, 0.5220,
+        0.5600, 0.3807, 0.2961, 0.3807, 0.6657,
+    ]
+
     // Verdana's own widths, which its stand-in (DejaVu Sans, a few per
     // cent wider in its letters, narrower in its space) is set to: U+0020
     // to U+007E, then Latin-1, Cyrillic and the usual punctuation, read
@@ -815,6 +833,7 @@ enum OfficeFonts {
             if family.trimmingWhitespace().lowercased() == "lucida sans unicode" {
                 face.naturalHeight = 1.5366
                 face.baseline = 1.0967
+                face.advances = lucidaSansUnicodeAdvances
             }
             // Word's symbol faces keep their own lines too — its own
             // symbol.ttf and the Wingdings three, by their hhea ascent

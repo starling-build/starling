@@ -94,6 +94,23 @@ final class PainterFixTests: XCTestCase {
         XCTAssertEqual(OfficeFonts.substitute("Source Code Pro"), OfficeFonts.mono)
     }
 
+    func testLucidaSansUnicodeIsSetAtItsOwnWidths() throws {
+        // bug59058: its "SEER 9 Incidence…" note is two lines in Word's
+        // print, one at Arial's widths. The widths are the /Widths of the
+        // subset Word's print embeds.
+        let face = try XCTUnwrap(OfficeFonts.face("Lucida Sans Unicode", eastAsian: false))
+        let advances = try XCTUnwrap(face.advances)
+        XCTAssertEqual(advances.count, 95, "U+0020 to U+007E")
+        func width(_ c: Character) -> Double { advances[Int(c.asciiValue!) - 0x20] }
+        XCTAssertEqual(width("0"), 0.632)
+        XCTAssertEqual(width("7"), 0.632, "every digit alike")
+        XCTAssertEqual(width(" "), 0.316)
+        XCTAssertEqual(width("-"), 0.579)
+        XCTAssertEqual(width("t"), 0.374)
+        XCTAssertEqual(width("M"), 0.861)
+        XCTAssertNil(OfficeFonts.face("Arial", eastAsian: false)?.advances, "Arial is its stand-in's own width")
+    }
+
     func testMathPresetsDrawAsOnePiece() {
         let r = Rect.fromLTWH(0, 0, 200, 200)
         for name in ["mathEqual", "mathNotEqual", "mathMultiply", "mathDivide"] {
