@@ -532,6 +532,16 @@ any non-East-Asian letter or digit. bug65649 99.8%, form_footnotes 97.7.
 Next in bug65649: p122, its lines 3-4pt under Word's from "сотрудниками
 объекта единовременно." on (not looked into).
 
+### T33. bug65649: a list number's size sets its line's height above only
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: bug65649 (p122's "3.1.x." paragraphs, 14pt numbers over
+12pt text).
+Known: Word's first line of such a paragraph stands 15.72 under the
+line above (the 14pt number's height above the baseline) and the next
+line 13.8 under it (the 12pt text's depth below). Ours makes the first
+line a whole 14pt line (b879226a's zero-width space), 0.45pt deeper:
+each numbered paragraph adds that, 3pt by the page's foot.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
