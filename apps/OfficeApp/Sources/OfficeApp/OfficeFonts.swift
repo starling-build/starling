@@ -692,7 +692,12 @@ enum OfficeFonts {
             return EastAsianFace(height: 1.36, latin: sans, latinScale: 0.955, latinClasses: [0.992, 0.927, 1.021, 0.91],
                                  latinAdvances: dengXianAdvances, latinBoldAdvances: dengXianBoldAdvances, fakeBold: false, baseline: 1.01)
         }
-        if has("pmingliu", "新細明體") { return EastAsianFace(height: 1.3, latin: serif, latinScale: 0.94, fakeBold: true) }
+        // (Not 1.3 em but 1332/1024 — 1.3 of its 1024-unit em, rounded
+        // up to a whole unit: Word fits 48 lines of 12pt to a page only
+        // with 8..12 twips over 48 x 312, and 24 lines of 24pt with the
+        // same over 24 x 624 — labs `ln`, `lb`, Word 16, 2026-10-16. The
+        // 0.2 twip a line kept zh-e061a08e's page 1 a line long.)
+        if has("pmingliu", "新細明體") { return EastAsianFace(height: 1332.0 / 1024.0, latin: serif, latinScale: 0.94, fakeBold: true) }
         if has("stzhongsong", "华文中宋") {
             // (hhea 1.007 + .318, OS/2 win .912 + .225: 105.3pt a line at
             // 61pt, and 90.2 at 34% of its width.)
@@ -780,7 +785,7 @@ enum OfficeFonts {
     /// so letters and digits keep their widths and the lines their breaks.
     private static func serifIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {
         #if os(Linux)
-        guard ea.height == square.height else { return nil }
+        guard abs(ea.height - square.height) < 0.01 else { return nil }
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
         if has("mincho", "明朝") { return "Noto Serif CJK JP" }

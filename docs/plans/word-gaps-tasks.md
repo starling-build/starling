@@ -869,7 +869,7 @@ Each needs Word or is in an area the Mac has worked; claim here first.
 - zh-e061a08e p1 foot: our last body line overlaps the footer by 0.2pt
   and stays (whole-pixel line boxes?); Word sends it over — the 0.24pt
   raster question.
-  **Claimed by 01Xgpbk5 (Mac), 2026-10-16; cause measured.** Not the
+  **Measured by 01Xgpbk5 (Mac), 2026-10-16; released.** Not the
   footer and not the print's 0.24pt raster: Word's PMingLiU line is
   1332/1024 em (1.3 of its 1024-unit em rounded up to a unit), not 1.3 —
   labs `ln` (12pt: 48 lines fit with 8..12 twips over 48 x 312) and `lb`
@@ -878,6 +878,17 @@ Each needs Word or is in an area the Mac has worked; claim here first.
   with or without the footer). SimSun is the other way: lab `ls`, 48 lines
   of 12pt fit in 24 twips under 48 x 312, so about 1.297 em — not built,
   no corpus document has natural-height 12pt SimSun lines to score it.
+  Built: PMingLiU at 1332/1024 em (no score moved). It cannot reach the
+  page foot as it is: skparagraph rounds each line's height to a whole
+  pixel (`InternalLineMetrics::height`, `::round(descent - ascent +
+  leading)`; a pixel is a twip in the PDF export), so 312.19 is laid
+  out as 312. Tried and reverted: counting the rounded-away fraction in
+  the fit tests (sum of ascent + descent - height per line). On page 1
+  it came to 4 twips, not Word's 8-9: lines with Times digits and the
+  exact-height title lines round the other way (-0.5 a line), and
+  `w:beforeLines` 0.12pt is laid out as 2 twips, not 2.4. Settling it
+  means skparagraph keeping fractional line heights (an engine patch,
+  every platform), not a Swift-side tally. Released.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
