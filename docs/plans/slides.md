@@ -2014,6 +2014,19 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Latin text parted at spaces and hyphens, 2026-10-16** (sweep 103:
+tdf149551_SmartArt_Pyramid 1.33 → 1.18, _Gear 0.57 → 0.45, _Pie 0.59 →
+0.51, cooper 5.16 → 5.11, customGeo 4.24 → 4.22; none worse).
+PowerPoint parts Latin text where Word does — at spaces and after
+hyphens — and not after a slash or a closing bracket, where the engine
+may by Unicode's rules: customGeo's ".../knowledge-" breaks at the
+hyphen, its "articles/#articles-by-…" stays whole. Word's rule
+(`_joinsLatin`, word joiners where the engine would part) is now its
+own switch in the shared layout, `RichTextTheme.officeLatinBreaks`, on
+for slides; `wordRules` implies it, so Word is as it was. (60810's
+"PROGRAMMES/R200" now moves down whole, but the line is still 0.4 pt
+too wide to stay up.)
+
 **A table cell's numbers, 2026-10-16** (customGeo's crosswalk slide).
 A numbered paragraph in a table cell showed "1." whatever its
 `startAt`: the runs of numbers (`_numberRuns`) were worked out for a

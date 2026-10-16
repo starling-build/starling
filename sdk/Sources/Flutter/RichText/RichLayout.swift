@@ -87,6 +87,12 @@ public final class RichTextTheme {
     /// out as the engine sets it (and PowerPoint's indent places the
     /// bullet, which `markersAtHang` handles).
     public var wordRules = false
+    /// Latin text parted at spaces and after hyphens alone, as Office
+    /// parts it — not after a slash or a closing bracket, where the
+    /// engine, by Unicode's rules, may: PowerPoint keeps
+    /// "PROGRAMMES/R200" and ".../articles/#articles-by-..." whole on
+    /// their lines. Implied by `wordRules`; on alone for slides.
+    public var officeLatinBreaks = false
 
     /// Each face's natural line height as a multiple of its size (ascent,
     /// descent and line gap — Calibri's 1.22, Arial's 1.15), measured once:
@@ -4753,7 +4759,8 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, let b = before, Self.joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
+                } else if theme.wordRules || theme.officeLatinBreaks, let b = before,
+                          Self.joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
