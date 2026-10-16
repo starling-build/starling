@@ -5222,8 +5222,12 @@ public final class RichLayout {
                 // A zero-width space in the run's style before it, one
                 // more character in the painter's text — only where the
                 // picture stands alone between breaks, and is narrower
-                // than the line: chartex's chart, as wide as its column,
-                // went to the next line after the space.)
+                // than the line (chartex's chart, as wide as its column,
+                // went to the next line after the space) and shorter than
+                // a line of the text: a taller one's line is its own
+                // height, with no depth of the text under it — the
+                // masthead's 12.8pt picture between two breaks is a line
+                // of 12.7 in Word's print, the band 9.8 + 12.7 + 9.8.)
                 let at = pos - run.length
                 let units = p.text.utf16
                 func breaks(_ k: Int) -> Bool {
@@ -5232,8 +5236,26 @@ public final class RichLayout {
                 }
                 if theme.wordRules, image.float == nil, w < textWidth - 1,
                    at == 0 || breaks(at - 1), pos >= units.count || breaks(pos) {
-                    children.append(TextSpan(text: "\u{200B}", style: style))
-                    inserts.append(at)
+                    // (In the text's own style: the picture's run keeps no
+                    // look of its own, the break beside it does — the
+                    // masthead's 8.5pt Arial, where the paragraph's is
+                    // 12pt Times.)
+                    var line = style
+                    var k = 0
+                    for r in p.runs {
+                        if r.length > 0, k <= (pos < units.count ? pos : at - 1), (pos < units.count ? pos : at - 1) < k + r.length, r.style.inlineImage == nil {
+                            line = theme.textStyle(for: r.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                            break
+                        }
+                        k += r.length
+                    }
+                    let probe = TextPainter(text: TextSpan(text: "\u{200B}", style: line), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: .infinity)
+                    if h < probe.height {
+                        children.append(TextSpan(text: "\u{200B}", style: line))
+                        inserts.append(at)
+                    }
+                    probe.dispose()
                 }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic, baselineOffset: size.height)))

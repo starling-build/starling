@@ -3147,11 +3147,19 @@ fitter dropped the paragraph's tail).
   the placeholder's height, and ours was 17pt — every masthead 5pt
   short and the article under it high. A picture in the text that stands
   alone between breaks (or the paragraph's ends) and is narrower than
-  the line now has a zero-width space in its run's style before it.
-  Only there: before every inline picture, chartex's chart (as wide as
-  its column, a space after it) went to the next line after the space,
-  and zh-9c5d0c3f's road signs in cells moved 6-8pt. drawing 87.4% ->
-  89.7; nothing else moved.
+  the line, and shorter than a line of its text, now has a zero-width
+  space before it in the style of the break beside it (the picture's
+  run keeps no look of its own: the masthead's breaks are 8.5pt Arial,
+  the paragraph 12pt Times, and in the paragraph's style the band came
+  out 43pt). A taller picture's line is its own height, with no depth
+  of the text under it: the 12.8pt banner between two breaks is a line
+  of 12.7 in Word's print. The band is now 33.6 and the dark one under
+  it 55.5 (Word's 32.2 and 55.0). Only alone: before every inline
+  picture, chartex's chart (as wide as its column, a space after it)
+  went to the next line after the space, and zh-9c5d0c3f's road signs
+  in cells moved 6-8pt. drawing 87.4% -> 89.7; nothing else moved. Its
+  page 9 still stands 20pt low: the masthead starts that much under
+  Word's, from the empty paragraphs above it (not looked into).
 
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins

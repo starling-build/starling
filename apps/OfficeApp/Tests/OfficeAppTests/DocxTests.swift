@@ -1449,9 +1449,9 @@ final class DocxTests: XCTestCase {
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
         let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 12)
         theme.wordRules = true
-        func lineHeight(_ text: String, width: Double = 1, wordRules: Bool = true) throws -> Double {
+        func lineHeight(_ text: String, width: Double = 1, height: Double = 1.5, wordRules: Bool = true) throws -> Double {
             var p = RichParagraph(text: text)
-            let image = ImageAttachment(data: png, width: width, height: 1.5)
+            let image = ImageAttachment(data: png, width: width, height: height)
             p.inlineImages[image.id] = image
             let at = (text as NSString).range(of: RichParagraph.inlineImageCharacter).location
             p.applyStyle(at ..< at + 1) { $0.inlineImage = image.id }
@@ -1466,6 +1466,9 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThan(alone, 10, "a line of 12pt text at least, not the picture's 1.5pt")
         XCTAssertLessThan(try lineHeight(RichParagraph.inlineImageCharacter, wordRules: false), 3, "outside Word's rules, the picture's own")
         XCTAssertLessThan(try lineHeight(RichParagraph.inlineImageCharacter, width: 400), 3, "nor one as wide as the line")
+        // (A picture taller than a line of the text is its line's height,
+        // with no depth of the text under it: the masthead's 12.8pt one.)
+        XCTAssertEqual(try lineHeight(RichParagraph.inlineImageCharacter, height: 30), 30, accuracy: 0.8)
     }
 
     func testRowPropertyExceptionsKept() throws {
