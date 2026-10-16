@@ -235,6 +235,28 @@ struct Chart: Equatable {
     var areaLine: Color? = nil
     var areaLineWidth: Double? = nil
     var areaNoLine = true
+    /// A pie's or doughnut's labels where the file asks more of them than
+    /// their values inside the slices (`c:dLbls`): what they say — series,
+    /// category, value, percent, joined by the separator — whether they
+    /// stand outside (`outEnd`, `bestFit`), each point's own move
+    /// (`c:dLbl/c:layout`, fractions of the chart's frame), their box and
+    /// their leader lines. nil: the plain labels `dataLabels` asks for.
+    struct PieLabels: Equatable {
+        var series = false, category = false, value = false, percent = false
+        var separator: String? = nil
+        var outside = false
+        var moves: [Int: [Double]] = [:]
+        /// A point's own text size, from its label's own rich text.
+        var sizes: [Int: Double] = [:]
+        var fill: Color? = nil
+        var line: Color? = nil
+        var lineWidth = 0.75
+        var leaders = false
+        var leaderColor: Color? = nil
+        var leaderWidth = 0.75
+    }
+    var pieLabels: PieLabels? = nil
+
     /// The value axis draws its gridlines (`c:majorGridlines`).
     var valueGrid = true
     /// An axis the file deletes (`c:delete`): no labels, no room for them.
@@ -566,6 +588,38 @@ enum ChartXML {
         }
         c.dataLabels = shows(el.first("c:dLbls")) || el.all("c:ser").contains { shows($0.first("c:dLbls")) }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
+        if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
+            func on(_ n: XNode?, _ name: String) -> Bool { ["1", "true"].contains(n?.first(name)?["val"] ?? "") }
+            var l = Chart.PieLabels()
+            l.series = on(d, "c:showSerName"); l.category = on(d, "c:showCatName")
+            l.value = on(d, "c:showVal"); l.percent = on(d, "c:showPercent")
+            l.separator = d.first("c:separator")?.text
+            let pos = d.first("c:dLblPos")?["val"]
+            l.outside = pos == "outEnd" || pos == "bestFit"
+            for one in d.all("c:dLbl") {
+                guard let i = one.first("c:idx")?["val"].flatMap(Int.init) else { continue }
+                if one.first("c:dLblPos").map({ ["outEnd", "bestFit"].contains($0["val"] ?? "") }) == true { l.outside = true }
+                if let sz = one.first("c:tx")?.descendant("a:rPr")?["sz"].flatMap(Double.init) { l.sizes[i] = sz / 100 }
+                if let m = one.first("c:layout")?.first("c:manualLayout"),
+                   let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
+                    l.moves[i] = [x, y]
+                }
+            }
+            if let sp = d.first("c:spPr") {
+                if let f = sp.first("a:solidFill") { l.fill = color(f) }
+                if let ln = sp.first("a:ln"), let f = ln.first("a:solidFill") {
+                    l.line = color(f)
+                    l.lineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+                }
+            }
+            l.leaders = on(d, "c:showLeaderLines")
+            if let ln = (d.first("c:leaderLines") ?? d.descendant("c15:leaderLines"))?.first("c:spPr")?.first("a:ln") {
+                if let f = ln.first("a:solidFill") { l.leaderColor = color(f) }
+                l.leaderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+            }
+            // Only what the plain labels do not already draw.
+            if l.series || l.category || l.percent || l.outside || !l.moves.isEmpty || l.fill != nil { c.pieLabels = l }
+        }
         if type == .radar { c.radarFilled = el.first("c:radarStyle")?["val"] == "filled" }
         if el.name == "c:bar3DChart" {
             let v = chart.first("c:view3D")
@@ -1092,7 +1146,7 @@ enum ChartPainter {
                 p.color = f
                 canvas.drawRect(inner, p)
             }
-            _pie3D(c, canvas, inner, tilt: tilt, k: k, theme: theme)
+            _pie3D(c, canvas, inner, tilt: tilt, k: k, theme: theme, frame: r, ink: ink)
         } else if pie {
             if let f = c.plotFill {
                 // A pie's plot is the square it stands in.
@@ -1101,7 +1155,7 @@ enum ChartPainter {
                 p.color = f
                 canvas.drawRect(Rect.fromCircle(center: area.center, radius: min(area.width, area.height) / 2), p)
             }
-            _pie(c, canvas, area, k: k, theme: theme, text: text)
+            _pie(c, canvas, area, k: k, theme: theme, text: text, frame: r, ink: ink)
         } else {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, grid: c.gridColor ?? grid, text: text,
                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) },
@@ -1698,7 +1752,7 @@ enum ChartPainter {
     }
 
     private static func _pie(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,
-                             text: (String, Double, Double) -> TextPainter) {
+                             text: (String, Double, Double) -> TextPainter, frame: Rect? = nil, ink: Color? = nil) {
         let values = c.series[0].values.map { max(0, $0 ?? 0) }
         let sum = values.reduce(0, +)
         guard sum > 0 else { return }
@@ -1718,6 +1772,7 @@ enum ChartPainter {
         edge.strokeWidth = max(0.5, 1.5 * k)
         edge.color = theme.background
         var labels: [(String, Offset, Color)] = []
+        var placed: [(index: Int, mid: Double, value: Double, color: Color)] = []
         // A doughnut's wedges are rings: the hole shows what is behind.
         let hole = c.type == .doughnut ? radius * Double(max(0, min(90, c.holeSize))) / 100 : 0
         let inner = Rect.fromCircle(center: centre, radius: hole)
@@ -1740,9 +1795,13 @@ enum ChartPainter {
             let at = hole > 0 ? (radius + hole) / 2 : radius * 0.7
             labels.append((dataLabel(c, c.series[0].values[i] ?? 0),
                            Offset(centre.dx + cos(mid) * at, centre.dy + sin(mid) * at), color))
+            placed.append((i, mid, v, color))
             angle += sweep
         }
-        if c.dataLabels {
+        if let l = c.pieLabels {
+            _pieLabels(c, l, canvas, frame: frame ?? area, slices: placed, centre: centre, rx: radius, ry: radius, inner: hole,
+                       k: k, theme: theme, ink: ink ?? theme.text)
+        } else if c.dataLabels {
             for (s, at, wedge) in labels {
                 // Inside the wedge: white on a dark one, ink on a light one.
                 let v = wedge.value
@@ -1882,7 +1941,8 @@ extension ChartPainter {
     /// tall as wide, the rim 0.228 of the radius deep, filling 94% of the
     /// plot's width or 97% of its height, the rim 0.575 of the colour at
     /// the front and 0.875 at the sides.
-    static func _pie3D(_ c: Chart, _ canvas: any Canvas, _ plot: Rect, tilt: Double, k: Double, theme: DeckTheme) {
+    static func _pie3D(_ c: Chart, _ canvas: any Canvas, _ plot: Rect, tilt: Double, k: Double, theme: DeckTheme,
+                       frame: Rect? = nil, ink: Color? = nil) {
         let values = c.series[0].values.map { max(0, $0 ?? 0) }
         let sum = values.reduce(0, +)
         guard sum > 0 else { return }
@@ -1951,7 +2011,17 @@ extension ChartPainter {
             canvas.drawPath(p, fill)
             canvas.drawPath(p, edge)
         }
-        if c.dataLabels {
+        if let l = c.pieLabels {
+            var placed: [(index: Int, mid: Double, value: Double, color: Color)] = []
+            var a = -Double.pi / 2
+            for (i, v) in values.enumerated() where v > 0 {
+                let sweep = v / sum * 2 * .pi
+                placed.append((i, a + sweep / 2, v, c.pointColor(i, accents: theme.accents)))
+                a += sweep
+            }
+            _pieLabels(c, l, canvas, frame: frame ?? plot, slices: placed, centre: centre, rx: rx, ry: ry, inner: 0,
+                       k: k, theme: theme, ink: ink ?? theme.text)
+        } else if c.dataLabels {
             for s in slices {
                 let mid = (s.from + s.to) / 2
                 let pt = Offset(centre.dx + cos(mid) * rx * 0.7, centre.dy + sin(mid) * ry * 0.7)
@@ -1964,6 +2034,92 @@ extension ChartPainter {
                 tp.paint(canvas, Offset(pt.dx - tp.width / 2, pt.dy - tp.height / 2))
                 tp.dispose()
             }
+        }
+    }
+
+    /// A pie's or doughnut's labels as `Chart.pieLabels` sets them: each
+    /// at its slice's middle — outside the pie, beside it, for `outEnd`
+    /// and `bestFit`, else halfway into the slice (the ring, for a
+    /// doughnut) — moved by its own layout's fraction of the chart's
+    /// frame, in its box, and tied to its slice by a leader line once it
+    /// has left it. `slices`: each point's index, middle angle, value and
+    /// colour; `rx`, `ry` the pie's radii (`ry` smaller when tilted),
+    /// `inner` the doughnut's hole's.
+    static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
+                           slices: [(index: Int, mid: Double, value: Double, color: Color)],
+                           centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color) {
+        let sum = slices.reduce(0) { $0 + $1.value }
+        guard sum > 0 else { return }
+        for s in slices {
+            let size = max(3, (l.sizes[s.index] ?? c.series[0].labelSize ?? c.baseTextSize) * k)
+            var parts: [String] = []
+            if l.series { parts.append(c.series[0].name) }
+            if l.category, s.index < c.categories.count { parts.append(c.categories[s.index]) }
+            if l.value { parts.append(dataLabel(c, s.value)) }
+            if l.percent {
+                let share = s.value / sum
+                if let code = c.labelFormat, code.contains("%") {
+                    parts.append(NumberFormat.format(share, code, width: 40).text.trimmingWhitespace())
+                } else { parts.append("\(Int((share * 100).rounded()))%") }
+            }
+            guard !parts.isEmpty else { continue }
+            let text = parts.joined(separator: l.separator ?? (parts.count > 1 ? "; " : ""))
+            let dark = { () -> Bool in
+                let v = s.color.value
+                return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
+            }()
+            let colour = c.series[0].labelColor ?? (l.outside || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
+            let tp = TextPainter(text: TextSpan(text: text, style: Flutter.TextStyle(
+                color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
+                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))), textAlign: .center, textDirection: .ltr)
+            // (Excel wraps a long label at about a fifth of the chart's width:
+            // 45544's "Finance - Investment Banking" is three lines.)
+            tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2))
+            let pad = 3 * k
+            let w = tp.width + pad * 2, h = tp.height + pad
+            let dx = cos(s.mid), dy = sin(s.mid)
+            // Where the label stands before its own move: its box's middle.
+            var at: Offset
+            if l.outside {
+                let gap = 4 * k
+                let edge = Offset(centre.dx + dx * rx, centre.dy + dy * ry)
+                at = Offset(edge.dx + dx * gap + (dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * gap + dy * h / 2)
+            } else {
+                let r = inner > 0 ? (rx + inner) / 2 : rx * 0.7
+                at = Offset(centre.dx + dx * r, centre.dy + dy * r * (ry / max(rx, 1)))
+            }
+            let moved = l.moves[s.index]
+            if let m = moved { at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height) }
+            let box = Rect.fromLTWH(at.dx - w / 2, at.dy - h / 2, w, h)
+            // The leader: from the slice's outer edge to the box's nearest
+            // point, where the label has left its slice.
+            if l.leaders, moved != nil || l.outside {
+                let from = Offset(centre.dx + dx * rx, centre.dy + dy * ry)
+                let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
+                if hypot(to.dx - from.dx, to.dy - from.dy) > 2 * k {
+                    let p = Paint()
+                    p.style = .stroke
+                    p.isAntiAlias = true
+                    p.strokeWidth = max(0.5, l.leaderWidth * k)
+                    p.color = l.leaderColor ?? ink
+                    canvas.drawLine(from, to, p)
+                }
+            }
+            if let f = l.fill {
+                let p = Paint()
+                p.style = .fill
+                p.color = f
+                canvas.drawRect(box, p)
+            }
+            if let line = l.line {
+                let p = Paint()
+                p.style = .stroke
+                p.strokeWidth = max(0.5, l.lineWidth * k)
+                p.color = line
+                canvas.drawRect(box, p)
+            }
+            tp.paint(canvas, Offset(box.left + pad, box.top + pad / 2))
+            tp.dispose()
         }
     }
 }
