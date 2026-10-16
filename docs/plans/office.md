@@ -3139,6 +3139,20 @@ fitter dropped the paragraph's tail).
   shapes-with-text 62.5% -> 100, zh-06c46ba9 +0.2; 60316 as it was.
   Boxes side by side whose texts overlap in height still stack.
 
+- **A line holding a picture alone is as tall as its text (2026-10-16,
+  Linux).** drawing.docx's article mastheads end in a cell of tiny
+  pictures between line breaks in 8.5pt Arial ("0.8x1.5pt, br,
+  161x12.8, br, 0.8x2.2"): Word's band is 32pt, each line a line of
+  that text at least; the engine's line holding a placeholder alone is
+  the placeholder's height, and ours was 17pt — every masthead 5pt
+  short and the article under it high. A picture in the text that stands
+  alone between breaks (or the paragraph's ends) and is narrower than
+  the line now has a zero-width space in its run's style before it.
+  Only there: before every inline picture, chartex's chart (as wide as
+  its column, a space after it) went to the next line after the space,
+  and zh-9c5d0c3f's road signs in cells moved 6-8pt. drawing 87.4% ->
+  89.7; nothing else moved.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

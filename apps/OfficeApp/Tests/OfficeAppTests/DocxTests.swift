@@ -1441,6 +1441,33 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(box.insetLeft, 0)
     }
 
+    func testALineOfALonePictureIsAsTallAsItsText() throws {
+        // drawing.docx: its mastheads' tiny pictures between line breaks
+        // in 8.5pt Arial make a band 32pt tall in Word's print — each line
+        // a line of the text at least — where ours took each picture's
+        // height alone, 17pt in all.
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 12)
+        theme.wordRules = true
+        func lineHeight(_ text: String, width: Double = 1, wordRules: Bool = true) throws -> Double {
+            var p = RichParagraph(text: text)
+            let image = ImageAttachment(data: png, width: width, height: 1.5)
+            p.inlineImages[image.id] = image
+            let at = (text as NSString).range(of: RichParagraph.inlineImageCharacter).location
+            p.applyStyle(at ..< at + 1) { $0.inlineImage = image.id }
+            let t = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 12)
+            t.wordRules = wordRules
+            let layout = RichLayout(theme: t, paragraphCount: 1)
+            layout.width = 400
+            layout.ensureLaidOut(RichDocument(paragraphs: [p]))
+            return try XCTUnwrap(layout.geometry(0).painter.computeLineMetrics().first).height / theme.pixelsPerPoint
+        }
+        let alone = try lineHeight(RichParagraph.inlineImageCharacter)
+        XCTAssertGreaterThan(alone, 10, "a line of 12pt text at least, not the picture's 1.5pt")
+        XCTAssertLessThan(try lineHeight(RichParagraph.inlineImageCharacter, wordRules: false), 3, "outside Word's rules, the picture's own")
+        XCTAssertLessThan(try lineHeight(RichParagraph.inlineImageCharacter, width: 400), 3, "nor one as wide as the line")
+    }
+
     func testRowPropertyExceptionsKept() throws {
         // form_footnotes: a row that rules itself (w:tblPrEx) over the table.
         var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")

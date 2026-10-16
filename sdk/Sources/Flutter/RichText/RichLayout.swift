@@ -5169,6 +5169,27 @@ public final class RichLayout {
                 // the emblem beside them, not on its foot.)
                 let centred = theme.wordRules && p.style.eastAsian["w:textAlignment"] == "center" && image.float == nil
                 let alignment = centred ? PlaceholderAlignment.middle : PlaceholderAlignment.baseline
+                // (And its line as tall as its run's text: Word's line that
+                // holds a picture alone is a line of that text at least —
+                // drawing.docx's mastheads, tiny pictures between line
+                // breaks in 8.5pt Arial, are a band 32pt tall in its print
+                // where each of ours was its picture's height, 17 in all.
+                // A zero-width space in the run's style before it, one
+                // more character in the painter's text — only where the
+                // picture stands alone between breaks, and is narrower
+                // than the line: chartex's chart, as wide as its column,
+                // went to the next line after the space.)
+                let at = pos - run.length
+                let units = p.text.utf16
+                func breaks(_ k: Int) -> Bool {
+                    let u = units[units.index(units.startIndex, offsetBy: k)]
+                    return u == 0x0A || u == 0x2028 || u == 0x0B
+                }
+                if theme.wordRules, image.float == nil, w < textWidth - 1,
+                   at == 0 || breaks(at - 1), pos >= units.count || breaks(pos) {
+                    children.append(TextSpan(text: "\u{200B}", style: style))
+                    inserts.append(at)
+                }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic, baselineOffset: size.height)))
                 continue
