@@ -2014,6 +2014,12 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A cell's runs kerned, 2026-10-16** (55 table decks: cooper 4.73 →
+4.54, bnc910045 0.42 → 0.24, table_test2 −0.08, nine more −0.01 to
+−0.04; aptia +0.01). A table cell's runs now read `kern` as a text
+box's do (PowerPoint's masters say 12 pt), and are kerned on the
+eighth-point grid from that size up.
+
 **Tahoma Bold and Franklin Gothic spaced, and a cell's runs too,
 2026-10-16** (sweep 113: 1.135 → 1.133%, six decks better, none worse;
 bnc862510_7 1.34 → 0.90, table-with-different-font-colors 1.47 → 1.29,

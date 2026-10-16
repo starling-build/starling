@@ -1967,6 +1967,8 @@ private struct SlideContext {
                             bold: s.bold ?? false, italic: s.italic ?? false, underline: s.underline ?? false,
                             fontFamily: _font(s.font), fontSize: s.size ?? 18,
                             color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
+                        // (Kerned from the size `kern` says up, as a text box's runs.)
+                        if let k = s.kern, k > 0 { runs[runs.count - 1].style.kerningFrom = k }
                         Self.faceSpacing(&runs[runs.count - 1].style)
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
