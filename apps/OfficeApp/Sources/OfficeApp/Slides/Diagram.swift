@@ -156,12 +156,6 @@ final class DgmPresNode {
     /// The node a size was taken from (a space 0.14 as wide as its
     /// neighbour follows the neighbour when that shrinks).
     var sizeRef: [String: String] = [:]
-    /// Sizes a constraint left unbounded (`val="INF"`): they take what is
-    /// left over in a line.
-    var unbounded: Set<String> = []
-    /// Grown past its contents by its parent's line: its own children fill
-    /// it across.
-    var fillCross = false
     /// Its height capped by its own width (`h` ≤ a share of `w`): a box
     /// whose text the layout shrinks to fit (accent-process's heading).
     var heightCappedByWidth = false
@@ -661,8 +655,8 @@ struct DiagramLayout {
                     if t === node, op == "equ" { t.selfSet.insert(type) }
                 }
             } else if c["val"] == "INF" {
-                // No bound at all: the contents' size, and any room to spare.
-                for t in ts { t.unbounded.insert(type) }
+                // No bound at all: the contents' size (no room to spare —
+                // `layoutLinear`).
             } else if c["val"] == nil, Self.margins.contains(type) {
                 // A margin named with no value is the schema's 0 — not the
                 // default a margin no constraint names gets (`textBody`).
@@ -866,7 +860,7 @@ struct DiagramLayout {
             }
             var p = size(c, P, within: availP)
             var s = c.isSpace || c.isConnector ? (c.vals[S] ?? availS)
-                : (node.fillCross ? availS : min(size(c, S, within: availS), availS))
+                : min(size(c, S, within: availS), availS)
             // A size following the other (h = 0.6 w) stays in step, and
             // within the slot.
             if let d = c.derived[S], d.ref == P { s = p * d.fact; if s > availS { s = availS; p = s / d.fact } }
@@ -892,20 +886,12 @@ struct DiagramLayout {
                 if c.isSpace || c.isConnector { continue }
                 if let d = c.derived[S], d.ref == P { secondary[i] = min(availS, primary[i] * d.fact) }
             }
-        } else if sum < availP - 0.01 {
-            // Room to spare goes to the children allowed to grow without
-            // bound (`rule type="h" val="INF"`), shared equally.
-            let growers = node.children.indices.filter { i in
-                node.children[i].unbounded.contains(P) || node.children[i].rules.contains { $0["type"] == P && $0["val"] == "INF" }
-            }
-            if !growers.isEmpty {
-                let extra = (availP - sum) / Double(growers.count)
-                for i in growers {
-                    primary[i] += extra
-                    if node.children[i].shapeType == nil { node.children[i].fillCross = true }
-                }
-            }
         }
+        // (Room to spare is not handed to the children a rule lets grow
+        // without bound, `rule type="h" val="INF"`: the rule lets them grow
+        // for their text, and PowerPoint sets list1's one short item at
+        // its constraints' 0.82 and 0.7 × 65 mm, centred, where shared out
+        // it filled the frame — vertical-box-list, linear-rule-vert.)
         let total = primary.reduce(0, +)
         let align = horizontal ? (node.params["horzAlign"] ?? "ctr") : (node.params["vertAlign"] ?? "mid")
         var cursor: Double

@@ -2014,6 +2014,16 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A diagram line keeps its spare room, 2026-10-16**
+(smartart-vertical-box-list 5.88 → 0.19, smartart-linear-rule-vert
+3.97 → 0.11; the other 71 diagram decks unchanged). A line no longer
+shares the room it has to spare among the children a rule lets grow
+without bound (`rule type="h" val="INF"`, `constr val="INF"`): that
+rule is leave to grow for text, and PowerPoint sets list1's one short
+item at its constraints — the box 0.82 × 65 mm, the body 0.7 × 65,
+overlapping by half the box — centred in the frame, where we had
+stretched both to fill it.
+
 **Tried and dropped, 2026-10-16:** an unknown face (Work Sans,
 Poppins) set in Liberation Sans again on slides rather than in the
 Cambria clone the shared substitution now gives every name it does not

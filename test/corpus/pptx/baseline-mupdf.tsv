@@ -197,7 +197,7 @@ lo-smartart-data-follow.pptx	summary pages=1 worst=0.89% mean=0.89%
 lo-smartart-dir.pptx	summary pages=1 worst=0.65% mean=0.65%
 lo-smartart-font-size.pptx	summary pages=1 worst=1.10% mean=1.10%
 lo-smartart-interopgrabbag.pptx	summary pages=1 worst=0.18% mean=0.18%
-lo-smartart-linear-rule-vert.pptx	summary pages=1 worst=3.97% mean=3.97%
+lo-smartart-linear-rule-vert.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-smartart-linear-rule.pptx	summary pages=1 worst=0.48% mean=0.48%
 lo-smartart-maxdepth.pptx	summary pages=1 worst=0.62% mean=0.62%
 lo-smartart-missing-bullet.pptx	summary pages=1 worst=3.53% mean=3.53%
@@ -215,7 +215,7 @@ lo-smartart-snake-rows.pptx	summary pages=1 worst=1.09% mean=1.09%
 lo-smartart-tdf134221.pptx	summary pages=1 worst=0.08% mean=0.08%
 lo-smartart-text.pptx	summary pages=1 worst=0.27% mean=0.27%
 lo-smartart-vertical-block-list.pptx	summary pages=1 worst=0.59% mean=0.59%
-lo-smartart-vertical-box-list.pptx	summary pages=1 worst=5.88% mean=5.88%
+lo-smartart-vertical-box-list.pptx	summary pages=1 worst=0.19% mean=0.19%
 lo-smartart1.pptx	summary pages=1 worst=0.23% mean=0.23%
 lo-subtitle-animation-save.pptx	summary pages=1 worst=0.67% mean=0.67%
 lo-table-list.pptx	summary pages=1 worst=0.67% mean=0.67%
