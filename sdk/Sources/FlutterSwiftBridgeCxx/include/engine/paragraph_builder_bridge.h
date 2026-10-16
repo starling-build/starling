@@ -158,6 +158,14 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT SWIFT_SHARED_REFERENCE(
                  uint32_t background_color,
                  uint32_t foreground_color);
 
+  /// Starling: the baseline shift the NEXT PushStyle sets, in logical
+  /// pixels down from the line's baseline (negative: up) — skparagraph's
+  /// TextStyle::setBaselineShift. A raised or lowered run (a note mark)
+  /// is then drawn in its line, in reading order. Used once, by the next
+  /// PushStyle, then forgotten; a style pushed without one inherits its
+  /// parent's.
+  void SetBaselineShift(double shift);
+
   /// Starling: the paint the NEXT PushStyle's foreground is drawn with, in
   /// place of its plain colour — a gradient or picture shader, a stroke
   /// (WordArt's fills and outlines). Encoded as a canvas call's paint is;

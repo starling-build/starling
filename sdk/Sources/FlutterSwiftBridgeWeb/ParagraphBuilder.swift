@@ -512,6 +512,12 @@ extension flutter.swift_bridge {
 
         /// The paint the NEXT PushStyle's foreground is drawn with, in place
         /// of its plain colour (the native bridge's SetForegroundPaint).
+        /// The native bridge's SetBaselineShift. skwasm has no baseline
+        /// shift to set, so nothing comes of it here; the layout keeps
+        /// drawing raised runs over their line on the web
+        /// (`NativeParagraphBuilder.supportsBaselineShift`).
+        public func SetBaselineShift(_ shift: Double) {}
+
         public func SetForegroundPaint(
             _ paintData: UnsafeRawPointer?, _ shader: UnsafeRawPointer?,
             _ colorFilter: UnsafeRawPointer?, _ imageFilter: UnsafeRawPointer?

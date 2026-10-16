@@ -2238,6 +2238,7 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     fontSize: Double? = nil,
     letterSpacing: Double? = nil,
     wordSpacing: Double? = nil,
+    baselineShift: Double? = nil,
     height: Double? = nil,
     leadingDistribution: TextLeadingDistribution? = nil,
     locale: Locale? = nil,
@@ -2265,6 +2266,7 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     self.fontSize = fontSize
     self.letterSpacing = letterSpacing
     self.wordSpacing = wordSpacing
+    self.baselineShift = baselineShift
     self.height = height
     self.leadingDistribution = leadingDistribution
     self.locale = locale
@@ -2343,6 +2345,10 @@ public struct TextStyle: Hashable, CustomStringConvertible {
   ///
   /// **Dart Source:** `text.dart:1737`
   public let wordSpacing: Double?
+  /// Starling: the text's baseline moved down from the line's, in logical
+  /// pixels (negative: up) — skparagraph's TextStyle::setBaselineShift,
+  /// through the bridge's SetBaselineShift.
+  public let baselineShift: Double?
 
   /// The height of this text span, as a multiplier of the font size.
   ///
@@ -2420,6 +2426,7 @@ public struct TextStyle: Hashable, CustomStringConvertible {
       && lhs.fontSize == rhs.fontSize
       && lhs.letterSpacing == rhs.letterSpacing
       && lhs.wordSpacing == rhs.wordSpacing
+      && lhs.baselineShift == rhs.baselineShift
       && lhs.height == rhs.height
       && lhs.leadingDistribution == rhs.leadingDistribution
       && lhs.locale == rhs.locale
@@ -2455,6 +2462,7 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     hasher.combine(fontSize)
     hasher.combine(letterSpacing)
     hasher.combine(wordSpacing)
+    hasher.combine(baselineShift)
     hasher.combine(height)
     hasher.combine(decorationThickness)
     hasher.combine(locale)
@@ -4293,6 +4301,14 @@ extension ParagraphBuilder {
 /// REASON: Encoding logic is moved to C++ bridge layer. Swift passes structured
 /// data to C++, which handles encoding internally.
 public class NativeParagraphBuilder: ParagraphBuilder {
+  /// Starling: whether a style's `baselineShift` reaches the text — the
+  /// native bridge's SetBaselineShift. skwasm has no such setter.
+  #if os(WASI)
+  public static let supportsBaselineShift = false
+  #else
+  public static let supportsBaselineShift = true
+  #endif
+
   /// The C++ bridge object that wraps txt::ParagraphBuilder.
   ///
   /// **Dart Source:** `text.dart:3521`
@@ -4645,6 +4661,12 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     let height = style.height ?? 0.0
     let decorationThickness = style.decorationThickness ?? 0.0
     let locale = NativeParagraphBuilder.encodeLocale(style.locale)
+
+    // Starling: a baseline moved up or down — a superscript set in its
+    // line — goes across first, for the PushStyle below to take.
+    if let shift = style.baselineShift {
+      bridge.SetBaselineShift(shift)
+    }
 
     // Starling: a foreground that is more than a colour — a shader, a
     // stroke — goes across whole, for the PushStyle below to take.

@@ -409,7 +409,12 @@ public final class RichTextTheme {
         // A raised or lowered run holds its place in the line unseen: the
         // engine has no baseline to shift, so the layout draws it again
         // where it belongs (`_paintScripts`).
-        if scriptHidden, style.script != .normal { color = color.withOpacity(0) }
+        // (Where the bridge can shift a run's baseline, under Word's rules,
+        // the run is drawn in its line instead, shifted: a PDF then holds a
+        // note mark where it stands — "Blahdeblah¹ 1", not "Blahdeblah 1"
+        // and a "1" after the line, as copying and readers gave it.)
+        let shifted = scriptHidden && style.script != .normal && wordRules && NativeParagraphBuilder.supportsBaselineShift
+        if scriptHidden, style.script != .normal, !shifted { color = color.withOpacity(0) }
         var px = size * widen * pixelsPerPoint * scale
         if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
             // Hidden text takes no room and shows nothing, as Word prints it;
@@ -432,11 +437,19 @@ public final class RichTextTheme {
                 guard style.letterSpacing != nil || spread != 0 else { return nil }
                 return ((style.letterSpacing ?? 0) + spread) * pixelsPerPoint * scale
             }(),
+            // (Up by 0.355 of the size it was shrunk from, or down by a
+            // fifth: `_paintScripts`' measures.)
+            baselineShift: shifted ? (style.script == .superscript ? -0.355 : 0.2) * px : nil,
             // An exact line height is the same multiple of every run's own
             // size: points over size ("at least" that, or the multiple when
             // it is more). A multiple is of the face's natural line height
             // (the engine's `height` is of the size).
-            height: {
+            // (A run shifted in its line takes no line of its own: the
+            // engine would count its raised ascent, and a line with a note
+            // mark stood taller than Word's. At a hair of a height only the
+            // shift itself reaches past the baseline, and that stays
+            // inside the line the text makes.)
+            height: shifted ? 0.01 : {
                 // (The engine's `height` is of the drawn size, and a
                 // stand-in drawn larger or smaller keeps the line of the
                 // size the document names.)
@@ -5726,7 +5739,7 @@ public final class RichLayout {
         var count = 0
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
-            if t.text != nil, let style = t.style, let size = style.fontSize, let h = style.height, size > 0.5 {
+            if t.text != nil, let style = t.style, style.baselineShift == nil, let size = style.fontSize, let h = style.height, size > 0.5 {
                 count += 1
                 if let f = first, let fs = f.fontSize, let fh = f.height {
                     if tallest {
@@ -7679,6 +7692,8 @@ public final class RichLayout {
     private func _paintScripts(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
                                _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil, leading: Bool? = nil) {
         guard p.runs.contains(where: { $0.style.script != .normal }) else { return }
+        // (Drawn in their line already, shifted: `textStyle`.)
+        if theme.wordRules, NativeParagraphBuilder.supportsBaselineShift { return }
         let named = document.styles.resolve(p.style)
         let units = Array(p.text.utf16)
         var pos = 0

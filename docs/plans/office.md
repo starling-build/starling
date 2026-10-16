@@ -4326,6 +4326,21 @@ fitter dropped the paragraph's tail).
   line are now painted before it and the rest after. A mark inside a
   line still comes after its line's text, where Word's print has it in
   place. endnotes 92.9 -> 100, Bug54849 91.3 -> 100; nothing down.
+- **Raised and lowered runs are drawn in their line (2026-10-16, T48).**
+  The engine has a baseline shift now: skparagraph's
+  `TextStyle::setBaselineShift`, through `txt::TextStyle::baseline_shift`
+  and the bridge's `SetBaselineShift` (starling-engine 71811aeb), as
+  `TextStyle.baselineShift` in Swift. Under Word's rules a superscript
+  is set in its line at 0.355 of its full size up, a subscript a fifth
+  down, where it used to stand unseen and be drawn again over the line
+  (`_paintScripts`, still the web's way: skwasm has no setter,
+  `NativeParagraphBuilder.supportsBaselineShift`). A PDF then holds a
+  mark inside a line where it stands, and Bug54849's line reads
+  "Blahdeblah11" as Word's does. A shifted run is given a hair of a line
+  height and kept out of the strut: counted whole, its raised ascent
+  made every line with a note mark taller than Word's (bug59058 99.9 ->
+  62.1, bug65649 99.9 -> 92.8). Marks stand where the overlay put them,
+  to 0.03pt. zh-06c46ba9 92.6 -> 93.9; nothing down.
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints
