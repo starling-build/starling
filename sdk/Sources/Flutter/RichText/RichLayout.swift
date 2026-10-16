@@ -2817,6 +2817,17 @@ public final class RichLayout {
                     if headerRows(c.table) > 0 { repeatHeader(of: c.table, before: i) }
                     continueSpans(into: i, c)
                 }
+                // A table placed against the page that does not fit whole
+                // where it stands keeps its first row there and goes on
+                // at the next page's head: Word sets zh-6cd1befe's 26-row
+                // duty table's header row alone on page 51 and the rest
+                // on 52, where ours filled 51 from the header down.
+                if theme.wordRules, c.row == 1, c.firstInRow, y > 0.01, document.tableStyles[c.table]?.pageAnchored == true {
+                    var bottom = rowBottom
+                    var k = j
+                    while k < count, let d = _cells[k], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); k += 1 }
+                    if y + (bottom - c.rowTop) > contentH + 0.01 { newPage() }
+                }
                 let atTop = y < 0.01
                 if atTop { goOn() }
                 // A row made taller in the flow for a cell merged down

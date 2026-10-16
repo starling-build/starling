@@ -1022,6 +1022,10 @@ public struct TableStyle: Hashable, Sendable {
     /// text stands (its w:tblpY under w:vertAnchor="text"), in points:
     /// laid out in the flow, it starts that much lower.
     public var floatOffsetY: Double? = nil
+    /// A floating table placed against the page (`w:tblpPr w:vertAnchor="page"`):
+    /// where it does not fit whole, Word sets its first row alone on its page
+    /// and the rest on the next (zh-6cd1befe p51, zh-a4b0f6ea p20).
+    public var pageAnchored = false
     /// The table floats anchored to the text (w:vertAnchor="text"): in a
     /// header or footer it takes no room, and stands over the paragraph
     /// after it (`RichLayout.floatsFrames`).

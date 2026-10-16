@@ -781,6 +781,14 @@ line of the two-line "Note:" row that Word carries whole to p12.
 ### T44. zh-a4b0f6ea p20: a page-anchored floating table Word breaks after its first row — measured, released
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), again from 2026-10-16 — with zh-6cd1befe p51 (a 26-row
 page-anchored table: Word sets its header row alone on p51, the rest on p52; found by starling-bd)
+Built (partial): a page-anchored table (`TableStyle.pageAnchored`) that
+does not fit whole where it stands keeps its first row there and goes on
+at the next page's head — zh-6cd1befe's p51/p52 now part where Word's do;
+no score moved (its title and header stand ~20pt higher than Word's,
+which sets the table at its tblpY, and its p52 rows run 30pt to Word's
+25). zh-a4b0f6ea is untouched: its table fits whole in ours, and the
+paragraph before it (labs fa-fd) is what makes Word part it. Open: the
+table at its tblpY; that paragraph's part.
 Labs `fa`–`fd` (the document's last section alone, Word 16): as is, page 1
 holds the header row and "单位（盖章）" below it, the rest on page 2 —
 reproduced. Without the "单位（盖章）" paragraph that stands before the

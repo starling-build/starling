@@ -1046,6 +1046,7 @@ enum DocxFormat {
                 // A floating table's anchor (Bug54771b's title block sits at
                 // the right margin, a set distance down the page).
                 if let pos = node.first("w:tblPr")?.first("w:tblpPr") {
+                    if pos["w:vertAnchor"] == "page" { style.pageAnchored = true }
                     style.keptPosition = PptxXML.serialize(pos)
                         + (node.first("w:tblPr")?.first("w:tblOverlap").map { PptxXML.serialize($0) } ?? "")
                     if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
