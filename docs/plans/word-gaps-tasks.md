@@ -521,8 +521,20 @@ p8 ("是否存在转包、挂靠行为", continued from p7), zh-90e0cea8 p8 (the
 p19.
 Known: a vMerge cell with vAlign center whose rows go over a page break
 is centred by Word in the part on each page. Ours lifts the text by
-half of what the rows left behind would give (`lift` in the paging), and
-lands half a row low on zh-90e0cea8. Next: the lift's numbers there.
+half of what the rows left behind would give (`lift` in the paging).
+Progress (Windows): 00c7eb5f (rows counted with their rules:
+zh-90e0cea8 93.8 -> 96.6), f890c12b (a row of no cells of its own takes
+no room — zh-84702a67 from 95pt off to 5; the part of a row that parts
+inside the span is counted — zh-abe7e063 -> 100).
+Open: the span's own last row when it parts. zh-91e44bcb's "（五）不予
+处理" is centred by Word down to the first line of its parted last row
+("5.要求行政机关确认…", 5pt from ours without it); zh-6cd1befe's "事故灾难
+类" (p48) in the rows above its last ("辐射事故"), which keeps every line
+on the page in Word's print but is 44pt in ours and parts, 33pt left.
+Counting the last row's part where text goes over (centred cells set in
+the part counting as going over only if they cannot fit) still cost
+zh-6cd1befe 0.4: likely our row 22 is taller than Word's and it fits
+whole there. zh-84702a67 and zh-91e44bcb stay 5pt off (±3 to match).
 
 ### T32. A line parted after a stroke before a Cyrillic letter — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
