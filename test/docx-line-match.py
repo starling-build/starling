@@ -40,7 +40,11 @@ def mupdf_text(pdf):
     with pymupdf.open(pdf) as d:
         for i, page in enumerate(d):
             h = page.rect.height
-            for b in page.get_text("dict")["blocks"]:
+            # (Clipped glyphs too, as PDFKit reads them on the Mac: Word's
+            # print of zh-1a3c7aa0 cuts its footer's "- 28 -" at the box
+            # and still carries the last dash, and zh-6600d539 fifteen
+            # lines. Read without them the two machines disagreed.)
+            for b in page.get_text("dict", flags=pymupdf.TEXTFLAGS_DICT & ~pymupdf.TEXT_CLIP)["blocks"]:
                 for l in b.get("lines", []):
                     # (Every space, a no-break one too: the page's text
                     # names what a print set there, and ours sets some.)
