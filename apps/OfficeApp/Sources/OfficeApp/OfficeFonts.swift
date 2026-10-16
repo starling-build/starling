@@ -942,6 +942,14 @@ enum OfficeFonts {
         // half an em — a line of zh-1a3c7aa0 then had room for a digit
         // Word's has not. YaHei is the face Word for Mac sets these in.
         RichTextTheme.glyphFallback.append("Microsoft YaHei")
+        #elseif os(Linux)
+        // Chinese text, named: the engine's Linux font manager reads
+        // /usr/share/fonts but finds no face for a character itself, so
+        // with nothing named every ideograph was a missing-glyph box.
+        // Noto Sans CJK (Ubuntu's fonts-noto-cjk) is square like YaHei,
+        // its brackets and marks a full em; the rest are what other
+        // distributions carry.
+        RichTextTheme.glyphFallback += ["Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Droid Sans Fallback"]
         #endif
         #else
         // Chinese text is drawn by the system's face, which the engine
