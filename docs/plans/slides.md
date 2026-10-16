@@ -2014,6 +2014,14 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A raised run's size is a whole point, rounded up, 2026-10-16**
+(pptx2svg 5.15 → 4.98, WithMaster −0.01; the other decks with raised
+or lowered runs unchanged). PowerPoint's prints set them at 65% of the
+size rounded up to a whole point — 20 → 13, 24 → 16, 28 → 19, 32 → 21,
+34 → 23, 11 → 8 — where we set 65% exactly (15.6 for 16).
+`RichTextTheme.scriptSizeWholeUp` (shared, off for Word), and the
+raise is taken from the run's own size rather than back from 65%.
+
 **Arial Black at its own widths, 2026-10-16** (placeholder-layout-color
 0.82 → 0.61, SampleShow 1.30 → 1.19, themes unchanged). It was Arial's
 bold spaced 0.07 em a letter; it is now that bold at Arial Black's own

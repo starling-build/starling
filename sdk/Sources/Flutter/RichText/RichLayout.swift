@@ -177,6 +177,11 @@ public final class RichTextTheme {
     /// face gives (`RichResolvedFace.advances`) outside Word's rules too:
     /// PowerPoint's Lucida Sans Unicode, drawn here in a narrower face.
     public var setsFaceAdvances = false
+    /// A raised or lowered run's size is 65% of its own rounded UP to a
+    /// whole point, as PowerPoint sets it (20 → 13, 24 → 16, 28 → 19,
+    /// 32 → 21, 34 → 23, 11 → 8 in its prints), where 65% exactly is
+    /// Word's.
+    public var scriptSizeWholeUp = false
 
     public func naturalLineHeight(family: String?, bold: Bool, italic: Bool) -> Double {
         if let singleLineHeight { return singleLineHeight }
@@ -426,7 +431,8 @@ public final class RichTextTheme {
             color: color,
             // Commented text carries Word's balloon tint.
             backgroundColor: style.highlight ?? (style.comments.isEmpty ? nil : Color(0x40FFD966)),
-            fontSize: style.script == .normal ? px : px * 0.65,
+            fontSize: style.script == .normal ? px
+                : scriptSizeWholeUp ? (size * 0.65 - 1e-6).rounded(.up) * widen * pixelsPerPoint * scale : px * 0.65,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,
             letterSpacing: {
@@ -7804,7 +7810,11 @@ public final class RichLayout {
             guard run.style.script != .normal, to > from else { continue }
             let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale)
             // The size it was shrunk from (the style's is 65% of it).
-            let full = (style.fontSize ?? 0) / 0.65
+            var plain = run.style
+            plain.script = .normal
+            let full = theme.scriptSizeWholeUp
+                ? theme.textStyle(for: plain, in: p.style, named: named, normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale).fontSize ?? 0
+                : (style.fontSize ?? 0) / 0.65
             // (Measured on PowerPoint's page: 7.0 pt up and 5.0 down at 24 pt.
             // Word raises one further: 3.6pt over 10pt text and 4.08 over
             // 11 and 12pt in its prints — every note mark of endnotes,

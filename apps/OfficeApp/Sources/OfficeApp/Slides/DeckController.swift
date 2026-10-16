@@ -1356,6 +1356,7 @@ final class DeckController: ChangeNotifier {
         theme.ownDescentShare = SlideFonts.ownDescentShare   // and sets a baseline by the face named
         theme.faceResolver = SlideFonts.face                 // and sets Lucida Sans Unicode at its own widths
         theme.setsFaceAdvances = true
+        theme.scriptSizeWholeUp = true      // and sets a raised run at 65% rounded up to a whole point
         theme.marksEmptyListItems = false   // PowerPoint shows no bullet on an empty paragraph
         theme.markersAtHang = true          // and puts the bullet at marL + indent
         theme.singleLineHeight = 1.2        // spaces lines by the size, not the face
