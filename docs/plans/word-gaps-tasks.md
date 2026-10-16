@@ -1171,7 +1171,14 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   fitting counts both spaces (traced with STARLING_RICHTEXT_FIT); a word
   joiner or a box of no width ahead of them moved nothing but 0.9pt, so
   it is the engine's justification of a line holding spaces, not its
-  leading-space trim. Not built.
+  leading-space trim. Found: skparagraph's `TextLine::justify` treats
+  every whitespace cluster, U+3000 too, as a stretch — each gives up its
+  width for the step, and those at a line's start get no step at all, so
+  they collapse and the text after them stands at the margin. Word keeps
+  U+3000 an em like an ideograph. The fix is a few lines there (count a
+  U+3000 cluster as ideographic in both loops), but Skia is pinned to
+  upstream by DEPS with no fork of ours, so it waits on that decision.
+  Any justified Chinese line with a "　" inside it is narrowed the same way.
 - Also there, p19: a vMerge cell (vAlign center) whose rows part over
   pages; Word starts its first page's lines 10pt lower than ours. Not
   measured.
