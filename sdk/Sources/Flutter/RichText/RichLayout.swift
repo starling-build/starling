@@ -2852,7 +2852,12 @@ public final class RichLayout {
                         let d = _cells[g.first]!
                         guard d.rowSpan > 1, !d.vertical, d.verticalAlign == "center" || d.verticalAlign == "bottom" else { continue }
                         var part = 0.0, r = c.row
-                        while r < c.row + d.rowSpan, let h = heights[r], part + h <= contentH - y + 0.01 { part += h; r += 1 }
+                        // (A row fits with its rule under it, as the rows
+                        // are set below: zh-90e0cea8's "行政审批各阶段帮办服务
+                        // 内容" was centred over a thirteenth row that fits
+                        // page 8 only without its line, and goes over — half
+                        // a row, 8.6pt, under Word's.)
+                        while r < c.row + d.rowSpan, let h = heights[r], part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
                         guard part > 0, part < d.rowHeight - 0.01 else { continue }
                         // (What it was given to spare over the whole span:
                         // above its text and below it, less its margins.)

@@ -3172,6 +3172,16 @@ fitter dropped the paragraph's tail).
   with the next, Word parts between "8" and "9". form_footnotes 92.0% ->
   97.7, Word's three pages; nothing else moved.
 
+- **A merged cell is centred in the rows that fit the page with their
+  rules (2026-10-16).** A centred cell merged down over rows that go
+  over a page is set in the rows on its page (2026-10-14, above). Those
+  rows were counted while each fitted without the line under it, as the
+  rows themselves are not set: zh-90e0cea8's "行政审批各阶段帮办服务内容",
+  merged over 30 rows, was centred over 13 on page 8 where the 13th,
+  16.1pt with 0.3 left, goes over with its line — half a row, 8.6pt,
+  under Word's. zh-90e0cea8 93.8% -> 96.6 (T31); nothing else moved by
+  it.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
