@@ -2014,6 +2014,22 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Pictures smoothed when enlarged, 2026-10-15** (tdf146223 37.40 →
+31.38, tdf93830 4.39 → 1.30, tdf157793 2.51 → 0.00, tdf157635 2.26 →
+0.00, tdf123684 0.69 → 0.25, croppedTo0 2.25 → 1.87, tdf153466 0.38 →
+0.03; oox-graphic-stroke +0.06). PowerPoint marks a picture
+`/Interpolate true` in its PDF when it is drawn larger than its pixels
+(183 of the 187 such in the reference prints; 4 of 3377 drawn smaller),
+so a viewer smooths it; Skia's PDF backend never does, and a 16-pixel
+icon an inch across printed as blocks. The slide export now marks every
+picture after writing (one classic cross-reference table, rewritten),
+which changes nothing for one drawn smaller. Slides only: Word's and
+Sheets' PDFs are as they were.
+tdf146223's remaining gap is PowerPoint's own decoding: its 2×2 JPEGs
+come out one flat colour (re-encoded flat in its PDF), where every
+decoder here gives four pixels; neither their average nor the DC term
+alone fits both pages (35 for a grey whose four are 0, 57, 32, 92).
+
 **Hebrew in its own face, 2026-10-15** (tdf98603 6.14 → 5.92,
 tdf125085 WordArtFontText 3.12 → 2.85; nothing else moved). Hebrew,
 Arabic and Thai letters are set in the run's `a:cs` face, else the

@@ -85,12 +85,14 @@ final class CorpusFixTests: XCTestCase {
     /// ones beside them in the run's own (tdf98603).
     func testHebrewTakesTheThemesHebrewFace() throws {
         var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
-        let themePart = try XCTUnwrap(package.parts.keys.first { $0.hasPrefix("ppt/theme/") })
-        var theme = String(data: package.parts[themePart]!, encoding: .utf8)!
-        let minor = try XCTUnwrap(theme.range(of: "<a:minorFont>"))
-        let cs = try XCTUnwrap(theme.range(of: "<a:cs typeface=\"\"/>", range: minor.upperBound ..< theme.endIndex))
-        theme.insert(contentsOf: "<a:font script=\"Hebr\" typeface=\"Times New Roman\"/>", at: cs.upperBound)
-        package.parts[themePart] = Data(theme.utf8)
+        // (Every theme part: the deck has one for its notes too.)
+        for themePart in package.parts.keys where themePart.hasPrefix("ppt/theme/") {
+            var theme = String(data: package.parts[themePart]!, encoding: .utf8)!
+            let minor = try XCTUnwrap(theme.range(of: "<a:minorFont>"))
+            let cs = try XCTUnwrap(theme.range(of: "<a:cs typeface=\"\"/>", range: minor.upperBound ..< theme.endIndex))
+            theme.insert(contentsOf: "<a:font script=\"Hebr\" typeface=\"Times New Roman\"/>", at: cs.upperBound)
+            package.parts[themePart] = Data(theme.utf8)
+        }
         var slide = String(data: package.parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
         let t = try XCTUnwrap(slide.range(of: #"<a:t>[^<]*</a:t>"#, options: .regularExpression))
         slide.replaceSubrange(t, with: "<a:t>Hi, \u{05E9}\u{05DC}\u{05D5}\u{05DD}!</a:t>")
@@ -102,5 +104,35 @@ final class CorpusFixTests: XCTestCase {
         XCTAssertEqual(p.runs.map(\.length), [4, 5])
         XCTAssertNotEqual(p.runs[0].style.fontFamily, "Times New Roman")
         XCTAssertEqual(p.runs[1].style.fontFamily, "Times New Roman", "the Hebrew word and the mark after it")
+    }
+
+    /// A slide PDF's pictures are marked to be smoothed, and the file's
+    /// cross-reference table still finds every object after the insert.
+    func testSlidePdfPicturesAreSmoothed() throws {
+        let objects = ["<</Type /Catalog>>", "<</Type /XObject\n/Subtype /Image\n/Width 2>> stream\nab\nendstream",
+                       "<</Type /XObject\n/Subtype /Image\n/Width 3>> stream\ncd\nendstream", "<</Length 0>>"]
+        var pdf = "%PDF-1.4\n"
+        var offsets: [Int] = []
+        for (k, o) in objects.enumerated() {
+            offsets.append(pdf.utf8.count)
+            pdf += "\(k + 1) 0 obj\n\(o)\nendobj\n"
+        }
+        let table = pdf.utf8.count
+        pdf += "xref\n0 \(objects.count + 1)\n0000000000 65535 f \n"
+        for o in offsets { pdf += String(format: "%010d", o) + " 00000 n \n" }
+        pdf += "trailer\n<</Size \(objects.count + 1)>>\nstartxref\n\(table)\n%%EOF\n"
+        let out = try XCTUnwrap(SlidesPdf.smoothPictures(Data(pdf.utf8)))
+        let text = String(decoding: out, as: UTF8.self)
+        XCTAssertEqual(text.components(separatedBy: "/Subtype /Image\n/Interpolate true").count, 3)
+        let bytes = [UInt8](out)
+        let xref = try XCTUnwrap(text.range(of: "startxref\n")).upperBound
+        let at = Int(text[xref...].prefix { $0.isNumber })!
+        XCTAssertEqual(String(decoding: bytes[at ..< at + 4], as: UTF8.self), "xref")
+        let entries = text[text.range(of: "65535 f \n")!.upperBound...].split(separator: "\n").prefix(objects.count)
+        for (k, e) in entries.enumerated() {
+            let o = Int(e.prefix(10))!
+            XCTAssertEqual(String(decoding: bytes[o ..< o + 7], as: UTF8.self), "\(k + 1) 0 obj")
+        }
+        XCTAssertNil(SlidesPdf.smoothPictures(Data("%PDF-1.4\nno pictures".utf8)))
     }
 }

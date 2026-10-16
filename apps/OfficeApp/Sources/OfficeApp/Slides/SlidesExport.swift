@@ -48,7 +48,57 @@ enum SlidesPdf {
             painter.paint(canvas, Size(size.width * k, size.height * k))
             pages.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
         }
-        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName())
+        guard PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) else { return false }
+        if let data = FileManager.default.contents(atPath: path), let smooth = smoothPictures(data) {
+            try? smooth.write(to: URL(fileURLWithPath: path))
+        }
+        return true
+    }
+
+    /// The PDF with every picture marked `/Interpolate true`, as
+    /// PowerPoint marks one drawn larger than its pixels: a viewer then
+    /// smooths it, as the slide on screen does, where unmarked a 16-pixel
+    /// icon shown an inch across is blocks (tdf93830's). Nil when the file
+    /// is not laid out as the PDF backend writes it — one classic
+    /// cross-reference table — and is left as it is.
+    static func smoothPictures(_ data: Data) -> Data? {
+        let bytes = [UInt8](data)
+        let mark = Array("/Subtype /Image".utf8), add = Array("\n/Interpolate true".utf8)
+        var at: [Int] = []  // where each mark ends
+        var i = 0
+        while let r = _find(mark, in: bytes, from: i) { at.append(r + mark.count); i = r + mark.count }
+        guard !at.isEmpty, let sx = _find(Array("startxref\n".utf8), in: bytes, from: max(0, bytes.count - 64)),
+              let end = bytes[(sx + 10)...].firstIndex(of: 0x0A), let table = Int(String(decoding: bytes[(sx + 10) ..< end], as: UTF8.self)),
+              table > at.last!, table + 5 < bytes.count, Array(bytes[table ..< table + 5]) == Array("xref\n".utf8)
+        else { return nil }
+        func moved(_ offset: Int) -> Int { offset + add.count * at.filter { $0 <= offset }.count }
+        var out: [UInt8] = []
+        out.reserveCapacity(bytes.count + add.count * at.count)
+        var from = 0
+        for a in at { out += bytes[from ..< a]; out += add; from = a }
+        out += bytes[from ..< table]
+        // The table: "0 N" then N twenty-byte entries, offsets moved.
+        var lines = String(decoding: bytes[table ..< sx], as: UTF8.self).components(separatedBy: "\n")
+        guard lines.count > 2, lines[0] == "xref" else { return nil }
+        for k in 2 ..< lines.count {
+            let f = lines[k].split(separator: " ")
+            guard f.count == 3, f[2] == "n", let o = Int(f[0]) else { continue }
+            let digits = String(moved(o))
+            lines[k] = String(repeating: "0", count: max(0, 10 - digits.count)) + digits + " \(f[1]) n "
+        }
+        out += Array(lines.joined(separator: "\n").utf8)
+        out += Array("startxref\n\(moved(table))\n%%EOF\n".utf8)
+        return Data(out)
+    }
+
+    private static func _find(_ needle: [UInt8], in hay: [UInt8], from: Int) -> Int? {
+        guard needle.count <= hay.count else { return nil }
+        var i = from
+        while i + needle.count <= hay.count {
+            if hay[i] == needle[0], Array(hay[i ..< i + needle.count]) == needle { return i }
+            i += 1
+        }
+        return nil
     }
 }
 
