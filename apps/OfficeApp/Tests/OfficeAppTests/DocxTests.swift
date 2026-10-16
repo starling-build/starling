@@ -1357,6 +1357,35 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(larger.gap, plain.gap, accuracy: 0.15, "and the next line is the text's line under it")
     }
 
+    func testANumbersTabReachesTheParagraphsOwnStop() throws {
+        // bug65649: "3.2.1.3." under a first-line indent of 567 twips and
+        // no hanging one ends short of the paragraph's stop at 1843;
+        // Word starts the text at that stop (177.1pt on its page), not at
+        // the default stop before it, where ours did.
+        _ = OfficeFonts.register()
+        func textStart(stop: Bool) throws -> Double {
+            var p = RichParagraph(text: "HHH")
+            p.style.list = .numbered; p.style.listId = "7"; p.style.listLevel = 0
+            p.style.listIndentLeft = 0
+            p.style.listFirstLine = 28.35
+            if stop { p.style.tabStops = [TabStop(position: 92.15)] }
+            var doc = RichDocument(paragraphs: [p])
+            doc.listFormats["7"] = [0: ListLevelFormat(text: "3.2.1.%1.", format: .decimal)]
+            doc.defaultTabStop = 35.4
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: 1)
+            layout.width = 600
+            layout.ensureLaidOut(doc)
+            // (Where the text starts: the right of the box before it —
+            // the test process has no ICU for carets.)
+            let box = try XCTUnwrap(layout.geometry(0).painter.inlinePlaceholderBoxes?.first)
+            return box.right / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(try textStart(stop: true), 92.15, accuracy: 0.5, "at the paragraph's own stop")
+        XCTAssertEqual(try textStart(stop: false), 70.8, accuracy: 0.5, "the next default stop, with none of its own")
+    }
+
     func testRowPropertyExceptionsKept() throws {
         // form_footnotes: a row that rules itself (w:tblPrEx) over the table.
         var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")

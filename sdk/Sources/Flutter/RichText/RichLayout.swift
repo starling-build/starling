@@ -3912,8 +3912,15 @@ public final class RichLayout {
                 // heading 4 has a stop at 840 twips and its hanging indent
                 // at 851, and Word starts "(三) 災害…" at the stop — the
                 // line then holds one character more.)
+                // (With no hanging indent, any stop of the paragraph's past
+                // the number, however far: bug65649's "3.2.1.3." ends at
+                // 67.6pt under a first-line indent, and Word starts the
+                // text at the paragraph's stop at 92.15 — not the default
+                // stop at 70.8, where ours set it and its line took a word
+                // more than Word's.)
                 let ownStop = theme.wordRules
-                    ? style.tabStops.map { _px($0.position) }.sorted().first(where: { $0 > ownLeft + end + 0.01 && $0 < ownLeft - 0.01 }) : nil
+                    ? style.tabStops.filter { $0.rawKind != "bar" && $0.rawKind != "clear" }.map { _px($0.position) }.sorted()
+                        .first(where: { $0 > ownLeft + end + 0.01 && ($0 < ownLeft - 0.01 || wl.first >= 0) }) : nil
                 if let stop = ownStop {
                     end = stop - ownLeft
                 } else if wl.first < 0, end <= 0.01 {

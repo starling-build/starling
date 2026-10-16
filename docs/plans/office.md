@@ -3086,6 +3086,18 @@ fitter dropped the paragraph's tail).
   line. bug65649 p122 within 0.2pt (was 3.2); its score 99.8 either way,
   one line more matched; nothing else moved.
 
+- **A list number's tab reaches the paragraph's own stops (2026-10-16,
+  Linux).** With no hanging indent the number's tab went to the
+  paragraph's own stops only when they stood before the indent, and
+  otherwise to the next default stop. Word takes the paragraph's next
+  stop past the number however far: bug65649's "3.2.1.3." (a first-line
+  indent of 567 twips, the number ending at 67.6pt, stops at 284, 709,
+  1134 and 1843) starts its text at the 1843 stop, 177.1pt on Word's
+  page; ours set it at the default stop, 155.9, and the line took a word
+  more. A bar stop is no stop here. bug65649 99.8% -> 99.9 (six lines);
+  nothing else moved. The hanging case is as it was, the cell case of
+  1cebd4fa included.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were
