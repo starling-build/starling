@@ -588,6 +588,14 @@ Built: each box's text in its own column and from its own top;
 shapes-with-text 62.5 -> 100%. Not built: boxes side by side whose
 texts overlap in height (they still stack).
 
+### T38. drawing: a line holding only a picture is as tall as its text
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: drawing (every article's masthead: p9 and on, 5pt).
+Known: the masthead's right cell is tiny pictures and line breaks in
+8.5pt Arial — "IMG 0.8x1.5, br, IMG 161x12.8, br, IMG 0.8x2.2". Word's
+band is 32pt (three lines of at least the text's 9.8); ours 17, each
+line only its picture's height.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
