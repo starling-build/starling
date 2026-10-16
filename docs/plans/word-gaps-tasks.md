@@ -545,6 +545,14 @@ Built: the number's height above the baseline only, off a line grid;
 p122 within 0.2pt. Next in bug65649: p123, around "3.2.1.2." (not
 looked into).
 
+### T34. bug65649: a list number's tab passes the paragraph's own stops
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: bug65649 (p123's "3.2.1.x." paragraphs).
+Known: a level-4 number ("3.2.1.3.", first-line indent 567, no hanging)
+ends at 67.6pt; the paragraph has stops at 284, 709, 1134 and 1843 twips.
+Word starts the text at the 1843 stop (177.1pt); ours went to the next
+default stop (155.9), and the line held a word more than Word's.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
