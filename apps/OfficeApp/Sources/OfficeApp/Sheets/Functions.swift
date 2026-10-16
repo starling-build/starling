@@ -586,6 +586,10 @@ enum SheetFunctions {
         }
         t["TEXT"] = { a, c in
             guard a.count == 2, case .success(let fmt) = _t(a[1], c) else { return .error(.value) }
+            // A scientific format TEXT() takes only with a capital E: "0.0e+0"
+            // is #VALUE! in Excel, where "0.0E+0" formats (NumberFormatApprox-
+            // Tests' rows of |#e-#| and |0|e+|0|, all #VALUE! in Excel's print).
+            if SheetFunctions._lowercaseExponent(fmt) { return .error(.value) }
             let v = c.engine.scalar(c.engine.evaluate(a[0], c), c)
             if let e = v.error { return .error(e) }
             if case .text(let s) = v, let n = InputParser.number(s) {
@@ -1152,6 +1156,24 @@ enum SheetFunctions {
         guard let i = found else { return .error(.na) }
         guard k <= g[i].count else { return .error(.ref) }
         return .scalar(g[i][k - 1])
+    }
+
+    /// Whether a format has an "e+" or "e-" outside quotes, escapes and
+    /// brackets: a scientific format TEXT() refuses.
+    static func _lowercaseExponent(_ code: String) -> Bool {
+        let chars = Array(code)
+        var k = 0, inQuote = false, inBracket = false
+        while k < chars.count {
+            let ch = chars[k]
+            if ch == "\"" { inQuote.toggle() } else if !inQuote {
+                if ch == "[" { inBracket = true } else if ch == "]" { inBracket = false } else if !inBracket {
+                    if ch == "\\" || ch == "_" || ch == "*" { k += 2; continue }
+                    if ch == "e", k + 1 < chars.count, chars[k + 1] == "+" || chars[k + 1] == "-" { return true }
+                }
+            }
+            k += 1
+        }
+        return false
     }
 }
 
