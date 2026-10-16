@@ -2646,6 +2646,16 @@ enum DocxFormat {
                     h = 0.01
                     isRule = true
                 }
+                // (A VML picture is set at whole points: zh-64044a1d's flow
+                // charts, 410.5 by 396.45 and 419.85 by 417.95 in their
+                // styles, are 410 by 396 and 420 by 418 in Word's print —
+                // and at 396 the first fits 22 pitches of its 18pt grid
+                // exactly, where 396.45 took a 23rd and set its caption and
+                // page 18pt low.)
+                if !isRule, shape.first("v:imagedata") != nil, node.descendant("v:textbox") == nil {
+                    w = max(1, (w - 0.001).rounded())
+                    h = max(1, (h - 0.001).rounded())
+                }
             }
             guard let frag = _keptFragment(node, notes) else { return nil }   // a part it names is missing
             var att = ImageAttachment(data: Data(), width: w, height: h, name: isRule ? "hr" : node.name)

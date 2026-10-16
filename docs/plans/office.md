@@ -4295,6 +4295,15 @@ fitter dropped the paragraph's tail).
   measured the row's start by its painter's first line — a line, for a
   picture paragraph — where the chart is 418pt. zh-64044a1d 95.3% ->
   95.6%; nothing else moved.
+- **A VML picture is set at whole points (2026-10-16; Linux, from
+  Word's print).** zh-64044a1d's flow charts (`w:pict`, `v:imagedata`)
+  say 410.5 by 396.45pt and 419.85 by 417.95 in their shapes' styles;
+  Word draws them 410 by 396 and 420 by 418. On the 18pt grid the first
+  then fits 22 pitches exactly (Word's row 396.0), where ours at 396.45
+  took a 23rd and set its caption and page 18pt low (p83). Rounded half
+  down, as 410.5 is. zh-64044a1d 95.6% -> 95.7, WordWithAttachments 2.6
+  -> 5.3; nothing else moved. DrawingML pictures (EMU extents) are
+  untouched: not measured.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
