@@ -4531,6 +4531,11 @@ fitter dropped the paragraph's tail).
   went to the engine's height and baseline: zh-a7728bc9's title after a
   text box's anchor stood 4.2pt low, now 0.2. No score moved; drifting
   lines 782 -> 773, none new.
+- **An exact line set by its middle (2026-10-16; Linux).** With
+  `w:textAlignment` "center" Word stands the text's own line in the
+  middle of an exact one, not its baseline 13/16 down: zh-1563bd74's
+  16pt articles in 30pt exact lines are 21.7pt down in Word's print, ours
+  were 24.4 (2.7pt low a page); now 0.3. Drifting lines 720 -> 698.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
