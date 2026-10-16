@@ -283,6 +283,21 @@ public final class RichTextTheme {
         return lineBox(size: size, natural: natural, baseline: t, in: paragraph, gridPitch: gridPitch).baseline
     }
 
+    /// How far the middle of a single line of `style`'s text stands above
+    /// its baseline, in points — or nil where the face's own line is not
+    /// known. What Word's `w:textAlignment` "center" lines a picture up
+    /// with.
+    public func lineMiddle(for style: CharStyle, named: RichNamedStyle?, eastAsian: Bool) -> Double? {
+        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        guard size > 0, let face = faceResolver?(familyName, eastAsian),
+              let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
+              let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight else { return nil }
+        return (t - natural / 2) * size
+    }
+
     /// How far below the page's foot a line on a line grid may reach and
     /// still be set there, in points: Word centres the text's natural
     /// height in the pitches it takes, and the line fits where the room
@@ -5309,7 +5324,16 @@ public final class RichLayout {
                 // line by its middle: a letterhead's words half way up
                 // the emblem beside them, not on its foot.)
                 let centred = theme.wordRules && p.style.eastAsian["w:textAlignment"] == "center" && image.float == nil
-                let alignment = centred ? PlaceholderAlignment.middle : PlaceholderAlignment.baseline
+                // (Its middle, effect extent and all, at the middle of a
+                // line of the paragraph's text as Word sets one — not of
+                // the stand-in face's own ascent and descent: zh-e37f8d40's
+                // 16pt 宋体 stood 1.6pt high of Word's beside its emblem,
+                // which Word sets 5.73pt — 0.358 em — under the box's
+                // middle.)
+                let middle: Double? = centred ? p.runs.first(where: { $0.length > 0 && $0.style.inlineImage == nil }).flatMap { r in
+                    theme.lineMiddle(for: r.style, named: named, eastAsian: p.text.contains { Self.isEastAsian($0, hinted: false) })
+                } : nil
+                let alignment = centred && middle == nil ? PlaceholderAlignment.middle : PlaceholderAlignment.baseline
                 // (And its line as tall as its run's text: Word's line that
                 // holds a picture alone is a line of that text at least —
                 // drawing.docx's mastheads, tiny pictures between line
@@ -5354,7 +5378,8 @@ public final class RichLayout {
                     probe.dispose()
                 }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
-                inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic, baselineOffset: size.height)))
+                inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
+                                                             baselineOffset: middle.map { size.height / 2 + _px($0) } ?? size.height)))
                 continue
             }
             // Two lines in one (`w:eastAsianLayout w:combine`): Word sets
