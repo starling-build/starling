@@ -8575,6 +8575,17 @@ public final class RichLayout {
         // above the margin — ours stood 15.5pt lower, measured from the
         // text under that space.)
         if theme.wordRules, float.verticalAlign == nil, float.verticalFrom == "paragraph" { y = g.top + _px(float.y) }
+        // (From the page or its margin, a stated offset is on the page
+        // the paragraph starts: zh-799c91cd's envelope addresses a box
+        // 308.8pt under the margin, which ours stood at its paragraph,
+        // 60pt below Word's.)
+        if theme.wordRules, float.verticalAlign == nil, ["margin", "page", "topMargin"].contains(float.verticalFrom),
+           let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }) {
+            let physical = piece.page / _columns
+            let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+            let onPage = _px(float.y) - (float.verticalFrom == "margin" ? 0 : insetTop)
+            y = piece.flowTop + onPage - piece.pageY
+        }
         let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
         // (Turned a quarter, about its centre: as tall as it is wide.
         // Word's print of zh-37b6536f puts a photo of 236.8 by 222.4
