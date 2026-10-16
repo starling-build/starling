@@ -317,10 +317,38 @@ enum OfficeFonts {
     /// Excel's: chart-tdf150434's "Open Sans" prints sans, where ours was
     /// Caladea and its long text ran a page short.
     static func sheetFace(_ family: String) -> String {
+        #if os(Windows)
+        // An East Asian face Windows ships is the face, for every character
+        // of the cell: style-alternate-content's 맑은 고딕 prints its digits,
+        // Latin and "○○○" in Malgun Gothic, where ours set them in
+        // Liberation Sans and only the Hangul fell back to Malgun.
+        if let face = windowsEastAsian[family.trimmingWhitespace().lowercased()] { return face }
+        #endif
         let face = substitute(family)
         if face == cambria, family.lowercased().containsSubstring("sans") { return sans }
         return face
     }
+
+    #if os(Windows)
+    /// East Asian names, and the Windows face each prints in, where this
+    /// Windows has its font file (Dotum, Gulim and Batang left Windows;
+    /// Excel prints them as Malgun Gothic — see SheetPrintMetrics' aliases).
+    private static let windowsEastAsian: [String: String] = {
+        let fonts = (ProcessInfo.processInfo.environment["WINDIR"] ?? "C:/Windows") + "/Fonts/"
+        var m: [String: String] = [:]
+        for (names, face, file) in [
+            (["맑은 고딕", "malgun gothic", "돋움", "dotum", "굴림", "gulim", "바탕", "batang"], "Malgun Gothic", "malgun.ttf"),
+            (["ｍｓ ｐゴシック", "ms pgothic"], "MS PGothic", "msgothic.ttc"),
+            (["ｍｓ ゴシック", "ms gothic"], "MS Gothic", "msgothic.ttc"),
+            (["宋体", "simsun"], "SimSun", "simsun.ttc"),
+            (["新宋体", "nsimsun"], "NSimSun", "simsun.ttc"),
+            (["微软雅黑", "microsoft yahei"], "Microsoft YaHei", "msyh.ttc"),
+            (["微軟正黑體", "microsoft jhenghei"], "Microsoft JhengHei", "msjh.ttc"),
+            (["游ゴシック", "yu gothic"], "Yu Gothic", "YuGothR.ttc"),
+        ] where FileManager.default.fileExists(atPath: fonts + file) { for n in names { m[n] = face } }
+        return m
+    }()
+    #endif
 
     private static func fontEntry(_ family: String) -> FontEntry? {
         declaredLock.lock()
