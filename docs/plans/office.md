@@ -3070,6 +3070,22 @@ fitter dropped the paragraph's tail).
   99.8, form_footnotes 92.0 -> 97.7 (Word's three pages, where ours had
   two); nothing else moved.
 
+- **A larger list number raises its line and sets it no deeper
+  (2026-10-16, Linux).** b879226a gave a number larger than its text
+  (its level's `w:sz`) a whole line of its size, through a zero-width
+  space in the box before the text. Word's print gives it the height
+  above the baseline only: bug65649's "3.1.1." paragraphs, a 14pt number
+  over 12pt Times, stand 15.72pt under the line above and their second
+  line 13.8 under the first, as under any line of the text; ours were
+  15.65 and 14.25, and each numbered paragraph set what followed 0.45pt
+  lower — 3.2pt by the foot of page 122. The box now holds a placeholder
+  as tall as the number's line above its baseline and reaching no lower
+  (and the paragraph takes no strut, which would undo it). Not on a line
+  grid, where lines are set by pitches: zh-64044a1d's "圖1" captions, a
+  12pt number over 11pt text, stood 6pt low that way, and keep the whole
+  line. bug65649 p122 within 0.2pt (was 3.2); its score 99.8 either way,
+  one line more matched; nothing else moved.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

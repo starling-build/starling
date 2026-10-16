@@ -4088,7 +4088,7 @@ public final class RichLayout {
                 // (A picture in the line makes its own line taller — not a
                 // horizontal rule, whose line is its text's: the reader's
                 // "hr".)
-                strutStyle: inline.contains(where: { $0.image != nil && $0.image?.name != "hr" }) ? nil : _strut(span)
+                strutStyle: inline.contains(where: { $0.image != nil && $0.image?.name != "hr" }) || Self._risesForNumber(inline) ? nil : _strut(span)
             )
             if !inline.isEmpty { painter.setPlaceholderDimensions(inline.map { $0.dimensions }) }
             // (A fiftieth of a point over: a line that is exactly the
@@ -4111,7 +4111,7 @@ public final class RichLayout {
             // apart — zh-64044a1d.)
             let gridded = style.eastAsian["w:snapToGrid"] != "0" && style.lineHeightPoints == nil && _grid(i, document).pitch != nil
             let lines = painter.computeLineMetrics().count
-            if painter.strutStyle == nil, theme.wordRules, !inline.contains(where: { $0.image != nil }),
+            if painter.strutStyle == nil, theme.wordRules, !inline.contains(where: { $0.image != nil }), !Self._risesForNumber(inline),
                lines == 1 || gridded, let strut = _strut(span, tallest: true) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 if !inline.isEmpty { held.setPlaceholderDimensions(inline.map { $0.dimensions }) }
@@ -5080,14 +5080,30 @@ public final class RichLayout {
                 }
             }
             // (A number set larger than the text — its level's own size —
-            // makes the first line as tall as a line of that size, by the
-            // same zero-width space. bug65649's "3.1.1." in 14pt over 12pt
-            // text: its first lines stand 15.9pt under the line above in
-            // Word's print, the others 13.8.)
+            // makes the first line as tall above its baseline as a line
+            // of that size, and no deeper than the text's below it.
+            // bug65649's "3.1.1." in 14pt over 12pt text: its first lines
+            // stand 15.72pt under the line above in Word's print, the
+            // next 13.8 under them, as under any line of the text; a
+            // whole 14pt line was 0.45pt deeper, and every numbered
+            // paragraph set what followed that much lower.)
+            var rise: Double? = nil
             if theme.wordRules, let size = _levelNumberSize(p, document),
                size > (p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) + 0.01 {
                 leadChar.fontSize = size
-                symbolLevel = true
+                // (On a line grid the whole line of that size, as before:
+                // the grid sets lines by pitches, and zh-64044a1d's "圖1"
+                // captions, a 12pt number over 11pt text, stood 6pt low
+                // with the number's height alone.)
+                if !symbolLevel, pitch != nil {
+                    symbolLevel = true
+                } else if !symbolLevel {
+                    let probe = TextPainter(text: TextSpan(text: "\u{200B}", style: theme.textStyle(for: leadChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)),
+                                            textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: .infinity)
+                    rise = probe.computeDistanceToActualBaseline(.alphabetic)
+                    probe.dispose()
+                }
             }
             let style = theme.textStyle(for: leadChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
             children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
@@ -5097,6 +5113,13 @@ public final class RichLayout {
             // more character before the text.)
             if symbolLevel {
                 children.append(TextSpan(text: "\u{200B}", style: style))
+                inserts.append(0)
+            } else if let rise {
+                // (The number's height above the line, as a box on the
+                // baseline that reaches no lower: see `_risesForNumber`.)
+                children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+                inline.append((nil, PlaceholderDimensions(size: Size(0, rise), alignment: PlaceholderAlignment.baseline,
+                                                          baseline: TextBaseline.alphabetic, baselineOffset: rise)))
                 inserts.append(0)
             }
         }
@@ -5568,6 +5591,14 @@ public final class RichLayout {
 
     /// The size, in points, a Word list level gives its number
     /// (`w:sz` in the level's run properties), if it says one.
+    /// Whether a paragraph's boxes hold a larger list number's height
+    /// above its first line (`_span`): a box of no picture that has a
+    /// height, which a strut holding every line to the text's would
+    /// undo.
+    private static func _risesForNumber(_ inline: [(image: ImageAttachment?, dimensions: PlaceholderDimensions)]) -> Bool {
+        inline.contains { $0.image == nil && $0.dimensions.size.height > 0.5 }
+    }
+
     private func _levelNumberSize(_ p: RichParagraph, _ document: RichDocument) -> Double? {
         guard p.style.list != nil,
               let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),

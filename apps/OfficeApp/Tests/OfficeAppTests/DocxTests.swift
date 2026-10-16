@@ -1327,6 +1327,36 @@ final class DocxTests: XCTestCase {
         XCTAssertNil(back.listFormats["7"]?[0]?.numberRPrXML)
     }
 
+    func testALargerNumberRaisesItsLineButSetsNoDeeper() throws {
+        // bug65649: "3.1.1." in 14pt over 12pt text — the first line
+        // stands 15.72pt under the line above in Word's print (the 14pt
+        // number's height above the baseline) and the second 13.8 under
+        // it, as under any line of 12pt text; a whole 14pt line for the
+        // first set every numbered paragraph 0.45pt deeper.
+        _ = OfficeFonts.register()
+        func baselines(numberSize: Int?) throws -> (first: Double, gap: Double) {
+            var p = RichParagraph(text: String(repeating: "система должна быть ", count: 8))
+            p.style.list = .numbered; p.style.listId = "7"; p.style.listLevel = 0
+            var doc = RichDocument(paragraphs: [p])
+            var level = ListLevelFormat(text: "%1.", format: .decimal)
+            if let numberSize { level.numberRPrXML = "<w:rPr><w:sz w:val=\"\(numberSize * 2)\"/></w:rPr>" }
+            doc.listFormats["7"] = [0: level]
+            let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+            layout.width = 300
+            layout.ensureLaidOut(back)
+            let lines = layout.geometry(0).painter.computeLineMetrics()
+            XCTAssertGreaterThan(lines.count, 2)
+            return (lines[0].baseline / theme.pixelsPerPoint, (lines[1].baseline - lines[0].baseline) / theme.pixelsPerPoint)
+        }
+        let plain = try baselines(numberSize: nil)
+        let larger = try baselines(numberSize: 14)
+        XCTAssertGreaterThan(larger.first, plain.first + 1, "the first line rises to the number's height")
+        XCTAssertEqual(larger.gap, plain.gap, accuracy: 0.15, "and the next line is the text's line under it")
+    }
+
     func testRowPropertyExceptionsKept() throws {
         // form_footnotes: a row that rules itself (w:tblPrEx) over the table.
         var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")
