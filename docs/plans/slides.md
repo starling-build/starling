@@ -2014,6 +2014,15 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Tried and dropped, 2026-10-16:** Aptos's and Franklin Gothic's
+baselines by measured shares (`ownDescentShare` 0.2067 and 0.2264,
+fitted to their lines standing 0.020 and 0.044 em low): the fifteen
+decks with either went +0.14 in sum (text-highlight +0.08, tdf149785
++0.03). Their offset is not the baseline's place in the line. Also
+not followed: HowWeRefactor's Courier at 60% spacing stands 0.1 em
+high — PowerPoint has its first baseline at 0.50 em where our rule for
+spacing under single gives 0.40; one deck, and the rule holds at 90%.
+
 **A cell's runs kerned, 2026-10-16** (55 table decks: cooper 4.73 →
 4.54, bnc910045 0.42 → 0.24, table_test2 −0.08, nine more −0.01 to
 −0.04; aptia +0.01). A table cell's runs now read `kern` as a text
