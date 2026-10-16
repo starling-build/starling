@@ -308,12 +308,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             cols = GridAxis(def: ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
             do {
                 // And as tall as its wrapped text's lines, in the column's width:
-                // the file's own fit for a row it fitted (Excel's, for its own
-                // files, and surer than this measure), and where the file's
-                // writer left fitting to the reader, the measure.
+                // so many of its font's fitted lines. (Excel fits a wrapped row
+                // afresh too: LIBRE_OFFICE-116306-0's row written 105 pt, seven
+                // lines of 15, prints six of Calibri's 14.52, 87.12 pt.)
                 for (a, cell) in ws.cells where cell.style != 0 && refits(a.row) && cell.value.isText {
-                    let fileFit = ws.fittedRows.contains(a.row) ? ws.rowHeights[a.row] : nil
-                    guard fileFit != nil || ws.customDefaultRowHeight || ws.fittedRows.isEmpty else { continue }
+                    guard ws.fittedRows.contains(a.row) || ws.customDefaultRowHeight || ws.fittedRows.isEmpty else { continue }
                     let st = book.style(cell.style)
                     guard st.wrap, !ws.merges.contains(where: { $0.contains(a) }) else { continue }
                     let width = cols.size(a.col) - 4 * zoom
@@ -325,8 +324,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // fonts above have given the row: lo-pivottable_invalid_formats'
                     // wrapping one-line rows print at Arial 10's 12.36, where
                     // this measure made them 12.5 and lost a row a page.)
-                    guard lines > texts.painter("X", style).height * 1.5 else { continue }
-                    let tall = fileFit.map { $0 * fitted } ?? lines / scale + 1.5
+                    let one = texts.painter("X", style).height
+                    guard lines > one * 1.5 else { continue }
+                    let line = st.fontName == nil && st.fontSize == nil ? m.defaultRow
+                        : max(m.defaultRow, m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold)))
+                    let tall = (lines / one).rounded() * line
                     if tall > m.defaultRow, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
                 }
             }
