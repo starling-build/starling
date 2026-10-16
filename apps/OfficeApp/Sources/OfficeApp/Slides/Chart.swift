@@ -611,7 +611,14 @@ enum ChartXML {
             if c.gapWidth == (c.stacked ? 150 : 219) { c.gapWidth = nil }
             if c.overlap == (c.stacked ? 100 : -27) { c.overlap = nil }
         }
-        c.dataLabels = shows(el.first("c:dLbls")) || el.all("c:ser").contains { shows($0.first("c:dLbls")) }
+        // A series' own labels stand in for the chart's: deleted there, it
+        // has none, whatever the chart says (chart-DataTable-Multiple…'s
+        // one series deletes them under a chart that shows values).
+        c.dataLabels = el.all("c:ser").contains { ser in
+            guard let d = ser.first("c:dLbls") else { return shows(el.first("c:dLbls")) }
+            if ["1", "true"].contains(d.first("c:delete")?["val"] ?? "") { return false }
+            return d.first("c:showVal") == nil && d.first("c:showPercent") == nil ? shows(el.first("c:dLbls")) : shows(d)
+        }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
             func on(_ n: XNode?, _ name: String) -> Bool { ["1", "true"].contains(n?.first(name)?["val"] ?? "") }
@@ -1622,7 +1629,9 @@ enum ChartPainter {
                     if c.stacked {
                         if v >= 0 { a = pos; pos += v; b = pos } else { a = neg; neg += v; b = neg }
                     }
-                    fill.color = c.color(series: j, accents: theme.accents)
+                    // A bar of the first series in its own colour (`c:dPt`),
+                    // as chart-DataTable-Multiple…'s six bars are.
+                    fill.color = (j == 0 ? c.pointColors[i] : nil) ?? c.color(series: j, accents: theme.accents)
                     let p0 = vpos(a), p1 = vpos(b)
                     var rect: Rect
                     if horizontal {
