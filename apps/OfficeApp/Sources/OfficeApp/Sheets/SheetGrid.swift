@@ -299,16 +299,49 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // Calibri 10 print at 13.32 pt in a Calibri 11 book, whatever
             // the sheet's defaultRowHeight says.
             var lines: [Int: Double] = [:]   // by style
+            func line(_ style: Int) -> Double {
+                if let known = lines[style] { return known }
+                let st = book.style(style)
+                let l = style == 0 || st.fontName == nil && st.fontSize == nil ? m.defaultRow
+                    : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
+                lines[style] = l
+                return l
+            }
+            // The cells it has no record of count too, in the font they
+            // would take: the row's style, else their column's — and the
+            // default font's where some column has none. 57523's columns
+            // are Calibri 10 to the last, so its rows are; bug66675's
+            // stop at P, and its rows of Arial 9 print at Calibri 11's
+            // 14.52 (made 20 pt, they grow to 25.5).
+            var blank = 0.0
+            do {
+                var covered = 0, next = 0
+                for run in ws.colAttrRuns.filter({ $0.attrs["style"] != nil }).sorted(by: { $0.lo < $1.lo }) {
+                    blank = max(blank, line(Int(run.attrs["style"] ?? "") ?? 0))
+                    let lo = max(run.lo, next)
+                    if run.hi >= lo { covered += run.hi - lo + 1; next = run.hi + 1 }
+                }
+                if covered < CellAddress.maxCols { blank = max(blank, m.defaultRow) }
+            }
+            // A merged cell that wraps is no part of its rows' fit:
+            // bug66675's dates of Arial 12, merged across A:D, sit in rows
+            // of 14.52, and their rows grow to Arial's 15.24 once Wrap Text
+            // is off (Tables' merged titles, which do not wrap, are as
+            // tall as their fonts).
+            var merged: [Int: [CellRange]] = [:]   // by row
+            for g in ws.merges where g.top != g.bottom || g.left != g.right {
+                for r in g.top...min(g.bottom, g.top + 1000) { merged[r, default: []].append(g) }
+            }
             var fit: [Int: Double] = [:]     // by row
             for (a, cell) in ws.cells where refits(a.row) {
-                let line: Double
-                if let known = lines[cell.style] { line = known } else {
-                    let st = book.style(cell.style)
-                    line = cell.style == 0 || st.fontName == nil && st.fontSize == nil ? m.defaultRow
-                        : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
-                    lines[cell.style] = line
-                }
-                if line > fit[a.row] ?? 0 { fit[a.row] = line }
+                if let g = merged[a.row]?.first(where: { $0.contains(a) }),
+                   book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
+                let l = line(cell.style)
+                if l > fit[a.row] ?? 0 { fit[a.row] = l }
+            }
+            for r in Set(fit.keys).union(ws.fittedRows) {
+                let floor = ws.rowStyle(r).map(line) ?? blank
+                fit[r] = max(fit[r] ?? 0, floor)
             }
             for (r, line) in fit {
                 // (A row of super- or subscript keeps the file's fit: `Worksheet.scriptRows`.)
@@ -329,6 +362,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     let width = cols.size(a.col) - 4 * zoom
                     guard width > 4 else { continue }
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+                    // (An empty string is its font's one line, given above:
+                    // measured, it made two, and bug66675's spacer rows of
+                    // empty wrapping cells printed nearly twice as tall.)
+                    guard !text.isEmpty else { continue }
                     let style = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
                     let lines = texts.painter(text, style, maxWidth: width).height
                     // (Text that wraps to one line is its font's line, which the
