@@ -786,6 +786,15 @@ enum OfficeFonts {
                 face.naturalHeight = 1.22
                 face.baseline = 0.94
             }
+            // (Lucida Sans Unicode keeps its own line too, a tall one:
+            // 1.537 ems by its hhea, 2246 over and 901 under of 2048, no
+            // gap — the face Word's print of bug59058 embeds. Its 9.5pt
+            // lines step 14.52 there, where the sans clone's 10.9 set
+            // the fact sheet's heading and table 1.4 to 5pt high.)
+            if family.trimmingWhitespace().lowercased() == "lucida sans unicode" {
+                face.naturalHeight = 1.5366
+                face.baseline = 1.0967
+            }
             // Word's symbol faces keep their own lines too — its own
             // symbol.ttf and the Wingdings three, by their hhea ascent
             // and descent (no line gap): a line with a Symbol box or

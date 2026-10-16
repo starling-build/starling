@@ -2941,6 +2941,17 @@ fitter dropped the paragraph's tail).
   `w:pict` or `w:drawing` is now skipped. bug59058 89.1% -> 91.7%;
   nothing else moved.
 
+- **Lucida Sans Unicode keeps its own tall line (2026-10-15, Linux).**
+  Word's print of bug59058 embeds the face: hhea ascender 2246,
+  descender -901 of 2048, no gap — 1.537 ems, the baseline 1.097 down;
+  its 9.5pt single lines step 14.52 on the 0.24 raster. Ours set it as
+  the sans clone, 1.15 ems, so p48's fact-sheet heading and the table
+  under it stood 1.4 to 5pt high. `face` now gives it that line and
+  baseline (its widths, wider than Arial's — "o" .608, "n" .614 — are
+  not taken: the print's subset holds 45 characters). The table now
+  within 0.2pt; bug59058 91.7% -> 92.2%, the only document with the
+  face.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

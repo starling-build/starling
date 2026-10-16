@@ -418,13 +418,15 @@ empty `<w:pict/>`; Word draws nothing and gives it no room, ours a
 Skipped now: bug59058 89.1 -> 91.7%, nothing else moved. Next parting p48
 ("New Cases, Deaths and 5-Year Relative Survival", 4pt low).
 
-### T21. bug59058 p48: Lucida Sans Unicode's line
+### T21. bug59058 p48: Lucida Sans Unicode's line — DONE (2026-10-15)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-15
 Documents: bug59058 (91.7% on Linux), the only one with the face.
 Known: Word's print embeds Lucida Sans Unicode: hhea 2246/-901, no gap
 (1.537 em, baseline 1.097 down); its 9.5pt single lines step 14.52 (on
 the 0.24 raster). Ours set it in the sans clone's 1.15 em: p48's
 fact-sheet heading and table stand 1.4 to 5pt high.
+Built: the face's own line and baseline; the table within 0.2pt,
+bug59058 91.7 -> 92.2%. Next parting p49 ("Béatrice Lauby-Secretan").
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
