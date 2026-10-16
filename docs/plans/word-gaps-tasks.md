@@ -584,3 +584,20 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   after it) and hangs below the footer's text in Word; ours lays it in
   the flow above. zh-90e0cea8 p1 — a standard's cover of body frames
   (page- and margin-anchored), laid in the flow by ours.
+- Windows box, 2026-10-15, for a decision (not built): six POI
+  references are Word prints *with markup* — 58067, Tika-792, delins
+  (revision balloons), comment, testComment, WordWithAttachments
+  (comment balloons) — and all score near 0 because ours prints the
+  page clean. The geometry is regular: the page is drawn at a scale k,
+  8.3pt from the paper's left, its text column followed ~6pt later by a
+  grey balloon pane ~188pt wide ending ~18pt from the paper's right
+  (letter: k 0.729, pane x 407.5-594.5; A4: k 0.7367, pane 387.0-576.6),
+  the page centred top to bottom; balloons "Commented [s1]: …",
+  "Deleted: …", "Formatted: …" in ~6.5pt text level with their
+  anchors. Whether our PDF export should print markup by default as
+  Word does is a product call; done, it is worth ~4 points of POI mean.
+- Windows box, leads left: zh-e27cd8bf p16 ("…10月1" | "日", mode 12,
+  over 7.99 of a half em 8.3 — Word stretched the line instead; the
+  automatic spaces' widths there decide it); zh-d68ac84a p17 ("…面积
+  2000" | "至", a negative character grid, need 4.17 of room 33 taken
+  by ours, not by Word); zh-a7728bc9 p1 (its title 5pt low).
