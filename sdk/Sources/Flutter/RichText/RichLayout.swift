@@ -5802,6 +5802,30 @@ public final class RichLayout {
                     // (Without the automatic space after it, which is
                     // no part of the character.)
                     let set = wide && !closesUp(a) ? boxes(a, a + 1) - (gaps[a] ?? 0) : em
+                    // (Before 2013's layout the half is the character's
+                    // BEFORE it on the line, as that one is set, where it
+                    // has one: lab `lq` (Word for Windows, mode 12, 宋体
+                    // and Arial 10.5, a "；" on the line to give) takes the
+                    // next ideograph up to 5.2pt over after an ideograph,
+                    // and after "-" or ")" 1.75 and not 2.0, after "." or
+                    // "/" 1.25 and not 1.5, after "W" 4.5 and not 5.0,
+                    // after "m" 4.0 and not 4.5, after "i" 1.0 and not 1.5
+                    // — half of each; and a "W" after an ideograph 5.0
+                    // over, past its own half. zh-1a3c7aa0's cell line
+                    // "…苯；2,4-" leaves "二" 4.6 over; zh-1563bd74's
+                    // "…能力”" leaves "的" 3.95 over the quote's 3.55.
+                    // The automatic space between it and what is taken
+                    // goes with the Latin side: lab `lq5`, "…丙3.0" then
+                    // "米", is taken 4.0 over and not 4.25 — half of "0"
+                    // and its 2.63 of space — and zh-9dd9ce6d's "…层高3.0"
+                    // takes "米" 5.75px over; but its "…次年" leaves "3"
+                    // 9.75px over, the space and the digit together over
+                    // half of "年" alone.)
+                    let prior = !opening && a > 0 && !isSpace(units[a - 1]) ? a - 1 : nil
+                    let before = prior.map { k in
+                        wideQuote(k) ? ems[k] : closesUp(k) ? ems[k] * 0.5
+                            : boxes(k, k + 1) - (units[k] >= 0x2E80 || Self._closingUnits.contains(units[k]) || Self._openingUnits.contains(units[k]) ? gaps[k] ?? 0 : 0)
+                    } ?? set
                     // (Before 2013's layout a Latin word at the line's end
                     // is taken in a cell whenever the marks and the
                     // automatic spaces can give what it needs — "110.01.01"
@@ -5847,7 +5871,7 @@ public final class RichLayout {
                         // carries a full-width mark of its own keeps the room
                         // test: zh-06c46ba9's "（詳參附錄1）" takes "1）" 9pt
                         // over in Word's print.)
-                        : (!wide && inCell && (lineBlank || need < set / 2 - _px(0.25) || (a ..< last).contains { units[$0] >= 0x2E80 })) || x + min(lead, w) - width <= set / 2 + edge
+                        : (!wide && inCell && (lineBlank || need < set / 2 - _px(0.25) || (a ..< last).contains { units[$0] >= 0x2E80 })) || x + min(lead, w) - width <= before / 2 + edge
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken)\n".utf8))

@@ -2964,6 +2964,27 @@ fitter dropped the paragraph's tail).
   flattened tables' room above it stood 5pt high. drawing's page 8
   whole: 81.7% -> 82.5; nothing else moved.
 
+- **Before 2013's layout the next character is taken half the one
+  before it over (2026-10-15).** The legacy rule took a character where
+  it was half its own em or less over the line, the line's marks giving
+  it. It is half of the character BEFORE it, as set: lab `lq` (Word for
+  Windows, mode 12, 宋体 and Arial 10.5, justified, a "；" on the line to
+  give, in ~/starling-doc-check/lab/lq) takes the next ideograph up to
+  5.2pt over after an ideograph, but after "-" or ")" 1.75 and not 2.0,
+  after "." or "/" 1.25 and not 1.5, after "i" 1.0 and not 1.5, "m" 4.0
+  and not 4.5, "W" 4.5 and not 5.0 — and a "W" after an ideograph 5.0
+  over, past its own half. An automatic space between the two goes with
+  the Latin side: "…丙3.0" then "米" is taken 4.0 over and not 4.25,
+  half of "0" and its 2.63 of space ("-3.0-" then "米", 1.75), while
+  zh-9dd9ce6d's "…次年" leaves "3" 9.75px over, space and digit
+  together over half of "年" alone. zh-1a3c7aa0's cell line "…苯；2,4-"
+  now leaves "二" (4.6 over) for the next line as Word does, and so
+  does the Mac's open zh-1563bd74 line: "…自救能力”" leaves "的" 3.95
+  over a Times quote whose half is 3.55 — every variant of lab `sq15`
+  falls on the same rule. Chinese sample 97.86% -> 97.89
+  (zh-e27cd8bf +0.8, zh-1563bd74 +0.5, zh-d68ac84a +0.4, zh-e37f8d40
+  +0.3, zh-1a3c7aa0 +0.2); POI unchanged; nothing down.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
@@ -3616,6 +3637,10 @@ fitter dropped the paragraph's tail).
   documents up to 64 points (digits are everywhere); for curly quotes
   alone it moved nothing it was meant to and cost zh-6c568ae9 1.3 and
   zh-d68ac84a 0.8. Not built; the rule is narrower than either.
+  Settled the same day (Windows box): the limit is half of the character
+  BEFORE the one taken — here the 7.1pt quote — not of its own em; see
+  "Before 2013's layout the next character is taken half the one before
+  it over" above.
 - **Arial Black at its own widths (2026-10-15).** Word has Arial Black
   (its DFonts' ariblk.ttf); ours drew it as the sans stand-in at the
   stand-in's widths, some 15% narrower letter for letter, so SampleDoc's
