@@ -160,6 +160,10 @@ struct Chart: Equatable {
     /// as a disc seen from above at that angle, its rim showing below. nil
     /// is a flat pie.
     var pieTilt: Double? = nil
+    /// How far a 3-D pie's slices are pulled out (`c:explosion`, the
+    /// largest of the series' and its points'), as a fraction of the
+    /// radius: the pie is that much smaller, to leave them room.
+    var pieExplosion: Double = 0
     /// A 3-D bar or column chart's view (`c:view3D` rotX, rotY, degrees):
     /// each bar a box, its top and side showing. nil is flat.
     var barView: BarView? = nil
@@ -556,7 +560,13 @@ enum ChartXML {
                                       y: v?.first("c:rotY")?["val"].flatMap(Double.init) ?? 20)
         }
         if el.name == "c:pie3DChart" {
-            c.pieTilt = chart.first("c:view3D")?.first("c:rotX")?["val"].flatMap(Double.init) ?? 30
+            // (No rotX is 15°: Excel draws 45544's pies the same with none
+            // and with 15, and fits them otherwise at 30 and 60.)
+            c.pieTilt = chart.first("c:view3D")?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15
+            let pulls = el.all("c:ser").flatMap { ser in
+                ([ser.first("c:explosion")] + ser.all("c:dPt").map { $0.first("c:explosion") }).compactMap { $0?["val"].flatMap(Double.init) }
+            }
+            c.pieExplosion = max(0, pulls.max() ?? 0) / 100
         }
         func axisTitle(_ ax: XNode?) -> String? {
             guard let t = ax?.first("c:title") else { return nil }
@@ -1037,9 +1047,13 @@ enum ChartPainter {
         } else if pie, let tilt = c.pieTilt {
             // A 3-D pie's plot is the box the tilted disc stands in, a
             // little inside the room left to it (LIBRE_OFFICE-100610-0's
-            // grey plots, 345 × 196 pt where ours had 401 × 235).
-            let inner = Rect.fromLTRB(area.left + area.width * 0.07, area.top + area.height * 0.085,
-                                      area.right - area.width * 0.07, area.bottom - area.height * 0.085)
+            // grey plots, 345 × 196 pt where ours had 401 × 235) — or the
+            // box the file places itself (`inner`), as it is: 45544's pies
+            // are 187.5 × 69 pt in Excel's print, inside a box of 195.5 ×
+            // 72.2, where ours were 99 × 58.
+            let inner = c.plotLayout != nil && c.plotLayoutInner ? area
+                : Rect.fromLTRB(area.left + area.width * 0.07, area.top + area.height * 0.085,
+                                area.right - area.width * 0.07, area.bottom - area.height * 0.085)
             if let f = c.plotFill {
                 let p = Paint()
                 p.style = .fill
@@ -1801,7 +1815,7 @@ extension ChartPainter {
         guard sum > 0 else { return }
         let squash = sin(max(5, min(90, tilt)) * .pi / 180) * 0.946
         let deep = 0.228
-        let rx = min(plot.width * 0.941 / 2, plot.height * 0.972 / (2 * squash + deep))
+        let rx = min(plot.width * 0.941 / 2, plot.height * 0.972 / (2 * squash + deep)) / (1 + c.pieExplosion)
         let ry = rx * squash, depth = rx * deep
         let centre = Offset(plot.center.dx, plot.center.dy - depth / 2)
         func at(_ a: Double, _ drop: Double = 0) -> Offset { Offset(centre.dx + cos(a) * rx, centre.dy + sin(a) * ry + drop) }
