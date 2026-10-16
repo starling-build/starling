@@ -2014,6 +2014,11 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Arial Black at its own widths, 2026-10-16** (placeholder-layout-color
+0.82 → 0.61, SampleShow 1.30 → 1.19, themes unchanged). It was Arial's
+bold spaced 0.07 em a letter; it is now that bold at Arial Black's own
+advances (`OfficeFonts.arialBlackAdvances`, Word's), by `SlideFonts.face`.
+
 **Verdana at its own widths in slides, 2026-10-16** (the AES deck 7.53
 → 5.91, pptx2svg 5.44 → 5.15, tdf129686 0.42 → 0.17, aascu 5864 −0.02;
 the other Verdana decks unchanged). DejaVu Sans, drawing it, is within

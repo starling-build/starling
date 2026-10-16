@@ -2689,10 +2689,10 @@ private struct SlideContext {
         // themes', SampleShow's and placeholder-layout-color's
         // lines), where the plain face's left "TRADE SHOW" on one
         // line PowerPoint breaks in two.
+        // (Its own widths now come with it, `SlideFonts.face`: set in the
+        // stand-in's bold at Arial Black's advances.)
         if cs.fontFamily?.lowercased() == "arial black" {
-            cs.fontFamily = "Arial"
             cs.bold = true
-            cs.letterSpacing = (cs.letterSpacing ?? 0) + 0.07 * (cs.fontSize ?? 18)
         }
         // Aptos, set in Liberation Sans: that much tighter, as
         // Aptos runs narrower — PowerPoint's lines in it are 3.5%

@@ -43,6 +43,11 @@ enum SlideFonts {
             face.otherAdvances = OfficeFonts.verdanaOtherAdvances
             face.boldOtherAdvances = OfficeFonts.verdanaBoldOtherAdvances
             return face
+        case "arial black":
+            var face = RichResolvedFace(family: resolve(family))
+            face.advances = OfficeFonts.arialBlackAdvances
+            face.boldAdvances = OfficeFonts.arialBlackAdvances
+            return face
         default:
             return nil
         }

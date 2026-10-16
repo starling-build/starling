@@ -645,7 +645,7 @@ enum OfficeFonts {
     // tables (2026-10-12): what Word breaks a line by.
     /// Arial Black's widths for U+0020 to U+007E, in ems (Word's
     /// DFonts ariblk.ttf).
-    private static let arialBlackAdvances: [Double] = [
+    static let arialBlackAdvances: [Double] = [
         0.3335, 0.333, 0.5, 0.6602, 0.667, 1, 0.8892, 0.2778, 0.3892, 0.3892, 0.5562, 0.6602, 0.333, 0.333, 0.333,
         0.2778, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.333, 0.333, 0.6602, 0.6602,
         0.6602, 0.6108, 0.7402, 0.7778, 0.7778, 0.7778, 0.7778, 0.7222, 0.667, 0.833, 0.833, 0.3892, 0.667, 0.833, 0.667,
