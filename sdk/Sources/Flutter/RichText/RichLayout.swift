@@ -239,11 +239,11 @@ public final class RichTextTheme {
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
         let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
         let scaled = (style.horizontalScale ?? named?.char.horizontalScale ?? 1) != 1
-        guard size > 0, let face = faceResolver?(familyName, eastAsian),
-              let t = (scaled ? face.scaledBaseline : nil) ?? face.baseline else { return nil }
         let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        guard size > 0, let face = faceResolver?(familyName, eastAsian),
+              let t = (scaled ? face.scaledBaseline : nil) ?? (bold ? face.boldBaseline : nil) ?? face.baseline else { return nil }
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
-        let natural = (scaled ? face.scaledHeight : nil) ?? face.naturalHeight
+        let natural = (scaled ? face.scaledHeight : nil) ?? (bold ? face.boldHeight : nil) ?? face.naturalHeight
             ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
         return lineBox(size: size, natural: natural, baseline: t, in: paragraph, gridPitch: gridPitch).baseline
     }
@@ -266,7 +266,7 @@ public final class RichTextTheme {
         guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return 0 }
         let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
-        let natural = face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
+        let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
         let h = lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: pitch).height
         return max(0, (h - natural * size) / 2)
     }
@@ -358,7 +358,7 @@ public final class RichTextTheme {
                 // (The engine's `height` is of the drawn size, and a
                 // stand-in drawn larger or smaller keeps the line of the
                 // size the document names.)
-                let natural = (ownScale != 1 ? face?.scaledHeight : nil) ?? face?.naturalHeight
+                let natural = (ownScale != 1 ? face?.scaledHeight : nil) ?? (bold ? face?.boldHeight : nil) ?? face?.naturalHeight
                     ?? naturalLineHeight(family: family, bold: bold, italic: italic)
                 guard size > 0 else { return max(0.1, paragraph.lineSpacing - lineSpacingReduction) * natural / widen }
                 return lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: gridPitch).height / (size * widen)
@@ -436,6 +436,10 @@ public struct RichResolvedFace: Sendable {
     /// OS/2 metrics, and 华文中宋's are not its hhea ones.
     public var scaledHeight: Double? = nil
     public var scaledBaseline: Double? = nil
+    /// The line height and the baseline of the face's bold, where its
+    /// bold is a face of its own with other metrics (nil: the regular's).
+    public var boldHeight: Double? = nil
+    public var boldBaseline: Double? = nil
     /// Whether the face has none of the CJK compatibility ideographs
     /// Word's fallback sets in Noto Sans SC (`_notoCompatibility`) —
     /// YaHei, the face Word on a Mac sets most Chinese names in.

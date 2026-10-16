@@ -4208,6 +4208,17 @@ fitter dropped the paragraph's tail).
   Word leaves for the next. `_sideIndents` now adds the grid's addition
   to Normal's size, as `firstLineIndent` already did. zh-457a8d62 97.3%
   -> 100%; nothing else moved.
+- **YaHei's bold is a taller line (2026-10-16; Linux, from Word's
+  prints).** msyhbd is a face of its own: Word sets bold YaHei lines 1.73
+  ems apart — 24.21 at 14pt (zh-33aa9899's body, `atLeast` 24, which the
+  regular's 24.01 would have met), 27.66 at 16 and 34.62 at 20
+  (zh-7dc3afad's contents) — where the regular's are 1.715 at every size
+  measured. `RichResolvedFace.boldHeight`/`boldBaseline` (the extra half
+  above, half below). zh-33aa9899 96.9% -> 100, zh-4c3793e8 89.5 -> 100,
+  zh-7dc3afad 96.2 -> 99.5, zh-8e8d4c40 98.3 -> 98.9, zh-06c46ba9 +0.1;
+  zh-799c91cd 96.4 -> 96.0, a knife-edge: its p6 table ends 0.4pt below
+  Word's already, 0.7 now, and the empty paragraph after it goes over to
+  p7.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

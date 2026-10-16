@@ -474,11 +474,21 @@ enum OfficeFonts {
         /// face's OS/2 ascent and descent rather than its hhea ones.
         var scaledHeight: Double? = nil
         var scaledBaseline: Double? = nil
+        /// The same two for the face's bold, where it is a face of its
+        /// own with other metrics.
+        var boldHeight: Double? = nil
+        var boldBaseline: Double? = nil
     }
 
     private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 5.0 / 6.0, fakeBold: true, baseline: 1.005)
+    // (YaHei's bold, msyhbd.ttc, is a face of its own and a line of it
+    // is taller: Word sets bold YaHei lines 1.73 ems apart — 24.21 at
+    // 14pt (zh-33aa9899's body), 27.66 at 16 and 34.62 at 20 (zh-7dc3afad's
+    // contents) — where its regular's are 1.715. The extra goes half
+    // above, half below.)
     private static let yaHei = EastAsianFace(height: 1.715, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96],
-                                             latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances, fakeBold: false, baseline: 1.26)
+                                             latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances, fakeBold: false, baseline: 1.26,
+                                             boldHeight: 1.73, boldBaseline: 1.2675)
 
     // Verdana's own widths, which its stand-in (DejaVu Sans, a few per
     // cent wider in its letters, narrower in its space) is set to: U+0020
@@ -878,6 +888,8 @@ enum OfficeFonts {
             }
             face.scaledHeight = ea.scaledHeight
             face.scaledBaseline = ea.scaledBaseline
+            face.boldHeight = ea.boldHeight
+            face.boldBaseline = ea.boldBaseline
             return face
         }
         var face = RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
@@ -885,6 +897,8 @@ enum OfficeFonts {
                                     isEastAsian: true)
         face.scaledHeight = ea.scaledHeight
         face.scaledBaseline = ea.scaledBaseline
+        face.boldHeight = ea.boldHeight
+        face.boldBaseline = ea.boldBaseline
         face.advances = ea.latinAdvances
         face.boldAdvances = ea.latinBoldAdvances
         // A no-break space in a square face is an em, where its space is
