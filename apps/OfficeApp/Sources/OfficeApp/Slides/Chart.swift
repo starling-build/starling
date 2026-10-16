@@ -1048,6 +1048,7 @@ enum ChartPainter {
         let old = c.plainText && !c.styled2013 && c.officeStyled
         var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + 9 * k, r.right - 9 * k, r.bottom - (old ? 6.5 : 9) * k)
 
+        let titled = !(c.title ?? "").isEmpty
         if let title = c.title, !title.isEmpty {
             // In the file's size, weight and colour where it gives them,
             // each line centred.
@@ -1126,7 +1127,13 @@ enum ChartPainter {
                     area = Rect.fromLTRB(area.left, area.top, columnX - apart * k, area.bottom)
                 }
             } else if c.legendPosition == "t" {
-                y = area.top
+                // (Under a title, 4.3 further off it than a plot would
+                // be: in Word's print a legend's baseline is 22.2 pt under
+                // a 14 pt title's, chartex's radar's and its column
+                // chart's moved to the top, where ours was 17.9. With no
+                // title the legend is where ours was, 17 under the
+                // frame's top.)
+                y = area.top + (titled ? 4.3 * k : 0)
                 area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k, area.right, area.bottom)
             } else {
                 y = area.bottom - 1.2 * k - lineH * Double(lines.count)

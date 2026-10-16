@@ -3297,6 +3297,17 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A legend at the top stands 4.3pt further under a title
+  (2026-10-16).** A top legend was set where the plot would have
+  started under the title. In Word's print its baseline is 22.2pt under
+  a 14pt title's (chartex's radar chart; its column chart with the
+  legend moved to the top, a lab printed on the Windows box), ours 17.9;
+  with an 18pt legend 30.3, which the same 4.3 gives. Without a title
+  the legend is where ours was (17pt under the frame's top). chartex
+  50.0% -> 61 (its page 2: 2 of 21 lines to 10); nothing else moved.
+  Left on that lab: with no legend below, Word's category labels stand
+  2.5pt lower than ours.
+
 - **A line's legend key is a 19.2pt stroke (2026-10-16).** A line or
   radar chart's legend drew its key in a square's room, a 7pt line
   scaled by the text. Word and PowerPoint draw a 19.2pt stroke whatever
