@@ -816,6 +816,16 @@ enum DocxFormat {
             }
             return out
         }
+        /// Flags the paragraph just read, when it is the empty one that
+        /// ends cell `tc` right under a table nested in it
+        /// (`RichParagraphStyle.markUnderNestedTable`).
+        func flagMarkUnderNestedTable(_ tc: XNode, since first: Int) {
+            let blocks = tc.children.filter { ["w:p", "w:tbl", "w:sdt"].contains($0.name) }
+            guard blocks.count >= 2, blocks[blocks.count - 1].name == "w:p", blocks[blocks.count - 2].name == "w:tbl",
+                  paragraphs.count > first, let last = paragraphs.indices.last,
+                  paragraphs[last].text.isEmpty, paragraphs[last].image == nil else { return }
+            paragraphs[last].style.markUnderNestedTable = true
+        }
         func walkBlock(_ node: XNode, indent: Double, depth: Int = 0) {
             switch node.name {
             case "w:p":
@@ -892,6 +902,7 @@ enum DocxFormat {
                             let first = paragraphs.count
                             for child in tc.children { walkBlock(child, indent: indent + 18, depth: depth + 1) }
                             guard paragraphs.count > first else { continue }
+                            flagMarkUnderNestedTable(tc, since: first)
                             let m = _cellMargins(tc.first("w:tcPr"), "w:tcMar").under(tableMargins)
                             paragraphs[first].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
                             paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + spacing * (r == rows.count - 1 ? 2 : 1)
@@ -1282,6 +1293,7 @@ enum DocxFormat {
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                         if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
+                        else { flagMarkUnderNestedTable(tc, since: before) }
                         if restart { openSpan[column] = before ..< paragraphs.count }
                         column += span
                     }

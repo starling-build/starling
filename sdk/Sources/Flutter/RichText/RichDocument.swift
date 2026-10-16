@@ -419,6 +419,11 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// what text it has is not shown — a footer's last empty paragraph,
     /// written so by converters to take no room.
     public var lineCollapsed = false
+    /// The empty paragraph that ends a cell right under a table nested
+    /// in it, which Word sets at half a point whatever its mark says
+    /// (drawing.docx: five such marks of 8.5pt, five lines of 0.48pt in
+    /// Word's print). Read from the file's shape, not written back.
+    public var markUnderNestedTable = false
     public var list: ListKind? = nil
     public var listLevel: Int = 0
     /// The glyph this bulleted paragraph shows, when the file names one

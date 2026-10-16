@@ -4766,6 +4766,28 @@ public final class RichLayout {
             // (A horizontal rule's paragraph is a line of its text: the
             // reader's "hr", lab `hr`.)
             if theme.wordRules, image.name == "hr" { bodyHeight = max(bodyHeight, _markLineHeight(i, document)) }
+            // (A picture shorter than its paragraph's line of text stands
+            // at the foot of that text's own line, which the line takes
+            // the height of. drawing.docx's 4.5pt spacer under five empty
+            // paragraphs stands 5.85pt down a 10.35pt line of its 9pt
+            // Times mark in Word's print, and the next line starts at
+            // the picture's foot (the Mac's lab t50: a 12pt mark lowers
+            // both by 3.45, and a picture taller than the line is its
+            // own height). bug59058's 11.25pt one under an 11pt Calibri
+            // mark stands 2.18pt down, the single line's 13.43; what the
+            // paragraph's 1.15 lines add goes under it, as under text.
+            // Ours was the picture's height alone, and drawing's page 9
+            // opened 5.8pt high. Off the line grid, which sets a
+            // picture's line its own way.)
+            else if theme.wordRules, image.float == nil, image.textBox == nil, style.lineHeightPoints == nil,
+                    _grid(i, document).pitch == nil || style.eastAsian["w:snapToGrid"] == "0" {
+                let line = _markLineHeight(i, document, single: true)
+                let own = h + room.top + room.bottom
+                if line > own + 0.5 {
+                    _imageDrop[i] += line - own
+                    bodyHeight = (bodyHeight + line - own).rounded()
+                }
+            }
             _ensureDecoded(image)
         } else {
             _imageSize[i] = nil
@@ -4907,7 +4929,11 @@ public final class RichLayout {
         let named = _named(p, document)
         let pitch = p.style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(index, document).pitch
         if p.text.isEmpty {
-            return (TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), [], [])
+            // (The mark under a nested table at half a point:
+            // `RichParagraphStyle.markUnderNestedTable`.)
+            var mark = p.runs[0].style
+            if theme.wordRules, p.style.markUnderNestedTable { mark.fontSize = 0.5 }
+            return (TextSpan(text: " ", style: theme.textStyle(for: mark, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), [], [])
         }
         // Ruby wider than its base spreads the base across it, as Word's
         // distributeSpace does: a share between characters and half a
@@ -8624,12 +8650,19 @@ public final class RichLayout {
 
     /// The height of one line of paragraph `i` in its mark's look, as if
     /// it held nothing else (px).
-    private func _markLineHeight(_ i: Int, _ document: RichDocument) -> Double {
+    private func _markLineHeight(_ i: Int, _ document: RichDocument, single: Bool = false) -> Double {
         let p = document.paragraphs[i]
         var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
         mark.inlineImage = nil
         var style = p.style
         style.lineCollapsed = false
+        // (At single spacing: the text's own line, without what a
+        // multiple or a stated height adds.)
+        if single {
+            style.lineSpacing = 1
+            style.lineHeightPoints = nil
+            style.lineHeightIsMinimum = false
+        }
         let empty = RichParagraph(text: "\u{FFFC}", runs: [Run(length: 1, style: mark)], style: style)
         let width = max(1, _flowWidth(i))
         let (span, held, _) = _span(for: empty, at: i, document, textWidth: width)

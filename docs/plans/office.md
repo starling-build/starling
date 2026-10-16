@@ -3873,6 +3873,23 @@ fitter dropped the paragraph's tail).
   line too, was tried first: the line fitting measures those otherwise,
   and zh-232090e0 95.7 -> 4.3, zh-2b955411 98 -> 34.5 and four more
   collapsed.)
+- **The mark under a nested table is half a point; a short picture's
+  line is its mark's (2026-10-16).** drawing.docx p8-11. Word's print
+  (clipped glyphs kept) holds exactly five spans of 0.48pt, four Verdana
+  and one Arial, and the file exactly five empty paragraphs that end a
+  cell right under a nested table, their marks 8.5pt: such a mark is set
+  at half a point (`RichParagraphStyle.markUnderNestedTable`, flagged by
+  the reader from the file's shape and not written back). Ours set them
+  at 8.5, and page 8's foot ran 26pt long (T39's try of no line at all
+  overshot on page 11). That done, page 9 opened 5.8pt high: a paragraph
+  of one 0.75x4.5pt picture under five empty ones is, in Word, the line
+  of its 9pt Times mark (10.35pt) with the picture at its foot — the
+  Mac's lab t50: without the picture the same, a 12pt mark lowers both
+  by 3.45, a 12pt picture is its own height. At single spacing: bug59058's
+  11.25pt picture under an 11pt Calibri mark, in 1.15 lines, stands
+  2.18pt down (13.43, Calibri's single line), the multiple's extra under
+  it as under text. Off the line grid, which has its own rule. drawing
+  89.7 -> 98.1%; nothing else moved.
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

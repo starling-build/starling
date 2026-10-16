@@ -1881,6 +1881,75 @@ final class DocxTests: XCTestCase {
         "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"8\" w:space=\"0\" w:color=\"FF0000\"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(first)</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(second)</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
     }
 
+    /// drawing.docx: an empty paragraph that ends a cell right under a
+    /// table nested in it is set at half a point in Word's print (five
+    /// such marks of 8.5pt, five lines of 0.48pt); any other empty
+    /// paragraph keeps its mark's line. Flagged by the reader, not saved.
+    func testTheMarkUnderANestedTableIsHalfAPoint() throws {
+        let long = "in1 " + String(repeating: "x", count: 600)   // flattened, not a block
+        func document(outerText: String) throws -> RichDocument {
+            var a = RichParagraph(text: "outer")
+            a.cell = CellRef(table: "T", row: 0, column: 0)
+            var d = RichDocument(paragraphs: [a, RichParagraph(text: "")])
+            d.tableColumns["T"] = [300]
+            var entries = try Zip.read(try DocxFormat.write(d, pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            xml.insert(contentsOf: nestedTable(long, "in2"), at: xml.range(of: "</w:tcPr>")!.upperBound)
+            xml = xml.replacingAll(">outer</w:t>", with: ">\(outerText)</w:t>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            return try DocxFormat.read(try Zip.write(entries)).document
+        }
+        let marked = try document(outerText: "")
+        let mark = try XCTUnwrap(marked.paragraphs.last { $0.cell != nil })
+        XCTAssertTrue(mark.text.isEmpty)
+        XCTAssertTrue(mark.style.markUnderNestedTable, "the cell's empty last paragraph, under the nested table")
+        XCTAssertEqual(marked.paragraphs.filter { $0.style.markUnderNestedTable }.count, 1, "and no other")
+        let text = try document(outerText: "after")
+        XCTAssertFalse(text.paragraphs.contains { $0.style.markUnderNestedTable }, "a paragraph with text is no mark")
+        // Its line is half a point's, where an empty paragraph's is its mark's.
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        func height(_ flagged: Bool) -> Double {
+            var p = RichParagraph(text: "")
+            p.style.markUnderNestedTable = flagged
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 400
+            l.ensureLaidOut(RichDocument(paragraphs: [p]))
+            // (The line, not the paragraph's spacing around it.)
+            return l.geometry(0).painter.height / theme.pixelsPerPoint
+        }
+        XCTAssertLessThan(height(true), 1.5)
+        XCTAssertGreaterThan(height(false), 8)
+    }
+
+    /// A paragraph holding only a picture shorter than its mark's line of
+    /// text is that line's height, the picture at its foot (drawing.docx,
+    /// the Mac's lab t50: a 4.5pt picture in a 10.35pt line of its 9pt
+    /// Times mark); a taller picture is its own height.
+    func testAShortPicturesLineIsItsMarksLine() throws {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        func layout(_ height: Double) -> (block: Double, drop: Double) {
+            var p = RichParagraph(image: ImageAttachment(data: Data(), width: 0.75, height: height, name: "spacer"))
+            p.style.spaceBefore = 0
+            p.style.spaceAfter = 0
+            p.style.lineSpacing = 1
+            p.style.mark = CharStyle(fontFamily: "Times New Roman", fontSize: 9)
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 400
+            l.ensureLaidOut(RichDocument(paragraphs: [p]))
+            let g = l.geometry(0)
+            return ((g.bottom - g.top) / theme.pixelsPerPoint, ((l.imageRect(0)?.top ?? g.top) - g.top) / theme.pixelsPerPoint)
+        }
+        let short = layout(4.5)
+        XCTAssertEqual(short.block, 10.35, accuracy: 0.8, "the mark's line")
+        XCTAssertEqual(short.drop, short.block - 4.5, accuracy: 0.8, "the picture at its foot")
+        let tall = layout(24)
+        XCTAssertEqual(tall.block, 24, accuracy: 0.8, "a taller picture is its own height")
+    }
+
     private func tableCount(_ x: String) -> Int { x.components(separatedBy: "<w:tbl>").count + x.components(separatedBy: "<w:tbl ").count - 2 }
 
     /// A small nested table is a table of its own: one block in its
