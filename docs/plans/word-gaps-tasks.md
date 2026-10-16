@@ -349,7 +349,7 @@ automatic title of an unnamed lone series, `cx:` charts by their
 Fallback pictures, charts in a line of text (chartex: 3 pages as Word's).
 Left: radar charts (Slides reads none; chartex's stays a grey box).
 
-### T17. zh-9c5d0c3f: road-sign table rows
+### T17. zh-9c5d0c3f: road-sign table rows — DONE (2026-10-16)
 Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-14
 Documents: zh-9c5d0c3f (54%).
 Note from the Mac (2026-10-14): 49beaff9 (dashes and ellipses in East
@@ -844,6 +844,30 @@ measured from the page top, apparently rounded down — the raster RichLayout's
 notes give Word's prints too. Lab `bd1` shows Word's body steps 20.64/20.88
 (mean 20.76) where ours step 20.8: whoever takes the page-foot rounding
 question can start there.
+
+### Leads for the Mac session (from the Windows box, 2026-10-16)
+Each needs Word or is in an area the Mac has worked; claim here first.
+- zh-1a3c7aa0 p32 row 111 (T32's remainder): a row that parts at the
+  foot with a centred two-line date cell ("2023年1月29" / "日起禁止使用");
+  Word sets "111", "2,4-滴丁酯" and "94-80-4" at 126 and the date's first
+  line at 122 — the date 4pt BELOW the single lines, which no centring
+  in the part we tried gives. Ours: 131, 117, 126. A lab of one such row
+  at a page's foot would say how Word centres a parted centred cell.
+- zh-454e2e29 p4: the diagonal header cell's labels "人數", "官等",
+  "類別" are text boxes anchored in the cell, beside two `wps` line
+  shapes (not drawn in ours); ours 8pt high.
+- zh-799c91cd p9: an envelope of floating text boxes (stamp box "貼正 /
+  郵票", address box "802高雄市…"), 20-40pt off.
+- drawing p9-11: the banner block (nested HTML-style tables of pictures)
+  stands 21pt low and 3pt taller in ours; a stray small mark at x=0.
+- chartex: `c:stockChart` is drawn as a grey box (Slides' ChartPainter
+  has no stock chart); the `cx` charts' fallbacks are pictures.
+- Lab `ps`, mode 15: ours sets the paragraph under an inline picture and
+  a trailing space 2.8pt lower than under the picture alone; Word sets
+  both alike (any picture width). 
+- zh-e061a08e p1 foot: our last body line overlaps the footer by 0.2pt
+  and stays (whole-pixel line boxes?); Word sends it over — the 0.24pt
+  raster question.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.

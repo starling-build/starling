@@ -2533,7 +2533,12 @@ public final class RichLayout {
                     }
                 }
                 let rest = first ? (carried > 0 ? max(c.ownRowHeight - c.stretched, carried) : c.ownRowHeight)
-                    : max(stated, carried, columns.map { max(0, $0.bottom - $0.cut) }.max() ?? 0)
+                    : max(stated, carried, columns.map { column in
+                        // (With the cell's top margin under the rule again —
+                        // see where the pieces are set below.)
+                        max(0, column.bottom - column.cut)
+                            + (theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) : 0)
+                    }.max() ?? 0)
                 var fits = rest + ruleUnder(c) <= avail + 0.01
                 // A row is not begun where the height the file states
                 // for it has no room: it goes to the next page whole,
@@ -2734,7 +2739,13 @@ public final class RichLayout {
                         let top = _tops[k], bottom = top + _heights[k]
                         let lo = max(top, column.cut), hi = fits ? bottom : min(bottom, next[n])
                         guard hi > lo + 0.01 || (pieces[k] == nil && hi >= lo && bottom <= lo + 0.01) else { continue }
-                        var piece = PagePiece(paragraph: k, flowTop: lo, flowBottom: hi, page: page, pageY: y + (lo - column.cut) + (shift[n] ?? 0))
+                        // (What goes over stands its cell's top margin under
+                        // the rule, as the row's first part did: zh-9c5d0c3f's
+                        // road signs, a row of pictures parted at page 5's
+                        // foot, go on 5pt lower on page 6 in Word's print
+                        // than ours, which had only the rule.)
+                        let again = !first && theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) : 0
+                        var piece = PagePiece(paragraph: k, flowTop: lo, flowBottom: hi, page: page, pageY: y + (lo - column.cut) + (shift[n] ?? 0) + again)
                         piece.part = .text
                         pieces[k, default: []].append(piece)
                         _pages[page].append(piece)

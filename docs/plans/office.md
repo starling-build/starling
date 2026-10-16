@@ -3297,6 +3297,15 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **What goes over of a parting row stands its cells' top margin under
+  the rule (2026-10-16).** The part of a row carried to the next page
+  was set straight under the rule ruled across its top; Word sets it
+  the cell's top margin lower, as the row's first part was, and the part
+  is that much taller. zh-9c5d0c3f's road signs (cells with 60-twip
+  margins, rows parted under their pictures at page 5's foot) went on
+  5pt high of Word's on page 6, and everything under them with them.
+  zh-9c5d0c3f 91.8% -> 100 (T17 done); nothing else of ours moved.
+
 - **A picture wider than its line keeps the break after it; before
   2013's layout a space after it goes to a line of its own (2026-10-16).**
   Lab `ps` (Word 16, a fixed cell of 74.35pt, a picture of 60 to 80pt
