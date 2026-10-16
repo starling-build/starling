@@ -1404,7 +1404,10 @@ enum ChartPainter {
             plot = Rect.fromLTRB(area.left + left, area.top + 2 * k, area.right - (valueLabels.last?.width ?? 0) / 2,
                                  area.bottom - lineH - 4 * k - belowOut)
         } else {
-            var left = (valueLabels.map(\.width).max() ?? 0) + 8.5 * k + besideOut
+            // (A 2007-style chart's plot starts 2.6 pt further off its
+            // value labels — line- and scatter-chart's at 152.3, the
+            // labels where ours are.)
+            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
             let bottom = tallest + 7.6 * k + belowOut
             // Labels centred on the plot's edges (an area's first and last
@@ -1486,7 +1489,7 @@ enum ChartPainter {
                 // plot than the room left for them: chart-slide-bg's and
                 // its three like it, at 166.5 where ours were at 169, the
                 // plot where PowerPoint's is.)
-                let further = c.styled2013 ? 2.5 * k : 0
+                let further = c.styled2013 ? 2.5 * k : 2.6 * k
                 tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width, p - tp.height / 2))
             }
         }

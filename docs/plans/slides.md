@@ -2020,9 +2020,11 @@ aascu 5864 +0.04). The four 2007-style charts (style 2, legend at the
 right) end their plots 5.3 pt short of ours, every one, the legend where
 ours is: the gap to a right-hand legend is 17.3 pt for them, not 12.
 Pies and the newer charts keep 12 (pie-chart and tdf149985 were 0.26
-and 0.58 worse with it). Their plots also start 2 to 2.6 pt right of
-ours, and the bar chart's is 5 pt shorter at the top and 3.8 at the
-bottom — not yet followed.
+and 0.58 worse with it). Their plots also start 2.6 pt further off the
+value labels (line- and scatter-chart's at 152.3, the labels where
+ours were): the room is 11.1 pt there, not 8.5, the labels kept in
+place (line-chart 2.05 → 1.82, cooper −0.06). The bar chart's plot is
+also 5 pt shorter at the top and 3.8 at the bottom — not yet followed.
 
 **A diagram shape's one adjustment, 2026-10-16** (smartart-children
 3.42 → 3.15, cycle-matrix 2.61 → 2.34, accent-process −0.21,
