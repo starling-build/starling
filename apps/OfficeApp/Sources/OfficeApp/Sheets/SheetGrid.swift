@@ -2591,14 +2591,79 @@ final class _TextCache {
         let k = Key(text: text, style: style, width: maxWidth.isFinite ? Int(maxWidth) : -1, align: align)
         if let tp = _cache[k] { return tp }
         if _cache.count > 4000 { clear() }
-        let tp = TextPainter(text: TextSpan(text: text, style: style.flutter), textAlign: align, textDirection: .ltr)
+        let lines = maxWidth.isFinite ? _breakLines(text, style, maxWidth) : text
+        let tp = TextPainter(text: TextSpan(text: lines, style: style.flutter), textAlign: align, textDirection: .ltr)
         tp.layout(minWidth: 0, maxWidth: maxWidth)
         _cache[k] = tp
         return tp
     }
 
+    /// Wrapped text broken where Excel breaks it: a word that does not
+    /// fit goes to the next line whole, and only a word longer than a
+    /// line is cut, at the last character that fits, its rest going on
+    /// the next line with what follows ("updatin" / "g the"). Left to
+    /// the paragraph, a long word was cut wherever the line it met
+    /// stopped — "are upd" / "ating" — and CVLKRA's narrow Remarks
+    /// column wrapped to other lines and other heights than Excel's.
+    private func _breakLines(_ text: String, _ style: GridTextStyle, _ maxWidth: Double) -> String {
+        var out: [String] = []
+        for paragraph in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            // The places a line may end: at a space, and after a hyphen
+            // ("Non-" / "Individual").
+            var pieces: [(sep: String, text: Substring)] = []
+            for (i, word) in paragraph.split(separator: " ", omittingEmptySubsequences: false).enumerated() {
+                var rest = word, first = true
+                repeat {
+                    var end = rest.endIndex
+                    if let h = rest.firstIndex(of: "-"), rest.index(after: h) < rest.endIndex { end = rest.index(after: h) }
+                    pieces.append((first && i > 0 ? " " : "", rest[..<end]))
+                    rest = rest[end...]; first = false
+                } while !rest.isEmpty
+            }
+            var line = "", lineWidth = 0.0
+            for (k, piece) in pieces.enumerated() {
+                if k > 0 {
+                    let w = _width(piece.sep + piece.text, style)
+                    if lineWidth + w <= maxWidth { line += piece.sep + piece.text; lineWidth += w; continue }
+                    if !line.isEmpty { out.append(line) }
+                    line = ""; lineWidth = 0
+                }
+                var rest = piece.text
+                while !rest.isEmpty {
+                    let w = _width(String(rest), style)
+                    if lineWidth + w <= maxWidth { line += rest; lineWidth += w; break }
+                    if !line.isEmpty { out.append(line); line = ""; lineWidth = 0; continue }
+                    // Longer than a line: as many characters as fit, one at least.
+                    var cut = rest.index(after: rest.startIndex)
+                    while cut < rest.endIndex {
+                        let next = rest.index(after: cut)
+                        if _width(String(rest[..<next]), style) > maxWidth { break }
+                        cut = next
+                    }
+                    out.append(String(rest[..<cut])); rest = rest[cut...]
+                }
+            }
+            out.append(line)
+        }
+        return out.joined(separator: "\n")
+    }
+
+    private var _widths: [Key: Double] = [:]
+    private func _width(_ s: String, _ style: GridTextStyle) -> Double {
+        let k = Key(text: s, style: style, width: -1, align: .left)
+        if let w = _widths[k] { return w }
+        if _widths.count > 20000 { _widths.removeAll() }
+        let tp = TextPainter(text: TextSpan(text: s, style: style.flutter), textDirection: .ltr)
+        tp.layout()
+        let w = tp.width
+        tp.dispose()
+        _widths[k] = w
+        return w
+    }
+
     func clear() {
         for tp in _cache.values { tp.dispose() }
         _cache.removeAll()
+        _widths.removeAll()
     }
 }
