@@ -576,6 +576,15 @@ wider than Arial's). The stand-in is Liberation Sans at Arial's widths.
 Built: those widths as the face's advances (the rest estimated);
 bug59058 92.2 -> 100%, all 52 pages.
 
+### T37. shapes-with-text: a group's text boxes apart from each other
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+(the Mac, which built the stacked case in cabe6fad, offline).
+Documents: shapes-with-text (its group: an arrow with text and a text
+box under it, two stars without).
+Known: only boxes stacked at one width are read whole; here the first
+box's text is set at the group's left (79.2pt to Word's 164.6) and the
+second's is never read.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
