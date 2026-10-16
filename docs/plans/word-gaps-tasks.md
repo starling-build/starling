@@ -741,7 +741,8 @@ alternate 21.1/21.4, ours 21.3); by the foot of p11 ours has room for one
 line of the two-line "Note:" row that Word carries whole to p12.
 
 ### T44. zh-a4b0f6ea p20: a page-anchored floating table Word breaks after its first row — measured, released
-Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), again from 2026-10-16 — with zh-6cd1befe p51 (a 26-row
+page-anchored table: Word sets its header row alone on p51, the rest on p52; found by starling-bd)
 Labs `fa`–`fd` (the document's last section alone, Word 16): as is, page 1
 holds the header row and "单位（盖章）" below it, the rest on page 2 —
 reproduced. Without the "单位（盖章）" paragraph that stands before the
