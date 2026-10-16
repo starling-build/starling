@@ -1003,6 +1003,12 @@ enum OfficeFonts {
         // its brackets and marks a full em; the rest are what other
         // distributions carry.
         RichTextTheme.glyphFallback += ["Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Droid Sans Fallback"]
+        // (And math letters, the same way: Cambria Math's formulas are
+        // runs of Mathematical Alphanumeric Symbols — 𝑆, 𝑧, 𝛼 — which
+        // no face named above has, and bug57031's printed as boxes. Set
+        // at Cambria Math's widths whichever draws them; a serif first,
+        // as Cambria Math is.)
+        RichTextTheme.glyphFallback += ["STIX Two Math", "DejaVu Math TeX Gyre", "Noto Sans Math"]
         #endif
         #else
         // Chinese text is drawn by the system's face, which the engine

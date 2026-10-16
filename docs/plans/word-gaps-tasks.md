@@ -428,7 +428,7 @@ fact-sheet heading and table stand 1.4 to 5pt high.
 Built: the face's own line and baseline; the table within 0.2pt,
 bug59058 91.7 -> 92.2%. Next parting p49 ("Béatrice Lauby-Secretan").
 
-### T22. bug57031: math letters are boxes on Linux
+### T22. bug57031: math letters are boxes on Linux — DONE (2026-10-15)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-15
 Documents: bug57031 (87.0% on Linux).
 Known: its formulas are runs of Mathematical Alphanumeric Symbols
@@ -436,6 +436,9 @@ Known: its formulas are runs of Mathematical Alphanumeric Symbols
 they print as missing-glyph boxes and their lines read as nothing
 (p2 "Sti±z1−α/2∙seSti", p3 "H0:S1(t)=S2(t)…"). Placement already
 matches Word's to 0.3pt.
+Built: math faces among the Linux fallbacks; 87.0 -> 87.3%. Its next
+parting is p11/p12's two-line "Note:" row (the Windows box's lead
+below; parted rows are the Mac's).
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.

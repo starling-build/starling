@@ -2952,6 +2952,16 @@ fitter dropped the paragraph's tail).
   within 0.2pt; bug59058 91.7% -> 92.2%, the only document with the
   face.
 
+- **Math letters are named on Linux (2026-10-15).** Cambria Math's
+  formulas are runs of Mathematical Alphanumeric Symbols (𝑆 U+1D446,
+  𝑧, 𝛼). Linux's font manager finds no face for a character by itself
+  (as with Chinese, 03694462), so bug57031's formulas printed as
+  missing-glyph boxes, and their lines read as nothing to the matcher
+  though they stood where Word's do. The Linux glyph fallbacks now end
+  with STIX Two Math, DejaVu Math TeX Gyre and Noto Sans Math (a serif
+  first, as Cambria Math is); the widths stay Cambria Math's
+  (`cambriaMathAdvances`). bug57031 87.0% -> 87.3%; nothing else moved.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were
