@@ -240,6 +240,24 @@ cells in BE:BG have their column's own format; lo-tdf113271's F3 has a
 format its column lacks and does not widen Excel's print either. What
 makes FormatConditionTests' H7 count is still open.
 
+Tried and taken back, 2026-10-16: placing a cell's baseline from a
+table of the cell's face and size. Labs in a Calibri 11 book (gridlines
+printed, Excel 16) put every bottom-aligned face to 11 or 12 pt 4.02 pt
+(33.5 printer dots) above its row's edge, in rows of 9 to 60 pt, set
+or fitted; ours stands 1 pt + the face's descent (3.0 at Calibri 10 or
+Arial 10). Top- and centre-aligned baselines came from the same labs,
+and all three matched the labs to 0.1 pt once the paragraph's whole-
+point rounding of its ascent was allowed for. The corpus got worse
+(1.390 -> 1.401%, 2 better, 34 worse), because the drop depends on the
+BOOK's default font as well: small fonts stand 4.02 up in a Calibri 11
+book, 3.18 in an Arial 10 book, 3.66 in a Calibri 10 or Arial 12 book,
+while a Calibri 11 cell stands 4.14 up in every one of those and 4.02
+in its own; Arial 12 cells 3.18 in three books, 3.54 in the fourth. A
+row printed 4 dots short of its height (some lab rows were) keeps its
+text where the full row would have put it. The patch and labs
+(mkbase*.py, mkrows.py, baseln*.py) are in that session's scratchpad;
+the rule that joins cell font, book font and row is still open.
+
 Not understood: in 45544's "Hires by Location" Excel prints the page a
 footnote runs onto, blank — the run-over text not drawn there — though
 in labs and in lo-cell-value it draws it; the column widths decide it,
