@@ -2992,7 +2992,15 @@ public final class RichLayout {
                             if j == k || _cells[j - 1]?.column != d.column {
                                 let g = geometry(j)
                                 let bottoms = Self._lineBottoms(g.painter)
-                                need = max(need, (g.textTop - g.top) + (bottoms.first ?? _heights[j]) + d.pad.top + d.pad.bottom)
+                                // (A picture is its cell's first line whole:
+                                // zh-64044a1d's flow charts stand alone in a
+                                // table's first row under a run of kept
+                                // headings, and Word takes "八、參考資料" and
+                                // its two items to the chart's page; measured
+                                // by the painter's first line the chart was
+                                // a line tall, and the headings stayed behind.)
+                                let firstLine = document.paragraphs[j].image != nil ? _heights[j] : (bottoms.first ?? _heights[j])
+                                need = max(need, (g.textTop - g.top) + firstLine + d.pad.top + d.pad.bottom)
                             }
                             j += 1
                         }

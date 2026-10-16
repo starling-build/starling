@@ -4265,6 +4265,14 @@ fitter dropped the paragraph's tail).
   bug65649 99.7 -> 99.8; nothing else moved. That page's text still
   stands 3-4pt high: its merged duty cell goes over the page (the
   Windows box's, see the board).
+- **A picture is its cell's first line whole, for a kept run (2026-10-16;
+  Linux, from Word's print).** zh-64044a1d's flow charts stand alone in a
+  one-column table's first row, under "八、參考資料" and two items, all
+  kept with the next by heading 1. Word takes the three to the chart's
+  page (p68); ours left them at p67's foot, the run's test having
+  measured the row's start by its painter's first line — a line, for a
+  picture paragraph — where the chart is 418pt. zh-64044a1d 95.3% ->
+  95.6%; nothing else moved.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
