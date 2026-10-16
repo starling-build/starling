@@ -880,10 +880,12 @@ Each needs Word or is in an area the Mac has worked; claim here first.
   shapes (not drawn in ours); ours 8pt high.
 - zh-799c91cd p9: an envelope of floating text boxes (stamp box "貼正 /
   郵票", address box "802高雄市…"), 20-40pt off.
-  **Claimed by 01Xgpbk5 (Mac), 2026-10-16:** its "【附件…】" boxes on
+  **Done by 01Xgpbk5 (Mac), 2026-10-16:** its "【附件…】" boxes on
   pages 4, 7, 11 and 13 first — anchored to the paragraph, they are
   placed from its top, space before and all, in Word (ours: from the
-  text). Sweeping.
+  text). DONE: zh-799c91cd 95.6 -> 96.8, nothing else moved; the
+  boxes stand 1.5pt low now, as the page's body does. The envelope (p9)
+  is still open.
 - drawing p9-11: the banner block (nested HTML-style tables of pictures)
   stands 21pt low and 3pt taller in ours; a stray small mark at x=0.
 - chartex: `c:stockChart` is drawn as a grey box (Slides' ChartPainter

@@ -8525,7 +8525,13 @@ public final class RichLayout {
         }
         if float.horizontalAlign == nil, float.horizontalFrom == "character" { x = g.textLeft + _px(float.x) }
         let pushed = i < _floatPush.count ? _floatPush[i] : 0
-        let y = g.textTop - pushed + (float.verticalAlign == nil && ["paragraph", "line"].contains(float.verticalFrom) ? _px(float.y) : 0)
+        var y = g.textTop - pushed + (float.verticalAlign == nil && ["paragraph", "line"].contains(float.verticalFrom) ? _px(float.y) : 0)
+        // (From the paragraph's top, its space before and all: Word's
+        // print of zh-799c91cd sets its "【附件一之9】" boxes, 18pt above
+        // pages' first paragraphs with 14pt of space before them, 18pt
+        // above the margin — ours stood 15.5pt lower, measured from the
+        // text under that space.)
+        if theme.wordRules, float.verticalAlign == nil, float.verticalFrom == "paragraph" { y = g.top + _px(float.y) }
         let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
         // (Turned a quarter, about its centre: as tall as it is wide.
         // Word's print of zh-37b6536f puts a photo of 236.8 by 222.4
