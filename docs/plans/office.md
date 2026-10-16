@@ -4616,6 +4616,14 @@ fitter dropped the paragraph's tail).
   it states one, not the table's. zh-6143e5f0's plans (cells of zero
   margin) stood 5.4pt left of Word's. Sideways drift gone there and in
   two sibling reports, bug59058 363 lines -> 24; no score moved.
+- **Justified lines keep their ideographic spaces (2026-10-16; Linux,
+  engine patch).** skparagraph's justify spread U+3000 as a space: it gave
+  its em up to the step, and a line's leading ones got none, so
+  zh-1d3d66d3's "　　本會依據…" began 12pt into the margin. The engine now
+  carries patches/skia-justify-ideographic-space.patch (applied by
+  scripts/apply_engine_patches.sh; Skia itself stays upstream's): a U+3000
+  is justified as an ideograph. Sideways drift 552 -> 537; no score moved.
+  An engine built without the patch keeps the old placement.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

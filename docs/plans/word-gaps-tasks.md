@@ -1176,9 +1176,13 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   width for the step, and those at a line's start get no step at all, so
   they collapse and the text after them stands at the margin. Word keeps
   U+3000 an em like an ideograph. The fix is a few lines there (count a
-  U+3000 cluster as ideographic in both loops), but Skia is pinned to
-  upstream by DEPS with no fork of ours, so it waits on that decision.
-  Any justified Chinese line with a "　" inside it is narrowed the same way.
+  U+3000 cluster as ideographic in both loops). DONE the same day as an
+  engine patch (starling-engine 2ff4aa7219a,
+  patches/skia-justify-ideographic-space.patch — Skia stays upstream's,
+  patched by scripts/apply_engine_patches.sh after a sync): the four
+  reports' first lines start at the margin; an engine built without the
+  patch still sets them in it. Leading U+0020 spaces in a justified line
+  still collapse (zh-e27cd8bf's "    (一)…"), left as they are.
 - Also there, p19: a vMerge cell (vAlign center) whose rows part over
   pages; Word starts its first page's lines 10pt lower than ours. Not
   measured.
