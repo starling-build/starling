@@ -887,10 +887,11 @@ Each needs Word or is in an area the Mac has worked; claim here first.
 - Lab `ps`, mode 15: ours sets the paragraph under an inline picture and
   a trailing space 2.8pt lower than under the picture alone; Word sets
   both alike (any picture width). 
-  **Claimed by 01Xgpbk5 (Mac), 2026-10-16:** the picture alone is right
+  **Done by 01Xgpbk5 (Mac), 2026-10-16:** the picture alone is right
   (zh-9c5d0c3f in mode 15: caption baseline 15.10pt under the picture,
-  Word 15.07); the space's line adds its text descent (19.19). Built,
-  sweeping.
+  Word 15.07); the space's line adds its text descent (19.19). DONE: a
+  single line of one inline picture and spaces measures as the picture
+  alone (both labs 15.10 now). No corpus score moved.
 - zh-e061a08e p1 foot: our last body line overlaps the footer by 0.2pt
   and stays (whole-pixel line boxes?); Word sends it over — the 0.24pt
   raster question.

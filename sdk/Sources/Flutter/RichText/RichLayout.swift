@@ -4838,6 +4838,20 @@ public final class RichLayout {
                 let target = (box.bottom - box.top) + lines[0].descent / multiple + (multiple - 1) * single
                 bodyHeight += max(0, target - lines[0].height)
             }
+        } else if theme.wordRules, p.image == nil, p.inlineImages.count == 1, p.inlineImages.values.allSatisfy({ $0.float == nil }),
+                  style.lineHeightPoints == nil || style.lineHeightIsMinimum,
+                  !(inLine && style.eastAsian["w:snapToGrid"] != "0" && _grid(i, document).pitch != nil),
+                  style.lineSpacing - theme.lineSpacingReduction <= 1.001,
+                  p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0.value == 0x20 }),
+                  case let lines = painter.computeLineMetrics(), lines.count == 1,
+                  let box = painter.inlinePlaceholderBoxes?.first, box.bottom - box.top >= lines[0].ascent - 0.5 {
+            // (A picture with only spaces after it is the picture's
+            // paragraph still: the spaces add no descent under it. Lab
+            // `ps` (Word 16, mode 15, zh-9c5d0c3f's 75pt road sign and its
+            // trailing space): the caption under it stands where it does
+            // with no space, 15.07pt under the picture's foot to its
+            // baseline — ours 15.10 alone and 19.19 with the space.)
+            bodyHeight = (box.bottom - box.top).rounded()
         }
         _heights[i] = (before + push + bodyHeight + after).rounded(.up)
         // An empty paragraph that only ends a section stands for the
