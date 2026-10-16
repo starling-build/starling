@@ -463,13 +463,15 @@ measured on PowerPoint's page.
 Built: 0.355 under Word's rules; marks within 0.07-0.26pt. Still
 open: endnotes' body paragraph holding its mark stands 1.6pt low.
 
-### T25. A paragraph holding a note mark stands low
+### T25. A paragraph holding a note mark stands low — DONE (2026-10-15)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-15
 Documents: endnotes (its "A pendant worn…" paragraph, 1.6pt low).
 Known: a superscript run makes the paragraph's runs unequal, so it
 gets no strut and no baseline correction (`_inkShift`): the engine's
 even share of the 1.15 multiple's extra stands its lines low; the
 paragraph's height is right (the next one is in place).
+Built: such a paragraph takes the correction; within 0.2pt, no score
+moved anywhere.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.

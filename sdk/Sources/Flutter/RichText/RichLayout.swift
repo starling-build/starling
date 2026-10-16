@@ -4088,7 +4088,14 @@ public final class RichLayout {
         // Where the engine put the baseline (a strut's even leading) is
         // not where Word has it: the text is drawn from as much lower.
         _inkShift[i] = 0
-        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil,
+        // (A paragraph whose runs differ only by a raised or lowered one
+        // has no strut, and its lines are each as tall as one of its own
+        // text: its baseline wants the same correction — endnotes' "A
+        // pendant worn…", its "i" mark among 11pt Calibri, stood 1.6pt
+        // under Word's.)
+        let scriptsOnly = painter.strutStyle == nil && p.inlineImages.isEmpty && p.runs.contains { $0.style.script != .normal }
+            && Set(painter.computeLineMetrics().map { ($0.height * 100).rounded() }).count == 1
+        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly,
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
             let pitch = style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(i, document).pitch

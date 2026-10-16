@@ -2987,6 +2987,18 @@ fitter dropped the paragraph's tail).
   raise is now 0.355 (`_paintScripts`); bug65649's marks within 0.07pt,
   endnotes' within 0.26. Paint only: no line moves and no score.
 
+- **A paragraph holding a note mark gets its baseline too (2026-10-15,
+  Linux).** A raised or lowered run makes a paragraph's runs unequal,
+  so it got no strut, and the baseline correction (`_inkShift`) was
+  only made under a strut: the engine's even share of the 1.15
+  multiple's extra stood endnotes' "A pendant worn…" (an "i" mark among
+  11pt Calibri) 1.6pt under Word's, its height right. A paragraph whose
+  lines are all one height and whose only odd runs are scripts now
+  takes the same correction; that paragraph within 0.2pt. No score
+  moved: endnotes stays 92.9%, its last miss the matcher reading our
+  note's "i" as a row of its own (4pt over "XXX"'s box foot; Word's
+  print writes the two as one text line).
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were
