@@ -4362,6 +4362,15 @@ fitter dropped the paragraph's tail).
   space now has a hair of a line height and no part in the strut, as a
   shifted mark has. zh-1563bd74 88.6 -> 99.7 with Word's 29 pages;
   nothing down.
+- **A side a cell leaves bare is ruled by its neighbour's line
+  (2026-10-16).** Two cells share a vertical edge. Where one says nil for
+  its side and the other draws a line there, the line stands on the edge,
+  and Word keeps the first cell's text clear of it as of its own line.
+  zh-37b6536f's count cells say nil on the left under a 1pt line from
+  the cell before. Word sets "尚未审结" and "总计" a character a line in
+  their 30pt, where ours, counting no line on that side, took two. A
+  cell's side with no line of its own now takes its neighbour's.
+  zh-37b6536f 96.2 -> 97.7; nothing else moved.
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints

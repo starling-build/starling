@@ -4035,7 +4035,24 @@ public final class RichLayout {
                     let width = said?.width ?? d.borderWidth ?? ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
                     return _px(Self._ruleRoom(style, width))
                 }
-                let l = sideLine(c, "left"), r = sideLine(c, "right")
+                var l = sideLine(c, "left"), r = sideLine(c, "right")
+                // (A side the cell leaves bare that its neighbour rules is
+                // ruled all the same: the line stands on the edge they
+                // share. zh-37b6536f's count cells say nil on the left
+                // under a 1pt line from the cell before, and Word sets
+                // "尚未审结" a character a line in their 30pt, where ours,
+                // counting no line there, took two.)
+                func neighbour(_ before: Bool) -> CellRef? {
+                    var k = before ? i - 1 : i + 1
+                    while k >= 0, k < count, let d = document.paragraphs[k].cell, d.table == c.table {
+                        if d.row <= c.row, d.row + d.rowSpan - 1 >= c.row,
+                           before ? d.column + d.span == c.column : d.column == c.column + c.span { return d }
+                        k += before ? -1 : 1
+                    }
+                    return nil
+                }
+                if l == 0, c.column > 0, let d = neighbour(true) { l = sideLine(d, "right") }
+                if r == 0, c.column + c.span < widths.count, let d = neighbour(false) { r = sideLine(d, "left") }
                 if l > 0 || r > 0 {
                     if ts.cellSpacing != nil {
                         // (Separated, each cell's lines lie inside its own
