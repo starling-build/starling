@@ -869,6 +869,15 @@ Each needs Word or is in an area the Mac has worked; claim here first.
 - zh-e061a08e p1 foot: our last body line overlaps the footer by 0.2pt
   and stays (whole-pixel line boxes?); Word sends it over — the 0.24pt
   raster question.
+  **Claimed by 01Xgpbk5 (Mac), 2026-10-16; cause measured.** Not the
+  footer and not the print's 0.24pt raster: Word's PMingLiU line is
+  1332/1024 em (1.3 of its 1024-unit em rounded up to a unit), not 1.3 —
+  labs `ln` (12pt: 48 lines fit with 8..12 twips over 48 x 312) and `lb`
+  (24pt: the same 8..12 over 24 x 624). The 0.2 twip a line adds 8 by
+  page 1's foot (labs `ft`, `bm`: Word's threshold 8-9 twips under ours,
+  with or without the footer). SimSun is the other way: lab `ls`, 48 lines
+  of 12pt fit in 24 twips under 48 x 312, so about 1.297 em — not built,
+  no corpus document has natural-height 12pt SimSun lines to score it.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
