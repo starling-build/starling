@@ -1227,7 +1227,16 @@ private struct SlideContext {
     }
 
     private func _shape(_ sp: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
-        let ph = _ph(sp)
+        let phRead = _ph(sp)
+        // A placeholder with neither type nor index is index 0 — the
+        // title's, which PowerPoint matches it to: formatting-bullet-
+        // indent's `<p:ph/>` is set as its title is (44 pt, no bullet).
+        let ph: XNode? = phRead.map { p in
+            guard p["type"] == nil, p["idx"] == nil || p["idx"] == "0" else { return p }
+            let t = XNode(name: p.name, attrs: p.attrs)
+            t.attrs["type"] = "title"
+            return t
+        }
         let inherited: (layout: XNode?, master: XNode?) = ph.map { _inherited($0) } ?? (nil, nil)
         let spPr = sp.first("p:spPr")
         let xfrm = spPr?.first("a:xfrm")
@@ -1393,7 +1402,7 @@ private struct SlideContext {
                             fill: fill, outline: outline, outlineWidth: outlineWidth,
                             anchor: text.anchor, insets: text.insets, prompt: nil,
                             text: text.document, font: text.font, size: text.size, color: text.color,
-                            listIndent: text.listIndent, phType: ph?["type"], phIdx: ph?["idx"],
+                            listIndent: text.listIndent, phType: phRead?["type"], phIdx: phRead?["idx"],
                             fillScheme: fillScheme)
         st.autofit = text.autofit
         st.fontScale = text.fontScale

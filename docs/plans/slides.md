@@ -1946,6 +1946,16 @@ stroked and never filled, with its arrowheads at the path's ends along
 its first and last segments. Unedited it is written back as read; an
 edited one keeps its preset.
 
+**A placeholder with no type and no index is the title's, 2026-10-15**
+(bullet-indent 1.24 → 1.07, formatting-bullet-indent 2.00 → 2.09; the
+nine decks with one otherwise unchanged). `<p:ph/>` is index 0, which is
+the title's, and PowerPoint sets formatting-bullet-indent's "Object
+without master styling" as its title — 44 pt light, no bullet — where
+we took it for a body (28 pt, bulleted). It inherits as a title now; the
+file's own spelling is kept for a save. (formatting-bullet-indent scores
+worse for being right: its 44 pt Calibri Light falls to Carlito's
+regular weight here.)
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
