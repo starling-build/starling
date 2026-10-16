@@ -3973,7 +3973,13 @@ public final class RichLayout {
             // baseline, the descent of its mark's text under it: Word's
             // 25pt picture ends 3.4pt above its 31.2pt line's foot.)
             let descent = p.image != nil ? (painter.computeLineMetrics().first?.descent ?? 0) : 0
-            let snapped = ((bodyHeight + descent) / px - 0.002).rounded(.up) * px
+            // (As many pitches as the picture is tall, its descent not
+            // counted: lab `pg2` in zh-9c5d0c3f's package (Word 16, an
+            // 18pt grid, mode 12) gives a 54pt sign three pitches, 57 to
+            // 72 four and 73 five, under "at least" 19.2 too; with the
+            // descent counted ours gave 54 four and 69-72 five, and the
+            // road signs' rows ran a pitch tall.)
+            let snapped = ((bodyHeight + (p.image != nil ? 0 : descent)) / px - 0.002).rounded(.up) * px
             if snapped > bodyHeight + 0.01 {
                 _inkShift[i] += combined && p.inlineImages.isEmpty ? (snapped - bodyHeight) / 2 : max(0, snapped - bodyHeight - descent)
                 bodyHeight = snapped

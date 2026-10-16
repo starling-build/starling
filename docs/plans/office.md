@@ -2817,6 +2817,17 @@ fitter dropped the paragraph's tail).
   tables that state a spacing, the two of the evidence; no document
   moved by 0.3.
 
+- **A picture's line on the grid is as many pitches as the picture is
+  tall (2026-10-15).** Not its mark's descent with it, as ours counted.
+  Lab `pg2` in zh-9c5d0c3f's package (Word 16, mode 12, an 18pt line
+  grid, ~/starling-doc-check/lab/pg2): a sign 54pt tall takes three
+  pitches, 57 to 72 four, 73 and more five — plain or under "at least"
+  19.2 with 3.75 before alike; ours gave 54 four and 69-72 five. The
+  picture still stands on the line's baseline with the descent under
+  it where the pitches leave room. The lab now matches to 0.1pt.
+  zh-9c5d0c3f 81.6% -> 90.8 (its pages 5 and 7 whole); Chinese sample
+  97.09 -> 97.23; POI unchanged by it.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
