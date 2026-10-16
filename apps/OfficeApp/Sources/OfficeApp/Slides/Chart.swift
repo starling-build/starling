@@ -225,6 +225,14 @@ struct Chart: Equatable {
     var styled2013 = true
     /// The plot area's own fill (`c:plotArea/c:spPr`).
     var plotFill: Color? = nil
+    /// The chart area's own fill and outline (`c:chartSpace/c:spPr`): nil
+    /// for none given (a sheet's chart is then white with a light grey
+    /// edge), `noFill`/`noLine` for one the file says is not there.
+    var areaFill: Color? = nil
+    var areaNoFill = false
+    var areaLine: Color? = nil
+    var areaLineWidth: Double? = nil
+    var areaNoLine = false
     /// The value axis draws its gridlines (`c:majorGridlines`).
     var valueGrid = true
     /// An axis the file deletes (`c:delete`): no labels, no room for them.
@@ -625,6 +633,15 @@ enum ChartXML {
             ?? el.first("c:ser")?.first("c:val")?.descendant("c:formatCode")?.text
         if let code = labelCode, !code.isEmpty, code.lowercased() != "general" { c.labelFormat = code }
         if let f = plot.first("c:spPr")?.first("a:solidFill") { c.plotFill = color(f) }
+        if let sp = space.first("c:spPr") {
+            if let f = sp.first("a:solidFill") { c.areaFill = color(f) } else if sp.first("a:noFill") != nil { c.areaNoFill = true }
+            if let ln = sp.first("a:ln") {
+                if let f = ln.first("a:solidFill") {
+                    c.areaLine = color(f)
+                    c.areaLineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 }
+                } else if ln.first("a:noFill") != nil { c.areaNoLine = true }
+            }
+        }
         if let ln = plot.first("c:spPr")?.first("a:ln"), let f = ln.first("a:solidFill") {
             c.plotBorder = color(f)
             c.plotBorderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75

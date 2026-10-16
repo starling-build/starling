@@ -520,15 +520,23 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             _paintPicture(canvas, path, data, in: r)
         case .chart:
             guard let chart else { return }
-            // Excel's chart area: the theme's background with a light grey edge.
+            // Excel's chart area: its own fill and outline where the chart
+            // gives them (chart-tdf161607's grey "Background 2, darker 50%"
+            // with a black edge), else the theme's background with a light
+            // grey edge.
             let p = Paint()
             p.style = .fill
-            p.color = theme.background
-            canvas.drawRect(r, p)
-            p.style = .stroke
-            p.strokeWidth = 1
-            p.color = Color(0xFFD9D9D9)
-            canvas.drawRect(r.deflate(0.5), p)
+            if !chart.areaNoFill {
+                p.color = chart.areaFill ?? theme.background
+                canvas.drawRect(r, p)
+            }
+            if !chart.areaNoLine {
+                p.style = .stroke
+                let w = chart.areaLineWidth.map { $0 * scale } ?? 1
+                p.strokeWidth = w
+                p.color = chart.areaLine ?? Color(0xFFD9D9D9)
+                canvas.drawRect(r.deflate(w / 2), p)
+            }
             // Excel's chart text is three quarters of PowerPoint's (14pt
             // titles, 9pt labels against 18.6 and 12), the painter's sizes.
             if !chart.series.isEmpty { ChartPainter.paint(chart, canvas, r, pxPerPt: scale * 0.75, theme: theme) }
