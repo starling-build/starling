@@ -1020,6 +1020,15 @@ enum DocxFormat {
                 let base = styled.under(defaultMargins).under(_Margins.word)
                 style.textOutdent = own.left ?? base.left ?? 5.4
                 style.textOutdentRight = own.right ?? base.right ?? 5.4
+                // (… unless its first cell states its own: the table is set
+                // out by the margin of the cell whose text it lines up.
+                // zh-6143e5f0's plans, cells of zero margin in a table of
+                // Word's 5.4pt, have their left rule on the page's margin
+                // in Word's print, where ours stood 5.4pt left of it.)
+                if let first = node.first("w:tr")?.first("w:tc"),
+                   let l = _cellMargins(first.first("w:tcPr"), "w:tcMar").left {
+                    style.textOutdent = l
+                }
                 // The table's own margins, for the save: the cells keep
                 // their w:tcMar, and the cells that state none take these
                 // (drawing.docx zeroes its banner row's and leaves 5.25pt
