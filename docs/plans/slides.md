@@ -1871,6 +1871,14 @@ that named none.
 Sweep 90, 2026-10-15: 1.2747% (from 1.4984 at sweep 83 this morning);
 the baseline written whole again, 84 decks exact.
 
+**A WMF with its y axis up, 2026-10-15** (aascu cooper 5.79 → 5.28,
+its page 11 12.4 → 4.2; the 41 decks with a metafile otherwise
+unchanged). The cartoon on cooper's page 11 sets its window at origin
+y 1215 with a height of −1824 — y running up — and the picture's frame
+was taken with that negative height, which draws nothing. The frame is
+the window's size now, its sign left to the mapping, which turns the
+picture the right way up into it, as GDI does.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

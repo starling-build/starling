@@ -596,7 +596,11 @@ private struct Player {
                 dc.winExt = Size(Double(i16(a + 2)), Double(i16(a)))
                 if frame == nil, dc.winExt.width != 0, dc.winExt.height != 0 {
                     let o = org ?? dc.winOrg
-                    frame = Rect.fromLTWH(o.dx, o.dy, dc.winExt.width, dc.winExt.height)
+                    // (Its size, not its sign: a window of negative height
+                    // — y up, cooper's cartoon at origin 1215, extent
+                    // −1824 — maps into it upside down, and a frame of
+                    // negative height drew nothing.)
+                    frame = Rect.fromLTWH(o.dx, o.dy, abs(dc.winExt.width), abs(dc.winExt.height))
                 }
             case 0x001E: save()
             case 0x0127: restore(i16(a))
