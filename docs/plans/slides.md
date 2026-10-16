@@ -2014,6 +2014,23 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Tried and dropped, 2026-10-16:**
+- The built-in body style (a master with no `p:txStyles`) hung half an
+  inch less a quarter — `marL` 18 pt, `indent` −18 — as Office's own
+  master does: subtitle-animation-save's text stands 18 pt in, after its
+  bullet, in PowerPoint's print (0.67 → 0.52). But tdf160487's subtitle,
+  `buNone` and `indent="0"` under the same built-in style, is not moved
+  in by it (0.70 → 2.03): no one rule fits both.
+- A radial gradient's ramp: PowerPoint's print stores a sampled colour
+  function, not the two stops, and themes' 1003 background darkens with
+  the square of the distance (r², to a point, along the diagonal and
+  across) where ours runs evenly; but tdf114848's three-stop circle
+  runs the other way (lightens early) and GeomLec1's matches ours. Five
+  decks have radial shadings; left.
+- 60810's "CONNECTION TO GLOBAL TALENT PROGRAMMES/R200" title wraps
+  after the slash: Carlito's kerning leaves the line 0.4 pt wider than
+  Calibri's (548.0 to 547.6) in a 547.7 pt box.
+
 **A diagram's turned text, by autoTxRot, 2026-10-16**
 (smartart-rotation 6.20 → 6.08, autoTxRot 2.59 → 2.61; every letter
 on autoTxRot's three pages now at PowerPoint's angle). The text
