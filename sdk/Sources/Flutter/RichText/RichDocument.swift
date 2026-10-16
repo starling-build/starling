@@ -1982,6 +1982,11 @@ public struct RichDocument: Hashable, Sendable {
     /// `w:doNotUseHTMLParagraphAutoSpacing`), a paragraph marked
     /// automatic has the spacing its own numbers say.
     public var htmlAutoSpacing = true
+    /// The space above and below each HTML block a paragraph can name
+    /// by `RichParagraphStyle.divId` (Word's web settings, `w:marTop` and
+    /// `w:marBottom`), in points: a run of paragraphs of one block takes
+    /// its top over the first and its bottom under the last.
+    public var divMargins: [String: DivMargins] = [:]
     /// The document background (`w:background`, with its VML fill), kept
     /// as written with the parts it names. Word lays a document with one
     /// out differently — bib-chernigovka's title page sits 18pt lower and
@@ -2195,4 +2200,11 @@ public struct RichDocument: Hashable, Sendable {
     public var characterCount: Int {
         paragraphs.reduce(0) { $0 + $1.text.count }
     }
+}
+
+/// An HTML block's margins above and below, in points (`RichDocument.divMargins`).
+public struct DivMargins: Hashable, Sendable {
+    public var top: Double
+    public var bottom: Double
+    public init(top: Double, bottom: Double) { self.top = top; self.bottom = bottom }
 }

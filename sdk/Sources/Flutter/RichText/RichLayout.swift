@@ -3538,8 +3538,16 @@ public final class RichLayout {
                 spaceBefore = max(0, spaceBefore - spaceAfter(a))
             }
         }
+        // An HTML block's margins: its top over its first paragraph, its
+        // bottom under its last (`RichDocument.divMargins`).
+        var divTop = 0.0, divBottom = 0.0
+        if theme.wordRules, let div = style.divId, let m = document.divMargins[div] {
+            if i == 0 || document.paragraphs[i - 1].style.divId != div { divTop = m.top }
+            if i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].style.divId != div { divBottom = m.bottom }
+        }
         let k = spacingFollowsFont ? fontScale : 1
-        return (skipBefore ? 0 : _px(spaceBefore * k), skipAfter || dropAfter ? 0 : _px(spaceAfter(style) * k))
+        return ((skipBefore ? 0 : _px(spaceBefore * k)) + _px(divTop),
+                (skipAfter || dropAfter ? 0 : _px(spaceAfter(style) * k)) + _px(divBottom))
     }
 
     /// The sheet's Normal look, for `RichTextTheme.textStyle`.

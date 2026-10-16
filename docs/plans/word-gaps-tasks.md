@@ -492,6 +492,13 @@ layout to copy. rtl (0%) is Arabic in Times New Roman, which this box
 has no face for, and our PDF writes right-to-left runs in visual order
 where Word's reads in logical order, so no line matches by its text.
 
+### T28. drawing: a block's margins under a banner — DONE (2026-10-16)
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: drawing (p15, an article 4.4pt high).
+Built: a paragraph naming an HTML block (`w:divId`) takes the block's
+top and bottom margins; 82.5 -> 86.7%. Still off: p9-p11 (the "Cbonds"
+article, tables nested three deep: T9's limit) and p1.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a

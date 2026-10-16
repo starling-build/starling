@@ -3022,6 +3022,18 @@ fitter dropped the paragraph's tail).
   caption's baseline stands 2.7pt under Word's (the fallback face's
   ascent, not MS Gothic's): left.
 
+- **An HTML block's margins space its paragraphs (2026-10-16, Linux).**
+  A paragraph naming an HTML block (`w:divId`) is spaced by the block's
+  `w:marTop` and `w:marBottom` in the web settings (twips): drawing.docx's
+  one such paragraph, an empty cell under a banner, names a block of 15
+  over and 75 under inside a body block (`w:bodyDiv`) of 150 all round,
+  and Word's print stands the next article 4.5pt lower than ours did —
+  the block's own margins, the body's nowhere. The reader keeps every
+  block's (`RichDocument.divMargins`) and the layout adds a block's top
+  over the first paragraph of a run naming it and its bottom under the
+  last. drawing 82.5% -> 86.7 (page 15 exact); no other corpus file has
+  a block with margins.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

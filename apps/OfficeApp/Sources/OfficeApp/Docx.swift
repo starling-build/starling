@@ -1676,6 +1676,23 @@ enum DocxFormat {
             OfficeFonts.noteAltNames([:])
             OfficeFonts.noteFontEntries([:])
         }
+        // The HTML blocks' margins, by the id a paragraph names (only a
+        // block's own: drawing.docx's banner block, 0.75pt over and 3.75
+        // under, inside a body block of 7.5pt all round, stands 4.5pt
+        // taller in Word's print, the body's margins nowhere).
+        if let web = part("word/webSettings.xml").flatMap(XNode.parse) {
+            func walk(_ node: XNode) {
+                for div in node.all("w:div") {
+                    if let id = div["w:id"] {
+                        let top = Double(div.first("w:marTop")?["w:val"] ?? "") ?? 0
+                        let bottom = Double(div.first("w:marBottom")?["w:val"] ?? "") ?? 0
+                        if top > 0 || bottom > 0 { document.divMargins[id] = DivMargins(top: top / 20, bottom: bottom / 20) }
+                    }
+                    if let children = div.first("w:divsChild") { walk(children) }
+                }
+            }
+            if let divs = web.first("w:divs") { walk(divs) }
+        }
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]

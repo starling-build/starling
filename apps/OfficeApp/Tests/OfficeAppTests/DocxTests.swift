@@ -1095,6 +1095,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(style.floatOffsetY, 0.05)
     }
 
+    func testAnHTMLBlocksMarginsSpaceItsParagraph() throws {
+        // drawing.docx: an empty paragraph naming an HTML block (w:divId)
+        // of 15 twips over and 75 under, inside a body block of 150 all
+        // round; Word's print stands what follows 4.5pt lower — the
+        // block's own margins, the body's nowhere.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: "b")]),
+                                                        pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let first = try XCTUnwrap(xml.range(of: "<w:p>") ?? xml.range(of: "<w:p "))
+        xml.replaceSubrange(first, with: "<w:p><w:pPr><w:divId w:val=\"7\"/></w:pPr></w:p>" + xml[first])
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let web = "<w:webSettings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:divs>"
+            + "<w:div w:id=\"1\"><w:bodyDiv w:val=\"1\"/><w:marTop w:val=\"150\"/><w:marBottom w:val=\"150\"/><w:divsChild>"
+            + "<w:div w:id=\"7\"><w:marTop w:val=\"15\"/><w:marBottom w:val=\"75\"/></w:div></w:divsChild></w:div></w:divs></w:webSettings>"
+        entries.append(ZipEntry(name: "word/webSettings.xml", data: Data(web.utf8)))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(doc.paragraphs[0].style.divId, "7")
+        XCTAssertEqual(doc.divMargins["7"], DivMargins(top: 0.75, bottom: 3.75))
+        XCTAssertEqual(doc.divMargins["1"], DivMargins(top: 7.5, bottom: 7.5))
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        func gap(_ d: RichDocument) -> Double {
+            let layout = RichLayout(theme: theme, paragraphCount: d.paragraphs.count)
+            layout.width = 400
+            layout.ensureLaidOut(d)
+            return layout.geometry(1).top / theme.pixelsPerPoint
+        }
+        var bare = doc
+        bare.divMargins = [:]
+        XCTAssertEqual(gap(doc) - gap(bare), 4.5, accuracy: 0.01, "its own block's margins, over and under")
+    }
+
     func testPictureInABorderedRunReadsItsFrameAndEffects() throws {
         // bug59058: "tab1", an inline picture in a run with a 0.75pt grey
         // character border, its effect extent 0.75pt below; Word's line
