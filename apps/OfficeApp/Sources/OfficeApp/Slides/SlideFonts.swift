@@ -43,6 +43,28 @@ enum SlideFonts {
             face.otherAdvances = OfficeFonts.verdanaOtherAdvances
             face.boldOtherAdvances = OfficeFonts.verdanaBoldOtherAdvances
             return face
+        case "segoe ui", "segoe ui light", "segoe ui semilight", "tahoma", "trebuchet ms", "franklin gothic book",
+             "franklin gothic medium", "century gothic", "gill sans mt", "candara":
+            // (Windows' own widths, `SlideFontWidths`: the bold where the
+            // face has one, else the stand-in's bold.)
+            let n = family.trimmingWhitespace().lowercased()
+            let tables: [String: ([Double], [Double]?)] = [
+                "segoe ui": (SlideFontWidths.segoeUI, SlideFontWidths.segoeUIBold),
+                "segoe ui light": (SlideFontWidths.segoeUILight, nil),
+                "segoe ui semilight": (SlideFontWidths.segoeUISemilight, nil),
+                "tahoma": (SlideFontWidths.tahoma, SlideFontWidths.tahomaBold),
+                "trebuchet ms": (SlideFontWidths.trebuchet, SlideFontWidths.trebuchetBold),
+                "franklin gothic book": (SlideFontWidths.franklinGothicBook, nil),
+                "franklin gothic medium": (SlideFontWidths.franklinGothicMedium, nil),
+                "century gothic": (SlideFontWidths.centuryGothic, SlideFontWidths.centuryGothicBold),
+                "gill sans mt": (SlideFontWidths.gillSans, SlideFontWidths.gillSansBold),
+                "candara": (SlideFontWidths.candara, SlideFontWidths.candaraBold),
+            ]
+            guard let t = tables[n] else { return nil }
+            var face = RichResolvedFace(family: resolve(family))
+            face.advances = t.0
+            face.boldAdvances = t.1
+            return face
         case "arial black":
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.arialBlackAdvances
@@ -67,6 +89,10 @@ enum SlideFonts {
         if n.hasPrefix("tahoma") { return 423.0 / 2472 }
         if n.hasPrefix("segoe ui") { return 514.0 / 2724 }
         if n == "lucida sans unicode" { return 901.0 / 3147 }
+        if n == "trebuchet ms" { return 455.0 / 2378 }
+        if n.hasPrefix("franklin gothic") { return 445.0 / 2322 }
+        if n == "century gothic" { return 451.0 / 2440 }
+        if n == "gill sans mt" { return 472.0 / 2375 }
         // (And Arial and Times New Roman by theirs, no line gap counted:
         // their clones' gap — a thirtieth and a twenty-fourth of an em —
         // put a share of it under the baseline in the engine's line, and

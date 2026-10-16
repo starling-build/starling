@@ -2014,6 +2014,22 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Ten more faces at their own widths, 2026-10-16** (KEY02 4.10 → 2.50,
+ooxtheme 1.56 → 0.63, themes 2.01 → 1.72, bnc862510_7 0.90 → 0.64, ten
+more a little; n862510_4 +0.02). Segoe UI (and Light and Semilight),
+Tahoma, Trebuchet MS, Franklin Gothic Book and Medium, Century Gothic,
+Gill Sans MT and Candara, with their bolds where they have one: their
+widths for U+0020–U+007E read from the Windows build box's own font
+files (`SlideFontWidths`, generated), and the stand-in set at them by
+`SlideFonts.face` — replacing the even spacings for Tahoma Bold and
+Franklin Gothic. Their Windows descents join `ownDescentShare` for
+Trebuchet, Franklin Gothic, Century Gothic and Gill Sans.
+Calibri Light's own widths came out worse than its 0.0054 em spacing
+(seven Calibri Light decks +0.1 to +0.5): a face set at its own widths
+is not kerned nor put on the eighth-point grid here, and Calibri Light
+titles are kerned. It keeps the spacing; kerning faces set at their
+own widths is the next thing to try.
+
 **A raised run's size is a whole point, rounded up, 2026-10-16**
 (pptx2svg 5.15 → 4.98, WithMaster −0.01; the other decks with raised
 or lowered runs unchanged). PowerPoint's prints set them at 65% of the

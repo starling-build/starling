@@ -2683,14 +2683,11 @@ private struct SlideContext {
     /// A run's spacing for a face drawn by a stand-in of other widths,
     /// in a text box and in a table cell alike.
     static func faceSpacing(_ cs: inout CharStyle) {
-        // Arial Black, which no face shipped here has: Arial's bold
-        // set 0.07 em further apart a letter — its measure in
-        // PowerPoint's prints (1.10 to 1.16 of the bold's across
-        // themes', SampleShow's and placeholder-layout-color's
-        // lines), where the plain face's left "TRADE SHOW" on one
-        // line PowerPoint breaks in two.
-        // (Its own widths now come with it, `SlideFonts.face`: set in the
-        // stand-in's bold at Arial Black's advances.)
+        // Arial Black, which no face shipped here has: drawn in the
+        // stand-in's bold, at Arial Black's own widths (`SlideFonts.face`)
+        // — the plain face left "TRADE SHOW" on one line where PowerPoint
+        // breaks it in two. (Segoe UI, Tahoma, Franklin Gothic and the
+        // rest have their own widths there too.)
         if cs.fontFamily?.lowercased() == "arial black" {
             cs.bold = true
         }
@@ -2701,25 +2698,13 @@ private struct SlideContext {
         if cs.fontFamily?.lowercased() == "aptos" {
             cs.letterSpacing = (cs.letterSpacing ?? 0) - (cs.bold ? 0.031 : 0.0185) * (cs.fontSize ?? 18)
         }
-        // Calibri Light, set in Calibri's regular: 0.0054 em a
-        // letter tighter — PowerPoint's lines in it are 1.2 to 1.6%
-        // shorter than ours, the same in all twenty decks (69
-        // lines compared).
+        // Calibri Light, set in Calibri's regular: 0.0054 em a letter
+        // tighter — PowerPoint's lines in it are 1.2 to 1.6% shorter than
+        // ours, the same in all twenty decks (69 lines compared). (Its own
+        // widths, `SlideFontWidths.calibriLight`, came out worse: a face
+        // set at its own widths is not kerned here, and its titles are.)
         if cs.fontFamily?.lowercased() == "calibri light" {
             cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.0054 * (cs.fontSize ?? 18)
-        }
-        // Tahoma's bold, set in Liberation Sans Bold, 0.03 em a
-        // letter looser (its lines 5% short in three decks); and
-        // Franklin Gothic, set in Liberation Sans, 0.032 em (Book)
-        // and 0.024 (Medium) tighter (6% and 4% long in two).
-        switch cs.fontFamily?.lowercased() {
-        case "tahoma" where cs.bold:
-            cs.letterSpacing = (cs.letterSpacing ?? 0) + 0.030 * (cs.fontSize ?? 18)
-        case "franklin gothic book":
-            cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.032 * (cs.fontSize ?? 18)
-        case "franklin gothic medium":
-            cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.024 * (cs.fontSize ?? 18)
-        default: break
         }
         // Consolas, set in Liberation Mono: 0.55 em a letter, not
         // 0.6 (lines 8.7% wide).
