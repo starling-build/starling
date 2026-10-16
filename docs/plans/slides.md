@@ -2014,6 +2014,16 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Kerned where the run says so, on the grid, 2026-10-16** (sweep 108:
+the decks' means 5.74 lower in sum; font-scale 5.47 → 3.39, pptx2svg
+6.70 → 5.44, 3columns −0.45, 60810 −0.42, cooper −0.21, fifteen more;
+tdf95932 +0.13). A run's `kern` (kerning from that size up, hundredths
+of a point — PowerPoint's own masters say 1200) is read into
+`CharStyle.kerningFrom`, and the advance grid then snaps each
+character's advance kerned with the next one (`_pairAdvance`) where the
+run kerns at its size. Without it the grid's one-span-a-character had
+dropped kerning everywhere.
+
 **Glyphs on an eighth of a point, 2026-10-16** (sweep 107: 1.17 →
 1.17%, the sum of the decks' means 3.13 lower; aptia 2.99 → 2.21,
 alterman 6.49 → 6.15, Performance_Up 2.89 → 2.59, bnc904423, tdf169524,

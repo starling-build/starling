@@ -341,6 +341,8 @@ private struct LevelStyle {
     var baseline: Double?
     /// Character spacing in points (`spc`, hundredths of a point).
     var spc: Double?
+    /// `kern`: kerning from this size up, in points (0 for none).
+    var kern: Double?
     /// `a:effectLst` on the run: its outer shadow (nil inside a list
     /// that has none), and whether the list was there at all.
     var shadow: CharShadow?
@@ -381,6 +383,7 @@ private struct LevelStyle {
         s.color = s.color ?? lower.color
         s.baseline = s.baseline ?? lower.baseline
         s.spc = s.spc ?? lower.spc
+        s.kern = s.kern ?? lower.kern
         if !s.shadowSet { s.shadow = lower.shadow; s.shadowSet = lower.shadowSet }
         s.highlight = s.highlight ?? lower.highlight
         s.tabs = s.tabs ?? lower.tabs
@@ -493,6 +496,7 @@ private struct LevelStyle {
         s.caps = r["cap"]
         s.baseline = r["baseline"].flatMap(Double.init)
         s.spc = r["spc"].flatMap(Double.init).map { $0 / 100 }
+        s.kern = r["kern"].flatMap(Double.init).map { $0 / 100 }
         s.font = r.first("a:latin")?["typeface"]
         s.csFont = r.first("a:cs")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
@@ -2851,6 +2855,9 @@ private struct SlideContext {
                                    color: s.color ?? tx1)
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
+                // Kerned from the size `kern` says up (PowerPoint's own
+                // masters say 12 pt); none where it says nothing.
+                if let k = s.kern, k > 0 { cs.kerningFrom = k }
                 let plain = cs
                 // Arial Black, which no face shipped here has: Arial's bold
                 // set 0.07 em further apart a letter — its measure in

@@ -5005,9 +5005,13 @@ public final class RichLayout {
                     }
                 } else if !ea, let grid = theme.advanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline,
                           ch.unicodeScalars.first.map({ $0.value >= 0x20 && $0.value < 0x2E80 }) ?? false {
-                    // On the print's grid (`advanceGrid`).
+                    // On the print's grid (`advanceGrid`) — kerned with the
+                    // next where the run kerns at its size (`kerningFrom`).
                     let s = style(kind)
-                    let w = _glyphWidth(s, ch), g = grid * theme.pixelsPerPoint * scale
+                    let size = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
+                    let kerns = (run.kerningFrom ?? named?.char.kerningFrom).map { $0 > 0 && size >= $0 } ?? false
+                    let w = kerns && following != nil ? _pairAdvance(s, ch, following!) : _glyphWidth(s, ch)
+                    let g = grid * theme.pixelsPerPoint * scale
                     if g > 0, w > 0 { extra += (w / g).rounded() * g - w }
                 } else if !ea, let face = latinFace, face.otherAdvances != nil, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value {
                     // … and the width it gives one the stand-in lacks.
@@ -5510,6 +5514,21 @@ public final class RichLayout {
     private func _spaceWidth(_ style: TextStyle) -> Double { _glyphWidth(style, " ") }
 
     /// How wide a face sets a character, in pixels, at a style's size.
+    /// `ch`'s advance before `next`, their kerning in it.
+    private func _pairAdvance(_ style: TextStyle, _ ch: Character, _ next: Character) -> Double {
+        let key = "\(ch)\(next)|pair|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
+        if let w = _spaceWidths[key] { return w }
+        func width(_ text: String) -> Double {
+            let t = TextPainter(text: TextSpan(text: text, style: style.copyWith(letterSpacing: 0)), textDirection: .ltr)
+            t.layout(minWidth: 0, maxWidth: 100_000)
+            defer { t.dispose() }
+            return t.width
+        }
+        let w = width("\(ch)\(next)") - width("\(next)")
+        _spaceWidths[key] = w
+        return w
+    }
+
     private func _glyphWidth(_ style: TextStyle, _ ch: Character) -> Double {
         let key = "\(ch)|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
             + (style.fontFeatures?.isEmpty ?? true ? "" : "|f")
