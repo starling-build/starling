@@ -49,8 +49,10 @@ enum Xlsx {
         }
 
         // Theme colours, for fills and fonts that name a slot.
-        let theme = _themeColors(xml("xl/theme/theme1.xml"))
+        let themeNode = xml("xl/theme/theme1.xml")
+        let theme = _themeColors(themeNode)
         book.themeColors = theme
+        let themeFonts = _themeFonts(themeNode)
         // Shared strings.
         var sst: [String] = []
         if let s = xml("xl/sharedStrings.xml") {
@@ -59,10 +61,10 @@ enum Xlsx {
         // Styles: one CellStyle per cellXfs entry, in order, so a cell's
         // `s` is its index in the book's table.
         if let st = xml("xl/styles.xml") {
-            book.styles = _styles(st, theme: theme)
+            book.styles = _styles(st, theme: theme, themeFonts: themeFonts)
             // The default font: the first, which the Normal style names.
             if let f = st.child("fonts")?.kids("font").first {
-                if let n = f.child("name")?["val"], !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
+                if let n = _fontName(f, themeFonts), !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
                 book.defaultFontBold = f.child("b").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
                 if let z = f.child("sz").flatMap({ Double($0["val"] ?? "") }), z > 0, z != 11 { book.defaultFontSize = z }
             }
@@ -430,7 +432,31 @@ enum Xlsx {
     private struct _Font { var bold = false, italic = false, underline = false, strike = false
         var size: Double? = nil, name: String? = nil, color: UInt32? = nil }
 
-    static func _styles(_ st: XNode, theme: [UInt32]) -> [CellStyle] {
+    /// A font's face. One of the theme's (`scheme` minor or major) is the
+    /// theme's Latin face, whatever its `name` says: Excel sets 51519's
+    /// "宋体" in Calibri — its columns, rows and Latin text — and a dozen
+    /// other East Asian workbooks' fonts the same way (their names are the
+    /// writer's locale's face, their themes Calibri).
+    static func _fontName(_ f: XNode, _ themeFonts: (minor: String?, major: String?)) -> String? {
+        let named = f.child("name")?["val"]
+        switch f.child("scheme")?["val"] {
+        case "minor": return themeFonts.minor ?? named
+        case "major": return themeFonts.major ?? named
+        default: return named
+        }
+    }
+
+    /// The theme's Latin faces, body (minor) and headings (major).
+    static func _themeFonts(_ t: XNode?) -> (minor: String?, major: String?) {
+        func latin(_ name: String) -> String? {
+            guard let f = t?.descendant("a:" + name) ?? t?.descendant(name),
+                  let face = f.child("latin")?["typeface"], !face.isEmpty else { return nil }
+            return face
+        }
+        return (latin("minorFont"), latin("majorFont"))
+    }
+
+    static func _styles(_ st: XNode, theme: [UInt32], themeFonts: (minor: String?, major: String?) = (nil, nil)) -> [CellStyle] {
         var formats = builtinFormats
         for nf in st.child("numFmts")?.kids("numFmt") ?? [] {
             if let id = Int(nf["numFmtId"] ?? ""), let code = nf["formatCode"] { formats[id] = code }
@@ -443,7 +469,7 @@ enum Xlsx {
             font.underline = f.child("u").map { $0["val"] != "none" } ?? false
             font.strike = f.child("strike").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.size = f.child("sz").flatMap { Double($0["val"] ?? "") }
-            font.name = f.child("name")?["val"]
+            font.name = _fontName(f, themeFonts)
             font.color = f.child("color").flatMap { _color($0, theme: theme) }
             fonts.append(font)
         }
