@@ -545,8 +545,10 @@ enum Xlsx {
 
     static func _color(_ c: XNode, theme: [UInt32]) -> UInt32? {
         var rgb: UInt32? = nil
-        if let s = c["rgb"], let v = UInt32(s.suffix(6), radix: 16) { rgb = v }
-        else if let t = c["theme"].flatMap({ Int($0) }), t < theme.count { rgb = theme[t] }
+        // A theme slot before an rgb the same element also gives: Excel
+        // prints lo-tdf113271's `<color theme="1" rgb="FFFFFF"/>` black.
+        if let t = c["theme"].flatMap({ Int($0) }), t < theme.count { rgb = theme[t] }
+        else if let s = c["rgb"], let v = UInt32(s.suffix(6), radix: 16) { rgb = v }
         else if let i = c["indexed"].flatMap({ Int($0) }), i < _indexed.count { rgb = _indexed[i] }
         guard var v = rgb else { return nil }
         if let tint = c["tint"].flatMap({ Double($0) }), tint != 0 {
