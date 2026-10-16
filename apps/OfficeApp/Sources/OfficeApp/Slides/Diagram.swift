@@ -1168,6 +1168,19 @@ struct DiagramLayout {
             let dx = node.rect.left + (width - b.rect.width) / 2 - b.rect.left
             if abs(dx) > 0.01 { shift(b, Offset(dx, 0)) }
         }
+        // Over its children (`hierAlign="tCtrCh"`, the default): the shape
+        // centred between its first and last child's own boxes, not over
+        // the width of everything below — smartart-recursion's A stands
+        // between B1 and B2, though B1 has two under it and B2 one.
+        if (node.params["hierAlign"] ?? "tCtrCh") == "tCtrCh", blocks.count >= 2, let shape = blocks.first,
+           blocks[1].algType == "hierChild", ["fromL", "fromR"].contains(blocks[1].params["linDir"] ?? "fromL") {
+            let kids = blocks[1].children.filter { !$0.isConnector }.compactMap { shapeRects($0).first }
+            if let first = kids.first, let last = kids.last {
+                let lo = min(first.center.dx, last.center.dx), hi = max(first.center.dx, last.center.dx)
+                let dx = (lo + hi) / 2 - shape.rect.center.dx
+                if abs(dx) > 0.01 { shift(shape, Offset(dx, 0)) }
+            }
+        }
         if blocks.count >= 2, let shape = blocks.first, blocks[1].algType == "hierChild", blocks[1].params["linDir"] == "fromT",
            blocks[1].children.filter({ !$0.isConnector }).count >= 2 {
             // (One child alone sits straight below, as PowerPoint puts it.)

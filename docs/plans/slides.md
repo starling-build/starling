@@ -1801,6 +1801,15 @@ header's fill as its own, and the row shading (shared layout, so
 Word's merged cells too) leaves a gap for any cell from a row above
 that spans down into the row with a fill of its own.
 
+**A hierarchy's parent over its children, 2026-10-15**
+(smartart-org-chart2 3.02 → 1.28, smartart-recursion 2.42 → 0.69; the
+other diagram decks unchanged). A parent was centred over the width of
+everything below it; `hierRoot`'s `hierAlign` is "tCtrCh" by default —
+centred over its children — and PowerPoint puts recursion's A midway
+between B1 and B2, though B1 has two under it and B2 one. The shape now
+stands between its first and last child's own boxes (side-by-side
+children; "tCtrDes" and the stacked kinds keep the old centring).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
