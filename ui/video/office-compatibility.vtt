@@ -1,0 +1,273 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:06.223
+The hardest part of building an Office alternative is making documents look the same as they do in Microsoft Office.
+
+2
+00:00:06.343 --> 00:00:08.371
+Reading the file is only the beginning.
+
+3
+00:00:08.491 --> 00:00:13.241
+Fonts, line breaks, chart labels, and page boundaries must agree.
+
+4
+00:00:13.361 --> 00:00:17.803
+Here is how we find those differences and fix them, one document at a time.
+
+5
+00:00:18.183 --> 00:00:22.864
+We build a broad collection of documents, presentations, and spreadsheets.
+
+6
+00:00:22.984 --> 00:00:31.688
+It needs ordinary layouts and awkward edge cases: floating pictures, tables, chart themes, empty paragraphs, and printing settings.
+
+7
+00:00:31.808 --> 00:00:36.855
+A simple document may look right while a more complicated one exposes a rule we have missed.
+
+8
+00:00:37.235 --> 00:00:43.321
+We let Word, PowerPoint, and Excel render those files, then print or export them as PDFs.
+
+9
+00:00:43.441 --> 00:00:47.050
+Those Microsoft PDFs are our source of truth for appearance.
+
+10
+00:00:47.170 --> 00:00:52.896
+We keep the reference files and their rendering settings, so repeated comparisons have a stable target.
+
+11
+00:00:53.016 --> 00:00:57.384
+Starling then renders exactly the same input files into its own PDFs.
+
+12
+00:00:57.764 --> 00:01:00.191
+The repository automates both sides.
+
+13
+00:01:00.311 --> 00:01:06.940
+PowerPoint exports through AppleScript, Word uses its print dialog, and Excel has a Windows export script.
+
+14
+00:01:07.060 --> 00:01:10.232
+Starling exports through command-line options for each app.
+
+15
+00:01:10.352 --> 00:01:15.156
+These examples use the saved Microsoft references and actual Starling outputs.
+
+16
+00:01:15.276 --> 00:01:20.391
+Now we can compare complete pages without manually switching between two applications.
+
+17
+00:01:20.771 --> 00:01:22.685
+This is the comparison command.
+
+18
+00:01:22.805 --> 00:01:28.340
+It rasterizes both PDFs at the same resolution, then compares corresponding pixels.
+
+19
+00:01:28.460 --> 00:01:33.437
+In this run, a pixel turns red when any color channel differs by more than thirty-two.
+
+20
+00:01:33.557 --> 00:01:38.954
+The output contains the Microsoft page, the Starling page, and a red difference mask.
+
+21
+00:01:39.074 --> 00:01:42.884
+Fonts and rasterization can also contribute to the red pixels.
+
+22
+00:01:43.264 --> 00:01:45.396
+Here is the earlier chart export.
+
+23
+00:01:45.516 --> 00:01:49.022
+Compare the colors, title, labels, and legend.
+
+24
+00:01:49.142 --> 00:01:52.939
+The red mask marks thirteen point zero five percent of the page.
+
+25
+00:01:53.059 --> 00:01:56.922
+It tells us where the images disagree; it does not tell us why.
+
+26
+00:01:57.042 --> 00:02:01.488
+To find the cause, we inspect the document structure and the code that draws it.
+
+27
+00:02:01.868 --> 00:02:05.665
+The chart has its own theme, separate from the presentation theme.
+
+28
+00:02:05.785 --> 00:02:08.068
+Reading that override fixes the colors.
+
+29
+00:02:08.188 --> 00:02:13.084
+Other changes restore title formatting, labels from cells, and legend layout.
+
+30
+00:02:13.204 --> 00:02:15.977
+These are separate, reviewable code changes.
+
+31
+00:02:16.097 --> 00:02:21.254
+We fix the general rendering rules, so other files using those rules can benefit too.
+
+32
+00:02:21.634 --> 00:02:25.195
+Export the file again and run exactly the same comparison.
+
+33
+00:02:25.315 --> 00:02:30.667
+The current chart is much closer, and the differing pixels drop to two point zero eight percent.
+
+34
+00:02:30.787 --> 00:02:32.067
+Some red remains.
+
+35
+00:02:32.187 --> 00:02:37.120
+That is the next investigation, rather than a reason to declare perfect compatibility.
+
+36
+00:02:37.240 --> 00:02:41.046
+These outputs span several improvements, not just one patch.
+
+37
+00:02:41.426 --> 00:02:44.116
+A smaller difference can affect a whole document.
+
+38
+00:02:44.236 --> 00:02:47.481
+On page four, Starling starts the text too low.
+
+39
+00:02:47.601 --> 00:02:53.256
+The cause is on the preceding page: blank lines containing spaces and tabs are measured too tall.
+
+40
+00:02:53.376 --> 00:02:56.838
+Word sizes those lines using the smaller paragraph mark.
+
+41
+00:02:56.958 --> 00:03:00.079
+The extra height accumulates and shifts later content.
+
+42
+00:03:00.459 --> 00:03:05.193
+After correcting that rule, the heading and table return to their expected positions.
+
+43
+00:03:05.313 --> 00:03:09.256
+Here are the actual before and after difference masks for the same region.
+
+44
+00:03:09.376 --> 00:03:15.375
+Across page four, differing pixels fall from seven point five zero to three point eight one percent.
+
+45
+00:03:15.495 --> 00:03:18.129
+The extra fifth page also disappears.
+
+46
+00:03:18.249 --> 00:03:21.113
+Remaining text differences still need inspection.
+
+47
+00:03:21.493 --> 00:03:23.567
+Excel gives us another example.
+
+48
+00:03:23.687 --> 00:03:27.554
+The reference prints category names and percentages outside the pie.
+
+49
+00:03:27.674 --> 00:03:31.330
+The earlier Starling export puts values inside the slices.
+
+50
+00:03:31.450 --> 00:03:35.497
+Reading the label content, placement, and formatting improves this.
+
+51
+00:03:35.617 --> 00:03:40.840
+Printing changes also matter: the earlier output is missing a page present in the reference.
+
+52
+00:03:41.220 --> 00:03:43.816
+Here is the current page and its difference mask.
+
+53
+00:03:43.936 --> 00:03:48.426
+Page one improves from sixteen point five three to three point four two percent.
+
+54
+00:03:48.546 --> 00:03:51.312
+Some label text and percentages still differ.
+
+55
+00:03:51.432 --> 00:03:54.660
+The mask helps us choose the next case to investigate.
+
+56
+00:03:54.780 --> 00:04:01.070
+A rendering comparison measures appearance; formulas, editing, and saving back need their own checks.
+
+57
+00:04:01.450 --> 00:04:03.399
+Then we rerun the wider collection.
+
+58
+00:04:03.519 --> 00:04:09.100
+A proposed print-area rule once improved one spreadsheet but added eleven unwanted pages to another.
+
+59
+00:04:09.220 --> 00:04:10.658
+That change was reverted.
+
+60
+00:04:10.778 --> 00:04:16.061
+The collection keeps us honest: a local improvement is not enough if it breaks other documents.
+
+61
+00:04:16.181 --> 00:04:19.068
+Every mismatch gives us evidence to refine the rule.
+
+62
+00:04:19.448 --> 00:04:28.386
+That is the daily loop: document, Microsoft reference, Starling export, diff, investigation, fix, and another comparison.
+
+63
+00:04:28.506 --> 00:04:36.819
+The history shows printing fixes, chart formatting, floating pictures, blank-line heights, and chart labels progressing across the week.
+
+64
+00:04:36.939 --> 00:04:42.061
+We keep repeating the process, including the small differences that are easy to overlook.
+
+65
+00:04:42.441 --> 00:04:46.292
+Our goal is simple: your document should look the way its author intended.
+
+66
+00:04:46.412 --> 00:04:47.804
+There is still work ahead.
+
+67
+00:04:47.924 --> 00:04:54.178
+A small file you can share, together with its expected Microsoft output, can become the next test.
+
+68
+00:04:54.298 --> 00:04:58.754
+That is how we improve compatibility, one reproducible difference at a time.

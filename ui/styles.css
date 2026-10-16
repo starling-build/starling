@@ -684,6 +684,16 @@ article {
 .film-section .fine {
   max-width: 950px;
 }
+.office-film {
+  background: #f4f6fc;
+}
+.office-film video {
+  aspect-ratio: 16 / 9;
+  background: #15233b;
+}
+.office-film figcaption {
+  margin-top: 16px;
+}
 .install-guide {
   background: #f1f5ed;
   padding: 36px;

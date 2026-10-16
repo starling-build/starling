@@ -9,6 +9,18 @@ The hero introduces the suite and links to downloads and the app sections.
 Sample links live in each app section, without a duplicate hero panel.
 The landing itself uses HTML/CSS and needs no JavaScript or WASM runtime.
 
+After the app examples, a compatibility walkthrough demonstrates Microsoft
+reference PDFs, Starling exports, actual red difference masks, and incremental
+fixes. The 4:59 video, preview image, and English captions live in
+`ui/video/office-compatibility*`. The native player uses `preload="none"`,
+inline playback, and no autoplay. Captions are burned into the video; the
+optional WebVTT track also exposes the text to browser caption controls.
+Source notes, test-file credits, and generation scripts are in
+`docs/videos/office-compatibility/`. The film is a dated October 16, 2026
+development snapshot with synthetic narration, not a claim of complete parity.
+`build/landing-pages.sh` includes all three media files in the standalone
+Office package and versions their URLs by content hash.
+
 The app section headings, Office header, and download-page header use the murmuration
 icons in `ui/img/office/`. These are exact copies of the native application
 icons in `build/office-gtk/starling-{writer,slides,sheets}.svg`; update the web
