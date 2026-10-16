@@ -283,7 +283,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.compactMap { (r, h) -> (Int, Double)? in
                 let fit = ws.fittedRows.contains(r)
                 if fit, h > 0, ws.customDefaultRowHeight { return (r, m.defaultRow) }
-                return (r, h * (fit ? fitted : setScale))
+                return (r, fit ? h * fitted : SheetPrintMetrics.setRow(h, scale: setScale))
             })
             // A row fitted afresh is as tall as its tallest font's line —
             // fitted on the screen, then printed (`fittedRow`).

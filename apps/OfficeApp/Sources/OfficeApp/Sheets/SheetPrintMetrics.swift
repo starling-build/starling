@@ -50,6 +50,15 @@ struct SheetPrintMetrics {
     /// 18.84 pt there and 18.24 among Calibri 11, its own line 18.0. Of the
     /// twelve rows taller than their default, eleven come out within a
     /// 600th of an inch; Arial 12 among Calibri is 0.3 pt short.
+    /// A set row height `h` on paper: scaled as the printer scales it
+    /// (`scale`, `rowScale` or less), and cut down to whole dots of the
+    /// printer's 600 dpi — 20 pt in Arial 10 prints 161 dots, not 161.57
+    /// (labs of twelve set heights in Arial 10 and Calibri 11, Excel 16,
+    /// 2026-10-15: 22 of 24 to the dot, the others one over).
+    static func setRow(_ h: Double, scale: Double) -> Double {
+        (h * scale * 600 / 72 + 1e-6).rounded(.down) * 72 / 600
+    }
+
     func fittedRow(_ font: SheetPrintMetrics) -> Double {
         font.screenRow * 72 / 192 * rowScale
     }
