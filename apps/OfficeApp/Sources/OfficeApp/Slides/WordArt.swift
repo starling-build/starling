@@ -62,6 +62,12 @@ enum WordArt {
         }
     }
 
+    /// How far apart WordArt's lines stand, in heights of a line's box:
+    /// the best fit over the corpus's multi-line WordArt (1.0 to 1.6
+    /// tried; 1.3 best in sum, ImportWordArtGradient's own best, the
+    /// tdf155327 and tdf125085 ones a little further apart).
+    static let linePitch = 1.3
+
     /// The presets whose text follows the area's ellipse.
     static let followsPath: Set<String> = ["textArchUp", "textArchDown", "textCircle", "textButton"]
     /// The presets drawn in bands of their own making.
@@ -367,9 +373,16 @@ enum WordArt {
                 // A line's share of the band is its letters', capital top
                 // to descender, not its whole box: the box has an eighth
                 // of nothing above the capitals, which goes outside.
+                // Lines stand a line's pitch apart (`pitch`, in heights of
+                // a line's box), the gaps between them kept: the band is
+                // the first line's capitals to the last one's foot, all of
+                // it scaled to fit (ImportWordArtGradient's two lines,
+                // 27 pt apart in PowerPoint's print, where squeezed
+                // together they ran into each other).
                 let above = 0.13, below = descends ? 0.03 : 0.2
-                let share = 1 / n / (1 - above - below)
-                let v0 = Double(li) / n - above * share, v1 = Double(li + 1) / n + below * share
+                let pitch = Self.linePitch
+                let span = (n - 1) * pitch + 1 - above - below
+                let v0 = (Double(li) * pitch - above) / span, v1 = (Double(li) * pitch + 1 - above) / span
                 for g in line.glyphs {
                     let u0 = x / total, u1 = (x + g.width) / total
                     x += g.width

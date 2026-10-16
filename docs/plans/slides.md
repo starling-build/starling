@@ -1889,6 +1889,16 @@ medium head on cooper's ¾ pt connectors and lo-connectors' ½ pt ones is
 stopping inside it; "arrow" open, two strokes. Straight lines only;
 bent and curved connectors still end bare.
 
+**WordArt's lines keep their spacing, 2026-10-15** (ImportWordArtGradient
+18.12 → 11.99, WordArtDefaultColor 8.41 → 7.07, WordArtFontText 4.52 →
+3.12, WordArtFontTheme 3.38 → 2.16, three more −0.2; the 23 WordArt
+decks none worse). Bent text of several lines was squeezed together —
+each line's letters filling its share of the band — so ImportWordArt's
+"Happy" ran into its "Birthday", where PowerPoint leaves a 27 pt gap.
+The lines now stand a pitch apart and the whole, first capitals to last
+foot, is fitted to the band. The pitch, 1.3 heights of a line's box,
+is the corpus's best (1.0–1.6 tried); not derived.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

@@ -61,8 +61,8 @@ line-chart.pptx	summary pages=1 worst=2.04% mean=2.04%
 lo-3columns.pptx	summary pages=1 worst=6.49% mean=6.49%
 lo-NumberedList-12ab-ab-34.pptx	summary pages=1 worst=2.68% mean=2.68%
 lo-ShapeLineProperties.pptx	summary pages=1 worst=1.88% mean=1.88%
-lo-ShapePlusImage.pptx	summary pages=1 worst=1.41% mean=1.41%
-lo-ShapeTextInflateTop.pptx	summary pages=1 worst=1.71% mean=1.71%
+lo-ShapePlusImage.pptx	summary pages=1 worst=1.22% mean=1.22%
+lo-ShapeTextInflateTop.pptx	summary pages=1 worst=1.47% mean=1.47%
 lo-TextFittingStored.pptx	summary pages=17 worst=3.96% mean=2.44%
 lo-accent-color.pptx	summary pages=2 worst=0.20% mean=0.11%
 lo-activex_checkbox.pptx	summary pages=1 worst=0.26% mean=0.26%
@@ -290,7 +290,7 @@ lo-tdf125360_1.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf125360_2.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf125551.pptx	summary pages=1 worst=2.41% mean=2.41%
 lo-tdf125554.pptx	summary pages=1 worst=0.06% mean=0.06%
-lo-tdf125573_FontWorkScaleX.pptx	summary pages=2 worst=3.72% mean=3.52%
+lo-tdf125573_FontWorkScaleX.pptx	summary pages=2 worst=3.32% mean=3.30%
 lo-tdf126234.pptx	summary pages=1 worst=0.78% mean=0.78%
 lo-tdf126324.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-tdf126741.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -498,11 +498,11 @@ oox-shape-text-alignment.pptx	summary pages=1 worst=0.44% mean=0.44%
 oox-smartart-groupshape.pptx	summary pages=1 worst=0.10% mean=0.10%
 oox-table-shadow.pptx	summary pages=1 worst=0.68% mean=0.68%
 oox-tdf113187_arcTo_withoutReferences.pptx	summary pages=1 worst=0.02% mean=0.02%
-oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=4.52% mean=4.52%
-oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=3.38% mean=3.38%
+oox-tdf125085_WordArtFontText.pptx	summary pages=1 worst=3.12% mean=3.12%
+oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=2.16% mean=2.16%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
 oox-tdf131082.pptx	summary pages=1 worst=0.15% mean=0.15%
-oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=18.12% mean=18.12%
+oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=11.99% mean=11.99%
 oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=8.49% mean=8.49%
 oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=16.83% mean=16.83%
 oox-tdf141463_GroupTransform.pptx	summary pages=1 worst=0.68% mean=0.68%
@@ -516,7 +516,7 @@ oox-tdf149551_vert_and_padding.pptx	summary pages=1 worst=1.39% mean=1.39%
 oox-tdf149918_pie_textarea.pptx	summary pages=1 worst=2.30% mean=2.30%
 oox-tdf151008_eaVertAnchor.pptx	summary pages=1 worst=3.28% mean=3.28%
 oox-tdf154074_freeConnector.pptx	summary pages=1 worst=0.46% mean=0.46%
-oox-tdf155327_WordArtDefaultColor.pptx	summary pages=1 worst=8.41% mean=8.41%
+oox-tdf155327_WordArtDefaultColor.pptx	summary pages=1 worst=7.07% mean=7.07%
 oox-tdf155412_typeface.pptx	summary pages=1 worst=0.37% mean=0.37%
 oox-tdf163803_image_with_fill.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf164623.pptx	summary pages=1 worst=0.29% mean=0.29%
