@@ -548,6 +548,13 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   21pt left of Word's (x 34.8 to 55.7): a box's tables are placed
   without Word's outdent and cell spacing at each level.
 - Mac, 2026-10-15, leads left (not built):
+  - zh-64044a1d p100 (附件十四's form): in Word's print its text rows
+    stand 36pt (two 18pt grid pitches) and its data rows 18.5; rows whose
+    cells hold only U+3000 (hint eastAsia) are 18.5 in Word and 36.5 in
+    ours, the empty ones 18.5 in both. So a line of nothing but
+    ideographic spaces takes one pitch in Word. A lab of the table alone
+    (u3k, u3k2) sets every row at one pitch in ours, so the page's
+    context matters; not found. It costs the page's foot and page 101.
   - zh-e6d54ae4 p6: a cell merged over three rows ("依據服務特性…改善既有措施。",
     rows 19–21 of t1) brings five lines to page 6 with row 21; Word's row
     21 stands 180pt there (rule at 589.3), ours 163.9 (its flow height),
