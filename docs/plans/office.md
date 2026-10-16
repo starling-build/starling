@@ -4536,6 +4536,13 @@ fitter dropped the paragraph's tail).
   middle of an exact one, not its baseline 13/16 down: zh-1563bd74's
   16pt articles in 30pt exact lines are 21.7pt down in Word's print, ours
   were 24.4 (2.7pt low a page); now 0.3. Drifting lines 720 -> 698.
+- **Song, Ming and Mincho in a serif on Linux (2026-10-16).** Every
+  CJK face drew through Noto Sans CJK; Word's 宋体, 細明體, ＭＳ 明朝 are
+  serifs. A face may name its own fallback (`RichResolvedFace.fallback`),
+  and those names take Noto Serif CJK SC/TC/JP there, the Latin stand-in
+  still first. Tried first as the run's whole face: Noto Serif CJK's own
+  digits and letters broke the PMingLiU documents' lines (zh-04f73697
+  100% -> 66.6). As kept, no score moved.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
