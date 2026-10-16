@@ -4054,6 +4054,12 @@ fitter dropped the paragraph's tail).
   stood 1.75pt high. A spanning cell's continuation borders now count
   among an "at least" row's rules. zh-ae655121 87.0% -> 94.2%; nothing
   else moved.
+- **A header row never parts over a page, repeated or not (2026-10-15;
+  Linux, from Word's print).** zh-e37f8d40's application form marks every
+  row `w:tblHeader`, so none is repeated (a header of the whole table is
+  no header), but Word still parts none of them: its "民政局社会救助股意见"
+  row, five lines, goes whole to page 14 where ours parted it three and
+  two. zh-e37f8d40 96.7% -> 100%; nothing else moved.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

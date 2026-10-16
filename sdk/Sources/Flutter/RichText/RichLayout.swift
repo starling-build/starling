@@ -2337,7 +2337,12 @@ public final class RichLayout {
         var wentOver = false   // `splitRow` moved its row to a new page and left it to the caller
         func splitRow(_ i: Int, _ j: Int, _ c: _CellGeo, atTop: Bool) -> Bool {
             let ts = document.tableStyles[c.table]
-            guard let ts, !ts.rowsCantSplit.contains(c.row), c.row >= headerRows(c.table) else { return false }
+            // (A row marked as a header never parts, repeated or not:
+            // zh-e37f8d40's form marks every row, so none repeats, and
+            // Word carries its 民政局社会救助股意见 row whole to page 14
+            // where ours parted it three lines and two.)
+            guard let ts, !ts.rowsCantSplit.contains(c.row), c.row >= headerRows(c.table),
+                  !(theme.wordRules && ts.headerRow && c.row < ts.headerRowCount) else { return false }
             for k in i ..< j { guard let d = _cells[k], !d.vertical else { return false } }
             var fresh = atTop
             let rowBottom = c.rowTop + c.ownRowHeight
