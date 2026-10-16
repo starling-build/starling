@@ -187,8 +187,8 @@ final class ChartTests: XCTestCase {
     }
 
     func testAKindThisAppCannotDrawIsKept() {
-        let stock = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:stockChart><c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser></c:stockChart></c:plotArea></c:chart></c:chartSpace>"
-        XCTAssertNil(ChartXML.read(XNode.parse(Data(stock.utf8))!, color: { _ in nil }))
+        let surface = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:surfaceChart><c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser></c:surfaceChart></c:plotArea></c:chart></c:chartSpace>"
+        XCTAssertNil(ChartXML.read(XNode.parse(Data(surface.utf8))!, color: { _ in nil }))
     }
 
     /// Columns with a line over them on the same axes are one chart: the
