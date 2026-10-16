@@ -2906,6 +2906,17 @@ fitter dropped the paragraph's tail).
   p38; nothing else moved. Text runs with borders (zh-06c46ba9's 42)
   are untouched: not measured. Left: a picture paragraph's shading is
   drawn one text line tall, not the picture's line.
+- **A cell that states no margins has its table's — or its row's
+  (2026-10-15).** Where most of a table's cells state their margins
+  (`w:tcMar`, as HTML converters write them), the table's margins were
+  taken from the cells, and a cell stating none got those. Word gives
+  such a cell the table's own margins, or its row's where the row has
+  an exception (`w:tblPrEx/w:tblCellMar`). drawing.docx's article table
+  says 105 twips above and below; its rows zero them cell by cell, its
+  logo row by its exception, and its article row not at all — Word
+  sets the article 5.25pt down, ours set it flush, and with the
+  flattened tables' room above it stood 5pt high. drawing's page 8
+  whole: 81.7% -> 82.5; nothing else moved.
 
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with

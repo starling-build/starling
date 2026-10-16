@@ -1225,6 +1225,18 @@ enum DocxFormat {
                         if tcPr?.first("w:tcMar") != nil {
                             let m = _cellMargins(tcPr, "w:tcMar").under(margins)
                             currentCell?.padding = EdgeInsets(left: m.left ?? 5.4, top: m.top ?? 0, right: m.right ?? 5.4, bottom: m.bottom ?? 0)
+                        } else if !cellMars.isEmpty, cellMar.top != nil || cellMar.left != nil || cellMar.bottom != nil || cellMar.right != nil {
+                            // (And one that states none, where the table's
+                            // margins were taken from what most cells say,
+                            // has the table's own: drawing.docx's article
+                            // rows zero their cells' margins but one, whose
+                            // 5.25pt above and below the table's 105 twips
+                            // give — its articles stood 5pt high of Word's.)
+                            // (Its row's own exception first: the logo row
+                            // above them zeroes its margins in `w:tblPrEx`.)
+                            let m = _cellMargins(tr.first("w:tblPrEx")).under(_cellMargins(node.first("w:tblPr")))
+                                .under(styled).under(defaultMargins).under(_Margins.word)
+                            currentCell?.padding = EdgeInsets(left: m.left ?? 5.4, top: m.top ?? 0, right: m.right ?? 5.4, bottom: m.bottom ?? 0)
                         }
                         let keptCell = ["w:noWrap", "w:tcFitText", "w:hideMark"].compactMap { tcPr?.first($0) }.map { PptxXML.serialize($0) }.joined()
                         currentCell?.keptPropertiesXML = keptCell.isEmpty ? nil : keptCell
