@@ -275,18 +275,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 return (r, h * (fit ? fitted : m.rowScale))
             })
             if !ws.customDefaultRowHeight {
-                // A row nobody sized is as tall as its tallest font's line: the
-                // file gives no height for it when Excel did not write the file.
+                // A row nobody sized is as tall as its tallest font's line —
+                // fitted on the screen, then printed (`fittedRow`): the file
+                // gives no height for it when Excel did not write the file.
                 var lines: [Int: Double] = [:]   // by style
                 for (a, cell) in ws.cells where cell.style != 0 && ws.rowHeights[a.row] == nil {
                     let line: Double
                     if let known = lines[cell.style] { line = known } else {
                         let st = book.style(cell.style)
                         line = st.fontName == nil && st.fontSize == nil ? 0
-                            : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st)).defaultRow
+                            : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st)))
                         lines[cell.style] = line
                     }
-                    if line > m.defaultRow, line > heights[a.row] ?? 0 { heights[a.row] = line }
+                    if line > m.defaultRow + 0.01, line > heights[a.row] ?? 0 { heights[a.row] = line }
                 }
             }
             cols = GridAxis(def: ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)

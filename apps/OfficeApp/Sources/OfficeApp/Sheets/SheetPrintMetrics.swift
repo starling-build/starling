@@ -37,6 +37,22 @@ struct SheetPrintMetrics {
     var rowScale: Double
     /// The digit on that Excel's screen, in its pixels.
     var screenDigit: Double
+    /// A row nobody sized, on that Excel's screen, in its pixels.
+    var screenRow: Double = 0
+
+    /// A row nobody sized that holds a font with metrics `font`, in a
+    /// workbook with these. Excel fits the row on the screen, to the font's
+    /// line in whole pixels, and the printer takes those pixels as it takes
+    /// a set height — not the font's own line on the printer. Measured with
+    /// rows of ten faces in a Verdana 10 and a Calibri 11 workbook (Excel
+    /// 16.0, 2026-10-15): Lucida Sans Typewriter 10 among Verdana is 34 px,
+    /// 13.32 pt on paper where its own printed line is 12.6; Calibri 14 is
+    /// 18.84 pt there and 18.24 among Calibri 11, its own line 18.0. Of the
+    /// twelve rows taller than their default, eleven come out within a
+    /// 600th of an inch; Arial 12 among Calibri is 0.3 pt short.
+    func fittedRow(_ font: SheetPrintMetrics) -> Double {
+        font.screenRow * 72 / 192 * rowScale
+    }
 
     /// A column `chars` wide, in points. Excel holds a width in whole
     /// screen pixels, so the characters that print are the pixels' worth —
@@ -194,6 +210,7 @@ struct SheetPrintMetrics {
         let pad = 2 * (screenDigit / 4).rounded(.up) + 1
         let px = ((baseColWidth * screenDigit + pad) / 8).rounded(.up) * 8
         return SheetPrintMetrics(digit: digit * 72 / 600, defaultChars: px / screenDigit,
-                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192), screenDigit: screenDigit)
+                                 defaultRow: row * 72 / 600, rowScale: (row / 600) / (screenRow / 192), screenDigit: screenDigit,
+                                 screenRow: screenRow)
     }
 }
