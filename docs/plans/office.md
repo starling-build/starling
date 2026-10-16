@@ -2872,6 +2872,21 @@ fitter dropped the paragraph's tail).
   now begins at its start; a parent level not yet counted shows its
   start too. zh-ac627439 99.5% -> 99.7; nothing else moved by 0.3.
 
+- **A flattened table's cells keep their room above and below
+  (2026-10-15).** A nested table too big or too deep to be a block is
+  flattened into its cell, and lost the top and bottom margins and cell
+  spacing that stood round each of its cells. drawing.docx's article
+  heads stand in HTML tables three deep (cell spacing 7 and 15 twips,
+  margins of 75 and 15): its "12.04.2006 - Cbonds" line stood 11pt high
+  of Word's print and the pages after it ran a line early. Each
+  flattened cell's first paragraph now takes its top margin and the
+  spacing above (twice in a first row), its last the bottom margin and
+  spacing below; the kept markup saves the table as written. The line
+  now stands 5pt high (a separator row of the outer table, 5.3pt in
+  Word's print, is not yet ours). drawing 80.8% -> 81.7; 60329 2.1 -> 0
+  (its two chance matches against Word's print of its text off the
+  page); the Chinese sample unchanged.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

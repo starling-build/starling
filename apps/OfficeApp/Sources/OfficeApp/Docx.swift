@@ -875,9 +875,26 @@ enum DocxFormat {
                 if depth >= maxNesting {
                     for p in deepParagraphs(node) { walkBlock(p, indent: indent + 18, depth: depth + 1) }
                 } else {
-                    for tr in unwrapped(node, "w:tr") {
+                    // (Each cell keeps the room its table gave it above and
+                    // below — its top and bottom margins and the table's
+                    // cell spacing — as its first and last paragraphs'
+                    // spacing: drawing.docx's article heads stand in HTML
+                    // tables three deep, and flattened they lost 10.5pt of
+                    // it, the "12.04.2006 - Cbonds" line 11pt high of Word's
+                    // print and three pages after it a line early.)
+                    let rows = unwrapped(node, "w:tr")
+                    let tableMargins = _cellMargins(node.first("w:tblPr"))
+                    let spacing = node.first("w:tblPr")?.first("w:tblCellSpacing").flatMap { sp -> Double? in
+                        (sp["w:type"] ?? "dxa") == "dxa" ? Double(sp["w:w"] ?? "").map { $0 / 20 } : nil
+                    } ?? 0
+                    for (r, tr) in rows.enumerated() {
                         for tc in unwrapped(tr, "w:tc") {
+                            let first = paragraphs.count
                             for child in tc.children { walkBlock(child, indent: indent + 18, depth: depth + 1) }
+                            guard paragraphs.count > first else { continue }
+                            let m = _cellMargins(tc.first("w:tcPr"), "w:tcMar").under(tableMargins)
+                            paragraphs[first].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
+                            paragraphs[paragraphs.count - 1].style.spaceAfter += (m.bottom ?? 0) + spacing * (r == rows.count - 1 ? 2 : 1)
                         }
                     }
                 }
