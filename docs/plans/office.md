@@ -2828,6 +2828,13 @@ fitter dropped the paragraph's tail).
   zh-9c5d0c3f 81.6% -> 90.8 (its pages 5 and 7 whole); Chinese sample
   97.09 -> 97.23; POI unchanged by it.
 
+- **The legal Chinese numbers say 壹拾 (2026-10-15).** Counting forms
+  write ten to nineteen without the leading one (十, 十一); the legal
+  (financial) forms keep it: zh-64044a1d's tenth chapter heading is
+  "壹拾、" in Word's print (`ideographLegalTraditional`), and ours read
+  "拾、". The legal forms — Traditional and Simplified — now keep their
+  壹. zh-64044a1d's page 69 whole; nothing else moved.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

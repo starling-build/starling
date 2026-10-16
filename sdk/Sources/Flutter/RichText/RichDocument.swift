@@ -1164,7 +1164,7 @@ public struct ListLevelFormat: Hashable, Sendable {
     /// else by `format`.
     public func number(_ n: Int) -> String {
         guard let raw = rawFormat, n >= 1 else { return format.string(n) }
-        func counting(_ digits: [Character], ten: String, hundred: String, thousand: String) -> String {
+        func counting(_ digits: [Character], ten: String, hundred: String, thousand: String, legal: Bool = false) -> String {
             guard n < 10000 else { return String(n) }
             var out = ""
             let parts = [(n / 1000, thousand), (n / 100 % 10, hundred), (n / 10 % 10, ten), (n % 10, "")]
@@ -1175,8 +1175,10 @@ public struct ListLevelFormat: Hashable, Sendable {
                     continue
                 }
                 if pendingZero { out.append(digits[0]); pendingZero = false }
-                // (十, not 一十, for ten to nineteen.)
-                if !(k == 2 && d == 1 && out.isEmpty) { out.append(digits[d]) }
+                // (十, not 一十, for ten to nineteen — but 壹拾 in the
+                // legal forms: zh-64044a1d's tenth chapter is "壹拾、" in
+                // Word's print, ours "拾、".)
+                if !(k == 2 && d == 1 && out.isEmpty && !legal) { out.append(digits[d]) }
                 out += unit
             }
             return out
@@ -1190,9 +1192,9 @@ public struct ListLevelFormat: Hashable, Sendable {
              "japaneseCounting", "ideographDigital", "taiwaneseDigital", "japaneseDigitalTenThousand":
             return counting(Array("〇一二三四五六七八九"), ten: "十", hundred: "百", thousand: "千")
         case "ideographLegalTraditional", "japaneseLegal":
-            return counting(Array("零壹貳參肆伍陸柒捌玖"), ten: "拾", hundred: "佰", thousand: "仟")
+            return counting(Array("零壹貳參肆伍陸柒捌玖"), ten: "拾", hundred: "佰", thousand: "仟", legal: true)
         case "chineseLegalSimplified":
-            return counting(Array("零壹贰叁肆伍陆柒捌玖"), ten: "拾", hundred: "佰", thousand: "仟")
+            return counting(Array("零壹贰叁肆伍陆柒捌玖"), ten: "拾", hundred: "佰", thousand: "仟", legal: true)
         case "ideographTraditional": return cycle("甲乙丙丁戊己庚辛壬癸")
         case "ideographZodiac": return cycle("子丑寅卯辰巳午未申酉戌亥")
         case "decimalEnclosedCircle", "decimalEnclosedCircleChinese": return cycle("①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳")
