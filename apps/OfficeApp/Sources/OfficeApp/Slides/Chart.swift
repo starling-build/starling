@@ -1940,10 +1940,18 @@ extension ChartPainter {
         let labelSize = c.valueLabelSize ?? c.baseTextSize
         let catSize = c.categoryLabelSize ?? c.baseTextSize
         let catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, .infinity) }
-        let room = (catLabels.map(\.height).max() ?? 12 * k) + 4 * k
+        // The whole circle the spokes reach stands in the area, with 1.2
+        // label lines and 3 pt over it and 1.2 under it, above a foot
+        // 6.5 pt off the frame (a 2013-style chart's area ends 9 off it).
+        // So chartex's five-spoke radar, its lower labels beside their
+        // spokes, in Word's print with its legend at the top, the foot
+        // and none (radius 81.9 and 93.4, centre within 0.7), and
+        // radar-chart's four spokes in PowerPoint's (108.9, 0.3).
+        let lineH = catLabels.map(\.height).max() ?? 12 * k
+        let over = 1.2 * lineH + 3 * k, under = 1.2 * lineH - (c.styled2013 ? 2.5 * k : 0)
         let wide = (catLabels.map(\.width).max() ?? 0) + 4 * k
-        let radius = max(4, min(area.width / 2 - wide, area.height / 2 - room))
-        let centre = area.center
+        let radius = max(4, min(area.width / 2 - wide, (area.height - over - under) / 2))
+        let centre = Offset(area.center.dx, area.top + over + radius)
         func point(_ i: Int, _ r: Double) -> Offset {
             let a = -Double.pi / 2 + Double(i) * 2 * .pi / Double(n)
             return Offset(centre.dx + cos(a) * r, centre.dy + sin(a) * r)
@@ -1966,22 +1974,26 @@ extension ChartPainter {
                 canvas.drawPath(ring, gridPaint)
             }
         }
-        // The value axis's labels up the first spoke, to its left.
+        // The value axis's labels up the first spoke, to its left, as far
+        // off it as they are tall (radar-chart's 18 pt labels end 18.1 pt
+        // from it in PowerPoint's print, chartex's 9 pt 9.1 in Word's).
         if !c.valueAxisDeleted {
             for v in ticks {
                 let tp = text(label(v, percent: c.percent), labelSize, .infinity)
                 let at = point(0, r(v))
-                tp.paint(canvas, Offset(at.dx - 4 * k - tp.width, at.dy - tp.height / 2))
+                tp.paint(canvas, Offset(at.dx - labelSize * k - tp.width, at.dy - tp.height / 2))
                 tp.dispose()
             }
         }
-        // The categories outside the spokes' ends.
+        // The categories outside the spokes' ends: above or below an end
+        // straight up or down, beside any other, centred on it (chartex's
+        // five in Word's print, the lower two level with their ends).
         for (i, tp) in catLabels.enumerated() {
             let a = -Double.pi / 2 + Double(i) * 2 * .pi / Double(n)
             let end = point(i, radius + 3 * k)
             let dx = cos(a), dy = sin(a)
             let x = abs(dx) < 0.2 ? end.dx - tp.width / 2 : dx > 0 ? end.dx : end.dx - tp.width
-            let y = abs(dy) < 0.2 ? end.dy - tp.height / 2 : dy > 0 ? end.dy : end.dy - tp.height
+            let y = abs(dx) >= 0.2 ? end.dy - tp.height / 2 : dy > 0 ? end.dy : end.dy - tp.height
             tp.paint(canvas, Offset(x, y))
             tp.dispose()
         }

@@ -3297,6 +3297,25 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A radar's circle, its labels, as Word and PowerPoint set them
+  (2026-10-16).** The radar stood in the middle of its area with a
+  label line and 4pt kept on every side, its value labels 4pt off the
+  first spoke, and a category label at a spoke's end below or above it
+  unless the spoke ran level. Word's prints of chartex's five-spoke
+  radar, with its legend at the top, at the foot and deleted (labs on
+  the Windows box), fit the whole circle the spokes reach into the
+  area: the radius gains half of what the area gains (81.9 to 93.4
+  without the legend's 22.9). Over the circle stand 1.2 label lines
+  and 3pt, under it 1.2 lines over a foot 6.5pt off the frame (a
+  2013-style chart's area ends 9 off it) — which gives Word's radius
+  and centre within 0.7pt and PowerPoint's radar-chart's (four spokes,
+  18pt labels) within 0.3. A category label beside any spoke not
+  straight up or down is centred on its end (chartex's lower two, 7pt
+  low; its upper right, 10pt high); the value labels stand off the
+  spoke by their size (9.1pt at 9, 18.1 at 18). chartex 61.1% -> 65.3
+  (page 2: 10 of 21 lines to 13, the rest its box-and-whisker chart);
+  radar-chart 1.74% -> 1.58 in the deck sweep; nothing else moved.
+
 - **A legend at the top stands 4.3pt further under a title
   (2026-10-16).** A top legend was set where the plot would have
   started under the title. In Word's print its baseline is 22.2pt under
