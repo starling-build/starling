@@ -303,10 +303,13 @@ extension SheetGridState {
             }
             let names = SheetPrintLayout.printNames(book, sheet: si)
             // A print area prints instead of the used one (each of several on
-            // its own pages); a whole-column or whole-row area stops where the
-            // sheet does.
+            // its own pages); it stops where the sheet does going down, and
+            // going across only when it is whole rows: StructuredRefs-lots-
+            // with-lookups' List!A5:L121 is fitted to its width with the empty
+            // K and L, at Excel's 65% where ours left them out and made 75%.
             let areas = names.areas.isEmpty ? [used] : names.areas.map { a in
-                CellRange(top: a.top, left: a.left, bottom: min(a.bottom, max(a.top, used.bottom)), right: min(a.right, max(a.left, used.right)))
+                CellRange(top: a.top, left: a.left, bottom: min(a.bottom, max(a.top, used.bottom)),
+                          right: a.right == CellAddress.maxCols - 1 ? max(a.left, used.right) : a.right)
             }
             await _preloadPictures(ws)
             let setup = SheetPrintSetup.read(ws)
