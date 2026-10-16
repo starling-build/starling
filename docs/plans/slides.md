@@ -2014,6 +2014,13 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Tried and dropped, 2026-10-16:** an unknown face (Work Sans,
+Poppins) set in Liberation Sans again on slides rather than in the
+Cambria clone the shared substitution now gives every name it does not
+know (Word on a Mac's rule, 2026-10-15). Eight decks moved by under
+0.2 either way and tdf140852 went 4.28 → 4.47: a sans of the wrong
+width is no nearer than a serif, so the slides keep the shared rule.
+
 **Medium Style 1, and a table's text size, 2026-10-16**
 (tdf135843_insideH 4.36 → 0.02; the other 55 table decks unchanged).
 The deck names PowerPoint's built-in Medium Style 1 without defining
