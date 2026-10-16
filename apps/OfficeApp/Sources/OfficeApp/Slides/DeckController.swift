@@ -61,6 +61,7 @@ struct ShapeState: Equatable {
     var outlineDash: String? = nil
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
+    var outlineCompound: String? = nil
     var textTurn = 0
     var shadow: CharShadow? = nil
     var innerShadow: CharShadow? = nil
@@ -1148,6 +1149,7 @@ final class DeckController: ChangeNotifier {
         st.sizeGroup = s.sizeGroup
         st.outlineDash = s.outlineDash
         st.headEnd = s.headEnd
+        st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
         st.textTurn = s.textTurn
         st.shadow = s.shadow
@@ -1248,6 +1250,7 @@ final class DeckController: ChangeNotifier {
         shape.sizeGroup = st.sizeGroup
         shape.outlineDash = st.outlineDash
         shape.headEnd = st.headEnd
+        shape.outlineCompound = st.outlineCompound
         shape.tailEnd = st.tailEnd
         shape.textTurn = st.textTurn
         shape.shadow = st.shadow

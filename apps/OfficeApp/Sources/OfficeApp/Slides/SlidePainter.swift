@@ -804,6 +804,8 @@ final class SlidePainter: CustomPainter {
                 canvas.drawLine(a, b, p)
                 if let e = shape.headEnd { Self.lineEnd(e, tip: a0, from: b0, base: base, paint: p, canvas) }
                 if let e = shape.tailEnd { Self.lineEnd(e, tip: b0, from: a0, base: base, paint: p, canvas) }
+            } else if let compound = shape.outlineCompound, shape.preset?.isOpenPath != true {
+                Self.compoundOutline(path ?? { let q = Path(); q.addRect(r); return q }(), compound, p, canvas)
             } else if let path {
                 canvas.drawPath(path, p)
             } else {
@@ -1291,6 +1293,64 @@ final class SlidePainter: CustomPainter {
         }
         p.style = .fill
         canvas.drawPath(path, p)
+    }
+
+    /// A closed outline drawn as two or three lines (`cmpd`): the full
+    /// stroke with its gaps taken out. The gaps, as shares of the width
+    /// from the outer edge (−½) to the inner (½), are PowerPoint's —
+    /// ShapeLineProperties' 5 pt thinThick is 1 pt out, 1 pt gap, 3 pt in.
+    static func compoundOutline(_ path: Path, _ compound: String, _ line: Paint, _ canvas: any Canvas) {
+        let gaps: [(Double, Double)]
+        switch compound {
+        case "dbl": gaps = [(-1.0 / 6, 1.0 / 6)]
+        case "thickThin": gaps = [(0.1, 0.3)]
+        case "thinThick": gaps = [(-0.3, -0.1)]
+        case "tri": gaps = [(-0.3, -0.1), (0.1, 0.3)]
+        default: canvas.drawPath(path, line); return
+        }
+        let w = line.strokeWidth
+        let b = path.getBounds().inflate(w * 2 + 4)
+        canvas.saveLayer(b, Paint())
+        canvas.drawPath(path, line)
+        let erase = Paint()
+        erase.style = .stroke
+        erase.isAntiAlias = true
+        erase.blendMode = .dstOut
+        erase.color = Color(0xFF000000)
+        for (a0, b0) in gaps {
+            let a = a0 * w, bb = b0 * w
+            if a < 0 && bb > 0 {
+                // Across the middle (dbl's): symmetric, rubbed out whole.
+                erase.strokeWidth = 2 * max(-a, bb)
+                canvas.drawPath(path, erase)
+                continue
+            }
+            // On one side: rubbed out to its far edge, the line put back
+            // up to its near edge, inside or outside the outline only.
+            canvas.save()
+            if a >= 0 {
+                canvas.clipPath(path)
+            } else {
+                let outside = Path()
+                outside.fillType = .evenOdd
+                outside.addRect(b)
+                outside.addPath(path, Offset.zero)
+                canvas.clipPath(outside)
+            }
+            let far = max(abs(a), abs(bb)), near = min(abs(a), abs(bb))
+            erase.strokeWidth = 2 * far
+            canvas.drawPath(path, erase)
+            if near > 0 {
+                let back = Paint()
+                back.style = .stroke
+                back.isAntiAlias = true
+                back.color = line.color
+                back.strokeWidth = 2 * near
+                canvas.drawPath(path, back)
+            }
+            canvas.restore()
+        }
+        canvas.restore()
     }
 
     /// A path's two ends and the points they come from (the next point,

@@ -1984,6 +1984,16 @@ Tried and dropped: textCircle's later lines on smaller circles inside
 the first (TextOnCircle +0.28) — PowerPoint's circle text is also
 larger and starts further round than ours, and those come first.
 
+**Compound outlines, 2026-10-15** (ShapeLineProperties 1.88 → 1.98;
+the other four decks with one unchanged). `a:ln cmpd` was not read: a
+"double line" was one thick line. A closed outline now draws as two or
+three — the full stroke with its gaps rubbed out, each gap a share of
+the width from the outer edge: dbl ⅓ in the middle, thickThin 0.6–0.8,
+thinThick 0.2–0.4, tri 0.2–0.4 and 0.6–0.8. ShapeLineProperties' 5 pt
+thinThick reads 1 pt line, 1 pt gap, 3 pt line from outside in, exactly
+PowerPoint's profile; the page scores a little worse for its edges
+(PowerPoint's PDF fills the bands as rectangles, snapped differently).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

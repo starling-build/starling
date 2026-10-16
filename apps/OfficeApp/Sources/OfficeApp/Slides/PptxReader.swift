@@ -1421,6 +1421,7 @@ private struct SlideContext {
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.outlineDash = PptxReader.dash(spPr?.first("a:ln")) ?? inheritedDash
         st.headEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:headEnd"))
+        if let c = spPr?.first("a:ln")?["cmpd"], c != "sng" { st.outlineCompound = c }
         st.tailEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:tailEnd"))
         st.shadow = _shapeShadow(spPr, style)
         st.innerShadow = _shapeInnerShadow(spPr, style)

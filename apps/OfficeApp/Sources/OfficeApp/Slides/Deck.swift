@@ -442,6 +442,9 @@ final class SlideShape {
     /// and end.
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
+    /// `a:ln cmpd`: "dbl", "thickThin", "thinThick" or "tri"; nil for one
+    /// line.
+    var outlineCompound: String? = nil
     /// `bodyPr vert`: the text set a quarter turn clockwise (1: `vert`,
     /// `eaVert`) or anticlockwise (-1: `vert270`); 0 across.
     var textTurn = 0
