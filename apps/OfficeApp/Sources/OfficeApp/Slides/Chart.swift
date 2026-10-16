@@ -1061,11 +1061,12 @@ enum ChartPainter {
     /// Round axis bounds and a step, Excel's way: about five to ten
     /// gridlines, 5% headroom above the data.
     /// The step is the smallest of 1, 2, 5 × a power of ten that marks the
-    /// axis in no more than `intervals` steps. Eight is PowerPoint's, by
+    /// axis in no more than `intervals` steps. Nine is PowerPoint's, by
     /// every axis of its pages looked at: 0 to 1,600 in 200s (eight; 100s
     /// would be sixteen), 0 to 600 in 100s (six; 50s twelve), 0 to 6 in
-    /// ones (halves twelve), 0 to 10 in twos (ones ten).
-    static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 8) -> (lo: Double, hi: Double, step: Double) {
+    /// ones (halves twelve), 0 to 10 in twos (ones ten) — and 0 to 9 in
+    /// ones (line-chart's 8.2, where eight made it 0 to 10 in twos).
+    static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 9) -> (lo: Double, hi: Double, step: Double) {
         var lo = min(0, lo0), hi = max(0, hi0)
         if hi == lo { hi = lo + 1 }
         let span = hi - lo
@@ -1148,10 +1149,10 @@ enum ChartPainter {
         // a tuple `var` that the closures below capture — "Lexical
         // borrows of SILBoxTypes must be of vars or captures" — and the
         // release build dies with exception 3.)
-        // (A value axis with no labels takes up to ten steps: aascu 5864's
-        // census chart, its axis deleted, runs 0–90 by tens in
-        // PowerPoint's print, where eight would make it 0–100 by twenties.)
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi, intervals: c.valueAxisDeleted ? 10 : 8)
+        // (A value axis across the page — a bar chart's — keeps to eight:
+        // its labels stand side by side, and bar-chart's 8.2 runs 0 to 10
+        // in twos there where the same data up the page goes by ones.)
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi, intervals: c.type == .bar ? 8 : 9)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
@@ -1159,7 +1160,7 @@ enum ChartPainter {
         var xScale = (lo: 0.0, hi: Double(n), step: 1.0)
         if c.type == .scatter {
             let x = (0 ..< n).map { c.x($0) }
-            xScale = scale(x.min() ?? 0, x.max() ?? 1)
+            xScale = scale(x.min() ?? 0, x.max() ?? 1, intervals: 8)
         }
         let xs = xScale
         var area = area0
@@ -1680,7 +1681,7 @@ extension ChartPainter {
         let n = c.categories.count
         guard n >= 3 else { return }
         let values = c.series.flatMap { $0.values.compactMap { $0 } }
-        let auto = scale(min(0, values.min() ?? 0), values.max() ?? 1)
+        let auto = scale(min(0, values.min() ?? 0), values.max() ?? 1, intervals: 8)
         let sc = fixedScale(auto: auto, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         let labelSize = c.valueLabelSize ?? c.baseTextSize
         let catSize = c.categoryLabelSize ?? c.baseTextSize
