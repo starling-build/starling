@@ -3297,6 +3297,14 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A stock chart is read as its lines (2026-10-16).** `c:stockChart`
+  (high-low-close) was no chart to the reader, and Writer kept chartex's
+  as a grey box. Its series are lines, and Excel writes their lines and
+  markers as none: read as a line chart it draws its title, axes, dates
+  and legend where Word does, and no series. Its high-low lines and
+  up/down bars are not drawn. chartex 34.7% -> 44.4 (its page 3: 0 of 27
+  lines to 7); nothing else moved.
+
 - **What goes over of a parting row stands its cells' top margin under
   the rule (2026-10-16).** The part of a row carried to the next page
   was set straight under the rule ruled across its top; Word sets it

@@ -401,6 +401,11 @@ enum ChartXML {
         switch el.name {
         case "c:barChart", "c:bar3DChart": type = el.first("c:barDir")?["val"] == "bar" ? .bar : .column
         case "c:lineChart", "c:line3DChart": type = .line
+        // (A stock chart is read as the lines its series are — Excel's
+        // high-low-close sets their lines and markers to none, so its
+        // axes, labels and legend stand where they belong and its bars
+        // are not drawn; chartex's was a grey box.)
+        case "c:stockChart": type = .line
         case "c:pieChart", "c:pie3DChart", "c:ofPieChart": type = .pie
         case "c:doughnutChart": type = .doughnut
         case "c:areaChart", "c:area3DChart": type = .area
