@@ -4863,10 +4863,20 @@ public final class RichLayout {
                         autoSpaces?(offset, gap)
                     } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
                                 || (fullQuotes && (following == "\u{201C}" || following == "\u{2018}") && Self._closingMarks.contains(ch)
-                                    && Self.isEastAsian(following, hinted: hinted)) {
+                                    && Self.isEastAsian(following, hinted: hinted))
+                                || (fullQuotes && (ch == "\u{201D}" || ch == "\u{2019}") && Self.isEastAsian(ch, hinted: hinted)
+                                    && (Self._closingMarks.contains(following) || Self._openingMarks.contains(following)
+                                        || ((following == "\u{201C}" || following == "\u{2018}") && Self.isEastAsian(following, hinted: hinted)))) {
                         // (A closing mark before a full-width opening quote
                         // gives its half as before any opening mark: zh-15728c84's
                         // "微信、“12345”" sets "、" 5pt wide at 10pt in Word's print.)
+                        // (And a full-width closing quote is a closing mark
+                        // itself: the same document's "线上线下”、“舆情" sets
+                        // "”" and "、" 5.2 and 5.3pt wide at 10.5, and a cell
+                        // line took the character after "主体；" that ours
+                        // left for the next. Where punctuation does not kern
+                        // — `w:noPunctuationKerning`, zh-d68ac84a's "”（" —
+                        // the quote keeps its em, as the marks do.)
                         extra -= em / 2
                     }
                 }
@@ -5651,6 +5661,9 @@ public final class RichLayout {
             guard closing[k], k + 1 < units.count, let a = Unicode.Scalar(units[k]), let b = Unicode.Scalar(units[k + 1]) else { return false }
             return Self.closesUp(Character(a), Character(b), centred: document.marksCentred)
                 || (Self._closingMarks.contains(Character(a)) && (units[k + 1] == 0x201C || units[k + 1] == 0x2018) && wideQuote(k + 1))
+                || ((units[k] == 0x201D || units[k] == 0x2019) && wideQuote(k)
+                    && (Self._closingMarks.contains(Character(b)) || Self._openingMarks.contains(Character(b))
+                        || ((units[k + 1] == 0x201C || units[k + 1] == 0x2018) && wideQuote(k + 1))))
         }
         // The probe's lines are the engine's clusters (at no width it
         // breaks even inside a word): each with its width, and its
