@@ -2014,6 +2014,23 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A text block centred across its box (`anchorCtr`), 2026-10-16**
+(eaVertAnchor 3.28 → 2.79, tdf165261 −0.11, tdf165341 −0.09,
+tdf149551_TextRot −0.05, slide-section-test −0.04, vert270AndTextRot
+−0.03; fifteen decks say it, none worse). `bodyPr anchorCtr` was not
+read. The text is now a block as wide as its widest line, centred
+across the box, its lines aligned within the block — hanging out both
+sides alike when wider; for vertical text, which is laid out in the box
+turned, that centres it down the box (eaVertAnchor's lower row, whose
+columns started at the box's top). Written back on save.
+
+Also looked at and left, 2026-10-16: minimal-gradient-fill-issue's two
+stops at one position — PowerPoint holds the first colour to 50% and
+then blends to the second by 100%, but shows the second flat when both
+are at 0, not a rule to build on from one deck; bug54570's metafile
+chart, whose bars PowerPoint's PDF strokes with a 0.025 pt black line
+though the file selects the null pen (an export artifact, not drawn).
+
 **PictureStrips: the strips' shape, and their pictures, 2026-10-16**
 (smartart-picture-strip 3.33 → 4.40, though now laid out as
 PowerPoint's; snake-rows 1.09 → 1.03). Two faults. A snake chose its

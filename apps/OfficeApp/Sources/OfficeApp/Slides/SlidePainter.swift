@@ -268,10 +268,24 @@ final class SlideTextCache {
     /// centred, all of it aligned right).
     func textLeft(_ shape: SlideShape, pxPerPt: Double) -> Double {
         let left = shape.drawInsets.left * pxPerPt
-        guard shape.noWrap, let layout = layout(shape, pxPerPt: pxPerPt), let doc = shape.text?.document else { return left }
+        guard shape.noWrap || shape.anchorCentred, shape.kind != .table, let layout = layout(shape, pxPerPt: pxPerPt),
+              let doc = shape.text?.document else { return left }
         let room = (shape.frame.width - shape.drawInsets.left - shape.drawInsets.right) * pxPerPt
         let over = layout.width - room
-        guard over > 0 else { return left }
+        // Centred as a block (`anchorCtr`): the widest line's span in the
+        // middle of the room, the others aligned within it — hanging out
+        // both sides alike when it is wider.
+        if shape.anchorCentred {
+            var lo = Double.infinity, hi = -Double.infinity
+            for i in 0 ..< layout.count {
+                let g = layout.geometry(i)
+                for m in g.painter.computeLineMetrics() where m.width > 0 {
+                    lo = min(lo, g.textLeft + m.left); hi = max(hi, g.textLeft + m.left + m.width)
+                }
+            }
+            return hi > lo ? left + room / 2 - (lo + hi) / 2 : left
+        }
+        guard shape.noWrap, over > 0 else { return left }
         switch doc.paragraphs.first?.style.alignment {
         case .center?: return left - over / 2
         case .right?: return left - over

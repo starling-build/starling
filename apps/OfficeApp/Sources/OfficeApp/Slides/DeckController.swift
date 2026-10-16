@@ -75,6 +75,7 @@ struct ShapeState: Equatable {
     var uprightBox: Rect? = nil
     var uprightInsets = EdgeInsets.zero
     var noWrap = false
+    var anchorCentred = false
     var columns = 1
     var columnGap = 0.0
     var warp: TextWarp? = nil
@@ -1159,6 +1160,7 @@ final class DeckController: ChangeNotifier {
         st.softEdge = s.softEdge
         st.shapeInsets = s.shapeInsets
         st.noWrap = s.noWrap
+        st.anchorCentred = s.anchorCentred
         st.columns = s.columns
         st.columnGap = s.columnGap
         st.warp = s.warp
@@ -1260,6 +1262,7 @@ final class DeckController: ChangeNotifier {
         shape.softEdge = st.softEdge
         shape.shapeInsets = st.shapeInsets
         shape.noWrap = st.noWrap
+        shape.anchorCentred = st.anchorCentred
         shape.columns = st.columns
         shape.columnGap = st.columnGap
         shape.warp = st.warp

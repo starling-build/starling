@@ -469,6 +469,10 @@ final class SlideShape {
     /// narrow the box — the text runs past its edges, from the side its
     /// first paragraph is aligned to. (Drawn so; the editor still wraps.)
     var noWrap = false
+    /// `bodyPr anchorCtr`: the text, as a block as wide as its widest
+    /// line, centred across the box, its lines aligned within the block
+    /// (vertical text: centred down it — eaVertAnchor's lower row).
+    var anchorCentred = false
     /// `bodyPr numCol`: the text runs down this many columns of the box,
     /// filling each to the box's height before the next, `columnGap`
     /// points (`spcCol`) apart. (Drawn so; the editor edits one column.)
