@@ -225,14 +225,16 @@ struct Chart: Equatable {
     var styled2013 = true
     /// The plot area's own fill (`c:plotArea/c:spPr`).
     var plotFill: Color? = nil
-    /// The chart area's own fill and outline (`c:chartSpace/c:spPr`): nil
-    /// for none given (a sheet's chart is then white with a light grey
-    /// edge), `noFill`/`noLine` for one the file says is not there.
+    /// The chart area's own fill and outline (`c:chartSpace/c:spPr`), or
+    /// `noFill`/`noLine` where it says there is none — what this app writes
+    /// for a chart of its own, and so the default. A file that gives no
+    /// `c:spPr` has neither (a sheet's chart is then white with a light grey
+    /// edge, Excel's look). Written back as read.
     var areaFill: Color? = nil
-    var areaNoFill = false
+    var areaNoFill = true
     var areaLine: Color? = nil
     var areaLineWidth: Double? = nil
-    var areaNoLine = false
+    var areaNoLine = true
     /// The value axis draws its gridlines (`c:majorGridlines`).
     var valueGrid = true
     /// An axis the file deletes (`c:delete`): no labels, no room for them.
@@ -633,6 +635,7 @@ enum ChartXML {
             ?? el.first("c:ser")?.first("c:val")?.descendant("c:formatCode")?.text
         if let code = labelCode, !code.isEmpty, code.lowercased() != "general" { c.labelFormat = code }
         if let f = plot.first("c:spPr")?.first("a:solidFill") { c.plotFill = color(f) }
+        c.areaNoFill = false; c.areaNoLine = false
         if let sp = space.first("c:spPr") {
             if let f = sp.first("a:solidFill") { c.areaFill = color(f) } else if sp.first("a:noFill") != nil { c.areaNoFill = true }
             if let ln = sp.first("a:ln") {
@@ -868,13 +871,20 @@ enum ChartXML {
             _rich($0, size: c.titleSize.map { Int(($0 * 100).rounded()) } ?? 1862, bold: c.titleBold, color: c.titleColor)
         } ?? ""
         let plotFill = c.plotFill.map { "<c:spPr><a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill></c:spPr>" } ?? ""
+        // The chart area as the chart has it (no fill and no line, for one
+        // of this app's own; nothing at all where the file gave nothing).
+        let areaFillXML = c.areaFill.map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" } ?? (c.areaNoFill ? "<a:noFill/>" : "")
+        let areaLineXML = c.areaLine.map { line in
+            "<a:ln\(c.areaLineWidth.map { " w=\"\(Int(($0 * 12700).rounded()))\"" } ?? "")><a:solidFill><a:srgbClr val=\"\(PptxText.hex(line))\"/></a:solidFill></a:ln>"
+        } ?? (c.areaNoLine ? "<a:ln><a:noFill/></a:ln>" : "")
+        let areaXML = areaFillXML.isEmpty && areaLineXML.isEmpty ? "" : "<c:spPr>\(areaFillXML)\(areaLineXML)</c:spPr>"
         let legend = c.legend ? "<c:legend><c:legendPos val=\"\(c.legendPosition)\"/><c:overlay val=\"0\"/></c:legend>" : ""
         let ink = c.textColor.map { "<a:solidFill><a:srgbClr val=\"\(PptxText.hex($0))\"/></a:solidFill>" }
             ?? (c.plainText ? "" : "<a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"65000\"/><a:lumOff val=\"35000\"/></a:schemeClr></a:solidFill>")
         let text = "<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"\(Int(((c.textSize ?? 12) * 100).rounded()))\">\(ink)</a:defRPr></a:pPr><a:endParaRPr lang=\"en-US\"/></a:p></c:txPr>"
         return """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>\(c.style.map { "<c:style val=\"\($0)\"/>" } ?? (c.officeStyled ? "<c:style val=\"2\"/>" : ""))<c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)\(plotFill)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
+        <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>\(c.style.map { "<c:style val=\"\($0)\"/>" } ?? (c.officeStyled ? "<c:style val=\"2\"/>" : ""))<c:chart>\(title)<c:autoTitleDeleted val="\(c.title == nil ? 1 : 0)"/><c:plotArea><c:layout/>\(plot)\(plotFill)</c:plotArea>\(legend)<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>\(areaXML)\(text)<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>
         """
     }
 

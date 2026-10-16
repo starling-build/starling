@@ -420,8 +420,14 @@ extension SheetDrawingsXML {
         if let a = x.findRange(of: "<c:externalData"), let b = x.findRange(of: "</c:externalData>") {
             x.removeSubrange(a.lowerBound ..< b.upperBound)
         }
-        x = x.replacingAll("</c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>",
-                           with: "</c:chart><c:spPr><a:solidFill><a:schemeClr val=\"bg1\"/></a:solidFill><a:ln w=\"9525\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"15000\"/><a:lumOff val=\"85000\"/></a:schemeClr></a:solidFill><a:round/></a:ln></c:spPr>")
+        // (Excel's chart area for one that has none of its own, or the bare
+        // one Slides' writer gives a chart of this app's.)
+        let excelArea = "<c:spPr><a:solidFill><a:schemeClr val=\"bg1\"/></a:solidFill><a:ln w=\"9525\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"tx1\"><a:lumMod val=\"15000\"/><a:lumOff val=\"85000\"/></a:schemeClr></a:solidFill><a:round/></a:ln></c:spPr>"
+        if x.containsSubstring("</c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>") {
+            x = x.replacingAll("</c:chart><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>", with: "</c:chart>" + excelArea)
+        } else if !x.containsSubstring("</c:chart><c:spPr>") {
+            x = x.replacingAll("</c:chart>", with: "</c:chart>" + excelArea)
+        }
         x = x.replacingAll("sz=\"1862\"", with: "sz=\"1400\"").replacingAll("sz=\"1330\"", with: "sz=\"1000\"")
             .replacingAll("sz=\"1200\"", with: "sz=\"900\"")
         // Each series in turn: its name, categories and values.
@@ -551,6 +557,8 @@ extension WorkbookController {
         if type == .pie { refs = Array(refs.prefix(1)) }
         var chart = Chart(type: type, title: nil, categories: [],
                           series: refs.indices.map { ChartSeries(name: "Series\($0 + 1)", values: []) })
+        // (Excel's white, outlined chart area: written as such on save.)
+        chart.areaNoFill = false; chart.areaNoLine = false
         chart.legend = refs.count > 1 || type == .pie
         var sc = SheetChart(chart: chart, refs: refs)
         let live = liveChart(sc)
