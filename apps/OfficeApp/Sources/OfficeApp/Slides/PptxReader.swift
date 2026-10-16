@@ -2097,6 +2097,13 @@ private struct SlideContext {
         if let map = space.first("c:clrMapOvr") { for (k, v) in map.attrs { colors.map[k] = v } }
         guard var chart = ChartXML.read(space, color: { colors.color(in: $0) }),
               var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
+        // A chart that names no face is in its own slide's theme font — a
+        // deck of several masters (aascu 5864's census charts, Calibri;
+        // cooper's, Verdana) was drawn in the first master's.
+        if foreignTheme, chart.font == nil {
+            chart.font = theme.minor
+            if chart.titleFont == nil { chart.titleFont = chart.font }
+        }
         if overridden {
             // A series that names a theme slot, or leaves its colour to the
             // cycle, is drawn against the deck's theme — which is not this

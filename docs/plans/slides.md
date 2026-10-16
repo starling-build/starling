@@ -2014,6 +2014,16 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A chart in its own slide's theme font, 2026-10-15** (aascu cooper
+5.26 → 5.16, aascu 5864 −0.02; the chart decks otherwise unchanged).
+A chart that names no face was drawn in the deck's first master's body
+font; on a slide whose theme is another's, PowerPoint uses that theme's
+(cooper's census chart in Verdana, aascu's in Calibri, both drawn in
+Liberation Sans here). Measured with a corpus-wide comparison of line
+widths by face, which also showed Consolas 8.7% wide in Liberation Mono
+(one fuzzed deck) and Lucida Sans Unicode 9% narrow (two decks; DejaVu
+tried before and dropped).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
