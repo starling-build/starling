@@ -4229,6 +4229,16 @@ fitter dropped the paragraph's tail).
   zh-799c91cd 96.4 -> 96.0, a knife-edge: its p6 table ends 0.4pt below
   Word's already, 0.7 now, and the empty paragraph after it goes over to
   p7.
+- **In a cell a number past its hanging indent has its text straight
+  after it (2026-10-16; Linux, from Word's print).** zh-ae655121's notes
+  sit in a borderless floating table, list level left 1520 hanging 480,
+  "二、" 26pt at 13pt: Word sets "法人提報…" at the number's end and the
+  line ends "…應檢附法人審"; ours tabbed to the next default stop, 18pt
+  on, and the line ended two characters short. The same document's body
+  lists, over their hang the same way, do go to the next stop (tried for
+  all paragraphs first: zh-ae655121 94.2 -> 87.0 by its body). No score
+  moves — the line match takes a line whose first four characters agree
+  — but the breaks are now Word's. Measured in one document only.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

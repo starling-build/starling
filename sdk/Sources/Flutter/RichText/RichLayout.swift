@@ -3899,6 +3899,15 @@ public final class RichLayout {
                     end = stop - ownLeft
                 } else if wl.first < 0, end <= 0.01 {
                     end = 0
+                } else if theme.wordRules, wl.first < 0, p.cell != nil {
+                    // (In a table's cell a number that runs past the hanging
+                    // indent has its text straight after it, with no tab to
+                    // a default stop: zh-ae655121's notes cell, "二、" 26pt
+                    // wide in a 24pt hang, sets "法人提報…" at the number's
+                    // end in Word's print, where ours went to the next stop
+                    // 18pt on and the line held two characters fewer. The
+                    // same document's body lists, the same way over their
+                    // hang, do go to the next stop.)
                 } else {
                     // (No default stops at all — `w:defaultTabStop` 0, as
                     // some files say — and the text follows the number.)
