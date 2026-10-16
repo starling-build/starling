@@ -2149,11 +2149,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 _paintCell(canvas, m.topLeft, cell, in: rect(m), spill: false, ws: ws, book: book, ink: colors.ink)
             }
         }
-        // A long text left of the pane still spills into it.
+        // A long text left of the pane still spills into it — on paper from
+        // as far back as a text runs (lo-cell-value's crosses ten pages).
         if let first = cs.first, first > 0 {
             for row in rs {
                 var col = first - 1
-                while col >= max(0, first - 8) {
+                while col >= max(0, first - (printing ? 255 : 8)) {
                     let a = CellAddress(row: row, col: col)
                     if let cell = ws.cells[a], !cell.value.isEmpty {
                         if cell.value.isText && !covered.contains(a) {
@@ -2276,6 +2277,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         guard width > 2 else { return }
         let chars = max(1, Int(width / (7 * zoom)))
         var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars)
+        if cell.value.isText { text = Self.shown(text) }
         let style = _textStyle(st, color: color, ink: ink)
         var align = st.hAlign
         if align == .general {
@@ -2334,6 +2336,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         canvas.restore()
     }
 
+    /// What a cell shows of its text: the first 1,024 characters, as
+    /// Excel's grid does (the formula bar has the rest). lo-cell-value's
+    /// 2,472 run over ten printed pages to the 1,024th and stop there.
+    static func shown(_ text: String) -> String {
+        text.count > 1024 ? String(text.prefix(1024)) : text
+    }
+
     /// The columns a text too long for its cell runs over, as `_paintCell`
     /// lets it: empty neighbours to the right of left-aligned text, to the
     /// left of right-aligned. Nil when it stays in its own cell.
@@ -2349,7 +2358,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // column E, where Excel prints five pages of it.)
         guard width > 0, !st.wrap, st.hAlign != .center, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
         if ws.merges.contains(where: { $0.contains(a) }) { return nil }
-        let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
+        let text = Self.shown(NumberFormat.display(cell.value, st.numberFormat, width: 255).text)
         let need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
         guard need > width else { return nil }
         var have = width, lo = a.col, hi = a.col
