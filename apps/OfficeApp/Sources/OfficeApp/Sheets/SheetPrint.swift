@@ -237,7 +237,14 @@ enum SheetPrintLayout {
             // (Fitting ignores manual breaks: they are for the unfitted sheet.)
             let fitting = setup.fitWidth != nil || setup.fitHeight != nil
             colBands = bands(cols, width, availW, fitting ? [] : setup.colBreaks, own: (titleColsEnd, max(18, availW0 - headWidth * s)))
-            rowBands = bands(rows, height, availH, fitting ? [] : setup.rowBreaks, own: (titleRowsEnd, max(18, availH0 - headHeight * s)))
+            // (A page's rows leave 8 of the printer's dots free at its foot:
+            // labs of 100-dot rows on 5,700 dots of room, Excel 16, 2026-10-16
+            // — 57 rows fit with 8 dots to spare and not with 7, nor exactly.
+            // lo-tdf113271's pages after the first, 5 dots short of that, hold
+            // a row fewer than ours did.)
+            let foot = 8.0 * 72 / 600
+            rowBands = bands(rows, height, availH - foot, fitting ? [] : setup.rowBreaks,
+                             own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot))
             // Rows and columns do not split, so the arithmetic's scale can
             // still be a page over: a percent less until it is not.
             let over = (setup.fitWidth.map { $0 > 0 && colBands.count > $0 } ?? false)
