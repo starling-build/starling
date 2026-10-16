@@ -1810,6 +1810,15 @@ between B1 and B2, though B1 has two under it and B2 one. The shape now
 stands between its first and last child's own boxes (side-by-side
 children; "tCtrDes" and the stacked kinds keep the old centring).
 
+Tried and dropped: **a cycle's connectors spanning the gap
+(`connDist`)** — each arrow from one box's edge to the next's less its
+10% pads, all as long as the shortest where the layout says `connDist`
+op="equ", as thick as half that. multidirectional's arrows are that in
+PowerPoint's print (all 78 px, the bottom gap's 0.8), but ours came out
+too close to the top box (its ring sits 4 pt off PowerPoint's), +0.45;
+and smartart-cycle's arrows, which PowerPoint keeps small and equal,
+grew where its gaps are wide, +0.19.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
