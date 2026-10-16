@@ -524,6 +524,14 @@ is centred by Word in the part on each page. Ours lifts the text by
 half of what the rows left behind would give (`lift` in the paging), and
 lands half a row low on zh-90e0cea8. Next: the lift's numbers there.
 
+### T32. A line parted after a stroke before a Cyrillic letter — DONE (2026-10-16)
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: bug65649 (p69's "ИО102-20/А2М"), form_footnotes.
+Built: no break after "/" (and "?", "!", "|", closing brackets) before
+any non-East-Asian letter or digit. bug65649 99.8%, form_footnotes 97.7.
+Next in bug65649: p122, its lines 3-4pt under Word's from "сотрудниками
+объекта единовременно." on (not looked into).
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a

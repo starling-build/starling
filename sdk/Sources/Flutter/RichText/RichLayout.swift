@@ -4744,7 +4744,7 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, let b = before, Self._joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
+                } else if theme.wordRules, let b = before, Self.joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -6301,7 +6301,7 @@ public final class RichLayout {
         }
         func digit(_ u: UInt16) -> Bool { u >= 0x30 && u <= 0x39 }
         if word(a) && word(b) { return true }
-        // (A Latin word is whole but after its hyphens: see `_joinsLatin`.)
+        // (A Latin word is whole but after its hyphens: see `joinsLatin`.)
         if a > 0x20, a < 0x7F, b > 0x20, b < 0x7F, a != 0x2D { return true }
         // (1.5, 1,000, 10:30, 2024-10, -5)
         if digit(b), a == 0x2E || a == 0x2C || a == 0x3A || a == 0x2D || a == 0x2F { return true }
@@ -6485,7 +6485,7 @@ public final class RichLayout {
         return true
     }
 
-    private static func _joinsLatin(_ a: Character, _ b: Character, eastAsian: Bool = false) -> Bool {
+    public static func joinsLatin(_ a: Character, _ b: Character, eastAsian: Bool = false) -> Bool {
         // (A mathematical letter or digit after it counts as one of the
         // Latin text's own: bug59058's formulas are runs of "𝑏𝑖𝑐𝑖/𝑁𝑖"
         // with no space, which Word carries to the next line whole where
@@ -6506,8 +6506,15 @@ public final class RichLayout {
         }
         if mathy(a) || mathy(b), plain(a), plain(b) { return true }
         let math = b.unicodeScalars.first.map { $0.value >= 0x1D400 && $0.value <= 0x1D7FF } ?? false
+        // (Any letter or digit of an alphabet after the stroke and the
+        // rest, not ASCII's alone: bug65649's "ИО102-20/А2М" parts after
+        // the hyphen in Word's print and went down whole as "А2М" from
+        // "20/" in ours.)
+        if let x = a.asciiValue, x == 0x2F || x == 0x3F || x == 0x21 || x == 0x7C || x == 0x29 || x == 0x5D || x == 0x7D,
+           !b.isWhitespace, plain(b) {
+            return true
+        }
         guard let x = a.asciiValue, let y = math ? 0x41 : b.asciiValue, y > 0x20, y < 0x7F else { return false }
-        if x == 0x2F || x == 0x3F || x == 0x21 || x == 0x7C || x == 0x29 || x == 0x5D || x == 0x7D { return true }
         // (And a stop, comma, colon or semicolon before an opening
         // bracket: the engine parts "population." from "(4)Temporality:"
         // — Unicode lets a line break after a stop before a bracket —

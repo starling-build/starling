@@ -3060,6 +3060,16 @@ fitter dropped the paragraph's tail).
   right (or centred) as the frame is. Bug51170 96.9% -> 100, zh-457a8d62
   98.7 -> 100; nothing else moved.
 
+- **A stroke holds the letter after it, in any alphabet (2026-10-16,
+  Linux).** Word parts Latin text at spaces and after hyphens alone, and
+  the engine's break after "/", "?", "!", "|" and closing brackets was
+  held by a word joiner only before an ASCII character. bug65649's
+  "ИО102-20/А2М" parts after the hyphen in Word's print; ours parted
+  after the stroke and carried "А2М" down alone. The joiner now goes in
+  before any letter or digit that is not East Asian. bug65649 99.7% ->
+  99.8, form_footnotes 92.0 -> 97.7 (Word's three pages, where ours had
+  two); nothing else moved.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

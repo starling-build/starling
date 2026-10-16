@@ -1192,6 +1192,21 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(ends(nil).left, 0, accuracy: 1, "and at its left with no alignment")
     }
 
+    func testAStrokeHoldsTheLetterAfterIt() {
+        // bug65649: "ИО102-20/А2М" parts after the hyphen in Word's print,
+        // never after the stroke before a Cyrillic letter; ours carried
+        // "А2М" down alone. (The rule, not a line: the test process has
+        // no ICU, and its lines part between any two characters.)
+        XCTAssertTrue(RichLayout.joinsLatin("/", "А"), "a stroke before a Cyrillic letter")
+        XCTAssertTrue(RichLayout.joinsLatin("/", "A"), "and before a Latin one, as before")
+        XCTAssertTrue(RichLayout.joinsLatin(")", "Ж"))
+        XCTAssertTrue(RichLayout.joinsLatin("/", "é"))
+        XCTAssertFalse(RichLayout.joinsLatin("/", " "), "a space parts")
+        XCTAssertFalse(RichLayout.joinsLatin("/", "\u{A0}"))
+        XCTAssertFalse(RichLayout.joinsLatin("/", "中"), "East Asian text keeps its own rules")
+        XCTAssertFalse(RichLayout.joinsLatin("-", "А"), "a hyphen still parts")
+    }
+
     func testPictureInABorderedRunReadsItsFrameAndEffects() throws {
         // bug59058: "tab1", an inline picture in a run with a 0.75pt grey
         // character border, its effect extent 0.75pt below; Word's line
