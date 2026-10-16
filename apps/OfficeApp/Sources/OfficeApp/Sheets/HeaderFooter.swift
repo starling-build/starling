@@ -178,8 +178,10 @@ enum HeaderFooterText {
 
     // Excel's &D and &T: the short date and time, en-US as the sheet's
     // other formats are — through OfficeDates, since DateFormatter is the
-    // legacy Foundation layer and does not link on the web.
-    private static func _date(_ d: Date) -> String { OfficeDates.format(d, "M/d/yy") }
+    // legacy Foundation layer and does not link on the web. (Windows'
+    // en-US short date has the whole year: 10/12/2026 in the corpus's
+    // prints, 56644 and lo-tdf58243.)
+    private static func _date(_ d: Date) -> String { OfficeDates.format(d, "M/d/yyyy") }
     private static func _time(_ d: Date) -> String { OfficeDates.format(d, "h:mm a") }
 
     /// The items of one section as text, adjacent same-styled pieces merged.
