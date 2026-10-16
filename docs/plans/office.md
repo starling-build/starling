@@ -3044,6 +3044,18 @@ fitter dropped the paragraph's tail).
   Word's. Such a row is now as tall as the merged text asks too, its
   rules drawn to there. zh-e6d54ae4 93.5% -> 99.2; nothing else moved.
 
+- **YaHei's ellipsis is its own width (2026-10-16).** zh-457a8d62
+  quotes its statutes with "……" in 標楷體 runs hinted East Asian; Word
+  on a Mac sets them in Microsoft YaHei, 13.52pt apiece at 16pt on the
+  document's grid of 1.0076 — YaHei's own 0.8135 em (13.016) and half
+  the grid's addition, as any half-width character takes it under
+  balanced widths (lab `cg3`). Ours drew the stand-in's em-wide glyph
+  with the whole addition, 17.01, and its lines "…奢侈放蕩……等，足以
+  損失", "…罰金：……三、" ran a character short. The East Asian YaHei
+  face now carries the width (0.9629 in bold), and a symbol so set
+  takes it and half the grid's addition. zh-457a8d62 95.1% -> 97.2,
+  zh-e37f8d40 96.7 -> 100; POI unchanged.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

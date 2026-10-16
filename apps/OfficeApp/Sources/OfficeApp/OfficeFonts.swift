@@ -856,6 +856,15 @@ enum OfficeFonts {
             // Noto Sans SC; PMingLiU and the others it has draw their own —
             // zh-db93607e's in PMingLiU are as any character in Word's print.)
             face.lacksCompatibilityIdeographs = ea.height == yaHei.height
+            // (YaHei's ellipsis is its own width, not an em: 0.8135, and
+            // 0.9629 in bold, by msyh.ttc and msyhbd.ttc. zh-457a8d62's
+            // "……" in 標楷體 runs — YaHei to Word on a Mac — are 13.52pt
+            // apiece at 16pt on its grid in Word's print, where the stand-in's
+            // em-wide glyph set them 17.01.)
+            if ea.height == yaHei.height {
+                face.otherAdvances = [0x2026: 0.8135]
+                face.boldOtherAdvances = [0x2026: 0.9629]
+            }
             face.scaledHeight = ea.scaledHeight
             face.scaledBaseline = ea.scaledBaseline
             return face

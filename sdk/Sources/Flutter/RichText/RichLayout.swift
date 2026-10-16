@@ -4754,6 +4754,21 @@ public final class RichLayout {
                 if !ea, document.balancesSpaceWidth, let g = grid, g != 0, ch != " ", let following, following != " " {
                     extra -= _px(g) / 2
                 }
+                // (A symbol set in an East Asian face that gives it a width
+                // of its own takes that width, and half the grid's addition
+                // as a half-width character does: YaHei's "…" is 0.8135 em,
+                // and zh-457a8d62's "……" are 13.52pt apiece at 16pt on its
+                // grid of 1.0076 in Word's print — 13.016 and 0.504 — where
+                // the stand-in's em-wide glyph and the whole addition set
+                // them 17.01, and its line "…奢侈放蕩……等，足以損失" lost
+                // its "失".)
+                if ea, let u = ch.unicodeScalars.first?.value, u < 0x2E80,
+                   let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                                    ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
+                   let w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] {
+                    extra += w * em - _glyphWidth(style(kind), ch)
+                    if document.balancesSpaceWidth, let g = grid, g != 0 { extra -= _px(g) / 2 }
+                }
                 // A symbol an East Asian run sets in its own face (■□●○
                 // ◆△※, the circled numbers, arrows) is an em wide there, as
                 // every such face draws it; the face drawing it here may
