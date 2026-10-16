@@ -878,11 +878,8 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   21pt left of Word's (x 34.8 to 55.7): a box's tables are placed
   without Word's outdent and cell spacing at each level.
 - Mac, 2026-10-15, leads left (not built):
-  - zh-2b955411 on the Mac (2026-10-16): 90.2% where bc135942 measured
-    98.0 on Linux. Page 26's "经济行为类型" cell (tbLrV, 776 twips) is
-    still drawn across in the Mac's print, two characters a line
-    ("经济" / "行为" / "类型" at x 66), where Word stacks one a line at
-    9pt. Pages 20, 22 and 26 to 28 follow from it.
+  - zh-2b955411 on the Mac (2026-10-16): 99.6% with bc135942 built (an
+    earlier note here measured a binary that predated it).
   - zh-e061a08e p1 (Mac, 2026-10-16): not its framed footer. Labs
     ft{asis,noframe,noempty} (its package, 79 body lines) print the
     last line of page 1 at the same height in Word and ours, with or
