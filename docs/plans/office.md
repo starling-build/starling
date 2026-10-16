@@ -3297,6 +3297,16 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A 2013-style chart's ticks take no room from its labels
+  (2026-10-16).** Outward tick marks pushed a chart's labels off the
+  axis (5.6pt beside a value axis, 8.8 beside a bar chart's categories,
+  3.7 below), as PowerPoint draws its 2007-style decks. Word prints
+  chartex's 2013-style stock chart with its date axis's ticks out, and
+  printed again with them none, and its value axis's out, not a label
+  moves (a lab on the Windows box): the push is a 2007-style chart's
+  only. Its dates stood 4pt low and the plot 4pt short. chartex 44.4%
+  -> 50.0 (page 3: 7 of 27 lines to 11); nothing else moved.
+
 - **A 2013-style bar chart's plot stands half a label line under its
   title (2026-10-16).** A horizontal bar chart's plot started 2pt under
   the title, as PowerPoint's 2007-style bar-chart has it; Word puts a

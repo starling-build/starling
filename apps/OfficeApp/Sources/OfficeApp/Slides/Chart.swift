@@ -1412,9 +1412,13 @@ enum ChartPainter {
         // Outward tick marks push the labels off: further beside the axis
         // (5.6 pt on line- and scatter-chart's value axis, 8.8 on
         // bar-chart's categories) and 3.7 below it, in PowerPoint's print
-        // against charts with none.
-        let besideOut = (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
-        let belowOut = (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
+        // against charts with none. Those are 2007-style charts: a
+        // 2013-style chart's labels stand where they would without ticks
+        // (chartex's stock chart printed by Word with its axes' ticks
+        // out and none: not a label moves).
+        let ticksPush = !c.styled2013
+        let besideOut = ticksPush && (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
+        let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         if horizontal {
             let left = (catLabels.map(\.width).max() ?? 0) + 6 * k + besideOut
             // (A 2013-style chart's top stands off the title as a column
