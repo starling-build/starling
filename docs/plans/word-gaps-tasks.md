@@ -556,6 +556,13 @@ Built: with no hanging indent, the paragraph's next stop past the
 number, however far; bug65649 99.9%. Next there: p132, a form of
 underscore lines a line higher in ours (not looked into).
 
+### T35. bug65649: a body word wider than the line opens a line of its own
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: bug65649 (p132, "Замечания: " and 142 underscores).
+Known: Word sets "Замечания:" alone and the underscores on the next two
+lines; ours parts the underscores right after the label, one line
+short. c488db0d does this in cells under 150pt only.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
