@@ -359,10 +359,12 @@ is yours.
 Windows box, 2026-10-15: its signs now stand centred in their cells
 (c69db236) and the tables where Word sets them (2ff0daed: before 2013's
 layout a spaced table is set out by its first cell's text inset). Still
-open: in a row of signs the 69.8pt one under "at least" 19.2 (3.75pt
-before) makes its cell's content ~17pt taller than the 75pt one's in
-ours, ~5pt in Word's print — the picture-on-grid rule under "at
-least"; and captions wrap a character differently in a few cells.
+settled by 59fc1ee5 (a picture's line is as many grid pitches as the
+picture is tall, its descent not counted): 81.6% -> 90.8. Left: page
+6's continued row stands 5pt high (parted rows); p3's "停車再開"
+(a 75pt sign and its caption in one paragraph, the caption wrapped
+under it, "at least" 19.2) 9pt high; p4's "車道縮減" (snapToGrid off,
+"at least" 11) 21pt high.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
