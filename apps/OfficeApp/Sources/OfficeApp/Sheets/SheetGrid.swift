@@ -1818,7 +1818,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 canvas.clipRect(clip)
                 for (i, d) in ws.drawings.enumerated() {
                     let r = drawingRect(d.anchor)
-                    guard r.overlaps(clip), !d.hidden else { continue }
+                    guard r.overlaps(clip), !d.hidden, !(printing && d.screenOnly) else { continue }
                     _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
                 }
                 _paintObjects(canvas, ws, clip: clip)

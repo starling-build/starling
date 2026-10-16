@@ -134,7 +134,7 @@ enum SheetPrintLayout {
         // A drawing prints whole, however it is anchored: every cell its
         // frame touches — the one its far corner only reaches the edge of
         // too, which is the cell Excel's anchor names for that corner.
-        for d in ws.drawings where !d.hidden {
+        for d in ws.drawings where !d.hidden && !d.screenOnly {
             var f = ws.frame(d.anchor)
             guard f.width > 0, f.height > 0 else { continue }
             // A turned shape covers what its turned outline covers, which is
@@ -401,7 +401,7 @@ extension SheetGridState {
             let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
             fill(CellRange(top: a.row, left: a.col, bottom: b.row, right: b.col))
         }
-        for d in ws.drawings where !d.hidden { cover(d.anchor) }
+        for d in ws.drawings where !d.hidden && !d.screenOnly { cover(d.anchor) }
         for o in ws.objects where !o.screenOnly { cover(o.anchor) }
         // Only from the end: a blank page with a printed one after it stays.
         var kept = pages

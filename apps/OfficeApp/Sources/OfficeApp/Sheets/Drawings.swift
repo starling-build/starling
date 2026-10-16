@@ -78,6 +78,9 @@ struct SheetDrawing: Equatable {
     var relId: String? = nil
     /// `cNvPr@hidden`: in the file, and neither drawn nor printed.
     var hidden = false
+    /// `clientData@fPrintsWithSheet` false: drawn on screen, left off paper
+    /// (lo-tdf91332's green freeform, which Excel's print has not).
+    var screenOnly = false
 
     var isChart: Bool { if case .chart = kind { return true } else { return false } }
 }
@@ -141,6 +144,7 @@ enum SheetDrawingsXML {
             let named = (el.child("pic")?.child("nvPicPr") ?? el.child("graphicFrame")?.child("nvGraphicFramePr")
                 ?? el.child("sp")?.child("nvSpPr") ?? el.child("cxnSp")?.child("nvCxnSpPr") ?? el.child("grpSp")?.child("nvGrpSpPr"))?.child("cNvPr")
             d.hidden = named?["hidden"] == "1" || named?["hidden"] == "true"
+            if let p = el.child("clientData")?["fPrintsWithSheet"], p == "0" || p == "false" { d.screenOnly = true }
             out.append(d)
         }
         return (out, drawingPath, split.rootStart)
