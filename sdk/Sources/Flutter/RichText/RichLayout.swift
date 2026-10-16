@@ -1310,6 +1310,64 @@ public final class RichLayout {
         _columnWidths = widths
     }
 
+    /// Word's vertical writing: a line of the cell's text, laid out
+    /// across and turned a quarter by the caller, drawn a character at a
+    /// time, each ideograph turned back upright in the box it has on the
+    /// line — so they stack down the cell a character's advance apart,
+    /// as Word's print has zh-2b955411's "评估目的". Only a paragraph of
+    /// East Asian characters (and spaces) is drawn so; false leaves any
+    /// other to be painted turned, as its Latin letters are in Word.
+    /// Set `distribute` (`w:jc` distribute), the first character starts
+    /// the line and the last ends it, the rest evenly between: Word's
+    /// "经济行为类型" down a 77.3pt cell, 13.64pt apart at 9pt.
+    private func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false) -> Bool {
+        guard let root = painter.text else { return false }
+        let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
+        func wide(_ u: UInt16) -> Bool { u >= 0x2E80 && !(u >= 0xD800 && u <= 0xDFFF) && u != 0xFFFC }
+        func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x200B || u == 0x2060 || u == 0xFEFF || u == 0x3000 }
+        guard text.contains(where: wide), text.allSatisfy({ wide($0) || blank($0) }) else { return false }
+        // The style each offset is set in, the spans' own over those
+        // they are in.
+        var styles: [TextStyle?] = []
+        func walk(_ span: InlineSpan, _ inherited: TextStyle?) {
+            guard let t = span as? TextSpan else {
+                styles.append(inherited)
+                return
+            }
+            let own = inherited.map { $0.merge(t.style) } ?? t.style
+            if let s = t.text { styles.append(contentsOf: repeatElement(own, count: s.utf16.count)) }
+            for child in t.children ?? [] { walk(child, own) }
+        }
+        walk(root, nil)
+        guard styles.count == text.count else { return false }
+        let shown = text.indices.filter { wide(text[$0]) }
+        for (n, k) in shown.enumerated() {
+            guard var box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first,
+                  let ch = Unicode.Scalar(text[k]) else { continue }
+            if distribute, shown.count > 1 {
+                let advance = box.right - box.left
+                let left = Double(n) * (painter.width - advance) / Double(shown.count - 1)
+                box = TextBox(fromLTRBD: left, box.top, left + advance, box.bottom, box.direction)
+            }
+            let glyph = TextPainter(text: TextSpan(text: String(Character(ch)), style: styles[k]), textDirection: .ltr)
+            glyph.layout()
+            // (Its em square centred in its box — the square stands 0.88
+            // em over the baseline and 0.12 under it — not its line, which
+            // an exact line height makes far taller than the character,
+            // with the character low in it: zh-2b955411's 28pt lines set
+            // "评估目的" 5pt below Word's.)
+            let em = styles[k]?.fontSize ?? 14
+            let middle = glyph.computeDistanceToActualBaseline(.alphabetic) - 0.38 * em
+            canvas.save()
+            canvas.translate(origin.dx + (box.left + box.right) / 2, origin.dy + (box.top + box.bottom) / 2)
+            canvas.rotate(-Double.pi / 2)
+            glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
+            canvas.restore()
+            glyph.dispose()
+        }
+        return true
+    }
+
     /// Word's re-fit of an autofit table (`w:tblLayout` autofit, the
     /// default), as office.md's "Autofit tables" has it (labs `at1`–`at5`,
     /// `sp1`, `sp2`, `cap*`): the saved grid is kept, as a fixed table's
@@ -1330,6 +1388,8 @@ public final class RichLayout {
         for (i, p) in document.paragraphs.enumerated() {
             guard let c = p.cell, c.table == table else { continue }
             guard c.column + c.span <= base.count else { return base }
+            // (Turned text runs along the row, not across the column.)
+            guard c.textDirection == .horizontal else { continue }
             let sides = c.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
             let w = sides + _minContent(i, p, document)
             let key = c.row * 4096 + c.column
@@ -6909,7 +6969,13 @@ public final class RichLayout {
                 canvas.rotate(Double.pi / 2)
             }
             let along = c.alongStart + _px(document.paragraphs[i].style.indentLeft)
-            g.painter.paint(canvas, Offset(along, c.across + _spaceBefore[i]))
+            let origin = Offset(along, c.across + _spaceBefore[i])
+            if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
+               _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute") {
+                canvas.restore()
+                return
+            }
+            g.painter.paint(canvas, origin)
             canvas.restore()
             return
         }

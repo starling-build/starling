@@ -1247,12 +1247,17 @@ enum DocxFormat {
                         currentCell?.bordersKeptUnder = style.borders
                         // The cell's own line width, over the table's.
                         if let w = _borders(tcPr, "w:tcBorders")?.width, w != (style.borderWidth ?? 0.5) { currentCell?.borderWidth = w }
-                        // Text turned a quarter (Word's w:textDirection).
-                        switch tcPr?.first("w:textDirection")?["w:val"] {
-                        case "tbRl", "tbRlV": currentCell?.textDirection = .down
+                        // Text turned a quarter (Word's w:textDirection);
+                        // its vertical writing keeps ideographs upright.
+                        let direction = tcPr?.first("w:textDirection")?["w:val"]
+                        switch direction {
+                        case "tbRl", "tbRlV", "tbLrV":
+                            currentCell?.textDirection = .down
+                            currentCell?.uprightIdeographs = true
                         case "btLr", "lrTbV": currentCell?.textDirection = .up
                         default: break
                         }
+                        if direction != nil, currentCell?.textDirection != .horizontal { currentCell?.textDirectionValue = direction }
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         let before = paragraphs.count
@@ -3805,9 +3810,11 @@ enum DocxFormat {
                     if let fill = ref?.fill { xml += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(_hex(fill))\"/>" }
                     if let mar = ref?.marginsXML { xml += mar }
                     // Schema order: the text direction before the alignment.
+                    // (As the file wrote it while it still reads that way.)
+                    let direction = ref?.textDirectionValue
                     switch ref?.textDirection {
-                    case .down?: xml += "<w:textDirection w:val=\"tbRl\"/>"
-                    case .up?: xml += "<w:textDirection w:val=\"btLr\"/>"
+                    case .down?: xml += "<w:textDirection w:val=\"\(direction.flatMap { ["tbRl", "tbRlV", "tbLrV"].contains($0) ? $0 : nil } ?? "tbRl")\"/>"
+                    case .up?: xml += "<w:textDirection w:val=\"\(direction.flatMap { ["btLr", "lrTbV"].contains($0) ? $0 : nil } ?? "btLr")\"/>"
                     default: break
                     }
                     if let v = ref?.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }

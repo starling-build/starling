@@ -880,6 +880,16 @@ public struct CellRef: Hashable, Sendable {
     /// `w:textDirection`): across as usual, or turned a quarter so the
     /// lines run up or down the cell and stack across its width.
     public var textDirection: CellTextDirection = .horizontal
+    /// Word's vertical writing (`tbRl`, `tbRlV`, `tbLrV`): the text runs
+    /// down as `.down` does, but an ideograph stands upright in it, each
+    /// a character's advance under the last — zh-2b955411's "评估目的"
+    /// and "经济行为类型" in Word's print. (PowerPoint's `vert` turns
+    /// every glyph; its upright kind is `eaVert`.)
+    public var uprightIdeographs = false
+    /// `w:textDirection` as the file wrote it, written back while the
+    /// cell still runs the way it read as (`tbRlV` and `tbLrV` read as
+    /// `.down`, which would be written `tbRl`).
+    public var textDirectionValue: String? = nil
     /// The cell's own margins, in points (PowerPoint's `marL`…`marB`,
     /// Word's `w:tcMar`), over the table's (`TableStyle.cellMargin…`);
     /// nil: the table's.

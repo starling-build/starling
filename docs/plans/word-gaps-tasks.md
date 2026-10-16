@@ -390,7 +390,7 @@ line 15.0; ours 15.45 and 15.0 — the engine's even leading puts half
 of Times's padding under the baseline, so the mixed line is Cambria's
 ascent plus that deeper descent. 2.3pt by p38's foot.
 
-### T20. Vertical text in cells (zh-2b955411)
+### T20. Vertical text in cells (zh-2b955411) — DONE (2026-10-15)
 Owner: session 017F2GnTfScURKYZPmRxVQvW (Linux dev box), from 2026-10-15
 Documents: zh-2b955411 (89.7% on Linux; pages 26-28 lose 45 lines).
 Known: `w:textDirection` tbRlV and tbLrV cells ("评估目的", "经济行为类型"):
@@ -398,6 +398,11 @@ Word stacks the ideographs upright, one a character's advance below the
 other (9pt at 9pt). The reader turns tbRlV sideways (`.down`) and reads
 tbLrV as horizontal, so that row is three lines tall, 6.7pt over Word's,
 and the 282pt stamp row after it goes to the next page.
+Done: tbRl/tbRlV/tbLrV read as turned with upright ideographs, drawn a
+character at a time, distribute spread along the cell (office.md,
+"Vertical writing in a cell"). zh-2b955411 89.7 -> 98.0%, nothing else
+moved. Left: a turned paragraph with Latin in it is drawn turned whole;
+`w:jc` distribute is not built for horizontal text (read as justified).
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.

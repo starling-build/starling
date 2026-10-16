@@ -3881,6 +3881,27 @@ fitter dropped the paragraph's tail).
   close enough that no line moves here, but a lab is needed (a span
   over three columns of unequal content and grid, its narrowest
   varied) before another document depends on it.
+- **Vertical writing in a cell (2026-10-15, T20; Linux, no lab).**
+  Word's `w:textDirection` tbRl, tbRlV and tbLrV all print the same way
+  in zh-2b955411: the ideographs upright, stacked down the cell one
+  advance apart (9pt at 9pt), placed along the cell by the paragraph's
+  alignment — "评估目的" centred in its 58.6pt row (Normal is `jc`
+  center), "经济行为类型" under `jc` distribute first at the top and
+  last at the bottom, (77.3 − 9.1) / 5 = 13.64pt apart. The reader
+  turned tbRl and tbRlV a quarter, every glyph sideways, and read tbLrV
+  as across: three lines of two characters made its row 6.7pt taller
+  than Word's, and the 282pt stamp row after it went to the next page.
+  Now all three read as `.down` with `uprightIdeographs`; a paragraph of
+  East Asian characters in such a cell is drawn a character at a time,
+  each turned back upright in its box on the turned line, its em square
+  (0.88 over the baseline, 0.12 under) centred there rather than its
+  line, which a 28pt exact line makes far taller than the character.
+  A paragraph with Latin letters is still drawn turned whole — Word turns
+  those letters too, but its ideographs would stand, which is not built.
+  The value as written is kept for the save. Line match: zh-2b955411
+  89.7% -> 98.0%; nothing else moved. Distribute alignment is otherwise
+  not built (read as justified): Word spreads a distributed line's last
+  line too — zh-0aac9d1a's "统一社会信用代码" at 12.45pt in a 100pt cell.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
