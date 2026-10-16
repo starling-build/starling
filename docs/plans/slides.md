@@ -1847,6 +1847,12 @@ chart's 9 pt margin). 0.97 of that room fits it and the bare doughnut
 both (159 pt there, which had needed a rule of its own: no margin when
 there is no title and no legend); that rule is gone.
 
+Tried again and dropped: #868686 gridlines for 2007-style charts, now
+that line- and scatter-chart's steps are PowerPoint's (0–9 by ones).
+Still worse — scatter +0.68, radar +0.46, line +0.21, bar +0.16: the
+lines sit a pixel off PowerPoint's, and the darker the line the more
+the miss costs. Their placement first.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
