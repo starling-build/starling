@@ -150,6 +150,9 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**Sweep 7 (2026-10-16): mean 1.55%, median 0.41%**, 751 scored, 5 with a
+page only one side has, 43 exact (`baseline-mupdf.tsv`; sweep 4 was 1.93%).
+
 **One workbook at a time, 2026-10-15/16** (Windows, Excel 16 at 200% as
 the references; labs printed through `test/xlsx-excel-pdf.ps1`). What
 Excel was found to do, each checked on its workbook and its neighbours:
@@ -169,6 +172,11 @@ Excel was found to do, each checked on its workbook and its neighbours:
   theme's; `[$-409]` prints nothing; xsd:boolean is "true" as well as "1".
 - *Pages.* Repeated title rows take no second room on a page that shows
   them as its own (lo-tdf113271's first page).
+- *Number formats.* A fill (`*x`) spans its cell: Accounting's "$" at
+  the left, the number at the right. A theme colour's tint moves its
+  luminance in HSL, not each channel. A header and footer print at the
+  sheet's scale; `&D` has the whole year. Print options written "true"
+  are on.
 - *Charts.* A 3-D pie with no rotX is tilted 15° and stands in a box its
   file places itself, the room its exploded slices need left over. Its
   labels — name and percent, outside, on leader lines — are not drawn yet.
@@ -181,6 +189,13 @@ Excel was found to do, each checked on its workbook and its neighbours:
 height" says lo-tdf113271 makes twelve pages: it still makes eleven. Its
 first page is Excel's now; its later pages hold a row more than Excel's,
 whose repeated title seems to take a little more than the row did.)
+
+Tried and taken back: "any formatted cell widens what prints, though it
+does not lengthen it" gave FormatConditionTests Excel's fourth page (29.6%
+-> 6.0%) and lo-user_defined_function eleven pages too many — its empty
+cells in BE:BG have their column's own format; lo-tdf113271's F3 has a
+format its column lacks and does not widen Excel's print either. What
+makes FormatConditionTests' H7 count is still open.
 
 Not understood: in 45544's "Hires by Location" Excel prints the page a
 footnote runs onto, blank — the run-over text not drawn there — though
