@@ -165,9 +165,12 @@ struct Chart: Equatable {
     /// radius: the pie is that much smaller, to leave them room.
     var pieExplosion: Double = 0
     /// A 3-D bar or column chart's view (`c:view3D` rotX, rotY, degrees):
-    /// each bar a box, its top and side showing. nil is flat.
+    /// each bar a box, its top and side showing, in a box of its own — a
+    /// floor and walls one category deep (`depthPercent` of it), the bars
+    /// standing in the middle of that depth with `gapDepth` of their own
+    /// depth about them. nil is flat.
     var barView: BarView? = nil
-    struct BarView: Equatable { var x: Double; var y: Double }
+    struct BarView: Equatable { var x: Double; var y: Double; var depth: Double = 1; var gapDepth: Double = 1.5 }
     /// The value axis's bounds and step where the file fixes them
     /// (`c:scaling/c:min`, `c:max`, `c:majorUnit`); nil is automatic.
     var valueMin: Double? = nil
@@ -557,7 +560,9 @@ enum ChartXML {
         if el.name == "c:bar3DChart" {
             let v = chart.first("c:view3D")
             c.barView = Chart.BarView(x: v?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15,
-                                      y: v?.first("c:rotY")?["val"].flatMap(Double.init) ?? 20)
+                                      y: v?.first("c:rotY")?["val"].flatMap(Double.init) ?? 20,
+                                      depth: (v?.first("c:depthPercent")?["val"].flatMap(Double.init) ?? 100) / 100,
+                                      gapDepth: (el.first("c:gapDepth")?["val"].flatMap(Double.init) ?? 150) / 100)
         }
         if el.name == "c:pie3DChart" {
             // (No rotX is 15°: Excel draws 45544's pies the same with none
@@ -1305,18 +1310,23 @@ enum ChartPainter {
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2, area.right - right, area.bottom - bottom)
         }
         if let placed, c.plotLayoutInner { plot = placed }
-        // A 3-D chart's boxes stand out of the plot by their depth, up and
-        // to the right: room for it inside.
+        // A 3-D chart stands in a box whose floor and walls run back, up
+        // and to the right, one category deep: the plot is its front, and
+        // the room behind it is taken out of the area (aascu 5864's
+        // census columns: 9.5 pt across and 7.5 up, its categories 28 pt
+        // apart, in PowerPoint's print).
         let depthAt: (Double) -> Offset = { thick in
             guard let v = c.barView else { return .zero }
             return Offset(thick * sin(abs(v.y) * .pi / 180), thick * sin(abs(v.x) * .pi / 180))
         }
-        if c.barView != nil, c.type == .column || c.type == .bar {
-            let slot = (horizontal ? plot.height : plot.width) / Double(max(1, n))
-            let lanes = c.stacked ? 1.0 : Double(c.series.count)
-            let thick = slot / (1 + (lanes - 1) * (c.stacked ? 0 : 1 - c.overlapFraction) + c.gap)
-            let d = depthAt(thick)
-            plot = Rect.fromLTRB(plot.left, plot.top + d.dy, plot.right - d.dx, plot.bottom)
+        var box = Offset.zero
+        if let v = c.barView, c.type == .column || c.type == .bar {
+            let whole = plot
+            for _ in 0 ..< 3 {
+                let slot = (horizontal ? plot.height : plot.width) / Double(max(1, n))
+                box = depthAt(slot * v.depth)
+                plot = Rect.fromLTRB(whole.left, whole.top + box.dy, whole.right - box.dx, whole.bottom)
+            }
         }
         guard plot.width > 4, plot.height > 4 else {
             for t in valueLabels + catLabels { t.dispose() }
@@ -1347,10 +1357,26 @@ enum ChartPainter {
             let p = vpos(v)
             let tp = valueLabels[i]
             if horizontal {
-                if c.valueGrid { canvas.drawLine(Offset(p, plot.top), Offset(p, plot.bottom), gridPaint) }
+                if c.valueGrid {
+                    if box != .zero {
+                        // Across the floor, then up the back wall.
+                        canvas.drawLine(Offset(p, plot.bottom), Offset(p + box.dx, plot.bottom - box.dy), gridPaint)
+                        canvas.drawLine(Offset(p + box.dx, plot.top - box.dy), Offset(p + box.dx, plot.bottom - box.dy), gridPaint)
+                    } else {
+                        canvas.drawLine(Offset(p, plot.top), Offset(p, plot.bottom), gridPaint)
+                    }
+                }
                 tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + 4 * k + belowOut))
             } else {
-                if c.valueGrid { canvas.drawLine(Offset(plot.left, p), Offset(plot.right, p), gridPaint) }
+                if c.valueGrid {
+                    if box != .zero {
+                        // Back along the side wall, then across the back.
+                        canvas.drawLine(Offset(plot.left, p), Offset(plot.left + box.dx, p - box.dy), gridPaint)
+                        canvas.drawLine(Offset(plot.left + box.dx, p - box.dy), Offset(plot.right + box.dx, p - box.dy), gridPaint)
+                    } else {
+                        canvas.drawLine(Offset(plot.left, p), Offset(plot.right, p), gridPaint)
+                    }
+                }
                 // (A newer chart's labels stand 2.5 pt further off the
                 // plot than the room left for them: chart-slide-bg's and
                 // its three like it, at 166.5 where ours were at 169, the
@@ -1370,6 +1396,12 @@ enum ChartPainter {
             }
         } else if horizontal {
             canvas.drawLine(Offset(zero, plot.top), Offset(zero, plot.bottom), gridPaint)
+            if box != .zero {
+                // The box's edges at zero: its back, and across its top.
+                canvas.drawLine(Offset(zero, plot.top), Offset(zero + box.dx, plot.top - box.dy), gridPaint)
+                canvas.drawLine(Offset(zero, plot.bottom), Offset(zero + box.dx, plot.bottom - box.dy), gridPaint)
+                canvas.drawLine(Offset(zero + box.dx, plot.top - box.dy), Offset(zero + box.dx, plot.bottom - box.dy), gridPaint)
+            }
             let slot = plot.height / Double(n)
             for (i, tp) in catLabels.enumerated() {
                 // Category 1 at the bottom, as PowerPoint draws a bar chart.
@@ -1378,6 +1410,12 @@ enum ChartPainter {
             }
         } else {
             canvas.drawLine(Offset(plot.left, zero), Offset(plot.right, zero), gridPaint)
+            if box != .zero {
+                // The floor's other edges: its sides and its back.
+                canvas.drawLine(Offset(plot.left, zero), Offset(plot.left + box.dx, zero - box.dy), gridPaint)
+                canvas.drawLine(Offset(plot.right, zero), Offset(plot.right + box.dx, zero - box.dy), gridPaint)
+                canvas.drawLine(Offset(plot.left + box.dx, zero - box.dy), Offset(plot.right + box.dx, zero - box.dy), gridPaint)
+            }
             let slot = plot.width / Double(n)
             for (i, tp) in catLabels.enumerated() {
                 let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
@@ -1439,7 +1477,7 @@ enum ChartPainter {
                     }
                     fill.color = c.color(series: j, accents: theme.accents)
                     let p0 = vpos(a), p1 = vpos(b)
-                    let rect: Rect
+                    var rect: Rect
                     if horizontal {
                         let top = centre + group / 2 - Double(j) * step - bar
                         rect = Rect.fromLTRB(min(p0, p1), top, max(p0, p1), top + bar)
@@ -1449,14 +1487,22 @@ enum ChartPainter {
                         rect = Rect.fromLTRB(left, min(p0, p1), left + bar, max(p0, p1))
                         labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy : min(p0, p1) - 8 * k), j))
                     }
+                    // In a 3-D box, the bar stands in the middle of its
+                    // depth, its own depth a 1 + gapDepth share of it.
+                    var d = Offset.zero
+                    if let v = c.barView, box != .zero {
+                        let own = 1 / (1 + v.gapDepth)
+                        d = Offset(box.dx * own, box.dy * own)
+                        let back = Offset(box.dx * (1 - own) / 2, box.dy * (1 - own) / 2)
+                        rect = rect.shift(Offset(back.dx, -back.dy))
+                        if let last = labels.popLast() { labels.append((last.0, Offset(last.1.dx + back.dx, last.1.dy - back.dy), last.2)) }
+                    }
                     canvas.drawRect(rect, fill)
                     if c.barView != nil {
                         // The box's top and right side, darker, as
                         // PowerPoint's print of LIBRE_OFFICE-100610-0 has
-                        // them: the depth the bar's own thickness, turned
-                        // by the view's angles; the top 0.757 of the colour,
-                        // the side 0.64.
-                        let d = depthAt(bar)
+                        // them, turned by the view's angles; the top 0.757
+                        // of the colour, the side 0.64.
                         let base = fill.color
                         let top = Path()
                         top.moveTo(rect.left, rect.top); top.lineTo(rect.left + d.dx, rect.top - d.dy)

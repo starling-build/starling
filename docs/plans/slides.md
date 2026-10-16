@@ -2014,6 +2014,19 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A 3-D column chart's box, 2026-10-16** (LIBRE_OFFICE-100610-0 2.67
+→ 2.04, aascu 5864 8.83 → 8.71, its census slide 25.6 → 21.6; the only
+two decks with `c:bar3DChart`). A 3-D bar or column chart now stands
+in a box one category deep (`depthPercent`), its floor and walls
+running back up and to the right by the view's angles — aascu's 9.5 pt
+across and 7.5 up, its categories 28 pt apart, in PowerPoint's print:
+the floor's outline drawn, the value gridlines along the side wall and
+across the back, the bars a `1 + gapDepth` share of the depth in its
+middle, their labels over their fronts. The plot is the box's front,
+the room behind it taken from the area. Each bar's depth had been its
+own width, and the gridlines flat. (PowerPoint's gridlines there are
+mid-grey; the 2-D charts' light grey is kept — darker lost before.)
+
 **Tried and dropped, 2026-10-16:**
 - The built-in body style (a master with no `p:txStyles`) hung half an
   inch less a quarter — `marL` 18 pt, `indent` −18 — as Office's own
