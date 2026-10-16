@@ -191,6 +191,20 @@ Excel was found to do, each checked on its workbook and its neighbours:
   text, which keeps the file's fit. A wrapped row is its lines, as our
   wrapping counts them, of its font's fitted line (LIBRE_OFFICE-116306-0's
   105 pt row is six of 14.52 in Excel's print).
+- *Fitting a row.* A row fitted afresh is its tallest font's line even
+  where that is under the default font's (57523's Calibri 10 rows,
+  13.32 pt in a Calibri 11 book; labs: its defaultRowHeight, absent or
+  9 or 20, changes nothing). The cells it has no record of count in the
+  font they would take — the row's style, else the column's, else the
+  default where the column styles stop (bug66675's stop at P: its rows
+  of Arial 9 print at 14.52). A merged cell that wraps is not counted;
+  one that does not wrap is (Tables' titles). An empty string is one
+  line. At 100% too, rows are whole printer dots (13.32 is 111).
+- *Wrapping.* A word that does not fit goes to the next line whole; a
+  line may end after a hyphen; only a word longer than a line is cut,
+  at the last character that fits (lab of long words in columns 5 to 25
+  characters: Excel's wrap width is the printed column less 3.0-3.5 pt,
+  and ours cuts at the same characters). Cell text is not kerned.
 - *Packages.* A part's relationships are found whatever the case of its
   name (chart-tdf100084's Sheet1.xml with _rels/sheet1.xml.rels).
 - *Print areas* keep the columns they name, empty or not; only a

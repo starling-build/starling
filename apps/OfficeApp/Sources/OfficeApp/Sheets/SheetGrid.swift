@@ -2566,8 +2566,12 @@ struct GridTextStyle: Hashable {
         var decorations: [TextDecoration] = []
         if underline { decorations.append(.underline) }
         if strike { decorations.append(.lineThrough) }
+        // Unkerned, as Excel sets a cell: kerned, Calibri's "UPDATE" fit
+        // a line of CVLKRA's Remarks column that Excel's (36.3 pt, the
+        // column less 3) is 0.3 pt too narrow for, and wraps as "UPDAT".
         return Flutter.TextStyle(color: Color(color), fontSize: size,
                                  fontWeight: bold ? .bold : .normal, fontStyle: italic ? .italic : .normal,
+                                 fontFeatures: [FontFeature("kern", 0)],
                                  decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
                                  fontFamily: family)
     }
