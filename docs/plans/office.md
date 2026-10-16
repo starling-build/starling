@@ -4171,6 +4171,13 @@ fitter dropped the paragraph's tail).
   Skia writes those glyphs as ActualText. The line match had forgiven
   radicals all along, so no score moved for it; PyMuPDF and PDFKit now
   both read the real characters.
+  One radical slipped through (2026-10-16, starling-engine af73bfda):
+  a Simplified face draws ⼾ (U+2F3E) with its 户, while the table pairs
+  ⼾ with 戶, which such a face draws apart — so 户 still read back as
+  ⼾, 206 times in 19 documents. A glyph that reads as a radical after
+  the table now takes the lowest unified ideograph that reaches it. The
+  sweep's text moved only there; four documents gained up to 0.4 (the
+  line match had been missing those lines).
 - **A no-break space is an em in a square face (2026-10-15).** Lab
   `nb1`: "甲" + ten U+00A0 + "乙" at 12pt sets each no-break space 12pt
   in 宋体, 黑体, 楷体 and 仿宋, where a space (U+0020) is 6pt; in a run
