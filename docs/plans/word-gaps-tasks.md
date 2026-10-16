@@ -793,8 +793,14 @@ Documents: zh-a4b0f6ea (88.6%). Known: `tblpPr vertAnchor="page"`; Word
 prints only the header row on p20 and the rest on p21, with the text
 under the table still on p20.
 
-### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below
+### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
+Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
+Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
+under a 9pt line changes nothing — off the grid, on its 28pt grid, in the
+body and in a centred table cell beside an empty cell of the same mark;
+ours matches each to Word's 0.24pt raster. So the mark's size is not the
+5pt; what else the row holds (style a3, the empty cells' 1040 first-line
+indent, the row's own height) is the next thing to vary.
 
 ### T46. The letterhead rule 1pt low (zh-e37f8d40, zh-9dd9ce6d, zh-1563bd74) — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
@@ -820,8 +826,9 @@ Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16 — handed over b
 bug65649 p7/13/14. Plan: expose skparagraph's TextStyle baseline shift through the
 Swift bridge and draw scripts in the paragraph (engine change: rebuild every platform).
 
-### T49. zh-15728c84 p3: "下”、“舆情" keeps the ” at its em in the body
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16 — handed over by starling-bd
+### T49. zh-15728c84 p3: "下”、“舆情" keeps the ” at its em in the body — nothing to do
+Owner: — (checked by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16): on the current tip the line
+matches Word's print within 0.3pt ("”" 5.3pt wide before "、").
 a709847b's rule covers it in cells only.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
