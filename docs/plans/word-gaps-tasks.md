@@ -358,8 +358,8 @@ Mac — found through T11, not taken from this task; what is left of it
 is yours.
 Windows box, 2026-10-15: its signs now stand centred in their cells
 (c69db236) and the tables where Word sets them (2ff0daed: before 2013's
-layout a spaced table is set out by its first cell's text inset). Still
-settled by 59fc1ee5 (a picture's line is as many grid pitches as the
+layout a spaced table is set out by its first cell's text inset). The
+signs' rows a pitch tall: settled by 59fc1ee5 (a picture's line is as many grid pitches as the
 picture is tall, its descent not counted): 81.6% -> 90.8. Left: page
 6's continued row stands 5pt high (parted rows); p3's "停車再開"
 (a 75pt sign and its caption in one paragraph, the caption wrapped
