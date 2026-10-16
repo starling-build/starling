@@ -4722,9 +4722,12 @@ fitter dropped the paragraph's tail).
   flips; `sysClr` and `lnRef`/`fillRef` theme colours) and draws them
   through `objectPainter`; a group whose boxes stand beside one another
   (one starts above the foot of the one before) lays out each later box
-  alone, painted at its own top. Left: other presets (stars, arrows,
-  seals), arrowheads, vertical text in a group's box, and Word clips a
-  box's overflowing text. zh-06c46ba9 94.5 -> 94.9; nothing else moved.
+  alone, painted at its own top. zh-06c46ba9 94.5 -> 94.9; nothing else
+  moved. Then every preset `PresetGeometry` defines (stars, block arrows,
+  seals, bent connectors), turned and mirrored about its centre, with
+  its line ends: zh-6cd1befe p57's flow chart now has its arrows and its
+  "突发事件" burst; no score moved. Left: vertical text in a group's box,
+  and Word clips a box's overflowing text.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
