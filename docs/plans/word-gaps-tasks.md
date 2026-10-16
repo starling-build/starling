@@ -566,6 +566,14 @@ Built: in the body too, off East Asian layout, for words of twenty
 characters or more; p132 as Word's. Next in bug65649: p140, a table of
 switchgear specifications (not looked into).
 
+### T36. bug59058: Lucida Sans Unicode at its own widths
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: bug59058 (p48's "SEER 9 Incidence…" note, two lines in Word's
+print and one in ours; pages 49-52 a line off after it).
+Known: Word's PDF embeds the face with /Widths for the 41 characters it
+set in it (all digits 632/1000; space 316, hyphen 579; lower case 5-37%
+wider than Arial's). The stand-in is Liberation Sans at Arial's widths.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
