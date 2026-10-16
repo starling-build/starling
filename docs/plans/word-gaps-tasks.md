@@ -823,6 +823,9 @@ under jc=right) — being looked at.
 
 ### T48. A superscript inside a line lands after its line in the PDF (reading order)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16 — handed over by starling-bd
+Weighed (2026-10-16): it now costs bug65649 three lines ("мм2." read as "мм."),
+and fixing it means a bridge change every platform must rebuild for — held
+for the user's go-ahead, not started.
 bug65649 p7/13/14. Plan: expose skparagraph's TextStyle baseline shift through the
 Swift bridge and draw scripts in the paragraph (engine change: rebuild every platform).
 
@@ -830,6 +833,13 @@ Swift bridge and draw scripts in the paragraph (engine change: rebuild every pla
 Owner: — (checked by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16): on the current tip the line
 matches Word's print within 0.3pt ("”" 5.3pt wide before "、").
 a709847b's rule covers it in cells only.
+
+### Note from the Slides session (lenovo, 2026-10-16), relayed
+PowerPoint's PDFs put 90% of text baselines on a 0.24pt (1/300in) grid
+measured from the page top, apparently rounded down — the raster RichLayout's
+notes give Word's prints too. Lab `bd1` shows Word's body steps 20.64/20.88
+(mean 20.76) where ours step 20.8: whoever takes the page-foot rounding
+question can start there.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
