@@ -2014,6 +2014,15 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Gradient-filled text outside WordArt, 2026-10-16** (tdf114848 4.00 →
+3.75, n862510_4 0.35 → 0.30; the other sixteen decks with such runs
+unchanged). A run's `a:gradFill` is drawn as a gradient only in WordArt
+(its run looks); in any other text it fell to no colour — black — where
+PowerPoint's "Word Art Perspective" is red. Such a run now takes the
+gradient's middle colour (`SlideFill.colorAt`, halfway). Still not
+drawn there: a run's own outline (`a:ln`), which makes tdf114848's
+12 pt red footer read white in PowerPoint's print.
+
 **Looked at and left, 2026-10-16:**
 - Bevels (`sp3d bevelT`) are not drawn. Fifteen decks have one
   (60810's twenty, customGeo's, aascu 5864's, GeomLec1's, HowWeRefactor's

@@ -347,6 +347,21 @@ struct SlideFill: Equatable {
         var position: Double
         var color: Color
     }
+
+    /// The colour a gradient's stops give at `t` (0 to 1), blended evenly
+    /// between the two either side; the end stops' beyond them.
+    static func colorAt(_ stops: [GradientStop], _ t: Double) -> Color {
+        guard let first = stops.first, let last = stops.last else { return Color(0xFF000000) }
+        if t <= first.position { return first.color }
+        if t >= last.position { return last.color }
+        for (a, b) in zip(stops, stops.dropFirst()) where t >= a.position && t <= b.position {
+            let k = b.position > a.position ? (t - a.position) / (b.position - a.position) : 0
+            func ch(_ x: Int, _ y: Int) -> Int { Int((Double(x) + (Double(y) - Double(x)) * k).rounded()) }
+            return Color(argb: ch(a.color.alpha, b.color.alpha), ch(a.color.red, b.color.red),
+                         ch(a.color.green, b.color.green), ch(a.color.blue, b.color.blue))
+        }
+        return last.color
+    }
 }
 
 /// `bodyPr/a:prstTxWarp`: WordArt's bend. The preset's name, its adjust

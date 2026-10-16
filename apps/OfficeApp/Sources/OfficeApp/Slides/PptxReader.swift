@@ -496,6 +496,12 @@ private struct LevelStyle {
         s.font = r.first("a:latin")?["typeface"]
         s.csFont = r.first("a:cs")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
+        // Text filled with a gradient is drawn as such in WordArt (its run
+        // looks); elsewhere in the gradient's middle colour, not the black
+        // of no colour at all — tdf114848's red "Word Art Perspective".
+        else if let g = r.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors), f.stops.count >= 2 {
+            s.color = SlideFill.colorAt(f.stops, 0.5)
+        }
         if let h = r.first("a:highlight") { s.highlight = colors.color(in: h) }
         if let link = r.first("a:hlinkClick") {
             // Linked text: underlined, in the theme's link colour over its
