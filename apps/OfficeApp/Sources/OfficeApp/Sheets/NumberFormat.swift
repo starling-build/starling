@@ -25,6 +25,36 @@ enum NumberFormat {
         }
     }
 
+    /// Where a format fills its cell (`*x`, Accounting's `_($* #,##0.00_)`):
+    /// the text as `display` shows it, cut at the fill, and the character
+    /// repeated there to the cell's width. Nil for a format without one.
+    /// Only painting asks: everywhere else the fill is nothing, as before.
+    static func fillParts(_ v: CellValue, _ code: String, width: Int = 11) -> (left: String, fill: Character, right: String)? {
+        guard code.contains("*") else { return nil }
+        let marker: Character = "\u{1}"
+        var out = "", fill: Character? = nil
+        let chars = Array(code)
+        var k = 0, inQuote = false, inBracket = false
+        while k < chars.count {
+            let ch = chars[k]
+            if ch == "\"" { inQuote.toggle(); out.append(ch); k += 1; continue }
+            if inQuote { out.append(ch); k += 1; continue }
+            if ch == "[" { inBracket = true } else if ch == "]" { inBracket = false }
+            if !inBracket, ch == "\\" || ch == "_" || ch == "*", k + 1 < chars.count {
+                if ch == "*" {
+                    if fill == nil { fill = chars[k + 1] }
+                    out += "\"" + String(marker) + "\""
+                } else { out.append(ch); out.append(chars[k + 1]) }
+                k += 2; continue
+            }
+            out.append(ch); k += 1
+        }
+        guard let fill else { return nil }
+        let shown = display(v, out, width: width).text
+        guard let i = shown.firstIndex(of: marker) else { return nil }
+        return (String(shown[..<i]), fill, String(shown[shown.index(after: i)...]).filter { $0 != marker })
+    }
+
     /// `inText`: TEXT() shows a negative elapsed time ([h]:mm) with a minus
     /// where a cell shows ########.
     static func format(_ n: Double, _ code: String, width: Int = 11, inText: Bool = false) -> (text: String, color: UInt32?) {

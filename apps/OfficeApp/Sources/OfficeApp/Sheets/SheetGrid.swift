@@ -2348,7 +2348,28 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         canvas.clipRect(Rect.fromLTRB(clipLeft + 1, top, clipRight - 1, bottom))
         // (Whole pixels on a screen; on paper a page has no pixels, and a
         // row's rounding would show as uneven lines of text.)
-        tp.paint(canvas, printing ? Offset(tx, ty) : Offset(tx.rounded(), ty.rounded()))
+        func at(_ x: Double) -> Offset { printing ? Offset(x, ty) : Offset(x.rounded(), ty.rounded()) }
+        // A format that fills its cell (`*x`) spans it, whatever the
+        // alignment: what is before the fill at the left, what is after it
+        // at the right, the character repeated between — Accounting's "$"
+        // at the cell's left edge and its number at the right, where ours
+        // were side by side (LIBRE_OFFICE-128382-0).
+        if !wraps, tp.width <= width - pad * 2, let parts = NumberFormat.fillParts(cell.value, st.numberFormat, width: chars) {
+            let lp = texts.painter(parts.left, style), rp = texts.painter(parts.right, style)
+            let x0 = left + pad + lp.width, x1 = right - pad - rp.width
+            if parts.fill != " ", x1 > x0 {
+                let one = texts.painter(String(parts.fill), style).width
+                if one > 0 {
+                    let fp = texts.painter(String(repeating: String(parts.fill), count: Int((x1 - x0) / one)), style)
+                    fp.paint(canvas, at(x1 - fp.width))
+                }
+            }
+            lp.paint(canvas, at(left + pad))
+            rp.paint(canvas, at(x1))
+            canvas.restore()
+            return
+        }
+        tp.paint(canvas, at(tx))
         canvas.restore()
     }
 
