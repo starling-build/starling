@@ -4270,15 +4270,21 @@ public final class RichLayout {
             default: break
             }
         }
+        // (A picture in the line makes its own line taller — not a
+        // horizontal rule, whose line is its text's: the reader's "hr";
+        // nor a floating object that takes no room in it, only its
+        // anchor: zh-a7728bc9's title, after the anchor of a text box,
+        // stood 4.2pt low of Word's with its line left to the engine.)
+        let picturesInLine = inline.contains { entry in
+            guard let image = entry.image else { return false }
+            return image.name != "hr" && !(theme.wordRules && image.float.map { !$0.takesRoom } == true)
+        }
         func laidOut(_ span: TextSpan) -> TextPainter {
             let painter = TextPainter(
                 text: span,
                 textAlign: align,
                 textDirection: style.rightToLeft ? .rtl : .ltr,
-                // (A picture in the line makes its own line taller — not a
-                // horizontal rule, whose line is its text's: the reader's
-                // "hr".)
-                strutStyle: inline.contains(where: { $0.image != nil && $0.image?.name != "hr" }) || Self._risesForNumber(inline) ? nil : _strut(span)
+                strutStyle: picturesInLine || Self._risesForNumber(inline) ? nil : _strut(span)
             )
             if !inline.isEmpty { painter.setPlaceholderDimensions(inline.map { $0.dimensions }) }
             // (A fiftieth of a point over: a line that is exactly the
@@ -4301,7 +4307,7 @@ public final class RichLayout {
             // apart — zh-64044a1d.)
             let gridded = style.eastAsian["w:snapToGrid"] != "0" && style.lineHeightPoints == nil && _grid(i, document).pitch != nil
             let lines = painter.computeLineMetrics().count
-            if painter.strutStyle == nil, theme.wordRules, !inline.contains(where: { $0.image != nil }), !Self._risesForNumber(inline),
+            if painter.strutStyle == nil, theme.wordRules, !picturesInLine, !Self._risesForNumber(inline),
                lines == 1 || gridded, let strut = _strut(span, tallest: true) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 if !inline.isEmpty { held.setPlaceholderDimensions(inline.map { $0.dimensions }) }
