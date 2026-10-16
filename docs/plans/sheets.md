@@ -150,6 +150,43 @@ round-trips with its cached value.
 
 ## Where it stands
 
+**One workbook at a time, 2026-10-15/16** (Windows, Excel 16 at 200% as
+the references; labs printed through `test/xlsx-excel-pdf.ps1`). What
+Excel was found to do, each checked on its workbook and its neighbours:
+
+- *Rows.* A row nobody sized is fitted on the screen, in whole pixels, to
+  its tallest font, and printed as a set height is (`fittedRow`); where
+  the sheet sets its default height, a row whose height is only a fit is
+  fitted afresh the same way. A set height prints cut down to whole dots
+  of 600 dpi (`setRow`), and a row set to the sheet's default height is a
+  set row, not a default one. A sheet with no `<sheetView>` prints its set
+  heights halved (bug62181: 83 rows a page).
+- *Text.* A cell shows its first 1,024 characters; text runs over its
+  neighbours when it is a little too long, not only five times too long,
+  and runs on across pages.
+- *Fonts and colours.* A theme font (`scheme`) is the theme's face,
+  whatever its name; a colour naming a theme slot and an rgb is the
+  theme's; `[$-409]` prints nothing; xsd:boolean is "true" as well as "1".
+- *Pages.* Repeated title rows take no second room on a page that shows
+  them as its own (lo-tdf113271's first page).
+- *Charts.* A 3-D pie with no rotX is tilted 15° and stands in a box its
+  file places itself, the room its exploded slices need left over. Its
+  labels — name and percent, outside, on leader lines — are not drawn yet.
+
+- *Wrapped text* that fits on one line is its font's line, not a
+  measured line and a margin (lo-pivottable_invalid_formats lost a row a
+  page to 0.14 pt).
+
+(The commit "a row set to the sheet's default height keeps its set
+height" says lo-tdf113271 makes twelve pages: it still makes eleven. Its
+first page is Excel's now; its later pages hold a row more than Excel's,
+whose repeated title seems to take a little more than the row did.)
+
+Not understood: in 45544's "Hires by Location" Excel prints the page a
+footnote runs onto, blank — the run-over text not drawn there — though
+in labs and in lo-cell-value it draws it; the column widths decide it,
+not their styles, centring or page setup.
+
 **Sweep 4 (2026-10-12): mean 1.93%, median 0.40%**, 751 scored, 10 with a
 page only one side has, 42 exact (`baseline-mupdf.tsv`). One workbook and
 one cause at a time from here, each checked on its own file and the
