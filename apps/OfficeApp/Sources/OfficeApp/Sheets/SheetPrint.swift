@@ -431,7 +431,7 @@ extension SheetGridState {
         var fields = HeaderFooterText.Fields(pages: pageCount, file: title, sheet: ws.name,
                                              path: filePath.map { $0.deletingLastPathComponent } ?? "")
         let hfStyle = book.style(0)
-        let hfFont = GridTextStyle(family: OfficeFonts.substitute(book.fontName(hfStyle)),
+        let hfFont = GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(hfStyle)),
                                    size: book.fontSize(hfStyle), color: Int64(0xFF000000))
         for (pages, s) in jobs {
             for page in pages {
@@ -538,7 +538,7 @@ extension SheetGridState {
                                              path: filePath.map { $0.deletingLastPathComponent } ?? "")
         fields.page = setup.firstPageNumber + out.count
         let st = book.style(0)
-        let font = GridTextStyle(family: OfficeFonts.substitute(book.fontName(st)), size: book.fontSize(st), color: Int64(0xFF000000))
+        let font = GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(st)), size: book.fontSize(st), color: Int64(0xFF000000))
         _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: font, size: size)
         out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
     }
@@ -560,7 +560,7 @@ extension SheetGridState {
                 st.bold = r.style.bold; st.italic = r.style.italic
                 st.underline = r.style.underline; st.strike = r.style.strike
                 if let n = r.style.size { st.size = n * k }
-                if let f = r.style.family { st.family = OfficeFonts.substitute(f) }
+                if let f = r.style.family { st.family = OfficeFonts.sheetFace(f) }
                 if let c = r.style.color { st.color = c }
                 return TextSpan(text: r.text, style: st.flutter)
             }, style: base.flutter)

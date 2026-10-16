@@ -2271,7 +2271,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
         let book = controller.book
-        return GridTextStyle(family: OfficeFonts.substitute(book.fontName(st)),
+        return GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(st)),
                              size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c)
     }

@@ -45,7 +45,7 @@ enum SheetLayoutDump {
                     default: align = .left
                     }
                 }
-                let style = GridTextStyle(family: OfficeFonts.substitute(book.fontName(st)),
+                let style = GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(st)),
                                           size: book.fontSize(st) * scale * SheetGridState.excelTextScale,
                                           bold: st.bold, italic: st.italic, underline: st.underline, strike: st.strike,
                                           color: Int64(0xFF00_0000))

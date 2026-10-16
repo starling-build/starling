@@ -311,6 +311,17 @@ enum OfficeFonts {
         "yu gothic ui semilight", "yu mincho", "yu mincho demibold", "yu mincho light", "zapf dingbats",
         "zapfino",
     ]
+    /// The shipped face for a workbook's font name. A workbook has no font
+    /// table, so `substitute`'s guesses for a name Word on a Mac has no
+    /// face for — Cambria, for one the table does not hold — are not
+    /// Excel's: chart-tdf150434's "Open Sans" prints sans, where ours was
+    /// Caladea and its long text ran a page short.
+    static func sheetFace(_ family: String) -> String {
+        let face = substitute(family)
+        if face == cambria, family.lowercased().containsSubstring("sans") { return sans }
+        return face
+    }
+
     private static func fontEntry(_ family: String) -> FontEntry? {
         declaredLock.lock()
         defer { declaredLock.unlock() }
