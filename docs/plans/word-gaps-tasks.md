@@ -512,6 +512,18 @@ Documents: Bug51170 (every page's footer), zh-457a8d62.
 Built: a floating frame of no stated width is set at the side it is
 aligned to; both 100%.
 
+### T31. A merged cell centred over rows that part across pages
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-16
+(taken at the Linux session's request).
+Documents: zh-91e44bcb p4 ("三、本年度办理结果" 21pt low), zh-84702a67
+p8 ("是否存在转包、挂靠行为", continued from p7), zh-90e0cea8 p8 (the
+"行政审批各阶段帮办服务内容" column 8.6pt low: half a row), zh-1a3c7aa0
+p19.
+Known: a vMerge cell with vAlign center whose rows go over a page break
+is centred by Word in the part on each page. Ours lifts the text by
+half of what the rows left behind would give (`lift` in the paging), and
+lands half a row low on zh-90e0cea8. Next: the lift's numbers there.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
