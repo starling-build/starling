@@ -2014,6 +2014,14 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Banded columns, 2026-10-16** (table-with-different-font-colors 1.48
+→ 1.47: its second slide's text colours and second column's fill now
+PowerPoint's). `bandCol` was not read. The style's `band1V` and
+`band2V` now take turns across the columns, counted from the one after
+an emphasised first column; their text colour (the cyan third column),
+and their fill unless the rows are banded too, whose bands PowerPoint
+draws over them. The only deck that asks.
+
 **A 3-D column chart's box, 2026-10-16** (LIBRE_OFFICE-100610-0 2.67
 → 2.04, aascu 5864 8.83 → 8.71, its census slide 25.6 → 21.6; the only
 two decks with `c:bar3DChart`). A 3-D bar or column chart now stands

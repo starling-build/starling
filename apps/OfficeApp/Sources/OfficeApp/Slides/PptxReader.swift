@@ -1852,6 +1852,17 @@ private struct SlideContext {
                 // The style's regional looks, the later ones over the earlier
                 // (a corner cell of the header row looks like the header).
                 var regional: [TablePartStyle] = []
+                // Banded columns (`bandCol`): the style's two column bands
+                // by turns, counted from the column after an emphasised
+                // first one — table-with-different-font-colors' darker
+                // second column and cyan third. Their fill is under the
+                // row bands', which PowerPoint draws over them.
+                var bandColPart: TablePartStyle? = nil
+                if pr?["bandCol"] == "1", let style {
+                    let k = c - (pr?["firstCol"] == "1" ? 1 : 0)
+                    if k >= 0 { bandColPart = _tablePart(style, k % 2 == 0 ? "a:band1V" : "a:band2V") }
+                }
+                if let f = bandColPart?.fill, !banded, r > 0 || firstRowPart == nil { cell.fill = f }
                 if c == 0, let p = firstColPart { regional.append(p) }
                 if c == columnCount - 1, let p = lastColPart { regional.append(p) }
                 if r == rowCount - 1, r > 0, let p = lastRowPart { regional.append(p) }
@@ -1919,7 +1930,7 @@ private struct SlideContext {
                 // exactly what (Light Style 2's header is dark text, no fill).
                 var look = base
                 if style != nil {
-                    for p in regional {
+                    for p in (bandColPart.map { [$0] } ?? []) + regional {
                         if let f = p.font { look.font = f }
                         if let b = p.bold { look.bold = b }
                         if let c = p.textColor { look.color = c }
