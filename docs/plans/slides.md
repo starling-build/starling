@@ -2003,6 +2003,17 @@ category labels exactly where PowerPoint's are), and the legend's
 entries are 2.5 pt closer together (9.5 between entries, not 12). Both
 now; a 2007-style chart keeps its own measures.
 
+Tried and dropped: a newer chart's plot ending 1.2 pt higher (its value
+labels' pitch says so) — six chart decks +0.07 to +0.44.
+
+**Aptos, tightened, 2026-10-15** (the twelve Aptos decks −1.21 in sum:
+NumberedList −0.56, tdf173712 −0.26, shape-text-glow-effect −0.13, six
+more a little; tdf162283 +0.03). Aptos, Office's new default, is set
+in Liberation Sans here, and PowerPoint's lines in it are 3.5% shorter
+than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
+set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
+looser — in the Slides reader only, the shared face untouched.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

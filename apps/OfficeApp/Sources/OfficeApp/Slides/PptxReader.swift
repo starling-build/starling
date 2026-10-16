@@ -2774,6 +2774,13 @@ private struct SlideContext {
                     cs.bold = true
                     cs.letterSpacing = (cs.letterSpacing ?? 0) + 0.07 * (cs.fontSize ?? 18)
                 }
+                // Aptos, set in Liberation Sans: that much tighter, as
+                // Aptos runs narrower — PowerPoint's lines in it are 3.5%
+                // shorter than ours across the twelve Aptos decks, 5.5% in
+                // bold (28 lines compared).
+                if cs.fontFamily?.lowercased() == "aptos" {
+                    cs.letterSpacing = (cs.letterSpacing ?? 0) - (cs.bold ? 0.031 : 0.0185) * (cs.fontSize ?? 18)
+                }
                 cs.shadow = s.shadow
                 cs.highlight = s.highlight
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
