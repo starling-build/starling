@@ -4499,6 +4499,12 @@ fitter dropped the paragraph's tail).
   face's ascent and descent and set the letterheads 1.6pt high; they now
   match to 0.1 (`RichTextTheme.lineMiddle`). No score moved; drifting
   lines 587 -> 530.
+- **A floating object's anchor keeps the line's strut (2026-10-16;
+  Linux).** A picture in the line drops the strut so the line can grow
+  to it; a floating object taking no room counted too, and its line
+  went to the engine's height and baseline: zh-a7728bc9's title after a
+  text box's anchor stood 4.2pt low, now 0.2. No score moved; drifting
+  lines 782 -> 773, none new.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
