@@ -167,6 +167,7 @@ enum Xlsx {
 
         if let pr = root.child("sheetPr"), let tab = pr.child("tabColor")?["rgb"] { ws.tabColor = tab }
         // Frozen panes and the selection.
+        ws.hasView = root.child("sheetViews")?.child("sheetView") != nil
         if let view = root.child("sheetViews")?.kids("sheetView").first {
             if let pane = view.child("pane"), pane["state"] == "frozen" || pane["state"] == "frozenSplit" {
                 ws.freezeCols = Int(Double(pane["xSplit"] ?? "0") ?? 0)

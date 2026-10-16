@@ -196,6 +196,11 @@ final class Worksheet {
     /// The sheet view's other attributes — zoom, scroll position, show
     /// zeros, right to left, page layout view — written back as read.
     var viewAttrs: [String: String] = [:]
+    /// Whether the file gave the sheet a view (`sheetView`) at all. Excel
+    /// prints a sheet without one with its set row heights halved — labs
+    /// of 20 pt rows, Excel 16, 2026-10-15: 9.72 pt on paper, 19.32 with an
+    /// empty `<sheetView workbookViewId="0"/>` (bug62181, 83 rows a page).
+    var hasView = true
 
     /// The style a new cell at `a` takes: its row's when the row is
     /// formatted, else its column's, as Excel does.
@@ -280,6 +285,7 @@ final class Worksheet {
         s.rowAttrs = rowAttrs
         s.formatPrAttrs = formatPrAttrs
         s.viewAttrs = viewAttrs
+        s.hasView = hasView
         s.tables = tables
         s.removedTables = removedTables
         s.notes = notes

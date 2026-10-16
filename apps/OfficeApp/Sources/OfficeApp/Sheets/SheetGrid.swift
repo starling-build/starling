@@ -277,10 +277,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let refits: (Int) -> Bool = { r in
                 ws.customDefaultRowHeight ? ws.fittedRows.contains(r) : ws.rowHeights[r] == nil
             }
+            // (A sheet the file gives no view prints its set heights halved:
+            // `Worksheet.hasView`.)
+            let setScale = ws.hasView ? m.rowScale : m.rowScale / 2
             var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.compactMap { (r, h) -> (Int, Double)? in
                 let fit = ws.fittedRows.contains(r)
                 if fit, h > 0, ws.customDefaultRowHeight { return (r, m.defaultRow) }
-                return (r, h * (fit ? fitted : m.rowScale))
+                return (r, h * (fit ? fitted : setScale))
             })
             // A row fitted afresh is as tall as its tallest font's line —
             // fitted on the screen, then printed (`fittedRow`).
