@@ -1921,6 +1921,20 @@ adjust does; it was ignored, and FontWorkScaleX's −5661 wave stood
 upright where PowerPoint's leans right. It now slants the block the way
 textPlain's does.
 
+**A diagram's margins follow the author's text size, 2026-10-15**
+(smartart-snake-rows 1.54 → 1.09; linear-rule-vert and
+composite-infer-right −0.02; the other diagram decks unchanged). A
+diagram laid out here takes its margins as fractions of the layout's
+font size (65 pt, `tMarg` 0.3 of it): right for text the layout sizes,
+wrong for text whose every run the author sized — snake-rows' 16 pt
+children sat 22 pt down in their boxes, PowerPoint's about 5. Such a
+shape's margins are now scaled by its largest run over the layout's
+size.
+
+Left: lo-tdf125573's `fromWordArt` arch (its text grown to fill the
+arc in PowerPoint's print, 18 pt here) — the only such shape in the
+corpus.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

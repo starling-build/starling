@@ -1674,9 +1674,18 @@ struct DiagramLayout {
         // A margin no constraint names is 0.56 of the font size: PowerPoint's
         // own drawing of pList2 has 256032 EMU (20.2 pt) round 36 pt text.
         let inset = 0.56 * prim
+        // Text the author sized (every run with its own `sz`, the point's
+        // `custT`): the margins are fractions of THAT size, not of the
+        // layout's — snake-rows' 16 pt children sat 22 pt down, where
+        // PowerPoint's are 5.
+        let fileRuns = points.flatMap { $0.text?.all("a:p") ?? [] }.flatMap { $0.children }
+            .filter { $0.name == "a:r" && !($0.first("a:t")?.text ?? "").isEmpty }
+        let ownSizes = fileRuns.compactMap { $0.first("a:rPr")?["sz"].flatMap(Double.init) }
+        let k = !fileRuns.isEmpty && ownSizes.count == fileRuns.count && prim > 0 ? min(1, (ownSizes.max() ?? 0) / 100 / prim) : 1
+        func margin(_ name: String) -> String { Self.emu((n.value(name) ?? inset) * k) }
         let bodyPr = XNode(name: "a:bodyPr", attrs: ["anchor": anchor, "wrap": "square", "starling:insScale": "1",
-                                                     "lIns": Self.emu(n.value("lMarg") ?? inset), "tIns": Self.emu(n.value("tMarg") ?? inset),
-                                                     "rIns": Self.emu(n.value("rMarg") ?? inset), "bIns": Self.emu(n.value("bMarg") ?? inset)])
+                                                     "lIns": margin("lMarg"), "tIns": margin("tMarg"),
+                                                     "rIns": margin("rMarg"), "bIns": margin("bMarg")])
         if let g = n.sizeGroup { bodyPr.attrs["starling:sizeGroup"] = g }
         bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])]
         body.children = [bodyPr, XNode(name: "a:lstStyle", attrs: [:])] + paragraphs
