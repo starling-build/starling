@@ -3297,6 +3297,17 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A line's legend key is a 19.2pt stroke (2026-10-16).** A line or
+  radar chart's legend drew its key in a square's room, a 7pt line
+  scaled by the text. Word and PowerPoint draw a 19.2pt stroke whatever
+  the text's size (chartex's 9pt legends, line-chart's 18pt one), its
+  name 2pt after it; in a row the entry has 3.6pt more before the
+  line, so chartex's 9pt entries pitch 60.3pt as Word's (ours were
+  43.8, a bar chart's). A legend beside the plot keeps its width, the
+  line reaching left out of it: line-chart's plot is where PowerPoint
+  has it, its key 1.1pt right of PowerPoint's. No scored line moved;
+  the chart decks' scores as they were.
+
 - **A 2013-style chart's ticks take no room from its labels
   (2026-10-16).** Outward tick marks pushed a chart's labels off the
   axis (5.6pt beside a value axis, 8.8 beside a bar chart's categories,

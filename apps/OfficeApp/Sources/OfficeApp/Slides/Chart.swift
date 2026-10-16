@@ -1070,10 +1070,19 @@ enum ChartPainter {
             // (9.5 between a row's entries on a newer chart: chart-slide-bg's
             // legend pitches 58.6 pt in PowerPoint's print, ours 60.9 at 12.)
             let key = 7 * k * m, gap = 4 * k * m, spacing = (c.styled2013 ? 9.5 : 12) * k * m
+            // A line's key is a stroke 19.2 pt long whatever the text's
+            // size, ending 2 pt before its name; in a row, 3.6 more before
+            // it (chartex's line and radar charts in Word's print: their
+            // 9 pt entries pitch 60.3, a bar chart's 44.1). A column keeps
+            // its width, the line reaching out of it: line-chart's 18 pt
+            // legend in PowerPoint's print, its plot where ours was.
+            let lineKeys = c.type == .line || (c.type == .radar && !c.radarFilled)
             // Beside the plot (`legendPos` r, l, tr): a column, an entry to
             // a line, in the middle of the side; above or below: rows.
             let box = c.legendBox.map { Rect.fromLTWH(r.left + $0.left * r.width, r.top + $0.top * r.height, $0.width * r.width, $0.height * r.height) }
             let beside = box == nil && ["r", "l", "tr"].contains(c.legendPosition)
+            // Room before an entry's name.
+            let lead = lineKeys && !beside ? 24.8 * k : key + gap
             // A column beside stacked columns (or areas) reads as the stack
             // does, the last series — the top of it — first.
             if beside, c.stacked, c.type == .column || c.type == .area { entries.reverse() }
@@ -1083,7 +1092,7 @@ enum ChartPainter {
             var lines: [[(i: Int, tp: TextPainter)]] = [[]]
             var lineW = 0.0
             for e in entries {
-                let w = key + gap + e.tp.width
+                let w = lead + e.tp.width
                 if lineW > 0, beside || lineW + spacing + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
                 lineW += (lineW > 0 ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
@@ -1091,7 +1100,7 @@ enum ChartPainter {
             // (An entry to a line: PowerPoint's 9 pt entries are 16.9 pt apart.)
             let textH = entries.map(\.tp.height).max() ?? size * k
             let lineH = beside ? textH + 6 * k : textH
-            let columnW = (entries.map(\.tp.width).max() ?? 0) + key + gap
+            let columnW = (entries.map(\.tp.width).max() ?? 0) + lead
             var y: Double, columnX = 0.0
             if let box {
                 // In its own place, the plot's room untouched.
@@ -1117,7 +1126,7 @@ enum ChartPainter {
                 area = Rect.fromLTRB(area.left, area.top, area.right, y - 8.4 * k)
             }
             for line in lines {
-                let w = line.reduce(0.0) { $0 + key + gap + $1.tp.width } + spacing * Double(max(0, line.count - 1))
+                let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
                 var x = beside ? columnX : (box?.center.dx ?? area.center.dx) - w / 2
                 for e in line {
                     let p = Paint()
@@ -1141,17 +1150,17 @@ enum ChartPainter {
                         continue
                     }
                     p.color = pie ? c.pointColor(e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
-                    if c.type == .line || (c.type == .radar && !c.radarFilled) {
+                    if lineKeys {
                         p.style = .stroke
                         p.strokeWidth = 2.25 * k
-                        canvas.drawLine(Offset(x - 2 * k, y + lineH / 2), Offset(x + key + 2 * k, y + lineH / 2), p)
+                        canvas.drawLine(Offset(x + lead - 21.2 * k, y + lineH / 2), Offset(x + lead - 2 * k, y + lineH / 2), p)
                     } else if c.type == .scatter {
                         canvas.drawCircle(Offset(x + key / 2, y + lineH / 2), 2.5 * k, p)
                     } else {
                         canvas.drawRect(Rect.fromLTWH(x, y + (lineH - key) / 2, key, key), p)
                     }
-                    e.tp.paint(canvas, Offset(x + key + gap, y + (lineH - e.tp.height) / 2))
-                    x += key + gap + e.tp.width + spacing
+                    e.tp.paint(canvas, Offset(x + lead, y + (lineH - e.tp.height) / 2))
+                    x += lead + e.tp.width + spacing
                 }
                 y += lineH
             }
