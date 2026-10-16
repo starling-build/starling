@@ -1659,8 +1659,12 @@ final class DocxTests: XCTestCase {
         }
         var doc = RichDocument(paragraphs: [cell("a1", 0, 0), cell("b1", 0, 1), cell("a2", 1, 0), cell("b2", 1, 1), RichParagraph(text: "after")])
         doc.tableColumns["t"] = [200, 200]
+        // (In the session's own face: the file names it, and a document
+        // that names none reads back in it — the sans stand-in has a
+        // shorter line than Calibri's, and the reopened table came back
+        // 3px taller for the face alone.)
         func height(_ d: RichDocument) -> Double {
-            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
             theme.wordRules = true
             let layout = RichLayout(theme: theme, paragraphCount: d.paragraphs.count)
             layout.width = 468 * 96.0 / 72.0
