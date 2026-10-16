@@ -4145,6 +4145,21 @@ fitter dropped the paragraph's tail).
   five-line title row. Ours sent heading and form to page 89, and the
   next four pages ran a form late. zh-64044a1d 91.1 -> 93.7; nothing
   else moved.
+- **A body frame on the page stands at its height (2026-10-16).** A
+  framed paragraph in the body whose frame is anchored to the page is
+  set at the y it states, and the flow goes on from where it stood, so
+  a frame takes no room. A run of paragraphs with one frame is one
+  frame. The frame is as wide as it says and, anchored to the page, at
+  its x. A frame that names no vertical anchor counts as on the page.
+  An x stated in the style chain wins over an alignment from further
+  down it, since the cover's "实施" date has its own style's x and its
+  parent's right alignment, and Word prints it at the x. zh-90e0cea8's
+  standard cover is all frames, and set in the flow its dates stood
+  168pt above Word's and its title parted. Now the dates, the title and
+  "山东省地方标准" stand within 3pt of Word's. The "发布" frame, whose
+  style chain anchors it to the margin, is still not where Word prints
+  it. zh-90e0cea8 92.3 -> 93.8; nothing else moved (a peer's commit
+  moved zh-9c5d0c3f at the same time).
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the

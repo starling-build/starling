@@ -2119,6 +2119,9 @@ public final class RichLayout {
             _pageInsetTop[physical] = insets.top
             contentH = max(1, _px(pageSetup(forPage: physical).height) - insets.top - insets.bottom)
         }
+        // Where the flow stood before a frame placed on the page (see
+        // below), and the page it is on.
+        var frameReturn: (y: Double, page: Int)? = nil
         var resumeCursor: Double? = nil
         // The previous result, to splice back in once the flow past the
         // change lands where it did before.
@@ -3217,6 +3220,30 @@ public final class RichLayout {
             // the page's first paragraph leaves it: one under
             // paragraphs of no height — hidden ones, after a section's
             // break — keeps its space (zh-90e0cea8's appendix heading).
+            // A frame placed on the page (`w:framePr` anchored to the page,
+            // at a y it states): set there, and the flow goes on from where
+            // it stood — a frame takes no room. A run of paragraphs with one
+            // frame is one frame. zh-90e0cea8's standard cover is all
+            // frames, each at its own height on the page; set in the flow,
+            // "2022-02-18 发布" stood 168pt above Word's.
+            let ownFrame = document.paragraphs[i].style.frameXML
+            let frameStarts = theme.wordRules && _cells[i] == nil && ownFrame != nil
+                && !(i > 0 && document.paragraphs[i - 1].style.frameXML == ownFrame)
+            if frameStarts, let f = document.paragraphs[i].style.frame, f.verticalAlign == nil, Self._onThePage(document.paragraphs[i].style) {
+                let physical = page / _columns
+                let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                let target = _px(f.y) - insetTop
+                if target > -insetTop, target < contentH - 0.01 {
+                    if frameReturn == nil || frameReturn!.page != page { frameReturn = (y, page) }
+                    y = target
+                }
+            }
+            defer {
+                if let back = frameReturn, !(i + 1 < count && ownFrame != nil && document.paragraphs[i + 1].style.frameXML == ownFrame) {
+                    if back.page == page { y = back.y }
+                    frameReturn = nil
+                }
+            }
             let lead = i < _floatPush.count ? max(0, _spaceBefore[i] - _floatPush[i]) : 0
             var leavesLead = false
             if theme.wordRules, lead > 0.01, cursor <= top + 0.01 {
@@ -3769,6 +3796,24 @@ public final class RichLayout {
             }
             width = own
             left += frameLeft!
+        }
+        // (A frame on the page in the body is as wide as it says: the
+        // 482pt title frame of zh-90e0cea8's cover holds its 18-character
+        // title on one line, where the 420pt column parted it.)
+        if frameLeft == nil, theme.wordRules, p.cell == nil, let frame = style.frame, let w = frame.width,
+           frame.verticalAlign == nil, Self._onThePage(style) {
+            width = _px(w) + left
+            // (At its x on the page: the cover's "实施" date stands at the
+            // right in its own 200pt frame.)
+            // (An x the style chain states wins over an alignment from
+            // further down it: the date's own style puts it at 354pt, its
+            // parent's says right, and Word's print has it at 354.)
+            if frame.horizontalAnchor == "page", frame.horizontalAlign == nil || (style.frameXML ?? "").contains("w:x=\"") {
+                let setup = _setup(ofParagraph: i)
+                let shift = _px(frame.x - setup.marginLeft - setup.gutter)
+                left += shift
+                width += shift
+            }
         }
         var textWidth = max(1, width - left - right + (frameLeft ?? 0))
         if let c = p.cell {
@@ -7733,6 +7778,15 @@ public final class RichLayout {
             }
             return rise
         }
+    }
+
+    /// Whether a framed paragraph stands at a height on the page: its frame
+    /// anchored to the page, or naming no anchor — Word's default is the
+    /// page (zh-90e0cea8's "发布" frame, which says only its y, prints at
+    /// 751pt down the page).
+    static func _onThePage(_ style: RichParagraphStyle) -> Bool {
+        guard let frame = style.frame else { return false }
+        return frame.verticalAnchor == "page" || !(style.frameXML ?? "").contains("w:vAnchor=")
     }
 
     /// Set on a header's or footer's own layout: its framed paragraphs
