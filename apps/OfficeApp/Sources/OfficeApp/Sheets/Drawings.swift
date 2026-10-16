@@ -188,7 +188,7 @@ enum SheetDrawingsXML {
     /// A part's relationships: id → resolved part path.
     static func _relTargets(_ parts: [String: Data], of part: String) -> [String: String] {
         let dir = part.deletingLastPathComponent
-        return Xlsx._rels(parts[Xlsx._relsPath(part)], base: dir.isEmpty ? "" : dir + "/")
+        return Xlsx._rels(Xlsx._part(parts, Xlsx._relsPath(part)), base: dir.isEmpty ? "" : dir + "/")
     }
 }
 

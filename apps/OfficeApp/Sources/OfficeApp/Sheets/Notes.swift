@@ -57,7 +57,7 @@ struct SheetNoteParts: Equatable, Sendable {
 enum NotesXML {
     static func read(sheetPath: String, parts: [String: Data]) -> ([SheetNote], SheetNoteParts) {
         let dir = sheetPath.deletingLastPathComponent
-        let rels = Xlsx._relList(parts[Xlsx._relsPath(sheetPath)])
+        let rels = Xlsx._relList(Xlsx._part(parts, Xlsx._relsPath(sheetPath)))
         var p = SheetNoteParts()
         for r in rels {
             let path = Xlsx._resolve(r.target, base: dir.isEmpty ? "" : dir + "/")

@@ -115,7 +115,7 @@ enum Xlsx {
                 ws.objects = SheetObjectsXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
                 ws.tables = TablesXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
                 (ws.notes, ws.noteParts) = NotesXML.read(sheetPath: path, parts: parts)
-                for r in _relList(parts[_relsPath(path)]) where r.type.hasSuffix("/hyperlink") { ws.linkTargets[r.id] = r.target }
+                for r in _relList(_part(parts, _relsPath(path))) where r.type.hasSuffix("/hyperlink") { ws.linkTargets[r.id] = r.target }
             }
         }
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
@@ -834,6 +834,15 @@ enum Xlsx {
 
     private static func _sheetPaths(_ parts: [String: Data]) -> [String] {
         _relList(parts["xl/_rels/workbook.xml.rels"]).filter { $0.type.hasSuffix("/worksheet") }.map { _resolve($0.target, base: "xl/") }
+    }
+
+    /// A part by its name, whatever its case: part names in a package are
+    /// case-insensitive, and chart-tdf100084's Sheet1.xml has its
+    /// relationships in _rels/sheet1.xml.rels — its two charts were lost.
+    static func _part(_ parts: [String: Data], _ name: String) -> Data? {
+        if let d = parts[name] { return d }
+        let low = name.lowercased()
+        return parts.first { $0.key.lowercased() == low }?.value
     }
 
     static func _relsPath(_ part: String) -> String {
