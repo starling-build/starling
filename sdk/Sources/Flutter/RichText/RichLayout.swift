@@ -6857,8 +6857,14 @@ public final class RichLayout {
             let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: document.styles[RichNamedStyle.normalId]?.char, scale: scale, fontScale: fontScale)
             // The size it was shrunk from (the style's is 65% of it).
             let full = (style.fontSize ?? 0) / 0.65
-            // (Measured on PowerPoint's page: 7.0 pt up and 5.0 down at 24 pt.)
-            let dy = run.style.script == .superscript ? -0.3 * full : 0.2 * full
+            // (Measured on PowerPoint's page: 7.0 pt up and 5.0 down at 24 pt.
+            // Word raises one further: 3.6pt over 10pt text and 4.08 over
+            // 11 and 12pt in its prints — every note mark of endnotes,
+            // footnotes, bug65649 and three more, Calibri and Times alike
+            // — 0.355 of the size within its 0.24pt raster, where 0.3 set
+            // them 0.6pt low.)
+            let up = theme.wordRules ? 0.355 : 0.3
+            let dy = run.style.script == .superscript ? -up * full : 0.2 * full
             var a = from
             while a < to {
                 // To the end of the run or of its line, whichever is first.

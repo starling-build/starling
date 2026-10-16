@@ -2978,6 +2978,15 @@ fitter dropped the paragraph's tail).
   on the last page (Word runs them on to pages of their own; ours sets
   none), and endnotes at a section's end (`w:pos` sectEnd).
 
+- **A superscript stands higher in Word (2026-10-15, Linux).** Every
+  note mark in Word's prints of the corpus (51, in endnotes, footnotes,
+  table_footnote, Bug54849, bug65649 and form_footnotes; Calibri and
+  Times alike) is raised 3.6pt over 10pt text and 4.08 over 11 and
+  12pt: 0.355 of the full size within the 0.24pt raster. Ours took
+  PowerPoint's 0.3 and stood them 0.6pt low. Under Word's rules the
+  raise is now 0.355 (`_paintScripts`); bug65649's marks within 0.07pt,
+  endnotes' within 0.26. Paint only: no line moves and no score.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

@@ -452,7 +452,7 @@ Built (office.md): set after the last paragraph when they fit on its
 page. Bug54849 95.7 -> 100%. Left: a superscript's raise (Word's 0.36-
 0.37 of the full size, ours 0.3) — endnotes' "i" and its body mark.
 
-### T24. A superscript's raise in Word
+### T24. A superscript's raise in Word — DONE (2026-10-15)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-15
 Documents: endnotes, footnotes, table_footnote, Bug54849, bug65649,
 form_footnotes (every note mark).
@@ -460,6 +460,8 @@ Known: Word's prints raise a superscript 3.6pt over 10pt text and 4.08
 over 11 and 12pt (Calibri and Times alike, 51 marks): 0.355 of the
 full size within the 0.24pt raster. Ours raise it 0.3 of it, as
 measured on PowerPoint's page.
+Built: 0.355 under Word's rules; marks within 0.07-0.26pt. Still
+open: endnotes' body paragraph holding its mark stands 1.6pt low.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
