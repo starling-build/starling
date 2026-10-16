@@ -722,6 +722,9 @@ Documents: zh-15728c84 p3 (row 9), zh-1a3c7aa0 p22 (row 65), p32 (row
 (2026-10-15, night)".
 Known: Word's part ends under the last line kept on the page and is no
 shorter than the row's stated height; centred cells stand centred in it.
+Progress (Windows): the centred cells now stand so (zh-15728c84 96.0 ->
+98.5). Left: the part's rule still runs to the page's foot, and
+zh-1a3c7aa0 p22/p32 (their rows' heights there).
 
 ### T43. bug57031 p11: a SAS table runs 2.7pt short, a "Note:" row parts
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16

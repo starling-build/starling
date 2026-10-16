@@ -2644,6 +2644,30 @@ public final class RichLayout {
                         fits = true
                     }
                 }
+                // (Where the row parts, its part on this page is as tall as
+                // the most any cell keeps here and no shorter than the row
+                // says it is, and a centred cell's lines stand centred in
+                // that part: zh-15728c84's row 9, at least 82.75pt, keeps
+                // five 15pt lines of its centred cells on page 3 and Word
+                // sets them 3.9pt down in a part of 83.2 — ours at its top.)
+                var shift: [Int: Double] = [:]
+                if theme.wordRules, !fits, first {
+                    var extent: [Int: (top: Double, bottom: Double)] = [:]
+                    for (n, column) in columns.enumerated() where setWhole[n] == nil {
+                        let d0 = _cells[column.members[0]]!
+                        let bottom = next[n] >= rowBottom - 0.01 ? column.bottom : next[n] + d0.pad.bottom
+                        let textTop = max(column.cut, _tops[column.members[0]] - d0.pad.top)
+                        extent[n] = (textTop, bottom)
+                    }
+                    let part = min(avail, max(stated, extent.map { n, e in e.bottom - columns[n].cut }.max() ?? 0))
+                    for (n, e) in extent {
+                        let d0 = _cells[columns[n].members[0]]!
+                        guard d0.verticalAlign == "center" || d0.verticalAlign == "bottom" else { continue }
+                        let free = part - (e.bottom - e.top)
+                        let want = max(0, free) * (d0.verticalAlign == "center" ? 0.5 : 1)
+                        shift[n] = want - (e.top - columns[n].cut)
+                    }
+                }
                 // The rules: from the row's top down to the page's foot,
                 // then the row's last stretch with its bottom line.
                 let shown = fits ? rest : avail
@@ -2667,7 +2691,7 @@ public final class RichLayout {
                         let top = _tops[k], bottom = top + _heights[k]
                         let lo = max(top, column.cut), hi = fits ? bottom : min(bottom, next[n])
                         guard hi > lo + 0.01 || (pieces[k] == nil && hi >= lo && bottom <= lo + 0.01) else { continue }
-                        var piece = PagePiece(paragraph: k, flowTop: lo, flowBottom: hi, page: page, pageY: y + (lo - column.cut))
+                        var piece = PagePiece(paragraph: k, flowTop: lo, flowBottom: hi, page: page, pageY: y + (lo - column.cut) + (shift[n] ?? 0))
                         piece.part = .text
                         pieces[k, default: []].append(piece)
                         _pages[page].append(piece)

@@ -3297,6 +3297,16 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A parting row's part on its page centres its centred cells (2026-
+  10-16).** Where a row parts at the page's foot, its part there is as
+  tall as the most any of its cells keeps on the page, and no shorter
+  than the height the row states; a centred cell (or one set at the
+  bottom) stands centred in that part. zh-15728c84's row 9, at least
+  82.75pt, keeps five 15pt lines of its centred cells on page 3: Word
+  sets them 3.9pt down in a part of 83.2, ours set them at the part's
+  top. The rules are as they were (the part's rule still runs to the
+  foot). zh-15728c84 96.0% -> 98.5; nothing else moved (T32).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
