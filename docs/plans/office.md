@@ -4702,6 +4702,20 @@ fitter dropped the paragraph's tail).
   a 16pt "X" over 14pt text) is left as it was. Lines more than 1.5pt
   off Word's: 245 -> 225 (zh-d68ac84a 12 -> 0, zh-7dc3afad 12 -> 8,
   zh-799c91cd 8 -> 5); zh-d68ac84a 99.7 -> 99.8; nothing down.
+- **A drawing group's lines and boxes, each in its place (2026-10-16;
+  Linux).** A `wpg:wgp` group was drawn as its first child's shape
+  stretched over the whole group, and its text boxes were one flow, each
+  box pushed under the one before. zh-06c46ba9 p36 (a tree of fifteen
+  labelled boxes and 27 connectors, the first a connector) printed as one
+  diagonal line across the figure with the labels walking 140pt down the
+  page; zh-6cd1befe p57's flow chart likewise. Now `WriterGroups` reads
+  each straight line and rectangle (through nested groups, `chOff`/`chExt`,
+  flips; `sysClr` and `lnRef`/`fillRef` theme colours) and draws them
+  through `objectPainter`; a group whose boxes stand beside one another
+  (one starts above the foot of the one before) lays out each later box
+  alone, painted at its own top. Left: other presets (stars, arrows,
+  seals), arrowheads, vertical text in a group's box, and Word clips a
+  box's overflowing text. zh-06c46ba9 94.5 -> 94.9; nothing else moved.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

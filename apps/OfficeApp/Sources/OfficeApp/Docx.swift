@@ -2682,7 +2682,9 @@ enum DocxFormat {
             att.float = _float(node)
             // A straight line or a plain box, drawn by the layout: its
             // line's width and colour (`a:ln`), and a solid fill.
-            if let sp = node.descendant("wps:spPr"), let geom = sp.first("a:prstGeom")?["prst"],
+            // (Not a group's: its first child's shape is not the group's —
+            // see `WriterGroups`.)
+            if node.descendant("wpg:wgp") == nil, let sp = node.descendant("wps:spPr"), let geom = sp.first("a:prstGeom")?["prst"],
                ["line", "straightConnector1", "rect"].contains(geom) {
                 func rgb(_ n: XNode?) -> Color? {
                     guard let hex = n?.first("a:solidFill")?.first("a:srgbClr")?["val"], let v = Int64(hex, radix: 16) else { return nil }
@@ -2838,6 +2840,11 @@ enum DocxFormat {
                     att.data = data
                     att.name = rel.target.lastPathComponent
                 }
+            }
+            // A group's lines and boxes, each in its place (`WriterGroups`).
+            if let group = node.descendant("wpg:wgp") {
+                let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
+                WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
             }
             // A chart: its part read and drawn as Slides does one
             // (`WriterCharts`), in the document's theme.

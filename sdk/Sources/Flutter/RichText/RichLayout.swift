@@ -7932,8 +7932,7 @@ public final class RichLayout {
                 // A text box: its text, set inside it.
                 canvas.save()
                 canvas.translate(box.left + _px(text.insetLeft), box.top + _px(text.insetTop))
-                inside.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: inside.document,
-                                    selection: nil, caret: nil)
+                _paintBoxText(inside, canvas)
                 canvas.restore()
             } else if !drawn, !(theme.wordRules && image.float.map({ !$0.takesRoom }) == true) {
                 // (No stand-in for a floating object the editor cannot
@@ -8149,8 +8148,7 @@ public final class RichLayout {
                         if let inside = _textBox(image, document), let text = image.textBox {
                             canvas.save()
                             canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
-                            inside.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000),
-                                                document: inside.document, selection: nil, caret: nil)
+                            self._paintBoxText(inside, canvas)
                             canvas.restore()
                         }
                         continue
@@ -8165,10 +8163,10 @@ public final class RichLayout {
                     _drawPicture(decoded, image, rect, canvas)
                     _paintFrame(image, rect, canvas)
                 } else if let inside = _textBox(image, document), let text = image.textBox {
+                    _ = _paintObject(image, rect, canvas)
                     canvas.save()
                     canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
-                    inside.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000),
-                                        document: inside.document, selection: nil, caret: nil)
+                    _paintBoxText(inside, canvas)
                     canvas.restore()
                 } else if !_paintObject(image, rect, canvas) {
                     // (An object in the line that the app draws — chartex's
@@ -8205,6 +8203,10 @@ public final class RichLayout {
     private struct _HeaderFooter {
         let layout: RichLayout
         let document: RichDocument
+        /// A text box group's later boxes that stand beside another rather
+        /// than under it: each laid out alone, painted `dy` below the box's
+        /// top (pixels).
+        var beside: [(layout: RichLayout, document: RichDocument, dy: Double)] = []
         var height: Double { layout.totalHeight }
         /// How far its floating frames stand above its first line
         /// (pixels, 0 where none does): they take no room in its flow.
@@ -8269,6 +8271,19 @@ public final class RichLayout {
         image.height = laid.height / _px(1)
         _combineBoxes[key] = image
         return image
+    }
+
+    /// A text box's text, at the canvas's origin: its flow, and any
+    /// boxes of its group laid out beside it.
+    private func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas) {
+        let all = Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000)
+        inside.layout.paint(canvas, visible: all, document: inside.document, selection: nil, caret: nil)
+        for other in inside.beside {
+            canvas.save()
+            canvas.translate(0, other.dy)
+            other.layout.paint(canvas, visible: all, document: other.document, selection: nil, caret: nil)
+            canvas.restore()
+        }
     }
 
     private var _textBoxCache: [String: _HeaderFooter] = [:]
@@ -8381,6 +8396,31 @@ public final class RichLayout {
             sub.lineGridPitch = document.lineGridPitch
             sub.characterGridSpace = document.characterGridSpace
         }
+        // (A group whose boxes stand beside one another — one starts
+        // above the foot of the one before — cannot be one flow: each of
+        // its later boxes is laid out alone and painted at its place.
+        // zh-06c46ba9's tree of labels sets four boxes in a row, and the
+        // flow stacked them, each under the last, 140pt down the page.)
+        var parts = box.parts
+        var beside: [(layout: RichLayout, document: RichDocument, dy: Double)] = []
+        if parts.count > 1, (1 ..< parts.count).contains(where: { parts[$0].top < parts[$0 - 1].top + parts[$0 - 1].height - 0.5 }) {
+            let all = sub.paragraphs
+            for n in 1 ..< parts.count where parts[n].first < all.count {
+                let end = n + 1 < parts.count ? min(all.count, parts[n + 1].first) : all.count
+                guard end > parts[n].first else { continue }
+                var own = sub
+                own.paragraphs = Array(all[parts[n].first ..< end])
+                let alone = RichLayout(theme: theme, paragraphCount: own.paragraphs.count)
+                alone.scale = scale
+                alone.width = max(1, _px(image.width - box.insetLeft - box.insetRight))
+                alone.ensureLaidOut(own)
+                var dy = _px(parts[n].top - box.insetTop)
+                if parts[n].atFoot { dy += _px(parts[n].height) - alone.totalHeight }
+                beside.append((alone, own, dy))
+            }
+            sub.paragraphs = Array(all[0 ..< min(all.count, parts[1].first)])
+            parts = [parts[0]]
+        }
         var layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
         layout.width = max(1, _px(image.width - box.insetLeft - box.insetRight))
@@ -8392,8 +8432,8 @@ public final class RichLayout {
         // space before it is shared with the space after the paragraph
         // above — another box's — and shapes-with-text's box under its
         // arrow stood 8pt high, the arrow's 8pt after taken out of it.)
-        for (n, part) in box.parts.enumerated() where part.first < sub.paragraphs.count && part.first < layout._tops.count {
-            let end = n + 1 < box.parts.count ? box.parts[n + 1].first : sub.paragraphs.count
+        for (n, part) in parts.enumerated() where part.first < sub.paragraphs.count && part.first < layout._tops.count {
+            let end = n + 1 < parts.count ? parts[n + 1].first : sub.paragraphs.count
             let own = layout._spaceBefore[part.first]
             for _ in 0 ..< 3 {
                 let top = layout._tops[part.first]
@@ -8448,7 +8488,8 @@ public final class RichLayout {
             }
             _fitWidths["\(image.id)|\(box.hashValue)"] = layout.width + _px(box.insetLeft + box.insetRight)
         }
-        let made = _HeaderFooter(layout: layout, document: sub)
+        var made = _HeaderFooter(layout: layout, document: sub)
+        made.beside = beside
         if _textBoxCache.count > 256 { _textBoxCache.removeAll() }
         _textBoxCache[key] = made
         return made
