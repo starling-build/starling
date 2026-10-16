@@ -428,6 +428,15 @@ fact-sheet heading and table stand 1.4 to 5pt high.
 Built: the face's own line and baseline; the table within 0.2pt,
 bug59058 91.7 -> 92.2%. Next parting p49 ("Béatrice Lauby-Secretan").
 
+### T22. bug57031: math letters are boxes on Linux
+Owner: session starling-office1-df (Linux dev box), from 2026-10-15
+Documents: bug57031 (87.0% on Linux).
+Known: its formulas are runs of Mathematical Alphanumeric Symbols
+(𝑆 U+1D446, 𝛼) in Cambria Math; on Linux nothing named draws them, so
+they print as missing-glyph boxes and their lines read as nothing
+(p2 "Sti±z1−α/2∙seSti", p3 "H0:S1(t)=S2(t)…"). Placement already
+matches Word's to 0.3pt.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
