@@ -800,7 +800,18 @@ Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below
 
 ### T47. zh-1563bd74 p26: how tall Word's three-paragraph footer is
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below,
+with starling-bd's lab `hfl` (a first-line indent past the right margin: Word sets one character on
+the first line; right-aligned text counts its trailing spaces)
+
+### T48. A superscript inside a line lands after its line in the PDF (reading order)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16 — handed over by starling-bd
+bug65649 p7/13/14. Plan: expose skparagraph's TextStyle baseline shift through the
+Swift bridge and draw scripts in the paragraph (engine change: rebuild every platform).
+
+### T49. zh-15728c84 p3: "下”、“舆情" keeps the ” at its em in the body
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16 — handed over by starling-bd
+a709847b's rule covers it in cells only.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
