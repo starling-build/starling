@@ -236,7 +236,11 @@ enum SheetPrintLayout {
             let availW = max(18, availW0 - titleWidth * s), availH = max(18, availH0 - titleHeight * s)
             // (Fitting ignores manual breaks: they are for the unfitted sheet.)
             let fitting = setup.fitWidth != nil || setup.fitHeight != nil
-            colBands = bands(cols, width, availW, fitting ? [] : setup.colBreaks, own: (titleColsEnd, max(18, availW0 - headWidth * s)))
+            // (Columns leave the same at a page's side: a lab of 230-dot columns
+            // fits 18 with 12 dots to spare, 17 with 6 or none.)
+            let side = 8.0 * 72 / 600
+            colBands = bands(cols, width, availW - side, fitting ? [] : setup.colBreaks,
+                             own: (titleColsEnd, max(18, availW0 - headWidth * s) - side))
             // (A page's rows leave 8 of the printer's dots free at its foot:
             // labs of 100-dot rows on 5,700 dots of room, Excel 16, 2026-10-16
             // — 57 rows fit with 8 dots to spare and not with 7, nor exactly.
