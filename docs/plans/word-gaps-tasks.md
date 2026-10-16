@@ -651,3 +651,15 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   (the fitter's boxes come back empty) and Chinese scores ~20%. With it,
   and the Noto CJK fallback (03694462), Linux at 4f7823b6: Chinese 96.7%,
   POI 81.9%, 172 of 179 with Word's page count.
+- zh-1563bd74 (88% on Linux; the Windows box's footer lead): the pages
+  match Word's to p25; on p26 ours starts "第十章 就业救助" 28pt low,
+  because the empty 28pt-exact paragraph before it did not fit p25's
+  foot — our footer is a line taller than Word's. Its second paragraph
+  (`wordWrap` 0, `jc` right, leftChars 2280 + firstLineChars 2000, a
+  FAFAFA "X" then "红河县人民政府发布" and five spaces) is ONE line in
+  Word's print, "红" at 357.5 and the trailing spaces running to 528.6,
+  7pt past the right margin: Word right-aligns it with the spaces
+  counted (all but one), and its first-line indent, which leaves no room
+  at all, does not push it to a second line. Ours sets "X" alone on the
+  first line and the text right-aligned under it. Needs a lab in a
+  footer (lab `oi` in the body wraps).
