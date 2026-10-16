@@ -183,16 +183,15 @@ caught two rules that were right for their file and wrong for others
   in a full sweep.
 
 Not understood yet: why Excel prints FormatConditionTests across to a
-formatted, empty H7 and not down to formatted, empty D55–D342 (and
-NumberFormatTests' second sheet across to an empty E, where only row 1
-and columns E on are formatted); 52348's rows at 15.94 pt for a set
+formatted, empty H7 and not down to formatted, empty D55–D342; 52348's rows at 15.94 pt for a set
 15 (a workbook with no cell styles part).
 
 Understood since (2026-10-15): a row holding Lucida Sans Typewriter 10
 in a Verdana 10 workbook is 13.32 pt because Excel fits a row nobody
 sized on the screen — 34 px — and prints those pixels as it prints a set
 height (`SheetPrintMetrics.fittedRow`), not at the font's own printed
-line.
+line. And text runs over its neighbours when it is a little too long, not
+only five times too long (NumberFormatTests' column E, five pages).
 
 **Sweep 3 (2026-10-12): mean 2.81%, median 0.40%**, 750 scored, 27 with a
 page only one side has, 42 exact. What the pictures of sweep 2's worst
