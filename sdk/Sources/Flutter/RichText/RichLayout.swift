@@ -4842,7 +4842,7 @@ public final class RichLayout {
                             : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
                         extra += gap
                         autoSpaces?(offset, gap)
-                    } else if ea, closes, Self.closesUp(ch, following)
+                    } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
                                 || (fullQuotes && (following == "\u{201C}" || following == "\u{2018}") && Self._closingMarks.contains(ch)
                                     && Self.isEastAsian(following, hinted: hinted)) {
                         // (A closing mark before a full-width opening quote
@@ -5630,7 +5630,7 @@ public final class RichLayout {
         func isSpace(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
         func closesUp(_ k: Int) -> Bool {
             guard closing[k], k + 1 < units.count, let a = Unicode.Scalar(units[k]), let b = Unicode.Scalar(units[k + 1]) else { return false }
-            return Self.closesUp(Character(a), Character(b))
+            return Self.closesUp(Character(a), Character(b), centred: document.marksCentred)
                 || (Self._closingMarks.contains(Character(a)) && (units[k + 1] == 0x201C || units[k + 1] == 0x2018) && wideQuote(k + 1))
         }
         // The probe's lines are the engine's clusters (at no width it
@@ -6222,7 +6222,14 @@ public final class RichLayout {
         return document.eastAsianLineRules
     }
 
-    static func closesUp(_ a: Character, _ b: Character) -> Bool {
+    static func closesUp(_ a: Character, _ b: Character, centred: Bool = false) -> Bool {
+        // (A centred mark — Taiwan's "。" — gives nothing before a closing
+        // bracket, which has no blank half on that side either: lab `cu`
+        // (Word 16, mode 15, 新細明體 16pt, zh-TW) sets "。」" and "。）" a
+        // full em apart, where "：「", "，「", "、「", "）」", "」」" and
+        // "」。" close up by half; under zh-CN all of them close up.
+        // zh-457a8d62's line opening "產。」" took a character Word wraps.)
+        if centred, "，。、；：！？".contains(a), _closingMarks.contains(b) { return false }
         if _closingMarks.contains(a) { return _closingMarks.contains(b) || _openingMarks.contains(b) }
         return _openingMarks.contains(a) && _openingMarks.contains(b)
     }

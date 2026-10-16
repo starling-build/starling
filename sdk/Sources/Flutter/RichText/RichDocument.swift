@@ -1920,6 +1920,12 @@ public struct RichDocument: Hashable, Sendable {
     /// compatibility mode, where Taiwan's centred marks keep their em
     /// before Word 2013's layout.
     public var marksSitLeft: Bool { defaultLangXML?.containsSubstring("w:eastAsia=\"zh-CN\"") ?? false }
+    /// Whether that language is Taiwan's, Hong Kong's or Macau's, whose
+    /// "，。、；：！？" stand in the middle of their em: one has no blank
+    /// half beside a closing bracket to give.
+    public var marksCentred: Bool {
+        ["zh-TW", "zh-HK", "zh-MO"].contains { defaultLangXML?.containsSubstring("w:eastAsia=\"\($0)\"") ?? false }
+    }
     /// Whether Word's East Asian line-breaking rules hold — no closing
     /// mark to start a line nor opening one to end it, and a mark that
     /// may hang past the margin: only where that language is Chinese,

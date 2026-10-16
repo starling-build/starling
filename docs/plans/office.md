@@ -3056,6 +3056,18 @@ fitter dropped the paragraph's tail).
   takes it and half the grid's addition. zh-457a8d62 95.1% -> 97.2,
   zh-e37f8d40 96.7 -> 100; POI unchanged.
 
+- **Taiwan's centred marks do not close up before a closing bracket
+  (2026-10-16).** Where punctuation is kerned, the first of two marks
+  standing together gives half an em. Lab `cu` (Word 16, mode 15, 16pt
+  新細明體 under zh-TW, 宋体 under zh-CN, in ~/starling-doc-check/lab/cu):
+  under zh-TW "。」" and "。）" stay a full em apart, while "：「", "，「",
+  "、「", "）」", "」」", "」。", "」，" and "）。" close up by half — a
+  centred mark has no blank half on the side of a closing bracket, which
+  has none there either; under zh-CN every pair closes up.
+  zh-457a8d62's line opening "產。」" set the "。" half an em narrow and
+  took a character Word wraps. zh-457a8d62 97.2% -> 98.6; nothing else
+  moved.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
