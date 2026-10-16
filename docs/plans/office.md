@@ -3146,17 +3146,6 @@ fitter dropped the paragraph's tail).
   with the next, Word parts between "8" and "9". form_footnotes 92.0% ->
   97.7, Word's three pages; nothing else moved.
 
-- **A frame that states no width, set right or centred, sets its text
-  so (2026-10-16).** Bug51170's footers frame their page number with
-  `w:xAlign="right"` to the margin and no `w:w`; such a frame is as wide
-  as what it holds, and Word prints the "2" at the margin's right edge
-  (518.9pt on A4). Ours made the frame as wide as the band and set the
-  number at its left, 429pt short. Its one line is now set right (or
-  centred) across the band, which is where Word's auto-width frame puts
-  it; a frame of several lines would need its widest line measured — not
-  met in the corpus. Bug51170 96.9% -> 100, zh-457a8d62 98.6 -> 100;
-  nothing else moved by it.
-
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

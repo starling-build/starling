@@ -3673,20 +3673,6 @@ public final class RichLayout {
         var width = _flowWidth(i)
         // A floating frame: as wide as it says, from where it says.
         var frameLeft: Double? = nil
-        // (A frame that states no width is as wide as what it holds, and
-        // set right or centred that is where its text stands: Bug51170's
-        // footer frames its page number `w:xAlign="right"` to the margin,
-        // and Word prints the "2" at the margin's right edge, where ours
-        // stood at its left — the frame as wide as the band, its text
-        // set left in it. Its one line is set so across the band.)
-        var frameAlign: ParagraphAlignment? = nil
-        if floatsFrames, theme.wordRules, p.cell == nil, let frame = style.frame, frame.width == nil {
-            switch frame.horizontalAlign {
-            case "right", "outside": frameAlign = .right
-            case "center": frameAlign = .center
-            default: break
-            }
-        }
         if floatsFrames, theme.wordRules, p.cell == nil, let frame = style.frame {
             let marginLeft = _px(frameMargins.left), marginRight = _px(frameMargins.right)
             // The band the frame is placed in, from the text's left edge.
@@ -4059,7 +4045,7 @@ public final class RichLayout {
         _inserts[i] = inserts
         // A right-to-left paragraph runs from the right, and its "left"
         // (Word's start) is the right edge.
-        var align = Self._textAlign(frameAlign ?? style.alignment)
+        var align = Self._textAlign(style.alignment)
         if style.rightToLeft {
             switch style.alignment {
             case .left: align = .right
