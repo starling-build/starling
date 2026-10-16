@@ -2014,6 +2014,22 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**PictureStrips: the strips' shape, and their pictures, 2026-10-16**
+(smartart-picture-strip 3.33 → 4.40, though now laid out as
+PowerPoint's; snake-rows 1.09 → 1.03). Two faults. A snake chose its
+grid by items in the frame's proportions, not their own: PictureStrips'
+composite says `ar` 3 (three times as wide as tall), and sized as the
+frame two fitted across with the third below, where PowerPoint stacks
+the three in one column — they now are. And a diagram laid out here
+from its data (no drawing part) looked its points' pictures up among
+the slide's relationships, not the data part's, so the numbered tabs
+(`blipFill`, its `fillRect` 25% past each side) were drawn as nothing.
+The score reads worse because the wrong layout happened to cover more
+of PowerPoint's ink; what is left is PowerPoint's strips a little
+smaller with closer gaps (item 116 pt, gap 17.6, where the rules give
+121 and 32) and its text 73 pt into the strip where `lMarg` = 0.6 w
+gives 209 — not derived from this one deck.
+
 **Banded columns, 2026-10-16** (table-with-different-font-colors 1.48
 → 1.47: its second slide's text colours and second column's fill now
 PowerPoint's). `bandCol` was not read. The style's `band1V` and

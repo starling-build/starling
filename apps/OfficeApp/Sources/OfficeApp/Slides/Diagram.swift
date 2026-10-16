@@ -977,6 +977,14 @@ struct DiagramLayout {
         if let given { first.vals["w"] = given }
         var w = first.value("w") ?? W, h = first.value("h") ?? H
         if let d = first.derived["h"], d.ref == "w" { h = w * d.fact } else if let d = first.derived["w"], d.ref == "h" { w = h * d.fact }
+        // An item of a fixed aspect (its composite's `ar`) is that shape
+        // in the grid, whatever the frame's: PictureStrips' strips are
+        // three times as wide as tall, and PowerPoint stacks three of
+        // them in one column, where sized as the frame two fit across.
+        if let ar = first.params["ar"].flatMap(Double.init), ar > 0 {
+            let side = min(w, h * ar)
+            w = side; h = side / ar
+        }
         let hs = spaces.first?.vals["w"] ?? 0
         let vs = node.vals["sp"] ?? hs
         let n = items.count

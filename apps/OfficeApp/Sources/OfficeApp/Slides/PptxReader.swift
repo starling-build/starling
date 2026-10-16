@@ -2294,6 +2294,11 @@ private struct SlideContext {
             // data and the layout definition.
             tree = DiagramLayout.render(data: data, layout: layoutDef, colors: related("r:cs")?.1, style: related("r:qs")?.1,
                                         frame: Rect.fromLTWH(0, 0, frame.width, frame.height))
+            // Its pictures are the data's (`r:embed` in a point's fill
+            // names the data part's relationship): picture-strip's
+            // numbered tabs were looked for among the slide's, and drawn
+            // as nothing.
+            drawingPart = dataPart
         }
         guard let tree else { return [] }
         // The diagram's own background and outline (`dgm:bg`, `dgm:whole`
