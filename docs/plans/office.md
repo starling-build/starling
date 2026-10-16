@@ -2933,6 +2933,14 @@ fitter dropped the paragraph's tail).
   faces. Carlito (Calibri's gap .22) is left as it is: Word's Calibri
   is not set by its hhea, and needs its own measure.
 
+- **An empty `<w:pict/>` is nothing (2026-10-15, Linux).** bug59058's
+  p45 table follows a paragraph whose one run holds an empty
+  `<w:pict/>` (an HTML page's leftover). Word's print shows no mark
+  and gives it no room; ours read it as an object of unknown size, a
+  300 x 200 grey stand-in, and the table stood 187pt low. An empty
+  `w:pict` or `w:drawing` is now skipped. bug59058 89.1% -> 91.7%;
+  nothing else moved.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

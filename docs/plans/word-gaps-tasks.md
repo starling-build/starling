@@ -409,12 +409,14 @@ character at a time, distribute spread along the cell (office.md,
 moved. Left: a turned paragraph with Latin in it is drawn turned whole;
 `w:jc` distribute is not built for horizontal text (read as justified).
 
-### T20. bug59058 p45: an empty `<w:pict/>`
+### T20. bug59058 p45: an empty `<w:pict/>` — DONE (2026-10-15)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-15
 Documents: bug59058 (89.1% on Linux).
 Known: the paragraph before p45's table holds a run of nothing but an
 empty `<w:pict/>`; Word draws nothing and gives it no room, ours a
 300 x 200 grey stand-in, and the table stands 187pt low.
+Skipped now: bug59058 89.1 -> 91.7%, nothing else moved. Next parting p48
+("New Cases, Deaths and 5-Year Relative Survival", 4pt low).
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.

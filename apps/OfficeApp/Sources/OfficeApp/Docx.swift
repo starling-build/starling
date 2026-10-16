@@ -2879,6 +2879,11 @@ enum DocxFormat {
                         addText(String(Character(sc)), sym)
                     }
                 case "w:drawing", "w:pict":
+                    // (An empty one is nothing: bug59058's `<w:pict/>`
+                    // before a table is no mark on Word's print and takes
+                    // no room there, where its 300 by 200 stand-in set
+                    // the table 187pt low.)
+                    guard !child.children.isEmpty else { break }
                     addImage(child)
                 case "w:object":
                     addObject(child)

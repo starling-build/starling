@@ -1017,6 +1017,21 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(resized.contains("cx=\"1828800\""), resized)
     }
 
+    func testEmptyPictIsNothing() throws {
+        // bug59058: a paragraph of nothing but `<w:pict/>` before a table —
+        // no mark on Word's print and no room, where a 300 by 200 stand-in
+        // set the table 187pt low.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        let xml = String(decoding: entries[di].data, as: UTF8.self).replacingAll("<w:t xml:space=\"preserve\">x</w:t>", with: "<w:pict/>")
+        XCTAssertTrue(xml.contains("<w:pict/>"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let p = try DocxFormat.read(try Zip.write(entries)).document.paragraphs[0]
+        XCTAssertNil(p.image)
+        XCTAssertTrue(p.inlineImages.isEmpty)
+        XCTAssertEqual(p.text, "")
+    }
+
     func testPictureInABorderedRunReadsItsFrameAndEffects() throws {
         // bug59058: "tab1", an inline picture in a run with a 0.75pt grey
         // character border, its effect extent 0.75pt below; Word's line
