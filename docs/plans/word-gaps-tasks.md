@@ -793,6 +793,15 @@ Documents: zh-a4b0f6ea (88.6%). Known: `tblpPr vertAnchor="page"`; Word
 prints only the header row on p20 and the rest on p21, with the text
 under the table still on p20.
 
+### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below
+
+### T46. The letterhead rule 1pt low (zh-e37f8d40, zh-9dd9ce6d, zh-1563bd74)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below
+
+### T47. zh-1563bd74 p26: how tall Word's three-paragraph footer is
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
