@@ -733,6 +733,10 @@ paragraph whose other line is taller — Word's height for each line.
 - zh-454e2e29 p4: the diagonal header cell's "人數", "官等", "類別" are
   text boxes anchored in the cell (with two `wps` line shapes, not
   drawn): ours 8pt high. Shapes and text boxes — the Mac's.
+  (Linux, 2026-10-16, 82e6e51d: drawing groups and lone shapes the
+  outline skipped are drawn now — every preset, theme and system
+  colours, arrowheads; one of this cell's diagonals shows. The labels'
+  8pt is untouched.)
 - zh-1563bd74's footer (for the Linux note under "Note from the Linux dev
   box"): its height is right as ours has it. Lab `ft` (Word for Windows,
   the document's own footer): the page number stands at 112.6 and "红河
