@@ -2014,6 +2014,21 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A chart's text falls back for characters its face lacks,
+2026-10-16** (found by the Word session: zh-37b6536f's pie legend,
+机构信息 and the rest, printed as boxes on Linux). Chart text named only
+its Latin stand-in; it now carries `RichTextTheme.glyphFallback`, as body
+text and metafile text do. The eighteen chart decks are unchanged.
+
+**Tried and dropped, 2026-10-16: baselines on PowerPoint's 0.24 pt
+raster.** Each paragraph's first baseline set on the page's 1/300 in
+raster (the transform read off the canvas, turned text left alone):
+to the nearest step, sweep 119 −0.39 in sum, 31 decks better and 26
+worse (table_test2 −0.27; smartart-simple and ArtisticEffectSample
++0.23); rounded down, as PowerPoint's PDFs look to be, +3.92 (67 worse).
+Our baselines are not yet within the raster's step of PowerPoint's
+often enough for the snap to pay.
+
 **Arial's and Times New Roman's baselines without their line gap,
 2026-10-16** (sweep 118: 1.133 → 1.129%, 24 decks better, 13 worse;
 alterman 6.12 → 5.57, open-as-read-only 1.38 → 0.85, the 45541 trio

@@ -999,6 +999,11 @@ enum ChartXML {
 /// top, legend at the bottom, light horizontal gridlines, no axis lines
 /// but the category one, text in the theme's text colour at 65%.
 enum ChartPainter {
+    /// The faces a chart's text falls back to for a character its own
+    /// face lacks, as body text's: on Linux the engine has none without
+    /// them, and zh-37b6536f's Chinese legend printed as boxes.
+    static var glyphFallback: [String]? { RichTextTheme.glyphFallback.isEmpty ? nil : RichTextTheme.glyphFallback }
+
     static func paint(_ c: Chart, _ canvas: any Canvas, _ r: Rect, pxPerPt k: Double, theme: DeckTheme) {
         guard r.width > 4, r.height > 4, !c.series.isEmpty else { return }
         // The text in the file's colour, else the theme's text colour:
@@ -1015,7 +1020,7 @@ enum ChartPainter {
         func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil) -> TextPainter {
             let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
-                fontFeatures: plain, fontFamily: font)), textDirection: .ltr)
+                fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
         }
@@ -1036,7 +1041,7 @@ enum ChartPainter {
             let tp = TextPainter(text: TextSpan(text: title, style: Flutter.TextStyle(
                 color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? 18.6) * k),
                 fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain,
-                fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont))),
+                fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)),
                 textAlign: .center, textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: max(1, area.width))
             // (Two points higher than the area's edge: where PowerPoint's sits.)
@@ -1755,7 +1760,7 @@ enum ChartPainter {
             // own label look.
             let tp = TextPainter(text: TextSpan(text: l.text, style: Flutter.TextStyle(
                 color: l.series.labelColor ?? theme.text, fontSize: max(3, (l.series.labelSize ?? 12) * k),
-                fontWeight: l.series.labelBold ? .bold : .normal, fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))),
+                fontWeight: l.series.labelBold ? .bold : .normal, fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)),
                 textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: .infinity)
             let at = horizontal ? Offset(l.bar.right - tp.width - 3 * k, l.bar.center.dy - tp.height / 2)
@@ -1772,7 +1777,7 @@ enum ChartPainter {
                         let t = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: ser.labelBold ? .bold : .normal,
-                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))), textDirection: .ltr)
+                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
                         t.layout(minWidth: 0, maxWidth: .infinity)
                         return t
                     }()
@@ -1840,7 +1845,7 @@ enum ChartPainter {
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                     color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.baseTextSize) * k),
-                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))), textDirection: .ltr)
+                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
                 tp.dispose()
@@ -2061,7 +2066,7 @@ extension ChartPainter {
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: dataLabel(c, s.value), style: Flutter.TextStyle(
                     color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.baseTextSize) * k),
-                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))), textDirection: .ltr)
+                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(pt.dx - tp.width / 2, pt.dy - tp.height / 2))
                 tp.dispose()
@@ -2103,7 +2108,7 @@ extension ChartPainter {
             let colour = c.series[0].labelColor ?? (l.outside || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
             let tp = TextPainter(text: TextSpan(text: text, style: Flutter.TextStyle(
                 color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
-                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont))), textAlign: .center, textDirection: .ltr)
+                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textAlign: .center, textDirection: .ltr)
             // (Excel wraps a long label at about a fifth of the chart's width:
             // 45544's "Finance - Investment Banking" is three lines.)
             tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2))
