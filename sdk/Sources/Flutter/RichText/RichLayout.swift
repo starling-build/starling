@@ -7559,8 +7559,13 @@ public final class RichLayout {
     /// PowerPoint's and Word's superscript and subscript. `painter` is
     /// the paragraph's (or its lines'), painted at `origin`, in which the
     /// runs hold their place unseen.
+    /// `leading`: only the stretches that open their line (true), or
+    /// only the others (false). Those that open a line are drawn before
+    /// it, so a PDF holds them in reading order: Word's print of a note
+    /// reads "i Endnote" and ours read "Endnote i" (endnotes,
+    /// Bug54849), the mark drawn after its line.
     private func _paintScripts(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
-                               _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil) {
+                               _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil, leading: Bool? = nil) {
         guard p.runs.contains(where: { $0.style.script != .normal }) else { return }
         let named = document.styles.resolve(p.style)
         let units = Array(p.text.utf16)
@@ -7587,6 +7592,12 @@ public final class RichLayout {
                 // the layout put in: `map`.)
                 let line = painter.getLineBoundary(TextPosition(offset: map?.painter(a) ?? a))
                 let b = max(a + 1, min(to, map?.paragraph(line.end) ?? line.end))
+                if let leading {
+                    // (Opening its line: nothing but spaces before it there.)
+                    let lineStart = map?.paragraph(line.start) ?? line.start
+                    let opens = (lineStart ..< a).allSatisfy { $0 < units.count && (units[$0] == 0x20 || units[$0] == 0x09) }
+                    if opens != leading { a = b; continue }
+                }
                 let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map?.painter(a) ?? a,
                                                                        extentOffset: (map?.painter(b - 1) ?? b - 1) + 1))
                 if let box = boxes.first {
@@ -7614,8 +7625,9 @@ public final class RichLayout {
         if let lines, !lines.first {
             // Lines from inside the paragraph: no marker, no rules — the text alone.
             let at = Offset(g.textLeft, g.textTop + lines.top + _baselineShift(i, document))
+            _paintScripts(lines.paragraph, lines.painter, at: at, canvas, document, leading: true)
             lines.painter.paint(canvas, at)
-            _paintScripts(lines.paragraph, lines.painter, at: at, canvas, document)
+            _paintScripts(lines.paragraph, lines.painter, at: at, canvas, document, leading: false)
             _paintRuby(lines.paragraph, lines.painter, at: at, canvas, document)
             return
         }
@@ -7898,13 +7910,15 @@ public final class RichLayout {
             }
         }
         let textAt = Offset(g.textLeft, g.inkTop + _baselineShift(i, document))
+        _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
+                      map: lines == nil ? _map(i) : nil, leading: true)
         if let lines {
             lines.painter.paint(canvas, textAt)
         } else if !_paintScaled(i, g, canvas, document) {
             g.painter.paint(canvas, textAt)
         }
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
-                      map: lines == nil ? _map(i) : nil)
+                      map: lines == nil ? _map(i) : nil, leading: false)
         _paintRuby(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                    map: lines == nil ? _map(i) : nil)
         if i < _leaders.count, !_leaders[i].isEmpty {

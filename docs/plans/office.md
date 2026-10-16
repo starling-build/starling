@@ -4232,6 +4232,15 @@ fitter dropped the paragraph's tail).
   pages 52 to 55 a line on. zh-06c46ba9 87.9 -> 92.6; nothing else
   moved. The border's own 0.5pt after "1", and the 0.2 over the next
   space, are not built.
+- **A raised mark that opens its line is drawn before it (2026-10-16).**
+  Raised and lowered runs are painted in a pass of their own over the
+  line, where they stood unseen, so a PDF held them after the line's
+  text. A note's own mark opens its line ("i Endnote", "1 Footnote_sdt"),
+  so text readers and copying gave "Endnote i", and the scorer matched
+  neither line. Word's print holds the mark first. Marks that open their
+  line are now painted before it and the rest after. A mark inside a
+  line still comes after its line's text, where Word's print has it in
+  place. endnotes 92.9 -> 100, Bug54849 91.3 -> 100; nothing down.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the
