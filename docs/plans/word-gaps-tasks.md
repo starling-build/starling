@@ -797,6 +797,17 @@ Documents: zh-a4b0f6ea (88.6%). Known: `tblpPr vertAnchor="page"`; Word
 prints only the header row on p20 and the rest on p21, with the text
 under the table still on p20.
 
+### T50. drawing: the mark under a nested table is set at half a point
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: drawing (p8's foot, p9-11: 85 lines).
+Known: Word's print (clipped text kept) holds exactly five spans of
+0.48pt — Verdana four, Arial one — and the file has exactly five empty
+paragraphs that end a cell right after a nested table (their marks say
+8.5pt). So Word sets those marks at half a point, not at nothing (T39's
+try, which overshot) and not at their size (ours). Plan: the reader
+flags such a paragraph (layout only, not saved), the layout sets its
+line at 0.5pt; the flattened cells' margins stay.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
