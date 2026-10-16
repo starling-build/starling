@@ -895,8 +895,10 @@ Each needs Word or is in an area the Mac has worked; claim here first.
   boxes stand 1.5pt low now, as the page's body does. The envelope (p9):
   its address box, 308.8pt under the margin (`relativeFrom="margin"`),
   is now set there (Word 389, ours 388; it was at its paragraph, 60pt
-  low) — 96.8 -> 97.2. Left: the stamp box "貼 正 / 郵 票", in a drawing
-  group beside "掛號", 40pt low.
+  low) — 96.8 -> 97.2. The stamp box "貼 正 / 郵 票", in a drawing group
+  under "掛號", stood 40pt low (its place not taken from the group's
+  `a:chOff`) and then 3.8pt high (under the first box's top inset, not
+  its own): both fixed, within 0.4pt of Word — 97.2 -> 97.6. Released.
 - drawing p9-11: the banner block (nested HTML-style tables of pictures)
   stands 21pt low and 3pt taller in ours; a stray small mark at x=0.
 - chartex: `c:stockChart` is drawn as a grey box (Slides' ChartPainter

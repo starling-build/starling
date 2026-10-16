@@ -2752,11 +2752,21 @@ enum DocxFormat {
                     let lefts = boxes.map { Double($0.first("wps:spPr")?.first("a:xfrm")?.first("a:off")?["x"] ?? "") ?? -1 }
                     if boxes.count > 1, boxes[0].descendant("w:txbxContent") === content,
                        Set(widths).count == 1, Set(lefts).count == 1, widths[0] > 0 {
+                        // (From the group's own origin, `a:chOff`: zh-799c91cd's
+                        // envelope stamp box, 850 units under "掛號" in a group
+                        // whose children start at 851, stood 40pt low.)
+                        let oy = Double(gx?.first("a:chOff")?["y"] ?? "") ?? 0
+                        // (Each box's text under its own top inset, where the
+                        // box as a whole takes the first's: the stamp box's
+                        // 3.6pt under "掛號"'s none stood its text 3.8pt high.)
+                        func topInset(_ b: XNode) -> Double { Double(b.first("wps:bodyPr")?["tIns"] ?? "").map { $0 / 12700 } ?? 3.6 }
+                        let firstInset = topInset(boxes[0])
                         for b in boxes.dropFirst() {
                             let xfrm = b.first("wps:spPr")?.first("a:xfrm")
                             let first = inside.count
                             read(b.descendant("w:txbxContent")!)
-                            parts.append(RichTextBox.Part(first: first, top: (Double(xfrm?.first("a:off")?["y"] ?? "") ?? 0) * k / 12700,
+                            parts.append(RichTextBox.Part(first: first, top: ((Double(xfrm?.first("a:off")?["y"] ?? "") ?? 0) - oy) * k / 12700
+                                                          + topInset(b) - firstInset,
                                                           height: (Double(xfrm?.first("a:ext")?["cy"] ?? "") ?? 0) * k / 12700,
                                                           atFoot: b.first("wps:bodyPr")?["anchor"] == "b"))
                         }
