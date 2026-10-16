@@ -4194,6 +4194,17 @@ fitter dropped the paragraph's tail).
   style chain anchors it to the margin, is still not where Word prints
   it. zh-90e0cea8 92.3 -> 93.8; nothing else moved (a peer's commit
   moved zh-9c5d0c3f at the same time).
+- **Text ruled round takes the automatic space twice where widths are
+  balanced (2026-10-16).** Labs `ap1`–`ap4` (zh-06c46ba9's package,
+  Word 16) set its boxed "範例1" (`w:bdr` on the runs, 14pt) with "例"
+  and "1" 21.1pt apart, 17.5 without the border, and 17.5 without
+  `w:balanceSingleByteDoubleByteWidth`. So an ideograph and a Latin
+  character are a half em apart inside a bordered run, twice the
+  balanced quarter. Ours gave the quarter, and every reference example's
+  first line took the character Word wraps ("…之政策合作"), which pushed
+  pages 52 to 55 a line on. zh-06c46ba9 87.9 -> 92.6; nothing else
+  moved. The border's own 0.5pt after "1", and the 0.2 over the next
+  space, are not built.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the

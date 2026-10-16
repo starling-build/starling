@@ -5144,9 +5144,16 @@ public final class RichLayout {
                         // Times without.)
                         // (… and of the grid's: 4.25pt either side of a
                         // digit at 16pt on that grid of 1.008.)
-                        let gap = document.balancesSpaceWidth
+                        var gap = document.balancesSpaceWidth
                             ? (em + _px(grid ?? 0) + 2 * spacing) / 4
                             : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
+                        // (Twice inside text ruled round where the widths are
+                        // balanced: labs `ap1`–`ap4`, zh-06c46ba9's boxed
+                        // "範例1" sets "例" and "1" 21.1pt apart at 14pt in
+                        // Word's print, 17.5 without the border or without
+                        // the balance. Its reference lists took a character
+                        // a line that Word wraps.)
+                        if document.balancesSpaceWidth, run.keptXML?.contains("<w:bdr ") == true { gap *= 2 }
                         extra += gap
                         autoSpaces?(offset, gap)
                     } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
