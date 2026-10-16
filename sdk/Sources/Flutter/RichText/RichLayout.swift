@@ -272,7 +272,15 @@ public final class RichTextTheme {
         // (An exact height needs nothing of the face: the 9pt PMingLiU
         // notes under zh-04f73697's tables, 16pt exact lines, stood 2pt
         // high of Word's for want of a baseline the face has none of.)
-        if size > 0, paragraph.lineHeightPoints != nil, !paragraph.lineHeightIsMinimum, faceResolver != nil {
+        if size > 0, let points = paragraph.lineHeightPoints, !paragraph.lineHeightIsMinimum, faceResolver != nil {
+            // (Set by its middle — `w:textAlignment` "center" — the text's
+            // own line stands in the middle of the exact one: zh-1563bd74's
+            // articles, 16pt in 30pt exact lines, have their baselines
+            // 21.7pt down in Word's print, not 24.4.)
+            if paragraph.eastAsian["w:textAlignment"] == "center",
+               let middle = lineMiddle(for: style, named: named, eastAsian: eastAsian) {
+                return points / 2 + middle
+            }
             return lineBox(size: size, natural: 1, baseline: 0, in: paragraph, gridPitch: gridPitch).baseline
         }
         guard size > 0, let face = faceResolver?(familyName, eastAsian),
