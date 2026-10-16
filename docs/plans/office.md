@@ -4451,6 +4451,21 @@ fitter dropped the paragraph's tail).
   down, as 410.5 is. zh-64044a1d 95.6% -> 95.7, WordWithAttachments 2.6
   -> 5.3; nothing else moved. DrawingML pictures (EMU extents) are
   untouched: not measured.
+- **An exact line's baseline needs nothing of the face (2026-10-16;
+  Linux).** The 13/16 rule was applied only where the face's own
+  baseline was known, and PMingLiU (新細明體) has none: its exact lines
+  kept the engine's even leading. The 9pt notes under eight Taiwanese
+  reports' tables (16pt exact) stood 1.9pt high, their 12pt cells 0.4.
+  Now 12.63pt under the table's rule to Word's 12.72. zh-06c46ba9 78.9%
+  -> 79.3; lines over 1.5pt off Word's 668 -> 587, none new.
+- **A centred line's picture by the text's line (2026-10-16; Linux).**
+  `w:textAlignment` "center" puts the picture's box (effect extent and
+  all) with its middle at the middle of the text's line as Word sets
+  one: zh-e37f8d40's 16pt 宋体 baseline is 5.73pt (0.358 em) under its
+  emblem's middle in Word's print. The engine's middle used the stand-in
+  face's ascent and descent and set the letterheads 1.6pt high; they now
+  match to 0.1 (`RichTextTheme.lineMiddle`). No score moved; drifting
+  lines 587 -> 530.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
