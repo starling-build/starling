@@ -56,6 +56,11 @@ final class SlideTextCache {
                 decoded = (try? await codec.getNextFrame())?.image
                 codec.dispose()
             }
+            // (A damaged PNG, made whole as PowerPoint reads it.)
+            if decoded == nil, let fixed = Png.repaired(bytes), let codec = try? await instantiateImageCodec(fixed) {
+                decoded = (try? await codec.getNextFrame())?.image
+                codec.dispose()
+            }
             guard let self else { decoded?.dispose(); return }
             self._decoding.remove(id)
             if let decoded {
@@ -84,6 +89,10 @@ final class SlideTextCache {
         var bytes = [UInt8](attachment.data)
         if Tiff.isTiff(bytes), let bmp = Tiff.bmp(bytes) { bytes = bmp }
         if let codec = try? await instantiateImageCodec(bytes) {
+            decoded = (try? await codec.getNextFrame())?.image
+            codec.dispose()
+        }
+        if decoded == nil, let fixed = Png.repaired(bytes), let codec = try? await instantiateImageCodec(fixed) {
             decoded = (try? await codec.getNextFrame())?.image
             codec.dispose()
         }

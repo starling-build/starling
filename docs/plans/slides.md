@@ -1899,6 +1899,20 @@ The lines now stand a pitch apart and the whole, first capitals to last
 foot, is fitted to the band. The pitch, 1.3 heights of a line's box,
 is the corpus's best (1.0–1.6 tried); not derived.
 
+**A damaged PNG, read as PowerPoint reads it, 2026-10-15** (crash-57308
+3.81 → 2.69; the other damaged decks unchanged). Its footer, a rainbow
+bar, is a PNG with one IDAT whose CRC and whose zlib Adler sum are both
+wrong; PowerPoint draws it and the image codec refused it. When a PNG
+does not decode, `Png.repaired` inflates its image data raw (no Adler
+check), deflates it afresh and writes every chunk with a true CRC, and
+the codec is tried again. (Its other picture, which decodes cleanly
+here, PowerPoint shows as "The picture can't be displayed"; not
+imitated.)
+
+Looked at and left: tdf146223's 2×2 JPEGs, which PowerPoint shows as
+one flat colour — (35,35,35) for pixels decoding to 0, 57, 32 and 92 —
+match no decode tried (a DC-only one gives 44).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

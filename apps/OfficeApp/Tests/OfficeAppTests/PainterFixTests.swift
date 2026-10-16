@@ -707,4 +707,22 @@ final class MetafileTests: XCTestCase {
             XCTAssertEqual(Array(bmp[(14 + 108)...]), [0, 0, 255, 255, 255, 0, 0, 255])
         }
     }
+
+    /// A PNG with a bad chunk CRC and a bad Adler sum (crash-57308's
+    /// footer): repaired into one whose checksums hold and whose pixels
+    /// are the same.
+    func testDamagedPngRepaired() throws {
+        let broken: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+            0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0xF0, 0x1F, 0x00, 0x05, 0x00, 0x01, 0x00, 0xA4, 0x9B,
+            0x2D, 0x6F, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82]
+        let fixed = try XCTUnwrap(Png.repaired(broken))
+        // The IDAT's payload inflates (zlib, checked) back to the one red pixel.
+        let start = try XCTUnwrap((8 ..< fixed.count - 4).first { fixed[$0] == 0x49 && fixed[$0 + 1] == 0x44 && fixed[$0 + 2] == 0x41 && fixed[$0 + 3] == 0x54 })
+        let n = Int(fixed[start - 4]) << 24 | Int(fixed[start - 3]) << 16 | Int(fixed[start - 2]) << 8 | Int(fixed[start - 1])
+        let payload = Array(fixed[start + 4 ..< start + 4 + n])
+        let raw = try Zip.inflate(Data(payload.dropFirst(2).dropLast(4)), expected: 16)
+        XCTAssertEqual([UInt8](raw), [0, 0xFF, 0, 0, 0xFF])
+        XCTAssertNil(Png.repaired([1, 2, 3]))
+    }
 }
