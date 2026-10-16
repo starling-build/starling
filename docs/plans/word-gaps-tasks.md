@@ -862,6 +862,13 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   21pt left of Word's (x 34.8 to 55.7): a box's tables are placed
   without Word's outdent and cell spacing at each level.
 - Mac, 2026-10-15, leads left (not built):
+  - zh-e061a08e p1 (Mac, 2026-10-16): not its framed footer. Labs
+    ft{asis,noframe,noempty} (its package, 79 body lines) print the
+    last line of page 1 at the same height in Word and ours, with or
+    without the frame paragraph; the frame takes no room in either.
+    The document's "（一）" line fits page 1 at y 53 in ours and goes
+    over in Word, so the foot is decided within a point (the 0.24pt
+    raster note above).
   - zh-64044a1d p100 (附件十四's form): in Word's print its text rows
     stand 36pt (two 18pt grid pitches) and its data rows 18.5; rows whose
     cells hold only U+3000 (hint eastAsia) are 18.5 in Word and 36.5 in
