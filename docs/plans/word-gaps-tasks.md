@@ -823,6 +823,15 @@ at page 9's top, settled by the Mac's lab t50 — a paragraph of a picture
 shorter than its mark's single line takes that line, the picture at its
 foot. drawing 89.7 -> 98.1%; nothing else moved. Left: p11's 16 lines.
 
+### T51. Space shared across a hidden paragraph
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: drawing (p11's last 16 lines, 12pt low from "ИА Regnum").
+Known: between "…ОАО "ПО Водоканал г. Ростова-на-Дону"." ("text": 14pt
+after, auto) and the heading "ИА Regnum" (12pt before) stands an empty
+paragraph whose mark is hidden. Ours hides it, but the space after and
+the space before no longer share across it: ours 40.75 baseline to
+baseline, Word's 28.8.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
