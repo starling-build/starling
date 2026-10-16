@@ -2909,7 +2909,20 @@ public final class RichLayout {
                             while n < count, let f = _cells[n], f.table == c.table, f.row == r {
                                 if f.rowSpan == 1, !f.vertical {
                                     let cut = cellCuts(n).last(where: { $0 <= limit && $0 > e.rowTop + 0.01 })
-                                    if let cut { kept = max(kept, cut - e.rowTop + f.pad.bottom) }
+                                    // (A centred cell whose text fits the part is
+                                    // set in it, as tall as its text — see
+                                    // `splitRow` — not where the whole row's
+                                    // middle put it: zh-84702a67's "10" and two
+                                    // blank cells beside a top-set cell of two
+                                    // lines made the part 9.5pt deeper, and its
+                                    // "是否存在转包、挂靠行为" 5pt low.)
+                                    var block = 0.0
+                                    var m = n
+                                    while m < count, let h = _cells[m], h.table == c.table, h.row == r, h.column == f.column { block += _heights[m]; m += 1 }
+                                    let centred = f.verticalAlign == "center" || f.verticalAlign == "bottom"
+                                    if centred, block + f.pad.top + f.pad.bottom <= limit - e.rowTop {
+                                        kept = max(kept, block + f.pad.top + f.pad.bottom)
+                                    } else if let cut { kept = max(kept, cut - e.rowTop + f.pad.bottom) }
                                     columns[f.column] = (columns[f.column] ?? false) || cut != nil || document.paragraphs[n].text.isEmpty
                                 }
                                 n += 1

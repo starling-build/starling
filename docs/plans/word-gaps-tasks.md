@@ -512,7 +512,7 @@ Documents: Bug51170 (every page's footer), zh-457a8d62.
 Built: a floating frame of no stated width is set at the side it is
 aligned to; both 100%.
 
-### T31. A merged cell centred over rows that part across pages
+### T31. A merged cell centred over rows that part across pages — DONE (2026-10-16)
 Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-16
 (taken at the Linux session's request).
 Documents: zh-91e44bcb p4 ("三、本年度办理结果" 21pt low), zh-84702a67
@@ -529,8 +529,10 @@ inside the span is counted — zh-abe7e063 -> 100).
 Then (Windows, this commit): the span's last row counts its part too,
 unless its stated height has no room — zh-6cd1befe's last row
 "重污染天气事件" (at least 43.65pt, 33 left) goes over whole, so gives
-nothing; zh-91e44bcb 96.4 -> 97.1. Open: zh-84702a67 p8 still 5pt
-low of Word's (±3 to match).
+nothing; zh-91e44bcb 96.4 -> 97.1. And a parting row's centred cells
+give the part their own height (zh-84702a67 98.2 -> 100). All four
+documents' merged cells now stand where Word's do; zh-1a3c7aa0 p19 is
+the parted rows' (its row's part runs to the foot), not this.
 
 ### T32. A line parted after a stroke before a Cyrillic letter — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16

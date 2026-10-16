@@ -3285,6 +3285,18 @@ fitter dropped the paragraph's tail).
   centres the cell down to that line. zh-91e44bcb 96.4% -> 97.1; nothing
   else moved (T31).
 
+- **A parting row gives a centred cell's own height to the part, not
+  where the row's middle put it (2026-10-16).** What a row that parts
+  at the page's foot keeps there was measured to each cell's last line
+  as the flow set it; a centred cell whose text fits the part is set in
+  the part (`splitRow`), and gives it only its own height. zh-84702a67's
+  row "10" has a top-set cell of two lines at the foot of page 8 beside
+  the number and two blank cells, all centred, whose one line the flow
+  set in the middle of the 76pt row: the part came out 9.5pt deeper
+  than Word's, and the merged "是否存在转包、挂靠行为" stood 5pt low; it
+  is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
+  moved (T31).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
