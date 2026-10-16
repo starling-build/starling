@@ -1084,6 +1084,16 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   Word seems to keep the 1pt for the text and measure the anchor from
   above it. One cell's lab would say which: the same header with
   `w:space="0"`, and with a real top border.
+- Linux box, 2026-10-16, a lead that needs Word: zh-1563bd74's p26 loss.
+  The empty 28pt exact paragraph after "…提供便利。" (第六十六条) does not
+  fit page 25 in ours and opens p26, so pp26-29 run a line (28-30pt) low
+  and ours has 30 pages to Word's 29. In Word it fits with under a point
+  to spare (its foot would be 128.15pt off the page's). Ours sets the
+  footer's text 0.5-0.6 higher than Word's ("红河县人民政府发布" 73.7 to
+  73.2, "- 25 -" 113.2 to 112.6). Dropping either 1pt "none" edge of the
+  footer style (styleId 4) puts p26 and the page count right in ours,
+  which shows only that the margin is under a point. The question: how
+  tall is that three-paragraph footer in Word.
 - Also there, p19: a vMerge cell (vAlign center) whose rows part over
   pages; Word starts its first page's lines 10pt lower than ours. Not
   measured.
