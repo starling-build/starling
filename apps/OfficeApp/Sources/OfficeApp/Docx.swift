@@ -2008,6 +2008,14 @@ enum DocxFormat {
         if let v = pPr.first("w:textAlignment")?["w:val"] { style.eastAsian["w:textAlignment"] = v }
         for (element, attrs) in [("w:ind", _eastAsianIndents), ("w:spacing", _eastAsianSpacing)] {
             guard let n = pPr.first(element) else { continue }
+            // (The first line's count, in or out, is one setting: a
+            // paragraph's firstLineChars 0 under a style's hangingChars
+            // 200 hangs nothing — zh-06c46ba9's division-of-work table,
+            // whose rows stood two characters out of Word's.)
+            if element == "w:ind", n["w:firstLineChars"] != nil || n["w:hangingChars"] != nil {
+                style.eastAsian["w:firstLineChars"] = nil
+                style.eastAsian["w:hangingChars"] = nil
+            }
             for a in attrs { if let v = n[a], Int(v) != nil { style.eastAsian[a] = v } }
         }
         if let k = pPr.first("w:keepLines") { style.keepLines = !_isOff(k) }

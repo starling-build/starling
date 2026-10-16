@@ -3716,6 +3716,16 @@ fitter dropped the paragraph's tail).
   see above). zh-06c46ba9 78.9 -> 89.5%, zh-84702a67 98.2 -> 99.6,
   zh-abe7e063 98.0 -> 100; zh-69bbcc3c's "五、操作规范" went from 25pt
   high to 5pt low of Word's (one line fewer matched, 99.5 -> 99.4).
+- **A first-line count in characters replaces the style's hanging one
+  (2026-10-16).** `w:firstLineChars` and `w:hangingChars` are one
+  setting, in or out: zh-06c46ba9's style "一" says hangingChars 200,
+  and its p70 table's paragraphs say firstLineChars 0 (and firstLine 0)
+  — Word's print stands them at the cell's edge, x 63; ours kept the
+  style's count beside the paragraph's, read the hanging one first, and
+  hung each 28pt out (x 31-33). A paragraph (or a style over its base)
+  that names either count now drops both it inherited. The line match
+  goes by height and did not move; 87 paragraphs of zh-06c46ba9 and
+  zh-64044a1d carry the pair.
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

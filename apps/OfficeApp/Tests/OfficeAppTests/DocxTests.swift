@@ -1193,6 +1193,35 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(before(inCell: true), 0, accuracy: 0.01, "in the same cell: alike, dropped")
     }
 
+    func testAFirstLineCountReplacesTheStylesHangingCount() throws {
+        // zh-06c46ba9 p70: style "一" hangs its first lines two characters
+        // (hangingChars 200); the table's paragraphs say firstLineChars 0
+        // and firstLine 0, and stand at the cell's edge in Word's print —
+        // ours kept the style's count and hung them 28pt out.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(text: "b")]),
+                                                        pageSetup: .letter))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        let styles = String(decoding: entries[si].data, as: UTF8.self).replacingAll("</w:styles>", with:
+            "<w:style w:type=\"paragraph\" w:customStyle=\"1\" w:styleId=\"One\"><w:name w:val=\"One\"/><w:pPr>"
+            + "<w:ind w:leftChars=\"240\" w:left=\"440\" w:hangingChars=\"200\" w:hanging=\"200\"/></w:pPr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:pStyle w:val=\"One\"/><w:ind w:leftChars=\"0\" w:left=\"0\" w:firstLineChars=\"0\" w:firstLine=\"0\"/></w:pPr><w:r><w:t>二、報告撰寫</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:pStyle w:val=\"One\"/></w:pPr><w:r><w:t>二、報告撰寫</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertNil(doc.paragraphs[0].style.eastAsian["w:hangingChars"], "the paragraph's own count replaces the style's")
+        XCTAssertEqual(doc.paragraphs[1].style.eastAsian["w:hangingChars"], "200", "the style's, where the paragraph says none")
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: 2)
+        XCTAssertEqual(layout.firstLineIndent(doc.paragraphs[0], doc), 0, accuracy: 0.01)
+        XCTAssertLessThan(layout.firstLineIndent(doc.paragraphs[1], doc), -10)
+    }
+
     func testAFrameOfNoWidthStandsWhereItIsAligned() throws {
         // Bug51170: the footer's page number is a frame aligned right in
         // the margins with no width of its own; Word sets it at the right
