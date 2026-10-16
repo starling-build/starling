@@ -686,6 +686,16 @@ p69 whose text Word's PDF does not carry (shapes: the Mac's).
   fallback pictures carry no text for the line match. 61745: a bar
   chart's category labels step 59.3pt to Word's 57.7 (plot area).
 
+### T32. A parted row's part on its page: its height and its centred cells
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-16
+(the Mac's parted rows; the Mac sessions are offline and the Linux box
+asked — Mac, say so here and I stop).
+Documents: zh-15728c84 p3 (row 9), zh-1a3c7aa0 p22 (row 65), p32 (row
+111) — see the parted-row notes under "Note from the Windows box
+(2026-10-15, night)".
+Known: Word's part ends under the last line kept on the page and is no
+shorter than the row's stated height; centred cells stand centred in it.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
