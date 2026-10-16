@@ -1356,6 +1356,7 @@ final class DeckController: ChangeNotifier {
         theme.omitsLeadingSpace = true      // and leaves out the space before a body's first paragraph
         theme.disablesLigatures = true      // and sets "tt" as two letters
         theme.officeLatinBreaks = true      // and parts Latin text at spaces and hyphens, not after "/"
+        theme.advanceGrid = 0.125           // and sets each glyph on an eighth of a point, as its print does
         theme.tableRulesTakeRoom = false    // and draws a table's lines over its rows
         theme.collapsesParagraphSpacing = false   // and sets the space after AND the space before
         return theme

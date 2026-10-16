@@ -93,6 +93,12 @@ public final class RichTextTheme {
     /// "PROGRAMMES/R200" and ".../articles/#articles-by-..." whole on
     /// their lines. Implied by `wordRules`; on alone for slides.
     public var officeLatinBreaks = false
+    /// Each Latin character's advance snapped to this grid, in points:
+    /// PowerPoint's print sets glyphs on an eighth of a point (Arial's
+    /// "d" at 32pt is 17.797 wide and set 17.75, its "S" 21.344 and set
+    /// 21.375), and a line that fits there by a hair can be a hair too
+    /// long at the faces' own widths. nil for the faces' own.
+    public var advanceGrid: Double? = nil
 
     /// Each face's natural line height as a multiple of its size (ascent,
     /// descent and line gap — Calibri's 1.22, Arial's 1.15), measured once:
@@ -4997,6 +5003,12 @@ public final class RichLayout {
                         let classScale = classed ? face.classScales.flatMap { kind < $0.count ? $0[kind] : nil } ?? 1 : 1
                         extra += table[k] * px / (face.sizeScale * classScale) - _glyphWidth(s, ch)
                     }
+                } else if !ea, let grid = theme.advanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline,
+                          ch.unicodeScalars.first.map({ $0.value >= 0x20 && $0.value < 0x2E80 }) ?? false {
+                    // On the print's grid (`advanceGrid`).
+                    let s = style(kind)
+                    let w = _glyphWidth(s, ch), g = grid * theme.pixelsPerPoint * scale
+                    if g > 0, w > 0 { extra += (w / g).rounded() * g - w }
                 } else if !ea, let face = latinFace, face.otherAdvances != nil, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value {
                     // … and the width it gives one the stand-in lacks.
                     let s = style(kind)

@@ -2014,6 +2014,23 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Glyphs on an eighth of a point, 2026-10-16** (sweep 107: 1.17 →
+1.17%, the sum of the decks' means 3.13 lower; aptia 2.99 → 2.21,
+alterman 6.49 → 6.15, Performance_Up 2.89 → 2.59, bnc904423, tdf169524,
+ShapeLineProperties and 60810 −0.3 each, 22 more by over 0.05;
+thirteen further by 0.05 to 0.3 — 3columns, font-scale, pptx2svg the
+most). PowerPoint's print sets each glyph's advance on an eighth of a
+point: Arial's "d" at 32 pt, 17.797 wide, is set 17.75, its "S" 21.344
+→ 21.375, its hyphen 10.656 → 10.625, every letter of Performance_Up's
+"Swap is disk-based Extension of RAM" so; the line came to 540.2 pt in
+a 540.6 column where ours, at the faces' own widths, was 0.4 too long
+and wrapped "RAM" (60810's "PROGRAMMES/R200" title the same way). The
+shared layout has a switch for it, `RichTextTheme.advanceGrid`
+(points; nil, the default, leaves the faces' widths), on at 0.125 for
+slides: each Latin character's width snapped by the spacing after it.
+(Characters so set are spans of their own, so kerning goes — which
+PowerPoint applies only where a run's `kern` says so.)
+
 **A face PowerPoint lacks is Calibri, 2026-10-16** (sweep 106:
 tdf168835 0.58 → 0.21, master-slides 5.23 → 5.01, bug65228 0.37 → 0.19,
 tdf119187 0.47 → 0.29, tdf147586 1.12 → 0.95, Divino −0.07, tdf140852
