@@ -2014,6 +2014,14 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Verdana at its own widths in slides, 2026-10-16** (the AES deck 7.53
+→ 5.91, pptx2svg 5.44 → 5.15, tdf129686 0.42 → 0.17, aascu 5864 −0.02;
+the other Verdana decks unchanged). DejaVu Sans, drawing it, is within
+a per cent of its lines on average, but not letter by letter: its space
+is 0.32 em to Verdana's 0.35, its letters a little wider. `SlideFonts.face`
+now gives Verdana the advances Word already had for it
+(`OfficeFonts.verdanaAdvances` and the bold), as Lucida Sans Unicode.
+
 **Text turned by its camera's `rev`, 2026-10-16** (tdf128212,
 tdf128213 and its -shaperot twin 0.57 → 0.27 each; tdf128206 0.68 →
 0.70). A text body's `scene3d` camera turned about its own axis

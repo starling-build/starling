@@ -26,11 +26,26 @@ enum SlideFonts {
     /// own widths — 9% wider (GeomLec1's lines wrapped a word late).
     /// Its bold and italic are made from the regular, as wide.
     static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
-        guard !eastAsian, let family, family.trimmingWhitespace().lowercased() == "lucida sans unicode" else { return nil }
-        var face = RichResolvedFace(family: resolve(family))
-        face.advances = OfficeFonts.lucidaSansUnicodeAdvances
-        face.boldAdvances = OfficeFonts.lucidaSansUnicodeAdvances
-        return face
+        guard !eastAsian, let family else { return nil }
+        switch family.trimmingWhitespace().lowercased() {
+        case "lucida sans unicode":
+            var face = RichResolvedFace(family: resolve(family))
+            face.advances = OfficeFonts.lucidaSansUnicodeAdvances
+            face.boldAdvances = OfficeFonts.lucidaSansUnicodeAdvances
+            return face
+        case "verdana":
+            // (Verdana in DejaVu Sans, at Verdana's widths: its space is
+            // 0.35 em to DejaVu's 0.32, and pptx2svg's words stood closer
+            // together than PowerPoint's.)
+            var face = RichResolvedFace(family: resolve(family))
+            face.advances = OfficeFonts.verdanaAdvances
+            face.boldAdvances = OfficeFonts.verdanaBoldAdvances
+            face.otherAdvances = OfficeFonts.verdanaOtherAdvances
+            face.boldOtherAdvances = OfficeFonts.verdanaBoldOtherAdvances
+            return face
+        default:
+            return nil
+        }
     }
 
     /// The share of the line below the baseline for a face we draw with
