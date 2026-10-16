@@ -950,6 +950,25 @@ struct DiagramLayout {
             }
             if abs(wanted - current) > 0.01 { shift(c, horizontal ? Offset(0, wanted - current) : Offset(wanted - current, 0)) }
         }
+        // A connector that names the nodes it joins (`srcNode`, `dstNode`)
+        // stands midway between those two, not in the middle of its slot:
+        // accent-process's arrow runs between the headers "a" and "cc", in
+        // PowerPoint's print, where it sat level with the whole columns.
+        for (i, c) in node.children.enumerated() where c.isConnector {
+            guard let src = c.params["srcNode"], let dst = c.params["dstNode"] else { continue }
+            let before = node.children[..<i].last { !$0.isConnector && !$0.isSpace }
+            let after = node.children[(i + 1)...].first { !$0.isConnector && !$0.isSpace }
+            func named(_ n: DgmPresNode?, _ name: String) -> Rect? {
+                guard let n else { return nil }
+                if n.name == name, n.rect.width > 0 { return n.rect }
+                for k in n.children { if let r = named(k, name) { return r } }
+                return nil
+            }
+            guard let a = named(before, src), let b = named(after, dst) else { continue }
+            let mid = horizontal ? Offset((a.right + b.left) / 2, (a.center.dy + b.center.dy) / 2)
+                                 : Offset((a.center.dx + b.center.dx) / 2, (a.bottom + b.top) / 2)
+            shift(c, Offset(mid.dx - c.rect.center.dx, mid.dy - c.rect.center.dy))
+        }
         // The line is as long as its run of children, spaces included, and
         // as deep as what they hold.
         if node.parent != nil, let u = extent(of: node.children) {

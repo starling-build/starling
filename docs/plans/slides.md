@@ -1973,6 +1973,17 @@ own line (`a:ln`, or its style's `lnRef`) is drawn round it — but not
 round one turned in 3-D, which is drawn flat here and whose frame would
 stand where the picture does not (Scene3d_pureImage, +0.31 when tried).
 
+**A diagram connector between the nodes it names, 2026-10-15**
+(smartart-accent-process 2.29 → 1.74; the other diagram decks
+unchanged). A connector in a row stood in the middle of its slot, level
+with the middle of the columns beside it; accent-process's names the
+nodes it joins (`srcNode`/`dstNode` = parTx) and PowerPoint draws it
+between those headers. It now stands midway between them.
+
+Tried and dropped: textCircle's later lines on smaller circles inside
+the first (TextOnCircle +0.28) — PowerPoint's circle text is also
+larger and starts further round than ours, and those come first.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
