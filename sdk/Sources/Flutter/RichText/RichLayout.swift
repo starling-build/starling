@@ -2857,7 +2857,40 @@ public final class RichLayout {
                         // 内容" was centred over a thirteenth row that fits
                         // page 8 only without its line, and goes over — half
                         // a row, 8.6pt, under Word's.)
-                        while r < c.row + d.rowSpan, let h = heights[r], part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
+                        // (A row with no cell of its own — every one merged
+                        // down into it — takes no room: zh-84702a67's row 6.)
+                        while r < c.row + d.rowSpan, case let h = heights[r] ?? 0, part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
+                        // (… and the part of the next that parts at the
+                        // page's foot, to the last of its lines kept there:
+                        // zh-91e44bcb's "（五）不予处理" and "三、本年度办理结果"
+                        // stand midway down to the first line of "5.要求行
+                        // 政机关确认…", which goes on over the page, in Word's
+                        // print — ours stopped at the row above it, 20pt high;
+                        // zh-84702a67's "是否存在转包、挂靠行为" 80pt.)
+                        // (Not the span's last row: zh-6cd1befe's "事故灾难类"
+                        // ends with "辐射事故", which parts at page 48's foot,
+                        // and Word centres it in the rows above that one.)
+                        if r < c.row + d.rowSpan - 1,
+                           let first = (j ..< count).first(where: { _cells[$0]?.table == c.table && _cells[$0]?.row == r }),
+                           let e = _cells[first], document.tableStyles[c.table]?.rowsCantSplit.contains(r) != true,
+                           !document.paragraphs[first].style.keepNext {
+                            let limit = e.rowTop + (contentH - y - part) - ruleUnder(e, parted: true) + 0.01
+                            // (Only where the row does part there: every cell
+                            // of it keeps a line on the page, else it goes
+                            // over whole — see `splitRow`.)
+                            var kept = 0.0
+                            var columns: [Int: Bool] = [:]   // column → keeps something here
+                            var n = first
+                            while n < count, let f = _cells[n], f.table == c.table, f.row == r {
+                                if f.rowSpan == 1, !f.vertical {
+                                    let cut = cellCuts(n).last(where: { $0 <= limit && $0 > e.rowTop + 0.01 })
+                                    if let cut { kept = max(kept, cut - e.rowTop + f.pad.bottom) }
+                                    columns[f.column] = (columns[f.column] ?? false) || cut != nil || document.paragraphs[n].text.isEmpty
+                                }
+                                n += 1
+                            }
+                            if kept > 0, columns.values.allSatisfy({ $0 }) { part += min(kept, contentH - y - part) }
+                        }
                         guard part > 0, part < d.rowHeight - 0.01 else { continue }
                         // (What it was given to spare over the whole span:
                         // above its text and below it, less its margins.)

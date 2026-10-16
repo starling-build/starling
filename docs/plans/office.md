@@ -3249,6 +3249,23 @@ fitter dropped the paragraph's tail).
   under Word's. zh-90e0cea8 93.8% -> 96.6 (T31); nothing else moved by
   it.
 
+- **A merged cell's rows on the page take in the part of one that
+  parts there, and a row of no cells of its own (2026-10-16).** Two more
+  for the rows a centred merged cell is set in on a page (above). A row
+  every cell of which is merged down from above has no height of its own
+  and stopped the count: zh-84702a67's "是否存在转包、挂靠行为", merged
+  over twelve rows from the head of page 8, was centred over five of
+  them, 95pt high of Word's; it is now 5pt low. And a row of the span
+  that parts at the page's foot gives what it keeps there — to its last
+  line on the page and its margin, where every cell of it keeps one —
+  unless it is the span's last row: zh-6cd1befe's "事故灾难类" ends with
+  "辐射事故", which parts at page 48's foot, and Word centres it in the
+  rows above that one; zh-91e44bcb's "（五）不予处理" also ends with the
+  row that parts ("5.要求行政机关确认…") and Word centres it down to
+  that row's first line, 5pt from ours. The difference between the two
+  is not known (T31). zh-abe7e063 98.4% -> 100, zh-64044a1d 95.6 ->
+  96.0; nothing else moved.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
