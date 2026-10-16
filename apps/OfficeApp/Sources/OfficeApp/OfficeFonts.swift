@@ -498,7 +498,7 @@ enum OfficeFonts {
     // the subset Word's print of bug59058 embeds (2026-10-16); the rest
     // are estimates from Arial's: capitals at 0.96 of them, lower case
     // at 1.12 ("p" and "q" as "b" and "d"), other signs at 1.14.
-    private static let lucidaSansUnicodeAdvances: [Double] = [
+    static let lucidaSansUnicodeAdvances: [Double] = [
         0.3160, 0.3167, 0.4047, 0.6340, 0.6340, 1.0136, 0.6970, 0.2176, 0.3796, 0.3796, 0.4436, 0.6657, 0.3160, 0.5790, 0.3160,
         0.3167, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.6320, 0.3167, 0.3167, 0.6657, 0.6657,
         0.6657, 0.6340, 1.1573, 0.6900, 0.5750, 0.6920, 0.7490, 0.5420, 0.5864, 0.7467, 0.6933, 0.2880, 0.4800, 0.6403, 0.5339,

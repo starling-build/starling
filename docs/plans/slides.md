@@ -2014,6 +2014,20 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Lucida Sans Unicode at its own widths, 2026-10-16** (sweep 111:
+1.152 → 1.146%; GeomLec1 7.22 → 5.74, aascu 5864 8.40 → 8.11, KEY02
+4.31 → 4.10 from the baseline entry below; n862510_4 and numfmt +0.01).
+Liberation Sans, drawing it, is 9% narrow, and GeomLec1's lines broke a
+word late. A slide's runs in it are now set at the face's own widths,
+the table Word already had (`OfficeFonts.lucidaSansUnicodeAdvances`),
+its made-up bold and italic as wide as the regular: `SlideFonts.face`
+is the slides' `faceResolver`, and `RichTextTheme.setsFaceAdvances`
+(shared, off by default) lets those widths apply outside Word's rules.
+Tried before as one extra spacing for every letter (dropped: GeomLec1
+worse) — per letter, and with its baseline right, it is a point and a
+half better. GeomLec1's first paragraph now breaks where PowerPoint's
+does; its bold (PowerPoint's is lighter) and a line with ⇒ still differ.
+
 **A baseline by the face the text names, 2026-10-16** (GeomLec1 8.16
 → 7.22, the AES deck 8.10 → 7.54, aascu 5864 8.56 → 8.40, two more a
 hundredth; none worse). PowerPoint sets a line's baseline by the

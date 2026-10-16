@@ -173,6 +173,10 @@ public final class RichTextTheme {
     /// line's baseline by the face it names: Verdana's at 0.83 of the
     /// line, where DejaVu Sans, drawing it, has 0.80.
     public var ownDescentShare: ((String) -> Double?)? = nil
+    /// Whether a run's characters are set at the widths its resolved
+    /// face gives (`RichResolvedFace.advances`) outside Word's rules too:
+    /// PowerPoint's Lucida Sans Unicode, drawn here in a narrower face.
+    public var setsFaceAdvances = false
 
     public func naturalLineHeight(family: String?, bold: Bool, italic: Bool) -> Double {
         if let singleLineHeight { return singleLineHeight }
@@ -4801,7 +4805,7 @@ public final class RichLayout {
             return (size(p.style.mark), true)
         }()
         func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil) -> [TextSpan] {
-            let latinFace = theme.wordRules
+            let latinFace = theme.wordRules || theme.setsFaceAdvances
                 ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
             let hinted = (run.fontHint ?? named?.char.fontHint) == "eastAsia" || (latinFace?.isEastAsian ?? false)
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale

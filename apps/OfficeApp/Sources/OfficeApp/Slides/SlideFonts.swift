@@ -1,6 +1,7 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
+import Flutter
 import Foundation
 
 /// A slide's faces as PowerPoint stands in for them: the shared
@@ -18,6 +19,18 @@ enum SlideFonts {
         let n = family.trimmingWhitespace().lowercased()
         guard !n.hasPrefix("cambria"), n != "caladea" else { return face }
         return OfficeFonts.calibri
+    }
+
+    /// The face a slide's run is set in where its widths are not the
+    /// stand-in's: Lucida Sans Unicode, drawn in Liberation Sans, at its
+    /// own widths — 9% wider (GeomLec1's lines wrapped a word late).
+    /// Its bold and italic are made from the regular, as wide.
+    static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
+        guard !eastAsian, let family, family.trimmingWhitespace().lowercased() == "lucida sans unicode" else { return nil }
+        var face = RichResolvedFace(family: resolve(family))
+        face.advances = OfficeFonts.lucidaSansUnicodeAdvances
+        face.boldAdvances = OfficeFonts.lucidaSansUnicodeAdvances
+        return face
     }
 
     /// The share of the line below the baseline for a face we draw with
