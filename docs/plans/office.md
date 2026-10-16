@@ -3274,6 +3274,17 @@ fitter dropped the paragraph's tail).
   is not known (T31). zh-abe7e063 98.4% -> 100, zh-64044a1d 95.6 ->
   96.0; nothing else moved.
 
+- **The span's last row counts its part too, unless its stated height
+  has no room (2026-10-16).** The rule above left out the span's last
+  row when it parts, for zh-6cd1befe's "事故灾难类"; the reason is
+  another: that row, "重污染天气事件", says at least 43.65pt with 33 left
+  on page 48, and such a row is not begun there but goes over whole
+  (`splitRow`), in Word's print as in ours — so it gives the cell
+  nothing on the page. zh-91e44bcb's "（五）不予处理" ends with a row that
+  does part ("5.要求行政机关确认…", its first line on page 4), and Word
+  centres the cell down to that line. zh-91e44bcb 96.4% -> 97.1; nothing
+  else moved (T31).
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

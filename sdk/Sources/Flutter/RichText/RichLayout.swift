@@ -2873,13 +2873,16 @@ public final class RichLayout {
                         // 政机关确认…", which goes on over the page, in Word's
                         // print — ours stopped at the row above it, 20pt high;
                         // zh-84702a67's "是否存在转包、挂靠行为" 80pt.)
-                        // (Not the span's last row: zh-6cd1befe's "事故灾难类"
-                        // ends with "辐射事故", which parts at page 48's foot,
-                        // and Word centres it in the rows above that one.)
-                        if r < c.row + d.rowSpan - 1,
+                        // (Not one whose stated height has no room there,
+                        // which goes over whole — see `splitRow`: zh-6cd1befe's
+                        // "事故灾难类" ends with "重污染天气事件", at least
+                        // 43.65pt with 33 left on page 48, and Word centres it
+                        // in the rows above that one.)
+                        if r < c.row + d.rowSpan,
                            let first = (j ..< count).first(where: { _cells[$0]?.table == c.table && _cells[$0]?.row == r }),
                            let e = _cells[first], document.tableStyles[c.table]?.rowsCantSplit.contains(r) != true,
-                           !document.paragraphs[first].style.keepNext {
+                           !document.paragraphs[first].style.keepNext,
+                           _px(document.tableStyles[c.table]?.rowHeights[r] ?? 0) <= contentH - y - part - ruleUnder(e, parted: true) + 0.01 {
                             let limit = e.rowTop + (contentH - y - part) - ruleUnder(e, parted: true) + 0.01
                             // (Only where the row does part there: every cell
                             // of it keeps a line on the page, else it goes
