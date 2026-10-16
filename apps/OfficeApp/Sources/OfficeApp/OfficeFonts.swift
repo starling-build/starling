@@ -318,22 +318,32 @@ enum OfficeFonts {
     /// Caladea and its long text ran a page short.
     static func sheetFace(_ family: String) -> String {
         #if os(Windows)
-        // An East Asian face Windows ships is the face, for every character
-        // of the cell: style-alternate-content's 맑은 고딕 prints its digits,
-        // Latin and "○○○" in Malgun Gothic, where ours set them in
-        // Liberation Sans and only the Hangul fell back to Malgun.
-        if let face = windowsEastAsian[family.trimmingWhitespace().lowercased()] { return face }
+        // A face Windows has and this app has no clone of is the face, for
+        // every character of the cell: style-alternate-content's 맑은 고딕
+        // prints its digits, Latin and "○○○" in Malgun Gothic, where ours
+        // set them in Liberation Sans and only the Hangul fell back to
+        // Malgun; the format tests' Lucida Sans Typewriter is monospaced,
+        // and Liberation Sans was not.
+        if let face = windowsFaces[family.trimmingWhitespace().lowercased()] { return face }
         #endif
+        return sheetClone(family)
+    }
+
+    /// The clone of `sheetFace`, whatever the platform has: the face whose
+    /// measures the sheet's print metrics borrow for a face nobody measured.
+    static func sheetClone(_ family: String) -> String {
         let face = substitute(family)
         if face == cambria, family.lowercased().containsSubstring("sans") { return sans }
         return face
     }
 
     #if os(Windows)
-    /// East Asian names, and the Windows face each prints in, where this
-    /// Windows has its font file (Dotum, Gulim and Batang left Windows;
-    /// Excel prints them as Malgun Gothic — see SheetPrintMetrics' aliases).
-    private static let windowsEastAsian: [String: String] = {
+    /// Names, and the Windows face each prints in, where this Windows has
+    /// its font file (Dotum, Gulim and Batang left Windows; Excel prints
+    /// them as Malgun Gothic — see SheetPrintMetrics' aliases). The faces
+    /// this app has clones of (Calibri, Arial, Times New Roman, ...) keep
+    /// their clones.
+    private static let windowsFaces: [String: String] = {
         let fonts = (ProcessInfo.processInfo.environment["WINDIR"] ?? "C:/Windows") + "/Fonts/"
         var m: [String: String] = [:]
         for (names, face, file) in [
@@ -345,6 +355,19 @@ enum OfficeFonts {
             (["微软雅黑", "microsoft yahei"], "Microsoft YaHei", "msyh.ttc"),
             (["微軟正黑體", "microsoft jhenghei"], "Microsoft JhengHei", "msjh.ttc"),
             (["游ゴシック", "yu gothic"], "Yu Gothic", "YuGothR.ttc"),
+            (["lucida sans typewriter"], "Lucida Sans Typewriter", "LTYPE.TTF"),
+            (["lucida sans", "lucida sans regular"], "Lucida Sans", "LSANS.TTF"),
+            (["lucida sans unicode"], "Lucida Sans Unicode", "l_10646.ttf"),
+            (["comic sans ms"], "Comic Sans MS", "comic.ttf"),
+            (["century gothic"], "Century Gothic", "GOTHIC.TTF"),
+            (["trebuchet ms"], "Trebuchet MS", "trebuc.ttf"),
+            (["microsoft sans serif", "ms sans serif"], "Microsoft Sans Serif", "micross.ttf"),
+            (["arial black"], "Arial Black", "ariblk.ttf"),
+            (["arial narrow"], "Arial Narrow", "ARIALN.TTF"),
+            (["arial rounded mt bold"], "Arial Rounded MT Bold", "ARLRDBD.TTF"),
+            (["garamond"], "Garamond", "GARA.TTF"),
+            (["palatino linotype"], "Palatino Linotype", "pala.ttf"),
+            (["britannic bold"], "Britannic Bold", "BRITANIC.TTF"),
         ] where FileManager.default.fileExists(atPath: fonts + file) { for n in names { m[n] = face } }
         return m
     }()

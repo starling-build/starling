@@ -187,7 +187,7 @@ struct SheetPrintMetrics {
         // A face nobody measured: an East Asian one by its name, the rest by
         // the clone this app would draw it with.
         if n.unicodeScalars.contains(where: { $0.value > 0x2E7F }) { return faces["ms pgothic"]! }
-        let clone = OfficeFonts.sheetFace(family)
+        let clone = OfficeFonts.sheetClone(family)
         if clone == OfficeFonts.substitute("Times New Roman") { return faces["times new roman"]! }
         if clone == OfficeFonts.substitute("Courier New") { return faces["courier new"]! }
         if clone == OfficeFonts.substitute("Cambria") { return faces["cambria"]! }
