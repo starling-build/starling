@@ -1819,6 +1819,17 @@ too close to the top box (its ring sits 4 pt off PowerPoint's), +0.45;
 and smartart-cycle's arrows, which PowerPoint keeps small and equal,
 grew where its gaps are wide, +0.19.
 
+**Nine steps up the page, eight across, 2026-10-15** (line-chart 3.07
+→ 2.65, scatter-chart 2.32 → 2.00; the chart decks otherwise
+unchanged). The same data, 8.2 at most, runs 0 to 9 by ones up
+line-chart's and scatter-chart's value axes in PowerPoint's print and
+0 to 10 by twos across bar-chart's. An axis up the page now takes up to
+nine steps (every earlier case fits: 200s to 1,600, 100s to 600, ones
+to 6, twos to 10 where ones would be ten); one across the page (a bar
+chart's, a scatter's x) keeps to eight; radar's rings stay at eight.
+This replaces the deleted-axis rule of ten (aascu's 0–90 by tens is
+nine).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

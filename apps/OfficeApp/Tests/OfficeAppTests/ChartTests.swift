@@ -44,7 +44,12 @@ final class ChartTests: XCTestCase {
     func testAxisScaleIsRound() {
         let s = ChartPainter.scale(0, 5)
         XCTAssertEqual(s.lo, 0); XCTAssertEqual(s.hi, 6); XCTAssertEqual(s.step, 1)
-        XCTAssertEqual(ChartPainter.scale(0, 8.2).hi, 10, "8.2 plus headroom: 0 to 10 in twos")
+        // 8.2 plus headroom: up the page 0 to 9 by ones (line-chart's), across
+        // it 0 to 10 by twos (bar-chart's), as PowerPoint draws them.
+        XCTAssertEqual(ChartPainter.scale(0, 8.2).hi, 9)
+        XCTAssertEqual(ChartPainter.scale(0, 8.2).step, 1)
+        XCTAssertEqual(ChartPainter.scale(0, 8.2, intervals: 8).hi, 10)
+        XCTAssertEqual(ChartPainter.scale(0, 8.2, intervals: 8).step, 2)
         XCTAssertEqual(ChartPainter.label(2.5, percent: false), "2.5")
         XCTAssertEqual(ChartPainter.label(0.3, percent: true), "30%")
     }
