@@ -4809,7 +4809,11 @@ public final class RichLayout {
         // under an 18pt mark are a line of 30.9pt, under a 14pt mark of
         // 23.9, and 18pt spaces under a 20pt mark of 34.2).
         let lineSize: (size: Double, blank: Bool)? = {
-            guard theme.wordRules, p.text.utf16.contains(0x20) else { return nil }
+            // (Ideographic ones too: zh-64044a1d's form rows whose cells
+            // hold "　" alone are as tall as its empty ones in Word's
+            // print, one pitch of its line grid; ours, set in the East
+            // Asian face, took two.)
+            guard theme.wordRules, p.text.utf16.contains(where: { $0 == 0x20 || $0 == 0x3000 }) else { return nil }
             let normal = _normalChar(document)
             func size(_ c: CharStyle?) -> Double { c?.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? theme.fontSize }
             var best: Double? = nil
@@ -4819,7 +4823,7 @@ public final class RichLayout {
                 if run.style.inlineImage != nil { return nil }
                 // (Nor does a tab: IllustrativeCases' line of 11pt spaces
                 // and tabs under an 8pt mark is the mark's line.)
-                if p.text.utf16[at ..< end].contains(where: { $0 != 0x20 && $0 != 0x09 }) { best = max(best ?? 0, size(run.style)) }
+                if p.text.utf16[at ..< end].contains(where: { $0 != 0x20 && $0 != 0x09 && $0 != 0x3000 }) { best = max(best ?? 0, size(run.style)) }
                 at = end
             }
             if let best { return (best, false) }
@@ -4857,7 +4861,7 @@ public final class RichLayout {
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
                 // (A run of spaces alone takes the line's height, not its own.)
-                if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " || $0 == "\t" }), let px = s.fontSize, px > 0.5 {
+                if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " || $0 == "\t" || $0 == "\u{3000}" }), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                     if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01) {
                         var sized = run
@@ -4904,7 +4908,9 @@ public final class RichLayout {
                 let ch = text[i]
                 let after = text.index(after: i)
                 let following = after < text.endIndex ? text[after] : next
-                let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted)
+                // (An ideographic space on a line of spaces alone is set
+                // as the mark is, in the run's Latin face: see `lineSize`.)
+                let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)
                 let kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
                 // A stretch of Latin characters with no space in it is
                 // one word to Word, which parts it only after a hyphen:

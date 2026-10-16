@@ -3738,6 +3738,18 @@ fitter dropped the paragraph's tail).
   that names either count now drops both it inherited. The line match
   goes by height and did not move; 87 paragraphs of zh-06c46ba9 and
   zh-64044a1d carry the pair.
+- **A line of ideographic spaces alone is its mark's line
+  (2026-10-16).** zh-64044a1d p100's form: rows whose cells hold "　"
+  alone (style "．表文", 11pt 標楷體 over Times, an 18pt line grid) are
+  as tall as its empty rows in Word's print (18.5), its text rows two
+  pitches (36). Ours set the U+3000 in the East Asian face, whose 11pt
+  line takes two pitches, and the page ran long. A line of spaces alone
+  was already its mark's line for U+0020 and tabs ("spaces set no line's
+  height"); U+3000 is now one of them, and on such a line is set in the
+  run's Latin face, as the mark is. The Mac's lab of the table alone
+  (u3k) did not reproduce it; a paragraph alone in the document's own
+  style does, on Linux. zh-64044a1d 95.7 -> 97.9%, zh-90e0cea8 96.0 ->
+  97.5, zh-84702a67 99.6 -> 100, zh-69bbcc3c 99.4 -> 99.5.
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

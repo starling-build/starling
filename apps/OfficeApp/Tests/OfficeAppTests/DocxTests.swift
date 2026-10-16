@@ -1222,6 +1222,42 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(layout.firstLineIndent(doc.paragraphs[1], doc), -10)
     }
 
+    func testALineOfIdeographicSpacesIsItsMarksLine() throws {
+        // zh-64044a1d p100: form rows whose cells hold "　" alone (11pt,
+        // 標楷體 over Times, on an 18pt line grid) are as tall as its
+        // empty rows in Word's print; ours set the space in the East
+        // Asian face, whose line took two pitches where the mark's
+        // takes one.
+        func heights(pitch: Double) -> (empty: Double, ideograph: Double, ideographicSpace: Double) {
+            var style = CharStyle()
+            style.fontSize = 11
+            style.fontFamily = "Times New Roman"
+            style.eastAsiaFontFamily = "標楷體"
+            func para(_ text: String) -> RichParagraph {
+                var p = RichParagraph(text: text)
+                if !text.isEmpty { p.runs = [Run(length: text.utf16.count, style: style)] }
+                p.style.mark = style
+                return p
+            }
+            var doc = RichDocument(paragraphs: [para(""), para("編"), para("\u{3000}")])
+            doc.lineGridPitch = pitch
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: 3)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).height, l.geometry(1).height, l.geometry(2).height)
+        }
+        // (A pitch the East Asian face's line takes more of than the mark's.)
+        guard let pitch = stride(from: 10.0, through: 24.0, by: 0.5).first(where: { heights(pitch: $0).ideograph > heights(pitch: $0).empty + 1 }) else {
+            throw XCTSkip("no pitch here parts the two faces' lines")
+        }
+        let h = heights(pitch: pitch)
+        XCTAssertEqual(h.ideographicSpace, h.empty, accuracy: 0.5, "the mark's line, at a pitch of \(pitch)")
+        XCTAssertGreaterThan(h.ideograph, h.ideographicSpace + 1, "an ideograph's is taller")
+    }
+
     func testAFrameOfNoWidthStandsWhereItIsAligned() throws {
         // Bug51170: the footer's page number is a frame aligned right in
         // the margins with no width of its own; Word sets it at the right
