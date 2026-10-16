@@ -1839,6 +1839,14 @@ the glyphs they stand for, by the table the metafile reader already
 had — Symbol's now with the arrows (⇒ ⇔ ⇐ ⇑ ⇓ ↔), set and logic signs
 (∈ ∉ ∩ ∪ ⊂ ⊆ ⊃ ⊇ ∀ ∃ ∇ ∂ ¬ ∧ ∨ ≡ ∝ ⊥ ∠ ∫) and the rest of the Greek.
 
+**A pie is 0.97 of its room, 2026-10-15** (pie-chart 2.85 → 1.78;
+chart_pt_color_bg1 0.74 → 0.76; the chart decks otherwise unchanged).
+pie-chart's pie, under its title and beside its legend, is 131 pt in
+PowerPoint's print where ours was 124 (0.92 of the room inside the
+chart's 9 pt margin). 0.97 of that room fits it and the bare doughnut
+both (159 pt there, which had needed a rule of its own: no margin when
+there is no title and no legend); that rule is gone.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

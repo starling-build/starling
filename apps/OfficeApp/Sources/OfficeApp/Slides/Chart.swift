@@ -898,11 +898,7 @@ enum ChartPainter {
         }
         canvas.save()
         canvas.clipRect(r)
-        // (A pie with no title and no legend stands in the whole frame:
-        // chart_pt_color_bg1's ring is 0.926 of the frame's half height in
-        // PowerPoint's print, 0.87 inside the margin.)
-        let bare = c.type.isPie && (c.title ?? "").isEmpty && !c.legend && c.pieTilt == nil && c.plotLayout == nil
-        var area = bare ? r : r.deflate(9 * k)
+        var area = r.deflate(9 * k)
 
         if let title = c.title, !title.isEmpty {
             // In the file's size, weight and colour where it gives them,
@@ -1592,7 +1588,10 @@ enum ChartPainter {
         let values = c.series[0].values.map { max(0, $0 ?? 0) }
         let sum = values.reduce(0, +)
         guard sum > 0 else { return }
-        let radius = min(area.width, area.height) / 2 * 0.92
+        // (0.97 of the room: pie-chart's, under a title beside a legend,
+        // is 131 pt in PowerPoint's print, and chart_pt_color_bg1's bare
+        // ring 159 — both that share of the frame inside its margin.)
+        let radius = min(area.width, area.height) / 2 * 0.97
         let centre = area.center
         let oval = Rect.fromCircle(center: centre, radius: radius)
         var angle = -Double.pi / 2
