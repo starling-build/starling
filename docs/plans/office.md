@@ -2962,6 +2962,22 @@ fitter dropped the paragraph's tail).
   first, as Cambria Math is); the widths stay Cambria Math's
   (`cambriaMathAdvances`). bug57031 87.0% -> 87.3%; nothing else moved.
 
+- **Endnotes are set after the last paragraph (2026-10-15, Linux).**
+  The endnotes part was kept for the save and never drawn. Each note
+  is now read like a footnote (`RichDocument.endnotes`, its own mark —
+  `w:endnoteRef` — in the endnotes' numbering, lowerRoman by default),
+  and the layout sets them where Word's print does: under the body's
+  last paragraph, the separator first — the footnotes' 144pt rule in
+  its own paragraph — then the notes in the order of their marks.
+  endnotes' rule stands at 427.2 to Word's 426.1, its note's baseline
+  0.2pt from Word's. Bug54849 95.7% -> 100%; endnotes unchanged in
+  score (its "i" mark stands 0.6pt lower than Word's and the matcher
+  then reads mark and note as two rows — the raise of a superscript,
+  0.3 of the full size here as in PowerPoint, is 0.36-0.37 in Word's
+  print at 10 and 11pt: not changed). Not built: notes that do not fit
+  on the last page (Word runs them on to pages of their own; ours sets
+  none), and endnotes at a section's end (`w:pos` sectEnd).
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

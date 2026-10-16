@@ -7369,6 +7369,31 @@ public final class RichLayout {
         return made
     }
 
+    /// Endnote `id` laid out `width` wide, as `_note` does a footnote;
+    /// id -1 is the separator above them.
+    private func _endnote(_ id: Int, width: Double, _ document: RichDocument) -> _HeaderFooter? {
+        let key = "e\(id)|\(width)|\(scale)"
+        if let hit = _noteCache[key] { return hit }
+        let paragraphs: [RichParagraph]
+        if id == -1 { paragraphs = document.endnoteSeparator } else if let p = document.endnotes[id] { paragraphs = p } else { return nil }
+        let made = _subLayout(paragraphs, document, width: width)
+        if _noteCache.count > 512 { _noteCache.removeAll() }
+        _noteCache[key] = made
+        return made
+    }
+
+    /// The endnotes in the order their marks come in the body.
+    private func _endnoteOrder(_ document: RichDocument) -> [Int] {
+        guard !document.endnotes.isEmpty else { return [] }
+        var out: [Int] = []
+        for p in document.paragraphs {
+            for run in p.runs {
+                if let n = run.style.note, n.kind == .endnote, document.endnotes[n.id] != nil, !out.contains(n.id) { out.append(n.id) }
+            }
+        }
+        return out
+    }
+
     /// The footnotes whose marks paragraph `i` holds, in its order.
     private func _footnotes(in i: Int, _ document: RichDocument) -> [Int] {
         guard i >= 0, i < document.paragraphs.count else { return [] }
@@ -7943,6 +7968,46 @@ public final class RichLayout {
         }
     }
 
+    /// The endnotes, after the body's last paragraph on its page, as Word
+    /// sets them at the document's end: the separator — the footnotes'
+    /// rule, 144pt in its own empty paragraph — then the notes. (Only
+    /// where they fit on that page: notes that run on to pages of their
+    /// own are not set.)
+    private func _paintEndnotes(_ canvas: any Canvas, _ document: RichDocument, pages: ClosedRange<Int>) {
+        guard theme.wordRules, isPaged, pageSetup != nil, let last = document.paragraphs.indices.last, last < count else { return }
+        let ids = _endnoteOrder(document)
+        guard !ids.isEmpty else { return }
+        // (Under the last paragraph's last piece, on its page.)
+        guard let slot = _pages.indices.last(where: { k in _pages[k].contains { $0.paragraph == last } }),
+              let piece = _pages[slot].last(where: { $0.paragraph == last }) else { return }
+        let p = slot / max(1, _columns)
+        guard pages.contains(p) else { return }
+        var top = pageRect(p).top + _pxMarginTop(p) + piece.pageY + piece.height
+        let setup = pageSetup(forPage: p)
+        let width = _px(setup.contentWidth)
+        let notes = ids.compactMap { _endnote($0, width: width, document) }
+        guard !notes.isEmpty else { return }
+        let separator = _endnote(-1, width: width, document)
+        let rect = pageRect(p)
+        let bottom = rect.bottom - _bodyInsets(page: p, document).bottom
+        guard top + notes.reduce(0.0, { $0 + $1.height }) + (separator?.height ?? 0) <= bottom + 0.5 else { return }
+        let left = rect.left + _pxMarginLeft(p)
+        if let separator {
+            let line = Paint()
+            line.color = theme.textColor
+            canvas.drawRect(Rect.fromLTWH(left, top + separator.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
+            top += separator.height
+        }
+        for note in notes {
+            canvas.save()
+            canvas.translate(left, top)
+            note.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: note.document,
+                              selection: nil, caret: nil)
+            canvas.restore()
+            top += note.height
+        }
+    }
+
     /// Paint everything intersecting `visible` (CANVAS space), the canvas
     /// already translated so canvas (0, 0) is at the origin. `caret` is in
     /// canvas space too. `pageBackground` paints each visible page's paper
@@ -7959,6 +8024,7 @@ public final class RichLayout {
                 _paintHeaderFooter(p, canvas, document)
                 _paintFootnotes(p, canvas, document)
             }
+            _paintEndnotes(canvas, document, pages: firstPage ... lastPage)
         }
         // Three layers: table shading, the selection over it, then the text
         // and rules. (Shading painted with its paragraph covered a selected

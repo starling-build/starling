@@ -2014,6 +2014,10 @@ public struct RichDocument: Hashable, Sendable {
     /// file's part is still what a save writes back.
     public var footnotes: [Int: [RichParagraph]] = [:]
     public var footnoteSeparator: [RichParagraph] = []
+    /// The file's endnotes, the same way, set after the body's last
+    /// paragraph in the order their marks come, under their separator.
+    public var endnotes: [Int: [RichParagraph]] = [:]
+    public var endnoteSeparator: [RichParagraph] = []
     /// The number of the first page where the last section says one
     /// (`w:pgNumType w:start`), and how page numbers are written where it
     /// says that (`w:fmt`: "lowerRoman", "numberInDash"…).

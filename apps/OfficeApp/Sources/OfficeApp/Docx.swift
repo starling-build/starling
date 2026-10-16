@@ -1529,10 +1529,51 @@ enum DocxFormat {
             currentCell = nil
             pendingPageBreak = false
         }
+        // The endnotes, the same way: set after the body's last paragraph.
+        var endnoteParagraphs: [Int: [RichParagraph]] = [:]
+        var endnoteSeparator: [RichParagraph] = []
+        if notes.endnotes, let data = part("word/endnotes.xml"), let root = XNode.parse(data) {
+            _resolveThemeFonts(root, theme)
+            let bodyParagraphs = paragraphs, bodyRels = rels, bodyInfo = notes.rels
+            rels = [:]
+            var info: [String: KeptRel] = [:]
+            if let relsData = part("word/_rels/endnotes.xml.rels"), let relsNode = XNode.parse(relsData) {
+                for r in relsNode.all("Relationship") {
+                    guard let id = r["Id"], let target = r["Target"] else { continue }
+                    rels[id] = target
+                    info[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
+                }
+            }
+            notes.rels = info
+            notes.inHeaderFooter = true
+            let saved = (notes.seenFootnotes, notes.seenEndnotes)
+            for note in root.all("w:endnote") {
+                guard let id = Int(note["w:id"] ?? "") else { continue }
+                let type = note["w:type"] ?? "normal"
+                guard type == "normal" || type == "separator" else { continue }
+                guard type == "separator" || notes.endnoteNumbers[id] != nil else { continue }
+                notes.currentNoteLabel = notes.endnoteNumbers[id].map { notes.label($0, footnote: false) }
+                paragraphs = []
+                currentCell = nil
+                pendingPageBreak = false
+                for child in note.children { walkBlock(child, indent: 0) }
+                if type == "separator" { endnoteSeparator = paragraphs } else { endnoteParagraphs[id] = paragraphs }
+            }
+            notes.currentNoteLabel = nil
+            (notes.seenFootnotes, notes.seenEndnotes) = saved
+            notes.inHeaderFooter = false
+            paragraphs = bodyParagraphs
+            rels = bodyRels
+            notes.rels = bodyInfo
+            currentCell = nil
+            pendingPageBreak = false
+        }
         var document = RichDocument(paragraphs: paragraphs)
         document.headerFooters = headerFooters
         document.footnotes = footnoteParagraphs
         document.footnoteSeparator = footnoteSeparator
+        document.endnotes = endnoteParagraphs
+        document.endnoteSeparator = endnoteSeparator
         document.tableColumns = tableColumns
         document.tableStyles = tableStyles
         document.styles = sheet
@@ -2071,8 +2112,10 @@ enum DocxFormat {
         /// The number each footnote's mark was given in the body, by id;
         /// and, while a note's own text is read, its number for its
         /// `w:footnoteRef`.
-        var footnoteNumbers: [Int: Int] = [:]
+        var footnoteNumbers: [Int: Int] = [:], endnoteNumbers: [Int: Int] = [:]
         var currentNote: Int? = nil
+        /// An endnote's own mark, in its numbering's form ("i").
+        var currentNoteLabel: String? = nil
         var endnoteFormat = "lowerRoman", footnoteFormat = "decimal"
         func label(_ n: Int, footnote: Bool) -> String {
             switch footnote ? footnoteFormat : endnoteFormat {
@@ -2914,11 +2957,14 @@ enum DocxFormat {
                     } else {
                         let n = notes.next(footnote: footnote)
                         if footnote, !notes.inTextBox, notes.footnoteNumbers[id] == nil { notes.footnoteNumbers[id] = n }
+                        if !footnote, !notes.inTextBox, notes.endnoteNumbers[id] == nil { notes.endnoteNumbers[id] = n }
                         addText(notes.label(n, footnote: footnote), mark)
                     }
                 case "w:footnoteRef":
                     // A note's own mark, in the note: its number.
                     if let n = notes.currentNote { addText(String(n), cs) }
+                case "w:endnoteRef":
+                    if let label = notes.currentNoteLabel { addText(label, cs) }
                 default: break
                 }
             }

@@ -1017,6 +1017,29 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(resized.contains("cx=\"1828800\""), resized)
     }
 
+    /// A file with an endnotes part: each note read like the body for the
+    /// layout to set after the last paragraph, its own mark in the
+    /// endnotes' numbering (endnotes.docx: "i XXX" in Word's print).
+    func testEndnotesReadForTheLayout() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "Body with a note here.")]), pageSetup: .letter))
+        let endnotes = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:endnote w:type="separator" w:id="0"><w:p><w:r><w:separator/></w:r></w:p></w:endnote><w:endnote w:type="continuationSeparator" w:id="1"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:endnote><w:endnote w:id="2"><w:p><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:endnoteRef/></w:r><w:r><w:t xml:space="preserve"> XXX</w:t></w:r></w:p></w:endnote></w:endnotes>
+        """
+        entries.append(ZipEntry(name: "word/endnotes.xml", data: Data(endnotes.utf8)))
+        let i = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[i].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:t xml:space=\"preserve\">Body with a note here.</w:t></w:r>",
+                               with: "<w:t xml:space=\"preserve\">Body with a note</w:t></w:r><w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:endnoteReference w:id=\"2\"/></w:r><w:r><w:t xml:space=\"preserve\"> here.</w:t></w:r>")
+        XCTAssertTrue(xml.contains("w:endnoteReference"), "the fixture's run text must match: \(xml)")
+        entries[i] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs[0].text, "Body with a notei here.")
+        XCTAssertEqual(back.endnotes.keys.sorted(), [2])
+        XCTAssertEqual(back.endnotes[2]?.map(\.text), ["i XXX"])
+        XCTAssertEqual(back.endnoteSeparator.count, 1)
+    }
+
     func testEmptyPictIsNothing() throws {
         // bug59058: a paragraph of nothing but `<w:pict/>` before a table —
         // no mark on Word's print and no room, where a 300 by 200 stand-in

@@ -441,13 +441,16 @@ Built: math faces among the Linux fallbacks; 87.0 -> 87.3%. Its next
 parting is p11/p12's two-line "Note:" row (the Windows box's lead
 below; parted rows are the Mac's).
 
-### T23. Endnotes are not set
+### T23. Endnotes are not set — DONE (2026-10-15)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-15
 Documents: endnotes (92.9%), Bug54849 — the two with a real endnote.
 Known: endnotes.xml is kept for the save and never drawn. Word sets
 them after the body's last paragraph: the separator (a 144pt rule at
 426.1 in endnotes' print) and the note ("i XXX", the mark in the
 endnote numbering's lowerRoman).
+Built (office.md): set after the last paragraph when they fit on its
+page. Bug54849 95.7 -> 100%. Left: a superscript's raise (Word's 0.36-
+0.37 of the full size, ours 0.3) — endnotes' "i" and its body mark.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
