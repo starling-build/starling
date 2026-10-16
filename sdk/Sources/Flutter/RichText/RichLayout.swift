@@ -6444,11 +6444,25 @@ public final class RichLayout {
     /// characters — bug65649's cell "1 направление" (49pt wide, the word
     /// 55) is "1" / "направлен" / "ие" in Word's print; the engine
     /// parted the word where the line ran out, "1 направле" / "ние", and
-    /// the estimate pages after ran a line long. Measured only in cells
-    /// narrower than 150pt, for words of three letters or more.
+    /// the estimate pages after ran a line long. Measured in cells
+    /// narrower than 150pt, for words of three letters or more, and in
+    /// the body of a document of no East Asian layout for words of
+    /// twenty or more: bug65649's "Замечания: " and 142 underscores is
+    /// the label alone and two lines of underscores in Word's print,
+    /// where ours parted them after the label and the form ran a line
+    /// short.
+    /// `_wideWordStarts` for a paragraph off any grid, `textWidth` in
+    /// pixels — public for the tests, whose process has no ICU to part
+    /// lines by.
+    public func wideWordStarts(_ p: RichParagraph, _ document: RichDocument, textWidth: Double) -> Set<Int> {
+        _wideWordStarts(p, document, textWidth: textWidth, named: _named(p, document), pitch: nil)
+    }
+
     private func _wideWordStarts(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
                                  named: RichNamedStyle?, pitch: Double?) -> Set<Int> {
-        guard theme.wordRules, p.cell != nil, textWidth > 1, textWidth < _px(150), !p.runs.isEmpty else { return [] }
+        guard theme.wordRules, textWidth > 1, !p.runs.isEmpty else { return [] }
+        let narrowCell = p.cell != nil && textWidth < _px(150)
+        guard narrowCell || p.cell == nil && !document.usesEastAsianLayout else { return [] }
         let units = Array(p.text.utf16)
         var out: Set<Int> = []
         var k = 0
@@ -6461,7 +6475,7 @@ public final class RichLayout {
             let part = (k + 1 ..< end).first(where: { units[$0] == 0x2D && $0 + 1 < end }).map { $0 + 1 } ?? end
             // (Only after a space: a word that opens the paragraph is on a
             // line of its own already.)
-            if k > 0, units[k - 1] == 0x20, part - k >= 3,
+            if k > 0, units[k - 1] == 0x20, part - k >= (narrowCell ? 3 : 20),
                !(k ..< part).contains(where: { units[$0] >= 0x2E80 }) {
                 var at = 0
                 var run = p.runs[0].style

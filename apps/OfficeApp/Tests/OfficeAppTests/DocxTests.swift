@@ -1386,6 +1386,24 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try textStart(stop: false), 70.8, accuracy: 0.5, "the next default stop, with none of its own")
     }
 
+    func testABodyWordWiderThanTheLineOpensALine() throws {
+        // bug65649: "Замечания: " and 142 underscores is the label alone
+        // and two lines of underscores in Word's print; ours parted the
+        // underscores straight after the label. (The rule, not a line:
+        // the test process has no ICU to part lines by.)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: 1)
+        let p = RichParagraph(text: "Note: " + String(repeating: "_", count: 80))
+        var doc = RichDocument(paragraphs: [p])
+        XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 300), [6], "the underscores open a line")
+        XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 1000), [], "not where they fit")
+        let short = RichParagraph(text: "Note: " + String(repeating: "_", count: 19))
+        XCTAssertEqual(layout.wideWordStarts(short, RichDocument(paragraphs: [short]), textWidth: 50), [], "under twenty, unmeasured in the body")
+        doc.usesEastAsianLayout = true
+        XCTAssertEqual(layout.wideWordStarts(p, doc, textWidth: 300), [], "under East Asian layout, parted where it stands")
+    }
+
     func testRowPropertyExceptionsKept() throws {
         // form_footnotes: a row that rules itself (w:tblPrEx) over the table.
         var a = RichParagraph(text: "a"), b = RichParagraph(text: "b")

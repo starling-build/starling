@@ -3098,6 +3098,17 @@ fitter dropped the paragraph's tail).
   nothing else moved. The hanging case is as it was, the cell case of
   1cebd4fa included.
 
+- **A body word wider than the line opens a line of its own (2026-10-16,
+  Linux).** c488db0d took such a word to a new line in cells under 150pt
+  only. Word does the same in the body: bug65649's "Замечания: " and
+  142 underscores is the label alone and two lines of underscores in its
+  print; ours parted the underscores straight after the label, and the
+  form ran a line short. In the body of a document of no East Asian
+  layout a word of twenty characters or more, after a space, that is
+  wider than the line now opens one (East Asian documents keep parting
+  such a word where it stands, as 8788bcef found). bug65649 99.9%, one
+  line more matched; nothing else moved.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were
