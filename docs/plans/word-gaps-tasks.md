@@ -111,7 +111,7 @@ Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
 ### T1. Autofit tables — measured, nothing built (2026-10-15)
-Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN; findings in office.md, "Autofit tables")
+Owner: session 017F2GnTfScURKYZPmRxVQvW (Linux dev box, no Word; starling-0.3.0 worktree), from 2026-10-15 — building the rule in office.md, "Autofit tables". Linux sweeps need STARLING_ICU set (a bare build has no icudtl.dat beside it); with it, Linux scores Chinese 96.7%, POI 81.9% at 4f7823b6.
 Five Word labs (`at1`–`at5`): Word keeps an autofit table's saved grid
 until a cell's unbreakable content is wider than its columns; then that
 cell takes exactly its width and the other columns give way to their
