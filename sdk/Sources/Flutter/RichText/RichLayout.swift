@@ -794,6 +794,8 @@ public final class RichLayout {
     private var _listSig: [ListSig] = []
     private var _wasCell: [Bool] = []
     private var _tablesDirty = true
+    /// Each cell paragraph's narrowest setting (px), for `_autofit`.
+    private var _cellMins: [Int: Double] = [:]
     private struct ListSig: Equatable {
         var kind: ListKind?
         var level: Int
@@ -927,6 +929,7 @@ public final class RichLayout {
     }
 
     public func invalidateAll() {
+        _cellMins.removeAll()
         for i in _painters.indices {
             _painters[i]?.dispose()
             _painters[i] = nil
@@ -958,9 +961,11 @@ public final class RichLayout {
                     // A cell's text can change a row's height; its table's
                     // widths do not depend on it, but re-check cheaply.
                     if _wasCell[i] { _tablesDirty = true }
+                    _cellMins[i] = nil
                 }
             case .inserted(let at, let n):
                 _mirrored.removeAll()
+                _cellMins.removeAll()
                 let at = min(at, _painters.count)
                 _painters.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _imageSize.insert(contentsOf: Array(repeating: nil, count: n), at: at)
@@ -993,6 +998,7 @@ public final class RichLayout {
                 _lastDirty = Int.max
             case .removed(let at, let n):
                 _mirrored.removeAll()
+                _cellMins.removeAll()
                 let at = min(at, _painters.count)
                 let end = min(at + n, _painters.count)
                 for i in at ..< end { _painters[i]?.dispose() }
@@ -1285,6 +1291,10 @@ public final class RichLayout {
                 // makes 1269.9999…, and bug57031's autofit column, exactly
                 // as wide as "Transform", lost a pixel and wrapped it.)
                 widths[c.table] = pts.map { (_px($0) * scale + 0.001).rounded(.down) }
+                if theme.wordRules, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
+                   !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
+                    widths[c.table] = _autofit(c.table, base, document)
+                }
             } else {
                 widths[c.table] = Array(repeating: (width / Double(cols)).rounded(.down), count: cols)
             }
@@ -1298,6 +1308,173 @@ public final class RichLayout {
             }
         }
         _columnWidths = widths
+    }
+
+    /// Word's re-fit of an autofit table (`w:tblLayout` autofit, the
+    /// default), as office.md's "Autofit tables" has it (labs `at1`–`at5`,
+    /// `sp1`, `sp2`, `cap*`): the saved grid is kept, as a fixed table's
+    /// is, until a cell's narrowest setting — its longest piece that
+    /// cannot part, with its margins and side indents — is wider than
+    /// the columns it covers. Then that cell is exactly that wide, the
+    /// other columns give way toward their own narrowest, and the table
+    /// keeps its width while that suffices and grows past it when the
+    /// narrowest need it (a span of 62 Courier "W"s: 479.5pt, its other
+    /// column at one character and its margins). zh-0aac9d1a's first
+    /// form: 34.6/187.6/110.5/156.4pt in Word's print, from a grid of
+    /// 67.5/151.1/76.3/134.0, for its stamp line's 444pt piece.
+    private func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
+        struct Cell { var column: Int; var span: Int; var min: Double }
+        var cells: [Cell] = []
+        var at: [Int: Int] = [:]   // (row, column) → its cell in `cells`
+        let ins = _cellInsets(table, document)
+        for (i, p) in document.paragraphs.enumerated() {
+            guard let c = p.cell, c.table == table else { continue }
+            guard c.column + c.span <= base.count else { return base }
+            let sides = c.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
+            let w = sides + _minContent(i, p, document)
+            let key = c.row * 4096 + c.column
+            if let k = at[key] { cells[k].min = max(cells[k].min, w) } else {
+                at[key] = cells.count
+                cells.append(Cell(column: c.column, span: c.span, min: w))
+            }
+        }
+        func room(_ c: Cell) -> Double { base[c.column ..< c.column + c.span].reduce(0, +) }
+        // (Over by a point at least: ours are Word's widths to within a
+        // little, and the grid is down to whole pixels. bug57031's HTML
+        // tables are saved at Word's own fit of their text, and ours
+        // measure their widest words 0.6 to 0.75pt over it.)
+        let tolerance = _px(1)
+        let over = cells.filter { $0.min > room($0) + tolerance }
+        if Self.debugAutofit {
+            let pt = theme.pixelsPerPoint * scale
+            FileHandle.standardError.write(Data("autofit \(table): grid \(base.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
+            for c in over {
+                FileHandle.standardError.write(Data("  over: column \(c.column) span \(c.span) needs \((c.min / pt * 10).rounded() / 10) of \((room(c) / pt * 10).rounded() / 10)\n".utf8))
+            }
+        }
+        guard !over.isEmpty else { return base }
+        // Each column's own narrowest: its one-column cells'. (One with
+        // none — every cell over it spans — is not known to give: it
+        // keeps its width. drawing.docx's nested tables had a column
+        // given away to nothing.)
+        var floor = base
+        var measured = Set<Int>()
+        for c in cells where c.span == 1 {
+            floor[c.column] = measured.contains(c.column) ? max(floor[c.column], c.min) : c.min
+            measured.insert(c.column)
+        }
+        var widths = base
+        var set = Set<Int>()
+        // A cell of one column sets it; a span shares out what is left
+        // over its columns' own narrowest as the grid shares its width.
+        // (Word's sharing is not this: zh-0aac9d1a's span came out
+        // 187.6/110.5/156.4 where this gives 182.3/109.3/162.9. One
+        // print measured; the lab to find it is still to do.)
+        for c in over.sorted(by: { $0.span < $1.span }) {
+            if c.span == 1 {
+                widths[c.column] = set.contains(c.column) ? max(widths[c.column], c.min) : c.min
+                set.insert(c.column)
+                continue
+            }
+            let cols = Array(c.column ..< c.column + c.span)
+            let free = cols.filter { !set.contains($0) }
+            let left = c.min - cols.filter { set.contains($0) }.reduce(0) { $0 + widths[$1] }
+            guard !free.isEmpty, left > 0 else { continue }
+            let floors = free.reduce(0) { $0 + floor[$1] }
+            let weight = free.reduce(0) { $0 + base[$1] }
+            for k in free {
+                let share = weight > 0 ? base[k] / weight : 1 / Double(free.count)
+                widths[k] = floor[k] + max(0, left - floors) * share
+                set.insert(k)
+            }
+        }
+        // The rest give way, as far as their own narrowest, to keep the
+        // table its width.
+        let others = base.indices.filter { !set.contains($0) }
+        let excess = widths.reduce(0, +) - base.reduce(0, +)
+        let slack = others.reduce(0) { $0 + max(0, base[$1] - floor[$1]) }
+        if excess > 0, slack > 0 {
+            for k in others {
+                let give = max(0, base[k] - floor[k])
+                widths[k] = base[k] - min(give, excess * give / slack)
+            }
+        }
+        // (Whole pixels: up for a column a cell's narrowest set, so that
+        // its piece still fits it.)
+        let fitted = widths.indices.map { set.contains($0) ? (widths[$0] - 0.001).rounded(.up) : (widths[$0] + 0.001).rounded(.down) }
+        if Self.debugAutofit {
+            let pt = theme.pixelsPerPoint * scale
+            FileHandle.standardError.write(Data("  fitted \(fitted.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
+        }
+        return fitted
+    }
+
+    /// The narrowest a paragraph of a cell can be set (px): its longest
+    /// piece that cannot part, and its side indents. The pieces are
+    /// parted where the line fitting parts them (`_glued`, and the
+    /// breaks `_span` puts in), after a run of spaces, and at a line
+    /// break; each is as wide as the paragraph sets it. Word's autofit
+    /// measure joins a run of ordinary spaces that follows a no-break
+    /// space to what is on both sides of it (labs `sp2`, `caplong`:
+    /// "nbsp×30 + 26 spaces + 年" is one piece 528pt wide), though its
+    /// line breaking parts there as ever (lab `sp1`).
+    /// (Not the engine's minimum intrinsic width: a paragraph of one
+    /// run that fits its line is never parted for it, and a line of
+    /// ideographs came out as wide as all of them.)
+    private func _minContent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> Double {
+        if let m = _cellMins[i] { return m }
+        var m = 0.0
+        let units = Array(p.text.utf16)
+        if !units.isEmpty {
+            let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: 100_000)
+            let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
+            if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+            probe.layout(minWidth: 0, maxWidth: 100_000)
+            let map = _OffsetMap(lead: 0, inserts: inserts)
+            let breakBefore = Set(inserts.filter { o in
+                guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
+                return Self._breaksBetween(Character(a), Character(b))
+            })
+            func space(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
+            func piece(_ a: Int, _ b: Int) -> Double {
+                var e = b
+                while e > a, space(units[e - 1]) { e -= 1 }
+                guard e > a else { return 0 }
+                var w = 0.0
+                for box in probe.getBoxesForSelection(TextSelection(baseOffset: map.painter(a), extentOffset: map.painter(e - 1) + 1)) {
+                    w += box.right - box.left
+                }
+                return w
+            }
+            var start = 0
+            for k in 1 ..< units.count {
+                let a = units[k - 1], b = units[k]
+                let parts: Bool
+                if a == 0x0A || a == 0x0B || a == 0x2028 { parts = true }
+                else if space(b) { parts = false }
+                else if space(a) {
+                    var j = k - 1
+                    while j >= 0, units[j] == 0x20 { j -= 1 }
+                    parts = !(j >= 0 && j < k - 1 && units[j] == 0xA0)
+                }
+                else if breakBefore.contains(k) { parts = true }
+                else { parts = !Self._glued(a, b) }
+                if parts {
+                    m = max(m, piece(start, k))
+                    start = k
+                }
+            }
+            m = max(m, piece(start, units.count))
+            probe.dispose()
+        }
+        let sides = _sideIndents(p, document)
+        // (Indents out into the cell's margins count against it:
+        // bug65649's equipment table indents every paragraph -113 twips
+        // a side, and its "№ п/п" column of 54pt holds "(согласно" in
+        // Word's print, 49.3pt of text over the 43.2 between margins.)
+        m += (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)
+        _cellMins[i] = m
+        return m
     }
 
     /// Column widths (points) shown instead of the document's while a
@@ -2953,6 +3130,10 @@ public final class RichLayout {
     /// `STARLING_RICHTEXT_ROWS=<page>`: each table row set on that page,
     /// to stderr (see `_paginate`).
     static let debugRows = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_ROWS"].flatMap { Int($0) }
+    /// `STARLING_RICHTEXT_AUTOFIT=1`: each autofit table a cell's
+    /// narrowest setting re-fits (`_autofit`), its cells over their room
+    /// and the widths it comes to, to stderr (points).
+    static let debugAutofit = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_AUTOFIT"] != nil
 
     /// The room a cell's rule of this style and width (points) takes:
     /// a double line three widths; a thin line, a gap and a thick one

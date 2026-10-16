@@ -3853,6 +3853,34 @@ fitter dropped the paragraph's tail).
   longest piece under that rule, plus margins and indents), then the
   rule above: that cell exactly that wide, the rest down to their own
   minimum, the table no narrower than its stated width.
+  Built (Linux session, 2026-10-15; `_autofit` and `_minContent` in
+  RichLayout, `STARLING_RICHTEXT_AUTOFIT=1` traces it). Of zh-0aac9d1a's
+  four forms Word re-fits only the first, and the rule says why without
+  another lab: that form's stamp line is in 仿宋, a face Word has, whose
+  no-break space is an em, so its joined piece "nbsp×14 + 26 spaces +
+  年  月  日" is 444pt against 350.9 of room; the other three are in
+  仿宋_GB2312, set in YaHei, whose no-break space is narrow, and their
+  pieces fit their grids. A cell's narrowest setting is measured as our
+  own line fitting parts its text (`_glued`, `_span`'s breaks, after a
+  run of spaces, at a line break), each piece as wide as the paragraph
+  sets it, plus its margins and its side indents — negative ones too:
+  bug65649's equipment table indents every paragraph -113 twips a side,
+  and without them its "№ п/п" column re-fitted for "(согласно" that
+  Word's print holds in 54pt. (Not the engine's minimum intrinsic
+  width: skparagraph's fast path for a one-run paragraph that fits
+  never parts it, so a line of ideographs measured as all of them.) A
+  cell must be over by a point before the table re-fits — four
+  documents had cells a tenth to 0.75pt over their grid that Word sets
+  as saved (bug57031's HTML tables, saved at Word's own fit of their
+  widest words, measure 0.6–0.75pt over it in ours). A
+  column whose every cell spans keeps its width. Line match (Linux):
+  zh-0aac9d1a 63.3% -> 100% (12 pages, as Word's); nothing else moved.
+  Still open: how Word shares a span among its columns. Ours gives
+  each its own narrowest and the rest as the grid shares it,
+  34.5/183.0/109.5/163.5pt against Word's 34.6/187.6/110.5/156.4 —
+  close enough that no line moves here, but a lab is needed (a span
+  over three columns of unequal content and grid, its narrowest
+  varied) before another document depends on it.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
