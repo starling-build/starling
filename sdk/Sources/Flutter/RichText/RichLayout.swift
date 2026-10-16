@@ -546,6 +546,10 @@ public struct RichResolvedFace: Sendable {
     /// `glyphFallback`: a Song face's ideographs in a serif, its letters
     /// and digits still the Latin stand-in's.
     public var fallback: [String] = []
+    /// Where Word sets the triangles and stars (▲ △ ▼ ▽ ★ ☆) of a run in this
+    /// face in another, and measures their line by it: a name Word on a
+    /// Mac lacks, set in Microsoft YaHei, draws them from SimSun.
+    public var symbolFamily: String? = nil
     /// A math face (Cambria Math): its characters past ASCII come from
     /// the platform's math face, set inside the run's line.
     public var setsMath = false
@@ -5356,6 +5360,23 @@ public final class RichLayout {
                     flush(i)
                     let s = style(kind)
                     spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra, height: (s.height ?? 1) * 0.6)))
+                    start = after
+                } else if ea, theme.wordRules, let u = ch.unicodeScalars.first?.value,
+                          [0x25B2, 0x25B3, 0x25BC, 0x25BD, 0x2605, 0x2606].contains(u),
+                          let symbols = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                                            ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.symbolFamily {
+                    // (A triangle or star in a face Word lacks is SimSun's,
+                    // and so is its line — circles and squares are YaHei's
+                    // own in Word's prints, zh-7dc3afad's ○ and □: lab `tr2`, zh-6cd1befe's "▲" in
+                    // 12pt 仿宋_GB2312 on a 15.6pt grid takes one pitch in
+                    // Word's print, where YaHei's line took two and every
+                    // row of its task table stood 5pt tall.)
+                    flush(i)
+                    var r = run
+                    r.eastAsiaFontFamily = symbols
+                    let s = theme.textStyle(for: r, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                            eastAsian: true, gridPitch: pitch)
+                    spans.append(TextSpan(text: String(ch), style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
                     start = after
                 } else if ea, theme.wordRules, let cjk = Self._cjkSymbolFamily, Self._cjkSymbols.contains(ch) {
                     // (A dash or an ellipsis in East Asian text is the

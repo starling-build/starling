@@ -4279,6 +4279,18 @@ fitter dropped the paragraph's tail).
   line are now painted before it and the rest after. A mark inside a
   line still comes after its line's text, where Word's print has it in
   place. endnotes 92.9 -> 100, Bug54849 91.3 -> 100; nothing down.
+- **A triangle or star in a face Word lacks is SimSun's, line and all
+  (2026-10-16).** Word on a Mac sets a Chinese face it does not have
+  (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints
+  draw ▲ and ★ from SimSun even so, and measure their line by SimSun.
+  Lab `tr2`, rows of one 12pt 仿宋_GB2312 "▲" on zh-6cd1befe's 15.6pt
+  grid: Word sets the line one pitch tall, so a row is its space before
+  plus 16.2, or 19.2 at least. YaHei's 1.715-em line took two pitches in
+  ours, 31.9, and its task table's rows with 8pt of space before stood
+  5pt taller than Word's. ○ and □ stay YaHei's, as in zh-7dc3afad's
+  print, and taking them too cost that document 1.6. Only under
+  `OFFICE_WORD_FONTS=mac`, through `RichResolvedFace.symbolFamily` on
+  the YaHei stand-in. zh-6cd1befe 96.4 -> 97.8; nothing else moved.
 - **A tab on a wrapped line goes to the stop after where its own line
   has got to (2026-10-15).** The tabs were measured along the paragraph
   laid out on one line, so a tab on a second or third line went to the

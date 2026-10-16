@@ -474,6 +474,8 @@ enum OfficeFonts {
         /// face's OS/2 ascent and descent rather than its hhea ones.
         var scaledHeight: Double? = nil
         var scaledBaseline: Double? = nil
+        /// `RichResolvedFace.symbolFamily`.
+        var symbols: String? = nil
         /// The same two for the face's bold, where it is a face of its
         /// own with other metrics.
         var boldHeight: Double? = nil
@@ -730,7 +732,9 @@ enum OfficeFonts {
         }
         if wordOnMac, !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                            "幼圆", "全真楷書") || has("仿宋_gb2312", "方正", "小标宋", "標楷") {
-            return yaHei
+            var standIn = yaHei
+            standIn.symbols = "SimSun"
+            return standIn
         }
         return square
     }
@@ -919,6 +923,7 @@ enum OfficeFonts {
             // Noto Sans SC; PMingLiU and the others it has draw their own —
             // zh-db93607e's in PMingLiU are as any character in Word's print.)
             face.lacksCompatibilityIdeographs = ea.height == yaHei.height
+            face.symbolFamily = ea.symbols
             // (YaHei's ellipsis is its own width, not an em: 0.8135, and
             // 0.9629 in bold, by msyh.ttc and msyhbd.ttc. zh-457a8d62's
             // "……" in 標楷體 runs — YaHei to Word on a Mac — are 13.52pt
@@ -943,6 +948,7 @@ enum OfficeFonts {
         face.boldBaseline = ea.boldBaseline
         face.advances = ea.latinAdvances
         face.boldAdvances = ea.latinBoldAdvances
+        face.symbolFamily = ea.symbols
         // A no-break space in a square face is an em, where its space is
         // half of one (lab `nb1`, Word 16, 2026-10-15: "甲" + ten U+00A0 +
         // "乙" at 12pt is 12pt a space in 宋体, 黑体, 楷体 and 仿宋, 6pt
