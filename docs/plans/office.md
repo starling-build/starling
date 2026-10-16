@@ -4255,6 +4255,16 @@ fitter dropped the paragraph's tail).
   all paragraphs first: zh-ae655121 94.2 -> 87.0 by its body). No score
   moves — the line match takes a line whose first four characters agree
   — but the breaks are now Word's. Measured in one document only.
+- **A row's own cell margins stand over the table's (2026-10-16; Linux,
+  from Word's print).** zh-64044a1d's task tables say 28 twips a side in
+  `w:tblPr` and 108 in every row's `w:tblPrEx`; Word's print sets the
+  duty column's text 5.4pt in from its rule, ours at 1.4, and each line
+  held a character more ("…災情查報與協" for Word's "…與"). A cell that
+  states no margins now takes its row's exception over the table's (it
+  did only where most cells state their own). zh-64044a1d 95.2% -> 95.3,
+  bug65649 99.7 -> 99.8; nothing else moved. That page's text still
+  stands 3-4pt high: its merged duty cell goes over the page (the
+  Windows box's, see the board).
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

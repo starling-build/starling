@@ -1238,6 +1238,14 @@ enum DocxFormat {
                             let m = _cellMargins(tr.first("w:tblPrEx")).under(_cellMargins(node.first("w:tblPr")))
                                 .under(styled).under(defaultMargins).under(_Margins.word)
                             currentCell?.padding = EdgeInsets(left: m.left ?? 5.4, top: m.top ?? 0, right: m.right ?? 5.4, bottom: m.bottom ?? 0)
+                        } else if case let ex = _cellMargins(tr.first("w:tblPrEx")), ex.top != nil || ex.left != nil || ex.bottom != nil || ex.right != nil {
+                            // (A row's own margins — `w:tblPrEx` — over the
+                            // table's, for a cell that states none: zh-64044a1d's
+                            // task tables say 28 twips a side and every row 108,
+                            // and Word's print sets the duty column's text 5.4pt
+                            // in, where ours at 1.4 held a character more a line.)
+                            let m = ex.under(margins)
+                            currentCell?.padding = EdgeInsets(left: m.left ?? 5.4, top: m.top ?? 0, right: m.right ?? 5.4, bottom: m.bottom ?? 0)
                         }
                         let keptCell = ["w:noWrap", "w:tcFitText", "w:hideMark"].compactMap { tcPr?.first($0) }.map { PptxXML.serialize($0) }.joined()
                         currentCell?.keptPropertiesXML = keptCell.isEmpty ? nil : keptCell
