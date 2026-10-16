@@ -320,6 +320,13 @@ struct SlideFill: Equatable {
     /// decks' `gamma`/`shade`/`invGamma` bands were 3 points further
     /// from PowerPoint blended evenly.)
     var even = false
+    /// A stop is under `gamma` (an Office 2003 template's shaded bands,
+    /// `gamma`/`shade`/`invGamma`): PowerPoint's ramp then holds to the
+    /// lighter stop and leaves it as the square of the way along, in
+    /// sRGB — the 45541 decks' three gradients, read off its export, to a
+    /// level or two (205 → 94 is 193, 159, 102 at a quarter, half, three
+    /// quarters; ours ran 177, 150, 122 in linear light).
+    var squared = false
     /// The gradient names no direction (no `a:lin`, no `a:path`): its
     /// blend runs evenly in sRGB, whatever its stops — tdf104788's orange
     /// to cream bars, whose blue channel climbs 16, 33, 51… in

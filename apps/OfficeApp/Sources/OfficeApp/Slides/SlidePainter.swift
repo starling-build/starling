@@ -924,7 +924,8 @@ final class SlidePainter: CustomPainter {
             for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { m[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k] } } }
             return m
         }
-        let (colors, positions) = fill.even && fill.path != nil || fill.undirected ? (fill.stops.map(\.color), fill.stops.map(\.position))
+        let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
+            : fill.even && fill.path != nil || fill.undirected ? (fill.stops.map(\.color), fill.stops.map(\.position))
                                             : Self.linearLight(fill.stops, eased: fill.eased)
         if let path = fill.path, r.width > 0, r.height > 0 {
             // From the focus out to the circle through the area's four
@@ -1058,7 +1059,8 @@ final class SlidePainter: CustomPainter {
         // title (tdf114848's, light along the whole title box and darker
         // toward every edge, where a circle round the middle had it).
         if fill.path == .rect || fill.path == .shape, fill.stops.count >= 2, r.width > 0, r.height > 0 {
-            let (colors, positions) = fill.even ? (fill.stops.map(\.color), fill.stops.map(\.position))
+            let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
+                : fill.even ? (fill.stops.map(\.color), fill.stops.map(\.position))
                                                 : Self.linearLight(fill.stops, eased: fill.eased)
             func at(_ u: Double) -> Color {
                 guard let j = positions.firstIndex(where: { $0 >= u }) else { return colors.last! }
@@ -1248,6 +1250,33 @@ final class SlidePainter: CustomPainter {
                     let red = ch(16), green = ch(8), blue = ch(0)
                     let packed: Int = (alpha << 24) | (red << 16) | (green << 8) | blue
                     colors.append(Color(packed))
+                    positions.append(a.position + (s.position - a.position) * at)
+                }
+            }
+            colors.append(s.color)
+            positions.append(s.position)
+        }
+        return (colors, positions)
+    }
+
+    /// A `gamma` gradient's stops (`SlideFill.squared`) with in-betweens:
+    /// each blend in sRGB, leaving the lighter of its two stops as the
+    /// square of the way along.
+    static func squaredRamp(_ stops: [SlideFill.GradientStop]) -> ([Color], [Double]) {
+        func part(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
+        func light(_ c: Color) -> Double { 0.2126 * part(c, 16) + 0.7152 * part(c, 8) + 0.0722 * part(c, 0) }
+        var colors: [Color] = [], positions: [Double] = []
+        for i in 0 ..< stops.count {
+            let s = stops[i]
+            if i > 0 {
+                let a = stops[i - 1]
+                let fromLight = light(a.color) >= light(s.color)
+                let steps = 16
+                for k in 1 ..< steps {
+                    let at = Double(k) / Double(steps)
+                    let t = fromLight ? at * at : 1 - (1 - at) * (1 - at)
+                    func ch(_ sh: Int) -> Int { Int((part(a.color, sh) * (1 - t) + part(s.color, sh) * t).rounded()) }
+                    colors.append(Color((ch(24) << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)))
                     positions.append(a.position + (s.position - a.position) * at)
                 }
             }

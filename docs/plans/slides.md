@@ -2014,6 +2014,25 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A gradient of `gamma` stops ramps as PowerPoint's does, 2026-10-16**
+(the 45541 trio 6.49 → 6.54 each, the score's colour tolerance hiding
+the gain; nothing else has such stops). Their Office 2003 template's
+background, title bar and rule are gradients whose stops carry
+`gamma`/`shade`/`invGamma`. PowerPoint's export stores them as sampled
+ramps, and in sRGB every one holds to its lighter stop and leaves it as
+the square of the way along: 205 → 94 is 193, 159, 102 at a quarter,
+half and three quarters (a 205 → 22 one 192, 159, 104; a 3-stop
+119 → 255 → 119 one 219 at its quarters). Ours, in linear light, ran
+177, 150, 122 — the whole background up to 14 levels dark. Now
+`SlideFill.squared`, read for any gradient with a `gamma` stop: the
+background matches PowerPoint's to a level or two down the page. The
+score rises 0.05 because the text's anti-aliased edges now sit on the
+lighter blue; the background itself was inside the diff's tolerance.
+
+Built against a snapshot of the engine at bfbfc074 (`SetBaselineShift`,
+from the Word session's T48): the shared host_debug/host_release
+libraries predate it and no longer link the app.
+
 **A freeform that draws on after closing is not drawn, 2026-10-16**
 (lo-cshapes 1.92 → 0.07). LibreOffice writes its accent callouts with a
 path that goes `close` then `lnTo`, no `moveTo` between; PowerPoint
