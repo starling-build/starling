@@ -981,6 +981,15 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   级次", "资质证书编号"). Whether a big mark makes the last line of a
   paragraph with text taller (its baseline lower) is the question a lab
   of one cell would answer.
+- Linux box, 2026-10-16, a lead that needs Word: the letterhead rule in
+  zh-e37f8d40, zh-9dd9ce6d and zh-1563bd74 (a `wps` line, wrapNone, 54.35pt
+  under its header paragraph, `relativeFrom` paragraph) is 1pt low of
+  Word's. The paragraph's style has `w:pBdr` sides of `w:val="none"` with
+  `w:space="1"`: taken out, our rule meets Word's but the paragraph after
+  it (emblem and text, which now match Word's to 0.1) goes 1pt high. So
+  Word seems to keep the 1pt for the text and measure the anchor from
+  above it. One cell's lab would say which: the same header with
+  `w:space="0"`, and with a real top border.
 - Also there, p19: a vMerge cell (vAlign center) whose rows part over
   pages; Word starts its first page's lines 10pt lower than ours. Not
   measured.
