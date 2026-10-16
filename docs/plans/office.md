@@ -3909,6 +3909,15 @@ fitter dropped the paragraph's tail).
   2.18pt down (13.43, Calibri's single line), the multiple's extra under
   it as under text. Off the line grid, which has its own rule. drawing
   89.7 -> 98.1%; nothing else moved.
+- **Space is shared across a hidden paragraph (2026-10-16).**
+  drawing.docx p11: "…ОАО "ПО Водоканал г. Ростова-на-Дону"." ("text",
+  14pt after, automatic), an empty paragraph whose mark is hidden
+  (`w:vanish`), then the heading "ИА Regnum" (12pt before). Word's print
+  sets the heading's baseline 28.8 under the text's, the larger space
+  alone; ours hid the paragraph but shared the heading's space with it,
+  had both spaces, 40.75, and the page lost its foot. The space a
+  paragraph shares is now the nearest shown paragraph's above it.
+  drawing 98.1 -> 100%; nothing else moved.
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

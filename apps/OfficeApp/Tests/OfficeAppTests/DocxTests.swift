@@ -1950,6 +1950,37 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(tall.block, 24, accuracy: 0.8, "a taller picture is its own height")
     }
 
+    /// drawing.docx p11: text of 14pt after, an empty paragraph whose mark
+    /// is hidden, then a heading of 12pt before — the two spaces share
+    /// across the hidden one in Word's print, as if it were not there.
+    func testSpaceIsSharedAcrossAHiddenParagraph() throws {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        func gap(hidden: Bool) -> Double {
+            var a = RichParagraph(text: "text")
+            a.style.spaceBefore = 0
+            a.style.spaceAfter = 14
+            var b = RichParagraph(text: "Heading")
+            b.style.spaceBefore = 12
+            b.style.spaceAfter = 0
+            var paragraphs = [a, b]
+            if hidden {
+                var h = RichParagraph(text: "")
+                h.style.markHidden = true
+                h.style.spaceBefore = 0
+                h.style.spaceAfter = 0
+                paragraphs.insert(h, at: 1)
+            }
+            let l = RichLayout(theme: theme, paragraphCount: paragraphs.count)
+            l.width = 400
+            l.ensureLaidOut(RichDocument(paragraphs: paragraphs))
+            let last = paragraphs.count - 1
+            return (l.geometry(last).textTop - (l.geometry(0).textTop + l.geometry(0).painter.height)) / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(gap(hidden: true), gap(hidden: false), accuracy: 0.8, "as if the hidden paragraph were not there")
+        XCTAssertEqual(gap(hidden: false), 14, accuracy: 0.8, "the larger space alone")
+    }
+
     private func tableCount(_ x: String) -> Int { x.components(separatedBy: "<w:tbl>").count + x.components(separatedBy: "<w:tbl ").count - 2 }
 
     /// A small nested table is a table of its own: one block in its

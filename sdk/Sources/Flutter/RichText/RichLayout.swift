@@ -3872,7 +3872,15 @@ public final class RichLayout {
     /// or a table's edge.
     private func _sharedSpace(_ i: Int, _ document: RichDocument) -> Double {
         guard theme.collapsesParagraphSpacing, !document.addsParagraphSpacing,
-              i > 0, i < document.paragraphs.count, _cells[i] == nil, _cells[i - 1] == nil else { return 0 }
+              i > 0, i < document.paragraphs.count, _cells[i] == nil else { return 0 }
+        // (With the paragraph above that shows: one Word hides whole
+        // takes no room and parts nothing. drawing.docx's "ИА Regnum"
+        // (12pt before) stands 14pt under the text above it (14 after)
+        // in Word's print, an empty paragraph of a hidden mark between
+        // them; ours had both, 12pt more, and page 11 lost its foot.)
+        var above = i - 1
+        while above > 0, _vanishes(document.paragraphs[above], document) { above -= 1 }
+        guard _cells[above] == nil else { return 0 }
         let style = document.paragraphs[i].style
         // (Across a paragraph's border too: lab `sp3` in bug59058's
         // package, Word 16, 2026-10-15 — 9pt after over 9pt before is
@@ -3882,7 +3890,7 @@ public final class RichLayout {
         // off. bug59058's "Abstract", ruled under, had its 9 and the
         // body's 9 both, and page 24 lost its last line.)
         guard !style.pageBreakBefore else { return 0 }
-        return min(_spacing(i - 1, document).after, _spacing(i, document).before).rounded(.down)
+        return min(_spacing(above, document).after, _spacing(i, document).before).rounded(.down)
     }
 
     /// `_sharedSpace` in a cell: how much of cell paragraph `k`'s space
