@@ -4669,6 +4669,18 @@ fitter dropped the paragraph's tail).
   scripts/apply_engine_patches.sh; Skia itself stays upstream's): a U+3000
   is justified as an ideograph. Sideways drift 552 -> 537; no score moved.
   An engine built without the patch keeps the old placement.
+- **Off the grid too, a paragraph whose every line holds its tallest
+  stretch takes that stretch's strut (2026-10-16; Linux).** zh-d68ac84a's
+  cells (`w:line="0" atLeast`, 宋体 with a Times digit opening the first
+  line) set their first baseline 15.6pt under the rule in Word's print
+  whether they hold one line or three; ours did on one line (the tallest
+  strut, kept for single lines and the grid) and stood 1.6 to 1.8 high on
+  two or more, where the engine split the mixed first line its own way.
+  Now any paragraph whose lines each hold text of the tallest stretch
+  gets that strut; one with a line that holds none (zh-1563bd74's footer,
+  a 16pt "X" over 14pt text) is left as it was. Lines more than 1.5pt
+  off Word's: 245 -> 225 (zh-d68ac84a 12 -> 0, zh-7dc3afad 12 -> 8,
+  zh-799c91cd 8 -> 5); zh-d68ac84a 99.7 -> 99.8; nothing down.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

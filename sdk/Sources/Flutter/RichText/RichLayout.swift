@@ -4418,8 +4418,15 @@ public final class RichLayout {
             // apart — zh-64044a1d.)
             let gridded = style.eastAsian["w:snapToGrid"] != "0" && style.lineHeightPoints == nil && _grid(i, document).pitch != nil
             let lines = painter.computeLineMetrics().count
+            // (And off the grid, every line of a paragraph whose lines
+            // each hold some of its tallest stretch: zh-d68ac84a's cells
+            // of 宋体 with Times digits in their first line set that
+            // line 1.7pt high over two and three lines, and right over
+            // one. A line without that stretch is its own height — the
+            // footer of zh-1563bd74, an "X" in 16pt over a 14pt line.)
             if painter.strutStyle == nil, theme.wordRules, !picturesInLine, !Self._risesForNumber(inline),
-               lines == 1 || gridded, let strut = _strut(span, tallest: true) {
+               let strut = _strut(span, tallest: true),
+               lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 if !inline.isEmpty { held.setPlaceholderDimensions(inline.map { $0.dimensions }) }
                 held.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
@@ -5760,6 +5767,38 @@ public final class RichLayout {
         return StrutStyle(fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback,
                           fontSize: size, height: h, leadingDistribution: .even, fontWeight: base.fontWeight,
                           forceStrutHeight: true)
+    }
+
+    /// Whether each of `painter`'s lines holds some text of the span's
+    /// tallest stretch (the height `strut` was made from).
+    private static func _tallestOnEveryLine(_ span: TextSpan, _ strut: StrutStyle, _ painter: TextPainter, lines: Int) -> Bool {
+        guard let size = strut.fontSize, let h = strut.height else { return false }
+        var ranges: [Range<Int>] = []
+        var at = 0
+        func visit(_ s: InlineSpan) {
+            guard let t = s as? TextSpan else { at += 1; return }
+            if let text = t.text {
+                let n = text.utf16.count
+                if let style = t.style, let fs = style.fontSize, let fh = style.height, abs(fs * fh - size * h) < 0.01,
+                   text.unicodeScalars.contains(where: { !$0.properties.isWhitespace }) {
+                    ranges.append(at ..< at + n)
+                }
+                at += n
+            }
+            for c in t.children ?? [] { visit(c) }
+        }
+        visit(span)
+        let metrics = painter.computeLineMetrics()
+        var held = Set<Int>()
+        for r in ranges {
+            for box in painter.getBoxesForSelection(TextSelection(baseOffset: r.lowerBound, extentOffset: r.upperBound)) {
+                let middle = (box.top + box.bottom) / 2
+                if let k = metrics.firstIndex(where: { middle >= $0.baseline - $0.ascent && middle <= $0.baseline + $0.descent }) {
+                    held.insert(k)
+                }
+            }
+        }
+        return held.count == lines
     }
 
     /// The first line's indent in points, where the theme sets first
