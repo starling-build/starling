@@ -2378,8 +2378,14 @@ public final class RichLayout {
                 // part that goes over is one line of its own with three
                 // of the merged cell beside it; the next row stood over
                 // them.)
+                // (… and where the row went over whole, too, and is laid
+                // out again at the page's head: zh-e6d54ae4's row "3.旅服
+                // 中心每半年…" has no line at page 5's foot, and the cell
+                // merged down beside it takes five lines over with it; the
+                // row stood at its own height and the next row over the
+                // last of them, "施。".)
                 var carried = 0.0
-                if theme.wordRules, !first {
+                if theme.wordRules, !first || fresh {
                     for piece in _pages[page] where piece.part != .rules && piece.paragraph < i && !piece.repeated {
                         let m = piece.paragraph
                         guard let d = _cells[m], d.table == c.table, d.row < c.row, !d.vertical,
@@ -2387,7 +2393,8 @@ public final class RichLayout {
                         carried = max(carried, piece.pageY + (min(piece.flowBottom, _tops[m] + _heights[m]) - piece.flowTop) + d.pad.bottom - y)
                     }
                 }
-                let rest = first ? c.ownRowHeight : max(stated, carried, columns.map { max(0, $0.bottom - $0.cut) }.max() ?? 0)
+                let rest = first ? (carried > 0 ? max(c.ownRowHeight - c.stretched, carried) : c.ownRowHeight)
+                    : max(stated, carried, columns.map { max(0, $0.bottom - $0.cut) }.max() ?? 0)
                 var fits = rest + ruleUnder(c) <= avail + 0.01
                 // A row is not begun where the height the file states
                 // for it has no room: it goes to the next page whole,
@@ -2544,7 +2551,8 @@ public final class RichLayout {
                 // The rules: from the row's top down to the page's foot,
                 // then the row's last stretch with its bottom line.
                 let shown = fits ? rest : avail
-                let from = first ? c.rowTop : fits ? rowBottom - rest : max(c.rowTop + 1, min(rowBottom - rest, rowBottom - avail - 1))
+                let from = first && !(fits && rest > c.ownRowHeight + 0.01) ? c.rowTop
+                    : fits ? rowBottom - rest : max(c.rowTop + 1, min(rowBottom - rest, rowBottom - avail - 1))
                 var rule = PagePiece(paragraph: i, flowTop: from, flowBottom: min(rowBottom, from + shown), page: page, pageY: y)
                 rule.part = .rules
                 rules.append(rule)

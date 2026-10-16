@@ -3032,6 +3032,18 @@ fitter dropped the paragraph's tail).
   (zh-e27cd8bf +0.8, zh-1563bd74 +0.5, zh-d68ac84a +0.4, zh-e37f8d40
   +0.3, zh-1a3c7aa0 +0.2); POI unchanged; nothing down.
 
+- **A row that goes over whole holds the merged cell's text it takes
+  with it (2026-10-15).** zh-e6d54ae4's "依據服務特性…" is merged down
+  over three rows; the third ("3.旅服中心每半年…") has no line at page
+  5's foot and goes to page 6 whole, and the merged cell's last five
+  lines go with it. Laid out again at the page's head, the row stood at
+  its own height — the merged text had been taken up again there, but
+  only a row that had already parted counted it — so the line that had
+  stood across page 5's foot in the flow, gone over whole, pushed
+  "施。" half a line under the row and the next row's text 16pt above
+  Word's. Such a row is now as tall as the merged text asks too, its
+  rules drawn to there. zh-e6d54ae4 93.5% -> 99.2; nothing else moved.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the
