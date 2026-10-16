@@ -3388,7 +3388,12 @@ public final class RichLayout {
                 // (The last line may reach past the foot by its grid's
                 // overhang.)
                 let overhang = theme.wordRules && i < _overhang.count ? _overhang[i] : 0
-                if rest <= available + 0.01 + overhang {
+                // (Word sets a line only where it ends above the foot, not
+                // on it: lab `pf`, Word 16, 2026-10-16 — 33 lines of exactly
+                // 20.85pt fit a page with a twip to spare and not one with
+                // none, where ours took the 33rd on the foot.)
+                let slack = theme.wordRules ? -_px(0.025) : 0.01
+                if rest <= available + slack + overhang {
                     // (The line, not its space after: that may stand past the foot.)
                     if rest > available + 0.01, case let g = geometry(i), let line = Self._lineBottoms(g.painter).last,
                        g.textTop + line - cursor > available + 0.01 { overfull = true }
@@ -3409,7 +3414,7 @@ public final class RichLayout {
                 }
                 // The lowest cut that still fits.
                 var cut: Double? = nil
-                for c in cuts! where c > cursor + 0.01 && c - cursor <= available + 0.01 + overhang { cut = c }
+                for c in cuts! where c > cursor + 0.01 && c - cursor <= available + slack + overhang { cut = c }
                 // Word's rules for where a paragraph may part: not at all
                 // (`w:keepLines`), or — its widow and orphan control,
                 // which is on unless the paragraph says otherwise — with

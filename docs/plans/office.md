@@ -4746,6 +4746,15 @@ fitter dropped the paragraph's tail).
   bug57031's SAS tables (top 0.75pt, bottom 0.25) are framed in Word's
   print, each that much taller, and page 11 ran 2.7pt short without it.
   bug57031 87.0% -> 94.1, nothing else moved.
+- **A line fits only above the page's foot, not on it (2026-10-16).**
+  Labs `pf1630`-`pf1644` (Word 16): 33 lines of exactly 20.85pt (417
+  twips each, 13761 together) fit a page whose text height is 13762
+  twips or more and not one of exactly 13761 — Word wants the line's
+  bottom strictly above the foot; ours took it on the foot, with a
+  hundredth of a pixel to spare besides. The paragraph line-fit test now
+  wants half a twip. No corpus document moved (zh-e061a08e's 0.2pt over
+  the footer is decided elsewhere); the Slides session reports
+  PowerPoint's baselines on the same 0.24pt raster, rounded down.
 - **Lead, not taken: a page-anchored floating table that Word breaks
   after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
   the rest of the table, which would fit, goes to page 21 in Word's
