@@ -556,14 +556,38 @@ enum Xlsx {
         else if let s = c["rgb"], let v = UInt32(s.suffix(6), radix: 16) { rgb = v }
         else if let i = c["indexed"].flatMap({ Int($0) }), i < _indexed.count { rgb = _indexed[i] }
         guard var v = rgb else { return nil }
-        if let tint = c["tint"].flatMap({ Double($0) }), tint != 0 {
-            func ch(_ x: UInt32) -> UInt32 {
-                let d = Double(x)
-                return UInt32(max(0, min(255, (tint < 0 ? d * (1 + tint) : d + (255 - d) * tint).rounded())))
-            }
-            v = (ch((v >> 16) & 0xFF) << 16) | (ch((v >> 8) & 0xFF) << 8) | ch(v & 0xFF)
-        }
+        if let tint = c["tint"].flatMap({ Double($0) }), tint != 0 { v = _tinted(v, tint) }
         return v
+    }
+
+    /// A colour with a theme tint: its luminance moved toward black (a
+    /// negative tint) or white, in HSL as Excel moves it — not each channel
+    /// scaled, which greys a colour: lo-tdf171828's "Background 2, darker
+    /// 25%" over the 2007 theme's EEECE1 is Excel's olive C4BD97, where
+    /// scaling the channels made B2B1A9.
+    static func _tinted(_ v: UInt32, _ tint: Double) -> UInt32 {
+        let r = Double((v >> 16) & 0xFF) / 255, g = Double((v >> 8) & 0xFF) / 255, b = Double(v & 0xFF) / 255
+        let hi = max(r, g, b), lo = min(r, g, b)
+        var l = (hi + lo) / 2
+        var h = 0.0, s = 0.0
+        if hi > lo {
+            let d = hi - lo
+            s = l > 0.5 ? d / (2 - hi - lo) : d / (hi + lo)
+            if hi == r { h = (g - b) / d + (g < b ? 6 : 0) } else if hi == g { h = (b - r) / d + 2 } else { h = (r - g) / d + 4 }
+            h /= 6
+        }
+        l = tint < 0 ? l * (1 + tint) : l * (1 - tint) + tint
+        func channel(_ t0: Double) -> UInt32 {
+            var t = t0
+            if t < 0 { t += 1 }
+            if t > 1 { t -= 1 }
+            let q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q
+            let x: Double
+            if t < 1.0 / 6 { x = p + (q - p) * 6 * t } else if t < 0.5 { x = q } else if t < 2.0 / 3 { x = p + (q - p) * (2.0 / 3 - t) * 6 } else { x = p }
+            return UInt32(max(0, min(255, (x * 255).rounded())))
+        }
+        if s == 0 { let x = UInt32(max(0, min(255, (l * 255).rounded()))); return (x << 16) | (x << 8) | x }
+        return (channel(h + 1.0 / 3) << 16) | (channel(h) << 8) | channel(h - 1.0 / 3)
     }
 
     /// Excel's theme slots in the order cells name them (lt1, dk1, lt2,
