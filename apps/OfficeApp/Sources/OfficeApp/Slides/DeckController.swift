@@ -59,6 +59,8 @@ struct ShapeState: Equatable {
     var insetsFollowFont = false
     var sizeGroup: String? = nil
     var outlineDash: String? = nil
+    var headEnd: LineEnd? = nil
+    var tailEnd: LineEnd? = nil
     var textTurn = 0
     var shadow: CharShadow? = nil
     var glowRadius: Double? = nil
@@ -1144,6 +1146,8 @@ final class DeckController: ChangeNotifier {
         st.pictureLevels = s.pictureLevels
         st.sizeGroup = s.sizeGroup
         st.outlineDash = s.outlineDash
+        st.headEnd = s.headEnd
+        st.tailEnd = s.tailEnd
         st.textTurn = s.textTurn
         st.shadow = s.shadow
         st.glowRadius = s.glowRadius
@@ -1241,6 +1245,8 @@ final class DeckController: ChangeNotifier {
         shape.insetsFollowFont = st.insetsFollowFont
         shape.sizeGroup = st.sizeGroup
         shape.outlineDash = st.outlineDash
+        shape.headEnd = st.headEnd
+        shape.tailEnd = st.tailEnd
         shape.textTurn = st.textTurn
         shape.shadow = st.shadow
         shape.glowRadius = st.glowRadius

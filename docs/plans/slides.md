@@ -1879,6 +1879,16 @@ was taken with that negative height, which draws nothing. The frame is
 the window's size now, its sign left to the mapping, which turns the
 picture the right way up into it, as GDI does.
 
+**Arrowheads, 2026-10-15** (the 24 decks with one: within ±0.02 each —
+heads are small). `a:headEnd`/`a:tailEnd` were not read, so every
+connector and line arrow ended bare. They are drawn now at PowerPoint's
+sizes, measured off its PDFs: width and length the line's width times
+2, 3 or 5 (sm, med, lg), the line's width taken as 2 pt at least — a
+medium head on cooper's ¾ pt connectors and lo-connectors' ½ pt ones is
+6 pt; "triangle" (and "stealth", "diamond", "oval") filled, the line
+stopping inside it; "arrow" open, two strokes. Straight lines only;
+bent and curved connectors still end bare.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and

@@ -750,7 +750,22 @@ final class SlidePainter: CustomPainter {
                 }
                 canvas.drawPath(Self.dashed(outline, dash, width: p.strokeWidth), p)
             } else if shape.preset?.isLine == true {
-                canvas.drawLine(Offset(r.left, r.top), Offset(r.right, r.bottom), p)
+                // From its start to its end, stopping inside a filled head.
+                var a = Offset(r.left, r.top), b = Offset(r.right, r.bottom)
+                let base = max(shape.outlineWidth, 2) * px
+                func pulled(_ tip: Offset, from other: Offset, _ e: LineEnd?) -> Offset {
+                    guard let e, ["triangle", "stealth"].contains(e.kind) else { return tip }
+                    let d = Offset(tip.dx - other.dx, tip.dy - other.dy), len = (d.dx * d.dx + d.dy * d.dy).squareRoot()
+                    guard len > 1e-6 else { return tip }
+                    let back = min(len / 2, e.length * base * 0.8)
+                    return Offset(tip.dx - d.dx / len * back, tip.dy - d.dy / len * back)
+                }
+                let a0 = a, b0 = b
+                a = pulled(a0, from: b0, shape.headEnd)
+                b = pulled(b0, from: a0, shape.tailEnd)
+                canvas.drawLine(a, b, p)
+                if let e = shape.headEnd { Self.lineEnd(e, tip: a0, from: b0, base: base, paint: p, canvas) }
+                if let e = shape.tailEnd { Self.lineEnd(e, tip: b0, from: a0, base: base, paint: p, canvas) }
             } else if let path {
                 canvas.drawPath(path, p)
             } else {
@@ -1190,6 +1205,56 @@ final class SlidePainter: CustomPainter {
 
     /// The outline of a preset shape filling `r`, with PowerPoint's default
     /// adjustments.
+    /// An arrowhead at `tip`, the line coming from `from`: PowerPoint's
+    /// sizes, its width and length multiples of the line's width with the
+    /// width taken as 2 pt at least (`base`) — a medium head on a ¾ or
+    /// ½ pt line is 6 pt wide and long in its print (cooper's, lo-
+    /// connectors'), on a 3¼ pt one about 10 (customGeo's).
+    static func lineEnd(_ e: LineEnd, tip: Offset, from: Offset, base: Double, paint line: Paint, _ canvas: any Canvas) {
+        let d = Offset(tip.dx - from.dx, tip.dy - from.dy), len = (d.dx * d.dx + d.dy * d.dy).squareRoot()
+        guard len > 1e-6 else { return }
+        let u = Offset(d.dx / len, d.dy / len), n = Offset(-u.dy, u.dx)
+        let w = e.width * base / 2, l = e.length * base
+        func at(_ along: Double, _ across: Double) -> Offset {
+            Offset(tip.dx + u.dx * along + n.dx * across, tip.dy + u.dy * along + n.dy * across)
+        }
+        let p = Paint()
+        p.isAntiAlias = true
+        p.color = line.color
+        let path = Path()
+        switch e.kind {
+        case "arrow":
+            // Open: two strokes back from the tip, at the line's width.
+            p.style = .stroke
+            p.strokeWidth = line.strokeWidth
+            p.strokeCap = .round
+            p.strokeJoin = .round
+            let s = at(-l, w), t = at(-l, -w)
+            path.moveTo(s.dx, s.dy); path.lineTo(tip.dx, tip.dy); path.lineTo(t.dx, t.dy)
+            canvas.drawPath(path, p)
+            return
+        case "stealth":
+            let s = at(-l, w), m = at(-l * 0.5, 0), t = at(-l, -w)
+            path.moveTo(tip.dx, tip.dy); path.lineTo(s.dx, s.dy); path.lineTo(m.dx, m.dy); path.lineTo(t.dx, t.dy); path.close()
+        case "diamond":
+            let f = at(l / 2, 0), s = at(0, w), k = at(-l / 2, 0), t = at(0, -w)
+            path.moveTo(f.dx, f.dy); path.lineTo(s.dx, s.dy); path.lineTo(k.dx, k.dy); path.lineTo(t.dx, t.dy); path.close()
+        case "oval":
+            canvas.save()
+            canvas.translate(tip.dx, tip.dy)
+            canvas.rotate(atan2(u.dy, u.dx))
+            p.style = .fill
+            canvas.drawOval(Rect.fromLTRB(-l / 2, -w, l / 2, w), p)
+            canvas.restore()
+            return
+        default:   // "triangle"
+            let s = at(-l, w), t = at(-l, -w)
+            path.moveTo(tip.dx, tip.dy); path.lineTo(s.dx, s.dy); path.lineTo(t.dx, t.dy); path.close()
+        }
+        p.style = .fill
+        canvas.drawPath(path, p)
+    }
+
     static func geometryPath(_ preset: ShapePreset, _ r: Rect) -> Path {
         let path = Path()
         let w = r.width, h = r.height, l = r.left, t = r.top

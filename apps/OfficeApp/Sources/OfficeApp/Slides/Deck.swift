@@ -182,6 +182,15 @@ struct OpaqueObject: Equatable {
     var rendering: [ShapeState] = []
 }
 
+/// An arrowhead (`a:headEnd`/`a:tailEnd`): its kind ("triangle",
+/// "arrow", "stealth", "diamond", "oval") and its width and length as
+/// multiples of the line's width — 2, 3 or 5 for sm, med, lg.
+struct LineEnd: Equatable {
+    var kind: String
+    var width: Double
+    var length: Double
+}
+
 /// A DrawingML preset shape, by its `prst` name. Open-ended: a file can
 /// name any of PowerPoint's ~180 presets, and a shape keeps its name through
 /// a save whether or not this app draws it exactly (unknown ones draw as
@@ -429,6 +438,10 @@ final class SlideShape {
     /// `a:ln/a:prstDash`: the outline's dash pattern ("dash", "sysDot"…);
     /// nil for a solid line.
     var outlineDash: String? = nil
+    /// `a:ln/a:headEnd` and `a:tailEnd`: an arrowhead at the line's start
+    /// and end.
+    var headEnd: LineEnd? = nil
+    var tailEnd: LineEnd? = nil
     /// `bodyPr vert`: the text set a quarter turn clockwise (1: `vert`,
     /// `eaVert`) or anticlockwise (-1: `vert270`); 0 across.
     var textTurn = 0

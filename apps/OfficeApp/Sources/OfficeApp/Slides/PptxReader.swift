@@ -850,6 +850,13 @@ struct PptxReader {
         return f
     }
 
+    /// An arrowhead, or nil for none.
+    static func lineEnd(_ n: XNode?) -> LineEnd? {
+        guard let n, let kind = n["type"], kind != "none" else { return nil }
+        func size(_ v: String?) -> Double { v == "sm" ? 2 : v == "lg" ? 5 : 3 }
+        return LineEnd(kind: kind, width: size(n["w"]), length: size(n["len"]))
+    }
+
     /// A line's preset dash (`a:prstDash`), nil for solid.
     static func dash(_ ln: XNode?) -> String? {
         // A custom dash (`a:custDash`), its stops in thousandths of a
@@ -1404,6 +1411,8 @@ private struct SlideContext {
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.outlineDash = PptxReader.dash(spPr?.first("a:ln")) ?? inheritedDash
+        st.headEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:headEnd"))
+        st.tailEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:tailEnd"))
         st.shadow = _shapeShadow(spPr, style)
         if let effects = spPr?.first("a:effectLst") {
             if let g = effects.first("a:glow"), let c = colors.color(in: g) {
@@ -1595,6 +1604,8 @@ private struct SlideContext {
         st.sourcePart = part
         st.keptLine = KeptLine(line: frame, box: box, outline: color, width: width)
         st.outlineDash = PptxReader.dash(el.first("p:spPr")?.first("a:ln"))
+        st.headEnd = PptxReader.lineEnd(ln?.first("a:headEnd"))
+        st.tailEnd = PptxReader.lineEnd(ln?.first("a:tailEnd"))
         return st
     }
 
