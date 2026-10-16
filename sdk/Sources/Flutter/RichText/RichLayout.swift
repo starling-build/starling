@@ -4858,6 +4858,11 @@ public final class RichLayout {
         var inserts: [Int] = []
         var before: Character? = nil
         var beforeBefore: Character? = nil
+        // (Whether the last character that was not a space was an
+        // ideograph, and where the paragraph's trailing spaces start: see
+        // the spaces that end a paragraph after one, below.)
+        var afterIdeograph = false
+        let trailingSpaces = p.text.utf16.count - p.text.utf16.reversed().prefix(while: { $0 == 0x20 }).count
         let breaksAtQuotes = theme.wordRules && document.usesEastAsianLayout
         // (A paragraph that turns the line-breaking rules off —
         // `w:kinsoku` 0 — may start a line with a closing mark and end
@@ -4980,6 +4985,8 @@ public final class RichLayout {
                 var s = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
                                         characterClass: classed && kind >= 0 ? kind : nil, characterGrid: grid, scriptHidden: true)
                 if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
+                // (A space set in the ideographs' face keeps the stand-in's width.)
+                if kind == -2 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + _spaceWidth(style(classed ? RichResolvedFace.characterClass(" ") : 0)) - _spaceWidth(s)) }
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
@@ -5039,7 +5046,20 @@ public final class RichLayout {
                 // (An ideographic space on a line of spaces alone is set
                 // as the mark is, in the run's Latin face: see `lineSize`.)
                 let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)
-                let kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
+                var kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
+                // The spaces that end a paragraph after ideographs, in a run
+                // whose Latin letters stand in for an East Asian face's
+                // own, take the ideographs' face, at the stand-in's width
+                // (kind -2): set in the stand-in, its other ascent and
+                // descent made the line taller than either face. The Mac's
+                // lab `hfl` (Word 16): five spaces after "红河县人民政府发布"
+                // in 14pt bold 宋体 make the paragraph no taller; ours stood
+                // 1.2pt taller on Linux, and zh-1563bd74's footer took a
+                // line off a page. (Spaces within the line are left in the
+                // stand-in: set in the ideographs' face, the line fitting
+                // measured them otherwise, and lines parted elsewhere.)
+                if theme.wordRules, ch == " ", afterIdeograph, offset >= trailingSpaces, latinFace?.isEastAsian == true { kind = -2 }
+                if ea { afterIdeograph = true } else if ch != " " { afterIdeograph = false }
                 // A stretch of Latin characters with no space in it is
                 // one word to Word, which parts it only after a hyphen:
                 // an address, a date with strokes, "100%200%", "(a)(b)"

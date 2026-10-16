@@ -3796,6 +3796,25 @@ fitter dropped the paragraph's tail).
   wider than its ruby spreads the ruby. Within 2pt of Word's both ways;
   61470 0 -> 100%. Not built: rubyAlign other than distributeSpace and
   centre, and ruby in the editor (it is drawn, not editable).
+- **A paragraph's trailing spaces after ideographs take the
+  ideographs' face (2026-10-16).** zh-1563bd74's footer: "X" in 16pt
+  Calibri on a line of its own, then "红河县人民政府发布" and five spaces
+  in 14pt bold 宋体. The Mac's lab `hfl` (Word 16, the paragraph in the
+  body four ways): the spaces make it no taller (52.56 with them, 52.80
+  without). Ours set them in the square face's Latin stand-in (Liberation
+  Mono at 5/6), whose ascent and descent split the line otherwise than
+  the platform's CJK fallback; the engine took the deeper of each, 14.58
+  above from Noto Sans CJK and 4.82 below from the mono, and the line
+  stood 19.4pt for 18.2 on Linux (18.6 on the Mac, its fallback nearer
+  the mono's split). The footer ran 0.8pt tall, and page 25's last empty
+  line went over: from there every page a line late, 30 pages to Word's
+  29. Now the spaces that end a paragraph after ideographs, in a run
+  whose Latin letters stand in for an East Asian face's, are set in the
+  ideographs' face at the stand-in's width. zh-1563bd74 88.6 -> 99.7%,
+  Word's 29 pages; nothing else moved. (All spaces after ideographs, mid
+  line too, was tried first: the line fitting measures those otherwise,
+  and zh-232090e0 95.7 -> 4.3, zh-2b955411 98 -> 34.5 and four more
+  collapsed.)
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

@@ -684,18 +684,22 @@ Built (office.md, "Ruby"): read onto the base's style, the base spread,
 the line made room, the ruby drawn over it, written back as it came.
 61470 0 -> 100%; within 2pt of Word's. Nothing else moved.
 
-### T44. Spaces after ideographs take the ideographs' face
+### T44. A paragraph's trailing spaces after ideographs take the ideographs' face — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
-Documents: zh-1563bd74 (the note below; a page short on Linux).
+Documents: zh-1563bd74 (the note below; a page long on Linux).
 Known: the Mac's lab `hfl` (Word 16, the footer's P2 in the body, four
 variants): five trailing spaces after "红河县人民政府发布" in 14pt bold 宋体
 make the paragraph no taller (52.56 with them, 52.80 without; 51.12 and
 51.36 without the X). Ours sets those spaces in the Latin stand-in
 (Liberation Mono), whose depth the line takes: 19.4pt for 18.2.
+Built (office.md): those spaces, at a paragraph's end, are set in the
+ideographs' face at the stand-in's width. zh-1563bd74 88.6 -> 99.7%,
+Word's 29 pages. Spaces within a line left as they were (tried: six
+documents collapsed — the line fitting measures them otherwise).
 
-### Note from the Linux dev box (2026-10-16): zh-1563bd74 is short a page on Linux only
+### Note from the Linux dev box (2026-10-16): zh-1563bd74 runs a page long on Linux only — settled by T44
 Owner: none — a lead (zh-1563bd74's notes are the Windows box's).
-zh-1563bd74 is 88.6% on Linux (29 pages) and 99%+ on the Mac (30). Page
+zh-1563bd74 was 88.6% on Linux (30 pages to Word's 29), 99%+ on the Mac. Page
 25's last paragraph, an empty exact-28pt line, misses the foot by 0.4pt
 in the PDF's units (20 to the point), so "第十章 就业救助" and all after
 start a line low. The footer is 0.8pt taller here: its paragraphs are

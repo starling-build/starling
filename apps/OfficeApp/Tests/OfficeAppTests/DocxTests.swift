@@ -1305,6 +1305,44 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThan(measure(doc).width, measure(plain).width + 1, "the base spread across the ruby's width")
     }
 
+    func testSpacesAfterIdeographsAddNothingToTheLine() throws {
+        // zh-1563bd74's footer: "红河县人民政府发布" and five spaces in 14pt
+        // bold 宋体, a line under a taller one. Word sets it no taller for
+        // the spaces (the Mac's lab `hfl`); ours set them in the Latin
+        // stand-in, whose depth the line took — 19.4pt for 18.2 on Linux.
+        // The spaces now take the ideographs' face, at the stand-in's width.
+        // (The unit tests have no ICU to part the line as the app does, so
+        // the face is what is tested.)
+        var song = CharStyle(bold: true, fontFamily: "宋体", fontSize: 14)
+        song.eastAsiaFontFamily = "宋体"
+        func spans(_ text: String) -> [TextSpan] {
+            var p = RichParagraph(text: text)
+            p.runs = [Run(length: text.utf16.count, style: song)]
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            theme.faceResolver = OfficeFonts.face
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 600
+            l.ensureLaidOut(RichDocument(paragraphs: [p]))
+            var out: [TextSpan] = []
+            func visit(_ s: InlineSpan) {
+                guard let t = s as? TextSpan else { return }
+                if let x = t.text, !x.isEmpty { out.append(t) }
+                for c in t.children ?? [] { visit(c) }
+            }
+            if let root = l.geometry(0).painter.text { visit(root) }
+            return out
+        }
+        let all = spans("红河县人民政府发布     ")
+        let ideographs = try XCTUnwrap(all.first { $0.text?.contains("红") == true })
+        let tail = try XCTUnwrap(all.last { $0.text?.allSatisfy { $0 == " " } == true })
+        XCTAssertEqual(tail.style?.fontFamily, ideographs.style?.fontFamily, "the trailing spaces in the ideographs' face")
+        // (At the stand-in's width: as wide as spaces between Latin letters.)
+        let latin = spans("红河县 A B")
+        XCTAssertNotEqual(latin.first { $0.text == " A B" || $0.text?.hasPrefix(" ") == true }?.style?.fontFamily, ideographs.style?.fontFamily,
+                          "spaces within the line stay in the stand-in")
+    }
+
     func testAFrameOfNoWidthStandsWhereItIsAligned() throws {
         // Bug51170: the footer's page number is a frame aligned right in
         // the margins with no width of its own; Word sets it at the right
