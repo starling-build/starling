@@ -791,6 +791,13 @@ struct DiagramLayout {
             // PowerPoint, not the rest of the column.)
             if unbounded("h"), !nominalH, c.vals["h"] == nil { h = max(h, min(c.caps["h"] ?? .infinity, node.rect.height - y)) }
             if unbounded("w"), c.vals["w"] == nil { w = max(w, min(c.caps["w"] ?? .infinity, node.rect.width - x)) }
+            // The author's own resizing (`custScaleX`/`Y`), about the
+            // box's middle and after the constraints: composite-infer-right's
+            // picture is 70.8% of its fifth, its text where it was.
+            if let pr = model.pres[c.point.id + "|" + c.name] {
+                if let sx = pr["custScaleX"].flatMap(Double.init), sx > 0 { x += w * (1 - sx / 100_000) / 2; w *= sx / 100_000 }
+                if let sy = pr["custScaleY"].flatMap(Double.init), sy > 0 { y += h * (1 - sy / 100_000) / 2; h *= sy / 100_000 }
+            }
             c.rect = Rect.fromLTWH(node.rect.left + x, node.rect.top + y, w, h)
             layoutNode(c)
             // A child that came out smaller than its slot keeps the

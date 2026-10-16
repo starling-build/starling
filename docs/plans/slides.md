@@ -2014,6 +2014,17 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A diagram node's own resizing, 2026-10-16** (composite-infer-right
+3.72 → 2.24; the other 72 diagram decks unchanged). A point's
+`custScaleX`/`custScaleY` (the author dragging a shape's size) was not
+read: composite-infer-right's picture placeholder is 70.8% of the fifth
+its constraint gives it, about its middle, in PowerPoint's print, and
+the text beside it stays where the constraint put it. Read now for a
+composite's children. Not for a linear layout's (linear-rule's 142%,
+the one other deck with one), and `custLinFactNeighborX`/`Y` are not
+followed — the box with them in this deck is where its constraints put
+it.
+
 **A diagram's text frame turned a quarter in a shape that is not,
 2026-10-16** (tdf135953_SmartArt_textposition: "left shape" and "right
 shape" now read upward up their boxes' sides, as in PowerPoint's print;
