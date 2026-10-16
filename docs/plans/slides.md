@@ -2014,6 +2014,28 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A baseline by the face the text names, 2026-10-16** (GeomLec1 8.16
+→ 7.22, the AES deck 8.10 → 7.54, aascu 5864 8.56 → 8.40, two more a
+hundredth; none worse). PowerPoint sets a line's baseline by the
+proportions of the face it names — its Windows ascent and descent —
+and we set it by the stand-in's. Where that is a metric clone (Calibri,
+Arial, Times, Courier New) the two agree, and Calibri's 2,843 lines
+compared stand a median 0.001 em off PowerPoint's. Where it is not,
+they did not: Verdana in DejaVu Sans stood 0.039 em high, Segoe UI in
+Calibri's 0.047, Tahoma in Liberation Sans 0.032, and Lucida Sans
+Unicode 0.10 low. `RichTextTheme.ownDescentShare` (shared, nil and so
+off for Word) now gives the named face's share below the baseline for
+those four (`SlideFonts.ownDescentShare`), and the paragraph is drawn
+that much lower or higher. HowWeRefactor's Segoe UI is unchanged: its
+file asks for Myriad Pro, which PowerPoint's machine set in Segoe UI.
+
+Found on the way, and not followed: 90% of the baselines in
+PowerPoint's PDFs lie on a 1/300-inch grid (0.24 pt) from the page's
+top, floored (chance would put 4% there); ours lie anywhere. Our lines
+are mostly further off than the grid's step for other reasons, so
+snapping would gain little yet, and the engine sets a paragraph's lines
+together, so it would mean drawing each line on its own.
+
 **A 2007-style chart's plot stands further from its legend,
 2026-10-16** (radar-chart 2.01 → 1.74, bar-chart −0.07, scatter −0.02;
 aascu 5864 +0.04). The four 2007-style charts (style 2, legend at the

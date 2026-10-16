@@ -1350,6 +1350,7 @@ final class DeckController: ChangeNotifier {
         let theme = RichTextTheme(fontFamily: font, fontSize: size, textColor: color, caretColor: color,
                                   headingColor: nil, listIndent: 18)
         theme.fontFamilyResolver = SlideFonts.resolve
+        theme.ownDescentShare = SlideFonts.ownDescentShare   // and sets a baseline by the face named
         theme.marksEmptyListItems = false   // PowerPoint shows no bullet on an empty paragraph
         theme.markersAtHang = true          // and puts the bullet at marL + indent
         theme.singleLineHeight = 1.2        // spaces lines by the size, not the face

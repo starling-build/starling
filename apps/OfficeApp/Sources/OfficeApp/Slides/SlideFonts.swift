@@ -19,4 +19,20 @@ enum SlideFonts {
         guard !n.hasPrefix("cambria"), n != "caladea" else { return face }
         return OfficeFonts.calibri
     }
+
+    /// The share of the line below the baseline for a face we draw with
+    /// a stand-in of other proportions — its Windows ascent and descent
+    /// (Verdana 2059 and 430 of 2048, Tahoma 2049 and 423, Segoe UI 2210
+    /// and 514, Lucida Sans Unicode 2246 and 901). PowerPoint sets the
+    /// baseline by them: the AES deck's Verdana stood 0.04 of its size
+    /// high in DejaVu Sans's, HowWeRefactor's Segoe UI as much in its
+    /// stand-in's, and GeomLec1's Lucida Sans Unicode 0.1 low.
+    static func ownDescentShare(_ family: String) -> Double? {
+        let n = family.trimmingWhitespace().lowercased()
+        if n == "verdana" { return 430.0 / 2489 }
+        if n.hasPrefix("tahoma") { return 423.0 / 2472 }
+        if n.hasPrefix("segoe ui") { return 514.0 / 2724 }
+        if n == "lucida sans unicode" { return 901.0 / 3147 }
+        return nil
+    }
 }

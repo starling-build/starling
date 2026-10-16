@@ -156,10 +156,23 @@ public final class RichTextTheme {
         // tdf137367's 40 pt Calibri, 0.72 in bug68703's 11 pt cells, the
         // engine's own share 0.75; all of it above had them 7.3 and 1.9
         // pt low.)
-        guard multiple < 1 else { return 0 }
-        let family = (style.fontFamily ?? fontFamily).map { fontFamilyResolver?($0) ?? $0 }
-        return (multiple - 1) * single * descentShare(family: family, bold: style.bold, italic: style.italic)
+        let name = style.fontFamily ?? fontFamily
+        let own = name.flatMap { ownDescentShare?($0) }
+        guard multiple < 1 || own != nil else { return 0 }
+        let family = name.map { fontFamilyResolver?($0) ?? $0 }
+        let drawn = descentShare(family: family, bold: style.bold, italic: style.italic)
+        // (The face the text asks for, where its stand-in is not its
+        // clone, keeps its own depth below the baseline: `ownDescentShare`.)
+        let below = own ?? drawn
+        return multiple < 1 ? single * (multiple * drawn - below) : multiple * single * (drawn - below)
     }
+
+    /// The share of a face's single line below its baseline, by the
+    /// name the text asks for, where the face that draws it is not cut
+    /// to its metrics — nil for the drawn face's own. PowerPoint sets a
+    /// line's baseline by the face it names: Verdana's at 0.83 of the
+    /// line, where DejaVu Sans, drawing it, has 0.80.
+    public var ownDescentShare: ((String) -> Double?)? = nil
 
     public func naturalLineHeight(family: String?, bold: Bool, italic: Bool) -> Double {
         if let singleLineHeight { return singleLineHeight }
