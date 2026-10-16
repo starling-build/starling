@@ -640,6 +640,14 @@ Built: two list items either side of a cell's edge are not alike
 (reference lists breaking lines elsewhere; Word starts one with "，"),
 p70-72 (T41).
 
+### T41. A paragraph's first-line count in characters replaces its style's hanging one
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: zh-06c46ba9 (p70's division-of-work table, rows 30pt left of
+Word's), zh-64044a1d (37 such paragraphs).
+Known: style "一" (afb) says hangingChars 200; the cells' paragraphs say
+firstLineChars 0 and firstLine 0. The reader keeps both counts, and the
+layout reads hangingChars first, so each line hangs two characters out.
+
 ### Leads from the Windows box (2026-10-16, measured, not built)
 - Lab `ps` (~/starling-doc-check/lab/ps, Word 16): before 2013's
   layout (mode 14) a space after an inline picture wider than the line
