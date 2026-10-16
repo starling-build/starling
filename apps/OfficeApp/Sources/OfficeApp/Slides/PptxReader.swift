@@ -1972,6 +1972,9 @@ private struct SlideContext {
                          bandFill: banded ? DeckController.tint(accent, 0.40) : nil,
                          bandAltFill: banded ? DeckController.tint(accent, 0.20) : nil,
                          borderColor: Color(0xFFFFFFFF))
+        // A table with no style (or "Table Grid") is ruled in 1 pt black,
+        // as PowerPoint draws tdf135843_export's grid, not the editor's ½.
+        if plain, ts.borders { ts.borderWidth = 1 }
         if let style {
             // As the deck's style has it: the header's own fill (none is
             // none, not a tint), band 1 and band 2 over the whole table's

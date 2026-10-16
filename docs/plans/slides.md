@@ -1956,6 +1956,13 @@ file's own spelling is kept for a save. (formatting-bullet-indent scores
 worse for being right: its 44 pt Calibri Light falls to Carlito's
 regular weight here.)
 
+**A plain table's grid is 1 pt, 2026-10-15** (sweep 92: 1.2430 →
+1.2364%; tdf135843_export 1.76 → 0.02, table-with-no-theme 0.85 →
+0.07, tdf151767 0.52 → 0.00, shapes −0.31, tdf132472 −0.26, aptia
+−0.25; clusterfuzz 6254 +0.20, a table PowerPoint draws a sliver wide).
+A table with no style, or "Table Grid" (`{5940675A…}`), is ruled in
+black at 1 pt in PowerPoint's print; ours were the editor's ½ pt.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
