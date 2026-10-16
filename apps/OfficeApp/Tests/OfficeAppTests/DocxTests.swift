@@ -1258,6 +1258,53 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThan(h.ideograph, h.ideographicSpace + 1, "an ideograph's is taller")
     }
 
+    func testRubyIsReadDrawnRoomForAndSaved() throws {
+        // 61470: "東京" with "とうきょう" over it (w:ruby). The reader
+        // skipped the whole of it, base and all, and the page was blank.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:rPr><w:sz w:val=\"22\"/></w:rPr><w:ruby><w:rubyPr><w:rubyAlign w:val=\"distributeSpace\"/><w:hps w:val=\"11\"/>"
+            + "<w:hpsRaise w:val=\"20\"/><w:hpsBaseText w:val=\"22\"/><w:lid w:val=\"ja-JP\"/></w:rubyPr><w:rt><w:r><w:rPr><w:sz w:val=\"11\"/></w:rPr>"
+            + "<w:t>とうきょう</w:t></w:r></w:rt><w:rubyBase><w:r><w:rPr><w:sz w:val=\"22\"/></w:rPr><w:t>東京</w:t></w:r></w:rubyBase></w:ruby></w:r>"
+            + "<w:r><w:t>都</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let p = doc.paragraphs[0]
+        XCTAssertEqual(p.text, "東京都", "the base is the text")
+        let ruby = try XCTUnwrap(p.runs.first?.style.ruby)
+        XCTAssertEqual(ruby.text, "とうきょう")
+        XCTAssertEqual(ruby.size, 5.5)
+        XCTAssertEqual(ruby.raise, 10)
+        XCTAssertEqual(p.runs.first?.length, 2)
+        XCTAssertNil(p.runs.last?.style.ruby, "and only the base")
+        // The save writes it back round its base.
+        let saved = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let out = String(decoding: try XCTUnwrap(saved.first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("<w:hpsRaise w:val=\"20\"/>"), out)
+        XCTAssertTrue(out.containsSubstring("とうきょう</w:t></w:r></w:rt><w:rubyBase><w:r>"), out)
+        XCTAssertEqual(out.components(separatedBy: "<w:ruby>").count, 2, "one ruby")
+        let back = try DocxFormat.read(try Zip.write(saved)).document
+        XCTAssertEqual(back.paragraphs[0].text, "東京都")
+        XCTAssertEqual(back.paragraphs[0].runs.first?.style.ruby?.text, "とうきょう")
+        // The line makes room for it, and the base is spread across it.
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        func measure(_ d: RichDocument) -> (height: Double, width: Double) {
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 400
+            l.ensureLaidOut(d)
+            return (l.geometry(0).height, l.geometry(0).painter.maxIntrinsicWidth)
+        }
+        var plain = doc
+        for k in plain.paragraphs[0].runs.indices { plain.paragraphs[0].runs[k].style.ruby = nil }
+        XCTAssertGreaterThan(measure(doc).height, measure(plain).height + 1, "taller, for the ruby")
+        XCTAssertGreaterThan(measure(doc).width, measure(plain).width + 1, "the base spread across the ruby's width")
+    }
+
     func testAFrameOfNoWidthStandsWhereItIsAligned() throws {
         // Bug51170: the footer's page number is a frame aligned right in
         // the margins with no width of its own; Word sets it at the right

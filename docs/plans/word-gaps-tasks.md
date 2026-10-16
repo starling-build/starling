@@ -671,7 +671,7 @@ Left in zh-64044a1d: p97's form is a VML text box holding a table, which
 the reader skips (tables in text boxes are not read: the only such
 document); p17.
 
-### T43. Ruby text (w:ruby) is read, drawn and saved
+### T43. Ruby text (w:ruby) is read, drawn and saved — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
 Documents: 61470 (0%: "東京" with "とうきょう" over it).
 Known: the reader skips `w:ruby` whole, base text and all, so the page
@@ -680,6 +680,9 @@ is blank and a save loses it. Word's print: the ruby at its own size
 above the base's; the base "東京" spread across the ruby's width
 (distributeSpace: 2.75pt between, half that at either end); the line
 two pitches of its 18pt grid.
+Built (office.md, "Ruby"): read onto the base's style, the base spread,
+the line made room, the ruby drawn over it, written back as it came.
+61470 0 -> 100%; within 2pt of Word's. Nothing else moved.
 
 ### Leads from the Windows box (2026-10-16, measured, not built)
 - Lab `ps` (~/starling-doc-check/lab/ps, Word 16): before 2013's

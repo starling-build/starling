@@ -3760,6 +3760,23 @@ fitter dropped the paragraph's tail).
   (u3k) did not reproduce it; a paragraph alone in the document's own
   style does, on Linux. zh-64044a1d 95.7 -> 97.9%, zh-90e0cea8 96.0 ->
   97.5, zh-84702a67 99.6 -> 100, zh-69bbcc3c 99.4 -> 99.5.
+- **Ruby (2026-10-16).** `w:ruby` — furigana over kanji — was skipped
+  whole by the reader, base and all: 61470's "東京" under "とうきょう"
+  printed a blank page, and a save lost it. Now the base is the run's
+  text, in its own runs' looks, and the ruby rides on their style
+  (`CharStyle.ruby`: text, size from `w:hps`, raise from `w:hpsRaise`,
+  `w:rubyAlign`, and the file's `w:rubyPr`/`w:rt` kept whole, written
+  back round the base). Word's print: the ruby's baseline `hpsRaise`
+  over the base's; the base spread across a wider ruby as
+  distributeSpace sets it (2.75pt between "東" and "京", 1.38 at either
+  end: a share between, half a share outside); the line two pitches of
+  the 18pt grid where the text alone takes one. Ours: the shares as word
+  joiners of that width, the line as much taller over its baseline as
+  the ruby stands above the text's ascent (on a grid, whole pitches),
+  the ruby drawn over its base after the line (`_paintRuby`); a base
+  wider than its ruby spreads the ruby. Within 2pt of Word's both ways;
+  61470 0 -> 100%. Not built: rubyAlign other than distributeSpace and
+  centre, and ruby in the editor (it is drawn, not editable).
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

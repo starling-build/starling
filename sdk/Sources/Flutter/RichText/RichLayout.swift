@@ -298,6 +298,30 @@ public final class RichTextTheme {
         return (t - natural / 2) * size
     }
 
+    /// The height of a line whose text carries ruby, as a multiple of the
+    /// text's size: its own line made as much taller over its baseline as
+    /// the ruby stands above the text's ascent — on a line grid, as many
+    /// pitches as that takes. (61470's 11pt "東京" under 5.5pt
+    /// "とうきょう" raised 10pt is a line of two 18pt pitches in Word's
+    /// print, where the text alone takes one.) Nil where the face's own
+    /// metrics are not known.
+    public func rubyLineHeight(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
+                               eastAsian: Bool, gridPitch: Double?) -> Double? {
+        guard let ruby = style.ruby else { return nil }
+        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
+        guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return nil }
+        let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
+        let ascent = (bold ? face.boldBaseline : nil) ?? face.baseline ?? 0.8
+        let rubySize = ruby.size > 0 ? ruby.size : size / 2
+        let raise = ruby.raise > 0 ? ruby.raise : size / 2
+        let above = max(0, raise + ascent * rubySize - ascent * size)
+        return lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height / size
+    }
+
     /// How far below the page's foot a line on a line grid may reach and
     /// still be set there, in points: Word centres the text's natural
     /// height in the pitches it takes, and the line fits where the room
@@ -4760,6 +4784,21 @@ public final class RichLayout {
         if p.text.isEmpty {
             return (TextSpan(text: " ", style: theme.textStyle(for: p.runs[0].style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), [], [])
         }
+        // Ruby wider than its base spreads the base across it, as Word's
+        // distributeSpace does: a share between characters and half a
+        // share before the first and after the last (61470's "東京"
+        // under "とうきょう", 2.75pt between and 1.38 at either end).
+        var spread = spread
+        var rubyTails: [Int: Double] = [:]
+        if theme.wordRules {
+            for g in _rubyGroups(p) where g.to > g.from {
+                let (ruby, base) = _rubyWidths(g, p, named: named, document, pitch: pitch)
+                guard ruby > base + 0.01 else { continue }
+                let share = (ruby - base) / Double(g.to - g.from)
+                for k in g.from ..< g.to { spread[k, default: 0] += k == g.from ? share / 2 : share }
+                rubyTails[g.to, default: 0] += share / 2
+            }
+        }
         // Where a zero-width space goes in, and what was before the
         // character at hand (across runs).
         var inserts: [Int] = []
@@ -4890,6 +4929,11 @@ public final class RichLayout {
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
+                // (A run with ruby over it makes its line room for the ruby.)
+                if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
+                   let h = theme.rubyLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
+                    s = s.copyWith(height: h)
+                }
                 // (A run of spaces alone takes the line's height, not its own.)
                 if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " || $0 == "\t" || $0 == "\u{3000}" }), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
@@ -5452,8 +5496,94 @@ public final class RichLayout {
                 continue
             }
             children.append(contentsOf: styled(p.text[a ..< b], run.style, at: pos - run.length, next: b < utf16.endIndex ? p.text[b] : nil))
+            // (The half share after a ruby's base: a word joiner that wide.)
+            if let tail = rubyTails[pos], tail > 0, run.style.ruby != nil {
+                rubyTails[pos] = nil
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                            gridPitch: pitch, scriptHidden: true)
+                children.append(TextSpan(text: "\u{2060}", style: style.copyWith(letterSpacing: tail)))
+                inserts.append(pos)
+            }
         }
         return (TextSpan(children: children), inline, inserts)
+    }
+
+    /// The stretches of paragraph `p` that carry one ruby (UTF-16
+    /// offsets), with the first run's look.
+    private func _rubyGroups(_ p: RichParagraph) -> [(from: Int, to: Int, ruby: RubyText, style: CharStyle)] {
+        var out: [(from: Int, to: Int, ruby: RubyText, style: CharStyle)] = []
+        var at = 0
+        for run in p.runs {
+            defer { at += run.length }
+            guard let ruby = run.style.ruby, run.length > 0 else { continue }
+            if let last = out.last, last.ruby == ruby, last.to == at { out[out.count - 1].to = at + run.length }
+            else { out.append((at, at + run.length, ruby, run.style)) }
+        }
+        return out
+    }
+
+    /// A ruby's own look: the base's face at the ruby's size.
+    private func _rubyStyle(_ g: (from: Int, to: Int, ruby: RubyText, style: CharStyle), _ p: RichParagraph, named: RichNamedStyle?,
+                            _ document: RichDocument) -> TextStyle {
+        var look = g.style
+        look.ruby = nil
+        look.letterSpacing = nil
+        look.fontSize = g.ruby.size > 0 ? g.ruby.size : (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) / 2
+        let s = theme.textStyle(for: look, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: true)
+        return TextStyle(color: s.color, fontSize: s.fontSize, fontWeight: s.fontWeight, fontStyle: s.fontStyle,
+                         fontFamily: s.fontFamily, fontFamilyFallback: s.fontFamilyFallback)
+    }
+
+    /// The widths of a ruby and of its base, in pixels.
+    private func _rubyWidths(_ g: (from: Int, to: Int, ruby: RubyText, style: CharStyle), _ p: RichParagraph, named: RichNamedStyle?,
+                             _ document: RichDocument, pitch: Double?) -> (ruby: Double, base: Double) {
+        func width(_ text: String, _ style: TextStyle) -> Double {
+            let tp = TextPainter(text: TextSpan(text: text, style: style), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: Double.infinity)
+            defer { tp.dispose() }
+            return tp.maxIntrinsicWidth
+        }
+        let units = Array(p.text.utf16)
+        let base = String(decoding: units[g.from ..< min(g.to, units.count)], as: UTF16.self)
+        let ea = base.first.map { Self.isEastAsian($0, hinted: (g.style.fontHint ?? named?.char.fontHint) == "eastAsia") } ?? true
+        let baseStyle = theme.textStyle(for: g.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                        eastAsian: ea, gridPitch: pitch, scriptHidden: true)
+        return (width(g.ruby.text, _rubyStyle(g, p, named: named, document)), width(base, baseStyle))
+    }
+
+    /// The ruby over paragraph `p`'s text, drawn where it belongs: its
+    /// baseline `raise` over its base's, centred over the base — spread
+    /// across it where the base is the wider, as Word's distributeSpace
+    /// sets it. `painter` is the paragraph's (or its lines'), painted at
+    /// `origin`; `map` as for `_paintScripts`.
+    private func _paintRuby(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
+                            _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil) {
+        guard theme.wordRules, p.runs.contains(where: { $0.style.ruby != nil }) else { return }
+        let named = _named(p, document)
+        let lines = painter.computeLineMetrics()
+        for g in _rubyGroups(p) where g.to > g.from && !g.ruby.text.isEmpty {
+            let a = map?.painter(g.from) ?? g.from, b = (map?.painter(g.to - 1) ?? g.to - 1) + 1
+            guard let first = painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: b)).first?.toRect() else { continue }
+            let (rubyWidth, baseWidth) = _rubyWidths(g, p, named: named, document, pitch: nil)
+            let wide = max(rubyWidth, baseWidth)
+            let left = first.left - (rubyWidth > baseWidth ? (rubyWidth - baseWidth) / Double(g.to - g.from) / 2 : 0)
+            // (The line it stands on: the one whose baseline is under the
+            // base's box.)
+            guard let line = lines.min(by: { abs($0.baseline - first.bottom) < abs($1.baseline - first.bottom) }) else { continue }
+            var style = _rubyStyle(g, p, named: named, document)
+            let count = Double(g.ruby.text.count)
+            var x = left + (wide - rubyWidth) / 2
+            if baseWidth > rubyWidth, count > 0, g.ruby.align == nil || g.ruby.align == "distributeSpace" {
+                let share = (baseWidth - rubyWidth) / count
+                style = style.copyWith(letterSpacing: share)
+                x = left + share / 2
+            }
+            let tp = TextPainter(text: TextSpan(text: g.ruby.text, style: style), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: Double.infinity)
+            let raise = _px(g.ruby.raise > 0 ? g.ruby.raise : (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) / 2)
+            tp.paint(canvas, Offset(origin.dx + x, origin.dy + line.baseline - raise - tp.computeDistanceToActualBaseline(.alphabetic)))
+            tp.dispose()
+        }
     }
 
     /// Where every stretch of a paragraph has one line height but not
@@ -7471,6 +7601,7 @@ public final class RichLayout {
             let at = Offset(g.textLeft, g.textTop + lines.top + _baselineShift(i, document))
             lines.painter.paint(canvas, at)
             _paintScripts(lines.paragraph, lines.painter, at: at, canvas, document)
+            _paintRuby(lines.paragraph, lines.painter, at: at, canvas, document)
             return
         }
         if part != .text, let c = _cells[i], c.firstInRow {
@@ -7759,6 +7890,8 @@ public final class RichLayout {
         }
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil)
+        _paintRuby(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
+                   map: lines == nil ? _map(i) : nil)
         if i < _leaders.count, !_leaders[i].isEmpty {
             // A leader fills its tab: the character over and over, up to
             // the text the tab leads to.

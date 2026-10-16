@@ -2998,6 +2998,32 @@ enum DocxFormat {
                     } else { addText("\n", cs) }
                 case "w:noBreakHyphen": addText("\u{2011}", cs)
                 case "w:softHyphen": addText("\u{00AD}", cs)
+                case "w:ruby":
+                    // Ruby over its base (furigana over kanji): the base is
+                    // the run's text, in its own runs' looks, and the ruby
+                    // rides on their style, to be drawn over them. 61470's
+                    // "東京" under "とうきょう" was dropped whole, and its
+                    // page came out blank.
+                    guard let baseNode = child.first("w:rubyBase") else { break }
+                    let pr = child.first("w:rubyPr"), rt = child.first("w:rt")
+                    let rubyText = (rt?.all("w:r") ?? []).flatMap { $0.children.filter { $0.name == "w:t" } }.map(_runText).joined()
+                    let ruby = RubyText(text: rubyText,
+                                        size: (Double(pr?.first("w:hps")?["w:val"] ?? "") ?? 0) / 2,
+                                        raise: (Double(pr?.first("w:hpsRaise")?["w:val"] ?? "") ?? 0) / 2,
+                                        align: pr?.first("w:rubyAlign")?["w:val"],
+                                        group: text.utf16.count,
+                                        xml: [pr, rt].compactMap { $0.map { PptxXML.serialize($0) } }.joined())
+                    for br in baseNode.all("w:r") {
+                        var look = cs
+                        if let rPr = br.first("w:rPr") {
+                            if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id] {
+                                for styled in chain { look = _charStyle(styled, base: look, complexText: false) }
+                            }
+                            look = _charStyle(rPr, base: look, complexText: false)
+                        }
+                        look.ruby = ruby
+                        for t in br.children where t.name == "w:t" { addText(_runText(t), look) }
+                    }
                 case "w:sym":
                     // A symbol: the character means its glyph only in the
                     // named font (Symbol F094 is a box), so the run takes it.
@@ -3775,6 +3801,16 @@ enum DocxFormat {
                     flush()
                 } else if s.revision?.kind == .deleted {
                     runXML = "<w:r>\(rPrXML)" + _text(piece).replacingAll("<w:t ", with: "<w:delText ").replacingAll("<w:t>", with: "<w:delText>").replacingAll("</w:t>", with: "</w:delText>") + "</w:r>"
+                } else if let ruby = s.ruby {
+                    // Ruby goes back round its base as it came (its
+                    // w:rubyPr and w:rt kept whole); a base in several
+                    // looks is one w:ruby.
+                    let lengths = p.runs.map(\.length)
+                    let prior = p.runs.indices.prefix(runIndex).last { lengths[$0] > 0 }.map { p.runs[$0].style.ruby }
+                    let later = p.runs.indices.dropFirst(runIndex + 1).first { lengths[$0] > 0 }.map { p.runs[$0].style.ruby }
+                    if prior != ruby { runXML += "<w:r>\(rPrXML)<w:ruby>\(ruby.xml)<w:rubyBase>" }
+                    runXML += "<w:r>\(rPrXML)\(_text(piece))</w:r>"
+                    if later != ruby { runXML += "</w:rubyBase></w:ruby></w:r>" }
                 } else {
                     runXML = "<w:r>\(rPrXML)\(_text(piece))</w:r>"
                 }

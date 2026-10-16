@@ -156,6 +156,9 @@ public struct CharStyle: Hashable, Sendable {
     /// (`PAGEREF _Toc123 \h`): written back as the field, so Word can
     /// still bring a contents page's numbers up to date.
     public var field: String? = nil
+    /// Ruby set over this run's text (Word's `w:ruby`: furigana over
+    /// kanji); nil for none.
+    public var ruby: RubyText? = nil
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,
@@ -178,6 +181,30 @@ public struct CharStyle: Hashable, Sendable {
     }
 
     public static let plain = CharStyle()
+}
+
+/// Ruby over a run of text (Word's `w:ruby`): the small text set above
+/// the base — a reading over kanji — at `size` points, its baseline
+/// `raise` points over the base's. `group` tells one ruby from the next
+/// that says the same (runs of one ruby are one base); `xml` is the
+/// file's `w:rubyPr` and `w:rt`, written back as they were.
+public struct RubyText: Hashable, Sendable {
+    public var text: String
+    public var size: Double
+    public var raise: Double
+    /// Word's `w:rubyAlign` ("distributeSpace", "center", …); nil for its default.
+    public var align: String?
+    public var group: Int
+    public var xml: String
+
+    public init(text: String, size: Double, raise: Double, align: String? = nil, group: Int = 0, xml: String = "") {
+        self.text = text
+        self.size = size
+        self.raise = raise
+        self.align = align
+        self.group = group
+        self.xml = xml
+    }
 }
 
 public enum ParagraphAlignment: Int, Hashable, Sendable {
