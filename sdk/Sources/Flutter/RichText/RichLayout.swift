@@ -3994,6 +3994,7 @@ public final class RichLayout {
         // those inside a line, and only if every line then breaks
         // where it did: a no-break space at a line's end would count
         // against the line, and a plain one takes no room there.
+        var held = tabsHeld
         if theme.wordRules, document.usesEastAsianLayout, style.alignment == .justify, p.text.utf16.contains(0x20) {
             let starts = _lineStarts(painter, _map(i), count: p.text.utf16.count)
             let hold = starts.count > 1 ? _spacesToHold(p, lineStarts: Set(starts)) : []
@@ -4004,7 +4005,47 @@ public final class RichLayout {
                     painter.dispose()
                     painter = again
                     _inserts[i] = inserts
+                    held = hold.union(tabsHeld)
                 } else {
+                    again.dispose()
+                }
+            }
+        }
+        // Distributed (`w:jc` distribute): the last line is spread too,
+        // its first character at the line's start, its last ending at the
+        // line's end and the room left shared evenly between them — in
+        // Word's prints "適用考試名稱" 57.22pt apart across a 309pt cell,
+        // "總計" one at each side of its cell, a cover's "山东省地方标准"
+        // across the page. (The lines before it are justified.)
+        if theme.wordRules, style.alignment == .justify, style.eastAsian["w:jc"] == "distribute",
+           (p.cell?.textDirection ?? .horizontal) == .horizontal, textWidth < 50_000, !p.text.isEmpty {
+            let units = Array(p.text.utf16)
+            let map = _OffsetMap(lead: _lead(i), inserts: _inserts[i])
+            let starts = _lineStarts(painter, map, count: units.count)
+            var end = units.count
+            while end > (starts.last ?? 0), [0x20, 0x09, 0x0A, 0x0B, 0x3000].contains(units[end - 1]) { end -= 1 }
+            // (Each character's first unit: a surrogate pair is one.)
+            let chars = ((starts.last ?? 0) ..< end).filter { !(units[$0] >= 0xDC00 && units[$0] <= 0xDFFF) }
+            if chars.count > 1, let last = chars.last,
+               let box = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(last), extentOffset: map.painter(end - 1) + 1)).last {
+                // (A twentieth of a point short of the end — Word's unit —
+                // or a point: set to the hair, the engine's rounding can
+                // put the last character, a ")" in zh-454e2e29's
+                // "(所屬機關名稱)", on a line of its own.)
+                for short in [_px(0.05), _px(1)] {
+                    let spare = textWidth - box.right - short
+                    guard spare > 0 else { break }
+                    var spread: [Int: Double] = [:]
+                    for k in chars.dropFirst() { spread[k] = spare / Double(chars.count - 1) }
+                    let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit,
+                                                   held: held, spread: spread)
+                    let again = laidOut(span)
+                    if _lineStarts(again, _OffsetMap(lead: _lead(i), inserts: inserts), count: units.count) == starts {
+                        painter.dispose()
+                        painter = again
+                        _inserts[i] = inserts
+                        break
+                    }
                     again.dispose()
                 }
             }
@@ -4331,7 +4372,7 @@ public final class RichLayout {
     /// `autoSpaces` is told each character set wider by Word's automatic
     /// space after it (paragraph offset, pixels), for the line fitting.
     private func _span(for p: RichParagraph, at index: Int?, _ document: RichDocument, textWidth: Double, lead: Double = 0, adjust: [Int: Double] = [:],
-                       held: Set<Int> = [], autoSpaces: ((Int, Double) -> Void)? = nil)
+                       held: Set<Int> = [], spread: [Int: Double] = [:], autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         let named = _named(p, document)
         let pitch = p.style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(index, document).pitch
@@ -4554,6 +4595,14 @@ public final class RichLayout {
                     // parts after the tenth digit, not at the hyphen.)
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
+                // (A distributed line's room before this character: a word
+                // joiner that wide. Spacing on the character itself would
+                // be set half before it, and move the line's first.)
+                if let g = spread[offset], g > 0 {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: style(kind).copyWith(letterSpacing: g)))
                     inserts.append(offset)
                 }
                 // In East Asian text a curly quote is a full-width mark,

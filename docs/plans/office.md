@@ -3979,9 +3979,23 @@ fitter dropped the paragraph's tail).
   A paragraph with Latin letters is still drawn turned whole — Word turns
   those letters too, but its ideographs would stand, which is not built.
   The value as written is kept for the save. Line match: zh-2b955411
-  89.7% -> 98.0%; nothing else moved. Distribute alignment is otherwise
-  not built (read as justified): Word spreads a distributed line's last
-  line too — zh-0aac9d1a's "统一社会信用代码" at 12.45pt in a 100pt cell.
+  89.7% -> 98.0%; nothing else moved.
+- **Distributed paragraphs (`w:jc` distribute, 2026-10-15; Linux, from
+  Word's prints).** Word spreads the last line too: its first
+  character at the line's start, its last ending at the line's end, the
+  room left shared evenly between every two characters, Latin
+  parentheses among them — "適用考試名稱" 57.22pt apart across a 309pt
+  cell, "總計" one at each side, "(所屬機關名稱)" 17.26 apart, a cover's
+  "山东省地方标准" across the page (zh-a7728bc9, zh-454e2e29, zh-90e0cea8,
+  each within 0.4pt now). The share is a word joiner before each
+  character as wide as it (`_span`'s `spread`): letter spacing on the
+  character itself is set half before it and moved the line's first a
+  half share in. The line is set a twentieth of a point short of its
+  end, or a point: to the hair, the engine's rounding put zh-454e2e29's
+  ")" on a line of its own. (The joiners come out of an exported PDF's
+  text as spaces, as the quotes' blanks do.) No line moves for it — 33
+  paragraphs in seven documents, each already on Word's lines — so the
+  line match is unchanged; it is the pixels.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

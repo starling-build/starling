@@ -406,8 +406,9 @@ and the 282pt stamp row after it goes to the next page.
 Done: tbRl/tbRlV/tbLrV read as turned with upright ideographs, drawn a
 character at a time, distribute spread along the cell (office.md,
 "Vertical writing in a cell"). zh-2b955411 89.7 -> 98.0%, nothing else
-moved. Left: a turned paragraph with Latin in it is drawn turned whole;
-`w:jc` distribute is not built for horizontal text (read as justified).
+moved. Left: a turned paragraph with Latin in it is drawn turned whole.
+`w:jc` distribute for horizontal text: built the same day (office.md,
+"Distributed paragraphs"), no line moved, characters within 0.4pt.
 
 ### T20. bug59058 p45: an empty `<w:pict/>` — DONE (2026-10-15)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-15
