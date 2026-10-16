@@ -5278,10 +5278,14 @@ public final class RichLayout {
                     // The width the original face gives this character
                     // (`RichResolvedFace.advances`), at the size the
                     // style sets it less the stand-in's scales.
-                    let s = style(kind)
+                    // (A trailing space set in the ideographs' face, kind
+                    // -2, has the stand-in's width already: measured
+                    // against the stand-in's own, as any other.)
+                    let own = kind == -2 ? (classed ? RichResolvedFace.characterClass(" ") : 0) : kind
+                    let s = style(own)
                     let k = Int(u) - 0x20
                     if let table = s.fontWeight == .bold ? face.boldAdvances : face.advances, k < table.count, let px = s.fontSize, px > 0.5 {
-                        let classScale = classed ? face.classScales.flatMap { kind < $0.count ? $0[kind] : nil } ?? 1 : 1
+                        let classScale = classed ? face.classScales.flatMap { own >= 0 && own < $0.count ? $0[own] : nil } ?? 1 : 1
                         extra += table[k] * px / (face.sizeScale * classScale) - _glyphWidth(s, ch)
                     }
                 } else if !ea, let grid = theme.advanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline,
@@ -5298,7 +5302,7 @@ public final class RichLayout {
                     // … and the width it gives one the stand-in lacks.
                     let s = style(kind)
                     if let w = (s.fontWeight == .bold ? face.boldOtherAdvances : face.otherAdvances)?[u], let px = s.fontSize, px > 0.5 {
-                        let classScale = classed ? face.classScales.flatMap { kind < $0.count ? $0[kind] : nil } ?? 1 : 1
+                        let classScale = classed ? face.classScales.flatMap { kind >= 0 && kind < $0.count ? $0[kind] : nil } ?? 1 : 1
                         extra += w * px / (face.sizeScale * classScale) - _glyphWidth(s, ch)
                     }
                 }
