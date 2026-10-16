@@ -2014,6 +2014,16 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A 2007-style chart's plot stands further from its legend,
+2026-10-16** (radar-chart 2.01 → 1.74, bar-chart −0.07, scatter −0.02;
+aascu 5864 +0.04). The four 2007-style charts (style 2, legend at the
+right) end their plots 5.3 pt short of ours, every one, the legend where
+ours is: the gap to a right-hand legend is 17.3 pt for them, not 12.
+Pies and the newer charts keep 12 (pie-chart and tdf149985 were 0.26
+and 0.58 worse with it). Their plots also start 2 to 2.6 pt right of
+ours, and the bar chart's is 5 pt shorter at the top and 3.8 at the
+bottom — not yet followed.
+
 **A diagram shape's one adjustment, 2026-10-16** (smartart-children
 3.42 → 3.15, cycle-matrix 2.61 → 2.34, accent-process −0.21,
 autofit-sync −0.20, smartart-text −0.20, composite-infer-right −0.18,

@@ -1092,7 +1092,11 @@ enum ChartPainter {
                     area = Rect.fromLTRB(area.left + columnW + 12 * k, area.top, area.right, area.bottom)
                 } else {
                     columnX = area.right - columnW
-                    area = Rect.fromLTRB(area.left, area.top, columnX - 12 * k, area.bottom)
+                    // (17.3 to the legend's keys: the 2007-style line,
+                    // scatter, radar and bar charts' plots end 5.3 pt
+                    // short of where 12 left them, in PowerPoint's print.)
+                    let apart = !pie && !c.styled2013 ? 17.3 : 12
+                    area = Rect.fromLTRB(area.left, area.top, columnX - apart * k, area.bottom)
                 }
             } else if c.legendPosition == "t" {
                 y = area.top
