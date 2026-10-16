@@ -599,6 +599,16 @@ Built: a picture alone between breaks, narrower than the line, has its
 run's text height; drawing 87.4 -> 89.7%. Still off there: p9-p11's
 "Cbonds" article in tables nested four deep (T9's limit).
 
+### T39. drawing: the mark under a flattened nested table takes no room
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: drawing (p8's foot: three cell-end marks under its nested
+"Cbonds" tables are 0.5pt lines in Word's print and 10-15pt in ours, and
+p9's first empty paragraph goes over).
+Known: the rule of 2026-10-15 ("the mark under a nested table takes no
+room") covers nested tables kept as a block; the flattened ones' marks
+are ordinary paragraphs. Flattened cells now carry their margins and
+spacing (the reader), which the earlier try lacked.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
