@@ -2014,6 +2014,18 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A chart's category names wrap in the plot's slots, centred; and a
+chart's own theme fonts, 2026-10-16** (cooper 4.52 → 4.44, aascu 5864
+8.08 → 7.99; the other chart decks unchanged). Three things:
+the room a category name has is a fifth (an nth) of the plot's width,
+not of the chart's — the value labels beside the plot are not the
+categories' — so cooper's "African American" breaks in two as in
+PowerPoint's print; a broken name centres each of its lines; and a
+chart's theme override (`themeOverride`) gives its fonts as well as its
+colours — aascu 5864's employment chart, under a master in Lucida Sans
+Unicode, is Calibri by its own, and its names had wrapped in the wider
+face. Word's charts share the painter, so its pages have the first two.
+
 **A chart's text falls back for characters its face lacks,
 2026-10-16** (found by the Word session: zh-37b6536f's pie legend,
 机构信息 and the rest, printed as boxes on Linux). Chart text named only

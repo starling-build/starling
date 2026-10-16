@@ -1025,7 +1025,8 @@ enum ChartPainter {
         func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil) -> TextPainter {
             let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
-                fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
+                fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback)),
+                textAlign: .center, textDirection: .ltr)   // (a label broken in two centres each line)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
         }
@@ -1352,6 +1353,15 @@ enum ChartPainter {
         }
         if let placed, !c.plotLayoutInner { area = placed }
         // Tick labels: values along one axis, categories (or x values) along the other.
+        let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step * 1e-6, by: sc.step))
+        // In the axis's own number format where it has one: "1,600", and
+        // an accounting format's "-" for nought. (Its padding is a cell's.)
+        func valueLabel(_ v: Double) -> String {
+            guard let code = c.valueFormat, !c.percent else { return label(v, percent: c.percent) }
+            let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
+            return shown.isEmpty ? label(v, percent: false) : shown
+        }
+        let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
         let catSize = c.categoryLabelSize ?? c.baseTextSize
         var catLabels: [TextPainter]
         // Categories too long for their slot even word by word are set
@@ -1364,7 +1374,12 @@ enum ChartPainter {
             catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { categoryText(label($0, percent: false), catSize, .infinity) }
         } else {
             let along = placed.flatMap { c.plotLayoutInner ? $0 : nil } ?? area
-            let slot = (horizontal ? along.height : along.width) / Double(n)
+            // (Across, the room the value labels take beside the plot is
+            // not the categories': cooper's "African American" breaks in
+            // two in PowerPoint's print, in a slot a fifth of the plot.)
+            let beside = horizontal || (placed != nil && c.plotLayoutInner) ? 0
+                : (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k
+            let slot = ((horizontal ? along.height : along.width) - beside) / Double(n)
             catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? area.width * 0.3 : max(slot - 2 * k, 8 * k)) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
@@ -1392,15 +1407,6 @@ enum ChartPainter {
         }
         // An aslant label's drop below its tick.
         func drop(_ t: TextPainter) -> Double { t.width * sin(slant) + t.height * cos(slant) }
-        let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step * 1e-6, by: sc.step))
-        // In the axis's own number format where it has one: "1,600", and
-        // an accounting format's "-" for nought. (Its padding is a cell's.)
-        func valueLabel(_ v: Double) -> String {
-            guard let code = c.valueFormat, !c.percent else { return label(v, percent: c.percent) }
-            let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
-            return shown.isEmpty ? label(v, percent: false) : shown
-        }
-        let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
         let lineH = valueLabels.first?.height ?? 12 * k
         var plot: Rect
         // Outward tick marks push the labels off: further beside the axis

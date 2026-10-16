@@ -2139,6 +2139,13 @@ private struct SlideContext {
         // (So does one on a slide whose master has another theme: aascu
         // 5864's charts under the Office theme, drawn in Concourse's.)
         var overridden = foreignTheme
+        // (And its own fonts: aascu 5864's employment chart, under a
+        // master in Lucida Sans Unicode, is Calibri by its override.)
+        var overrideFont: String?
+        if let over = package.rels(rel.target).first(where: { $0.kind == "themeOverride" && !$0.external }),
+           let face = package.xml(over.target)?.descendant("a:minorFont")?.first("a:latin")?["typeface"], !face.isEmpty {
+            overrideFont = face
+        }
         if let over = package.rels(rel.target).first(where: { $0.kind == "themeOverride" && !$0.external }),
            let scheme = package.xml(over.target)?.descendant("a:clrScheme") {
             overridden = true
@@ -2159,8 +2166,8 @@ private struct SlideContext {
         // A chart that names no face is in its own slide's theme font — a
         // deck of several masters (aascu 5864's census charts, Calibri;
         // cooper's, Verdana) was drawn in the first master's.
-        if foreignTheme, chart.font == nil {
-            chart.font = theme.minor
+        if chart.font == nil, let face = overrideFont ?? (foreignTheme ? theme.minor : nil) {
+            chart.font = face
             if chart.titleFont == nil { chart.titleFont = chart.font }
         }
         if overridden {
