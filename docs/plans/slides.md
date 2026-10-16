@@ -2014,6 +2014,21 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Arial's and Times New Roman's baselines without their line gap,
+2026-10-16** (sweep 118: 1.133 → 1.129%, 24 decks better, 13 worse;
+alterman 6.12 → 5.57, open-as-read-only 1.38 → 0.85, the 45541 trio
+−0.32 each, 2411 −0.18; tdf95932, tdf79082, bnc904423 and
+ShapeLineProperties about +0.2 each). Their clones keep the originals'
+line gap (Arial's 67 units, Times' 87), and the engine puts a share of
+it under the baseline; PowerPoint sets the baseline by ascent and
+descent alone. Arial's 43 decks stood a median 0.011 em high and now
+stand 0.001. Both are now in `SlideFonts.ownDescentShare`. (The sweep
+itself ran Arial alone — a file edited mid-build kept the old binary —
+and the table holds the subset run with both for the 118 decks that
+have either.) The four decks now worse are single lines that land just
+under PowerPoint's: its PDF's baselines are rounded down to a 0.24 pt
+raster, and ours, at the true place, are up to 0.24 below it.
+
 **Tried and dropped, 2026-10-16:** Aptos's and Franklin Gothic's
 baselines by measured shares (`ownDescentShare` 0.2067 and 0.2264,
 fitted to their lines standing 0.020 and 0.044 em low): the fifteen

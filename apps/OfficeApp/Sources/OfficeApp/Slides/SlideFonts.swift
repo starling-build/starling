@@ -36,7 +36,8 @@ enum SlideFonts {
     /// The share of the line below the baseline for a face we draw with
     /// a stand-in of other proportions — its Windows ascent and descent
     /// (Verdana 2059 and 430 of 2048, Tahoma 2049 and 423, Segoe UI 2210
-    /// and 514, Lucida Sans Unicode 2246 and 901). PowerPoint sets the
+    /// and 514, Lucida Sans Unicode 2246 and 901, Arial 1854 and 434,
+    /// Times New Roman 1825 and 443). PowerPoint sets the
     /// baseline by them: the AES deck's Verdana stood 0.04 of its size
     /// high in DejaVu Sans's, HowWeRefactor's Segoe UI as much in its
     /// stand-in's, and GeomLec1's Lucida Sans Unicode 0.1 low.
@@ -46,6 +47,12 @@ enum SlideFonts {
         if n.hasPrefix("tahoma") { return 423.0 / 2472 }
         if n.hasPrefix("segoe ui") { return 514.0 / 2724 }
         if n == "lucida sans unicode" { return 901.0 / 3147 }
+        // (And Arial and Times New Roman by theirs, no line gap counted:
+        // their clones' gap — a thirtieth and a twenty-fourth of an em —
+        // put a share of it under the baseline in the engine's line, and
+        // Arial's 43 decks stood 0.011 em high.)
+        if n == "arial" { return 434.0 / 2288 }
+        if n == "times new roman" { return 443.0 / 2268 }
         return nil
     }
 }
