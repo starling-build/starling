@@ -1519,19 +1519,30 @@ struct DiagramLayout {
         guard n.algType == "tx", let body = textBody(n) else { return [sp] }
         var turn = rot.truncatingRemainder(dividingBy: 360)
         if turn < 0 { turn += 360 }
-        let quarter = abs(turn - 90) < 0.01 || abs(turn - 270) < 0.01
-        // Turned past a quarter (and not a half, which is mirrored): the
-        // text the other way up, so it never stands on its head —
-        // smartart-rotation's arrows at 120° and 240° read at -60° and 60°.
-        let headDown = turn > 90.01 && turn < 269.99
-        guard quarter || headDown, geometry.name == "a:prstGeom" else {
+        // The text's own turn, by the text algorithm's `autoTxRot`
+        // (autoTxRot's three pages, in PowerPoint's print): "upr", the
+        // default, turns it whole quarters back to within 45° of level —
+        // half-way rounding to the even quarter, so 135° reads at -45° and
+        // 225° at 45° — "grav" only turns text the other way up that would
+        // stand on its head (past 90°, short of 270°), and "none" leaves it
+        // with its shape. (smartart-rotation's arrows at 120° and 240° read
+        // at 30° and -30°; cycleMatrix's quadrants and a vertical block
+        // list's side tabs, a quarter round, upright.)
+        let textTurn: Double
+        switch n.params["autoTxRot"] ?? "upr" {
+        case "none": textTurn = turn
+        case "grav": textTurn = turn > 90.01 && turn < 269.99 ? turn - 180 : turn
+        default: textTurn = turn - 90 * (turn / 90).rounded(.toNearestOrEven)
+        }
+        var apart = (turn - textTurn).truncatingRemainder(dividingBy: 360)
+        if apart < 0 { apart += 360 }
+        guard abs(apart) > 0.01, abs(apart - 360) > 0.01, geometry.name == "a:prstGeom" else {
             sp.children.append(body)
             return [sp]
         }
-        // Turned a quarter round: PowerPoint keeps the text upright, in the
-        // box its text area turned to (cycleMatrix's quadrants, a vertical
-        // block list's side tabs), where the reader turns a shape's text
-        // with it.
+        // Otherwise a second shape holds the text: the text area as the
+        // shape turned it, centred where its centre went — the other way
+        // round when the text turned a quarter from the shape.
         var tr = Rect.fromLTRB(0, 0, 1, 1)
         if let prst = geometry["prst"], let g = PresetGeometry.geometry(prst, width: r.width * 12700, height: r.height * 12700,
                                                                          adjustments: PresetGeometry.adjustments(geometry)),
@@ -1539,18 +1550,11 @@ struct DiagramLayout {
         let a = turn * .pi / 180, c = r.center
         let lt = Offset(r.left + tr.left * r.width, r.top + tr.top * r.height)
         let rb = Offset(r.left + tr.right * r.width, r.top + tr.bottom * r.height)
-        let turned = [lt, Offset(rb.dx, lt.dy), rb, Offset(lt.dx, rb.dy)].map { p -> Offset in
-            let dx = p.dx - c.dx, dy = p.dy - c.dy
-            return Offset(c.dx + dx * cos(a) - dy * sin(a), c.dy + dx * sin(a) + dy * cos(a))
-        }
-        var box = Rect.fromLTRB(turned.map(\.dx).min()!, turned.map(\.dy).min()!, turned.map(\.dx).max()!, turned.map(\.dy).max()!)
-        var textTurn = 0.0
-        if !quarter {
-            // The text area itself, turned half a round less about where
-            // its centre went.
-            box = Rect.fromCenter(center: box.center, width: rb.dx - lt.dx, height: rb.dy - lt.dy)
-            textTurn = turn - 180
-        }
+        let mid = Offset((lt.dx + rb.dx) / 2 - c.dx, (lt.dy + rb.dy) / 2 - c.dy)
+        let centre = Offset(c.dx + mid.dx * cos(a) - mid.dy * sin(a), c.dy + mid.dx * sin(a) + mid.dy * cos(a))
+        let across = abs(apart - 90) < 0.01 || abs(apart - 270) < 0.01
+        let box = across ? Rect.fromCenter(center: centre, width: rb.dy - lt.dy, height: rb.dx - lt.dx)
+            : Rect.fromCenter(center: centre, width: rb.dx - lt.dx, height: rb.dy - lt.dy)
         let tx = XNode(name: "p:sp", attrs: [:])
         let tnv = XNode(name: "p:nvSpPr", attrs: [:])
         tnv.children = [XNode(name: "p:cNvPr", attrs: ["id": String(id + 100000), "name": n.name + " text"]),

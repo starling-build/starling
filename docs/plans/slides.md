@@ -2014,6 +2014,22 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A diagram's turned text, by autoTxRot, 2026-10-16**
+(smartart-rotation 6.20 → 6.08, autoTxRot 2.59 → 2.61; every letter
+on autoTxRot's three pages now at PowerPoint's angle). The text
+algorithm's `autoTxRot`: "upr", the default, turns text whole quarters
+back to within 45° of level, half-way rounding to the even quarter (135°
+reads at -45°, 225° at 45°); "grav" turns only text past 90° and short
+of 270° the other way up; "none" leaves it with its shape. We had
+turned head-down text a half round and quarter-turned text upright,
+whatever the setting — smartart-rotation's 120° and 240° arrows read at
+-60° and 60° where PowerPoint's read at 30° and -30°.
+What remains there is the ring: PowerPoint's three arrows stand 0.676
+of their width from the centre, ours 0.375 (chord = width + sibSp,
+-0.35 of it); autoTxRot's sixteen at 2.685 of theirs. Neither the
+spacing taken as 0 nor the arc between centres as the diagonal fits
+both, so the ring is left as it is.
+
 **A diagram line keeps its spare room, 2026-10-16**
 (smartart-vertical-box-list 5.88 → 0.19, smartart-linear-rule-vert
 3.97 → 0.11; the other 71 diagram decks unchanged). A line no longer
