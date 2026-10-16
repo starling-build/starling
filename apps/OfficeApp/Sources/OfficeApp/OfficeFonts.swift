@@ -33,6 +33,11 @@ enum OfficeFonts {
     /// hundredth of its widths word for word, where Liberation Sans set
     /// Verdana's lines an eighth short.
     static let verdana = "DejaVu Sans"
+    /// Liberation Sans and Serif as a Word document's lines take them:
+    /// the same faces with their line gap moved over the ascent (see
+    /// `_gapAbove`), registered under these names beside the plain ones.
+    static let wordSans = "Liberation Sans Word"
+    static let wordSerif = "Liberation Serif Word"
 
     /// The name a file gets for one of our faces: the Word font it is the
     /// clone of, so that Word opens the file in the real thing. Any other
@@ -744,7 +749,10 @@ enum OfficeFonts {
             case cambria: baseline = 0.95
             default: baseline = 0.938
             }
-            var face = RichResolvedFace(family: clone, baseline: baseline)
+            // (Times and Arial as a Word line holds them, where they are
+            // registered so: `wordSans`.)
+            let drawn = !_gapAboveLoaded ? clone : clone == serif ? wordSerif : clone == sans ? wordSans : clone
+            var face = RichResolvedFace(family: drawn, baseline: baseline)
             // (The missing-glyph box of the face it stands for, as
             // Word's own fonts have it: a private-use character is set
             // at that width.)
@@ -864,6 +872,40 @@ enum OfficeFonts {
         return face
     }
 
+    /// Whether `wordSans` and `wordSerif` are registered.
+    nonisolated(unsafe) static var _gapAboveLoaded = false
+
+    /// A face's line gap moved over its ascent (`hhea`: the ascender
+    /// takes the gap, which is then 0), in place; false when the data
+    /// has no such table. The engine shares a face's gap out half over
+    /// its text and half under it; Word sets the whole of it over —
+    /// Times New Roman's baseline .891 + .042 down its 1.15-em line —
+    /// so a line where Times stands beside a face with none (Cambria)
+    /// is that face's ascent and Times's descent in Word, and the
+    /// engine's half-gap deeper. bug59058's references, 13pt Times at
+    /// least 15pt with Cambria titles, step 15.24 in Word's print where
+    /// a title is on the line and 15.45 here, 2.3pt by a page's foot.
+    static func _gapAbove(_ data: inout Data) -> Bool {
+        func u16(_ at: Int) -> Int { Int(data[at]) << 8 | Int(data[at + 1]) }
+        func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
+        guard data.count > 12 else { return false }
+        let tables = u16(4)
+        for k in 0 ..< tables {
+            let entry = 12 + 16 * k
+            guard entry + 16 <= data.count else { return false }
+            guard data[entry] == 0x68, data[entry + 1] == 0x68, data[entry + 2] == 0x65, data[entry + 3] == 0x61 else { continue }   // "hhea"
+            let at = u32(entry + 8)
+            guard at + 10 <= data.count else { return false }
+            let ascender = Int16(truncatingIfNeeded: u16(at + 4)), gap = Int16(truncatingIfNeeded: u16(at + 8))
+            guard gap > 0 else { return true }
+            let raised = UInt16(bitPattern: ascender &+ gap)
+            data[at + 4] = UInt8(raised >> 8); data[at + 5] = UInt8(raised & 0xFF)
+            data[at + 8] = 0; data[at + 9] = 0
+            return true
+        }
+        return false
+    }
+
     /// The theme's `averageCharWidth`: the OS/2 average character width
     /// of the face Word sets a Latin name in, in ems.
     static func averageCharWidth(_ family: String?) -> Double {
@@ -916,7 +958,9 @@ enum OfficeFonts {
         #if os(WASI)
         // The page preloads UI/default faces. Other document families are
         // requested by the paragraph builder when used and trigger relayout
-        // once registered (build/web-app.sh writes fonts/manifest.json).
+        // once registered (build/web-app.sh writes fonts/manifest.json,
+        // with `wordSans` and `wordSerif` among them, made as below).
+        _gapAboveLoaded = true
         return true
         #else
         // (#else, not an early return: the body below names FileHandle,
@@ -963,6 +1007,7 @@ enum OfficeFonts {
             return false
         }
         var ok = true
+        var gapAboveFailed = false
         for (file, family) in [("LiberationSans", sans), ("LiberationSerif", serif), ("LiberationMono", mono),
                                ("Carlito", calibri), ("Caladea", cambria), ("DejaVuSans", verdana)] {
             for variant in ["Regular", "Bold", "Italic", "BoldItalic"] {
@@ -971,8 +1016,17 @@ enum OfficeFonts {
                     ok = false
                     FileHandle.standardError.write("[Office] could not load \(path)\n".data(using: .utf8)!)
                 }
+                if family == sans || family == serif, var data = FileManager.default.contents(atPath: path), _gapAbove(&data) {
+                    let loaded = data.withUnsafeBytes { buffer in
+                        buffer.baseAddress.map {
+                            flutter.swift_bridge.LoadFontFromList($0.assumingMemoryBound(to: UInt8.self), buffer.count, family == sans ? wordSans : wordSerif)
+                        } ?? false
+                    }
+                    if !loaded { gapAboveFailed = true }
+                }
             }
         }
+        _gapAboveLoaded = !gapAboveFailed
         return ok
         #endif
     }

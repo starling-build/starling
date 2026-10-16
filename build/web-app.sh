@@ -186,6 +186,20 @@ if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
             esac
         fi
         FONTS+=("$f=$family")
+        # (Liberation Sans and Serif once more as a Word document's lines
+        # take them, their line gap over the ascent: OfficeFonts.wordSans.)
+        if [ "$TARGET" = OfficeApp ]; then
+            case "$(basename "$f")" in
+                LiberationSans-*|LiberationSerif-*)
+                    word="$STAGE/fonts-word/$(basename "$f" | sed 's/^Liberation\(Sans\|Serif\)-/Liberation\1Word-/')"
+                    mkdir -p "$STAGE/fonts-word"
+                    python3 "$REPO/build/tools/font-gap-above.py" "$f" "$word"
+                    case "$(basename "$f")" in
+                        LiberationSans-*) FONTS+=("$word=Liberation Sans Word?") ;;
+                        *) FONTS+=("$word=Liberation Serif Word?") ;;
+                    esac ;;
+            esac
+        fi
     done
 fi
 {

@@ -2907,6 +2907,32 @@ fitter dropped the paragraph's tail).
   are untouched: not measured. Left: a picture paragraph's shading is
   drawn one text line tall, not the picture's line.
 
+- **Times and Arial keep their line gap over the text (2026-10-15,
+  Linux, from Word's print alone).** bug59058's references are 13pt
+  Times at least 15pt, their journal titles in MinionPro (Cambria in
+  Word, Caladea here). In Word's print a line with a title on it steps
+  15.24 (15.12 and 15.36 on its 0.24pt raster), a Times-only line 15.0;
+  ours 15.45 and 15.0, 2.3pt short by p38's foot. Word sets a face's
+  whole line gap over its text (Times's baseline .891 + .042 down its
+  1.15-em line: `face`'s 0.933); the engine shares it out half over
+  and half under, whatever the leading distribution — Skia folds the
+  gap into the face's own height before a style's `height` is
+  applied, so `.proportional` changed nothing. A line of Times and
+  Cambria (no gap) was then Cambria's ascent over Times's descent and
+  half its gap. Writer now draws the Times and Arial stand-ins as
+  `Liberation Serif Word` and `Liberation Sans Word`: the same faces
+  with the hhea gap added to the ascender (`OfficeFonts._gapAbove`,
+  in memory; `build/tools/font-gap-above.py` stages the browser
+  build's copies — not built here). The mixed line is 15.2, the
+  Times-only one 15.0 with its baseline 12.18 down (Word's 12.19, the
+  engine's had been 11.90). bug59058 74.9% -> 89.1% and Word's 52
+  pages (Linux). Nothing else moved but form_footnotes, 92.0 -> 90.8,
+  whose lines all moved 0.1pt or less (toward Word's): a footnote
+  mark now stands within the matcher's 2.5pt of the heading beside
+  it and is read into its line. Slides and Sheets keep the plain
+  faces. Carlito (Calibri's gap .22) is left as it is: Word's Calibri
+  is not set by its hhea, and needs its own measure.
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were

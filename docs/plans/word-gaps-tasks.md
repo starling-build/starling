@@ -380,7 +380,7 @@ the border is drawn. p27 within 0.3pt; bug59058 73.9 -> 74.9% (Linux),
 nothing else moved. Its next parting is p38: the references drift about
 0.1pt a paragraph lower than Word's (2.3pt by the page's foot).
 
-### T19. bug59058 p38: lines mixing Times and Cambria
+### T19. bug59058 p38: lines mixing Times and Cambria — DONE (2026-10-15)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-15
 Documents: bug59058 (74.9% on Linux).
 Known: its references are 13pt Times, "at least" 15pt, with MinionPro
@@ -389,6 +389,11 @@ Cambria on it 15.24 (on its 0.24 raster: 15.12/15.36), a Times-only
 line 15.0; ours 15.45 and 15.0 — the engine's even leading puts half
 of Times's padding under the baseline, so the mixed line is Cambria's
 ascent plus that deeper descent. 2.3pt by p38's foot.
+Built (office.md, "Times and Arial keep their line gap over the
+text"): Writer draws Liberation Sans/Serif with the gap moved over the
+ascent. bug59058 74.9 -> 89.1%, Word's 52 pages; nothing else moved
+(form_footnotes -1.2 is the matcher joining a footnote mark to its
+line). The browser build's copies (web-app.sh) were not built here.
 
 ### T20. Vertical text in cells (zh-2b955411) — DONE (2026-10-15)
 Owner: session 017F2GnTfScURKYZPmRxVQvW (Linux dev box), from 2026-10-15
