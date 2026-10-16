@@ -1616,6 +1616,15 @@ public final class RichLayout {
             // first row's top one, and every row's bottom one.
             let ts = document.tableStyles[table]
             let floatsFrom = _floatsOver(table, document) ? y : nil
+            // What of each cell paragraph's space before lies over the
+            // space after the one above it in its cell (`_cellSharedSpace`).
+            var sharedMemo: [Int: Double] = [:]
+            func shared(_ k: Int) -> Double {
+                if let v = sharedMemo[k] { return v }
+                let v = _cellSharedSpace(k, document)
+                sharedMemo[k] = v
+                return v
+            }
             if theme.wordRules, let down = ts?.floatOffsetY { y += _px(down) }
             func rule(_ side: String, _ on: Bool?) -> Double {
                 // (Under Word's rules each cell carries its own row's
@@ -1651,7 +1660,7 @@ public final class RichLayout {
                 for k in k0 ..< j {
                     let cell = _cells[k]!
                     if cell.rowSpan == 1 { ruled = max(ruled, cell.rules); padded = max(padded, cell.pad.top + cell.pad.bottom) }
-                    let offset = stack[cell.column] ?? 0
+                    let offset = stack[cell.column].map { $0 - shared(k) } ?? 0
                     _tops[k] = y + ruleAbove + cell.pad.top + offset
                     _rowTops[k] = y
                     stack[cell.column] = offset + _heights[k]
@@ -1784,7 +1793,7 @@ public final class RichLayout {
                 for k in row.first ..< row.end {
                     let cell = _cells[k]!
                     guard cell.rowSpan > 1, !cell.vertical else { continue }
-                    stackByColumn[cell.column, default: 0] += _heights[k]
+                    stackByColumn[cell.column, default: 0] += _heights[k] - (stackByColumn[cell.column] == nil ? 0 : shared(k))
                     let need = stackByColumn[cell.column]! + cell.pad.top + cell.pad.bottom
                     spanning.append((r, min(rows.count - 1, r + cell.rowSpan - 1), need))
                 }
@@ -1845,7 +1854,10 @@ public final class RichLayout {
                 // Each cell's content height, for anchoring it in a taller
                 // row (a turned cell's content width, across the column).
                 var content: [Int: Double] = [:]
-                for k in row.first ..< row.end { content[_cells[k]!.column, default: 0] += _heights[k] }
+                for k in row.first ..< row.end {
+                    let column = _cells[k]!.column
+                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k]
+                }
                 // (… which reaches to the foot of a box floating over the
                 // text from one of its paragraphs: Word centres
                 // zh-454e2e29's two 18pt lines with the 37.75pt text box
@@ -1855,7 +1867,7 @@ public final class RichLayout {
                 if theme.wordRules {
                     var at: [Int: Double] = [:]
                     for k in row.first ..< row.end {
-                        let column = _cells[k]!.column, top = at[column] ?? 0
+                        let column = _cells[k]!.column, top = at[column].map { $0 - shared(k) } ?? 0
                         let p = document.paragraphs[k]
                         for image in Array(p.inlineImages.values) + (p.image.map { [$0] } ?? []) {
                             guard let f = image.float, !f.takesRoom, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil else { continue }
@@ -1877,7 +1889,7 @@ public final class RichLayout {
                 var stack: [Int: Double] = [:]
                 for k in row.first ..< row.end {
                     let cell = _cells[k]!
-                    let offset = stack[cell.column] ?? 0
+                    let offset = stack[cell.column].map { $0 - shared(k) } ?? 0
                     let last = min(rows.count - 1, r + cell.rowSpan - 1)
                     let spanned = cell.rowSpan > 1 ? rows[r ... last].map(\.height).reduce(0, +) : row.height
                     let room = cell.vertical ? cell.colWidth - cell.pad.left - cell.pad.right
@@ -3570,6 +3582,23 @@ public final class RichLayout {
         // body's 9 both, and page 24 lost its last line.)
         guard !style.pageBreakBefore else { return 0 }
         return min(_spacing(i - 1, document).after, _spacing(i, document).before).rounded(.down)
+    }
+
+    /// `_sharedSpace` in a cell: how much of cell paragraph `k`'s space
+    /// before lies over the space after the paragraph above it in the
+    /// same cell. drawing.docx's "Ведомости и МАЗАЙ" and "Вкратце", two
+    /// headings of 12pt before and 3 after in an HTML table's cell, are
+    /// 12pt apart in Word's print, and every line under them in the
+    /// cell stood 3pt low. (Automatic spacing has had its share taken in
+    /// `_spacing`.)
+    private func _cellSharedSpace(_ k: Int, _ document: RichDocument) -> Double {
+        guard theme.wordRules, theme.collapsesParagraphSpacing, !document.addsParagraphSpacing,
+              k > 0, k < document.paragraphs.count, let c = document.paragraphs[k].cell,
+              document.paragraphs[k - 1].cell == c else { return 0 }
+        let above = document.paragraphs[k - 1].style, style = document.paragraphs[k].style
+        if document.htmlAutoSpacing, above.spaceAfterAuto || style.spaceBeforeAuto { return 0 }
+        guard !style.pageBreakBefore else { return 0 }
+        return min(_spacing(k - 1, document).after, _spacing(k, document).before).rounded(.down)
     }
 
     /// Where a list paragraph's text and number stand, in points, when

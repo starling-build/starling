@@ -1128,6 +1128,43 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(gap(doc) - gap(bare), 4.5, accuracy: 0.01, "its own block's margins, over and under")
     }
 
+    func testACellsParagraphsShareTheirSpacing() throws {
+        // drawing.docx: two headings of 12pt before and 3pt after in one
+        // cell are 12pt apart in Word's print, as in the body — the larger
+        // of the two spaces alone, where ours had both.
+        func layout(cell: Bool, adds: Bool = false) -> (RichLayout, RichDocument) {
+            var a = RichParagraph(text: "one")
+            a.style.spaceBefore = 12
+            a.style.spaceAfter = 3
+            var b = a
+            b.style.spaceAfter = 0
+            if cell {
+                a.cell = CellRef(table: "t", row: 0, column: 0)
+                b.cell = a.cell
+            }
+            var doc = RichDocument(paragraphs: [a, b])
+            doc.tableColumns["t"] = [200]
+            doc.addsParagraphSpacing = adds
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 2)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return (l, doc)
+        }
+        func gap(_ l: RichLayout) -> Double {
+            (l.geometry(1).top - l.geometry(0).top - l.geometry(0).height) / l.theme.pixelsPerPoint
+        }
+        let (body, _) = layout(cell: false)
+        let (cell, _) = layout(cell: true)
+        XCTAssertEqual(gap(cell), gap(body), accuracy: 0.01, "as in the body")
+        XCTAssertEqual(gap(cell), -3, accuracy: 0.6, "the 3pt after lies under the 12 before")
+        // (A file from Word 2003 and before has both.)
+        let (old, _) = layout(cell: true, adds: true)
+        XCTAssertEqual(gap(old), 0, accuracy: 0.01)
+        XCTAssertEqual(cell.totalHeight, old.totalHeight - 3 * cell.theme.pixelsPerPoint, accuracy: 1, "and the row is that much shorter")
+    }
+
     func testPictureInABorderedRunReadsItsFrameAndEffects() throws {
         // bug59058: "tab1", an inline picture in a run with a 0.75pt grey
         // character border, its effect extent 0.75pt below; Word's line

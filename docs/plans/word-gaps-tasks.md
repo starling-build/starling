@@ -499,6 +499,13 @@ Built: a paragraph naming an HTML block (`w:divId`) takes the block's
 top and bottom margins; 82.5 -> 86.7%. Still off: p9-p11 (the "Cbonds"
 article, tables nested three deep: T9's limit) and p1.
 
+### T29. A cell's paragraphs share their spacing — DONE (2026-10-16)
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: drawing (p1, two headings in a cell 3pt apart too far).
+Built: between paragraphs of one cell, the larger of the space after and
+the space before alone, as in the body. Five documents up, zh-06c46ba9
+down 2.3 (its drift from p41 on lands differently; see office.md).
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a

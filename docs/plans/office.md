@@ -3034,6 +3034,22 @@ fitter dropped the paragraph's tail).
   last. drawing 82.5% -> 86.7 (page 15 exact); no other corpus file has
   a block with margins.
 
+- **A cell's paragraphs share their spacing too (2026-10-16, Linux).**
+  The space after a paragraph and the space before the next shared the
+  room in the body only (b388f95c: "not yet inside a cell"). In a cell
+  Word does the same: drawing.docx's "Ведомости и МАЗАЙ" and "Вкратце",
+  headings of 12pt before and 3 after in an HTML table's cell, are 12pt
+  apart in its print, and every line under them stood 3pt low; and
+  zh-06c46ba9 p41's case box, "問題檢討的寫法" over the next paragraph,
+  62.0 apart in Word's, 69.3 in ours, now 63.3. `_cellSharedSpace`
+  takes the smaller of the two between paragraphs of one cell, as
+  `_sharedSpace` does in the body (automatic spacing keeps its own rule
+  in `_spacing`). drawing 86.7% -> 87.4, form_footnotes 90.8 -> 92.0,
+  zh-15728c84 94.0 -> 96.0, zh-e27cd8bf 99.8 -> 100, zh-457a8d62 +0.1;
+  zh-06c46ba9 80.9 -> 78.6 — it was already two lines behind Word from
+  p41, and where its page 44 ends moved with the nearer spacing (a
+  heading at the foot now takes its next paragraph's first two lines).
+
 - **A cell that states no margins has its table's — or its row's
   (2026-10-15).** Where most of a table's cells state their margins
   (`w:tcMar`, as HTML converters write them), the table's margins were
