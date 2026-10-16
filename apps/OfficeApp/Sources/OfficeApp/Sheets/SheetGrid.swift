@@ -310,7 +310,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     let width = cols.size(a.col) - 4 * zoom
                     guard width > 4 else { continue }
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
-                    let tall = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000)), maxWidth: width).height / scale + 1.5
+                    let style = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
+                    let lines = texts.painter(text, style, maxWidth: width).height
+                    // (Text that wraps to one line is its font's line, which the
+                    // fonts above have given the row: lo-pivottable_invalid_formats'
+                    // wrapping one-line rows print at Arial 10's 12.36, where
+                    // this measure made them 12.5 and lost a row a page.)
+                    guard lines > texts.painter("X", style).height * 1.5 else { continue }
+                    let tall = lines / scale + 1.5
                     if tall > m.defaultRow, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
                 }
             }
