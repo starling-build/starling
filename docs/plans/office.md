@@ -2863,6 +2863,15 @@ fitter dropped the paragraph's tail).
   zh-04f73697 99.0% -> 100, zh-b56eeded 99.0 -> 100, zh-e061a08e 93.0
   -> 94.3; Chinese sample 97.30 -> 97.35; POI unchanged.
 
+- **A list level begins at its own start (2026-10-15).** Numbers
+  counted from one wherever a list began, the level's `w:start` taken
+  only through a restart. zh-a7728bc9's fifth heading is a list of its
+  own whose level starts at 5 — "五、" in Word's print, "一、" in ours —
+  and zh-ac627439's "十二、附则" read "一、附则", its first line a
+  character longer. A level not yet counted (or reset by a higher one)
+  now begins at its start; a parent level not yet counted shows its
+  start too. zh-ac627439 99.5% -> 99.7; nothing else moved by 0.3.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

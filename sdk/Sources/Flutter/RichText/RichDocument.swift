@@ -1302,21 +1302,26 @@ public enum RichListNumbering {
                 continue
             }
             let key = s.listId.map { document.listCounterOf[$0] ?? $0 } ?? anonymous
-            var c = counters[key] ?? Array(repeating: 0, count: 9)
+            let formats = s.listId.flatMap { document.listFormats[$0] } ?? [:]
+            let f = formats[lvl] ?? .plain(lvl)
+            // (A level not yet counted, `Int.min`, begins at its own
+            // start: zh-a7728bc9's fifth heading is a list of its own
+            // whose level starts at 5 — "五、" in Word's print, "一、"
+            // in ours.)
+            var c = counters[key] ?? Array(repeating: Int.min, count: 9)
             if let id = s.listId, let start = document.listRestarts[id]?[lvl], !restarted.contains("\(id)|\(lvl)") {
                 restarted.insert("\(id)|\(lvl)")
                 c[lvl] = start - 1
             }
+            if c[lvl] == Int.min { c[lvl] = (f.start ?? 1) - 1 }
             c[lvl] += 1
-            for deeper in (lvl + 1) ..< 9 { c[deeper] = 0 }
+            for deeper in (lvl + 1) ..< 9 { c[deeper] = Int.min }
             counters[key] = c
-            let formats = s.listId.flatMap { document.listFormats[$0] } ?? [:]
-            let f = formats[lvl] ?? .plain(lvl)
             var label = ""
             var chars = f.text.makeIterator()
             while let ch = chars.next() {
                 if ch == "%", let d = chars.next(), let k = Int(String(d)), k >= 1, k <= 9 {
-                    let n = max(1, c[k - 1])
+                    let n = c[k - 1] == Int.min ? max(1, formats[k - 1]?.start ?? 1) : max(1, c[k - 1])
                     label += (formats[k - 1] ?? .plain(k - 1)).number(n)
                 } else {
                     label.append(ch)
