@@ -257,6 +257,26 @@ struct Chart: Equatable {
     }
     var pieLabels: PieLabels? = nil
 
+    /// The chart with every text size the file states times `f`, those it
+    /// leaves to the default as they are. A sheet's chart is painted at
+    /// three quarters of the page's scale, which makes PowerPoint's default
+    /// sizes Excel's (18.6 and 12 pt against 14 and 9); a size the file
+    /// states Excel prints as stated — 45544's 16 pt title at 14.4 on a
+    /// 90% page, where ours made 10.8 — so the sheet scales those back.
+    func statedTextScaled(by f: Double) -> Chart {
+        var c = self
+        c.titleSize = titleSize.map { $0 * f }
+        c.legendSize = legendSize.map { $0 * f }
+        c.valueLabelSize = valueLabelSize.map { $0 * f }
+        c.categoryLabelSize = categoryLabelSize.map { $0 * f }
+        c.textSize = textSize.map { $0 * f }
+        for i in c.series.indices { c.series[i].labelSize = series[i].labelSize.map { $0 * f } }
+        if var l = pieLabels {
+            l.sizes = l.sizes.mapValues { $0 * f }
+            c.pieLabels = l
+        }
+        return c
+    }
     /// The value axis draws its gridlines (`c:majorGridlines`).
     var valueGrid = true
     /// An axis the file deletes (`c:delete`): no labels, no room for them.

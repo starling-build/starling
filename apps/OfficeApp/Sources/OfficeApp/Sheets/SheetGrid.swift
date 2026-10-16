@@ -539,7 +539,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             // Excel's chart text is three quarters of PowerPoint's (14pt
             // titles, 9pt labels against 18.6 and 12), the painter's sizes.
-            if !chart.series.isEmpty { ChartPainter.paint(chart, canvas, r, pxPerPt: scale * 0.75, theme: theme) }
+            // (A size the chart states is printed as stated: `statedTextScaled`.)
+            if !chart.series.isEmpty { ChartPainter.paint(chart.statedTextScaled(by: 4.0 / 3), canvas, r, pxPerPt: scale * 0.75, theme: theme) }
         }
     }
 
