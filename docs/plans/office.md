@@ -4762,8 +4762,13 @@ fitter dropped the paragraph's tail).
   moved. Then every preset `PresetGeometry` defines (stars, block arrows,
   seals, bent connectors), turned and mirrored about its centre, with
   its line ends: zh-6cd1befe p57's flow chart now has its arrows and its
-  "突发事件" burst; no score moved. Left: vertical text in a group's box,
-  and Word clips a box's overflowing text.
+  "突发事件" burst; no score moved. And a shape alone that the layout's
+  own outline (straight lines and boxes in RGB) leaves undrawn goes the
+  same way: shapes-with-text's ellipse, triangle and theme-filled square,
+  whose white text stood on nothing, and zh-454e2e29 p4's diagonal in its
+  header cell; no score moved. Left: vertical text in a group's box, a
+  lone line's theme colour and arrowhead, and Word clips a box's
+  overflowing text.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as

@@ -2853,8 +2853,11 @@ enum DocxFormat {
                     att.name = rel.target.lastPathComponent
                 }
             }
-            // A group's lines and boxes, each in its place (`WriterGroups`).
-            if let group = node.descendant("wpg:wgp") {
+            // A group's lines and boxes, each in its place (`WriterGroups`);
+            // and a shape alone that the outline above does not draw — an
+            // ellipse, a triangle, a box filled from the theme
+            // (shapes-with-text's, whose white text stood on nothing).
+            if let group = node.descendant("wpg:wgp") ?? (att.outline == nil ? node.descendant("wps:wsp") : nil) {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 WriterGroups.register(group, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
             }

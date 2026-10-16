@@ -139,7 +139,8 @@ enum WriterMetafiles {
     }
 }
 
-/// The lines and boxes of a drawing group (`wpg:wgp`) in Writer, drawn
+/// The lines and boxes of a drawing group (`wpg:wgp`) in Writer — or of
+/// one shape alone that the layout's own outline does not draw — drawn
 /// through `RichLayout.objectPainter` by the attachment's id, each at its
 /// own place in the group; the group's text boxes are set by the layout
 /// (`RichTextBox.parts`). The group was drawn as its first child alone,
@@ -179,7 +180,9 @@ enum WriterGroups {
     static func register(_ group: XNode, for id: String, themePart: Data?) -> Bool {
         let theme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: theme)
-        guard let top = group.first("wpg:grpSpPr")?.first("a:xfrm") else { return false }
+        // (Or one shape alone, a `wps:wsp`: a group of itself.)
+        let lone = group.name == "wps:wsp"
+        guard let top = (lone ? group.first("wps:spPr") : group.first("wpg:grpSpPr"))?.first("a:xfrm") else { return false }
         func number(_ n: XNode?, _ key: String) -> Double { Double(n?[key] ?? "") ?? 0 }
         let width = number(top.first("a:ext"), "cx"), height = number(top.first("a:ext"), "cy")
         guard width > 0, height > 0 else { return false }
@@ -199,11 +202,11 @@ enum WriterGroups {
         // place inside it.
         let root = map(top) { r in r.shift(Offset(-number(top.first("a:off"), "x"), -number(top.first("a:off"), "y"))) }
         var shapes: [Shape] = []
-        func walk(_ node: XNode, _ place: @escaping Map) {
-            for child in node.children {
+        func walk(_ children: [XNode], _ place: @escaping Map) {
+            for child in children {
                 switch child.name {
                 case "wpg:grpSp":
-                    if let xfrm = child.first("wpg:grpSpPr")?.first("a:xfrm") { walk(child, map(xfrm, outer: place)) }
+                    if let xfrm = child.first("wpg:grpSpPr")?.first("a:xfrm") { walk(child.children, map(xfrm, outer: place)) }
                 case "wps:wsp":
                     guard let sp = child.first("wps:spPr"), let geom = sp.first("a:prstGeom"), let prst = geom["prst"],
                           let xfrm = sp.first("a:xfrm") else { continue }
@@ -245,7 +248,13 @@ enum WriterGroups {
                 }
             }
         }
-        walk(group, root)
+        // (A lone shape's own offset is where it stands: its place is
+        // its box.)
+        if lone {
+            walk([group]) { r in r.shift(Offset(-number(top.first("a:off"), "x"), -number(top.first("a:off"), "y"))) }
+        } else {
+            walk(group.children, root)
+        }
         guard !shapes.isEmpty else { return false }
         lock.lock()
         entries[id] = Entry(width: width / 12700, height: height / 12700, shapes: shapes)
