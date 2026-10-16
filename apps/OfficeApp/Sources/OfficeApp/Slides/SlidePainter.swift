@@ -863,6 +863,20 @@ final class SlidePainter: CustomPainter {
         } else if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
             let ox = tr.left + cache.textLeft(shape, pxPerPt: px), oy = tr.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)
+            if shape.textSpin != 0 {
+                // Turned about the middle of the text as set.
+                var lo = Double.infinity, hi = -Double.infinity
+                for i in 0 ..< layout.count {
+                    let g = layout.geometry(i)
+                    for m in g.painter.computeLineMetrics() where m.width > 0 {
+                        lo = min(lo, g.textLeft + m.left); hi = max(hi, g.textLeft + m.left + m.width)
+                    }
+                }
+                let c = Offset(hi > lo ? (lo + hi) / 2 : layout.width / 2, layout.totalHeight / 2)
+                canvas.translate(c.dx, c.dy)
+                canvas.rotate(shape.textSpin * .pi / 180)
+                canvas.translate(-c.dx, -c.dy)
+            }
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
             if let paragraphs, !paragraphs.isEmpty {
                 // Built by paragraph: each paragraph's band drawn on its own,

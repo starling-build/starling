@@ -470,6 +470,9 @@ final class SlideShape {
     /// `bodyPr vert`: the text set a quarter turn clockwise (1: `vert`,
     /// `eaVert`) or anticlockwise (-1: `vert270`); 0 across.
     var textTurn = 0
+    /// The text turned about its own middle, degrees clockwise (a
+    /// camera's `rev`, the other way).
+    var textSpin = 0.0
     /// `a:effectLst/a:outerShdw` (or the theme's, through `effectRef`):
     /// a blurred copy of the outline cast under the shape.
     var shadow: CharShadow? = nil

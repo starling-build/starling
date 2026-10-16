@@ -1438,6 +1438,7 @@ private struct SlideContext {
         st.noWrap = text.noWrap
         st.anchorCentred = text.anchorCentred
         st.textTurn = text.textTurn
+        st.textSpin = text.textSpin
         st.columns = text.columns
         st.columnGap = text.columnGap
         st.warp = text.warp
@@ -2581,6 +2582,9 @@ private struct SlideContext {
         var anchorCentred = false
         /// `bodyPr vert`: 1 a quarter clockwise, -1 anticlockwise.
         var textTurn = 0
+        /// The text's camera turned about its axis (`scene3d/camera/rot
+        /// rev`), degrees clockwise.
+        var textSpin = 0.0
         /// `bodyPr numCol` and `spcCol` (points).
         var columns = 1
         var columnGap = 0.0
@@ -3038,6 +3042,15 @@ private struct SlideContext {
         case "vert", "eaVert", "mongolianVert": body0.textTurn = 1
         case "vert270": body0.textTurn = -1
         default: break
+        }
+        // A flat camera turned about its axis (`rev`, lat and lon nought)
+        // turns the text the other way about its own middle: tdf128213's
+        // "Vertical it should be!" at rev 90° reads upward from the box,
+        // tdf128206's at 270° down its arrow.
+        if let rot = body?.first("a:bodyPr")?.first("a:scene3d")?.first("a:camera")?.first("a:rot"),
+           (rot["lat"].flatMap(Double.init) ?? 0) == 0, (rot["lon"].flatMap(Double.init) ?? 0) == 0,
+           let rev = rot["rev"].flatMap(Double.init), rev != 0 {
+            body0.textSpin = -rev / 60000
         }
         return body0
     }

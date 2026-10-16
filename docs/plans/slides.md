@@ -2014,6 +2014,17 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Text turned by its camera's `rev`, 2026-10-16** (tdf128212,
+tdf128213 and its -shaperot twin 0.57 → 0.27 each; tdf128206 0.68 →
+0.70). A text body's `scene3d` camera turned about its own axis
+(`camera/rot rev`, with `lat` and `lon` nought) turns the text the
+other way about the middle of the text as set: rev 90° reads upward
+("Vertical it should be!" out of the top of its box), 270° downward.
+`SlideShape.textSpin`. tdf128206's turn is right but its middle is
+54 pt off along the line: its insets are wider than its arrow's text
+rectangle, and how PowerPoint measures the middle of such a box is not
+known from one deck.
+
 **Tried and dropped, 2026-10-16:** the squared ramp for every path
 gradient of theme colours under modifiers (now blended evenly): themes'
 radial background fits it (61 → 5 levels off over its quarters), but
