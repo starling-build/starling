@@ -723,6 +723,19 @@ Documents: zh-15728c84 p3 (row 9), zh-1a3c7aa0 p22 (row 65), p32 (row
 Known: Word's part ends under the last line kept on the page and is no
 shorter than the row's stated height; centred cells stand centred in it.
 
+### T43. bug57031 p11: a SAS table runs 2.7pt short, a "Note:" row parts
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16
+Documents: bug57031 (87.0%). Known (office.md, leads of 2026-10-15): the
+gaps between its stacked HTML tables run short, not its rows (Word's rows
+alternate 21.1/21.4, ours 21.3); by the foot of p11 ours has room for one
+line of the two-line "Note:" row that Word carries whole to p12.
+
+### T44. zh-a4b0f6ea p20: a page-anchored floating table Word breaks after its first row
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16
+Documents: zh-a4b0f6ea (88.6%). Known: `tblpPr vertAnchor="page"`; Word
+prints only the header row on p20 and the rest on p21, with the text
+under the table still on p20.
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
