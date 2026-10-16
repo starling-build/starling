@@ -251,12 +251,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     var cols: GridAxis { _axes().cols }
     var rows: GridAxis { _axes().rows }
     /// The axes, rebuilt only when the sheet's sizes, hidden rows or the zoom change.
-    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, cols: GridAxis, rows: GridAxis)? = nil
+    private var _axisCache: (sheet: ObjectIdentifier, version: Int, scale: Double, printing: Bool, rowScale: Double, cols: GridAxis, rows: GridAxis)? = nil
+    /// The sheet's print scale while it is cut into pages and painted: on
+    /// paper each row is a whole number of the printer's dots at that scale
+    /// (45544's default rows at 90% are 93 dots, 11.16 pt, where 103 × 0.9
+    /// made 11.12 and a row more fitted on its chart's page). 1 leaves the
+    /// rows as they are.
+    var printRowScale = 1.0
 
     private func _axes() -> (cols: GridAxis, rows: GridAxis) {
         let ws = controller.sheet
         let id = ObjectIdentifier(ws)
-        if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale, c.printing == printing { return (c.cols, c.rows) }
+        if let c = _axisCache, c.sheet == id, c.version == ws.layoutVersion, c.scale == scale, c.printing == printing,
+           c.rowScale == printRowScale { return (c.cols, c.rows) }
         let cols: GridAxis, rows: GridAxis
         if printing {
             // On paper the sheet has the printer's sizes, not the screen's: a
@@ -321,8 +328,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     if tall > m.defaultRow, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
                 }
             }
-            rows = GridAxis(def: ws.customDefaultRowHeight ? ws.defaultRowHeightPt * m.rowScale : m.defaultRow, overrides: heights,
-                            hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
+            let dots = printRowScale * 600 / 72
+            func whole(_ h: Double) -> Double { printRowScale == 1 || h <= 0 ? h : (h * dots).rounded() / dots }
+            rows = GridAxis(def: whole(ws.customDefaultRowHeight ? ws.defaultRowHeightPt * m.rowScale : m.defaultRow),
+                            overrides: heights.mapValues(whole), hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
             cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
             // A row nobody sized is as tall as its wrapped text, as Excel
@@ -346,7 +355,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             rows = GridAxis(def: ws.defaultRowHeightPt, overrides: heights, hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         }
-        _axisCache = (id, ws.layoutVersion, scale, printing, cols, rows)
+        _axisCache = (id, ws.layoutVersion, scale, printing, printRowScale, cols, rows)
         return (cols, rows)
     }
 
