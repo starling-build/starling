@@ -643,6 +643,17 @@ Word would settle it.
 - zh-454e2e29 p4: the diagonal header cell's "人數", "官等", "類別" are
   text boxes anchored in the cell (with two `wps` line shapes, not
   drawn): ours 8pt high. Shapes and text boxes — the Mac's.
+- zh-1563bd74's footer (for the Linux note under "Note from the Linux dev
+  box"): its height is right as ours has it. Lab `ft` (Word for Windows,
+  the document's own footer): the page number stands at 112.6 and "红河
+  县人民政府发布" at 72.7 whether the FAFAFA "X" (which Word's PDF carries
+  no text for) is there or not, 40pt apart — ours 113.2 and 73.7, the X
+  on a line of its own. Setting the X and the text as one line made the
+  footer a line shorter and moved every page (tried, reverted). The p26
+  loss is elsewhere. (Also tried: measuring `w:firstLineChars` by the
+  first run of text past an anchored shape, 320pt there as its
+  `w:firstLine` says, not our 180 — it cost zh-9dd9ce6d 100 -> 15 and
+  zh-1563bd74 88.7 -> 10.5; reverted.)
 - chartex: our pages match Word's three now; left are a stock chart
   (`c:stockChart`, drawn as a grey box) and the two `cx` charts, whose
   fallback pictures carry no text for the line match. 61745: a bar
