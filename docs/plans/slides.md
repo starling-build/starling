@@ -2023,6 +2023,8 @@ Liberation Sans here). Measured with a corpus-wide comparison of line
 widths by face, which also showed Consolas 8.7% wide in Liberation Mono
 (one fuzzed deck) and Lucida Sans Unicode 9% narrow (two decks; DejaVu
 tried before and dropped).
+Consolas is now set 0.05 em tighter, its own 0.55 em advance
+(clusterfuzz 4986 3.27 → 3.20).
 
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,

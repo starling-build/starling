@@ -2788,6 +2788,11 @@ private struct SlideContext {
                 if cs.fontFamily?.lowercased() == "aptos" {
                     cs.letterSpacing = (cs.letterSpacing ?? 0) - (cs.bold ? 0.031 : 0.0185) * (cs.fontSize ?? 18)
                 }
+                // Consolas, set in Liberation Mono: 0.55 em a letter, not
+                // 0.6 (lines 8.7% wide).
+                if cs.fontFamily?.lowercased() == "consolas" {
+                    cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.05 * (cs.fontSize ?? 18)
+                }
                 cs.shadow = s.shadow
                 cs.highlight = s.highlight
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
