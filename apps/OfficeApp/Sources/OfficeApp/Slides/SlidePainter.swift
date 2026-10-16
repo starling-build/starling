@@ -721,8 +721,8 @@ final class SlidePainter: CustomPainter {
             tp.paint(canvas, Offset(r.center.dx - tp.width / 2, r.center.dy - tp.height / 2))
             tp.dispose()
         }
-        let preset = shape.preset ?? shape.inheritedPreset
-        let path: Path? = preset.flatMap { $0.isLine ? nil : geometryPath($0, r) }
+        let preset = shape.preset ?? shape.inheritedPreset ?? (shape.picture != nil ? shape.pictureGeometry : nil)
+        let path: Path? = preset.flatMap { $0.isLine ? nil : (PresetGeometry.path($0.rawValue, in: r) ?? geometryPath($0, r)) }
         let drawnAlready = freeform != nil || solid
         if mirrored { mirror() }
         // (A table's fill lies under its rows and no further: where the
@@ -743,6 +743,29 @@ final class SlidePainter: CustomPainter {
             p.isAntiAlias = true
             p.color = fill
             if let path { canvas.drawPath(path, p) } else { canvas.drawRect(area, p) }
+        }
+        if let ish = shape.innerShadow, shape.fill != nil || shape.fillStyle != nil, shape.picture == nil,
+           shape.preset?.isOpenPath != true {
+            // An inner shadow: everything outside the outline, blurred and
+            // offset, seen only inside it (tdf99030's dark-edged box).
+            let inside = path ?? { let q = Path(); q.addRect(area); return q }()
+            let a = -shape.rotation * .pi / 180
+            let dx = (ish.dx * cos(a) - ish.dy * sin(a)) * px, dy = (ish.dx * sin(a) + ish.dy * cos(a)) * px
+            let spread = ish.blur * px * 2 + abs(dx) + abs(dy) + 2
+            let around = Path()
+            around.fillType = .evenOdd
+            around.addRect(area.inflate(spread))
+            around.addPath(inside, Offset.zero)
+            let p = Paint()
+            p.style = .fill
+            p.isAntiAlias = true
+            p.color = ish.color
+            if ish.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, ish.blur * px / 2) }
+            canvas.save()
+            canvas.clipPath(inside)
+            canvas.translate(dx, dy)
+            canvas.drawPath(around, p)
+            canvas.restore()
         }
         if let line = shape.outline, !drawnAlready {
             let p = Paint()

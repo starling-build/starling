@@ -448,6 +448,9 @@ final class SlideShape {
     /// `a:effectLst/a:outerShdw` (or the theme's, through `effectRef`):
     /// a blurred copy of the outline cast under the shape.
     var shadow: CharShadow? = nil
+    /// `a:effectLst/a:innerShdw`: a shadow cast inward, round the inside
+    /// of the outline.
+    var innerShadow: CharShadow? = nil
     /// `a:glow`: a blurred halo of `glowColor` this many points out round
     /// the outline; nil for none.
     var glowRadius: Double? = nil

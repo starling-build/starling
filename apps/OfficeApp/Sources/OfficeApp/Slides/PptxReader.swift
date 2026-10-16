@@ -1423,6 +1423,7 @@ private struct SlideContext {
         st.headEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:headEnd"))
         st.tailEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:tailEnd"))
         st.shadow = _shapeShadow(spPr, style)
+        st.innerShadow = _shapeInnerShadow(spPr, style)
         if let effects = spPr?.first("a:effectLst") {
             if let g = effects.first("a:glow"), let c = colors.color(in: g) {
                 st.glowRadius = (g["rad"].flatMap(Double.init) ?? 0) / Pptx.emu
@@ -1748,6 +1749,21 @@ private struct SlideContext {
             }
         }
         if let b = el.first("p:blipFill") { s.pictureInset = PptxReader.stretchInset(b) }
+        // Its outline (graphic-stroke's green frame round an OLE object's
+        // picture): the line's own colour, else its style's.
+        let ln = el.first("p:spPr")?.first("a:ln"), lnRef = el.first("p:style")?.first("a:lnRef")
+        // (Not one turned in 3-D, which is drawn flat here: its frame
+        // would stand where the picture does not — Scene3d_pureImage.)
+        if ln?.has("a:noFill") != true, el.first("p:spPr")?.first("a:scene3d") == nil {
+            if let f = ln?.first("a:solidFill") { s.outline = colors.color(in: f) }
+            else if let ref = lnRef, ref["idx"] != "0" { s.outline = colors.color(in: ref) }
+            if s.outline != nil {
+                var w = 0.75
+                if let idx = lnRef?["idx"].flatMap(Int.init), theme.lineWidths.indices.contains(idx - 1) { w = theme.lineWidths[idx - 1] }
+                s.outlineWidth = ln?["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? w
+                s.outlineDash = PptxReader.dash(ln)
+            }
+        }
         s.shadow = _shapeShadow(el.first("p:spPr"), el.first("p:style"))
         // A fill of its own, behind the picture (showing through its
         // transparent parts and around one padded by a negative crop).
@@ -2393,6 +2409,24 @@ private struct SlideContext {
     /// A shape's or picture's outer shadow: its own effects', or — saying
     /// none — its style's theme effect (`effectRef`, the referred colour
     /// as `phClr`), as Office 2007's themes give every shape one.
+    /// A shape's inner shadow, its own or its style's.
+    private func _shapeInnerShadow(_ spPr: XNode?, _ style: XNode?) -> CharShadow? {
+        func read(_ effects: XNode?, _ c: ColorContext) -> CharShadow? {
+            guard let sh = effects?.first("a:innerShdw"), let color = c.color(in: sh) else { return nil }
+            let dist = (sh["dist"].flatMap(Double.init) ?? 0) / Pptx.emu
+            let dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
+            return CharShadow(color: color, dx: dist * cos(dir), dy: dist * sin(dir),
+                              blur: (sh["blurRad"].flatMap(Double.init) ?? 0) / Pptx.emu)
+        }
+        if let own = spPr?.first("a:effectLst") { return read(own, colors) }
+        if spPr?.first("a:effectDag") != nil { return nil }
+        guard let ref = style?.first("a:effectRef"), let idx = ref["idx"].flatMap(Int.init), idx > 0,
+              theme.effectStyles.indices.contains(idx - 1) else { return nil }
+        var c = colors
+        c.placeholder = colors.color(in: ref)
+        return read(theme.effectStyles[idx - 1].first("a:effectLst"), c)
+    }
+
     private func _shapeShadow(_ spPr: XNode?, _ style: XNode?) -> CharShadow? {
         if let own = spPr?.first("a:effectLst") { return LevelStyle.outerShadow(own, colors) }
         if spPr?.first("a:effectDag") != nil { return nil }

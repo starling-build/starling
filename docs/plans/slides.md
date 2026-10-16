@@ -1963,6 +1963,16 @@ regular weight here.)
 A table with no style, or "Table Grid" (`{5940675A…}`), is ruled in
 black at 1 pt in PowerPoint's print; ours were the editor's ½ pt.
 
+**Inner shadows, and a picture's outline, 2026-10-15** (sweep 93:
+1.2364 → 1.2342%; tdf99030 1.70 → 0.44, graphic-stroke's frame drawn;
+tdf169088 +0.03). `a:innerShdw` was not read: tdf99030's layout box,
+black inside its edges in PowerPoint's print (blurRad 9 pt at 100%),
+was flat and pale. A shape with a fill now draws everything outside its
+outline, offset and blurred, clipped to the inside. And a picture's
+own line (`a:ln`, or its style's `lnRef`) is drawn round it — but not
+round one turned in 3-D, which is drawn flat here and whose frame would
+stand where the picture does not (Scene3d_pureImage, +0.31 when tried).
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
