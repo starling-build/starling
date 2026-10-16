@@ -715,18 +715,10 @@ of a square face's ideographs with Latin in it, off the grid, in a
 paragraph whose other line is taller — Word's height for each line.
 
 ### Leads from the Windows box (2026-10-16, measured, not built)
-- Lab `ps` (~/starling-doc-check/lab/ps, Word 16): before 2013's
-  layout (mode 14) a space after an inline picture wider than the line
-  goes to a line of its own — a cell of 74.35pt sets the paragraph under
-  a 76 or 80pt picture and a space 13.8pt lower than with no space; not
-  under a 74pt picture, and not in mode 15. zh-9c5d0c3f (T17, mode 12)
-  p4 "車道縮減": its 75pt sign in a 74.35pt cell, then " ", 21pt low of
-  Word. Tried: a U+2028, then a "
-", after the picture's placeholder in
-  `_span` — the painter still has one line (76.2pt), though a `w:br`
-  then a space makes its line elsewhere (lab `bs`); reverted. Ours also
-  sets the paragraph under a 60pt picture plus a space 2.8pt lower than
-  under the picture alone, where Word sets both alike.
+- Lab `ps`: built (a picture wider than its line keeps the break after
+  it; before 2013's layout a space after it opens a line) — zh-9c5d0c3f
+  p4. Left: ours sets the paragraph under a picture and a space 2.8pt
+  lower than under the picture alone in mode 15; Word sets both alike.
 - zh-454e2e29 p4: the diagonal header cell's "人數", "官等", "類別" are
   text boxes anchored in the cell (with two `wps` line shapes, not
   drawn): ours 8pt high. Shapes and text boxes — the Mac's.

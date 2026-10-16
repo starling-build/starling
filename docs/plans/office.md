@@ -3297,6 +3297,25 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A picture wider than its line keeps the break after it; before
+  2013's layout a space after it goes to a line of its own (2026-10-16).**
+  Lab `ps` (Word 16, a fixed cell of 74.35pt, a picture of 60 to 80pt
+  then a space, the next paragraph's place read off): in mode 14 a 76 or
+  80pt picture followed by a space sets the next paragraph 13.8pt lower
+  than the picture alone — the space a line of its own — and not under a
+  74pt picture, nor in mode 15. With a `w:br` before the space every
+  width takes the line. Ours took it for none of the wide pictures: the
+  engine sets a picture wider than the line alone on it and loses a hard
+  break after it (lab `bs` shows the break kept after text). A paragraph
+  of pictures, spaces and breaks is now laid out as wide as its widest
+  picture, which stands at the line's left as before; and before 2013's
+  layout a space after such a picture opens a line. zh-9c5d0c3f's road
+  signs, 75pt in cells of 74.35, had their captions a line high
+  ("車道縮減" 21pt): 90.8% -> 91.8 (T17). Ours still sets the paragraph
+  under a picture and a space 2.8pt lower than under the picture alone
+  in mode 15, where Word sets both alike — as it did under narrower
+  pictures before.
+
 - **A parting row's part on its page centres its centred cells (2026-
   10-16).** Where a row parts at the page's foot, its part there is as
   tall as the most any of its cells keeps on the page, and no shorter

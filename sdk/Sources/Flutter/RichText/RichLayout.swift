@@ -4356,7 +4356,20 @@ public final class RichLayout {
             // column's width — ten ideographs in ten ems — must fit, and
             // the sum of its advances may come out a hair above.)
             let slack = theme.wordRules ? _px(0.005) : 0
-            painter.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
+            // (A paragraph of pictures, spaces and breaks with a picture
+            // wider than the line is laid out as wide as that picture: the
+            // engine sets such a picture alone on its line and loses the
+            // break after it, and the line that break opens — lab `ps`, a
+            // 76pt picture, a `w:br` and a space in a cell of 74.35pt, is
+            // one line in ours and two in Word's. Word keeps the picture
+            // at the line's left, as it stands here.)
+            var lineWidth = textWidth
+            if theme.wordRules,
+               let widest = inline.compactMap({ $0.image == nil ? nil : $0.dimensions.size.width }).max(), widest > textWidth,
+               p.text.unicodeScalars.allSatisfy({ [0xFFFC, 0x20, 0x0A, 0x0B, 0x2028].contains($0.value) }) {
+                lineWidth = widest
+            }
+            painter.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
             if let key = Self.debugFit, !key.isEmpty, p.text.containsSubstring(key) {
                 let line = "width \(i): column \(textWidth / _px(1))pt, text \(painter.maxIntrinsicWidth / _px(1))pt, \(painter.computeLineMetrics().count) lines\n"
                 FileHandle.standardError.write(Data(line.utf8))
@@ -5508,6 +5521,18 @@ public final class RichLayout {
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
                                                              baselineOffset: middle.map { size.height / 2 + _px($0) } ?? size.height)))
+                // (Before 2013's layout a space after a picture wider than
+                // the line goes to a line of its own: lab `ps` (Word 16, a
+                // cell of 74.35pt) sets the paragraph under a 76 or 80pt
+                // picture and a space 13.8pt lower in mode 14 than with no
+                // space, and not in mode 15, nor under a 74pt picture.
+                // zh-9c5d0c3f's road signs, 75pt in such cells, stood a
+                // line high of their captions — "車道縮減" 21pt.)
+                if theme.wordRules, (document.compatibilityMode ?? 12) < 15, image.float == nil, w > textWidth + _px(0.01),
+                   pos < units.count, units[units.index(units.startIndex, offsetBy: pos)] == 0x20 {
+                    children.append(TextSpan(text: "\n", style: style))
+                    inserts.append(pos)
+                }
                 continue
             }
             // Two lines in one (`w:eastAsianLayout w:combine`): Word sets
