@@ -4352,6 +4352,16 @@ fitter dropped the paragraph's tail).
   made every line with a note mark taller than Word's (bug59058 99.9 ->
   62.1, bug65649 99.9 -> 92.8). Marks stand where the overlay put them,
   to 0.03pt. zh-06c46ba9 92.6 -> 93.9; nothing down.
+- **A paragraph's trailing spaces take no line height (2026-10-16).**
+  8c5c457e sets the spaces that end a paragraph after ideographs in the
+  ideographs' face. On the Mac a space there still resolves to another
+  font than the ideographs do, and that font's 4.4pt descent made
+  zh-1563bd74's footer line 19.0pt where the ideographs alone make 18.2.
+  The page lost a line and the document ran to 30 pages, against Word's
+  29. Word's lab `hfl` gives trailing spaces no height at all, so such a
+  space now has a hair of a line height and no part in the strut, as a
+  shifted mark has. zh-1563bd74 88.6 -> 99.7 with Word's 29 pages;
+  nothing down.
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints

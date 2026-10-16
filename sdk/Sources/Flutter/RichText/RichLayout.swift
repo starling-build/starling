@@ -5040,7 +5040,12 @@ public final class RichLayout {
                                         characterClass: classed && kind >= 0 ? kind : nil, characterGrid: grid, scriptHidden: true)
                 if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
                 // (A space set in the ideographs' face keeps the stand-in's width.)
-                if kind == -2 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + _spaceWidth(style(classed ? RichResolvedFace.characterClass(" ") : 0)) - _spaceWidth(s)) }
+                // (… and no line of its own: the face a space resolves to
+                // is not always the ideographs', and its descent made the
+                // line taller — zh-1563bd74's footer line, 19.0pt on the
+                // Mac against the ideographs' 18.6, and Word's lab `hfl`
+                // gives trailing spaces no height at all.)
+                if kind == -2 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + _spaceWidth(style(classed ? RichResolvedFace.characterClass(" ") : 0)) - _spaceWidth(s), height: 0.01) }
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
@@ -5760,7 +5765,7 @@ public final class RichLayout {
         var count = 0
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
-            if t.text != nil, let style = t.style, style.baselineShift == nil, let size = style.fontSize, let h = style.height, size > 0.5 {
+            if t.text != nil, let style = t.style, style.baselineShift == nil, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
                 count += 1
                 if let f = first, let fs = f.fontSize, let fh = f.height {
                     if tallest {
