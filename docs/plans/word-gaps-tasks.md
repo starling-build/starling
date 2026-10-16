@@ -636,8 +636,10 @@ Word would settle it.
   a 76 or 80pt picture and a space 13.8pt lower than with no space; not
   under a 74pt picture, and not in mode 15. zh-9c5d0c3f (T17, mode 12)
   p4 "車道縮減": its 75pt sign in a 74.35pt cell, then " ", 21pt low of
-  Word. Tried: a U+2028 before the space in `_span` — no line came of
-  it (a line of a lone space is folded somewhere); reverted. Ours also
+  Word. Tried: a U+2028, then a "
+", after the picture's placeholder in
+  `_span` — the painter still has one line (76.2pt), though a `w:br`
+  then a space makes its line elsewhere (lab `bs`); reverted. Ours also
   sets the paragraph under a 60pt picture plus a space 2.8pt lower than
   under the picture alone, where Word sets both alike.
 - zh-454e2e29 p4: the diagonal header cell's "人數", "官等", "類別" are
