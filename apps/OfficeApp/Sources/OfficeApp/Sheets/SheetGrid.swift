@@ -293,17 +293,28 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 return (r, fit ? h * fitted : SheetPrintMetrics.setRow(h, scale: setScale))
             })
             // A row fitted afresh is as tall as its tallest font's line —
-            // fitted on the screen, then printed (`fittedRow`).
+            // fitted on the screen, then printed (`fittedRow`) — its empty
+            // formatted cells counted, and shorter than the default font's
+            // where every font in it is smaller: 57523's unsized rows of
+            // Calibri 10 print at 13.32 pt in a Calibri 11 book, whatever
+            // the sheet's defaultRowHeight says.
             var lines: [Int: Double] = [:]   // by style
-            for (a, cell) in ws.cells where cell.style != 0 && refits(a.row) {
+            var fit: [Int: Double] = [:]     // by row
+            for (a, cell) in ws.cells where refits(a.row) {
                 let line: Double
                 if let known = lines[cell.style] { line = known } else {
                     let st = book.style(cell.style)
-                    line = st.fontName == nil && st.fontSize == nil ? 0
+                    line = cell.style == 0 || st.fontName == nil && st.fontSize == nil ? m.defaultRow
                         : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
                     lines[cell.style] = line
                 }
-                if line > m.defaultRow + 0.01, line > heights[a.row] ?? 0 { heights[a.row] = line }
+                if line > fit[a.row] ?? 0 { fit[a.row] = line }
+            }
+            for (r, line) in fit {
+                // (A row of super- or subscript keeps the file's fit: `Worksheet.scriptRows`.)
+                if heights[r] == 0 { continue }
+                if ws.scriptRows.contains(r), let h = heights[r], h >= line { continue }
+                if abs(line - m.defaultRow) > 0.01 || heights[r] != nil { heights[r] = line }
             }
             cols = GridAxis(def: ws.defaultColWidthChars.map { m.column($0) } ?? m.defaultChars * m.digit, overrides: widths, hidden: ws.hiddenCols, scale: scale)
             do {
@@ -327,9 +338,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     let one = texts.painter("X", style).height
                     guard lines > one * 1.5 else { continue }
                     let line = st.fontName == nil && st.fontSize == nil ? m.defaultRow
-                        : max(m.defaultRow, m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold)))
+                        : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
                     let tall = (lines / one).rounded() * line
-                    if tall > m.defaultRow, tall > heights[a.row] ?? 0 { heights[a.row] = tall }
+                    if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
                 }
             }
             let dots = printRowScale * 600 / 72
