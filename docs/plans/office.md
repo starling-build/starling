@@ -2851,6 +2851,18 @@ fitter dropped the paragraph's tail).
   97.8% -> 100, zh-64044a1d 93.0 -> 95.6; Chinese sample 97.23 ->
   97.30; POI unchanged.
 
+- **A line may end after "×" in East Asian layout (2026-10-15).** The
+  multiplication sign sits in the Latin-1 letters' range, so the
+  fitter read it as a letter of the word beside it and the engine kept
+  it with the number after it; and the formula rule (bug59058's math
+  runs) joins it to its neighbours. In a document of East Asian layout
+  Word parts a line after it: zh-b56eeded's "…預算員額總數)×" ends a
+  line before "100%" in Word's print, where ours carried "×" down. "×"
+  and "÷" are no letters now, a line may part after "×" under East
+  Asian layout, and the formula rule joins "×" outside it only.
+  zh-04f73697 99.0% -> 100, zh-b56eeded 99.0 -> 100, zh-e061a08e 93.0
+  -> 94.3; Chinese sample 97.30 -> 97.35; POI unchanged.
+
 - **Unequal columns state their gap on each `w:col` (2026-10-14).**
   zh-25c4de17's two columns are `w:equalWidth="0"` with
   `<w:col w:w="10451" w:space="425"/>` and nothing on `w:cols`; the

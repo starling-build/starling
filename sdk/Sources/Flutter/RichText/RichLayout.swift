@@ -4281,7 +4281,7 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, let b = before, Self._joinsLatin(b, ch) {
+                } else if theme.wordRules, let b = before, Self._joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -5755,8 +5755,9 @@ public final class RichLayout {
         // letter of bug65649's Russian was a stretch of its own, so a
         // word over the margin looked like a letter over, and the spaces
         // never gave for it.)
+        // (Not "×" and "÷" among them, signs and no letters.)
         func word(_ u: UInt16) -> Bool {
-            (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) || (u >= 0xC0 && u <= 0x24F)
+            (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) || (u >= 0xC0 && u <= 0x24F && u != 0xD7 && u != 0xF7)
                 || (u >= 0x300 && u <= 0x52F) || (u >= 0x1E00 && u <= 0x1FFF)
         }
         func digit(_ u: UInt16) -> Bool { u >= 0x30 && u <= 0x39 }
@@ -5938,7 +5939,7 @@ public final class RichLayout {
         return true
     }
 
-    private static func _joinsLatin(_ a: Character, _ b: Character) -> Bool {
+    private static func _joinsLatin(_ a: Character, _ b: Character, eastAsian: Bool = false) -> Bool {
         // (A mathematical letter or digit after it counts as one of the
         // Latin text's own: bug59058's formulas are runs of "𝑏𝑖𝑐𝑖/𝑁𝑖"
         // with no space, which Word carries to the next line whole where
@@ -5948,7 +5949,10 @@ public final class RichLayout {
         // "∑𝑘𝑖=1", and Word keeps the space-free formula one word.)
         func mathy(_ c: Character) -> Bool {
             guard let v = c.unicodeScalars.first?.value else { return false }
-            return (v >= 0x1D400 && v <= 0x1D7FF) || (v >= 0x2200 && v <= 0x22FF) || v == 0xD7
+            // (Not "×" under East Asian layout, where it is a sign Word
+            // parts a line after: zh-b56eeded's "…總數)×" ends a line
+            // before "100%" in Word's print, and ours carried it down.)
+            return (v >= 0x1D400 && v <= 0x1D7FF) || (v >= 0x2200 && v <= 0x22FF) || (v == 0xD7 && !eastAsian)
         }
         func plain(_ c: Character) -> Bool {
             guard let v = c.unicodeScalars.first?.value else { return false }
@@ -5990,6 +5994,10 @@ public final class RichLayout {
         if b == "-" {
             return wide(a) && !_openingMarks.contains(a) && !_closingMarks.contains(a)
         }
+        // (And after a multiplication sign, which the engine reads as a
+        // letter of the number after it: zh-b56eeded's "…總數)×" ends a
+        // line before "100%" in Word's print.)
+        if a == "\u{00D7}" { return b != " " }
         return false
     }
 
