@@ -19,6 +19,10 @@ struct HeaderFooter: Equatable {
     var firstHeader = "", firstFooter = ""
     var differentOddEven = false
     var differentFirst = false
+    /// Whether the text grows and shrinks with the sheet's print scale
+    /// (`scaleWithDoc`, on unless the file says not): CVLKRA-KYC's
+    /// headers print at the 66% its sheet does.
+    var scaleWithDoc = true
 
     var isEmpty: Bool {
         [oddHeader, oddFooter, evenHeader, evenFooter, firstHeader, firstFooter].allSatisfy(\.isEmpty)
@@ -43,6 +47,7 @@ struct HeaderFooter: Equatable {
         func flag(_ k: String) -> Bool { node[k] == "1" || node[k] == "true" }
         h.differentOddEven = flag("differentOddEven")
         h.differentFirst = flag("differentFirst")
+        h.scaleWithDoc = node["scaleWithDoc"] != "0" && node["scaleWithDoc"] != "false"
         h.oddHeader = node.child("oddHeader")?.text ?? ""
         h.oddFooter = node.child("oddFooter")?.text ?? ""
         h.evenHeader = node.child("evenHeader")?.text ?? ""

@@ -513,7 +513,7 @@ extension SheetGridState {
                 }
                 canvas.restore()
                 fields.page = setup.firstPageNumber + out.count
-                _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size)
+                _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size, scale: s)
                 out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
             }
         }
@@ -548,15 +548,18 @@ extension SheetGridState {
     /// is the page's place in the job, from 1, which picks the first/even
     /// variant; `fields.page` is the number printed.
     private func _paintHeaderFooter(_ canvas: any Canvas, setup: SheetPrintSetup, fields: HeaderFooterText.Fields,
-                                    position: Int, base: GridTextStyle, size: Size) {
+                                    position: Int, base: GridTextStyle, size: Size, scale: Double = 1) {
         let hf = setup.headerFooter
         guard !hf.isEmpty else { return }
+        let k = hf.scaleWithDoc ? scale : 1
+        var base = base
+        base.size *= k
         func span(_ runs: [HeaderFooterText.Run]) -> TextSpan {
             TextSpan(children: runs.map { r in
                 var st = base
                 st.bold = r.style.bold; st.italic = r.style.italic
                 st.underline = r.style.underline; st.strike = r.style.strike
-                if let n = r.style.size { st.size = n }
+                if let n = r.style.size { st.size = n * k }
                 if let f = r.style.family { st.family = OfficeFonts.substitute(f) }
                 if let c = r.style.color { st.color = c }
                 return TextSpan(text: r.text, style: st.flutter)
