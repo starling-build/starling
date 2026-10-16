@@ -348,6 +348,13 @@ Progress: drawn (61745 0 -> 15/17 lines, zh-37b6536f 31% -> 96%), the
 automatic title of an unnamed lone series, `cx:` charts by their
 Fallback pictures, charts in a line of text (chartex: 3 pages as Word's).
 Left: radar charts (Slides reads none; chartex's stays a grey box).
+2026-10-16: stock charts read as their lines (735f39f0); a 2013-style
+bar chart's plot top, ticks taking no room in a 2013-style chart, a
+line's 19.2pt legend key (f9c1e61e..599f460a): 61745 100%, chartex 50.
+Left on chartex: p2's radar (drawn now) has its top legend 4.7pt high
+of Word's (title baseline to legend baseline 22.1 in Word, ours 17.9)
+and its lower spoke labels 7pt further out; its box-and-whisker and
+sunburst (`cx:`) are their Fallback pictures, so none of their text.
 
 ### T17. zh-9c5d0c3f: road-sign table rows — DONE (2026-10-16)
 Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-14
