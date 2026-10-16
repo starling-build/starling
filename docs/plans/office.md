@@ -4562,6 +4562,12 @@ fitter dropped the paragraph's tail).
   still first. Tried first as the run's whole face: Noto Serif CJK's own
   digits and letters broke the PMingLiU documents' lines (zh-04f73697
   100% -> 66.6). As kept, no score moved.
+- **A table set out by its first cell's margin (2026-10-16; Linux).**
+  Before Word 2013's layout a table's edge stands its left cell margin
+  left of its indent; the margin is the first cell's own `w:tcMar` where
+  it states one, not the table's. zh-6143e5f0's plans (cells of zero
+  margin) stood 5.4pt left of Word's. Sideways drift gone there and in
+  two sibling reports, bug59058 363 lines -> 24; no score moved.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
