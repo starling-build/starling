@@ -3588,7 +3588,7 @@ public final class RichLayout {
     private func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         let style = p.style
         let wordList = _wordList(p, document)
-        var sides = _sideIndents(p, document)
+        var sides = _sideIndents(p, at: i, document)
         // `w:mirrorIndents` on a page Word mirrors: the right indent is
         // the left one and the first line's, the left the right one and
         // a hanging indent's depth (measured: `office.md`).
@@ -5187,11 +5187,15 @@ public final class RichLayout {
     /// A paragraph's left and right indents in points: Word's
     /// `w:leftChars` and `w:rightChars` count characters of the
     /// document's own size (Normal's), and outrank the measure beside
-    /// them.
-    private func _sideIndents(_ p: RichParagraph, _ document: RichDocument) -> (left: Double, right: Double) {
+    /// them. On a character grid a character is the grid's: the size
+    /// and the grid's addition to it, as for the first line's count —
+    /// zh-457a8d62's leftChars 200 at 16pt on a grid of 17.0 starts its
+    /// lines 34pt in, in Word's print, where ours were at 32 and a line
+    /// 2pt longer took a character Word leaves for the next.
+    private func _sideIndents(_ p: RichParagraph, at index: Int? = nil, _ document: RichDocument) -> (left: Double, right: Double) {
         var left = p.style.indentLeft, right = p.style.indentRight
         guard theme.wordRules, !p.style.eastAsian.isEmpty else { return (left, right) }
-        let unit = (document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize) / 100
+        let unit = ((document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize) + (_grid(index, document).chars ?? 0)) / 100
         // (With a hanging indent in characters the count is from where
         // the first line hangs: the left indent is the count and the
         // hanging one together — as `w:left` beside them says in 420 of

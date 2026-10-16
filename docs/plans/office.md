@@ -4156,6 +4156,15 @@ fitter dropped the paragraph's tail).
   of "。」", the "「" of "：「") gives nothing more — it fixes p47's line
   in the arithmetic but costs seven documents (zh-1a3c7aa0 92.7 -> 82.1,
   zh-6d1afa56 97.4 -> 87.5), so it is not Word's rule.
+- **On a character grid an indent in characters counts the grid's
+  characters (2026-10-16; Linux, from Word's print).** zh-457a8d62's body
+  style says leftChars 200, 16pt text on a grid of 17.0: Word starts its
+  lines 34pt in (two grid characters), ours started them at 32 (two
+  ems), and every line was 2pt longer than Word's — which is what the
+  two lines above came to, not the squeeze test: each took a character
+  Word leaves for the next. `_sideIndents` now adds the grid's addition
+  to Normal's size, as `firstLineIndent` already did. zh-457a8d62 97.3%
+  -> 100%; nothing else moved.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
