@@ -4006,6 +4006,21 @@ public final class RichLayout {
                         k -= 1
                     }
                 }
+                // (Separated, the table's own top and bottom lines frame
+                // it outside its cells, ruled or not: bug57031's SAS tables
+                // (cell spacing 0, every cell's sides nil, the table's top
+                // line 0.75pt and bottom 0.25) are framed in Word's print
+                // and each stands that much taller; ours took no room for
+                // either, and page 11 ran 2.7pt short by its foot.)
+                func frame(_ side: String) -> Double {
+                    guard theme.wordRules, ts.cellSpacing != nil,
+                          (side == "top" ? c.edges?.top : c.edges?.bottom) == false,
+                          (side == "top" ? ts.edges?.top : ts.edges?.bottom) ?? ts.borders else { return 0 }
+                    let style = ts.edgeStyles[side] ?? ts.borderStyle
+                    let width = ts.edgeWidths[side] ?? ts.borderWidth ?? 0.5
+                    return _px(Self._ruleRoom(style, width))
+                }
+                if c.row == 0 { top += frame("top") }
                 if top > 0 { pad = EdgeInsets(left: pad.left, top: pad.top + top, right: pad.right, bottom: pad.bottom) }
                 rules = top
                 // (A table that states its cell spacing — even none, as
@@ -4020,7 +4035,7 @@ public final class RichLayout {
                 // line. bug59058's state list had a row more a page.)
                 let separated = theme.wordRules && ts.cellSpacing != nil
                 if c.row + c.rowSpan - 1 >= rows || separated {
-                    let bottom = rule(c, "bottom")
+                    let bottom = rule(c, "bottom") + (c.row + c.rowSpan - 1 >= rows ? frame("bottom") : 0)
                     if bottom > 0 { pad = EdgeInsets(left: pad.left, top: pad.top, right: pad.right, bottom: pad.bottom + bottom) }
                     rules += bottom
                     below = bottom

@@ -4662,6 +4662,13 @@ fitter dropped the paragraph's tail).
     10pt line is shorter than the empty 12pt footer paragraph's 15.6;
     Word's footer top and ours agree (51.6pt up) and our last body line
     overlaps it by 0.2pt. A page-foot tolerance question.
+- **A separated table is framed by its own lines (2026-10-16, T43).**
+  A table that states its cell spacing (even 0, as HTML-converted tables
+  do) draws its tblBorders top and bottom as a frame outside its cells,
+  and the frame takes room, where every cell says nil for that side:
+  bug57031's SAS tables (top 0.75pt, bottom 0.25) are framed in Word's
+  print, each that much taller, and page 11 ran 2.7pt short without it.
+  bug57031 87.0% -> 94.1, nothing else moved.
 - **Lead, not taken: a page-anchored floating table that Word breaks
   after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
   the rest of the table, which would fit, goes to page 21 in Word's

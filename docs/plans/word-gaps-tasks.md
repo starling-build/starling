@@ -729,15 +729,27 @@ Progress (Windows): the centred cells now stand so (zh-15728c84 96.0 ->
 98.5). Left: the part's rule still runs to the page's foot, and
 zh-1a3c7aa0 p22/p32 (their rows' heights there).
 
-### T43. bug57031 p11: a SAS table runs 2.7pt short, a "Note:" row parts
+### T43. bug57031 p11: a SAS table runs 2.7pt short, a "Note:" row parts — DONE (2026-10-16)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16
+Built: a separated table (cell spacing stated, 0 too) is framed by its
+own top and bottom lines, and the frame takes room, even where every cell
+turns its sides off (`frame` in the cell geometry). bug57031 87.0 -> 94.1;
+nothing else moved.
 Documents: bug57031 (87.0%). Known (office.md, leads of 2026-10-15): the
 gaps between its stacked HTML tables run short, not its rows (Word's rows
 alternate 21.1/21.4, ours 21.3); by the foot of p11 ours has room for one
 line of the two-line "Note:" row that Word carries whole to p12.
 
-### T44. zh-a4b0f6ea p20: a page-anchored floating table Word breaks after its first row
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16
+### T44. zh-a4b0f6ea p20: a page-anchored floating table Word breaks after its first row — measured, released
+Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
+Labs `fa`–`fd` (the document's last section alone, Word 16): as is, page 1
+holds the header row and "单位（盖章）" below it, the rest on page 2 —
+reproduced. Without the "单位（盖章）" paragraph that stands before the
+table, the whole table stays on page 1; anchored to the text instead of
+the page, likewise; without its merged cells, the same split. So the
+paragraph before a page-anchored table (which the table overlaps, and
+which Word sets under the table's first row) is what makes Word part it
+there — the mechanism is not found.
 Documents: zh-a4b0f6ea (88.6%). Known: `tblpPr vertAnchor="page"`; Word
 prints only the header row on p20 and the rest on p21, with the text
 under the table still on p20.
