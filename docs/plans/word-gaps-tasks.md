@@ -827,7 +827,10 @@ sets the rule 1pt low; the anchor's reference point is still the open
 question.
 
 ### T47. zh-1563bd74 p26: how tall Word's three-paragraph footer is — partly measured
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, has Word), from 2026-10-16 — the Linux box's lead below,
+Owner: none — released by 01Xgpbk5 (2026-10-16): settled in code by 8c5c457e/e55db399 (29 pages
+on Linux). On the Mac the document is 30 pages again, and that comes from the engine: b7bbf07d's
+code gave 29 at 12:37 and gives 30 against the engine rebuilt after it (footer 0.4pt higher).
+Asked starling-bd what that rebuild carried. Was: the Linux box's lead below,
 with starling-bd's lab `hfl` (a first-line indent past the right margin: Word sets one character on
 the first line; right-aligned text counts its trailing spaces)
 Measured: the footer paragraph ("X" + text, first line past the margin) is two lines in
