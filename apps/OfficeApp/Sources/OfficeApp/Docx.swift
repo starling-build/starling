@@ -2878,7 +2878,23 @@ enum DocxFormat {
                 let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
                 WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
             }
+            // A box-and-whisker chart (Office 2016's chartex part), drawn
+            // on a column chart's axes: named by `cx:chart` (by `c:chart`
+            // it is read above, as chartex names its own).
+            if node.descendant("c:chart") == nil, let space = boxWhisker(node) {
+                let themeTarget = notes.rels.values.first(where: { $0.type.hasSuffix("/theme") && !$0.external })?.target ?? "theme/theme1.xml"
+                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)))
+            }
             return att
+        }
+        /// The chartex part a drawing names (`cx:chart`, or `c:chart` in
+        /// a chartex `a:graphicData`), where it is a box-and-whisker
+        /// chart this app draws.
+        func boxWhisker(_ node: XNode) -> XNode? {
+            guard let rid = (node.descendant("cx:chart") ?? node.descendant("c:chart"))?["r:id"], let rel = notes.rels[rid], !rel.external,
+                  let data = notes.part(_resolvePath("word", rel.target)), let space = XNode.parse(data),
+                  ChartXML.readBoxWhisker(space) != nil else { return nil }
+            return space
         }
         func addImage(_ drawing: XNode) {
             guard let blip = drawing.descendant("a:blip"), let rid = blip["r:embed"],
@@ -3087,8 +3103,13 @@ enum DocxFormat {
                     // A Choice this app cannot draw — Word 2016's charts,
                     // `cx` — is the picture of it the Fallback holds:
                     // chartex's six charts took no room at all.
+                    // A box-and-whisker chart is drawn as Word draws it, its
+                    // text text (chartex's: 8 lines of Word's print).
                     let requires = (child.first("mc:Choice")?["Requires"] ?? "").split(separator: " ")
-                    if requires.contains("cx"), let drawing = child.first("mc:Fallback")?.first("w:drawing"),
+                    if requires.contains("cx"), let drawing = child.first("mc:Choice")?.first("w:drawing"),
+                       boxWhisker(drawing) != nil {
+                        addObject(drawing)
+                    } else if requires.contains("cx"), let drawing = child.first("mc:Fallback")?.first("w:drawing"),
                        drawing.descendant("a:blip") != nil {
                         addImage(drawing)
                     } else {

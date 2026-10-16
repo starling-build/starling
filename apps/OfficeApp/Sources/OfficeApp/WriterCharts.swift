@@ -33,7 +33,9 @@ enum WriterCharts {
     static func register(_ space: XNode, for id: String, themePart: Data?) -> Bool {
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: pptxTheme)
-        guard let chart = ChartXML.read(space, color: { colors.color(in: $0) }) else { return false }
+        let chartex = space.name == "cx:chartSpace"
+        guard let chart = chartex ? ChartXML.readBoxWhisker(space) : ChartXML.read(space, color: { colors.color(in: $0) })
+        else { return false }
         var theme = DeckTheme()
         theme.headingFont = pptxTheme.major
         theme.bodyFont = pptxTheme.minor
@@ -41,10 +43,13 @@ enum WriterCharts {
         if let background = colors.scheme("bg1") { theme.background = background }
         let accents = (1 ... 6).compactMap { colors.scheme("accent\($0)") }
         if accents.count == 6 { theme.accents = accents }
-        let area = space.first("c:spPr")
+        let area = space.first(chartex ? "cx:spPr" : "c:spPr")
         let fill = area?.first("a:solidFill").flatMap { colors.color(in: $0) }
         let ln = area?.first("a:ln")
+        // (A chartex part that says nothing is framed as Word frames it,
+        // in D9D9D9: chartex's box-and-whisker chart.)
         let line = ln?.first("a:solidFill").flatMap { colors.color(in: $0) }
+            ?? (chartex && area == nil ? Color(0xFFD9D9D9) : nil)
         let entry = Entry(chart: chart, theme: theme, fill: fill, line: line,
                           lineWidth: (ln?["w"]).flatMap { Double($0) }.map { $0 / 12700 } ?? 0.75)
         lock.lock()

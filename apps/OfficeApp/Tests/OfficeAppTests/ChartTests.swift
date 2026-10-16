@@ -186,6 +186,27 @@ final class ChartTests: XCTestCase {
         XCTAssertTrue(fresh.values.first!.contains("<c:v>9</c:v>"))
     }
 
+    /// A chartex box-and-whisker chart reads as its samples by category,
+    /// its quartiles Excel's exclusive ones: chartex's first box runs
+    /// -24 to 23.5 about -7 in Word's print.
+    func testABoxAndWhiskerChartIsItsSamples() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="10"><cx:pt idx="0">A</cx:pt><cx:pt idx="1">A</cx:pt><cx:pt idx="2">A</cx:pt><cx:pt idx="3">A</cx:pt><cx:pt idx="4">A</cx:pt><cx:pt idx="5">A</cx:pt><cx:pt idx="6">A</cx:pt><cx:pt idx="7">A</cx:pt><cx:pt idx="8">A</cx:pt><cx:pt idx="9">B</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="10"><cx:pt idx="0">-7</cx:pt><cx:pt idx="1">-10</cx:pt><cx:pt idx="2">-28</cx:pt><cx:pt idx="3">47</cx:pt><cx:pt idx="4">11</cx:pt><cx:pt idx="5">-24</cx:pt><cx:pt idx="6">-24</cx:pt><cx:pt idx="7">36</cx:pt><cx:pt idx="8">10</cx:pt><cx:pt idx="9">5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:title><cx:tx><cx:rich><a:p><a:r><a:t>boxes</a:t></a:r></a:p></cx:rich></cx:tx></cx:title><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="boxWhisker"><cx:tx><cx:txData><cx:v>S1</cx:v></cx:txData></cx:tx><cx:dataId val="0"/><cx:layoutPr><cx:statistics quartileMethod="exclusive"/></cx:layoutPr></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:catScaling gapWidth="1"/></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readBoxWhisker(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertEqual(c.title, "boxes")
+        XCTAssertEqual(c.categories, ["A", "B"])
+        XCTAssertEqual(c.series.map(\.name), ["S1"])
+        XCTAssertEqual(c.boxes?[0][1], [5])
+        let a = c.boxes![0][0]
+        XCTAssertEqual(ChartXML.quartile(a, 0.25, inclusive: false), -24)
+        XCTAssertEqual(ChartXML.quartile(a, 0.5, inclusive: false), -7)
+        XCTAssertEqual(ChartXML.quartile(a, 0.75, inclusive: false), 23.5)
+        XCTAssertFalse(c.legend)
+        let funnel = xml.replacingOccurrences(of: "boxWhisker", with: "funnel")
+        XCTAssertNil(ChartXML.readBoxWhisker(XNode.parse(Data(funnel.utf8))!), "another chartex kind keeps its picture")
+    }
+
     func testAKindThisAppCannotDrawIsKept() {
         let surface = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:surfaceChart><c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser></c:surfaceChart></c:plotArea></c:chart></c:chartSpace>"
         XCTAssertNil(ChartXML.read(XNode.parse(Data(surface.utf8))!, color: { _ in nil }))

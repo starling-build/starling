@@ -196,6 +196,20 @@ struct Chart: Equatable {
     }
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
+    /// A box-and-whisker chart (Office 2016's `cx:` part, series laid out
+    /// "boxWhisker"): each series' samples, category by category, drawn
+    /// as boxes on a column chart's axes. nil for any other chart.
+    var boxes: [[[Double]]]? = nil
+    /// The room between categories, a share of a category's boxes
+    /// (`cx:catScaling gapWidth`); the quartiles' method, and whether the
+    /// mean's mark and the outliers are drawn.
+    var boxGap = 1.0
+    /// Read from a chartex part (`cx:`), which Word lays out closer to its
+    /// frame than a `c:` chart.
+    var chartex = false
+    var boxInclusive = false
+    var boxMeans = true
+    var boxOutliers = true
     /// The chart's own text size (`c:chartSpace/c:txPr`) where it is not
     /// the usual 12: what its labels and legend are set in when they say
     /// nothing, and an unsized title 1.2 times it.
@@ -375,6 +389,89 @@ struct Chart: Equatable {
 // MARK: - Reading
 
 enum ChartXML {
+    /// A box-and-whisker chart in a `cx:chartSpace` (Word and Excel 2016's
+    /// chartex part): its series' samples grouped by category, on a column
+    /// chart's axes, in a 2013-style chart's text (14 pt title, 9 pt labels,
+    /// grey). nil for any other `cx:` chart — its Fallback picture stands.
+    static func readBoxWhisker(_ space: XNode) -> Chart? {
+        guard let chart = space.first("cx:chart"),
+              let region = chart.first("cx:plotArea")?.first("cx:plotAreaRegion") else { return nil }
+        let all = region.all("cx:series")
+        guard !all.isEmpty, all.allSatisfy({ $0["layoutId"] == "boxWhisker" }) else { return nil }
+        func points(_ dim: XNode?) -> [String?] {
+            guard let lvl = dim?.first("cx:lvl") else { return [] }
+            var out = [String?](repeating: nil, count: min(1_000_000, max(0, Int(lvl["ptCount"] ?? "") ?? 0)))
+            for pt in lvl.all("cx:pt") {
+                guard let i = Int(pt["idx"] ?? ""), i >= 0, i < 1_000_000 else { continue }
+                if i >= out.count { out += [String?](repeating: nil, count: i - out.count + 1) }
+                out[i] = pt.text
+            }
+            return out
+        }
+        var data: [String: (cats: [String?], vals: [String?])] = [:]
+        for d in space.first("cx:chartData")?.all("cx:data") ?? [] {
+            let cat = d.all("cx:strDim").first { $0["type"] == "cat" } ?? d.first("cx:strDim")
+            let val = d.all("cx:numDim").first { $0["type"] == "val" } ?? d.first("cx:numDim")
+            data[d["id"] ?? ""] = (points(cat), points(val))
+        }
+        var categories: [String] = []
+        var grouped: [[String: [Double]]] = []
+        var names: [String] = []
+        for (j, series) in all.enumerated() {
+            guard let d = data[series.first("cx:dataId")?["val"] ?? ""] else { return nil }
+            var by: [String: [Double]] = [:]
+            for (i, raw) in d.vals.enumerated() {
+                guard let v = raw.flatMap({ Double($0.trimmingWhitespace()) }), v.isFinite else { continue }
+                let name = (d.cats[safe: i] ?? nil) ?? ""
+                if !categories.contains(name) { categories.append(name) }
+                by[name, default: []].append(v)
+            }
+            grouped.append(by)
+            names.append(series.first("cx:tx")?.descendant("cx:v")?.text ?? "Series \(j + 1)")
+        }
+        guard !categories.isEmpty else { return nil }
+        let boxes = grouped.map { by in categories.map { (by[$0] ?? []).sorted() } }
+        // The series' values, for what reads them: each box's median.
+        let series = zip(names, boxes).map { name, cats in
+            ChartSeries(name: name, values: cats.map { $0.isEmpty ? nil : Self.quartile($0, 0.5, inclusive: false) })
+        }
+        var title: String? = nil
+        if let t = chart.first("cx:title") {
+            var runs: [String] = []
+            func collect(_ n: XNode) {
+                if n.name == "a:t" { runs.append(n.text) }
+                n.children.forEach(collect)
+            }
+            collect(t)
+            title = runs.joined()
+        }
+        var c = Chart(type: .column, title: title, categories: categories, series: series)
+        c.boxes = boxes
+        c.chartex = true
+        c.legend = chart.first("cx:legend") != nil
+        c.textSize = 9
+        c.titleSize = 14
+        if let gap = chart.first("cx:plotArea")?.all("cx:axis").compactMap({ $0.first("cx:catScaling")?["gapWidth"] }).first,
+           let g = Double(gap), g >= 0 { c.boxGap = g }
+        let layout = all[0].first("cx:layoutPr")
+        c.boxInclusive = layout?.first("cx:statistics")?["quartileMethod"] == "inclusive"
+        c.boxMeans = layout?.first("cx:visibility")?["meanMarker"] != "0"
+        c.boxOutliers = layout?.first("cx:visibility")?["outliers"] != "0"
+        return c
+    }
+
+    /// The `p` quartile of sorted `xs`: Excel's QUARTILE.EXC, a point
+    /// p (n + 1) along, or with `inclusive` QUARTILE.INC's p (n - 1) + 1.
+    static func quartile(_ xs: [Double], _ p: Double, inclusive: Bool) -> Double {
+        guard let lo = xs.first, let hi = xs.last else { return 0 }
+        let n = Double(xs.count)
+        let at = inclusive ? p * (n - 1) + 1 : p * (n + 1)
+        if at <= 1 { return lo }
+        if at >= n { return hi }
+        let k = Int(at.rounded(.down))
+        return xs[k - 1] + (at - Double(k)) * (xs[k] - xs[k - 1])
+    }
+
     /// The chart in a `c:chartSpace`, or nil for one this app cannot draw
     /// (radar, stock, surface, combinations) — kept as an object then. A 3-D
     /// chart is drawn as its flat kind, a pie-of-pie as its pie, a bubble
@@ -1046,7 +1143,12 @@ enum ChartPainter {
         // a newer one keeps 9: line-, bar- and scatter-chart's labels stand
         // 2.5 pt further out in PowerPoint's print.)
         let old = c.plainText && !c.styled2013 && c.officeStyled
-        var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + 9 * k, r.right - 9 * k, r.bottom - (old ? 6.5 : 9) * k)
+        // (A chartex chart's title stands 2.2 pt higher than a `c:`
+        // chart's, its plot's foot 4.4 nearer the frame: chartex's
+        // box-and-whisker chart in Word's print, the title's baseline 18.7
+        // under the frame's top where a `c:` chart's is about 21.)
+        var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + (c.chartex ? 6.8 : 9) * k, r.right - 9 * k,
+                                 r.bottom - (old ? 6.5 : c.chartex ? 4.6 : 9) * k)
 
         let titled = !(c.title ?? "").isEmpty
         if let title = c.title, !title.isEmpty {
@@ -1064,7 +1166,9 @@ enum ChartPainter {
             // title to plot 3.6, plot to its category labels 7.6, labels to
             // the legend 8.4, the legend 1.2 above the margin, value labels
             // 8.5 from the plot — each where its text sits on the page.)
-            area = Rect.fromLTRB(area.left, area.top + tp.height + 3.6 * k, area.right, area.bottom)
+            // (A chartex chart's plot 2 pt nearer: 12.8 under the title's
+            // baseline in Word's print of chartex's, a `c:` chart's 14.9.)
+            area = Rect.fromLTRB(area.left, area.top + tp.height + (c.chartex ? 1.6 : 3.6) * k, area.right, area.bottom)
             tp.dispose()
         }
 
@@ -1313,6 +1417,8 @@ enum ChartPainter {
         }
         // (The lines over a combination's columns share the axis.)
         for v in c.lineSeries.flatMap({ $0.values.compactMap { $0 } }) { lo = min(lo, v); hi = max(hi, v) }
+        // (A box chart's axis spans every sample, its outliers too.)
+        for v in (c.boxes ?? []).joined().joined() { lo = min(lo, v); hi = max(hi, v) }
         let labelSize = c.valueLabelSize ?? c.baseTextSize
         // (Settled here and captured as constants: the Windows
         // toolchain's optimizer (Swift 6.2.3) fails SIL verification on
@@ -1615,6 +1721,8 @@ enum ChartPainter {
         let clipped = c.valueMin != nil || c.valueMax != nil
         if clipped { canvas.save(); canvas.clipRect(plot) }
         switch c.type {
+        case .column where c.boxes != nil:
+            Self._boxes(c, canvas, plot, k: k, theme: theme, vpos: vpos)
         case .column, .bar:
             let slot = (horizontal ? plot.height : plot.width) / Double(n)
             // A category's slot holds its bars plus one gap; bars step by
@@ -2023,6 +2131,64 @@ extension ChartPainter {
     }
 
     /// A colour's channels times `f`.
+    /// A box-and-whisker chart's boxes, as Word's print of chartex's draws
+    /// them: a category's boxes take its slot over 1 + the gap, 1.12 of a
+    /// box apart (20.2 pt boxes at 22.6 in its 132.3 pt slots); each in
+    /// its series' colour, outlined in 0.8 of it, from the lower quartile
+    /// to the upper with the median across; whiskers to the furthest
+    /// samples within 1.5 of the box's height of it, capped 6 pt wide;
+    /// the mean a 6 pt cross; samples past the whiskers 3 pt dots.
+    static func _boxes(_ c: Chart, _ canvas: any Canvas, _ plot: Rect, k: Double, theme: DeckTheme,
+                       vpos: (Double) -> Double) {
+        guard let boxes = c.boxes else { return }
+        let n = max(1, c.categories.count), s = Double(max(1, boxes.count))
+        let slot = plot.width / Double(n)
+        let group = slot / (1 + c.boxGap)
+        let w = group / (s + (s - 1) * 0.12), pitch = w * 1.12
+        let fill = Paint()
+        fill.style = .fill
+        fill.isAntiAlias = true
+        let line = Paint()
+        line.style = .stroke
+        line.isAntiAlias = true
+        line.strokeWidth = max(0.25, 0.75 * k)
+        for (j, cats) in boxes.enumerated() {
+            let colour = c.color(series: j, accents: theme.accents)
+            fill.color = colour
+            line.color = Self._scaled(colour, 0.8)
+            for (i, xs) in cats.enumerated() where !xs.isEmpty {
+                let q1 = ChartXML.quartile(xs, 0.25, inclusive: c.boxInclusive)
+                let q2 = ChartXML.quartile(xs, 0.5, inclusive: c.boxInclusive)
+                let q3 = ChartXML.quartile(xs, 0.75, inclusive: c.boxInclusive)
+                let reach = 1.5 * (q3 - q1)
+                let inside = xs.filter { $0 >= q1 - reach && $0 <= q3 + reach }
+                let left = plot.left + (Double(i) + 0.5) * slot - group / 2 + Double(j) * pitch
+                let mid = left + w / 2, cap = 3 * k
+                if let lo = inside.first, let hi = inside.last {
+                    canvas.drawLine(Offset(mid, vpos(q1)), Offset(mid, vpos(lo)), line)
+                    canvas.drawLine(Offset(mid - cap, vpos(lo)), Offset(mid + cap, vpos(lo)), line)
+                    canvas.drawLine(Offset(mid, vpos(q3)), Offset(mid, vpos(hi)), line)
+                    canvas.drawLine(Offset(mid - cap, vpos(hi)), Offset(mid + cap, vpos(hi)), line)
+                }
+                let box = Rect.fromLTRB(left, vpos(q3), left + w, vpos(q1))
+                canvas.drawRect(box, fill)
+                canvas.drawRect(box, line)
+                canvas.drawLine(Offset(left, vpos(q2)), Offset(left + w, vpos(q2)), line)
+                if c.boxMeans {
+                    let m = vpos(xs.reduce(0, +) / Double(xs.count))
+                    canvas.drawLine(Offset(mid - cap, m - cap), Offset(mid + cap, m + cap), line)
+                    canvas.drawLine(Offset(mid - cap, m + cap), Offset(mid + cap, m - cap), line)
+                }
+                if c.boxOutliers {
+                    for v in xs where v < q1 - reach || v > q3 + reach {
+                        canvas.drawCircle(Offset(mid, vpos(v)), 1.5 * k, fill)
+                        canvas.drawCircle(Offset(mid, vpos(v)), 1.5 * k, line)
+                    }
+                }
+            }
+        }
+    }
+
     static func _scaled(_ c: Color, _ f: Double) -> Color {
         let v = c.value
         func ch(_ sh: Int) -> Int64 { Int64((Double((v >> sh) & 0xFF) * f).rounded()) }

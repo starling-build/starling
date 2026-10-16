@@ -3297,6 +3297,27 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A box-and-whisker chart is drawn (2026-10-16).** Word 2016's
+  charts live in a chartex part (`cx:chartSpace`), which nothing read:
+  Writer showed the Fallback picture, the right look and none of its
+  text. A chart whose series are all laid out "boxWhisker" now reads
+  (`ChartXML.readBoxWhisker`) as its samples grouped by category on a
+  column chart's axes, in a 2013-style chart's text (14pt title, 9pt
+  grey labels), and draws (`ChartPainter._boxes`) as Word's print of
+  chartex's: Excel's exclusive quartiles (QUARTILE.EXC; inclusive where
+  the file says), the median across the box, whiskers to the furthest
+  samples within 1.5 box heights, capped 6pt wide, the mean a 6pt
+  cross, outliers 3pt dots; the outline the colour at 0.8; a
+  category's boxes take its slot over 1 + `gapWidth`, 1.12 of a box
+  apart. Word sets a chartex chart closer to its frame than a `c:` one
+  — its title 2.2pt higher, its plot 2pt nearer the title and its foot
+  4.4pt nearer the frame — and those are kept for one read from such a
+  part. The axis's span covers every sample, so the scale is Word's,
+  -100 to 150 by 50. Other chartex kinds (sunburst, funnel, …) keep
+  their pictures. chartex's `c:chart` (in a chartex `a:graphicData`)
+  names the part as well as `cx:chart` would. chartex 65.3% -> 76.4 (its
+  page 2: 13 of 21 lines to 21); nothing else moved.
+
 - **A radar's circle, its labels, as Word and PowerPoint set them
   (2026-10-16).** The radar stood in the middle of its area with a
   label line and 4pt kept on every side, its value labels 4pt off the
