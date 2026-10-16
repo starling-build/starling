@@ -2014,6 +2014,21 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Looked at and left, 2026-10-16:**
+- Bevels (`sp3d bevelT`) are not drawn. Fifteen decks have one
+  (60810's twenty, customGeo's, aascu 5864's, GeomLec1's, HowWeRefactor's
+  among them), and PowerPoint prints each such shape as a picture: on
+  customGeo's diagram headers a 10 pt band lit along the top and right,
+  shaded along the bottom and left, the face itself a little brighter
+  (79,129,189 → 82,132,199 under `chilly` and `translucentPowder`). The
+  fifteen use eight rigs (flat, threePt, chilly, glow, soft, twoPt,
+  contrasting, balanced, brightRoom) and five materials, most bevels 1
+  to 2 pt: too many unknowns to model from one measured case.
+- PowerPoint's own stand-ins: tdf147586's "Open Sans" (absent on the
+  printing machine) is Segoe UI in its print; ours is the unknown-face
+  Cambria clone. One deck; the general "unknown → sans" was tried and
+  dropped above.
+
 **Latin text parted at spaces and hyphens, 2026-10-16** (sweep 103:
 tdf149551_SmartArt_Pyramid 1.33 → 1.18, _Gear 0.57 → 0.45, _Pie 0.59 →
 0.51, cooper 5.16 → 5.11, customGeo 4.24 → 4.22; none worse).
