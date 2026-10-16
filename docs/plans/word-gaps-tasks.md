@@ -629,6 +629,25 @@ it was taken back out. Word's print sets those marks as lines in a
 their size is not known (the paragraphs say Verdana 8.5). A lab with
 Word would settle it.
 
+### Leads from the Windows box (2026-10-16, measured, not built)
+- Lab `ps` (~/starling-doc-check/lab/ps, Word 16): before 2013's
+  layout (mode 14) a space after an inline picture wider than the line
+  goes to a line of its own — a cell of 74.35pt sets the paragraph under
+  a 76 or 80pt picture and a space 13.8pt lower than with no space; not
+  under a 74pt picture, and not in mode 15. zh-9c5d0c3f (T17, mode 12)
+  p4 "車道縮減": its 75pt sign in a 74.35pt cell, then " ", 21pt low of
+  Word. Tried: a U+2028 before the space in `_span` — no line came of
+  it (a line of a lone space is folded somewhere); reverted. Ours also
+  sets the paragraph under a 60pt picture plus a space 2.8pt lower than
+  under the picture alone, where Word sets both alike.
+- zh-454e2e29 p4: the diagonal header cell's "人數", "官等", "類別" are
+  text boxes anchored in the cell (with two `wps` line shapes, not
+  drawn): ours 8pt high. Shapes and text boxes — the Mac's.
+- chartex: our pages match Word's three now; left are a stock chart
+  (`c:stockChart`, drawn as a grey box) and the two `cx` charts, whose
+  fallback pictures carry no text for the line match. 61745: a bar
+  chart's category labels step 59.3pt to Word's 57.7 (plot area).
+
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
