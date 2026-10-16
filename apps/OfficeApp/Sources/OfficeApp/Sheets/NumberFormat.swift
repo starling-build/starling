@@ -156,9 +156,15 @@ enum NumberFormat {
         if n == 0 { return "0" }
         let a = abs(n)
         if a >= 1e11 || a < 1e-9 { return _scientific(n, digits: 5) }
-        // As many significant digits as fit.
+        // As many significant digits as fit — and in a cell never more than
+        // eleven characters, the sign not among them, however wide the
+        // column: GeneralFormatTests' 1.2345678912 is 1.234567891 in
+        // Excel's print of a 14-character column, -1.2345678912
+        // -1.234567891. (A width of 100 or more asks for the number as it
+        // is — CONCAT's, a value pasted over its formula: 15 digits.)
         let intDigits = a >= 1 ? Int(log10(a)) + 1 : 1
-        var decimals = max(0, width - intDigits - 1 - (n < 0 ? 1 : 0))
+        let room = width >= 100 ? width : min(width, n < 0 ? 12 : 11)
+        var decimals = max(0, room - intDigits - 1 - (n < 0 ? 1 : 0))
         decimals = min(decimals, max(0, 15 - intDigits))
         var s = fixed(n, decimals: decimals)
         if s.containsSubstring(".") {
