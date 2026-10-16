@@ -625,6 +625,16 @@ it was taken back out. Word's print sets those marks as lines in a
 their size is not known (the paragraphs say Verdana 8.5). A lab with
 Word would settle it.
 
+### T40. zh-06c46ba9 p39: a list heading under a table keeps its space before
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+(T14 is the Mac's; the Mac is offline, and this is one rule of it.)
+Documents: zh-06c46ba9 (78.9%; pages 39-46 a line ahead of Word's).
+Known: "（二）現況分析" (List Paragraph, numbered, 6pt before,
+contextual) under a table whose last paragraph is a List Paragraph
+numbered in another list: Word sets it 9pt below the line box (the
+table's 3 and its 6), ours 3. Our same-style test holds two numbered
+items alike across a cell's edge because their kinds match.
+
 ### Leads from the Windows box (2026-10-16, measured, not built)
 - Lab `ps` (~/starling-doc-check/lab/ps, Word 16): before 2013's
   layout (mode 14) a space after an inline picture wider than the line
