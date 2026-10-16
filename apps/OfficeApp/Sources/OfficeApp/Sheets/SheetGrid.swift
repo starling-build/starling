@@ -2342,8 +2342,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let st = book.style(cell.style)
         let ca = cols
         let width = ca.size(a.col)
-        // (Cheaply first: no glyph is under a fifth of its size wide.)
-        guard width > 0, !st.wrap, st.hAlign != .center, Double(raw.count) * book.fontSize(st) * scale * 0.2 > width else { return nil }
+        // (Cheaply first: no glyph is half as wide again as its size, so a
+        // text that short fits. This was a fifth — the narrowest a glyph is,
+        // the wrong bound — and let only text five times too long run over:
+        // NumberFormatTests' "Improper Fractions" in column D printed no
+        // column E, where Excel prints five pages of it.)
+        guard width > 0, !st.wrap, st.hAlign != .center, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
         if ws.merges.contains(where: { $0.contains(a) }) { return nil }
         let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
         let need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
