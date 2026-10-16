@@ -252,8 +252,10 @@ enum NumberFormat {
                 let inner = String(s[s.index(after: i) ..< close])
                 if let c = _colors[inner.lowercased()] { color = c }
                 else if inner.hasPrefix("$") {
-                    // [$€-407]: the symbol before the dash.
-                    let sym = inner.dropFirst().split(separator: "-", maxSplits: 1).first.map(String.init) ?? ""
+                    // [$€-407]: the symbol before the dash. ([$-409] has
+                    // none — a locale alone, which prints nothing.)
+                    let sym = inner.dropFirst().split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+                        .first.map(String.init) ?? ""
                     out += "\"" + sym + "\""
                 } else if inner.lowercased().hasPrefix("h") || inner.lowercased().hasPrefix("m") || inner.lowercased().hasPrefix("s") {
                     out += "[" + inner + "]"  // elapsed time, kept for the date path
