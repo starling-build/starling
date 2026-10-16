@@ -110,20 +110,20 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
-### T1. Autofit tables — measured, nothing built (2026-10-15)
-Owner: session 017F2GnTfScURKYZPmRxVQvW (Linux dev box, no Word; starling-0.3.0 worktree), from 2026-10-15 — building the rule in office.md, "Autofit tables". Linux sweeps need STARLING_ICU set (a bare build has no icudtl.dat beside it); with it, Linux scores Chinese 96.7%, POI 81.9% at 4f7823b6.
-Five Word labs (`at1`–`at5`): Word keeps an autofit table's saved grid
-until a cell's unbreakable content is wider than its columns; then that
-cell takes exactly its width and the other columns give way to their
-own minimum. Open: how a spanning cell's width is shared among its
-columns, and why Word holds zh-0aac9d1a's stamp line (no-break and
-ordinary spaces) whole up to "（盖章）" — the re-fit there hangs on it.
-Found on the way and built: a no-break space is an em in a square face.
-Documents: zh-0aac9d1a (63%), and likely others among the forms.
-Known: `w:tblLayout autofit`, grid 1350/3022/1526/2680 twips; Word draws
-the columns 34.5/187.7/110.4/156.5pt, wider than `tblW` and the text
-column. Word's autofit algorithm (content minimum and maximum widths)
-needs labs; nothing built.
+### T1. Autofit tables — DONE (2026-10-15)
+Owner: session 017F2GnTfScURKYZPmRxVQvW (Linux dev box, no Word)
+Built as office.md's "Autofit tables" has it (b7b42101): a cell whose
+narrowest setting (its longest unpartable piece — spaces after a no-break
+space joined — plus margins and side indents, negative ones too) is a
+point or more over its grid columns is exactly that wide; the others give
+way toward their own narrowest; the table grows only when they need it.
+zh-0aac9d1a 63.3% -> 100% on Linux, nothing else moved. Why only its
+first form re-fits: its stamp line is in 仿宋 (no-break space an em, a
+444pt piece); the other three are 仿宋_GB2312, YaHei on a Mac, whose
+no-break space is narrow. Still open, needs Word: how a span is shared
+among its columns (ours 34.5/183.0/109.5/163.5 against Word's
+34.6/187.6/110.5/156.4 — no line moves here). Lab: a span over three
+columns of unequal grid and content, its narrowest varied.
 
 ### T2. Per-section column layouts — narrow case DONE (2026-10-15)
 Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box)
@@ -625,3 +625,15 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   automatic spaces' widths there decide it); zh-d68ac84a p17 ("…面积
   2000" | "至", a negative character grid, need 4.17 of room 33 taken
   by ours, not by Word); zh-a7728bc9 p1 (its title 5pt low).
+
+### Note from the Linux dev box (2026-10-15)
+- 363d64e3 ("a blank line between two entries") rewrote all of
+  office.md with CR CR LF line endings, so every other session's edit to
+  it conflicted with the whole file; 90c0be5a puts it back to LF, the
+  blank line kept. Whoever made it: check the editor or `core.autocrlf`
+  on that machine before the next edit.
+- Linux sweeps: a bare `.build-shared` OfficeApp has no icudtl.dat
+  beside it; without `STARLING_ICU` every paragraph is measured wrong
+  (the fitter's boxes come back empty) and Chinese scores ~20%. With it,
+  and the Noto CJK fallback (03694462), Linux at 4f7823b6: Chinese 96.7%,
+  POI 81.9%, 172 of 179 with Word's page count.
