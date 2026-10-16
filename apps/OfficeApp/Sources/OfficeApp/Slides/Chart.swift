@@ -1417,7 +1417,12 @@ enum ChartPainter {
         let belowOut = (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         if horizontal {
             let left = (catLabels.map(\.width).max() ?? 0) + 6 * k + besideOut
-            plot = Rect.fromLTRB(area.left + left, area.top + 2 * k, area.right - (valueLabels.last?.width ?? 0) / 2,
+            // (A 2013-style chart's top stands off the title as a column
+            // chart's does, half a label line, though no label overhangs
+            // it: 61745's bar chart's plot is 17 pt under its title's
+            // baseline in Word's print, as its column chart's is. A
+            // 2007-style one's starts 2 pt down: bar-chart's.)
+            plot = Rect.fromLTRB(area.left + left, area.top + (c.styled2013 ? lineH / 2 : 2 * k), area.right - (valueLabels.last?.width ?? 0) / 2,
                                  area.bottom - lineH - 4 * k - belowOut)
         } else {
             // (A 2007-style chart's plot starts 2.6 pt further off its

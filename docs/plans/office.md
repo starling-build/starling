@@ -3297,6 +3297,15 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A 2013-style bar chart's plot stands half a label line under its
+  title (2026-10-16).** A horizontal bar chart's plot started 2pt under
+  the title, as PowerPoint's 2007-style bar-chart has it; Word puts a
+  2013-style one's half a label line down, as a column chart's (whose
+  top value label overhangs it): 61745's bar chart's plot is 17pt under
+  its title's baseline in Word's print, as its column chart's, ours
+  13. Its categories stepped 59.3pt to Word's 57.7. 61745 94.1% -> 100;
+  nothing else moved, the chart decks' scores as they were.
+
 - **A stock chart is read as its lines (2026-10-16).** `c:stockChart`
   (high-low-close) was no chart to the reader, and Writer kept chartex's
   as a grey box. Its series are lines, and Excel writes their lines and
