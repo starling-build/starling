@@ -199,7 +199,7 @@ enum Xlsx {
             let extra = col.attrs.filter { !["min", "max", "width", "customWidth", "hidden"].contains($0.key) }
             if !extra.isEmpty { ws.colAttrRuns.append((lo - 1, min(hi, CellAddress.maxCols) - 1, extra)) }
             // Hidden columns keep their widths, for when they are shown again.
-            let hidden = col["hidden"] == "1"
+            let hidden = col["hidden"] == "1" || col["hidden"] == "true"
             if hidden, hi - lo <= 2000 {
                 for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols { ws.hiddenCols.insert(c - 1) }
             }
@@ -234,10 +234,12 @@ enum Xlsx {
             // `ht` is the row's height whether or not it is marked custom (a
             // larger font makes a taller row without the flag).
             // A row a filter hid keeps its height; one hidden by hand is height 0.
-            if row["hidden"] == "1", let af = ws.autoFilter, rowIndex > af.range.top, rowIndex <= af.range.bottom {
+            // (xsd:boolean: LibreOffice writes "true" where Excel writes "1".)
+            let rowHidden = row["hidden"] == "1" || row["hidden"] == "true"
+            if rowHidden, let af = ws.autoFilter, rowIndex > af.range.top, rowIndex <= af.range.bottom {
                 ws.filteredRows.insert(rowIndex)
                 if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
-            } else if row["hidden"] == "1" {
+            } else if rowHidden {
                 // Hidden by hand or by a collapsed group: its height kept for when it shows again.
                 ws.hiddenRows.insert(rowIndex)
                 if let h = Double(row["ht"] ?? ""), abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
