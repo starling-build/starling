@@ -3210,6 +3210,23 @@ public final class RichLayout {
         }
     }
 
+    /// The lines a rule of this style is drawn as, from the side of the
+    /// text outward: where each starts (points from the rule's inner
+    /// edge) and its width. A single line is one; a double two of the
+    /// width a width apart; a thin-and-thick one its width and a 0.75pt
+    /// line, the thick by the text for thinThick and outside it for
+    /// thickThin (zh-69bbcc3c's letterhead rule in Word's print: 2.16,
+    /// a 0.72 gap, 0.72), the gap what `_ruleRoom` leaves.
+    static func _ruleLines(_ style: String?, _ width: Double) -> [(at: Double, width: Double)] {
+        let thin = 0.75, gap = max(0, _ruleRoom(style, width) - width - thin)
+        switch style {
+        case "double": return [(0, width), (2 * width, width)]
+        case "thinThickSmallGap", "thinThickMediumGap", "thinThickLargeGap": return [(0, width), (width + gap, thin)]
+        case "thickThinSmallGap", "thickThinMediumGap", "thickThinLargeGap": return [(0, thin), (thin + gap, width)]
+        default: return [(0, width)]
+        }
+    }
+
     public var isPaged: Bool { pageSetup != nil }
     /// `_pages` holds one entry per column slot; a page has `columns` of them.
     public var pageCount: Int { isPaged ? max(1, (_pages.count + _columns - 1) / _columns) : 1 }
@@ -4059,8 +4076,12 @@ public final class RichLayout {
         // room for either between — bug65649's specification lines, each
         // ruled under in grey, stand 12.5pt apart in Word's print, not
         // the 13 ours gave them for a line under each.)
-        let bTop = _bordersJoin(i - 1, i, document) ? 0 : style.borders?.top.map { _px($0.space + $0.width) } ?? 0
-        let bBottom = _bordersJoin(i, i + 1, document) ? 0 : style.borders?.bottom.map { _px($0.space + $0.width) } ?? 0
+        // (A compound line takes all its lines' room, as a cell's does:
+        // zh-69bbcc3c's letterhead rule, thinThickSmallGap at 2.25pt, is
+        // 2.16 + 0.72 + 0.72 in Word's print and the page under it 1.14pt
+        // lower than ours was.)
+        let bTop = _bordersJoin(i - 1, i, document) ? 0 : style.borders?.top.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0
+        let bBottom = _bordersJoin(i, i + 1, document) ? 0 : style.borders?.bottom.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0
         let spacing = _spacing(i, document)
         let before = (spacing.before + bTop).rounded()
         let after = spacing.after + bBottom
@@ -7073,16 +7094,33 @@ public final class RichLayout {
                 p.color = l.color ?? theme.textColor
                 return p
             }
+            // (A compound line's lines from the text outward.)
+            func compound(_ l: BorderLine, from inner: Double, outward: Double) {
+                for part in Self._ruleLines(l.style, l.width) {
+                    let p = stroke(l)
+                    p.strokeWidth = _px(part.width)
+                    let y = inner + outward * _px(part.at + part.width / 2)
+                    canvas.drawLine(Offset(x0, y), Offset(x1, y), p)
+                }
+            }
             if let l = b.top, l.style != "none", !(theme.wordRules && _bordersJoin(i - 1, i, document)) {
-                let y = (g.textTop - _px(l.space) - _px(l.width) / 2).rounded() + 0.5
-                canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
+                if Self._ruleLines(l.style, l.width).count > 1 {
+                    compound(l, from: g.textTop - _px(l.space), outward: -1)
+                } else {
+                    let y = (g.textTop - _px(l.space) - _px(l.width) / 2).rounded() + 0.5
+                    canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
+                }
             }
             if let l = b.bottom, l.style != "none", !(theme.wordRules && _bordersJoin(i, i + 1, document)) {
-                let y = (textBottom + _px(l.space) + _px(l.width) / 2).rounded() - 0.5
-                canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
+                if Self._ruleLines(l.style, l.width).count > 1 {
+                    compound(l, from: textBottom + _px(l.space), outward: 1)
+                } else {
+                    let y = (textBottom + _px(l.space) + _px(l.width) / 2).rounded() - 0.5
+                    canvas.drawLine(Offset(x0, y), Offset(x1, y), stroke(l))
+                }
             }
-            let y0 = b.top.map { g.textTop - _px($0.space + $0.width) } ?? g.textTop
-            let y1 = b.bottom.map { textBottom + _px($0.space + $0.width) } ?? textBottom
+            let y0 = b.top.map { g.textTop - _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? g.textTop
+            let y1 = b.bottom.map { textBottom + _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? textBottom
             if let l = b.left, l.style != "none" {
                 let x = (g.textLeft - _px(l.space) - _px(l.width) / 2).rounded() + 0.5
                 canvas.drawLine(Offset(x, y0), Offset(x, y1), stroke(l))

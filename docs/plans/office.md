@@ -4021,6 +4021,16 @@ fitter dropped the paragraph's tail).
   text as spaces, as the quotes' blanks do.) No line moves for it — 33
   paragraphs in seven documents, each already on Word's lines — so the
   line match is unchanged; it is the pixels.
+- **A paragraph's compound border takes all its lines' room
+  (2026-10-15; Linux, from Word's print).** zh-69bbcc3c's red letterhead
+  rule, `w:pBdr` bottom thinThickSmallGap at 2.25pt, is a 2.16pt line by
+  the text, a 0.72 gap and a 0.72 line in Word's print, 3.6 in all; ours
+  reserved the width alone and drew one line, and the page under it
+  stood 1.14pt high. Paragraph borders now take `_ruleRoom`, as cells'
+  rules do, and draw a compound line as its lines (`_ruleLines`: the
+  thick by the text for thinThick, outside for thickThin, a double's two
+  a width apart). zh-69bbcc3c 98.1% -> 99.5%; nothing else moved. A
+  table's compound rules are still drawn as one line.
 - **Theme fonts by script, and in every part (2026-10-15).** A theme
   font reference names a slot: `majorEastAsia`/`minorEastAsia` the
   theme's East Asian face, which is its `a:ea` or, that being empty as
