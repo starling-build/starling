@@ -282,7 +282,7 @@ extension SheetGridState {
         printing = true
         defer {
             printing = false
-            printRowScale = 1
+            printRowScale = 0
             if c.activeSheet != savedSheet { c.activeSheet = savedSheet }
             scrollX = savedX; scrollY = savedY
         }
@@ -325,7 +325,7 @@ extension SheetGridState {
             }
             await _preloadPictures(ws)
             let setup = SheetPrintSetup.read(ws)
-            printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 1
+            printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
             let ca = cols, ra = rows   // in points while printing
             let head = _headingSize(setup, lastRow: areas.map(\.bottom).max() ?? 0)
             let titleH = (names.titleRows.map { $0.reduce(0) { $0 + ra.size($1) } } ?? 0) + head.height
@@ -434,7 +434,7 @@ extension SheetGridState {
             _paintChartSheet(ws, setup: setup, pageCount: pageCount, title: title, filePath: filePath, maxPages: maxPages, into: &out)
             return
         }
-        printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 1
+        printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
         let ca = cols, ra = rows   // in points while printing
         let titleRows = names.titleRows.map { Array($0).filter { ra.size($0) > 0 } } ?? []
         let titleCols = names.titleCols.map { Array($0).filter { ca.size($0) > 0 } } ?? []

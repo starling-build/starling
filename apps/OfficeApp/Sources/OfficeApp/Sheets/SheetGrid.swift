@@ -255,9 +255,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// The sheet's print scale while it is cut into pages and painted: on
     /// paper each row is a whole number of the printer's dots at that scale
     /// (45544's default rows at 90% are 93 dots, 11.16 pt, where 103 × 0.9
-    /// made 11.12 and a row more fitted on its chart's page). 1 leaves the
-    /// rows as they are.
-    var printRowScale = 1.0
+    /// made 11.12 and a row more fitted on its chart's page; 57523's Calibri
+    /// 10 rows at 100% are 111 dots, 13.32 pt, not 13.37). 0 — on screen,
+    /// or a sheet fitted to its pages, whose scale is not known yet —
+    /// leaves the rows as they are.
+    var printRowScale = 0.0
 
     private func _axes() -> (cols: GridAxis, rows: GridAxis) {
         let ws = controller.sheet
@@ -381,7 +383,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 }
             }
             let dots = printRowScale * 600 / 72
-            func whole(_ h: Double) -> Double { printRowScale == 1 || h <= 0 ? h : (h * dots).rounded() / dots }
+            func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
             rows = GridAxis(def: whole(ws.customDefaultRowHeight ? ws.defaultRowHeightPt * m.rowScale : m.defaultRow),
                             overrides: heights.mapValues(whole), hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
