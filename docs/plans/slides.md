@@ -2014,6 +2014,19 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Calibri Light, tightened, 2026-10-16** (sweep 112: 1.146 → 1.135%,
+31 decks better and none worse; tdf142648 2.87 → 1.61,
+formatting-bullet-indent 2.07 → 1.14, TextFittingStored 2.38 → 1.74,
+tdf115394 0.99 → 0.49). Calibri Light, the heading face of Office's
+2013–2019 themes, is drawn in Calibri's regular clone, and PowerPoint's
+lines in it are 1.2 to 1.6% shorter than ours — the same in all twenty
+decks that have it (69 lines; tdf104788 and tdf132282 left out, their
+lines differ for other reasons). A run in it is now set 0.0054 em a
+letter tighter, in the Slides reader, as Aptos is. A corpus-wide
+comparison of line widths by face now leaves Tahoma Bold 5% narrow
+(three decks), Franklin Gothic Book 6% wide (two) and HowWeRefactor's
+Myriad Pro, which PowerPoint set in Segoe UI, 8% narrow.
+
 **Lucida Sans Unicode at its own widths, 2026-10-16** (sweep 111:
 1.152 → 1.146%; GeomLec1 7.22 → 5.74, aascu 5864 8.40 → 8.11, KEY02
 4.31 → 4.10 from the baseline entry below; n862510_4 and numfmt +0.01).

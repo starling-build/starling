@@ -2877,6 +2877,13 @@ private struct SlideContext {
                 if cs.fontFamily?.lowercased() == "aptos" {
                     cs.letterSpacing = (cs.letterSpacing ?? 0) - (cs.bold ? 0.031 : 0.0185) * (cs.fontSize ?? 18)
                 }
+                // Calibri Light, set in Calibri's regular: 0.0054 em a
+                // letter tighter — PowerPoint's lines in it are 1.2 to 1.6%
+                // shorter than ours, the same in all twenty decks (69
+                // lines compared).
+                if cs.fontFamily?.lowercased() == "calibri light" {
+                    cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.0054 * (cs.fontSize ?? 18)
+                }
                 // Consolas, set in Liberation Mono: 0.55 em a letter, not
                 // 0.6 (lines 8.7% wide).
                 if cs.fontFamily?.lowercased() == "consolas" {
