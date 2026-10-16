@@ -2014,6 +2014,15 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Medium Style 1, and a table's text size, 2026-10-16**
+(tdf135843_insideH 4.36 → 0.02; the other 55 table decks unchanged).
+The deck names PowerPoint's built-in Medium Style 1 without defining
+it, and was drawn with no rules at all: it is now among the built-in
+styles (dark rules round the table and between rows, none between
+columns). Drawn, its empty rows stood taller than PowerPoint's: a
+table's text takes the master's other-text style before the
+presentation's default (10.13 pt here, where the default says 13.5).
+
 **Pictures smoothed when enlarged, 2026-10-15** (tdf146223 37.40 →
 31.38, tdf93830 4.39 → 1.30, tdf157793 2.51 → 0.00, tdf157635 2.26 →
 0.00, tdf123684 0.69 → 0.25, croppedTo0 2.25 → 1.87, tdf153466 0.38 →

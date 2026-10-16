@@ -1812,7 +1812,11 @@ private struct SlideContext {
         let styleId = pr?.first("a:tableStyleId")?.text.trimmingWhitespace() ?? ""
         // No style id at all draws as "No Style, Table Grid" does.
         let plain = styleId.isEmpty || ["{2D5ABB26-0587-4C30-8999-92F81FD0307C}", "{5940675A-B579-460E-94D1-54222C63F5DA}"].contains(styleId)
-        var base = LevelStyle.paragraph(defaults?.first("a:lvl1pPr"), colors)
+        // A table's text takes the master's other-text style over the
+        // presentation's default: tdf135843_insideH's empty rows are
+        // 10.13 pt lines (the master's), not 13.5 (the default's).
+        var base = LevelStyle.paragraph(master?.first("p:txStyles")?.first("p:otherStyle")?.first("a:lvl1pPr"), colors)
+            .filled(from: LevelStyle.paragraph(defaults?.first("a:lvl1pPr"), colors))
         // The style the id names, when the deck defines it: the look of the
         // whole table, its header row, bands, and (when the table's flags
         // ask) its first and last columns and last row.
