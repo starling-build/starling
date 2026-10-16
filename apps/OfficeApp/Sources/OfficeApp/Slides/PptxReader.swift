@@ -2653,8 +2653,20 @@ private struct SlideContext {
             var text = ""
             var runs: [Run] = []
             var looks: [RunLook] = []
-            func add(_ t: String, _ r: LevelStyle, _ rPr: XNode? = nil) {
-                guard !t.isEmpty else { return }
+            func add(_ t0: String, _ r: LevelStyle, _ rPr: XNode? = nil) {
+                guard !t0.isEmpty else { return }
+                // A symbol face's private-range codes as the glyphs they show
+                // (`a:sym` Symbol, or the run's own face): GeomLec1's U+F0DE
+                // is Symbol's "⇒", and drew as nothing.
+                var t = t0
+                if t.unicodeScalars.contains(where: { (0xF020 ... 0xF0FF).contains($0.value) }),
+                   let face = rPr?.first("a:sym")?["typeface"] ?? rPr?.first("a:latin")?["typeface"] {
+                    t = String(t.map { ch -> Character in
+                        guard let v = ch.unicodeScalars.first?.value, (0xF020 ... 0xF0FF).contains(v) else { return ch }
+                        let shown = Metafile.symbols(String(ch), face: face)
+                        return shown == String(ch) ? ch : (shown.first ?? ch)
+                    })
+                }
                 var look = _runLook(rPr) ?? RunLook()
                 look.length = t.utf16.count
                 looks.append(look)

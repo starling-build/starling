@@ -1830,6 +1830,15 @@ chart's, a scatter's x) keeps to eight; radar's rings stay at eight.
 This replaces the deleted-axis rule of ten (aascu's 0–90 by tens is
 nine).
 
+**A symbol face's private-range codes in text, 2026-10-15** (sweep 89:
+1.27989 → 1.27940%; tdf106638 0.83 → 0.55, its Wingdings tick; numfmt
++0.01, noise). A run in Symbol or Wingdings (by `a:sym`, or its own
+face) spells its glyphs in U+F020–F0FF, which no shipped face draws:
+GeomLec1's "x=y ⇒ x+z" had a gap for its U+F0DE. Such codes now show as
+the glyphs they stand for, by the table the metafile reader already
+had — Symbol's now with the arrows (⇒ ⇔ ⇐ ⇑ ⇓ ↔), set and logic signs
+(∈ ∉ ∩ ∪ ⊂ ⊆ ⊃ ⊇ ∀ ∃ ∇ ∂ ¬ ∧ ∨ ≡ ∝ ⊥ ∠ ∫) and the rest of the Greek.
+
 **A chart's gaps, from PowerPoint's own, 2026-10-14** (chart-slide-bg
 4.39 → 2.35, chart-texture-bg 4.35 → 2.27, chart-picture-bg 4.40 → 2.69,
 tdf112089 3.40 → 1.81, tdf114821 1.43 → 0.97; line-chart, tdf149985 and
