@@ -57,7 +57,9 @@ struct SheetPrintSetup: Equatable {
             s.top = inch("top", s.top); s.bottom = inch("bottom", s.bottom)
             s.headerMargin = inch("header", s.headerMargin); s.footerMargin = inch("footer", s.footerMargin)
         }
-        let fit = node("sheetPr")?.child("pageSetUpPr")?["fitToPage"] == "1"
+        // (xsd:boolean: "true" as well as "1" — LibreOffice writes the first.)
+        func yes(_ v: String?) -> Bool { v == "1" || v == "true" }
+        let fit = yes(node("sheetPr")?.child("pageSetUpPr")?["fitToPage"])
         if let p = node("pageSetup") {
             // Windows' paper numbers (DMPAPER_*): Letter, Tabloid, Legal,
             // Executive, A3, A4 (and A4 Small), A5, B4 and B5 (JIS), A6.
@@ -84,8 +86,8 @@ struct SheetPrintSetup: Equatable {
         if let o = node("printOptions") {
             s.gridlines = o["gridLines"] == "1" || o["gridLines"] == "true"
             s.headings = o["headings"] == "1" || o["headings"] == "true"
-            s.centerHorizontally = o["horizontalCentered"] == "1"
-            s.centerVertically = o["verticalCentered"] == "1"
+            s.centerHorizontally = yes(o["horizontalCentered"])
+            s.centerVertically = yes(o["verticalCentered"])
         }
         if let h = node("headerFooter") { s.headerFooter = HeaderFooter.read(h) }
         func breaks(_ name: String) -> Set<Int> {
