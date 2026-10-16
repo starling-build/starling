@@ -820,6 +820,14 @@ page down, so that document is T2's best test now, with zh-a0e932c2.
   3.9pt down; ours runs to the page foot (505) with the text at the
   top, every line 5pt high. The sixth line would not have fitted
   (14pt left). Left alone (parted rows).
+- Linux box, 2026-10-16, a lead that needs Word: zh-2b955411 p26's form
+  rows hold 9pt text in paragraphs whose marks are 26pt (方正小标宋简体,
+  `w:sz` 52), beside empty cells of the same 26pt mark. The rows are
+  Word's height in ours (every rule within 0.4pt), but Word sets the
+  9pt text 5pt lower in its cell than ours ("接受非国有资产的企业", "企业管理
+  级次", "资质证书编号"). Whether a big mark makes the last line of a
+  paragraph with text taller (its baseline lower) is the question a lab
+  of one cell would answer.
 - Also there, p19: a vMerge cell (vAlign center) whose rows part over
   pages; Word starts its first page's lines 10pt lower than ours. Not
   measured.
