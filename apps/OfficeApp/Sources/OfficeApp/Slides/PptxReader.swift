@@ -1481,7 +1481,18 @@ private struct SlideContext {
         // the text sits in that box rather than the shape's.
         let txBox = sp.first("p:txXfrm").flatMap(_xfrmRect)
         if let txBox {
-            let tr = transform?(txBox) ?? txBox
+            var tr = transform?(txBox) ?? txBox
+            // A text frame turned a quarter in a shape that is not
+            // (tdf135953's "left shape", read upward up the box's side):
+            // the text is laid out along the frame and drawn turned, in
+            // the room the turned frame covers.
+            let own = (sp.first("p:txXfrm")?["rot"].flatMap(Double.init) ?? 0) / 60000
+            let ownQuarter = abs(abs(own.truncatingRemainder(dividingBy: 180)) - 90) < 0.01
+            if ownQuarter, abs(st.rotation.truncatingRemainder(dividingBy: 360)) < 0.01, st.textTurn == 0 {
+                tr = Rect.fromCenter(center: tr.center, width: tr.height, height: tr.width)
+                let turn = ((own.truncatingRemainder(dividingBy: 360)) + 360).truncatingRemainder(dividingBy: 360)
+                st.textTurn = abs(turn - 90) < 0.01 ? 1 : -1
+            }
             // A quarter turn the text frame turns back (tdf145528's matrix:
             // "Writer" in a box turned 270° with its text at 90°): the text
             // stands upright in the frame as given, the shape turned.

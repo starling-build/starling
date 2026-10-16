@@ -2014,6 +2014,21 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A diagram's text frame turned a quarter in a shape that is not,
+2026-10-16** (tdf135953_SmartArt_textposition: "left shape" and "right
+shape" now read upward up their boxes' sides, as in PowerPoint's print;
+its score is 3.01 either way, the rest being letter edges; the other
+ten decks with a turned `txXfrm` unchanged). A drawing's `txXfrm rot`
+of 90° or 270° on an unturned shape was dropped, and the text set
+level at the frame's unturned place, half off the slide. It is now
+laid out along the frame and drawn turned (`textTurn`), in the room the
+turned frame covers. (A turned shape whose frame turns back keeps the
+upright handling it had.)
+
+Also tried and dropped: a 2007-style chart's top inset 6.5 pt, as its
+left and bottom (cooper's plot stands 2.2 pt high in PowerPoint's): six
+chart decks worse, +1.66; only for charts with no title, nothing in sum.
+
 **A chart's category names wrap in the plot's slots, centred; and a
 chart's own theme fonts, 2026-10-16** (cooper 4.52 → 4.44, aascu 5864
 8.08 → 7.99; the other chart decks unchanged). Three things:
