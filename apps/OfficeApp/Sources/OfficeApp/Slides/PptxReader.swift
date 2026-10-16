@@ -1967,6 +1967,7 @@ private struct SlideContext {
                             bold: s.bold ?? false, italic: s.italic ?? false, underline: s.underline ?? false,
                             fontFamily: _font(s.font), fontSize: s.size ?? 18,
                             color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
+                        Self.faceSpacing(&runs[runs.count - 1].style)
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
                     switch level.algn { case "ctr": style.alignment = .center; case "r": style.alignment = .right; default: break }
@@ -2648,6 +2649,54 @@ private struct SlideContext {
         }
     }
 
+    /// A run's spacing for a face drawn by a stand-in of other widths,
+    /// in a text box and in a table cell alike.
+    static func faceSpacing(_ cs: inout CharStyle) {
+        // Arial Black, which no face shipped here has: Arial's bold
+        // set 0.07 em further apart a letter — its measure in
+        // PowerPoint's prints (1.10 to 1.16 of the bold's across
+        // themes', SampleShow's and placeholder-layout-color's
+        // lines), where the plain face's left "TRADE SHOW" on one
+        // line PowerPoint breaks in two.
+        if cs.fontFamily?.lowercased() == "arial black" {
+            cs.fontFamily = "Arial"
+            cs.bold = true
+            cs.letterSpacing = (cs.letterSpacing ?? 0) + 0.07 * (cs.fontSize ?? 18)
+        }
+        // Aptos, set in Liberation Sans: that much tighter, as
+        // Aptos runs narrower — PowerPoint's lines in it are 3.5%
+        // shorter than ours across the twelve Aptos decks, 5.5% in
+        // bold (28 lines compared).
+        if cs.fontFamily?.lowercased() == "aptos" {
+            cs.letterSpacing = (cs.letterSpacing ?? 0) - (cs.bold ? 0.031 : 0.0185) * (cs.fontSize ?? 18)
+        }
+        // Calibri Light, set in Calibri's regular: 0.0054 em a
+        // letter tighter — PowerPoint's lines in it are 1.2 to 1.6%
+        // shorter than ours, the same in all twenty decks (69
+        // lines compared).
+        if cs.fontFamily?.lowercased() == "calibri light" {
+            cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.0054 * (cs.fontSize ?? 18)
+        }
+        // Tahoma's bold, set in Liberation Sans Bold, 0.03 em a
+        // letter looser (its lines 5% short in three decks); and
+        // Franklin Gothic, set in Liberation Sans, 0.032 em (Book)
+        // and 0.024 (Medium) tighter (6% and 4% long in two).
+        switch cs.fontFamily?.lowercased() {
+        case "tahoma" where cs.bold:
+            cs.letterSpacing = (cs.letterSpacing ?? 0) + 0.030 * (cs.fontSize ?? 18)
+        case "franklin gothic book":
+            cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.032 * (cs.fontSize ?? 18)
+        case "franklin gothic medium":
+            cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.024 * (cs.fontSize ?? 18)
+        default: break
+        }
+        // Consolas, set in Liberation Mono: 0.55 em a letter, not
+        // 0.6 (lines 8.7% wide).
+        if cs.fontFamily?.lowercased() == "consolas" {
+            cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.05 * (cs.fontSize ?? 18)
+        }
+    }
+
     /// The complex script a character is written in (the theme's key for
     /// it), nil for any other.
     static func complexScript(_ v: UInt32) -> String? {
@@ -2859,36 +2908,7 @@ private struct SlideContext {
                 // masters say 12 pt); none where it says nothing.
                 if let k = s.kern, k > 0 { cs.kerningFrom = k }
                 let plain = cs
-                // Arial Black, which no face shipped here has: Arial's bold
-                // set 0.07 em further apart a letter — its measure in
-                // PowerPoint's prints (1.10 to 1.16 of the bold's across
-                // themes', SampleShow's and placeholder-layout-color's
-                // lines), where the plain face's left "TRADE SHOW" on one
-                // line PowerPoint breaks in two.
-                if cs.fontFamily?.lowercased() == "arial black" {
-                    cs.fontFamily = "Arial"
-                    cs.bold = true
-                    cs.letterSpacing = (cs.letterSpacing ?? 0) + 0.07 * (cs.fontSize ?? 18)
-                }
-                // Aptos, set in Liberation Sans: that much tighter, as
-                // Aptos runs narrower — PowerPoint's lines in it are 3.5%
-                // shorter than ours across the twelve Aptos decks, 5.5% in
-                // bold (28 lines compared).
-                if cs.fontFamily?.lowercased() == "aptos" {
-                    cs.letterSpacing = (cs.letterSpacing ?? 0) - (cs.bold ? 0.031 : 0.0185) * (cs.fontSize ?? 18)
-                }
-                // Calibri Light, set in Calibri's regular: 0.0054 em a
-                // letter tighter — PowerPoint's lines in it are 1.2 to 1.6%
-                // shorter than ours, the same in all twenty decks (69
-                // lines compared).
-                if cs.fontFamily?.lowercased() == "calibri light" {
-                    cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.0054 * (cs.fontSize ?? 18)
-                }
-                // Consolas, set in Liberation Mono: 0.55 em a letter, not
-                // 0.6 (lines 8.7% wide).
-                if cs.fontFamily?.lowercased() == "consolas" {
-                    cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.05 * (cs.fontSize ?? 18)
-                }
+                Self.faceSpacing(&cs)
                 cs.shadow = s.shadow
                 cs.highlight = s.highlight
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }

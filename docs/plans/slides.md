@@ -2014,6 +2014,17 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Tahoma Bold and Franklin Gothic spaced, and a cell's runs too,
+2026-10-16** (sweep 113: 1.135 → 1.133%, six decks better, none worse;
+bnc862510_7 1.34 → 0.90, table-with-different-font-colors 1.47 → 1.29,
+bnc870233_1 −0.12, tdf149785 −0.10). Tahoma's bold, in Liberation Sans
+Bold, is set 0.030 em a letter looser (its lines were 5% short);
+Franklin Gothic Book 0.032 and Medium 0.024 tighter (6% and 4% long).
+The per-face spacing (Arial Black, Aptos, Calibri Light, Consolas and
+these) is now one function, `PptxReader.faceSpacing`, and a table
+cell's runs take it as a text box's do — tdf149785's Franklin Gothic is
+all in a table, and table-with-different-font-colors' cells are Aptos.
+
 **Calibri Light, tightened, 2026-10-16** (sweep 112: 1.146 → 1.135%,
 31 decks better and none worse; tdf142648 2.87 → 1.61,
 formatting-bullet-indent 2.07 → 1.14, TextFittingStored 2.38 → 1.74,
