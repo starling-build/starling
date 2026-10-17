@@ -1264,6 +1264,38 @@ before its anchor on that page out of its way. Ours keeps floats out of
 the paragraphs after their anchor only. Needs a second pass over a page
 when a wrapping float lands on content set before its anchor.
 
+### Note from the Linux box (2026-10-17, later): fractional line heights, tried whole-corpus
+Measured, not built. skparagraph rounds each line's height to a layout
+unit (`InternalLineMetrics::height`, `::round`); a switch that keeps the
+fraction (patch kept on the Linux box, off by default, not in the
+engine) moved six documents, against the tip with b0b5beab:
+- up: zh-e061a08e 94.3 -> 99.8 (the PMingLiU page-foot lead: the Mac's
+  1332/1024 em now reaches the foot), zh-d35cbbdb 89.7 -> 100,
+  zh-232090e0 95.6 -> 100, zh-6d1afa56 +0.2;
+- down: zh-1a3c7aa0 99.7 -> 32.2 (92 pages), bug59058 100 -> 75.4,
+  delins 75.0 -> 61.7. Mean 92.5 -> 92.1.
+
+Each loss is a fit that rounding happened to win:
+- zh-1a3c7aa0 p13: the "5 O,O-二甲基…" row fits under rounding with no
+  room at all (row foot and rule 405.9 of 405.9); with the fraction
+  the lines above the table are 0.05 taller and the footer 0.05, and it
+  goes over. Ours already stood 0.34pt under Word's at the table's
+  head: the 22pt title (方正小标宋_GBK -> YaHei, atLeast 25) is 32.43
+  under "附件1" where Word's is 32.16.
+- bug59058 p38 (13pt Times as Liberation Serif, MinionPro-It as
+  Caladea, atLeast 15): the same 34 lines span 578.64 in Word's print,
+  578.35 rounded, 578.90 with the fraction; the page then holds a line
+  fewer. The mixed lines (Caladea in them) are the ones that differ.
+- delins: the balloons stack by their lines (Word's step 10.46, ours
+  10.0 — the Windows box's note above); they move 2-4pt and the
+  matcher merges them with body lines.
+
+So the fraction is right where the faces' heights are (the three
+Chinese gains), and building it means first fixing what rounding
+covered: the title line, the stand-in faces' mixed lines, the balloon
+step. An engine change on every platform too (a skparagraph patch
+under `patches/`, and a way for Office to turn it on).
+
 ### Note from the Linux box (2026-10-17): the export at twice the resolution
 Measured, not built. `OFFICE_PDF_SCALE=30` (forty layout steps to the
 point, twice the twip) against the default 15, same build, whole corpus:
