@@ -981,6 +981,17 @@ its last space, so our line is a few points wider than Word's 201.3.
 Our natural width of that paragraph traces as 421pt, where its glyphs
 come to about 200, so something unseen is counted. Find that first,
 then the joiner is the fix. Released.
+Built (Linux, 19599caf, at the same time): the trailing spaces after an
+ideograph in a right-aligned paragraph set as held (no-break) spaces,
+each after a zero-width break, at a space's width set outright (the
+unseen width was the held spaces' spacing counted twice, and an ideograph
+face's no-break space being an em), the breaks in the ideographs' style
+so a line of spaces alone is a text line. zh-c5b5087b 83.7 -> 93.9 (its
+footer within 0.6pt of Word's), zh-9dd9ce6d unchanged at 99.6 and still
+one line (its "嘉峪关…" 17pt right of Word's now, 52 before: the two
+leading spaces and the "嘉" Word keeps on that line are left), zh-1563bd74
+100 with its text within 1pt. Not after Latin text (zh-7dc3afad's
+right-aligned figures hang their space in Word's print).
 
 ### Note from the Mac (2026-10-17): Word's 楷体_GB2312 changed between the two samples
 A fresh print of zh-78729cf9 today (Word 16.113.3 / 26092714, macOS 27.0
