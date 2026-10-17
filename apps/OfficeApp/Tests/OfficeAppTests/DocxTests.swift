@@ -654,6 +654,30 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(pageOfFourth { 4 * $0 - $0 / 2 }, 1, "its text is over too")
     }
 
+    /// zh-547fc43c's 219pt chart under its page's last 154pt, with
+    /// widow control off: Word starts the next page with it.
+    func testAPictureThatDoesNotFitGoesToTheNextPageWithWidowControlOff() {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        var text = RichParagraph(text: "line")
+        text.style.widowControl = false
+        var picture = RichParagraph(image: ImageAttachment(data: Data([1, 2, 3]), width: 300, height: 219))
+        picture.style.widowControl = false
+        let doc = RichDocument(paragraphs: [text, text, text, picture])
+        let l = RichLayout(theme: theme, paragraphCount: 4)
+        var setup = PageSetup.letter
+        setup.marginTop = 72
+        l.width = 612 * 96.0 / 72.0
+        l.pageSetup = setup
+        l.ensureLaidOut(doc)
+        let used = l.geometry(2).bottom / theme.pixelsPerPoint
+        setup.marginBottom = 792 - 72 - used - 154
+        l.pageSetup = setup
+        l.ensureLaidOut(doc)
+        let caret = l.canvasRects(l.caretRect(RichPosition(paragraph: 3, offset: 0), doc))[0]
+        XCTAssertEqual(l.page(atCanvasY: (caret.top + caret.bottom) / 2), 1)
+    }
+
     /// zh-8112041b's form title opens its table cell with two page breaks:
     /// Word's print sets the title on the cell's first line, so a page
     /// break in a cell is nothing — no new page, no empty line split off.

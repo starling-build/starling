@@ -3736,6 +3736,14 @@ public final class RichLayout {
                 // The lowest cut that still fits.
                 var cut: Double? = nil
                 for c in cuts! where c > cursor + 0.01 && c - cursor <= available + slack + overhang { cut = c }
+                // (A picture's paragraph goes whole or to the next page: its
+                // one cut is its empty line's, under the picture's top, and
+                // took all of the picture into whatever room was left. Widow
+                // control kept that from happening; zh-547fc43c's Normal turns
+                // it off, and its 234pt chart hung 113pt past page 2's foot
+                // where Word starts page 3 with it.)
+                if theme.wordRules, y > 0.01, document.paragraphs[i].image != nil, cursor <= top + 0.01,
+                   bottom - _spacing(i, document).after - cursor > available + slack + overhang { cut = nil }
                 // Word's rules for where a paragraph may part: not at all
                 // (`w:keepLines`), or — its widow and orphan control,
                 // which is on unless the paragraph says otherwise — with

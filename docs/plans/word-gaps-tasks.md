@@ -1686,9 +1686,19 @@ text maps them to junk (㒘, 㒡), which DejaVu's presentation forms do not
 do. Released: the order is the PDF writer's (the engine's), and a face
 whose text cannot be copied out is worse than a wider one.
 
-### T73. zh-547fc43c: 17 pages where Word's are 16 — claimed
+### T73. zh-547fc43c: a chart that does not fit, with widow control off — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-547fc43c (13.2%, third sample).
+Known: page 2 ends with two charts, each a picture paragraph; Word
+starts page 3 with the second (219pt, 234 on the 15.6pt grid), where
+ours set it under the first, 113pt past the foot, and every page after
+ran a chart's height ahead. A picture paragraph's only cut is its empty
+line's, under the picture's top, so the cut took the whole picture; only
+the widow-control rule kept it off a page too short, and the file's
+Normal turns widow control off.
+Built: a picture paragraph goes whole or to the next page (when the page
+has something on it already). 13.5 -> 87.9%, pages as Word's; nothing
+else moved (same-base sweep).
 
 ### T74. An embedded object as wide as the column: its mark on a line of its own — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac)
