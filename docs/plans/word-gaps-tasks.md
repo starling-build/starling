@@ -1104,6 +1104,16 @@ form's title cell opens with two; ours split an empty line off, 59pt
 of the page). Mac measured the same independently. zh-8112041b 70.8 ->
 100%, nothing else moved (same-base sweep with and without).
 
+### T64. 楷体_GB2312 is YaHei in today's Word for Mac
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17 — waits on the Mac's reprint
+Documents: the zh corpus. Word 16.113.3 sets 楷体_GB2312 text in
+Microsoft YaHei (all seven of the second sample that use it, alt name
+or not; zh-78729cf9 reprinted today: 8152 YaHei characters, no KaiTi),
+where the first sample's prints of 2026-10-12 have KaiTi. The Mac
+(011uWpmC) is reprinting all 68 of the first sample as one
+references-only commit. Then: `OfficeFonts`' mac rule takes
+楷体_GB2312 to YaHei, swept against the new prints on Linux.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
