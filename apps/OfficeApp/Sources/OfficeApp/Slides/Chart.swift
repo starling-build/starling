@@ -52,6 +52,9 @@ struct ChartSeries: Equatable {
     var name: String
     /// One per category; nil is a blank cell (a gap).
     var values: [Double?]
+    /// The numbers' own format (`c:val`'s `c:formatCode`) where it is
+    /// not General: how a data table shows them ("48.95%").
+    var format: String? = nil
     /// A colour the file set as itself; nil follows the theme.
     var color: Color? = nil
     /// The theme slot the file named ("accent3"), followed by a new theme.
@@ -156,6 +159,10 @@ struct Chart: Equatable {
     /// (a combination's second value axis, at the right); nil: they share
     /// the columns'.
     var secondValueAxis: SecondValueAxis? = nil
+    /// A table of the numbers under the plot (`c:dTable`): the
+    /// categories over its columns, a row for each series (columns,
+    /// then lines) with its key and name before it. nil: none.
+    var dataTable: DataTable? = nil
     /// The legend's own place (`c:legend/c:layout/c:manualLayout`, edge
     /// mode), as fractions of the chart's frame: entries in a row in it,
     /// the plot keeping its room. nil: beside the plot by `legendPosition`.
@@ -554,6 +561,7 @@ enum ChartXML {
             }
             let values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
+            s.format = Self._format(val)
             let pr = ser.first("c:spPr")
             if type != .line, type != .scatter, type != .radar, let ln = pr?.first("a:ln"), let f = ln.first("a:solidFill") {
                 s.outline = color(f)
@@ -614,6 +622,7 @@ enum ChartXML {
             let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series \(series.count + lines.count + 1)"
             let values = (ser.first("c:val").map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
+            s.format = Self._format(ser.first("c:val"))
             let ln = ser.first("c:spPr")?.first("a:ln")
             s.lineHidden = ln?.has("a:noFill") ?? false
             if let f = ln?.first("a:solidFill") { s.color = color(f) }
@@ -690,6 +699,14 @@ enum ChartXML {
             }
             second.step = axis.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
             c.secondValueAxis = second
+        }
+        if let d = plot.first("c:dTable") {
+            func on(_ name: String) -> Bool { !["0", "false"].contains(d.first(name)?["val"] ?? "1") }
+            var t = DataTable()
+            t.horizontalRules = on("c:showHorzBorder"); t.verticalRules = on("c:showVertBorder")
+            t.outline = on("c:showOutline"); t.keys = on("c:showKeys")
+            t.size = d.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
+            c.dataTable = t
         }
         if let sz = spaceRun?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.textSize = sz / 100 }
         func greyText(_ n: XNode) -> Bool {
@@ -904,6 +921,12 @@ enum ChartXML {
     }
 
     /// The cached points of a `c:cat`/`c:val`-like element, by index.
+    /// A series' numbers' format where it is not General (`c:formatCode`).
+    private static func _format(_ val: XNode?) -> String? {
+        guard let code = val?.descendant("c:formatCode")?.text.trimmingWhitespace(), !code.isEmpty, code.lowercased() != "general" else { return nil }
+        return code
+    }
+
     private static func _points(_ node: XNode) -> [String?] {
         guard let cache = node.descendant("c:strCache") ?? node.descendant("c:numCache")
             ?? node.descendant("c:strLit") ?? node.descendant("c:numLit") ?? node.descendant("c:lvl") else { return [] }
@@ -1363,6 +1386,72 @@ enum ChartPainter {
         return Color(0xFF00_0000 | Int64((m(16) << 16) | (m(8) << 8) | m(0)))
     }
 
+    /// A data table under `plot` (see `Chart.dataTable`): the categories
+    /// over the plot's columns, then a row for each series — its key and
+    /// name from `left`, its numbers centred under their categories — in
+    /// grey rules.
+    private static func _dataTable(_ c: Chart, _ dt: DataTable, _ canvas: any Canvas, plot: Rect, top: Double, row: Double, left: Double,
+                                   size: Double, n: Int, k: Double, theme: DeckTheme, text: (String, Double, Double) -> TextPainter) {
+        let rows = c.series.map { ($0, c.type == .line) } + c.lineSeries.map { ($0, true) }
+        let bottom = top + Double(rows.count + 1) * row
+        let slot = plot.width / Double(max(1, n))
+        func centred(_ s: String, _ cx: Double, _ y: Double) {
+            let tp = text(s, size, slot)
+            tp.paint(canvas, Offset(cx - tp.width / 2, y + (row - tp.height) / 2))
+            tp.dispose()
+        }
+        for i in 0 ..< n { centred(c.categories[safe: i] ?? "", plot.left + (Double(i) + 0.5) * slot, top) }
+        let fill = Paint()
+        fill.style = .fill
+        fill.isAntiAlias = true
+        for (j, (s, line)) in rows.enumerated() {
+            let y = top + Double(j + 1) * row
+            let colour = s.color ?? c.color(series: j, accents: theme.accents)
+            var x = left + 3.2 * k
+            if dt.keys {
+                if line {
+                    let p = Paint()
+                    p.style = .stroke
+                    p.isAntiAlias = true
+                    p.strokeWidth = max(0.5, 2.25 * k)
+                    p.color = colour
+                    canvas.drawLine(Offset(x, y + row / 2), Offset(x + 19.2 * k, y + row / 2), p)
+                } else {
+                    fill.color = colour
+                    canvas.drawRect(Rect.fromLTWH(x, y + row / 2 - 2.75 * k, 19.2 * k, 5.5 * k), fill)
+                }
+                x += 21.2 * k
+            }
+            let name = text(s.name, size, .infinity)
+            name.paint(canvas, Offset(x, y + (row - name.height) / 2))
+            name.dispose()
+            for i in 0 ..< n {
+                guard let v = s.values[safe: i] ?? nil else { continue }
+                let shown = s.format.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? ""
+                centred(shown.isEmpty ? label(v, percent: false) : shown, plot.left + (Double(i) + 0.5) * slot, y)
+            }
+        }
+        let rule = Paint()
+        rule.style = .stroke
+        rule.strokeWidth = max(0.5, 0.75 * k)
+        rule.color = _mix(theme.text, theme.background, 0.46)
+        // Across: under the categories' row and between the series'; the
+        // categories' row starts at the plot, the series' at their names.
+        if dt.horizontalRules {
+            for j in 1 ... rows.count { canvas.drawLine(Offset(left, top + Double(j) * row), Offset(plot.right, top + Double(j) * row), rule) }
+        }
+        if dt.verticalRules {
+            for i in 1 ..< max(1, n) { canvas.drawLine(Offset(plot.left + Double(i) * slot, top), Offset(plot.left + Double(i) * slot, bottom), rule) }
+            canvas.drawLine(Offset(plot.left, top), Offset(plot.left, bottom), rule)
+        }
+        if dt.outline {
+            canvas.drawLine(Offset(plot.left, top), Offset(plot.right, top), rule)
+            canvas.drawLine(Offset(plot.right, top), Offset(plot.right, bottom), rule)
+            canvas.drawLine(Offset(left, top + row), Offset(left, bottom), rule)
+            canvas.drawLine(Offset(left, bottom), Offset(plot.right, bottom), rule)
+        }
+    }
+
     /// Round axis bounds and a step, Excel's way: about five to ten
     /// gridlines, 5% headroom above the data.
     /// The step is the smallest of 1, 2, 5 × a power of ten that marks the
@@ -1633,6 +1722,31 @@ enum ChartPainter {
             if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2, area.right - right, area.bottom - bottom)
         }
+        // A data table takes the foot of the frame, a row for the
+        // categories and one for each series, and the room before the
+        // plot that its keys and names need. (Word's print of
+        // zh-2a241df1's two charts, 10pt: rows 16.4pt, the categories'
+        // 16.1, the last 4.9pt over the frame's foot; the names' column
+        // 17pt in from its left, the key 3.2 into it, 19.2 long, the name
+        // 2 after it and 2.5 clear of the plot.)
+        var table: (top: Double, row: Double, left: Double, size: Double)? = nil
+        if let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie {
+            let size = dt.size ?? c.baseTextSize
+            let row = 1.64 * size * k
+            let names = (c.series + c.lineSeries).map { text($0.name, size, .infinity) }
+            let column = (dt.keys ? 24.4 : 3.2) * k + (names.map(\.width).max() ?? 0) + 2.5 * k
+            for t in names { t.dispose() }
+            // (Over a legend at the foot, the table stops where the
+            // legend's band begins: chart-ChartDataTable's in Excel's print.)
+            let foot = c.legend && c.legendBox == nil && c.legendPosition == "b" ? area.bottom : frame.bottom - 4.9 * k
+            let top = foot - Double(c.series.count + c.lineSeries.count + 1) * row
+            // (Its plot's top 11.1pt under the frame's in both, where ours
+            // stood half a label line under the area's, 4.3 lower: so
+            // measured only with a table.)
+            let head = c.title?.isEmpty == false ? plot.top : frame.top + 11.1 * k
+            plot = Rect.fromLTRB(max(plot.left, frame.left + 17 * k + column), head, plot.right, top)
+            table = (top, row, plot.left - column, size)
+        }
         if let placed, c.plotLayoutInner { plot = placed }
         // A 3-D chart stands in a box whose floor and walls run back, up
         // and to the right, one category deep: the plot is its front, and
@@ -1758,7 +1872,7 @@ enum ChartPainter {
                 canvas.drawLine(Offset(plot.left + box.dx, zero - box.dy), Offset(plot.right + box.dx, zero - box.dy), gridPaint)
             }
             let slot = plot.width / Double(n)
-            for (i, tp) in catLabels.enumerated() {
+            for (i, tp) in catLabels.enumerated() where table == nil {
                 let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
                 if aslant {
                     // Its end's middle at the tick, the rest down to the left.
@@ -1773,6 +1887,10 @@ enum ChartPainter {
             }
         }
         for t in valueLabels + catLabels { t.dispose() }
+        if let table, let dt = c.dataTable {
+            Self._dataTable(c, dt, canvas, plot: plot, top: table.top, row: table.row, left: table.left, size: table.size,
+                            n: n, k: k, theme: theme, text: text)
+        }
 
         var labels: [(String, Offset, Int)] = []
         // Labels from cells, each with the bar it stands in the end of.
@@ -2464,6 +2582,16 @@ extension Array {
 
 /// A chart's second value axis (`Chart.secondValueAxis`): its own number
 /// format and bounds, labelled at the plot's right unless deleted.
+/// A chart's data table (`Chart.dataTable`): which of its rules are
+/// drawn, whether each row shows its series' key, and its text size.
+struct DataTable: Equatable {
+    var horizontalRules = true
+    var verticalRules = true
+    var outline = true
+    var keys = true
+    var size: Double? = nil
+}
+
 struct SecondValueAxis: Equatable {
     var format: String? = nil
     var deleted = false
