@@ -2380,7 +2380,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         var align = st.hAlign
         if align == .general {
             switch cell.value {
-            case .number: align = .right
+            // (A number in a cell formatted Text stands at the left, as its
+            // text would: lo-tdf153767's postal codes.)
+            case .number: align = NumberFormat.isText(st.numberFormat) ? .left : .right
             case .bool, .error: align = .center
             default: align = .left
             }

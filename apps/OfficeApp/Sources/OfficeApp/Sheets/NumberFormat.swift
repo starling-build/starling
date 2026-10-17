@@ -21,8 +21,19 @@ enum NumberFormat {
             if sections.count >= 4 { return (_applyText(sections[3], s), nil) }
             if sections.count == 1, sections[0].containsSubstring("@") { return (_applyText(sections[0], s), nil) }
             return (s, nil)
-        case .number(let n): return format(n, code, width: width)
+        case .number(let n):
+            // A number under a text format (`@`, Text) shows as General:
+            // lo-tdf118668's row numbers, 7 in a cell formatted Text, print
+            // as 7, where ours printed the @.
+            if isText(code) { return format(n, "General", width: width) }
+            return format(n, code, width: width)
         }
+    }
+
+    /// A text format (`@`, Text): one section, holding an @.
+    static func isText(_ code: String) -> Bool {
+        let sections = _sections(code)
+        return sections.count == 1 && sections[0].replacingAll("\"@\"", with: "").containsSubstring("@")
     }
 
     /// Where a format fills its cell (`*x`, Accounting's `_($* #,##0.00_)`):
