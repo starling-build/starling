@@ -115,7 +115,7 @@ Twenty more (`random.seed(20261018)`, the unprinted rest of 15-400 KB,
 Word 16.113.3 prints) are checked in; compare per document across it.
 It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (T86, 83.6 now),
 zh-5dc5ce34 20.3 (21; Windows box, looking), zh-167ee06c 55.4 (14; T88, 72.9 now), zh-21421b7d 69.2 (2; Mac 011uWpmC, 97.4 now — slash break, parted centred cell),
-zh-70094a34 70.8 (19; Mac, looked: Word's text layer drops glyphs, the lines match), zh-621d8756 82.4 (52; Mac 011uWpmC, looking — see the wordWrap note below), zh-34a6519a 84.0 (53; Mac, looked: the TOC matches — Word's page numbers are drawn but not in its text layer, so the matcher splits our lines),
+zh-70094a34 70.8 (19; Mac, looked: Word's text layer drops glyphs, the lines match), zh-621d8756 82.4 (52; Mac looked, released — see the wordWrap note below), zh-34a6519a 84.0 (53; Mac, looked: the TOC matches — Word's page numbers are drawn but not in its text layer, so the matcher splits our lines),
 zh-830ef10d 89.2, zh-fb482d33 89.7 (T89, 95.7 now, 6 pages), zh-ad224275 93.2 (Mac, looked: the lines match — the misses are text-layer, a Wingdings bullet and pdf-text grouping).
 
 ### Note from the Mac (2026-10-17): the zh corpus is 108 documents now — a third sample
@@ -146,7 +146,7 @@ in a file of mode below 15 asks room for half the line under it
 Tahoma 8pt, 15.06 apart). Left: delins 80 -> 45 — its first balloon, for
 two deleted paragraphs, stands 6.6pt under Word's, which lifts it into
 the gap above its line; the other three prints with balloons put the
-first at its line's top, as ours does. Unclaimed.
+first at its line's top, as ours does. Claimed: Mac 011uWpmC, 2026-10-17.
 
 ### T78. zh-fec5fa30: 56 pages where Word's are 55 — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
@@ -217,6 +217,13 @@ spaces two. Tried: holding the closing spaces (no-break, a zero-width
 break between each) and plain spaces with the breaks — both overran,
 the fitter counting the spaces ~8pt wider over a line than Word and no
 space allowed to straddle. Not built; lab in the Mac's scratchpad.
+The 8pt is the colons: under `compressPunctuation` (and
+noPunctuationKerning) Word sets "：" before a space 11.6pt wide at 15pt
+with 0.3 spacing (15.6 in ours), so "执法人员：" + 18 spaces + "执法证号："
++ 15 spaces ends at 509.1 (one space straddling the 505.2 margin) where
+ours ends 8.4pt further. Both halves — that compression, and closing
+spaces that wrap with one straddling — are needed before the wrap can
+be built. Released.
 
 ### T86. A Latin word at a body line's end starts half an em inside the margin — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
