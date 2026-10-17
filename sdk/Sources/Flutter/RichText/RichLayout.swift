@@ -5756,7 +5756,11 @@ public final class RichLayout {
         // and five spaces in a 203pt line, wraps four of them to a line
         // of their own in Word's print, and its page number stands a line
         // higher.)
+        // (After an ideograph only: zh-7dc3afad's right-aligned figures,
+        // "7,567 " in a table cell, stand where the space hangs past the
+        // margin in Word's print — counted, 87 figures moved 3.5pt left.)
         let roomyTrail = theme.wordRules && p.style.alignment == .right && p.text.hasSuffix(" ")
+            && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
         if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail {
             let spans = styled(p.text[...], p.runs[0].style)
             if spans.count == 1 { return (spans[0], [], inserts) }
