@@ -5687,6 +5687,11 @@ public final class RichLayout {
                 // more than the offset map.)
                 if ["symbol", "wingdings", "wingdings 2", "wingdings 3"].contains(family.lowercased()) {
                     leadChar.fontFamily = family
+                    // (At the level's own size where it says one: delins's
+                    // 10pt Symbol bullets under 12pt Times make a 12.25pt
+                    // line of the face, under the text's 13.8 — Word's line
+                    // is the text's; at the text's size it was 14.7.)
+                    if let size = _levelNumberSize(p, document) { leadChar.fontSize = size }
                     symbolLevel = true
                 }
             }

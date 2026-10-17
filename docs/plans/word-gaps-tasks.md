@@ -892,13 +892,15 @@ Built: one list is one numbering (listId) where the file names it; an
 item's automatic space after is none only before an item of its own
 list. bug57031 94.4 -> 100%, delins 23.3 -> 35.0; nothing else moved.
 
-### T56. A Symbol bullet's line at the bullet's own size
+### T56. A Symbol bullet's line at the bullet's own size — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
 Documents: delins (each bullet's first line 1.5pt taller than Word's).
 Known: the level's face reaches a list line through a zero-width space
 in it (form_footnotes' Symbol bullets, 12.24pt lines under 10pt text);
 that space takes the text's size, not the level's: delins's 10pt Symbol
 bullets under 12pt Times make a 14.7pt line where Word's is 13.8.
+Built: at the level's own size where it says one. delins 35 -> 50%;
+nothing else moved.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

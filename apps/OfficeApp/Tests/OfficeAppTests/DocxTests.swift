@@ -2009,6 +2009,40 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(gap(item("a", list: "1"), item("b", list: nil)), 14, accuracy: 1.1, "a list's last item over a paragraph of none")
     }
 
+    /// delins: 10pt Symbol bullets under 12pt Times. The level's face
+    /// reaches the line at the level's own size, a line no taller than the
+    /// text's — Word's 13.8; at the text's size the face made it 14.7.
+    func testASymbolBulletsLineIsAtTheBulletsOwnSize() throws {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        theme.faceResolver = OfficeFonts.face
+        func firstLine(_ levelSize: String?) -> Double {
+            var p = RichParagraph(text: "A Nepalese name for Tilaka")
+            p.runs = [Run(length: p.text.utf16.count, style: CharStyle(fontFamily: "Times New Roman", fontSize: 12))]
+            p.style.spaceBefore = 0
+            p.style.spaceAfter = 0
+            p.style.lineSpacing = 1
+            p.style.list = .bullet
+            p.style.listId = "1"
+            p.style.listLevel = 0
+            var level = ListLevelFormat(text: "\u{F0B7}", format: .bullet)
+            level.indentLeft = 36
+            level.hanging = 18
+            level.numberRPrXML = "<w:rPr><w:rFonts w:ascii=\"Symbol\" w:hAnsi=\"Symbol\" w:hint=\"default\"/>" + (levelSize.map { "<w:sz w:val=\"\($0)\"/>" } ?? "") + "</w:rPr>"
+            var doc = RichDocument(paragraphs: [p])
+            doc.listFormats["1"] = [0: level]
+            doc.readFromFile = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 600
+            l.ensureLaidOut(doc)
+            return l.geometry(0).height / theme.pixelsPerPoint
+        }
+        // (A level that says no size takes the text's: its line is the
+        // Symbol face's at 12pt, taller. The unit tests have no ICU, and
+        // the paragraph parts somewhere; the first line is what differs.)
+        XCTAssertLessThan(firstLine("20") + 1, firstLine(nil), "the 10pt face's line, not a 12pt one")
+    }
+
     private func tableCount(_ x: String) -> Int { x.components(separatedBy: "<w:tbl>").count + x.components(separatedBy: "<w:tbl ").count - 2 }
 
     /// A small nested table is a table of its own: one block in its

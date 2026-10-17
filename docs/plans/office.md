@@ -4003,6 +4003,13 @@ fitter dropped the paragraph's tail).
   own; and an item's automatic space after is none only where an item
   of its own list follows. bug57031 94.4 -> 100%, delins 23.3 -> 35.0;
   nothing else moved.
+- **A Symbol bullet's line is at the bullet's own size (2026-10-16).**
+  The level's face reaches a list line through a zero-width space set
+  in it (form_footnotes: Symbol bullets make 10pt text's lines 12.24).
+  That space took the text's size: delins's 10pt Symbol bullets under
+  12pt Times made a 14.7pt line where Word's is the text's 13.8, each
+  bullet 0.9pt (scaled 0.6) taller. Now at the level's own size where it
+  says one. delins 35 -> 50%; nothing else moved.
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134
