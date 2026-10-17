@@ -4794,6 +4794,16 @@ public final class RichLayout {
                     let ea = p.text.contains { Self.isEastAsian($0, hinted: false) }
                     _overhang[i] = _px(theme.gridOverhang(for: look, in: style, named: named, eastAsian: ea, gridPitch: pitch))
                 }
+            } else if theme.wordRules, p.image == nil, p.cell == nil, style.lineHeightPoints == nil,
+                      case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001,
+                      let last = painter.computeLineMetrics().last {
+                // (Off the grid, a multiple's extra stands under the text,
+                // and the page's last line may reach past the foot by it:
+                // zh-8112041b's page 2 keeps four empty 1.5-spaced 16pt
+                // paragraphs under its articles in Word's print, the
+                // fourth's 36pt line 5pt over the margin and its 24 of
+                // text inside it.)
+                _overhang[i] = last.height * (1 - 1 / multiple)
             }
         }
         _painters[i] = painter

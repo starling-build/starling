@@ -565,6 +565,59 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(split.paragraphs[2].style.pageBreakBefore)
     }
 
+    /// zh-8112041b: a 1.5-spaced line's extra space stands under its text,
+    /// and at a page's foot it may reach past the margin — Word's page 2
+    /// keeps a fourth empty paragraph whose line runs 5pt over and whose
+    /// text does not. A line whose text itself is over still goes on.
+    func testAMultiplesExtraSpaceMayHangPastThePageFoot() {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        func pageOfFourth(room: (Double) -> Double) -> Int {
+            var p = RichParagraph(text: "")
+            p.style.lineSpacing = 1.5
+            p.style.spaceBefore = 0
+            p.style.spaceAfter = 0
+            let doc = RichDocument(paragraphs: Array(repeating: p, count: 8))
+            func laid(_ bottom: Double) -> RichLayout {
+                let l = RichLayout(theme: theme, paragraphCount: 8)
+                var setup = PageSetup.letter
+                setup.marginTop = 72
+                setup.marginBottom = bottom
+                l.pageSetup = setup
+                l.width = 612 * 96.0 / 72.0
+                l.ensureLaidOut(doc)
+                return l
+            }
+            let line = laid(72).geometry(0).height / theme.pixelsPerPoint
+            let l = laid(792 - 72 - room(line))
+            let caret = l.canvasRects(l.caretRect(RichPosition(paragraph: 3, offset: 0), doc))[0]
+            return l.page(atCanvasY: (caret.top + caret.bottom) / 2)
+        }
+        // (A third of a 1.5-spaced line is its extra.)
+        XCTAssertEqual(pageOfFourth { 4 * $0 - $0 / 6 }, 0, "its text fits, its extra hangs over")
+        XCTAssertEqual(pageOfFourth { 4 * $0 - $0 / 2 }, 1, "its text is over too")
+    }
+
+    /// zh-8112041b's form title opens its table cell with two page breaks:
+    /// Word's print sets the title on the cell's first line, so a page
+    /// break in a cell is nothing — no new page, no empty line split off.
+    func testAPageBreakInATableCellIsNothing() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:t>before</w:t></w:r></w:p>"
+            + "<w:tbl><w:tblGrid><w:gridCol w:w=\"4000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr>"
+            + "<w:p><w:r><w:br w:type=\"page\"/></w:r><w:r><w:br w:type=\"page\"/></w:r><w:r><w:t>title</w:t></w:r></w:p>"
+            + "</w:tc></w:tr></w:tbl><w:p/>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let cell = doc.paragraphs.filter { $0.cell != nil }
+        XCTAssertEqual(cell.map(\.text), ["title"])
+        XCTAssertFalse(cell[0].style.pageBreakBefore)
+    }
+
     /// Word leaves a paragraph's space before behind where the paragraph
     /// heads a page after a break that ended the paragraph above; it
     /// keeps it where the paragraph itself begins with the break, and —

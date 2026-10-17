@@ -4059,6 +4059,16 @@ fitter dropped the paragraph's tail).
   reformatted marks — one file does not say why.
   Not built: change bars in the margin, the comment
   range's tint in its author's colour.
+- **A multiple's extra space may hang past the page's foot; a page
+  break in a table cell is nothing (2026-10-17).** Off the grid, Word
+  sets a line's 1.5 or double spacing under its text, and the page's
+  last line may reach past the margin by that much, as a grid line's
+  half leading may: zh-8112041b's page 2 keeps four empty 1.5-spaced
+  16pt paragraphs under its articles, the fourth's 36pt line 5pt past
+  the margin, its 24pt of text inside. Ours took three. Its form's
+  title cell opens with two page breaks, which Word's print shows as
+  nothing; ours split an empty line off. zh-8112041b 70.8 -> 100%,
+  nothing else moved.
 - **Web spacing parts two lists (2026-10-16).** delins: bullets with
   automatic spacing (beforeAutospacing/afterAutospacing), "A name in
   various Indian languages…" of numId 1, then a nested bullet of numId 2:

@@ -3058,6 +3058,12 @@ enum DocxFormat {
                 // centre and right stops place: bug57031's "Page 1 of 14"
                 // at the right margin. (It was dropped, and the text ran on.)
                 case "w:ptab": addText("\t", cs)
+                case "w:br" where child["w:type"] == "page" && cellResolve != nil:
+                    // A page break in a table cell is nothing: zh-8112041b's
+                    // form title opens its cell with two, and Word's print
+                    // sets it on the cell's first line, under the page's
+                    // empty paragraphs, where ours split an empty line off.
+                    break
                 case "w:br":
                     // A page break ends the paragraph; a line break stays
                     // inside it, as Shift+Return's does — splitting it added a
