@@ -3465,7 +3465,10 @@ public final class RichLayout {
             if frameStarts, let f = document.paragraphs[i].style.frame, f.verticalAlign == nil, Self._onThePage(document.paragraphs[i].style) {
                 let physical = page / _columns
                 let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                let target = _px(f.y) - insetTop
+                // (A frame on the margin from the text's top: the cover's
+                // "山东省市场监督管理局 发布", 751pt under the margin, stood
+                // in the flow at the page's head.)
+                let target = f.verticalAnchor == "margin" ? _px(f.y) : _px(f.y) - insetTop
                 if target > -insetTop, target < contentH - 0.01 {
                     if frameReturn == nil || frameReturn!.page != page { frameReturn = (y, page) }
                     y = target
@@ -4062,7 +4065,17 @@ public final class RichLayout {
         // title on one line, where the 420pt column parted it.)
         if frameLeft == nil, theme.wordRules, p.cell == nil, let frame = style.frame, let w = frame.width,
            frame.verticalAlign == nil, Self._onThePage(style) {
+            let column = width
             width = _px(w) + left
+            // (Centred between the margins where its chain says so and
+            // gives no x: the cover's "山东省市场监督管理局 发布", a 372pt
+            // frame, stands in the middle of the column in Word's print.)
+            if frame.horizontalAnchor == "margin", frame.horizontalAlign == "center", !(style.frameXML ?? "").contains("w:x=\""),
+               column - width > 0.5 {
+                let shift = (column - width) / 2
+                left += shift
+                width += shift
+            }
             // (At its x on the page: the cover's "实施" date stands at the
             // right in its own 200pt frame.)
             // (An x the style chain states wins over an alignment from
@@ -8467,12 +8480,12 @@ public final class RichLayout {
     }
 
     /// Whether a framed paragraph stands at a height on the page: its frame
-    /// anchored to the page, or naming no anchor — Word's default is the
-    /// page (zh-90e0cea8's "发布" frame, which says only its y, prints at
-    /// 751pt down the page).
+    /// anchored to the page or its margin, or naming no anchor — Word's
+    /// default is the page (zh-90e0cea8's "发布" frame, which says only its
+    /// y, prints at 751pt down the page).
     static func _onThePage(_ style: RichParagraphStyle) -> Bool {
         guard let frame = style.frame else { return false }
-        return frame.verticalAnchor == "page" || !(style.frameXML ?? "").contains("w:vAnchor=")
+        return frame.verticalAnchor == "page" || frame.verticalAnchor == "margin" || !(style.frameXML ?? "").contains("w:vAnchor=")
     }
 
     /// Set on a header's or footer's own layout: its framed paragraphs

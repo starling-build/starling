@@ -3437,7 +3437,11 @@ enum DocxFormat {
             case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid", "w:eastAsianLayout":
                 // (The character scale, for the layout too.)
                 if child.name == "w:w", let v = Double((child["w:val"] ?? "").replacingAll("%", with: "")), v > 0 {
-                    cs.horizontalScale = v == 100 ? nil : v / 100
+                    // (100 is a scale too: it undoes the style's. zh-90e0cea8's
+                    // "山东省市场监督管理局 发布" says 100 over its style's 135,
+                    // and Word prints it at 14pt; read as none, it took the
+                    // style's 135 and its line ran 35% wide.)
+                    cs.horizontalScale = v / 100
                 }
                 keptRun[child.name] = PptxXML.serialize(child)
             case "w:smallCaps": cs.smallCaps = !_isOff(child); if cs.smallCaps { cs.off.remove(.smallCaps) } else { cs.off.insert(.smallCaps) }

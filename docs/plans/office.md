@@ -4501,6 +4501,24 @@ fitter dropped the paragraph's tail).
   their 30pt, where ours, counting no line on that side, took two. A
   cell's side with no line of its own now takes its neighbour's.
   zh-37b6536f 96.2 -> 97.7; nothing else moved.
+- **A frame on the margin stands at its y, centred where it says; a
+  run's 100% scale undoes its style's (2026-10-16).** zh-90e0cea8's
+  cover ends with "山东省市场监督管理局 发布" in a frame. Its style's base
+  (发布部门) anchors that frame to the margin and centres it, 372pt
+  wide, and the paragraph's own framePr gives y 751pt. Body frames were
+  placed at their y only when anchored to the page, so this one stood
+  in the flow at the page's head, 618pt above Word's. Its runs say
+  `w:w="100"` over the style's 135, and 100 was read as no scale at
+  all, so the style's 135 stood and the line ran 35% wide. Now a
+  margin-anchored frame is set at its y under the top margin, centred
+  between the margins where its chain says `xAlign="center"` and gives
+  no x, and `w:w="100"` is a scale of its own. The line stands at
+  Word's x and 3pt under Word's baseline. No score moved; the 3pt is
+  the scorer's limit. Left on the cover: the "37" of "DB37". Its
+  paragraph's own framePr (`w:w="0"`, `wrap="auto"`, `yAlign="inline"`)
+  over its style's margin frame is ignored in Word's print, where the
+  style's frame (x 337pt, y 8.6pt) places it. Ours keeps it in the
+  flow.
 - **A floating text box's text is on the document's line grid
   (2026-10-16).** zh-454e2e29's diagonal header cell labels its corners
   "人數", "官等" and "類別" with 12pt 標楷體 text boxes (wrapNone,
