@@ -1932,7 +1932,7 @@ labels' baselines 16.5 under the axis, ours 19.8. Word's charts and
 PowerPoint's may differ here, so the painter would need to know which it
 draws for; the Slides decks are tuned to PowerPoint's.
 
-### T85. zh-3c055c9b: a character grid's automatic spaces weigh two thirds in the squeeze — claimed
+### T85. zh-3c055c9b: a character grid's automatic spaces in the squeeze — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-3c055c9b (45%).
 Known: the Mac's labs ab3c/ab3a/ab3b (board, above): with no digits on
@@ -1940,7 +1940,16 @@ the line Word's limit is ours to the twip; with ten automatic spaces
 Word takes 4.45pt more, with fourteen 3.95. Solved against the mode-15
 test's terms (the real line: ems 5.31, spaces 46.77, room 74.4), the
 spaces count 0.66 and 0.70 of themselves, not whole.
-Plan: two thirds on a character grid; same-base sweep.
+Tried: two thirds — p2 then matched, but p8's "…家族聚" took "餐，"
+where Word does not (45 -> 28): no one weight fits both.
+Built: on a character grid the test compares with the marks' room alone
+(the spaces give nothing — Word sets them whole while the marks give) and
+weighs the spaces 0.44 in the stretch. That fits ab3c, ab3a and ab3b
+within a point, p2's line and p8's two. Same-base sweep: zh-3c055c9b
+45.2 -> 76.7, nothing else moved. Left: p7's "…(週日)確" + "有" and p10's
+"…(合計10" + "萬" Word takes and this does not (the second would need the
+spaces near nothing — the one beside the character taken may not count).
+Unit fonts never reach this squeeze, so the sweep is its test.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

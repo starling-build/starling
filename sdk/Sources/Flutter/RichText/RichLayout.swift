@@ -7606,8 +7606,19 @@ public final class RichLayout {
                             // mark at all — each space giving half of itself;
                             // ours took them all to 13. On a character grid the
                             // digits carry the grid's room and no such space.)
-                            ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
-                                <= room * (width - x + hair)
+                            // (On a character grid the spaces give nothing — Word
+                            // sets them whole while the marks give — and weigh
+                            // 0.44 of themselves: labs `ab3c`/`ab3a`/`ab3b` (Mac,
+                            // Word 16, zh-3c055c9b's line on its 17pt grid) put
+                            // Word's limit at ours to the twip with no digits on
+                            // the line, 4.45pt past it with ten spaces and 3.95
+                            // with fourteen; the line's p2 "頁】，" is taken and
+                            // p8's "餐，" (two marks, seven spaces) is not.)
+                            ? (onCharacterGrid
+                                ? need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.44)
+                                    <= markRoom * (width - x + hair)
+                                : need * (lineEms * Double(lineWide - 1) / Double(lineWide) / 64 + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
+                                    <= room * (width - x + hair))
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)
