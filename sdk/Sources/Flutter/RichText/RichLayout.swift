@@ -183,8 +183,17 @@ public final class RichTextTheme {
     /// Word's.
     public var scriptSizeWholeUp = false
 
+    /// Each face's own single line, even with `singleLineHeight` set: a
+    /// PowerPoint diagram's text steps at its face's height (Calibri
+    /// 1.22, Courier New 1.13), the rest of its text at 1.2. `faceLineHeight`
+    /// gives it for a drawn face standing in for one of another height;
+    /// otherwise it is measured. Off by default.
+    public var naturalLinesPerFace = false
+    public var faceLineHeight: ((String) -> Double?)? = nil
+
     public func naturalLineHeight(family: String?, bold: Bool, italic: Bool) -> Double {
-        if let singleLineHeight { return singleLineHeight }
+        if let singleLineHeight, !naturalLinesPerFace { return singleLineHeight }
+        if naturalLinesPerFace, let family, let h = faceLineHeight?(family) { return h }
         let key = "\(family ?? "")|\(bold)|\(italic)"
         if let h = _naturalHeights[key] { return h }
         let probe = TextPainter(text: TextSpan(text: "x", style: TextStyle(fontSize: 100, fontWeight: bold ? .bold : .normal,

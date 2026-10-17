@@ -2024,8 +2024,12 @@ Calibri's own 1.22, and tdf149551's Courier ones 0.9 of Courier New's
 1.13. A diagram shape's theme now takes its face's own line
 (`ShapeState.naturalLines`; `SlideFonts.ownNaturalHeight` for a face
 drawn by a stand-in of another height). Per text box, by its default
-face: tdf149551's runs are Courier in boxes whose face is Calibri, and
-did not gain; missing-bullet's text is fitted, and fits at another size.
+face at first — tdf149551's runs are Courier in boxes whose face is
+Calibri — and then run by run (`RichTextTheme.naturalLinesPerFace`,
+shared and off for Word, with `faceLineHeight` naming a stand-in's
+original's height: `SlideFonts.drawnNaturalHeight`): Pie 0.48 → 0.17,
+Venn 0.42 → 0.16, Pyramid −0.15; Gear +0.14, GeomLec1 +0.06.
+missing-bullet's text is fitted, and fits at another size.
 
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in

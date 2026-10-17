@@ -1360,13 +1360,12 @@ final class DeckController: ChangeNotifier {
     /// print, 0.9 of Calibri's line, and tdf149551's Courier ones 0.9 of
     /// Courier's.
     static func naturalLines(_ theme: RichTextTheme, font: String) {
-        if let own = SlideFonts.ownNaturalHeight(font) {
-            theme.singleLineHeight = own
-            return
-        }
-        theme.singleLineHeight = nil
+        // (Run by run, by the face each is drawn in; the box's own face
+        // for what reads the theme's single line.)
+        theme.faceLineHeight = SlideFonts.drawnNaturalHeight
+        theme.naturalLinesPerFace = true
         let family = theme.fontFamilyResolver?(font) ?? font
-        theme.singleLineHeight = theme.naturalLineHeight(family: family, bold: false, italic: false)
+        theme.singleLineHeight = SlideFonts.ownNaturalHeight(font) ?? theme.naturalLineHeight(family: family, bold: false, italic: false)
     }
 
     private func _textTheme(font: String, size: Double, color: Color) -> RichTextTheme {

@@ -132,6 +132,20 @@ enum SlideFonts {
         }
     }
 
+    /// The same by the face that draws it (what the layout knows a run
+    /// by): a stand-in answers for the face it stands for.
+    static func drawnNaturalHeight(_ drawn: String) -> Double? {
+        switch drawn {
+        case "TeX Gyre Cursor", OfficeFonts.mono: return 2320.0 / 2048
+        case "Selawik Doc", "Selawik Doc Light", "Selawik Doc Semilight", "Selawik Doc Semibold": return 2724.0 / 2048
+        case "Libre Franklin", "Libre Franklin Medium": return 2322.0 / 2048
+        case "TeX Gyre Adventor": return 2440.0 / 2048
+        case "TeX Gyre Pagella": return 2763.0 / 2048
+        case OfficeFonts.verdana: return 2489.0 / 2048
+        default: return nil
+        }
+    }
+
     static func ownDescentShare(_ family: String) -> Double? {
         let n = family.trimmingWhitespace().lowercased()
         if n == "verdana" { return 430.0 / 2489 }
