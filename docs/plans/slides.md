@@ -2199,6 +2199,23 @@ SmartArt boxes (one page): PowerPoint lifts the face 7% and lights a
 5 pt band, white-hot 1.5 pt in along the top, the sides and foot
 darkened to about 0.7 at the edge. Only 60810 and customGeo use it.
 
+**A diagram box's fit measured finely, 2026-10-17** (customGeo 4.06 →
+4.02, its slide 47's fourth column back at 17 pt; the 50 other SmartArt
+decks unchanged). Re-fitting a diagram drawing's text to its box laid
+the text out in whole points unless the box's margins follow its font:
+customGeo's fourth year column, 17 lines of 17 pt at 90%, rounded each
+18.65 pt line up to 19 and took 335 pt of a 330 pt box, so it shrank
+to 15.7 where PowerPoint keeps 17 (its lines within 0.6 pt of ours,
+326 pt in all). The fit is now measured at a twentieth of a point
+everywhere. Also seen there: `spcFirstLastPara="0"` (no space after
+the last paragraph) is not read.
+
+**Also looked at, 2026-10-17:** PowerPoint's line positions wobble by
+up to a point in a repeating pattern — the AES 2011 tables' 16.8 pt
+lines step 17.04, 17.04, 17.04, 16.08, 16.80, averaging ours exactly —
+and alterman's 80% lines step 23.04 with an odd 24.0 or 22.8. No rule
+found from two cases.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so

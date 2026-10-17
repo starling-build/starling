@@ -138,11 +138,12 @@ final class SlideTextCache {
             let ins = shape.insets(atFontScale: scale)
             let room = shape.frame.height - ins.top - ins.bottom
             let width = max(1, shape.frame.width - ins.left - ins.right)
-            // Measured at a twentieth of a point where the margins follow
-            // the font: lines laid out in whole points round 64.8 down to
-            // 64, and a diagram's text came out a point larger than
-            // PowerPoint's (59 where its own is 58).
-            let res = shape.insetsFollowFont ? 20.0 : 1
+            // Measured at a twentieth of a point: lines laid out in whole
+            // points round 64.8 down to 64, and a diagram's text came out
+            // a point larger than PowerPoint's (59 where its own is 58) —
+            // or round 18.65 up to 19, and customGeo's 17 lines of 17 pt
+            // took 335 of a 330 pt box that PowerPoint fills to 326.
+            let res = 20.0
             let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
             layout.scale = res / theme.pixelsPerPoint
             layout.fontScale = scale
