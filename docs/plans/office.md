@@ -5102,17 +5102,15 @@ fitter dropped the paragraph's tail).
   scripts/apply_engine_patches.sh; Skia itself stays upstream's): a U+3000
   is justified as an ideograph. Sideways drift 552 -> 537; no score moved.
   An engine built without the patch keeps the old placement.
-- **A first-line indent in a hanging indent's place takes the hang out of
-  the inherited left (2026-10-17; Linux).** Word writes a hanging
-  indent's left with the hang in it: the first line at the margin and the
-  rest two characters in is left 2, hanging 2 (twips and characters
-  alike). zh-15428325's "房源类型为…" is in "table of figures" (left 200,
-  hanging 200, in both units) and names only firstLineChars 200: Word's
-  lines stand at the margin, the first two characters in, and ours two
-  characters right of that, every line a character short. Such a
-  paragraph, naming no left of its own, now drops the inherited hang from
-  the left. zh-15428325 91.1 -> 94.1%; nothing else moved (the only such
-  paragraph in the corpus).
+- **Wrong, taken out: "a first-line indent in a hanging indent's place
+  takes the hang out of the inherited left" (2026-10-17; Linux).** Built
+  from zh-15428325's one paragraph under "table of figures" (left and
+  hanging 200 characters) naming only firstLineChars 200, which Word sets
+  at the margin. The Windows box's lab in that package (Word for Windows,
+  mode 14) keeps the style's left for such a paragraph; it is the
+  paragraph's `w:numId` 0 that drops the style's indents ("a paragraph in
+  no list takes no indent from its style", 60eb6371). Reverted; the
+  document holds at 94.1% on that rule alone.
 - **A right-aligned paragraph's trailing spaces after ideographs count,
   and wrap (2026-10-16; Linux).** Word's prints of two government
   footers, "红河县人民政府发布" (zh-1563bd74) and "沧源佤族自治县人民政府发布"

@@ -1992,23 +1992,6 @@ enum DocxFormat {
             }
         }
         if let ind = pPr.first("w:ind") {
-            // (Word writes a hanging indent's left with the hang in it — the
-            // first line at the margin and the rest two characters in is
-            // left 2 and hanging 2 — so a paragraph that puts a first-line
-            // indent in the hanging one's place, naming no left of its
-            // own, takes the hang out of the left it inherits, the
-            // characters' count too. zh-15428325's "房源类型为…" under
-            // "table of figures" (left and hanging 200 each, in twips and
-            // in characters) with firstLineChars 200 alone: Word's lines
-            // stand at the margin, the first two characters in; ours two
-            // characters right of that.)
-            if ind["w:left"] == nil, ind["w:start"] == nil, ind["w:leftChars"] == nil, ind["w:startChars"] == nil,
-               ind["w:hanging"] == nil, ind["w:hangingChars"] == nil, ind["w:firstLine"] != nil || ind["w:firstLineChars"] != nil {
-                if style.firstLineIndent < 0 { style.indentLeft = max(0, style.indentLeft + style.firstLineIndent) }
-                if let hang = Int(style.eastAsian["w:hangingChars"] ?? ""), hang > 0, let left = Int(style.eastAsian["w:leftChars"] ?? "") {
-                    style.eastAsian["w:leftChars"] = String(max(0, left - hang))
-                }
-            }
             if let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { style.indentLeft = v / 20 }
             if let v = Double(ind["w:right"] ?? ind["w:end"] ?? "") { style.indentRight = v / 20 }
             if let v = Double(ind["w:firstLine"] ?? "") { style.firstLineIndent = v / 20 }
