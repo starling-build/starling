@@ -1825,6 +1825,12 @@ label's foot 6.5pt over its point, single ones moved by their
 `c:dLbl/c:layout`. Same-base sweep: zh-547fc43c 94.1 -> 96.6, nothing
 else moved; Slides' 19 chart decks unchanged. The "%" by chart 4 is a
 text box in the document, not the chart's.
+Left (a lead, not built): zh-547fc43c's column charts in Word set a
+value label's foot about 6pt over its bar (baseline 7.5 over at 10.5pt
+宋体), ours 4.3 over (centred 8 over, PowerPoint's gap); the category
+labels' baselines 16.5 under the axis, ours 19.8. Word's charts and
+PowerPoint's may differ here, so the painter would need to know which it
+draws for; the Slides decks are tuned to PowerPoint's.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
