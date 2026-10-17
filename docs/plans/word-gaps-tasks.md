@@ -1168,8 +1168,8 @@ Built: against db1a7940's prints, same base with and without, Linux:
 zh-e02b0479 68.6 -> 97.1, zh-15728c84 86.9 -> 98.5, zh-232090e0 86.7 ->
 95.6, zh-69bbcc3c 99.4 -> 99.5; nothing down; mean 91.25 -> 91.49.
 
-### T66. Balanced widths double the spacing only in a face Word stands in for
-Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+### T66. zh-15428325's bold "（一）" lines: one character more than Word's — tried, released
+Owner: none — released by starling-office1-df (Linux), 2026-10-17
 Documents: zh-15428325 (94.1%; its bold "（一）…" lines take a character
 more than Word's).
 Known: under `w:balanceSingleByteDoubleByteWidth` ours spaces every
@@ -1179,6 +1179,19 @@ twice for 仿宋_GB2312 and 標楷體 (YaHei stood in: zh-6cd1befe 15.4 and
 15.68), and zh-232090e0's 楷体_GB2312 once (11.8) in the KaiTi print of
 2026-10-12, twice (11.6) in the YaHei reprint. Try: double only where
 the East Asian face is a stand-in.
+Tried and reverted: doubling only in a stand-in face took zh-15428325
+94.1 -> 60.7 (and four others down a little). The 15.68 read off its
+print is a justified line's, stretched: its natural spacing may be
+doubled after all. What the fitter sees for "（一）使用房票基础奖。各主体已推行
+房票安置的，房票奖励" (`STARLING_RICHTEXT_FIT`): "励" 7.49pt over, inside
+the half-em 8.0, taken; Word sends it down. Measured differences, not
+enough together: Word's first-line indent is 30.95 (the file's 619
+twips; ours 2 x (16 - 0.6) = 30.8), and its bold is ~0.03pt a character
+wider than our fake bold (0.31 over plain against 0.28) — ~7.97 over.
+Also seen: every line with letter spacing starts 0.3-0.8pt left of
+Word's — the engine sets a character's spacing half before it (as for
+tabs, T58), Word after. A lab of this line, the over varied, would say
+what Word counts.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
