@@ -2983,6 +2983,11 @@ private struct SlideContext {
                 // As an offset from the usual hang (-shapeIndent), so 0 is
                 // "the usual" and a file's indent="0" survives as itself.
                 if let indent = level.indent { style.firstLineIndent = indent + shapeIndent }
+                // A text edge with no offset said anywhere is offset 0, as
+                // the format's default: aascu 5864's text boxes' "•" at
+                // marL 0 stands at the edge with its text after it, where
+                // it hung in the margin.
+                else if level.marL != nil { style.firstLineIndent = shapeIndent }
                 // Neither said anywhere (an export with no default text
                 // style, ececapstone's): PowerPoint's own, half an inch a
                 // level and no hang — the bullet at the edge, the text

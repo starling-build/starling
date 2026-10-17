@@ -2221,6 +2221,20 @@ small print came out a different grey in every letter. A crop (not a
 pad) is now the whole picture drawn to where it falls, clipped to the
 frame.
 
+**A bullet's offset 0 when only its edge is said, 2026-10-17** (sweep
+166: 1.0464 → 1.0460%; aascu 5864 5.73 → 5.56, lo-n83889 0.48 → 0.42;
+none worse). A paragraph whose margin (`marL`) is said somewhere and
+whose offset (`indent`) nowhere hung its bullet our usual 18-odd pt
+into the margin; the format's default offset is 0, the bullet at the
+edge with the text after it, as PowerPoint prints aascu's text boxes
+(`marL="0"` from the default text style, no indent).
+Also seen there: a chart with no `c:style` and bare gridlines prints
+them #868686, Office 2007's grey, not 15%; drawn so, the page scored
+no better — our 3-D plot's gridlines stand half a point off
+PowerPoint's (its back wall 5 pt shorter) — so left for now. Its
+labels are Lucida Sans Unicode in PowerPoint's print, Liberation Sans
+in ours.
+
 **Also looked at, 2026-10-17:** PowerPoint's line positions wobble by
 up to a point in a repeating pattern — the AES 2011 tables' 16.8 pt
 lines step 17.04, 17.04, 17.04, 16.08, 16.80, averaging ours exactly —
