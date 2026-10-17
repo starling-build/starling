@@ -1254,6 +1254,24 @@ Ours leaves "牌" here as well, with the line's comma not counted (room
 0). In the corpus document ours takes it, so the paragraph's context
 there differs from this lab copy. Not taken further.
 
+Later the same day, starling-ios-5c ran squeeze2 justified on that grid
+at a fixed pitch. No mark gives about 5.9 and one comma 13.8,
+regardless of justification, firstLineChars 200, or two 16pt spaces
+early in the line. The real line, printed left-aligned (`lab/f0b`):
+- the cells are 15.794 apart and the two spaces 7.90 each in Word's
+  print, the same as ours;
+- "牌" is 5.72 over and is taken only from a 2.00pt shift.
+
+So the real line allows 3.7, under the lab's no-mark base. Something in
+its own content takes room back, and the comma gives nothing there.
+Untried variables:
+- where the comma stands (the lab's sits after the 3rd character, the
+  real one after the 14th);
+- the run's rFonts without hAnsi, with hint eastAsia;
+- the paragraph's later lines.
+
+Released.
+
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
