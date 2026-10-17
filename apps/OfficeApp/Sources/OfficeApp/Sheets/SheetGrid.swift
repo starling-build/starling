@@ -596,7 +596,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case .shape(let shape):
             shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.substitute(theme.bodyFont))
         case .picture(let path, let data):
-            _paintPicture(canvas, path, data, in: r)
+            _paintPicture(canvas, path, data, in: r, crop: d.crop)
         case .chart:
             guard let chart else { return }
             // Excel's chart area: its own fill and outline where the chart
@@ -625,11 +625,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// A picture's bytes into `r`: a bitmap through the codec, a metafile
     /// (WMF, EMF — what an embedded object's picture usually is) played.
-    private func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect) {
+    private func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect, crop: [Double]? = nil) {
         if let played = _metafile(path, data) {
             played.paint(canvas, in: r, image: { self._image($0.id, $0.data) }, font: { OfficeFonts.substitute($0) })
         } else if !Metafile.isMetafile(data), let image = _image(path, data) {
-            canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), r, Paint())
+            let w = Double(image.width), h = Double(image.height)
+            let src = crop.map { Rect.fromLTRB($0[0] * w, $0[1] * h, w - $0[2] * w, h - $0[3] * h) } ?? Rect.fromLTWH(0, 0, w, h)
+            canvas.drawImageRect(image, src, r, Paint())
         }
     }
 

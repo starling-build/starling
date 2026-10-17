@@ -80,6 +80,10 @@ struct SheetDrawing: Equatable {
     var hidden = false
     /// `clientData@fPrintsWithSheet` false: drawn on screen, left off paper
     /// (lo-tdf91332's green freeform, which Excel's print has not).
+    /// A picture's crop (`a:srcRect`): the share of the image cut from
+    /// its left, top, right and bottom — lo-cell-anchored-hidden-shapes'
+    /// logo is the middle quarter of its image.
+    var crop: [Double]? = nil
     var screenOnly = false
 
     var isChart: Bool { if case .chart = kind { return true } else { return false } }
@@ -124,6 +128,10 @@ enum SheetDrawingsXML {
                 d.name = pic.child("nvPicPr")?.child("cNvPr")?["name"] ?? "Picture"
                 d.kind = .picture(path: path, data: data)
                 d.relId = embed
+                if let src = pic.child("blipFill")?.child("srcRect") {
+                    let c = ["l", "t", "r", "b"].map { max(0, Double(src[$0] ?? "") ?? 0) / 100_000 }
+                    if c.contains(where: { $0 > 0 }), c[0] + c[2] < 1, c[1] + c[3] < 1 { d.crop = c }
+                }
             } else if let frame = el.child("graphicFrame"), let ref = _chartRef(frame), let path = rels[ref],
                       let space = parts[path].flatMap({ XNode.parse($0) }),
                       let chart = ChartXML.read(space, allowEmpty: true, color: { colors.color(in: $0) }) {
