@@ -2140,6 +2140,16 @@ bullet in the link's colour; PowerPoint draws it in the run's own (or
 the level's): customGeo's resources page, black bullets before blue
 links.
 
+**A short table row filled out; a chart's deleted axis and unlined walls,
+2026-10-17** (LIBRE_OFFICE-100610's survey slide 7.86 → 7.83; nothing
+else moved). Its second row's last cell spans three columns with no
+merged cells after it: PowerPoint wraps "Vermelho" in one column and
+fills the row out with two empty cells, ruled black over the white
+edge of the cell above — we left the room bare. And its 3-D bar
+chart, whose axes are both deleted and whose floor and back wall say
+no line, stood on an axis line and in a box's edges; it now stands in
+neither (`Chart.BarView.walled`).
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so

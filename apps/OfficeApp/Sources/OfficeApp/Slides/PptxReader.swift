@@ -2118,6 +2118,24 @@ private struct SlideContext {
                 }
                 paragraphs += cellParas
             }
+            // A row short of the grid's columns (a span with no merged
+            // cells after it) is filled out with empty cells, in the
+            // table's own lines: LIBRE_OFFICE-100610's survey row ends in
+            // two such, ruled black in PowerPoint's print.
+            // (Their lines over a neighbour's own: the survey's two are
+            // closed at the top, under the title cell's white edge.)
+            let gridded = plain && (styleId.isEmpty || styleId.hasPrefix("{5940675A"))
+            while !widths.isEmpty, column < widths.count {
+                var para = RichParagraph(text: "", style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0))
+                var cell = CellRef(table: tableId, row: r, column: column, span: 1, rowSpan: 1)
+                if gridded {
+                    let edge = CellRef.CellLine(width: 1, color: colors.scheme("tx1") ?? Color(0xFF000000))
+                    cell.borders.left = edge; cell.borders.right = edge; cell.borders.top = edge; cell.borders.bottom = edge
+                }
+                para.cell = cell
+                paragraphs.append(para)
+                column += 1
+            }
         }
         guard !paragraphs.isEmpty else { return nil }
         var doc = RichDocument(paragraphs: paragraphs)

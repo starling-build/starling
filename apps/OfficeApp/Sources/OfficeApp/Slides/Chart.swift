@@ -181,7 +181,14 @@ struct Chart: Equatable {
     /// standing in the middle of that depth with `gapDepth` of their own
     /// depth about them. nil is flat.
     var barView: BarView? = nil
-    struct BarView: Equatable { var x: Double; var y: Double; var depth: Double = 1; var gapDepth: Double = 1.5 }
+    struct BarView: Equatable {
+        var x: Double; var y: Double; var depth: Double = 1; var gapDepth: Double = 1.5
+        /// The floor's and back wall's edges are drawn; not where both
+        /// say no line (`c:floor`, `c:backWall` `a:ln/a:noFill`) —
+        /// LIBRE_OFFICE-100610's survey bars stand in no box at all in
+        /// PowerPoint's print.
+        var walled = true
+    }
     /// The value axis's bounds and step where the file fixes them
     /// (`c:scaling/c:min`, `c:max`, `c:majorUnit`); nil is automatic.
     var valueMin: Double? = nil
@@ -804,6 +811,8 @@ enum ChartXML {
                                       y: v?.first("c:rotY")?["val"].flatMap(Double.init) ?? 20,
                                       depth: (v?.first("c:depthPercent")?["val"].flatMap(Double.init) ?? 100) / 100,
                                       gapDepth: (el.first("c:gapDepth")?["val"].flatMap(Double.init) ?? 150) / 100)
+            func unlined(_ tag: String) -> Bool { chart.first(tag)?.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil }
+            c.barView?.walled = !(unlined("c:floor") && unlined("c:backWall"))
         }
         if el.name == "c:pie3DChart" {
             // (No rotX is 15°: Excel draws 45544's pies the same with none
@@ -1848,8 +1857,9 @@ enum ChartPainter {
                 if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, plot.bottom + 4 * k + belowOut)) }
             }
         } else if horizontal {
-            canvas.drawLine(Offset(zero, plot.top), Offset(zero, plot.bottom), gridPaint)
-            if box != .zero {
+            // (Not where the file deletes the axis: LIBRE_OFFICE-100610's.)
+            if !c.categoryAxisDeleted { canvas.drawLine(Offset(zero, plot.top), Offset(zero, plot.bottom), gridPaint) }
+            if box != .zero, c.barView?.walled != false {
                 // The box's edges at zero: its back, and across its top.
                 canvas.drawLine(Offset(zero, plot.top), Offset(zero + box.dx, plot.top - box.dy), gridPaint)
                 canvas.drawLine(Offset(zero, plot.bottom), Offset(zero + box.dx, plot.bottom - box.dy), gridPaint)
@@ -1864,8 +1874,8 @@ enum ChartPainter {
                 tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - tp.width, cy - tp.height / 2))
             }
         } else {
-            canvas.drawLine(Offset(plot.left, zero), Offset(plot.right, zero), gridPaint)
-            if box != .zero {
+            if !c.categoryAxisDeleted { canvas.drawLine(Offset(plot.left, zero), Offset(plot.right, zero), gridPaint) }
+            if box != .zero, c.barView?.walled != false {
                 // The floor's other edges: its sides and its back.
                 canvas.drawLine(Offset(plot.left, zero), Offset(plot.left + box.dx, zero - box.dy), gridPaint)
                 canvas.drawLine(Offset(plot.right, zero), Offset(plot.right + box.dx, zero - box.dy), gridPaint)
