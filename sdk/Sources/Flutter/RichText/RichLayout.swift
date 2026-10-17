@@ -5252,9 +5252,9 @@ public final class RichLayout {
         if theme.wordRules, inLine, style.lineHeightPoints == nil || style.lineHeightIsMinimum,
            style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch, pitch > 0 {
             let px = _px(pitch)
-            // (A picture paragraph's picture stands on the line's
-            // baseline, the descent of its mark's text under it: Word's
-            // 25pt picture ends 3.4pt above its 31.2pt line's foot.)
+            // (The descent of a picture paragraph's mark: what of its line
+            // may hang past a page's foot. Word's 25pt picture ends 3.4pt
+            // above its 31.2pt line's foot.)
             let descent = p.image != nil ? (painter.computeLineMetrics().first?.descent ?? 0) : 0
             // (As many pitches as the picture is tall, its descent not
             // counted: lab `pg2` in zh-9c5d0c3f's package (Word 16, an
@@ -5264,7 +5264,13 @@ public final class RichLayout {
             // road signs' rows ran a pitch tall.)
             let snapped = ((bodyHeight + (p.image != nil ? 0 : descent)) / px - 0.002).rounded(.up) * px
             if snapped > bodyHeight + 0.01 {
-                _inkShift[i] += combined && p.inlineImages.isEmpty ? (snapped - bodyHeight) / 2 : max(0, snapped - bodyHeight - descent)
+                // (A picture's own paragraph centres it, effects and all, in
+                // its pitches: zh-547fc43c's charts and pictures stand half
+                // their lines' spare room down in Word's print — 7.05pt of a
+                // 14.1 — where under the rest less the descent its 233.75pt
+                // chart stood 3.6pt low and its 219pt picture 3.4.)
+                _inkShift[i] += (combined && p.inlineImages.isEmpty) || p.image != nil ? (snapped - bodyHeight) / 2
+                    : max(0, snapped - bodyHeight - descent)
                 bodyHeight = snapped
             }
             // (At a page's foot the picture itself must fit; the descent
@@ -9397,7 +9403,9 @@ public final class RichLayout {
     /// (Only at the size the file gave it: resized in the editor, the
     /// picture is written afresh, without either.)
     func _pictureRoom(_ image: ImageAttachment) -> (top: Double, bottom: Double, side: Double) {
-        guard image.sourceWidth == image.width, image.sourceHeight == image.height else { return (0, 0, 0) }
+        // (Not once resized: its effect extent was the old size's. A kept
+        // object, a chart, has no source size and keeps its own.)
+        guard image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height) else { return (0, 0, 0) }
         let frame = image.frame.map { _px($0.space + $0.width) } ?? 0
         return (_px(image.effectTop) + frame, _px(image.effectBottom) + frame, frame)
     }

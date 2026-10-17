@@ -654,6 +654,39 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(pageOfFourth { 4 * $0 - $0 / 2 }, 1, "its text is over too")
     }
 
+    /// zh-547fc43c p6: a 233.75pt chart and 1.75pt of effect extent on a
+    /// 15.6pt grid take 16 pitches in Word's print, and stand centred in
+    /// them — 7.05pt of the 14.1 spare over it.
+    func testAChartsLineOnTheGridHoldsItsEffectsAndCentresIt() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with:
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"3810000\" cy=\"2968625\"/>"
+            + "<wp:effectExtent l=\"0\" t=\"4445\" r=\"0\" b=\"17780\"/><wp:docPr id=\"1\" name=\"s\"/>"
+            + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:spPr><a:prstGeom prst=\"ellipse\"/></wps:spPr><wps:bodyPr/></wps:wsp>"
+            + "</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
+            + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1800\" w:bottom=\"1440\" w:left=\"1800\" w:header=\"851\" w:footer=\"992\" w:gutter=\"0\"/>"
+            + "<w:docGrid w:type=\"lines\" w:linePitch=\"312\"/></w:sectPr>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let picture = try XCTUnwrap(doc.paragraphs[0].image ?? doc.paragraphs[0].inlineImages.values.first)
+        XCTAssertEqual(picture.effectBottom, 1.4, accuracy: 0.01)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        l.width = 595 * 96.0 / 72.0
+        l.pageSetup = .a4
+        l.ensureLaidOut(doc)
+        let px = theme.pixelsPerPoint
+        let g = l.geometry(0)
+        XCTAssertEqual((g.height - g.textTop + g.top) / px, 16 * 15.6, accuracy: 0.8)
+        let box = try XCTUnwrap(l.imageRect(0))
+        XCTAssertEqual((box.top - g.textTop) / px, 7.05 + 0.35, accuracy: 0.8)
+    }
+
     /// zh-547fc43c's 219pt chart under its page's last 154pt, with
     /// widow control off: Word starts the next page with it.
     func testAPictureThatDoesNotFitGoesToTheNextPageWithWidowControlOff() {

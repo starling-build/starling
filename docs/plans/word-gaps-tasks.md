@@ -1751,7 +1751,7 @@ within 0.3pt of Word's. 55966 (33%) is Word showing the first
 placeholder control's text in a second control (`w:showingPlcHdr`,
 one docPart). One sample is not enough for a rule.
 
-### T79. A chart's line on the grid: its effect extent, and centred — claimed
+### T79. A chart's line on the grid: its effect extent, and centred — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-547fc43c (87.9% after T73; p6's chart).
 Known: a 233.75pt chart with 0.35 + 1.4pt of effect extent takes 16
@@ -1759,6 +1759,13 @@ pitches of a 15.6pt grid in Word's print; ours 15 (a kept object, a
 chart, reads no effect extent), so all under it stood 16pt high. And
 Word stands the chart half its line's spare room down (7.05 of 14.1),
 as it does the document's other charts and pictures within 0.4pt.
+Built: a kept object (a chart, a shape) in the line reads its effect
+extent as a picture does, and its line holds it; a picture paragraph on
+the grid stands centred in its pitches, where it had the spare room
+less its mark's descent over it. Same-base sweep: zh-547fc43c 87.9 ->
+94.3 (92.5 with the extent alone), nothing else moved — zh-90e0cea8's and
+zh-9c5d0c3f's pictures on grids among them. Left on its p6: the chart's
+axis titles ("亿元", "%") at the axes' tops and its line's data labels.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

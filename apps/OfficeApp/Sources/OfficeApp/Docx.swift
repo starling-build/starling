@@ -2824,6 +2824,13 @@ enum DocxFormat {
             }
             guard let frag = _keptFragment(node, notes) else { return nil }   // a part it names is missing
             var att = ImageAttachment(data: Data(), width: w, height: h, name: isRule ? "hr" : node.name)
+            // (Its effect extent, as a picture's: its line holds that too.
+            // zh-547fc43c's 233.75pt chart and 1.75pt of effects take 16
+            // pitches of a 15.6pt grid in Word's print, not 15.)
+            if let effect = node.descendant("wp:inline")?.first("wp:effectExtent") {
+                att.effectTop = max(0, (Double(effect["t"] ?? "") ?? 0) / 12700)
+                att.effectBottom = max(0, (Double(effect["b"] ?? "") ?? 0) / 12700)
+            }
             att.sourceXML = frag.xml
             att.sourceRels = frag.rels
             att.float = _float(node)
