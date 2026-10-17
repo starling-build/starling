@@ -1871,6 +1871,16 @@ labels' baselines 16.5 under the axis, ours 19.8. Word's charts and
 PowerPoint's may differ here, so the painter would need to know which it
 draws for; the Slides decks are tuned to PowerPoint's.
 
+### T85. zh-3c055c9b: a character grid's automatic spaces weigh two thirds in the squeeze — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+Documents: zh-3c055c9b (45%).
+Known: the Mac's labs ab3c/ab3a/ab3b (board, above): with no digits on
+the line Word's limit is ours to the twip; with ten automatic spaces
+Word takes 4.45pt more, with fourteen 3.95. Solved against the mode-15
+test's terms (the real line: ems 5.31, spaces 46.77, room 74.4), the
+spaces count 0.66 and 0.70 of themselves, not whole.
+Plan: two thirds on a character grid; same-base sweep.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
