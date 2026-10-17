@@ -1148,6 +1148,14 @@ So a mark gives half a cell; and a grid has a base tolerance besides (0 on
 27 x 15.79 = 10.2; d68ac84a's is 0). f0bd9ea8's own body lines leave a
 character 5.1 over with a "，" all the same, so they differ from the lab
 (its runs, style, first-line indent). Handed to starling-bd.
+Then (same lab, the pitch fixed at 15.794 from the left-aligned print):
+justified changes nothing (no mark 5.92-6.05, one "，" 13.82-13.94);
+firstLineChars 200 nothing (5.80-5.92 / 13.70-13.82); two 16pt spaces after
+the first three characters nothing (5.80-5.92 / 13.70-13.82). starling-bd's
+bisection of the real 第一条 paragraph allows ~3.7 with its one comma — so
+something in that line's own content takes the room back (where its comma
+stands, the 黑体 run's Latin face, a Latin run), not its alignment, indent
+or spaces.
 
 ### Lead from the Linux box (2026-10-17): zh-06c46ba9 p70-72, a float pushes the table above its anchor
 Owner: none — measured, not built. Pages 70-72 stand 80pt high (28 lines).
