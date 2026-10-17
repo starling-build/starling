@@ -810,7 +810,7 @@ alternate 21.1/21.4, ours 21.3); by the foot of p11 ours has room for one
 line of the two-line "Note:" row that Word carries whole to p12.
 
 ### T44. zh-a4b0f6ea p20: a page-anchored floating table Word breaks after its first row — measured, released
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), again from 2026-10-16 — with zh-6cd1befe p51 (a 26-row
+Owner: the Windows box (011ZXp8e), from 2026-10-17 — released by 01Xgpbk5; was with zh-6cd1befe p51 (a 26-row
 page-anchored table: Word sets its header row alone on p51, the rest on p52; found by starling-bd)
 Built (partial): a page-anchored table (`TableStyle.pageAnchored`) that
 does not fit whole where it stands keeps its first row there and goes on
