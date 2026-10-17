@@ -50,6 +50,8 @@ final class CalcEngine {
     private var _done: Set<SheetCell> = []
     /// Cells found in a cycle during the last recalculation.
     private(set) var circular: Set<SheetCell> = []
+    /// The formulas on a loop, as the last ordering walk found them.
+    private var _cycle: Set<SheetCell> = []
     /// NOW()/TODAY() during one pass, so a sheet agrees with itself.
     private(set) var now: Double = ExcelDate.now()
 
@@ -89,7 +91,12 @@ final class CalcEngine {
         // ones runs again with them known, until nothing moves.
         // Spills are recomputed from nothing: rows moved or formulas changed
         // since, so the old ones are only a guide to the order.
-        _knownSpills = _collectSpills()
+        // (Not from the last pass's: a spill that pass made can close a
+        // loop this one's would not, and the cells on it come out 0 — a
+        // full pass then gave one answer from one state and another from
+        // the next (SheetsEngineTests' random edits, seed 182). From none,
+        // the rounds below find them again from the inputs alone.)
+        _knownSpills = [:]
         for ws in book.sheets {
             ws.spilled.removeAll()
             for (a, c) in ws.cells where c.spillRange != nil { ws.cells[a]?.spillRange = nil }
@@ -200,7 +207,9 @@ final class CalcEngine {
         for row in r.top ... r.bottom {
             for col in r.left ... r.right {
                 let a = CellAddress(row: row, col: col)
-                if let cell = ws.cells[a] { out.append(cell.formula == nil ? cell.value : value(sheet, a)) } else { out.append(.empty) }
+                // (A cell another formula spills into holds that value:
+                // SUM(A1:C11) over SEQUENCE(2)'s second cell left it out.)
+                if let cell = ws.cells[a] { out.append(cell.formula == nil ? cell.value : value(sheet, a)) } else { out.append(ws.spilled[a] ?? .empty) }
             }
         }
         // Not kept while a cycle is being walked: its cells are not final.
@@ -226,6 +235,10 @@ final class CalcEngine {
         var dirty = Set<SheetCell>()
         var queue = changed.map { SheetCell(sheet: sheet, cell: $0) } + Array(g.volatile)
         for v in g.volatile { dirty.insert(v) }
+        // (A formula typed again as it was is new to its cell, which holds
+        // no value yet: it computes too, not only what reads it — retyping
+        // a blocked FILTER left it empty, where it is #SPILL!.)
+        for a in changed where g.formulaCells.contains(SheetCell(sheet: sheet, cell: a)) { dirty.insert(SheetCell(sheet: sheet, cell: a)) }
         while let x = queue.popLast() {
             var readers = g.cellReaders[x] ?? []
             var candidates = g.wide
@@ -315,29 +328,60 @@ final class CalcEngine {
         var rangeReaders: [_Node: [SheetCell]] = [:]
         var order: [SheetCell] = []
         order.reserveCapacity(all.count)
-        var state: [_Node: Bool] = [:]          // false: on the walk now, true: finished
+        // The walk finds the loops too, whole (Tarjan's components): every
+        // formula on one is circular, whichever of them a pass reaches
+        // first. Found as value() re-entered a cell, only the stretch of
+        // the loop that pass happened to walk was — a cell reading a loop
+        // through a range showed 0 after one full pass and its sum after
+        // the next (SheetsEngineTests' random edits, seed 80: A5's VLOOKUP
+        // over A1:D12 and C8 reading C3's FILTER of A1:A12).
+        var seen: [_Node: Int] = [:]           // the order the walk reached each node
+        var low: [_Node: Int] = [:]
+        var onStack: Set<_Node> = []
+        var component: [_Node] = []
+        var selfLoop: Set<_Node> = []
+        var cycle: Set<SheetCell> = []
+        func reach(_ n: _Node) {
+            seen[n] = seen.count; low[n] = seen[n]
+            component.append(n); onStack.insert(n)
+        }
         for start in all {
             let root = _Node.cell(start)
-            guard state[root] == nil else { continue }
+            guard seen[root] == nil else { continue }
+            reach(root)
             var stack: [(node: _Node, inputs: [_Node], next: Int)] = [(root, inputs(root), 0)]
-            state[root] = false
             while !stack.isEmpty {
                 let top = stack.count - 1
                 if stack[top].next < stack[top].inputs.count {
+                    let node = stack[top].node
                     let child = stack[top].inputs[stack[top].next]
                     stack[top].next += 1
-                    // On the walk already: a cycle, which value() reports.
-                    if state[child] == nil {
-                        state[child] = false
+                    if child == node { selfLoop.insert(node) }
+                    if seen[child] == nil {
+                        reach(child)
                         stack.append((child, inputs(child), 0))
+                    } else if onStack.contains(child) {
+                        low[node] = min(low[node]!, seen[child]!)
                     }
                 } else {
                     let done = stack.removeLast().node
-                    state[done] = true
                     if case .cell(let k) = done { order.append(k) }
+                    if let parent = stack.last?.node { low[parent] = min(low[parent]!, low[done]!) }
+                    if low[done] == seen[done] {
+                        var members: [_Node] = []
+                        while let w = component.popLast() {
+                            onStack.remove(w)
+                            members.append(w)
+                            if w == done { break }
+                        }
+                        if members.count > 1 || selfLoop.contains(done) {
+                            for case .cell(let k) in members { cycle.insert(k) }
+                        }
+                    }
                 }
             }
         }
+        _cycle = cycle
         // Who reads which range, findable by column.
         for (node, readers) in rangeReaders {
             guard case .range(let si, let r) = node else { continue }
@@ -370,6 +414,14 @@ final class CalcEngine {
             }
             // Every cell on the loop shows 0, as Excel's do.
             for k in _visiting[at...] { circular.insert(k) }
+            return .number(0)
+        }
+        // On a loop: 0, as Excel shows every cell of one.
+        if !book.iterate, _cycle.contains(key) {
+            if let old = cell.spillRange { _unspill(ws, addr, old) }
+            circular.insert(key)
+            _done.insert(key)
+            ws.cells[addr]?.value = .number(0)
             return .number(0)
         }
         _visiting.append(key)
@@ -665,8 +717,12 @@ final class CalcEngine {
         let ws = book.sheets[sheet]
         let area = r.rows * r.cols
         if !includeEmpty && area > ws.cells.count * 2 {
-            // A big range over a sparse sheet: walk the cells that exist.
-            return ws.cells.keys.filter { r.contains($0) }.sorted().map { value(sheet, $0) }
+            // A big range over a sparse sheet: walk the cells that exist,
+            // and those a formula spills into (left out, SUM(A1:C11) over
+            // SEQUENCE(2) changed as an unrelated cell was typed, the
+            // sheet then no longer sparse enough for this path).
+            let held = ws.cells.keys.filter { r.contains($0) } + ws.spilled.keys.filter { r.contains($0) && ws.cells[$0] == nil }
+            return held.sorted().map { value(sheet, $0) }
         }
         let used = usedExtent(sheet)
         let bottom = includeEmpty ? r.bottom : min(r.bottom, used.row)

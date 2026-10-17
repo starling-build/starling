@@ -435,10 +435,32 @@ extension SheetsEngineTests {
 
 extension SheetsEngineTests {
     /// After every edit, the incremental pass agrees with a full one.
+    /// Random edits, each checked against a full pass — from fixed seeds,
+    /// so a failure replays. 80, 182, 286 and 635 each found a bug once:
+    /// a loop's cells flagged by the walk's order, a loop closed by the
+    /// last pass's spills, a sparse range missing a spill, and a formula
+    /// typed again as it was left without its value.
     func testIncrementalRecalcMatchesAFullOne() {
+        for seed: UInt64 in [80, 182, 286, 635] + Array(1 ... 20) {
+            _incrementalRecalcRun(seed: seed)
+        }
+    }
+
+    private struct _SplitMix: RandomNumberGenerator {
+        var state: UInt64
+        mutating func next() -> UInt64 {
+            state &+= 0x9E37_79B9_7F4A_7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+            z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+            return z ^ (z >> 31)
+        }
+    }
+
+    private func _incrementalRecalcRun(seed: UInt64) {
         let c = WorkbookController()
         c.load(Workbook(sheets: [Worksheet(name: "One"), Worksheet(name: "Two")]))
-        var rng = SystemRandomNumberGenerator()
+        var rng = _SplitMix(state: seed)
         func ref() -> String { "\(["A", "B", "C", "D"].randomElement(using: &rng)!)\(Int.random(in: 1 ... 12, using: &rng))" }
         let formulas = [
             { "=\(ref())+\(ref())" }, { "=SUM(A1:\(ref()))" }, { "=Two!\(ref())*2" }, { "=SUMIF(A1:A12,\">5\",B1:B12)" },
@@ -456,9 +478,9 @@ extension SheetsEngineTests {
             let incSpilled = c.book.sheets.map(\.spilled)
             c.engine.recalculate()
             let full = c.book.sheets.map { ws in ws.cells.mapValues(\.value) }
-            if incSpilled != c.book.sheets.map(\.spilled) { XCTFail("round \(round): spills differ"); return }
+            if incSpilled != c.book.sheets.map(\.spilled) { XCTFail("seed \(seed) round \(round): spills differ"); return }
             if incremental != full {
-                XCTFail("round \(round): \(text) into \(sheet):\(a.a1) left values stale")
+                XCTFail("seed \(seed) round \(round): \(text) into \(sheet):\(a.a1) left values stale")
                 return
             }
         }
