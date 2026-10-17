@@ -1118,6 +1118,19 @@ form's title cell opens with two; ours split an empty line off, 59pt
 of the page). Mac measured the same independently. zh-8112041b 70.8 ->
 100%, nothing else moved (same-base sweep with and without).
 
+### T65. zh-17749c13 p20: a 宋体 grid line Word does not let hang past the foot — measured, released
+Owner: none (measured by 01Xgpbk5, Mac, 2026-10-17)
+zh-17749c13 (85.6%) runs a line ahead from page 21: ours keeps "第六十六条
+申请办理船舶国籍证书…" (14pt 宋体, one line, two 15.6pt pitches, auto
+spacing) at page 20's foot, baseline 763.5; Word sends it over. Labs `p0`–`p7`
+(page 20's text alone, the bottom margin 1440 down 20 twips a step):
+Word keeps it from 1420 on, so its limit is a foot between 770 and 771pt,
+6.8–7.8 under the baseline. Ours lets a grid line overhang by half its
+extra (`gridOverhang`, 6.5 here, from lab `gf2`'s YaHei bold on an 18pt
+grid), which puts the limit near 767 and keeps it at 770. Neither the
+natural bottom (~767) nor the line box (~774) is Word's here: 宋体 on a
+15.6 grid needs labs at more sizes before the rule changes.
+
 ### T64. 楷体_GB2312 is YaHei in today's Word for Mac — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: the zh corpus. Word 16.113.3 sets 楷体_GB2312 text in
