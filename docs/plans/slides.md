@@ -2014,6 +2014,19 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A diagram's lines step at their face's own height, 2026-10-17** (the
+74 diagram decks −1.96 in sum: tdf141058-1 1.67 → 1.13, tdf93830 1.32
+→ 0.90, smartart-preserve 0.63 → 0.32, 17 more better; missing-bullet
++0.60, smartart-simple +0.23, tdf149551's Pie +0.19, ten more +0.01 to
++0.08). In a diagram's text PowerPoint does not use its 1.2 single
+line: customGeo's 17 pt bullets at 90% stand 18.66 apart, 0.9 of
+Calibri's own 1.22, and tdf149551's Courier ones 0.9 of Courier New's
+1.13. A diagram shape's theme now takes its face's own line
+(`ShapeState.naturalLines`; `SlideFonts.ownNaturalHeight` for a face
+drawn by a stand-in of another height). Per text box, by its default
+face: tdf149551's runs are Courier in boxes whose face is Calibri, and
+did not gain; missing-bullet's text is fitted, and fits at another size.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so

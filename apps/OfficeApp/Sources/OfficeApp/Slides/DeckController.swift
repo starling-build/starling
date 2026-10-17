@@ -64,6 +64,7 @@ struct ShapeState: Equatable {
     var outlineCompound: String? = nil
     var textTurn = 0
     var textSpin = 0.0
+    var naturalLines = false
     var shadow: CharShadow? = nil
     var innerShadow: CharShadow? = nil
     var glowRadius: Double? = nil
@@ -1155,6 +1156,7 @@ final class DeckController: ChangeNotifier {
         st.tailEnd = s.tailEnd
         st.textTurn = s.textTurn
         st.textSpin = s.textSpin
+        st.naturalLines = s.naturalLines
         st.shadow = s.shadow
         st.innerShadow = s.innerShadow
         st.glowRadius = s.glowRadius
@@ -1191,6 +1193,7 @@ final class DeckController: ChangeNotifier {
            tt.fontFamily != st.font || tt.fontSize != st.size || tt.textColor != st.color || tt.listIndent != st.listIndent {
             let fresh = _textTheme(font: st.font ?? theme.bodyFont, size: st.size, color: st.color)
             fresh.listIndent = st.listIndent
+            if st.naturalLines { Self.naturalLines(fresh, font: st.font ?? theme.bodyFont) }
             shape.textTheme = fresh
         }
         shape.crop = st.crop
@@ -1258,6 +1261,7 @@ final class DeckController: ChangeNotifier {
         shape.tailEnd = st.tailEnd
         shape.textTurn = st.textTurn
         shape.textSpin = st.textSpin
+        shape.naturalLines = st.naturalLines
         shape.shadow = st.shadow
         shape.innerShadow = st.innerShadow
         shape.glowRadius = st.glowRadius
@@ -1280,6 +1284,7 @@ final class DeckController: ChangeNotifier {
     private func _make(_ st: ShapeState) -> SlideShape {
         let theme = st.text == nil ? nil : _textTheme(font: st.font ?? self.theme.bodyFont, size: st.size, color: st.color)
         theme?.listIndent = st.listIndent
+        if st.naturalLines, let theme { Self.naturalLines(theme, font: st.font ?? self.theme.bodyFont) }
         let shape = SlideShape(id: st.id, name: st.name, kind: st.kind, frame: st.frame,
                                text: st.text.map(_textController), textTheme: theme,
                                anchor: st.anchor, prompt: st.prompt)
@@ -1347,6 +1352,21 @@ final class DeckController: ChangeNotifier {
         st.keptPicture = nil
         st.frame = st.frame.shift(Offset(offset, offset))
         return _make(st)
+    }
+
+    /// A diagram's text steps its lines at its face's own height (Calibri's
+    /// 1.22, Courier New's 1.13), not the 1.2 of every other text:
+    /// customGeo's 17 pt bullets at 90% stand 18.66 apart in PowerPoint's
+    /// print, 0.9 of Calibri's line, and tdf149551's Courier ones 0.9 of
+    /// Courier's.
+    static func naturalLines(_ theme: RichTextTheme, font: String) {
+        if let own = SlideFonts.ownNaturalHeight(font) {
+            theme.singleLineHeight = own
+            return
+        }
+        theme.singleLineHeight = nil
+        let family = theme.fontFamilyResolver?(font) ?? font
+        theme.singleLineHeight = theme.naturalLineHeight(family: family, bold: false, italic: false)
     }
 
     private func _textTheme(font: String, size: Double, color: Color) -> RichTextTheme {

@@ -112,6 +112,26 @@ enum SlideFonts {
     /// baseline by them: the AES deck's Verdana stood 0.04 of its size
     /// high in DejaVu Sans's, HowWeRefactor's Segoe UI as much in its
     /// stand-in's, and GeomLec1's Lucida Sans Unicode 0.1 low.
+    /// The single line, in ems, of a face drawn by a stand-in of another
+    /// height (its Windows ascent, descent and gap): what a diagram's
+    /// lines step at (`DeckController.naturalLines`). nil: the stand-in's
+    /// own is the face's (Calibri in Carlito, the free faces themselves).
+    static func ownNaturalHeight(_ family: String) -> Double? {
+        switch family.trimmingWhitespace().lowercased() {
+        case "courier new", "courier": return 2320.0 / 2048
+        case "segoe ui", "segoe ui light", "segoe ui semilight", "segoe ui semibold": return 2724.0 / 2048
+        case "franklin gothic book", "franklin gothic medium": return 2322.0 / 2048
+        case "century gothic": return 2440.0 / 2048
+        case "palatino linotype", "palatino": return 2763.0 / 2048
+        case "verdana": return 2489.0 / 2048
+        case "tahoma": return 2472.0 / 2048
+        case "trebuchet ms": return 2378.0 / 2048
+        case "gill sans mt": return 2375.0 / 2048
+        case "lucida sans unicode": return 3147.0 / 2048
+        default: return nil
+        }
+    }
+
     static func ownDescentShare(_ family: String) -> Double? {
         let n = family.trimmingWhitespace().lowercased()
         if n == "verdana" { return 430.0 / 2489 }

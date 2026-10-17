@@ -475,6 +475,9 @@ final class SlideShape {
     /// The text turned about its own middle, degrees clockwise (a
     /// camera's `rev`, the other way).
     var textSpin = 0.0
+    /// A diagram's text: its lines step at its face's own height, not
+    /// PowerPoint's 1.2 (`ShapeState.naturalLines`).
+    var naturalLines = false
     /// `a:effectLst/a:outerShdw` (or the theme's, through `effectRef`):
     /// a blurred copy of the outline cast under the shape.
     var shadow: CharShadow? = nil

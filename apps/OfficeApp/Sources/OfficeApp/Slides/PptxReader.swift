@@ -2463,6 +2463,7 @@ private struct SlideContext {
         // but for one at a size its author set, which PowerPoint leaves
         // alone (tdf125551's 32 pt labels run out of their bars).
         for i in out.indices where out[i].text != nil && out[i].fileId != Self.customTextId { out[i].autofit = true }
+        for i in out.indices where out[i].text != nil { out[i].naturalLines = true }
         return out.filter { s in
             if case .geometry(let p) = s.kind {
                 // Round things and curved arrows look nothing like their box.
