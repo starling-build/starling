@@ -4749,10 +4749,13 @@ public final class RichLayout {
                 strutStyle: picturesInLine || Self._risesForNumber(inline) ? nil : _strut(span)
             )
             if !inline.isEmpty { painter.setPlaceholderDimensions(inline.map { $0.dimensions }) }
-            // (A fiftieth of a point over: a line that is exactly the
+            // (A thousandth of a point over: a line that is exactly the
             // column's width — ten ideographs in ten ems — must fit, and
-            // the sum of its advances may come out a hair above.)
-            let slack = theme.wordRules ? _px(0.005) : 0
+            // the sum of its advances may come out a hair above. No
+            // more: zh-ae655121's "(F)＝(D)－(E)", YaHei's widths at
+            // 14pt, is 81.8535pt in a cell of 81.85, and Word puts "(E)"
+            // on a line of its own; at five thousandths it stayed.)
+            let slack = theme.wordRules ? _px(0.001) : 0
             // (A paragraph of pictures, spaces and breaks with a picture
             // wider than the line is laid out as wide as that picture: the
             // engine sets such a picture alone on its line and loses the

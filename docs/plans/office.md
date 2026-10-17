@@ -5538,6 +5538,13 @@ fitter dropped the paragraph's tail).
   zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
   lower in Word than the two-line cells beside them: the same rule);
   nothing else moved.
+- **A line a hair over its column goes over (2026-10-17).** zh-ae655121
+  p4: the cell "(F)＝(D)－(E)", 14pt 標楷體 (YaHei's widths in Word on a
+  Mac), measures 81.8535pt in a cell of 81.85; Word's print puts "(E)"
+  on a line of its own, and ours kept it, because a line was allowed
+  five thousandths of a point over its column. The allowance is now a
+  thousandth, still enough for ten ideographs in ten ems. zh-64044a1d
+  98.6 -> 98.8; nothing else moved.
 - **A list number in its paragraph mark's formatting, not underlined
   (2026-10-17).** zh-9c5d0c3f p3: "四、常見交通標誌" has a mark of 18pt
   bold underlined over a run of 16pt; Word's print sets "四、" at 18pt
