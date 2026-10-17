@@ -1156,6 +1156,11 @@ bisection of the real 第一条 paragraph allows ~3.7 with its one comma — so
 something in that line's own content takes the room back (where its comma
 stands, the 黑体 run's Latin face, a Latin run), not its alignment, indent
 or spaces.
+Nor (same lab) the comma's place (after the 14th character: 13.70-13.82)
+or the run's rFonts with hint eastAsia and no hAnsi (5.80-5.92 / 13.70-13.82).
+Left: the real paragraph's pStyle and its run properties, the text after
+"牌", and its length. A bisection that strips the real paragraph a piece at
+a time until it reaches the lab's ~13.8 would find it. Released.
 
 ### Lead from the Linux box (2026-10-17): zh-06c46ba9 p70-72, a float pushes the table above its anchor
 Owner: the Windows box (011ZXp8e), from 2026-10-17 — building it. Was: measured, not built. Pages 70-72 stand 80pt high (28 lines).
