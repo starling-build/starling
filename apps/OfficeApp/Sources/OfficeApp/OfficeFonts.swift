@@ -1050,25 +1050,36 @@ enum OfficeFonts {
     /// engine's half-gap deeper. bug59058's references, 13pt Times at
     /// least 15pt with Cambria titles, step 15.24 in Word's print where
     /// a title is on the line and 15.45 here, 2.3pt by a page's foot.
+    /// (And `OS/2`'s Windows ascent raised by as much: DirectWrite takes
+    /// a face's ascent from `usWinAscent` and its gap from what `hhea`
+    /// says beyond the Windows ascent and descent, so on Windows the
+    /// `hhea` change alone moved nothing — bug59058's mixed lines stepped
+    /// 15.45 there, 75% of its lines, where Linux's are Word's and 100%.)
     static func _gapAbove(_ data: inout Data) -> Bool {
         func u16(_ at: Int) -> Int { Int(data[at]) << 8 | Int(data[at + 1]) }
         func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
         guard data.count > 12 else { return false }
         let tables = u16(4)
-        for k in 0 ..< tables {
-            let entry = 12 + 16 * k
-            guard entry + 16 <= data.count else { return false }
-            guard data[entry] == 0x68, data[entry + 1] == 0x68, data[entry + 2] == 0x65, data[entry + 3] == 0x61 else { continue }   // "hhea"
-            let at = u32(entry + 8)
-            guard at + 10 <= data.count else { return false }
-            let ascender = Int16(truncatingIfNeeded: u16(at + 4)), gap = Int16(truncatingIfNeeded: u16(at + 8))
-            guard gap > 0 else { return true }
-            let raised = UInt16(bitPattern: ascender &+ gap)
-            data[at + 4] = UInt8(raised >> 8); data[at + 5] = UInt8(raised & 0xFF)
-            data[at + 8] = 0; data[at + 9] = 0
-            return true
+        func table(_ tag: String) -> Int? {
+            let t = Array(tag.utf8)
+            for k in 0 ..< tables {
+                let entry = 12 + 16 * k
+                guard entry + 16 <= data.count else { return nil }
+                if data[entry] == t[0], data[entry + 1] == t[1], data[entry + 2] == t[2], data[entry + 3] == t[3] { return u32(entry + 8) }
+            }
+            return nil
         }
-        return false
+        guard let at = table("hhea"), at + 10 <= data.count else { return false }
+        let ascender = Int16(truncatingIfNeeded: u16(at + 4)), gap = Int16(truncatingIfNeeded: u16(at + 8))
+        guard gap > 0 else { return true }
+        let raised = UInt16(bitPattern: ascender &+ gap)
+        data[at + 4] = UInt8(raised >> 8); data[at + 5] = UInt8(raised & 0xFF)
+        data[at + 8] = 0; data[at + 9] = 0
+        if let os2 = table("OS/2"), os2 + 78 <= data.count {
+            let win = UInt16(truncatingIfNeeded: u16(os2 + 74) + Int(gap))
+            data[os2 + 74] = UInt8(win >> 8); data[os2 + 75] = UInt8(win & 0xFF)
+        }
+        return true
     }
 
     /// The theme's `averageCharWidth`: the OS/2 average character width
@@ -1220,6 +1231,9 @@ enum OfficeFonts {
             }
         }
         _gapAboveLoaded = !gapAboveFailed
+        if gapAboveFailed {
+            FileHandle.standardError.write("[Office] the Word line faces did not load; Times and Arial lines keep the engine's gap\n".data(using: .utf8)!)
+        }
         // Slides' free faces (Resources/fonts/README.md), each file under
         // the family `SlideFonts.resolve` names.
         for (file, family) in slideFaces {

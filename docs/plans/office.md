@@ -3310,6 +3310,21 @@ fitter dropped the paragraph's tail).
   a parted row): the part is then to the foot, as before. (T32.)
   zh-91e44bcb 97.1% -> 100; nothing else moved.
 
+- **Times and Arial keep their line gap over the text on Windows too
+  (2026-10-17).** Writer draws Liberation Serif and Sans as Word holds
+  Times and Arial, their `hhea` line gap moved over the ascent (T19).
+  The engine on Windows reads a face's ascent through DirectWrite, from
+  `OS/2` `usWinAscent`, and takes the gap as what `hhea` says beyond the
+  Windows ascent and descent — so the change moved nothing there, and a
+  line with Times beside Cambria stepped 15.45 where Word's steps 15.24:
+  bug59058's references drifted 2-4pt a page and parted a line early
+  from page 38 (75.2% here, 100 on Linux). `usWinAscent` is now raised
+  by the same gap (FreeType and CoreText read `hhea`, as before), and a
+  load that fails says so. bug59058 75.2% -> 100, zh-8112041b 70.8 ->
+  100, zh-c5b5087b 83.7 -> 85.2, delins 73.3 -> 75.0 on the Windows box;
+  form_footnotes 98.9 -> 97.7, the matcher joining a footnote mark to its
+  line as it does on Linux.
+
 - **A justified line's automatic spaces give with its word spaces
   (2026-10-16).** From Word 2013's layout on a justified line's spaces
   give a quarter of themselves for what is over; the automatic spaces
