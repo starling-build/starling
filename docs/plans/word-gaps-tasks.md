@@ -110,6 +110,17 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
+### Note from the Mac (2026-10-17): the zh corpus is 108 documents now — a third sample
+Twenty more (`random.seed(20261017)`, the unprinted rest of 15-400 KB,
+Word 16.113.3 prints) are checked in; means are not comparable across
+that commit, compare per document. The sample started at 80.9% (the
+second started at 74.5). Its low ones, unclaimed unless marked:
+zh-f6686f89 6.0 (Mac, looking: the layout matches Word's line for
+line; the matcher loses step on it), zh-547fc43c 13.2 (17 pages, Word
+16), zh-a5745784 26.5, zh-540dc149 34.3 (9 pages, Word 10),
+zh-fec5fa30 84.7 (55, Word 56), zh-9e020c95 89.3, zh-268f8d15 93.0,
+zh-de3410bd 93.2, zh-fe536967 94.0. zh-d89c3840 was T70.
+
 ### T70. Kerning in a stand-in set to the original's advances (YaHei's "TC") — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 Documents: zh-d89c3840 (third sample, 96.5%), p2: "（TC）、…（SC）秘".

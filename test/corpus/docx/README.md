@@ -1,6 +1,6 @@
 # The .docx corpus, and Word's printing of it
 
-What Writer is measured against: 218 real Word documents, and for 199 of
+What Writer is measured against: 238 real Word documents, and for 219 of
 them the PDF that Microsoft Word itself prints. The counterpart of
 `test/corpus/pptx` and `test/corpus/xlsx`, and meant to work the same way.
 
@@ -90,8 +90,8 @@ changes). So the gate reprints the originals every time and the PDFs in
 ## Word's side
 
 `word/` was made on 2026-10-11 and -12 by Microsoft Word for Mac 16.113,
-except the `zh-*` prints, all 88 of which are Word for Mac 16.113.3 on
-2026-10-16 (the first sample's 68 reprinted that day: by then Word set
+except the `zh-*` prints, all 108 of which are Word for Mac 16.113.3,
+on 2026-10-16 and the third sample's 20 on 2026-10-17 (the first sample's 68 reprinted that day: by then Word set
 楷体_GB2312 in Microsoft YaHei, where the 2026-10-12 prints had KaiTi,
 so the two halves had disagreed; the old prints are in git history),
 through
@@ -128,17 +128,18 @@ stays under the licence and copyright it came with:
 | names | from | licence |
 |---|---|---|
 | no prefix (130) | Apache POI, `test-data/document` | Apache License 2.0 |
-| `zh-*` (88) | docxcorp.us, topic government, language zh | ODC-BY 1.0 for the collection |
+| `zh-*` (108) | docxcorp.us, topic government, language zh | ODC-BY 1.0 for the collection |
 
 The POI files are what `test/docx-corpus.py` fetches: real documents from
 that project's bug reports, plus fuzzer cases that are deliberately
 broken.
 
-The `zh-*` files are two seeded samples of 679 Chinese
+The `zh-*` files are three seeded samples of 679 Chinese
 government documents: 68 (one in ten, `random.seed(20261011)`, the
 first, which the tables above measure) and 20 more added 2026-10-16
 (`random.seed(20261016)` among the rest of 15 to 400 KB, a fresh set
-of gaps once the first stood at 98%), all — policies mostly, with forms, reports, standards
+of gaps once the first stood at 98%) and 20 more on 2026-10-17
+(`random.seed(20261017)`, the same way, once the two stood at 97.5%), all — policies mostly, with forms, reports, standards
 and teaching material — listed by
 `https://api.docxcorp.us/documents?topic=government&lang=zh` and fetched
 from `https://docxcorp.us/documents/<sha256>.docx`. The name after the
