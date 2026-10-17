@@ -5046,6 +5046,21 @@ fitter dropped the paragraph's tail).
   scripts/apply_engine_patches.sh; Skia itself stays upstream's): a U+3000
   is justified as an ideograph. Sideways drift 552 -> 537; no score moved.
   An engine built without the patch keeps the old placement.
+- **A right-aligned paragraph's trailing spaces after ideographs count,
+  and wrap (2026-10-16; Linux).** Word's prints of two government
+  footers, "红河县人民政府发布" (zh-1563bd74) and "沧源佤族自治县人民政府发布"
+  (zh-c5b5087b), each in 14pt bold 宋体, `jc` right, five spaces after:
+  the spaces run to the right margin, the text left of them (zh-1563bd74's
+  "红" at 357.5; the engine, hanging them past the margin, set it 36pt
+  right); and where they do not all fit, two stay and three make a line
+  of their own, a line of the text's height (zh-c5b5087b's footer a line
+  taller, every page's number and text 18.7pt higher). They are now set
+  as held spaces, a zero-width break before each, at a space's width (the
+  balanced half em where Word sets one), the breaks in the ideographs'
+  style so the line keeps their height. Not after Latin text:
+  zh-7dc3afad's "7,567 " figures stand as before in Word's print.
+  zh-c5b5087b 83.7 -> 93.9%; zh-1563bd74, zh-f59a76e9 and three others
+  closer sideways; nothing worse.
 - **An empty paragraph overhangs the foot by the smaller of its mark's
   two faces' half leading (2026-10-16; Linux).** The last line on a
   gridded page may reach past the foot by its grid's overhang (the half

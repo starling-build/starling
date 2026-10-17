@@ -5166,7 +5166,21 @@ public final class RichLayout {
         // The spaces to set as no-break ones (`held`, by the layout: see
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
-        let heldSpaces = held
+        // (A right-aligned paragraph's trailing spaces are set as held
+        // ones too, each after a zero-width space: Word aligns the line
+        // by them and parts them over lines one by one. zh-c5b5087b's
+        // footer, "沧源佤族自治县人民政府发布" and five spaces at the right
+        // margin, keeps two on the line, ending at the margin, and sets
+        // the other three on a line of their own; zh-1563bd74's shorter
+        // "红河县人民政府发布" keeps all five, the text 36pt left of where
+        // the engine, hanging them past the margin, stood it.)
+        // (After an ideograph only: zh-7dc3afad's right-aligned figures,
+        // "7,567 " in a table cell, stand where the space hangs past the
+        // margin in Word's print, as the engine sets them.)
+        let rightTrailing: Set<Int> = theme.wordRules && p.style.alignment == .right && trailingSpaces > 0
+            && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
+            ? Set(trailingSpaces ..< p.text.utf16.count) : []
+        let heldSpaces = held.union(rightTrailing)
         var afterHeld = false
         var heldKind: Int? = nil   // the held spaces' style kind, for the break after them
         if theme.wordRules, document.balancesSpaceWidth || document.usesEastAsianLayout, p.text.utf16.contains(0x20) {
@@ -5657,7 +5671,28 @@ public final class RichLayout {
                 if heldSpaces.contains(offset) {
                     flush(i)
                     let s = style(kind)
-                    spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
+                    if rightTrailing.contains(offset) {
+                        // (The break in the ideographs' own style: on their
+                        // line it is as tall as they are — in the Latin
+                        // stand-in's, its ascent made zh-1563bd74's footer
+                        // 1.2pt taller — and a line of the spaces alone,
+                        // which take no height, is a line of the text's
+                        // height, as zh-c5b5087b's three are in Word's.)
+                        spans.append(TextSpan(text: "\u{200B}", style: kind == -2 ? style(-1).copyWith(letterSpacing: 0) : zeroWidth(kind)))
+                        inserts.append(offset)
+                        // (At a space's width, set outright: half an em
+                        // where Word balances it so, else the Latin
+                        // stand-in's. Through the held spaces' spacing it
+                        // counted the run's spacing twice, and an
+                        // ideograph face's no-break space is an em:
+                        // zh-1563bd74's five stood 13pt apart and went over
+                        // to a line of their own.)
+                        let want = wideSpaces.contains(offset) ? em / 2
+                            : _spaceWidth(style(kind == -2 ? (classed ? RichResolvedFace.characterClass(" ") : 0) : kind))
+                        spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: want - _glyphWidth(s, "\u{00A0}"))))
+                    } else {
+                        spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
+                    }
                     start = after
                     afterHeld = true
                     heldKind = kind
