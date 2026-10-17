@@ -117,7 +117,7 @@ that commit, compare per document. The sample started at 80.9% (the
 second started at 74.5). Its low ones, unclaimed unless marked:
 zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 16), zh-a5745784 26.5 (T77, 99.7 now), zh-540dc149 34.3 (T76, done),
-zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (Mac, looking), zh-268f8d15 93.0,
+zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (T80, done), zh-268f8d15 93.0,
 zh-de3410bd 93.2, zh-fe536967 94.0. zh-d89c3840 was T70.
 
 ### T78. zh-fec5fa30: 55 pages where Word's are 56 — claimed
@@ -137,6 +137,18 @@ table keeps a grid wider than its pct share (Word rules the form's 638.6pt
 grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
+
+### T80. zh-9e020c95: a first line indented past the margin holds a character — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+Its footer's paragraphs are indented 5472 twips with a 6400-twip first
+line, past the right margin: the page-number box and "X隆阳区人民政府发布"
+stood 18-20pt high on every page. Lab `ind` (Word 16, its package): such
+a paragraph, right- or left-aligned, sets its first character on the
+first line, off the page, and the rest from the second; ours left the
+indent's box alone on the first (skparagraph parts a too-wide word by
+clusters, a joiner does not hold it) and the footer took two lines
+more. The box now stops an em short of the margin. zh-9e020c95 89.3 ->
+100; nothing fell.
 
 ### T77. zh-a5745784: a Taiwanese mark that ends its paragraph neither hangs nor gives — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)

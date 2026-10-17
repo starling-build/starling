@@ -4534,6 +4534,17 @@ public final class RichLayout {
         // after it, or the next tab stop (the text's own left, when the
         // number fits in the hanging indent).
         var lead = _px(firstLineIndent(p, at: i, document))
+        // (A first line indented past the margin holds the first character
+        // all the same, the rest from the second line. Lab `ind` (Word 16,
+        // zh-9e020c95's package): "隆阳区…" at 5472 twips and a 6400-twip
+        // first line, right- or left-aligned, sets "隆" on the first line,
+        // off the page, and the rest on the next. The engine would keep the
+        // box alone on the first, so it stops an em short of the margin:
+        // the character is on its line, if not as far over as Word's.)
+        if theme.wordRules, lead > textWidth, !p.text.isEmpty {
+            let em = _px(p.runs.last?.style.fontSize ?? p.style.mark?.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
+            lead = max(0, textWidth - em)
+        }
         // PowerPoint's bullet with no hanging indent (indent ≥ 0): the
         // bullet stands at the first line's start and the text follows it
         // on that line — ececapstone's "•Down Syndrome…", where the text
