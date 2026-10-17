@@ -1201,6 +1201,15 @@ Word's — the engine sets a character's spacing half before it (as for
 tabs, T58), Word after. A lab of this line, the over varied, would say
 what Word counts.
 
+### T67. A comment's balloon hangs at the comment's end
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+Documents: WordWithAttachments (23.7%).
+Known: its comments each span a quatrain. In Word's print the balloons
+"Commented [v2]" and "[v3]" are level with the quatrains' last lines,
+where the comment references stand; ours with their first. Word also
+prints no balloon for v1, whose reference is alone in an empty
+paragraph, yet numbers the others from 2 — not modelled (one file).
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
