@@ -2635,12 +2635,18 @@ final class _TextCache {
                 } while !rest.isEmpty
             }
             var line = "", lineWidth = 0.0
+            // (Spaces where a line breaks are not carried to the next: chart-
+            // tdf159450's "Lion …… dd …… XYZ" starts its second line at XYZ.)
+            var broken = false
             for (k, piece) in pieces.enumerated() {
-                if k > 0 {
+                if broken && line.isEmpty {
+                    if piece.text.isEmpty { continue }
+                } else if k > 0 {
                     let w = _width(piece.sep + piece.text, style)
                     if lineWidth + w <= maxWidth { line += piece.sep + piece.text; lineWidth += w; continue }
                     if !line.isEmpty { out.append(line) }
-                    line = ""; lineWidth = 0
+                    line = ""; lineWidth = 0; broken = true
+                    if piece.text.isEmpty { continue }
                 }
                 var rest = piece.text
                 while !rest.isEmpty {
