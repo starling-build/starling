@@ -1031,6 +1031,9 @@ public struct TableStyle: Hashable, Sendable {
     /// where it does not fit whole, Word sets its first row alone on its page
     /// and the rest on the next (zh-6cd1befe p51, zh-a4b0f6ea p20).
     public var pageAnchored = false
+    /// Where such a table stands: its `w:tblpY` from the page's top edge,
+    /// in points (nil where an alignment places it, `w:tblpYSpec`).
+    public var pageOffsetY: Double? = nil
     /// The table floats anchored to the text (w:vertAnchor="text"): in a
     /// header or footer it takes no room, and stands over the paragraph
     /// after it (`RichLayout.floatsFrames`).

@@ -2195,6 +2195,11 @@ public final class RichLayout {
         var contentH = 1.0
         var page = 0
         var y = 0.0
+        // Paragraphs set again under a page-placed table they would reach
+        // into (see where a table's first row is placed), and its table.
+        var deferredUnder: [PagePiece] = []
+        var deferredTable: String? = nil
+        var reordered = false
         var i = 0
         // A page is as tall as its section's content: the section of the
         // paragraph that opens it.
@@ -2819,11 +2824,25 @@ public final class RichLayout {
             }
             return true
         }
+        func placeDeferred() {
+            for piece in deferredUnder {
+                let h = piece.flowBottom - piece.flowTop
+                if y + h > contentH + 0.01, y > 0.01 { newPage() }
+                let again = PagePiece(paragraph: piece.paragraph, flowTop: piece.flowTop, flowBottom: piece.flowBottom, page: page, pageY: y)
+                _pages[page].append(again)
+                let at = _allPieces.firstIndex(where: { $0.paragraph > piece.paragraph }) ?? _allPieces.count
+                _allPieces.insert(again, at: at)
+                y += h
+            }
+            deferredUnder = []
+        }
         while i < count {
+            // (Under the table they were moved below, once it has ended.)
+            if !deferredUnder.isEmpty, _cells[i]?.table != deferredTable { placeDeferred() }
             // Converged: this paragraph starts on the same page at the same
             // y as before and nothing below has changed, so the old pieces
             // and pages from here on are still right.
-            if restarted, i > settled, resumeCursor == nil, oldStart.count == count + 1,
+            if restarted, !reordered, i > settled, resumeCursor == nil, oldStart.count == count + 1,
                oldStart[i] < oldPieces.count, case let old = oldPieces[oldStart[i]],
                old.page == page, abs(old.pageY - y) < 0.01, abs(old.flowTop - _tops[i]) < 0.01,
                page < oldPages.count {
@@ -2861,6 +2880,37 @@ public final class RichLayout {
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
                    let down = document.tableStyles[c.table]?.floatOffsetY {
                     y += _px(down)
+                }
+                // A floating table placed against the page stands at its
+                // offset there, and the text before it on that page that
+                // would reach into it is set under it: lab `fc` (Word 16, a
+                // full-width roster table 90pt down a page, its title and a
+                // line above it in the file) has the table at the margin and
+                // both lines under it; zh-a4b0f6ea p20 has it 183.4pt down,
+                // its title above and "单位（盖章）：", whose 28pt line reached
+                // into it, under it. Ours set it in the flow, after both.
+                if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
+                   let off = document.tableStyles[c.table]?.pageOffsetY {
+                    let physical = page / _columns
+                    let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                    let target = _px(off) - insetTop
+                    if target > y + 0.01, target < contentH - 0.01 {
+                        y = target
+                    } else if target >= 0, target < y - 0.01, deferredUnder.isEmpty {
+                        var moved: [PagePiece] = []
+                        while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
+                              last.pageY + (last.flowBottom - last.flowTop) > target + 0.01 {
+                            moved.insert(_pages[page].removeLast(), at: 0)
+                            if let k = _allPieces.lastIndex(of: moved[0]) { _allPieces.remove(at: k) }
+                            if last.pageY <= target + 0.01 { break }
+                        }
+                        if !moved.isEmpty {
+                            deferredUnder = moved
+                            deferredTable = c.table
+                            reordered = true
+                            y = target
+                        }
+                    }
                 }
                 // A table row is one unbreakable block; every member gets the
                 // row's piece so its text paints on the row's page.
@@ -3542,6 +3592,7 @@ public final class RichLayout {
                 }
             }
         }
+        if !deferredUnder.isEmpty { placeDeferred() }
         if notesOn {
             // (Notes still waiting at the end — every paragraph kept to
             // the last — stand at the last page's foot.)

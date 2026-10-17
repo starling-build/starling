@@ -812,6 +812,15 @@ there — the mechanism is not found.
 Documents: zh-a4b0f6ea (88.6%). Known: `tblpPr vertAnchor="page"`; Word
 prints only the header row on p20 and the rest on p21, with the text
 under the table still on p20.
+Built (2026-10-16, labs `fa2`–`fd2`: the roster's title, "单位（盖章）" and
+the table alone, its tblpY 3668, 6000, 1800, and without the line): a
+page-anchored table now stands at its tblpY (`TableStyle.pageOffsetY`),
+and body paragraphs before it on the page that reach into it are set
+again under it — Word's `fc2` (tblpY at the margin) has the title and the
+line under the table; `fa2` keeps them above (header "姓" at 228, ours 229).
+zh-a4b0f6ea 88.6 -> 88.9 ("单位（盖章）" now at 423 as Word's), zh-6cd1befe
+97.8 -> 98.2; nothing else moved. Still open: Word parting the roster
+after its header row on p20 (ours keeps it whole and runs past the foot).
 
 ### T50. drawing: the mark under a nested table at half a point, a short picture's line its mark's — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
