@@ -1136,6 +1136,32 @@ PMingLiU page-foot lead, whose 0.19 twip a line was the reason to try)
 does not move. Page feet decided by under a twip a line either way: the
 model is Word's own 0.24pt raster, not a finer one.
 
+**More measured and tried (Mac, 2026-10-17).** starling-ios-5c's
+`lab/tools/squeezelab.py` (24 ideographs, 1-3 commas, bisected to
+0.12pt) found no allowance on these grids:
+- f0bd9ea8's grid at 16pt: none;
+- d68ac84a's own package, with or without kern 21: none;
+- d68ac84a's package with the Latin face Times New Roman, or with "2023"
+  opening the line (`lab/sqa`): none either.
+
+The 4pt allowance it first saw came from f0bd9ea8's package (Normal
+10.5).
+
+Yet d68ac84a's "府办公厅《…2023年…》（浙政" (p1) breaks as ours does,
+glyph for glyph. In Word's print "》（" stands 9.77pt apart and "厅《"
+12.21, against a 14.65 pitch. So in that paragraph Word closes the pair
+from the start, and the line is never over. The lab's pair kept full
+cells, so something in the real paragraph decides it. Untried:
+- its exact 30pt line;
+- the first-line indent;
+- the run's color and kern from Normal, with no rFonts of its own.
+
+Tried and reverted: no squeeze on a negative grid before 2013's layout
+unless the line has a closing-opening pair. f0bd9ea8 53.6 -> 84.1,
+d68ac84a 98.8 -> 70.3. Ours squeezes d68ac84a's lines into place, so
+taking that squeeze away needs the pair's close-up in the natural width
+first.
+
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
