@@ -2039,8 +2039,9 @@ final class DocxTests: XCTestCase {
         }
         // (A level that says no size takes the text's: its line is the
         // Symbol face's at 12pt, taller. The unit tests have no ICU, and
-        // the paragraph parts somewhere; the first line is what differs.)
-        XCTAssertLessThan(firstLine("20") + 1, firstLine(nil), "the 10pt face's line, not a 12pt one")
+        // the paragraph parts somewhere; the first line is what differs:
+        // by more than a point here, 0.75 with the Mac's faces.)
+        XCTAssertLessThan(firstLine("20") + 0.5, firstLine(nil), "the 10pt face's line, not a 12pt one")
     }
 
     /// WordWithAttachments' header: "<tab>Страница 1" on a stop. The
