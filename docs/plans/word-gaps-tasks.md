@@ -1108,6 +1108,20 @@ row parting (Windows, T32), zh-2a241df1's charts (Mac, T59).
   end of exactly 26 cells, so f57bbe07's whole-cell width would not move it.
   The real line's squeeze ("職→【" 11.7, "】→，" 9.0, "，→於" 14.3) closes
   more than the pair: what the rest of that line lends is still to find.
+  Lab `ab3c` (Mac, 2026-10-17, `lab/tools/abthresh.py`: the real line
+  "第2頁】，於113年4月29日辭職【附件2，第5頁】，" alone in style 11 at a
+  bisected left indent, Word's threshold against ours on the same files):
+  Word keeps "頁】，" up to an indent of 694 twips, ours to 605 — Word
+  goes 4.45pt further (about 34.4pt over by our natural widths, ours
+  stops near 29.9). At its limit Word's print squeezes every mark by one
+  share of its half em, 0.645: each "】" 5.48, "【" 5.49 (its left), each
+  centred "，" 2.74 a side; the digits' automatic spaces are set whole
+  (第 21.26, 2 14.14, as ours). Ours: "need 33.68 room 74.4 of 6 marks
+  taken false" at 680 — the mode-15 test's stretch term with the ten
+  autospaces whole stops it at ~30.8 by its own sum; without them it
+  would take to ~45. So Word weighs them part-way, or caps the share; the
+  lab files (ab3c_*.docx, both sides' PDFs) are there to vary it. Not
+  built — handed to the grid fitting's owner.
 
 ### T62. A table nested in a parting row parts between its rows — DONE (2026-10-16)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16
