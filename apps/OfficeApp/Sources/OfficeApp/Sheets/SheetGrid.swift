@@ -2438,11 +2438,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let base = _textStyle(book.style(0), color: nil, ink: ink)
             inset = Double(st.indent) * max(0, texts.painter("X   X", base).width - texts.painter("XX", base).width)
         }
+        // On paper the text stands in from its side half a point and a
+        // quarter of its font's digit (the gridline lab, Excel 16: five
+        // faces at ten sizes, 1.50 pt for Calibri 8 to 4.26 for Verdana 24,
+        // within a printer dot), where ours stood a flat 1.5. (Wrapping
+        // keeps the cell's margin `pad`: its widths are Excel's.) The
+        // right side stands 0.4 pt closer: a lab of right-aligned 3750 in
+        // the same fifty fonts measured it 0.34 to 0.43 under the left.
+        let margin = printing
+            ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).digit / 4
+            : pad
         let tx: Double
         switch align {
-        case .right: tx = right - pad - inset - tp.width
+        case .right: tx = right - (printing ? margin - 0.4 : margin) - inset - tp.width
         case .center: tx = left + (width - tp.width) / 2
-        default: tx = left + pad + inset
+        default: tx = left + margin + inset
         }
         let ty: Double
         switch st.vAlign {
