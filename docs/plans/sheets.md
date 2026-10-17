@@ -204,7 +204,20 @@ Excel was found to do, each checked on its workbook and its neighbours:
   line may end after a hyphen; only a word longer than a line is cut,
   at the last character that fits (lab of long words in columns 5 to 25
   characters: Excel's wrap width is the printed column less 3.0-3.5 pt,
-  and ours cuts at the same characters). Cell text is not kerned.
+  and ours cuts at the same characters). Cell text is not kerned. The
+  spaces a line breaks on go with the break.
+- *More rows.* A row with a medium or thick border at its foot or head
+  (`thickBot`, `thickTop`) fits one screen pixel taller for each.
+- *Tables.* A styled table prints whole, empty or not; an empty header
+  cell is "Column" and its place, as Excel refills it on opening. A
+  style the file defines (`tableStyles`) is drawn from its dxfs, part
+  over part: whole table, column stripes, row stripes, last and first
+  columns, header, totals.
+- *Headers and footers.* Each of &L, &C, &R starts in the default font
+  (lab: Courier New Bold 16 on the left, Calibri 11 in the others); "& "
+  is nothing. `blackAndWhite` prints no fills, text and rules black.
+- *Packages.* Parts named with backslashes, in any case, and a sheet's
+  relationship id under any prefix (49609, lo-tdf131575 open now).
 - *Packages.* A part's relationships are found whatever the case of its
   name (chart-tdf100084's Sheet1.xml with _rels/sheet1.xml.rels).
 - *Print areas* keep the columns they name, empty or not; only a
