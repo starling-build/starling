@@ -1113,6 +1113,21 @@ zh-64044a1d 97.8 -> 99.0 (a table in a text box; exact rows), chartex 76.4
   "，" 5.76pt (0.36 em) to take "由". Its next line in ours squeezes two
   commas 2.9pt each for two characters more. Word squeezes nothing on
   these lines. Data for the kinsoku-off note above (zh-799c91cd p2).
+  Labs `k0` (Windows box, Word for Windows, that paragraph in its own
+  package): as is, kinsoku on (B), and run kerning on (D) all leave "由"
+  for the next line; the run's `w:eastAsia` zh-CN (C), or just the "，"'s
+  (I), squeeze it 5.8pt and take it; a zh-CN run at the paragraph's end
+  (E), or on "并用" inside line 2 (G), or on its first character (H) do
+  not. But Word for Windows does not squeeze article 1's first line (J)
+  either, which the Mac's print does, so the Windows labs do not settle
+  the prints. In the Mac's print, page 3 alone: "，" squeezes on lines
+  with no zh-CN text ("理的行政部门，应不断完善制度，明确责任，规范管理，
+  确保县", four at 1.43 each; "息、费用等补贴，并对…；县农业发展银行"),
+  while page 6's two-comma line and page 7's "…应急预案，依据事态的" /
+  "发" are not squeezed. Tried and reverted: marks give only in a paragraph
+  holding East Asian text (pages 3-10 broke); only the CJK block's marks
+  outside it; a "，" giving for itself only (page 6 right, 7-9 as before);
+  per line (pages 3-5 broke). The rule is not found.
 - delins balloons: Word's one-line balloons step 10.46pt (scaled), ours
   10.0. Pinning the line to Tahoma's 1.2075 em made ours 10.7 and set
   the deletion balloon 11pt low (delins 45 -> 37 lines of 60); reverted.
