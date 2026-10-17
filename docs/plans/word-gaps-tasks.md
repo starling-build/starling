@@ -905,6 +905,18 @@ bullets under 12pt Times make a 14.7pt line where Word's is 13.8.
 Built: at the level's own size where it says one. delins 35 -> 50%;
 nothing else moved.
 
+### T57. zh-90e0cea8 p1: the standard's cover — its "37" logo frame and ICS/CCS lines
+Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-16 (handed over by the Mac, 011uWpmC)
+Documents: zh-90e0cea8 (p1: 5 of 10 lines).
+Known: 9c6cc3ca (margin-anchored frames at their y) and 7d14992b (a frame
+naming a y and no anchor is on the margin) put the cover in Word's order.
+Left: "ICS"/"CCS" (a page frame at y 568 twips, style "header" on Normal's
+exact 20pt line) stand 7.6pt high, baseline 30.55 against Word's 38.16;
+"37" (framePr yAlign="inline", vAnchor margin, hAnchor text, w=0, over a
+style frame at the margin's x 6748 y 171; a logo picture and 54.6pt bold
+"37") 33pt low, 122.0 against 88.56, Word's logo at y 57-88; the title
+4pt low; "发布" 4pt low.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
