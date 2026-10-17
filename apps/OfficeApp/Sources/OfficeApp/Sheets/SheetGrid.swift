@@ -2178,7 +2178,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if !tableLooks.isEmpty {
             let line = Paint()
             line.style = .stroke
-            line.strokeWidth = 1
+            line.strokeWidth = printing ? 0.96 : 1
             for (a, look) in tableLooks {
                 let r = rect(a)
                 // (On paper where the cell's edge is, as cell borders are:
@@ -2292,7 +2292,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             func line(_ side: String, _ a: Offset, _ z: Offset, inward: Offset) {
                 let kind = b.kinds[side] ?? "thin"
                 border.color = (printing && printMono ? nil : b.colors[side]).map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.ink
-                border.strokeWidth = kind == "medium" || kind.hasPrefix("medium") ? 2 : kind == "thick" ? 3 : 1
+                // (On paper 8, 16 and 24 printer dots, as Excel prints them.)
+                border.strokeWidth = (kind == "medium" || kind.hasPrefix("medium") ? 2 : kind == "thick" ? 3 : 1) * (printing ? 0.96 : 1)
                 if kind == "hair" { border.color = border.color.withAlpha(140) }
                 if kind == "double" {
                     canvas.drawLine(a, z, border)
