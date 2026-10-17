@@ -23,6 +23,8 @@ enum SlideFonts {
         "work sans": "Work Sans", "work sans light": "Work Sans Light", "work sans medium": "Work Sans Medium",
         "segoe ui": "Selawik Doc", "segoe ui light": "Selawik Doc Light", "segoe ui semilight": "Selawik Doc Semilight",
         "segoe ui semibold": "Selawik Doc Semibold",
+        // (Myriad Pro, which PowerPoint's Mac sets in Segoe UI: HowWeRefactor.)
+        "myriad pro": "Selawik Doc",
         "franklin gothic book": "Libre Franklin", "franklin gothic medium": "Libre Franklin Medium",
         "courier new": "TeX Gyre Cursor", "courier": "TeX Gyre Cursor",
         "century gothic": "TeX Gyre Adventor",

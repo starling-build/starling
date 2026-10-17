@@ -2014,6 +2014,11 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Myriad Pro in Selawik, 2026-10-17** (HowWeRefactor 3.63 → 3.50, the
+one deck naming it). PowerPoint's Mac printed its Myriad Pro in Segoe UI
+(its lines 8% wider than ours in Calibri, the rule for faces it lacks);
+it now goes to Segoe UI's stand-in.
+
 **PowerPoint's box for a picture that names none, 2026-10-17**
 (tdf147586 0.95 → 0.18, missing-blip-fill 0.45 → 0.06, crash-57308
 2.69 → 2.48, clusterfuzz 4986 −0.05). A `p:pic` with no `blipFill`, or
