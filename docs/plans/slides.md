@@ -2157,8 +2157,24 @@ bars are as deep as they are wide, in a box `gapDepth` deeper: the
 survey's four bars abreast, 46.5 pt wide with no gap, show 15.5 across
 and 12 up in its print (46.5 deep), where ours took the whole
 category's 186. aascu 5864's single series comes out the same either
-way (11.2 wide, its box 28). Left: that chart's deleted value axis
-runs to 6.3 in PowerPoint's print (6 × 1.05, unrounded), ours to 7.
+way (11.2 wide, its box 28).
+
+**A 3-D pie in perspective, and a hidden axis left unrounded,
+2026-10-17** (LIBRE_OFFICE-100610 2.00 → 1.51, worst page 7.17 → 4.49;
+workbooks: LIBRE_OFFICE-128382 12.12 → 11.14, chart-tdf114139 2.13 →
+1.37, lo-orderOfCNumFmtElements 3.87 → 3.33, 45544 and both 45540s
++0.03). PowerPoint draws a 3-D pie as seen from about 4.8 radii off:
+the survey's centre stands 62.5 of the top's 152.5 px down, not half
+way, and the rim shows only where it faces the eye. Its rim is lit
+from the left — 0.85 of the colour there, 0.54 at the front, 0.41 from
+a little right of it on, where ours was darkest in the middle and
+light at both ends — and the rim is 0.275 of the radius deep. A best
+fit there puts each label inside its slice, 0.9 of the way out, in
+the labels' own colour (unless the file moves them: 45544's moves are
+from beside the pie). And a value axis the file deletes, with no
+gridlines, runs to the data and a twentieth past it, unrounded: the
+survey's 3-D bars reach 6 of 6.3 and 14 of 14.7, where ours stopped at
+6 of 7. Left: 45544's moved pie labels land off the chart.
 
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in

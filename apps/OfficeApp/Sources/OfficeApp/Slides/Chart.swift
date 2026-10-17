@@ -277,6 +277,9 @@ struct Chart: Equatable {
         var series = false, category = false, value = false, percent = false
         var separator: String? = nil
         var outside = false
+        /// Outside only for a best fit (`bestFit`), which a 3-D pie
+        /// keeps inside its slices.
+        var fitted = false
         var moves: [Int: [Double]] = [:]
         /// A point's own text size, from its label's own rich text.
         var sizes: [Int: Double] = [:]
@@ -780,9 +783,13 @@ enum ChartXML {
             l.separator = d.first("c:separator")?.text
             let pos = d.first("c:dLblPos")?["val"]
             l.outside = pos == "outEnd" || pos == "bestFit"
+            var ends = pos == "outEnd"
             for one in d.all("c:dLbl") {
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init) else { continue }
-                if one.first("c:dLblPos").map({ ["outEnd", "bestFit"].contains($0["val"] ?? "") }) == true { l.outside = true }
+                if let p = one.first("c:dLblPos")?["val"], ["outEnd", "bestFit"].contains(p) {
+                    l.outside = true
+                    if p == "outEnd" { ends = true }
+                }
                 if let sz = one.first("c:tx")?.descendant("a:rPr")?["sz"].flatMap(Double.init) { l.sizes[i] = sz / 100 }
                 if let m = one.first("c:layout")?.first("c:manualLayout"),
                    let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
@@ -796,6 +803,7 @@ enum ChartXML {
                     l.lineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
                 }
             }
+            l.fitted = l.outside && !ends
             l.leaders = on(d, "c:showLeaderLines")
             if let ln = (d.first("c:leaderLines") ?? d.descendant("c15:leaderLines"))?.first("c:spPr")?.first("a:ln") {
                 if let f = ln.first("a:solidFill") { l.leaderColor = color(f) }
@@ -1573,6 +1581,17 @@ enum ChartPainter {
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, hi, intervals: c.type == .bar ? 8 : 10)
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
+        }
+        // An axis the file deletes, with no gridlines to show its steps,
+        // runs to the data and a twentieth past it, not rounded out to a
+        // step: LIBRE_OFFICE-100610's 3-D bars reach 6 of 6.3 and 14 of
+        // 14.7 in PowerPoint's print, where ours stopped at 6 of 7.
+        if c.valueAxisDeleted, !c.valueGrid, !c.percent {
+            let lo0 = min(0, lo), hi0 = max(0, hi), span = hi0 - lo0
+            if span > 0 {
+                if c.valueMax == nil { valueScale.hi = hi0 + (hi0 > 0 ? span * 0.05 : 0) }
+                if c.valueMin == nil { valueScale.lo = lo0 - (lo0 < 0 ? span * 0.05 : 0) }
+            }
         }
         let sc = valueScale
         // The lines' own axis, scaled as the first is, by their values.
@@ -2417,23 +2436,46 @@ extension ChartPainter {
         return Color(Int64(0xFF00_0000) | ch(16) << 16 | ch(8) << 8 | ch(0))
     }
 
-    /// A 3-D pie: the disc tilted by `tilt` degrees, its rim showing below
-    /// in each slice's colour darkened toward the front — as PowerPoint's
-    /// print of LIBRE_OFFICE-100610-0 has it at 30°: the disc 0.473 as
-    /// tall as wide, the rim 0.228 of the radius deep, filling 94% of the
-    /// plot's width or 97% of its height, the rim 0.575 of the colour at
-    /// the front and 0.875 at the sides.
+    /// A 3-D pie: the disc tilted by `tilt` degrees and seen in
+    /// perspective, its rim showing below, lit from the left — as
+    /// PowerPoint's print of LIBRE_OFFICE-100610-0 has it at 30°: the eye
+    /// 4.8 radii off, so the centre stands 0.41 of the way down the top
+    /// (not half), the top 0.468 as tall as wide, the rim 0.275 of the
+    /// radius deep; the whole filling 94% of the plot's width or 97% of
+    /// its height; the rim 0.85 of the colour at the left, 0.54 at the
+    /// front and 0.41 from a little right of it on.
     static func _pie3D(_ c: Chart, _ canvas: any Canvas, _ plot: Rect, tilt: Double, k: Double, theme: DeckTheme,
                        frame: Rect? = nil, ink: Color? = nil) {
         let values = c.series[0].values.map { max(0, $0 ?? 0) }
         let sum = values.reduce(0, +)
         guard sum > 0 else { return }
-        let squash = sin(max(5, min(90, tilt)) * .pi / 180) * 0.946
-        let deep = 0.228
-        let rx = min(plot.width * 0.941 / 2, plot.height * 0.972 / (2 * squash + deep)) / (1 + c.pieExplosion)
-        let ry = rx * squash, depth = rx * deep
-        let centre = Offset(plot.center.dx, plot.center.dy - depth / 2)
-        func at(_ a: Double, _ drop: Double = 0) -> Offset { Offset(centre.dx + cos(a) * rx, centre.dy + sin(a) * ry + drop) }
+        let al = max(5, min(90, tilt)) * .pi / 180
+        let eye = 4.8, deep = 0.275
+        // (Taller than the eye's 30° makes it: PowerPoint's top is 0.468
+        // as tall as wide, the view's 0.509.)
+        let squash = 0.92
+        // A point of the disc at angle `a` (0 to the right, a quarter
+        // turn toward the viewer), `f` of the radius out and `h` radii
+        // down, on a disc of radius 1 centred on 0.
+        func unit(_ a: Double, _ f: Double, _ h: Double) -> (x: Double, y: Double) {
+            let x = f * cos(a), z = -f * sin(a)
+            let d = eye + z * cos(al) + h * sin(al)
+            return (x / d, -(z * sin(al) - h * cos(al)) / d * squash)
+        }
+        var lo = (x: Double.infinity, y: Double.infinity), hi = (x: -Double.infinity, y: -Double.infinity)
+        for j in 0 ..< 360 {
+            for h in [0, deep] {
+                let q = unit(Double(j) * .pi / 180, 1, h)
+                lo = (min(lo.x, q.x), min(lo.y, q.y)); hi = (max(hi.x, q.x), max(hi.y, q.y))
+            }
+        }
+        let scale = min(plot.width * 0.941 / (hi.x - lo.x), plot.height * 0.972 / (hi.y - lo.y)) / (1 + c.pieExplosion)
+        let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2, plot.center.dy - scale * (lo.y + hi.y) / 2)
+        func at(_ a: Double, _ f: Double = 1, _ h: Double = 0) -> Offset {
+            let q = unit(a, f, h)
+            return Offset(origin.dx + q.x * scale, origin.dy + q.y * scale)
+        }
+        let centre = at(0, 0)
         // The slices, clockwise from twelve o'clock.
         var slices: [(from: Double, to: Double, color: Color, value: Double)] = []
         var angle = -Double.pi / 2
@@ -2445,13 +2487,15 @@ extension ChartPainter {
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
-        // The rim: the front half (angles 0…π, below the centre), in steps
-        // a few degrees wide, each shaded for the way it faces.
         func scaled(_ c: Color, _ f: Double) -> Color {
             let v = c.value
             func ch(_ sh: Int) -> Int64 { Int64((Double((v >> sh) & 0xFF) * f).rounded()) }
             return Color(Int64(0xFF00_0000) | ch(16) << 16 | ch(8) << 8 | ch(0))
         }
+        // The rim: the part of it that faces the eye — less than the front
+        // half, the eye being near — in steps a few degrees wide, each
+        // shaded for the way it faces.
+        let side = asin(min(1, 1 / (eye * cos(al))))
         for s in slices {
             var a = s.from
             while a < s.to {
@@ -2460,7 +2504,7 @@ extension ChartPainter {
                 for turn in [-2 * Double.pi, 0, 2 * Double.pi] {
                     // (Each step a little past the next, so no seam shows
                     // between them; the next one covers the overlap.)
-                    let lo = max(a + turn, 0), hi = min(b + turn + 0.01, .pi)
+                    let lo = max(a + turn, side), hi = min(b + turn + 0.01, .pi - side)
                     guard hi > lo else { continue }
                     let p = Path()
                     let p0 = at(lo)
@@ -2468,10 +2512,11 @@ extension ChartPainter {
                     let steps = max(1, Int((hi - lo) / (0.5 * .pi / 180)))
                     for j in 1 ... steps { let q = at(lo + (hi - lo) * Double(j) / Double(steps)); p.lineTo(q.dx, q.dy) }
                     for j in stride(from: steps, through: 0, by: -1) {
-                        let q = at(lo + (hi - lo) * Double(j) / Double(steps), depth); p.lineTo(q.dx, q.dy)
+                        let q = at(lo + (hi - lo) * Double(j) / Double(steps), 1, deep); p.lineTo(q.dx, q.dy)
                     }
                     p.close()
-                    fill.color = scaled(s.color, 0.575 + 0.3 * abs(cos((lo + hi) / 2)))
+                    let facing = .pi / 2 - (lo + hi) / 2
+                    fill.color = scaled(s.color, 0.41 + 0.44 * max(0, cos(facing + 70 * .pi / 180)))
                     canvas.drawPath(p, fill)
                 }
                 a = b
@@ -2493,7 +2538,8 @@ extension ChartPainter {
             canvas.drawPath(p, fill)
             canvas.drawPath(p, edge)
         }
-        if let l = c.pieLabels {
+        let rx = (at(0).dx - at(.pi).dx) / 2, ry = (at(.pi / 2).dy - at(-.pi / 2).dy) / 2
+        if var l = c.pieLabels {
             var placed: [(index: Int, mid: Double, value: Double, color: Color)] = []
             var a = -Double.pi / 2
             for (i, v) in values.enumerated() where v > 0 {
@@ -2501,12 +2547,16 @@ extension ChartPainter {
                 placed.append((i, a + sweep / 2, v, c.pointColor(i, accents: theme.accents)))
                 a += sweep
             }
+            // (A best fit on a 3-D pie is inside each slice, in the
+            // labels' own colour: the survey's. Not where the file moves
+            // them: 45544's moves are from beside the pie, where Excel
+            // prints them.)
+            if l.fitted, l.moves.isEmpty { l.outside = false }
             _pieLabels(c, l, canvas, frame: frame ?? plot, slices: placed, centre: centre, rx: rx, ry: ry, inner: 0,
-                       k: k, theme: theme, ink: ink ?? theme.text)
+                       k: k, theme: theme, ink: ink ?? theme.text, point: { at($0, $1) })
         } else if c.dataLabels {
             for s in slices {
-                let mid = (s.from + s.to) / 2
-                let pt = Offset(centre.dx + cos(mid) * rx * 0.7, centre.dy + sin(mid) * ry * 0.7)
+                let pt = at((s.from + s.to) / 2, 0.7)
                 let v = s.color.value
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
                 let tp = TextPainter(text: TextSpan(text: dataLabel(c, s.value), style: Flutter.TextStyle(
@@ -2529,7 +2579,13 @@ extension ChartPainter {
     /// `inner` the doughnut's hole's.
     static func _pieLabels(_ c: Chart, _ l: Chart.PieLabels, _ canvas: any Canvas, frame: Rect,
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
-                           centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color) {
+                           centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
+                           point: ((Double, Double) -> Offset)? = nil) {
+        // A point `f` of the radius out along angle `a`: on the flat
+        // ellipse, or where a 3-D pie's perspective puts it.
+        func on(_ a: Double, _ f: Double) -> Offset {
+            point?(a, f) ?? Offset(centre.dx + cos(a) * rx * f, centre.dy + sin(a) * ry * f)
+        }
         let sum = slices.reduce(0) { $0 + $1.value }
         guard sum > 0 else { return }
         for s in slices {
@@ -2550,7 +2606,7 @@ extension ChartPainter {
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
             }()
-            let colour = c.series[0].labelColor ?? (l.outside || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
+            let colour = c.series[0].labelColor ?? (l.outside || l.fitted || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
             let tp = TextPainter(text: TextSpan(text: text, style: Flutter.TextStyle(
                 color: colour, fontSize: size, fontWeight: c.series[0].labelBold ? .bold : .normal,
                 fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textAlign: .center, textDirection: .ltr)
@@ -2564,11 +2620,11 @@ extension ChartPainter {
             var at: Offset
             if l.outside {
                 let gap = 4 * k
-                let edge = Offset(centre.dx + dx * rx, centre.dy + dy * ry)
+                let edge = on(s.mid, 1)
                 at = Offset(edge.dx + dx * gap + (dx >= 0 ? w / 2 : -w / 2), edge.dy + dy * gap + dy * h / 2)
             } else {
-                let r = inner > 0 ? (rx + inner) / 2 : rx * 0.7
-                at = Offset(centre.dx + dx * r, centre.dy + dy * r * (ry / max(rx, 1)))
+                // (A 3-D pie's 0.9 of the way out: the survey's.)
+                at = on(s.mid, inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? 0.9 : 0.7)
             }
             let moved = l.moves[s.index]
             if let m = moved { at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height) }
@@ -2576,7 +2632,7 @@ extension ChartPainter {
             // The leader: from the slice's outer edge to the box's nearest
             // point, where the label has left its slice.
             if l.leaders, moved != nil || l.outside {
-                let from = Offset(centre.dx + dx * rx, centre.dy + dy * ry)
+                let from = on(s.mid, 1)
                 let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
                 if hypot(to.dx - from.dx, to.dy - from.dy) > 2 * k {
                     let p = Paint()
