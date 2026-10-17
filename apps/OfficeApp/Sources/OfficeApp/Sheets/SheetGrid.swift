@@ -396,7 +396,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             let dots = printRowScale * 600 / 72
             func whole(_ h: Double) -> Double { printRowScale == 0 || h <= 0 ? h : (h * dots).rounded() / dots }
-            rows = GridAxis(def: whole(ws.customDefaultRowHeight ? ws.defaultRowHeightPt * m.rowScale : m.defaultRow),
+            // (A default height the sheet sets is a set height: cut down to
+            // whole printer dots as any other. picture.xlsx's 14 pt rows are
+            // 118 dots, 14.16, in Excel's print; rounded, 119 put its picture's
+            // foot 3.4 pt low.)
+            rows = GridAxis(def: whole(ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale) : m.defaultRow),
                             overrides: heights.mapValues(whole), hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
             cols = GridAxis(def: ws.defaultColWidthPt, overrides: ws.colWidths, hidden: ws.hiddenCols, scale: scale)
