@@ -932,8 +932,20 @@ needs the Mac's Word.
 prints. It started at 74.5% of Word's lines, against the first 68's 98%,
 so new gaps are there. A sweep's zh mean is not comparable across that
 commit; compare per document. Being worked: zh-4d143b5e's merged-cell
-row parting (Windows, T32), zh-2a241df1's charts (Mac, T59), zh-3c055c9b
-(Mac, a mode 15 character-grid line end).
+row parting (Windows, T32), zh-2a241df1's charts (Mac, T59).
+- zh-3c055c9b (44.9%, mode 15, linesAndChars grid of 17.0pt at 16pt,
+  zh-TW, compressPunctuation, the body style's `w:kern` 0): p2's line
+  "第2頁】，於113年4月29日辭職【附件2，第5" takes "頁】，" in Word's print,
+  33.7pt over by our measure. Word squeezes marks all along the line
+  (職→【 11.7, 】→，9.0, ，→於 14.3; an ideograph is 17.0). Ours: "need
+  33.68 room 74.4 of 6 marks taken false". The mode-15 test's stretch
+  term counts the line's ten or so digit autospaces whole, and that
+  fails it. Tried and reverted (Mac): (1) closing up mark pairs without
+  `w:kern` (zh-3c055c9b 44.9 -> 61.7, but zh-17749c13 85.6 -> 53.7 and
+  nine others down); (2) leaving the autospaces out of the stretch on a
+  character grid (zh-3c055c9b -> 13.1). Released: it is the grid
+  fitting the Linux session built. A lab of this line, with the over
+  varied, would say what Word counts.
 
 ### T59. A column chart with a line on a second value axis
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
