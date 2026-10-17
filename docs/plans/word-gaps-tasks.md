@@ -116,13 +116,27 @@ Word 16.113.3 prints) are checked in; means are not comparable across
 that commit, compare per document. The sample started at 80.9% (the
 second started at 74.5). Its low ones, unclaimed unless marked:
 zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
-16), zh-a5745784 26.5 (Mac, looking: a zh-TW "：" hung and its line squeezed, where Word wraps), zh-540dc149 34.3 (9 pages, Word 10; Windows box, looking),
+16), zh-a5745784 26.5 (T77, 79.3 now), zh-540dc149 34.3 (9 pages, Word 10; Windows box, looking),
 zh-fec5fa30 84.7 (55, Word 56), zh-9e020c95 89.3, zh-268f8d15 93.0,
 zh-de3410bd 93.2, zh-fe536967 94.0. zh-d89c3840 was T70.
 
 ### T76. zh-540dc149: 9 pages where Word's are 10 — claimed
 Owner: session 017F2GnT (Linux), from 2026-10-17
 Documents: zh-540dc149 (35.9%, third sample).
+
+### T77. zh-a5745784: a centred mark that hangs at its paragraph's end, and the line's others — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-TW, mode 14, compressPunctuation, 12pt 標楷體 (YaHei). Its "…資格者，…
+志工資格：" ends a paragraph 15.7pt over; ours hung the "：" (12) and
+squeezed the commas for the rest, Word sends "格：" down. Lab `hang`
+(`lab/tools/hanglab.py`, the line alone at a bisected indent, Word 16):
+"格" stays up to 12.0pt over when the colon ends the paragraph, 18.0 with
+text after it (hang and half the character before, as ours had); with
+the commas made ideographs, 12.0 either way. So where the hanging mark
+ends its paragraph, the line's centred marks give nothing before 2013's
+layout (`document.marksCentred`). zh-a5745784 26.5 -> 79.3, zh-ae655121
+93.1 -> 93.6, zh-15728c84 99.5 -> 100; nothing fell. Its p11 line
+"薦者。。。。用機關推" and p14-18 are what is left there.
 
 ### T75. zh-f6686f89: a square face's Latin is exactly half an em — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)

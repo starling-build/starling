@@ -7344,7 +7344,16 @@ public final class RichLayout {
                     // line 16.9 over at 16pt, zh-457a8d62. A full-width
                     // quote is its glyph and a blank: half its em.)
                     func half(_ k: Int) -> Double { wideQuote(k) ? ems[k] / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2 }
-                    let markRoom = all.reduce(0.0) { $0 + half($1) }
+                    // (Where the mark that hangs ends the paragraph, Taiwan's
+                    // centred marks give nothing more before 2013's layout:
+                    // lab `hang` in zh-a5745784's package (Word 16, mode 14,
+                    // zh-TW, 12pt), "止，…資格者，…志工資格：" keeps "格" on the
+                    // line up to 12.0pt over when the colon ends the
+                    // paragraph — its hang alone — and up to 18.0 with text
+                    // after it; without the commas, 12.0 either way. Its
+                    // "…資格：" 15.7 over goes down in Word's print.)
+                    let finalHang = legacy && hang > 0 && endsParagraph && document.marksCentred
+                    let markRoom = all.reduce(0.0) { $0 + (finalHang && Self._centredUnits.contains(units[$1]) ? 0 : half($1)) }
                     let room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
                     let need = over - hang - after
                     // From Word 2013's layout on the test is another:
