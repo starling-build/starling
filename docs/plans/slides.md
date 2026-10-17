@@ -2014,6 +2014,11 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Palatino Linotype at its own widths, 2026-10-16** (aascu 5864 7.92 →
+7.89, the one deck PowerPoint printed it in). Liberation Serif, drawing
+it, has Times' narrower widths; now Palatino's, and its Windows descent
+(613 of 2763) for its baseline.
+
 Tried again and dropped: Calibri Light at Windows' own widths, now
 kerned and on the grid — still +2.41 over its 39 decks (bug62736 +0.47,
 tdf115394-zero +0.51). PowerPoint's prints here are a Mac's, and its

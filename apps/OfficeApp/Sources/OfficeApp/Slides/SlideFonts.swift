@@ -44,7 +44,7 @@ enum SlideFonts {
             face.boldOtherAdvances = OfficeFonts.verdanaBoldOtherAdvances
             return face
         case "segoe ui", "segoe ui light", "segoe ui semilight", "tahoma", "trebuchet ms", "franklin gothic book",
-             "franklin gothic medium", "century gothic", "gill sans mt", "candara":
+             "franklin gothic medium", "century gothic", "gill sans mt", "candara", "palatino linotype":
             // (Windows' own widths, `SlideFontWidths`: the bold where the
             // face has one, else the stand-in's bold.)
             let n = family.trimmingWhitespace().lowercased()
@@ -59,6 +59,7 @@ enum SlideFonts {
                 "century gothic": (SlideFontWidths.centuryGothic, SlideFontWidths.centuryGothicBold),
                 "gill sans mt": (SlideFontWidths.gillSans, SlideFontWidths.gillSansBold),
                 "candara": (SlideFontWidths.candara, SlideFontWidths.candaraBold),
+                "palatino linotype": (SlideFontWidths.palatino, SlideFontWidths.palatinoBold),
             ]
             guard let t = tables[n] else { return nil }
             var face = RichResolvedFace(family: resolve(family))
@@ -93,6 +94,7 @@ enum SlideFonts {
         if n.hasPrefix("franklin gothic") { return 445.0 / 2322 }
         if n == "century gothic" { return 451.0 / 2440 }
         if n == "gill sans mt" { return 472.0 / 2375 }
+        if n == "palatino linotype" { return 613.0 / 2763 }
         // (And Arial and Times New Roman by theirs, no line gap counted:
         // their clones' gap — a thirtieth and a twenty-fourth of an em —
         // put a share of it under the baseline in the engine's line, and
