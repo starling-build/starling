@@ -2014,6 +2014,16 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A metafile's empty text record fills nothing when the background is
+transparent, 2026-10-16** (lo-activex_textbox 4.02 → 0.37,
+lo-activex_combobox 0.92 → 0.11; the other 24 decks with WMF pictures
+unchanged). An ActiveX control's picture paints its face with an
+`ExtTextOut` of no characters, `ETO_OPAQUE` and a box, in the
+background colour — green for one of the text boxes — after
+`SetBkMode(TRANSPARENT)`. PowerPoint's print fills nothing there; we
+filled the box green. Such a record now fills only in the opaque mode
+(`Metafile`, shared with Word — told).
+
 **Palatino Linotype at its own widths, 2026-10-16** (aascu 5864 7.92 →
 7.89, the one deck PowerPoint printed it in). Liberation Serif, drawing
 it, has Times' narrower widths; now Palatino's, and its Windows descent

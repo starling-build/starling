@@ -685,7 +685,11 @@ private struct Player {
                     at += 8
                 }
                 guard at + n <= p + size else { break }
-                text(ansi(at, n), at: Offset(x, y), opaque: options & 2 != 0 ? box : nil)
+                // (An empty one that only fills its box, in the transparent
+                // background mode, fills nothing in PowerPoint's print:
+                // lo-activex_textbox's control pictures draw no green.)
+                let fills = options & 2 != 0 && (n > 0 || dc.bkOpaque)
+                text(ansi(at, n), at: Offset(x, y), opaque: fills ? box : nil)
             case 0x0940:   // DibBitBlt: rop, ySrc, xSrc, height, width, yDest, xDest, bitmap
                 if size == 6 + 18 {   // no bitmap: rop, ySrc, xSrc, (unused), height, width, yDest, xDest
                     let h = Double(i16(a + 10)), w = Double(i16(a + 12)), y = Double(i16(a + 14)), x = Double(i16(a + 16))

@@ -66,7 +66,7 @@ lo-ShapeTextInflateTop.pptx	summary pages=1 worst=1.47% mean=1.47%
 lo-TextFittingStored.pptx	summary pages=17 worst=3.00% mean=1.74%
 lo-accent-color.pptx	summary pages=2 worst=0.20% mean=0.11%
 lo-activex_checkbox.pptx	summary pages=1 worst=0.26% mean=0.26%
-lo-activex_combobox.pptx	summary pages=1 worst=0.92% mean=0.92%
+lo-activex_combobox.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-activex_commandbutton.pptx	summary pages=1 worst=0.64% mean=0.64%
 lo-activex_fontproperties.pptx	summary pages=1 worst=0.67% mean=0.67%
 lo-activex_label.pptx	summary pages=1 worst=0.51% mean=0.51%
@@ -75,7 +75,7 @@ lo-activex_optionbutton.pptx	summary pages=1 worst=0.28% mean=0.28%
 lo-activex_picture.pptx	summary pages=1 worst=3.20% mean=3.20%
 lo-activex_scrollbar.pptx	summary pages=1 worst=1.88% mean=1.88%
 lo-activex_spinbutton.pptx	summary pages=1 worst=0.44% mean=0.44%
-lo-activex_textbox.pptx	summary pages=1 worst=4.02% mean=4.02%
+lo-activex_textbox.pptx	summary pages=1 worst=0.37% mean=0.37%
 lo-activex_togglebutton.pptx	summary pages=1 worst=1.65% mean=1.65%
 lo-altdescription.pptx	summary pages=1 worst=0.33% mean=0.33%
 lo-animation-sound-embedded.pptx	summary pages=1 worst=0.00% mean=0.00%
