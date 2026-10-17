@@ -921,6 +921,12 @@ ascent then YaHei's): zh-7dc3afad 98.9 -> 82.7 (a page short), zh-69bbcc3c
 two it was for unmoved; bug57031 94.1 -> 99.7 (worth a look: what in it is
 a YaHei run's Latin). Lines and paragraphs wholly in the stand-in are the
 likely losers — they are YaHei's height in Word. Released.
+(Mac 011uWpmC, 2026-10-16: f8adab14, pushed just before this, already
+set such a line by a joiner sized from Noto's own height and baseline:
+1.40pt over YaHei's line and 0.61 under it. That fix took zh-8e8d4c40
+90.4 -> 98.9. On top of it, 1.750 removed the depth under the baseline:
+zh-8e8d4c40 98.9 -> 98.3 and zh-64044a1d 96.7 -> 96.3. 1.8824 is
+restored; both are back, and nothing else moved.)
 
 ### Leads for the Mac session (from the Windows box, 2026-10-16)
 Each needs Word or is in an area the Mac has worked; claim here first.

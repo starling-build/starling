@@ -763,12 +763,11 @@ enum OfficeFonts {
         // compatibility ideographs — `RichLayout._notoCompatibility`: its
         // hhea 1.16 + 0.288 ems with Word's 30% more, the baseline 1.377
         // down. Lab `cj2`: the line 1.44pt lower and 0.48 deeper at 12pt
-        // than YaHei's.) In a line of YaHei the engine shares the height
-        // out by the face's own ascent and descent, and at 1.8824 the
-        // line stood 2.73pt lower, not 1.44: 1.750 gives the ascent
-        // Word's has, 17.02pt at 12pt (its 0.48 deeper is not given) —
-        // zh-8e8d4c40's page 5, five such lines, ran 5pt low.
-        if has("noto sans sc") { return EastAsianFace(height: 1.750, latin: sans, latinScale: 1.0, fakeBold: false, baseline: 1.377) }
+        // than YaHei's.) Its line is set by a sized joiner
+        // (`RichLayout._notoJoiner`), which takes this height and
+        // baseline as they are: both what is over YaHei's line and what
+        // is under it come from them.
+        if has("noto sans sc") { return EastAsianFace(height: 1.8824, latin: sans, latinScale: 1.0, fakeBold: false, baseline: 1.377) }
         // Word on a Mac has 宋体, 黑体, 楷体, 仿宋 and the 明體 pair, and
         // sets every other Chinese name — 仿宋_GB2312, the 方正 faces,
         // 標楷體 — in Microsoft YaHei, which is taller and wider than
