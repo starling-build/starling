@@ -59,8 +59,12 @@ public struct RevisionMark: Hashable, Sendable {
     public var kind: Kind
     public var author: String
     public var date: String
-    public init(kind: Kind, author: String = "", date: String = "") {
-        self.kind = kind; self.author = author; self.date = date
+    /// Moved text (Word's `w:moveTo`, an insertion, and `w:moveFrom`, a
+    /// deletion): shown so in a print with markup, written back as the
+    /// insertion or deletion it is.
+    public var moved = false
+    public init(kind: Kind, author: String = "", date: String = "", moved: Bool = false) {
+        self.kind = kind; self.author = author; self.date = date; self.moved = moved
     }
 }
 

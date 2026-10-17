@@ -67,9 +67,10 @@ struct PdfMarkup {
                     at = end
                     if run.style.revision?.kind == .deleted {
                         let anchor = RichPosition(paragraph: paragraphs.count, offset: text.utf16.count)
-                        if open == nil || open!.anchor != anchor {
+                        let label = run.style.revision?.moved == true ? "Moved:" : "Deleted:"
+                        if open == nil || open!.anchor != anchor || open!.label != label {
                             close()
-                            open = Note(anchor: anchor, label: "Deleted:", paragraphs: [""], author: run.style.revision?.author ?? "",
+                            open = Note(anchor: anchor, label: label, paragraphs: [""], author: run.style.revision?.author ?? "",
                                         family: run.style.fontFamily.map(OfficeFonts.substitute)
                                             ?? source.styles.resolve(p.style)?.char.fontFamily.map(OfficeFonts.substitute))
                         }
@@ -106,8 +107,47 @@ struct PdfMarkup {
         document = printed
         // (By anchor, and in the order made where two share one: a
         // field's "Field Code Changed" before its result's "Formatted".)
-        notes = (deletions + PdfMarkup._comments(printed) + PdfMarkup._formats(printed)).enumerated()
+        let made = PdfMarkup._moves(deletions + PdfMarkup._insertedMoves(printed)) + PdfMarkup._comments(printed) + PdfMarkup._formats(printed)
+        notes = made.enumerated()
             .sorted { ($0.element.anchor, $0.offset) < ($1.element.anchor, $1.offset) }.map(\.element)
+    }
+
+    /// Where moved text went: "Moved (insertion) [n]" at the start of each
+    /// stretch of it, as Word labels the new place.
+    private static func _insertedMoves(_ document: RichDocument) -> [Note] {
+        var out: [Note] = []
+        for (i, p) in document.paragraphs.enumerated() {
+            var at = 0
+            var inMove = false
+            for run in p.runs {
+                defer { at += run.length }
+                let moved = run.length > 0 && run.style.revision?.moved == true && run.style.revision?.kind == .inserted
+                if moved, !inMove {
+                    out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Moved (insertion)", paragraphs: [""],
+                                    author: run.style.revision?.author ?? ""))
+                }
+                if run.length > 0 { inMove = moved }
+            }
+        }
+        return out
+    }
+
+    /// Moves numbered in order, each pair's ends the same number: the
+    /// new place "Moved (insertion) [n]", the old "Moved up [n]:" or
+    /// "Moved down [n]:" with its text, as Word words them.
+    private static func _moves(_ notes: [Note]) -> [Note] {
+        let tos = notes.filter { $0.label == "Moved (insertion)" }.sorted { $0.anchor < $1.anchor }
+        let froms = notes.filter { $0.label == "Moved:" }.sorted { $0.anchor < $1.anchor }
+        return notes.map { note in
+            var n = note
+            if let k = tos.firstIndex(where: { $0.anchor == note.anchor && $0.label == note.label }) {
+                n.label = "Moved (insertion) [\(k + 1)]"
+            } else if let k = froms.firstIndex(where: { $0.anchor == note.anchor && $0.label == note.label }) {
+                let up = k < tos.count && tos[k].anchor < note.anchor
+                n.label = "Moved \(up ? "up" : "down") [\(k + 1)]:"
+            }
+            return n
+        }
     }
 
     /// The formatting changes: a balloon for each stretch of runs whose

@@ -4007,8 +4007,13 @@ fitter dropped the paragraph's tail).
   the reader, not saved), before the result's own balloon; balloons
   stacked edge to edge (delins's one-line ones 15.1pt apart), a
   deletion's text 8.8pt further in. delins 50 -> 55%.
-  Not built: moved text ("Moved (insertion)": Tika-792), a reformatted
-  paragraph mark's balloon, change bars in the margin, the comment
+  Then: moved text. The reader skipped `w:moveTo`/`w:moveFrom` whole, so
+  moved text was gone from the page and from a save. The new place now
+  reads as an insertion and the old as a deletion, both marked `moved`
+  (saved as w:ins/w:del); printing labels them "Moved (insertion) [n]"
+  and "Moved down/up [n]:". No score moved (Tika-792 still 0: Word's
+  "Formatted: Font color: Auto" and the balloon order differ).
+  Not built: a reformatted paragraph mark's balloon, change bars in the margin, the comment
   range's tint in its author's colour.
 - **Web spacing parts two lists (2026-10-16).** delins: bullets with
   automatic spacing (beforeAutospacing/afterAutospacing), "A name in

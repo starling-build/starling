@@ -85,6 +85,31 @@ final class PdfMarkupTests: XCTestCase {
         XCTAssertEqual(PdfMarkup(doc).notes.map(\.label), ["Field Code Changed", "Formatted:"])
     }
 
+    /// Tika-792: moved text was skipped whole, gone from the page and the
+    /// save. Its new place is an insertion and its old a deletion, both
+    /// marked moved; a save writes them back as an insertion and a
+    /// deletion.
+    func testMovedTextIsReadAndKept() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:t xml:space=\"preserve\">Here </w:t></w:r><w:moveTo w:id=\"1\" w:author=\"Author\"><w:r><w:t>moved</w:t></w:r></w:moveTo></w:p>"
+            + "<w:p><w:r><w:t xml:space=\"preserve\">There </w:t></w:r><w:moveFrom w:id=\"2\" w:author=\"Author\"><w:r><w:t>moved</w:t></w:r></w:moveFrom></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(doc.paragraphs.map(\.text), ["Here moved", "There moved"])
+        XCTAssertEqual(doc.paragraphs[0].runs.last?.style.revision, RevisionMark(kind: .inserted, author: "Author", moved: true))
+        XCTAssertEqual(doc.paragraphs[1].runs.last?.style.revision, RevisionMark(kind: .deleted, author: "Author", moved: true))
+        let saved = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data,
+                           as: UTF8.self)
+        XCTAssertTrue(saved.contains("moved</w:t></w:r></w:ins>") && saved.contains("moved</w:delText></w:r></w:del>"), saved)
+        let print = PdfMarkup(doc)
+        XCTAssertEqual(print.document.paragraphs.map(\.text), ["Here moved", "There "])
+        XCTAssertEqual(print.notes.map(\.label), ["Moved (insertion) [1]", "Moved up [1]:"])
+    }
+
     /// The page and a markup area 3.7in wide from its text's right edge,
     /// scaled to the paper's width: testComment (letter, 1in margins) at
     /// 0.727 in Word's print, its pane from 407.5 to 594.5.

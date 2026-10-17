@@ -3176,8 +3176,19 @@ enum DocxFormat {
                 case "w:ins", "w:del":
                     // Tracked changes stay tracked: the text with its mark,
                     // written back as the insertion or deletion it was.
+                    // (Text moved away stays moved away, whatever was done
+                    // to it before.)
+                    if let r = revision, r.moved, r.kind == .deleted { walkInline(child, link: link, revision: r); break }
                     let mark = RevisionMark(kind: child.name == "w:ins" ? .inserted : .deleted,
                                             author: child["w:author"] ?? "", date: child["w:date"] ?? "")
+                    walkInline(child, link: link, revision: mark)
+                case "w:moveTo", "w:moveFrom":
+                    // Moved text: at its new place an insertion, at its old
+                    // one a deletion, as Word shows them (Tika-792's; they
+                    // were skipped, and the text was gone from the page and
+                    // from a save).
+                    let mark = RevisionMark(kind: child.name == "w:moveTo" ? .inserted : .deleted,
+                                            author: child["w:author"] ?? "", date: child["w:date"] ?? "", moved: true)
                     walkInline(child, link: link, revision: mark)
                 case "w:fldSimple" where notes.inHeaderFooter && DocxFormat._isPageField(child["w:instr"] ?? ""):
                     notes.fields.append((instr: child["w:instr"] ?? "", result: true))
