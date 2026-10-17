@@ -2014,6 +2014,14 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Tried and dropped, 2026-10-16:** Courier New's lines at its own
+height (1.133 em) rather than 1.2 — tdf149551's three diagrams step at
+it at 90%, but the 13 Courier decks went +1.47 in sum (vert_and_padding
++0.68, TextFittingStored +0.45, eaVertAnchor +0.40); 2411's Courier
+steps at 1.2. Also left: tdf143222's "Acࢢon" is only its PDF text layer
+(the EMF's "ti" ligature by glyph index; drawn right), and
+Divino_Revelado's worst pages are blank in PowerPoint's print.
+
 **Hebrew at Times New Roman's and Calibri's own widths, 2026-10-16**
 (sweep 154: 1.0996 → 1.088%; tdf98603 5.96 → 4.79, nothing else
 moved). PowerPoint sets tdf98603's Hebrew title in Times New Roman and
