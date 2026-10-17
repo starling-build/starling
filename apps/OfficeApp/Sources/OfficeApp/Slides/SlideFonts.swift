@@ -119,6 +119,11 @@ enum SlideFonts {
         if n.hasPrefix("segoe ui") { return 514.0 / 2724 }
         if n == "lucida sans unicode" { return 901.0 / 3147 }
         if n == "courier new" || n == "courier" { return 615.0 / 2320 }
+        // (Poppins by its ascent and descent, its line gap not counted —
+        // the engine puts half of it under the baseline; Work Sans by its
+        // Windows ascent and descent.)
+        if n.hasPrefix("poppins") { return 0.35 / 1.4 }
+        if n.hasPrefix("work sans") { return 0.343 / 1.448 }
         if n == "trebuchet ms" { return 455.0 / 2378 }
         if n.hasPrefix("franklin gothic") { return 445.0 / 2322 }
         if n == "century gothic" { return 451.0 / 2440 }

@@ -2014,6 +2014,14 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Poppins' and Work Sans' baselines, 2026-10-17** (lo-master-slides
+1.62 → 1.04, tdf157740 0.09 → 0.00, tdf140852 −0.12, three more a
+little; none worse). Bundled as themselves, they still sat off
+PowerPoint's: Poppins 0.03 em high (its 0.1 em line gap, half of which
+the engine puts under the baseline, PowerPoint counting none), Work
+Sans 0.06 low (PowerPoint by its Windows descent, 0.237 of the line,
+where its hhea gives 0.207). Both in `ownDescentShare` now.
+
 **Myriad Pro in Selawik, 2026-10-17** (HowWeRefactor 3.63 → 3.50, the
 one deck naming it). PowerPoint's Mac printed its Myriad Pro in Segoe UI
 (its lines 8% wider than ours in Calibri, the rule for faces it lacks);

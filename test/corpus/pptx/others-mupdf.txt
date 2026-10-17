@@ -329,7 +329,6 @@ lo-tdf156856.pptx
 lo-tdf157216.pptx
 lo-tdf157285.pptx
 lo-tdf157529.pptx
-lo-tdf157740.pptx
 lo-tdf158512.pptx
 lo-tdf160487.pptx
 lo-tdf160490.pptx
