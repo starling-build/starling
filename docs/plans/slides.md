@@ -2210,6 +2210,17 @@ to 15.7 where PowerPoint keeps 17 (its lines within 0.6 pt of ours,
 everywhere. Also seen there: `spcFirstLastPara="0"` (no space after
 the last paragraph) is not read.
 
+**A cropped picture drawn whole and clipped, 2026-10-17** (sweep 165:
+1.0504 → 1.0464%; customGeo 4.02 → 3.81, Maloney 4.69 → 4.34, 54542
+0.89 → 0.16, cooper 4.44 → 4.29, 60810 5.09 → 5.00; lo-croppedTo0
++0.13 and tdf153008 +0.12, edge smoothing only). PowerPoint's print
+embeds a cropped picture whole and clips it; ours drew the crop's
+rectangle of it, which the PDF carried as a cut copy, sampled from
+another origin by any reader: customGeo's 138 dpi screenshots of
+small print came out a different grey in every letter. A crop (not a
+pad) is now the whole picture drawn to where it falls, clipped to the
+frame.
+
 **Also looked at, 2026-10-17:** PowerPoint's line positions wobble by
 up to a point in a repeating pattern — the AES 2011 tables' 16.8 pt
 lines step 17.04, 17.04, 17.04, 16.08, 16.80, averaging ours exactly —

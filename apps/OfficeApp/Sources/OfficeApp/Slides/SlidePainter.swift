@@ -622,7 +622,19 @@ final class SlidePainter: CustomPainter {
                     canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
                     canvas.translate(-c.dx, -c.dy)
                 }
-                canvas.drawImageRect(decoded, src, r, imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone, levels: shape.pictureLevels))
+                // A crop is the whole picture drawn clipped, as PowerPoint
+                // prints it: a cut copy is sampled from another origin,
+                // and customGeo's 138 dpi screenshots of small print
+                // came out a different grey in every letter.
+                let paint = imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone, levels: shape.pictureLevels)
+                if src.width > 0, src.height > 0, src.width < w || src.height < h {
+                    let sx = r.width / src.width, sy = r.height / src.height
+                    canvas.clipRect(r)
+                    canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, w, h),
+                                         Rect.fromLTWH(r.left - src.left * sx, r.top - src.top * sy, w * sx, h * sy), paint)
+                } else {
+                    canvas.drawImageRect(decoded, src, r, paint)
+                }
                 canvas.restore()
             } else {
                 let p = Paint()
