@@ -2030,6 +2030,8 @@ starts at 156.4 in PowerPoint's print where ours started at 151.4, ends
 3.8 pt higher (390.1, not 393.9) and stands 1.9 pt further right: the
 top inset is 7 pt, the bottom 7.8 over the value labels, the gap beside
 the category labels 7.9 (were 2, 4 and 6), for a 2007-style chart only.
+Its category labels also stand 1.45 pt above their bands' middles, as
+its value labels above their lines (1.52 → 1.40).
 
 **A metafile's empty text record fills nothing when the background is
 transparent, 2026-10-16** (lo-activex_textbox 4.02 → 0.37,

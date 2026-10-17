@@ -1678,7 +1678,9 @@ enum ChartPainter {
             let slot = plot.height / Double(n)
             for (i, tp) in catLabels.enumerated() {
                 // Category 1 at the bottom, as PowerPoint draws a bar chart.
-                let cy = plot.bottom - (Double(i) + 0.5) * slot
+                // (A 2007-style chart's stand 1.45 pt above their bands'
+                // middles, as its value labels above their lines.)
+                let cy = plot.bottom - (Double(i) + 0.5) * slot - (c.plainText && !c.styled2013 && c.officeStyled ? 1.45 * k : 0)
                 tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - tp.width, cy - tp.height / 2))
             }
         } else {
