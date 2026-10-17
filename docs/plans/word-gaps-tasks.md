@@ -927,6 +927,16 @@ labs' four lines within 0.8-3.1pt of Windows Word's, but in the whole
 document joins them in twos and sets them 7.6pt high. Word for Windows
 and for Mac disagree on this cover, so a Windows lab cannot settle it;
 needs the Mac's Word.
+### T59. A column chart with a line on a second value axis
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
+Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
+unprinted zh documents: prints in ~/starling-word-check/zh2, scored with
+DOCX_WORD_REFS). Its two charts are `c:barChart` plus a `c:lineChart` on
+its own axes (a percentage axis on the right). `ChartXML.read` takes a
+combination only on one pair of axes, so both read as nil and nothing is
+drawn. Plan: read the line's axes, scale the line by its own axis, and
+label that axis on the right (Slides' ChartPainter, shared with decks).
+
 ### T58. A paragraph that opens with a tab: the line stays at its indent — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
 Documents: WordWithAttachments (its header's "<tab>Страница 1", centred
