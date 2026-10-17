@@ -146,7 +146,7 @@ in a file of mode below 15 asks room for half the line under it
 Tahoma 8pt, 15.06 apart). Left: delins 80 -> 45 — its first balloon, for
 two deleted paragraphs, stands 6.6pt under Word's, which lifts it into
 the gap above its line; the other three prints with balloons put the
-first at its line's top, as ours does. Claimed: Mac 011uWpmC, 2026-10-17.
+first at its line's top, as ours does. Claimed: Mac (starling-ios-5c's session), 2026-10-17.
 
 ### T78. zh-fec5fa30: 56 pages where Word's are 55 — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
