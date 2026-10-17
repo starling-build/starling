@@ -2369,6 +2369,13 @@ public final class RichLayout {
             // (Every row the file marks as a header, where Word's rules
             // are followed: a heading of two rows is repeated whole.)
             let rows = headerRows(table)
+            // (Not where the page parts the header itself: Word sets the
+            // rest of it once, unrepeated. bug57031's "Test of Equality
+            // over Strata", a caption row over a column-head row, both
+            // marked, ends page 12; page 13 opens with the column heads
+            // alone in Word's print, where ours had the caption and the
+            // heads and the heads again.)
+            if let here = _cells[i], here.table == table, here.row < rows { return }
             var j = k0
             var height = 0.0
             var pieces: [PagePiece] = []
