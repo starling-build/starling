@@ -1158,7 +1158,7 @@ stands, the 黑体 run's Latin face, a Latin run), not its alignment, indent
 or spaces.
 
 ### Lead from the Linux box (2026-10-17): zh-06c46ba9 p70-72, a float pushes the table above its anchor
-Owner: none — measured, not built. Pages 70-72 stand 80pt high (28 lines).
+Owner: the Windows box (011ZXp8e), from 2026-10-17 — building it. Was: measured, not built. Pages 70-72 stand 80pt high (28 lines).
 Page 70 opens with the rest of a parted table (row "三、內文格式"), then
 "附錄3", then "報告撰擬分工表". The VML box "分工表格式" (wrap square, 95.5
 x 23.5, 2.2pt under its paragraph's top, `mso-position-vertical-relative:
