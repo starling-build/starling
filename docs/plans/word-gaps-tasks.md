@@ -116,7 +116,7 @@ Word 16.113.3 prints) are checked in; compare per document across it.
 It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (T86, 83.6 now),
 zh-5dc5ce34 20.3 (21; Windows box, looking), zh-167ee06c 55.4 (14; T88, 72.9 now), zh-21421b7d 69.2 (2; Mac 011uWpmC, looking),
 zh-70094a34 70.8 (19; Mac, looked: Word's text layer drops glyphs, the lines match), zh-621d8756 82.4 (52), zh-34a6519a 84.0 (53; Mac, looked: the TOC matches — Word's page numbers are drawn but not in its text layer, so the matcher splits our lines),
-zh-830ef10d 89.2, zh-fb482d33 89.7 (6 pages, Word 7; Mac, looking), zh-ad224275 93.2.
+zh-830ef10d 89.2, zh-fb482d33 89.7 (T89, 95.7 now, 6 pages), zh-ad224275 93.2.
 
 ### Note from the Mac (2026-10-17): the zh corpus is 108 documents now — a third sample
 Twenty more (`random.seed(20261017)`, the unprinted rest of 15-400 KB,
@@ -168,6 +168,21 @@ table keeps a grid wider than its pct share (Word rules the form's 638.6pt
 grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
+
+### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-fb482d33's landscape roster is `w:tblpPr` vertAnchor text, tblpY 430
+twips, full width; after it an empty 12pt paragraph, another, and the
+section's mark. Ours set the table its offset down and all three under
+it, and the last two took a page of their own (7 pages to Word's 6).
+Labs `fb` (Word 16, its package): with "Y" in the first empty paragraph
+and "X" in the second, Word sets "Y" at the table's place — the
+paragraph after a floating table is its anchor, and the table stands
+its offset below that paragraph's top — and "X" under the table. Now the
+anchor paragraph, where it fits in the offset on the table's page, is
+set at the table's start and the text goes on under the table.
+zh-fb482d33 89.7 -> 95.7 (6 pages), zh-34a6519a 84.0 -> 86.4; nothing
+fell; all 128 zh documents have Word's page count.
 
 ### T88. zh-167ee06c: an alternate name of JhengHei, and JhengHei UI's line — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)

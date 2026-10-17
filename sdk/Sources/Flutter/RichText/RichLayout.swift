@@ -2260,6 +2260,9 @@ public final class RichLayout {
         // Paragraphs set again under a page-placed table they would reach
         // into (see where a table's first row is placed), and its table.
         var deferredUnder: [PagePiece] = []
+        // A floating table anchored to the text after it: where it began,
+        // for that paragraph (see below).
+        var textFloatTop: (table: String, page: Int, y: Double, down: Double)? = nil
         var deferredTable: String? = nil
         var reordered = false
         var i = 0
@@ -3098,6 +3101,7 @@ public final class RichLayout {
                 // 4.35pt under the line before it in Word's print).
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
                    let down = document.tableStyles[c.table]?.floatOffsetY {
+                    textFloatTop = (c.table, page, y, _px(down))
                     y += _px(down)
                 }
                 // A floating table placed against the page stands at its
@@ -3766,6 +3770,21 @@ public final class RichLayout {
                     if frameReturn == nil || frameReturn!.page != page { frameReturn = (y, page) }
                     y = target
                 }
+            }
+            // The paragraph a floating table is anchored to stands where the
+            // table began, the table its offset below that paragraph's top:
+            // zh-fb482d33's roster (tblpY 430 twips, full width) has its
+            // anchor, an empty 12pt line, above it in Word's print — a lab's
+            // "Y" there stands at the table's place, the "X" after it under
+            // the table — where ours set the anchor under the table too, and
+            // the section's last lines went to a page of their own.
+            if let tf = textFloatTop {
+                if theme.wordRules, i > 0, _cells[i - 1]?.table == tf.table, _cells[i] == nil, tf.page == page,
+                   frameReturn == nil, !_pageBreak[i], bottom - top <= tf.down + 0.01 {
+                    frameReturn = (y, page)
+                    y = tf.y
+                }
+                textFloatTop = nil
             }
             defer {
                 if let back = frameReturn, !(i + 1 < count && ownFrame != nil && document.paragraphs[i + 1].style.frameXML == ownFrame) {
