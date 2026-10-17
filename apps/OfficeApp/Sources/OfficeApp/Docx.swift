@@ -398,6 +398,13 @@ enum DocxFormat {
             // body, in a style that is not Normal's child, took a
             // character more a line under Normal's.
             if docChar.kerningFrom != normalChar.kerningFrom { rootChar.kerningFrom = docChar.kerningFrom ?? 0 }
+            // And the language: zh-fec5fa30's Normal says East Asian
+            // en-US, its defaults zh-TW, and its body style "內文2" is
+            // no child of Normal — Word keeps "，" off a line's start
+            // there, carrying "目" down with it; ours read Normal's
+            // en-US, which has no such rules.
+            let docLang = _keptRunProperties(docChar.keptXML)["w:lang"]
+            if let docLang, docLang != _keptRunProperties(normalChar.keptXML)["w:lang"] { rootChar.keptXML = docLang }
             for style in styles.all("w:style") where style["w:type"] == "paragraph"
                 && (style["w:default"] == "1" || style["w:styleId"] == "Normal") {
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &base) }

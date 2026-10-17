@@ -123,6 +123,11 @@ zh-de3410bd 93.2, zh-fe536967 94.0. zh-d89c3840 was T70.
 ### T78. zh-fec5fa30: 55 pages where Word's are 56 — claimed
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
 Documents: zh-fec5fa30 (84.7%, third sample).
+Built (Mac, 2026-10-17): body text under "內文2", a style not based on
+Normal, takes the defaults' zh-TW rather than Normal's en-US, so its
+lines keep the East Asian rules ("，" no longer opens a line). 84.7 ->
+86.1, nothing else moved. Still claimed: the tables on pp 9-10, 31-32,
+47-48 and 54-55, and the missing page.
 
 ### T76. zh-540dc149: 9 pages where Word's are 10 — claimed
 Owner: session 017F2GnT (Linux), from 2026-10-17

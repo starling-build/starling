@@ -5492,7 +5492,7 @@ public final class RichLayout {
             let closes = _closesUpMarks(run, named, document)
             // (So may text whose East Asian language has no such rules —
             // its run's own, else the document's: `eastAsianLineRules`.)
-            let lineRulesOff = kinsokuOff || (theme.wordRules && !Self._eastAsianLineRules(run, document))
+            let lineRulesOff = kinsokuOff || (theme.wordRules && !Self._eastAsianLineRules(run, document, named: named))
             // A stretch is of one script, and — where the Latin face
             // stands in at a scale for each kind of character — of one
             // kind: -1 East Asian, else the kind (0 where there is one
@@ -7053,9 +7053,10 @@ public final class RichLayout {
         var runOf: [Int] = []
         for (k, r) in p.runs.enumerated() { runOf.append(contentsOf: repeatElement(k, count: r.length)) }
         let wordRules = theme.wordRules
+        let lineStyle = _named(p, document)
         let runRulesOff: (Int) -> Bool = { o in
             guard wordRules, o >= 0, o < runOf.count else { return false }
-            return !Self._eastAsianLineRules(p.runs[runOf[o]].style, document)
+            return !Self._eastAsianLineRules(p.runs[runOf[o]].style, document, named: lineStyle)
         }
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
@@ -7767,9 +7768,14 @@ public final class RichLayout {
     /// Whether `run`'s East Asian line-breaking rules hold: by its own
     /// `w:lang` East Asian language where it states one, else by the
     /// document's (`RichDocument.eastAsianLineRules`).
-    static func _eastAsianLineRules(_ run: CharStyle, _ document: RichDocument) -> Bool {
-        if let xml = run.keptXML, let r = xml.range(of: "w:eastAsia=\"") {
-            return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
+    /// (Its paragraph style's next, `named`: zh-fec5fa30's body style is
+    /// no child of Normal, which says en-US, and takes the defaults'
+    /// zh-TW — Word keeps "，" off a line's start there.)
+    static func _eastAsianLineRules(_ run: CharStyle, _ document: RichDocument, named: RichNamedStyle? = nil) -> Bool {
+        for xml in [run.keptXML, named?.char.keptXML].compactMap({ $0 }) {
+            if let r = xml.range(of: "w:eastAsia=\"") {
+                return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
+            }
         }
         return document.eastAsianLineRules
     }

@@ -5634,6 +5634,19 @@ fitter dropped the paragraph's tail).
   else moved. Left there: its VML WordArt (`v:textpath`) is drawn as
   grey boxes. Word prints it as pictures, which the line match does
   not score.
+- **A style that is no child of Normal takes the defaults' language
+  (2026-10-17).** zh-fec5fa30's Normal sets East Asian en-US, while
+  its defaults are zh-TW and its body style "內文2" names no parent.
+  Word keeps "，" off a line's start there and carries "目" down with
+  it. Ours read Normal's en-US for the whole document, which has no
+  East Asian line rules, and opened a line with the comma. Now:
+  - where the defaults' `w:lang` differs from Normal's, it is stated
+    on the root that unbased styles start from (as size, face and
+    kerning already were);
+  - the line rules read the run's language, then its paragraph
+    style's, then the document's.
+
+  zh-fec5fa30 84.7 -> 86.1; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
