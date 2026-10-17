@@ -128,6 +128,20 @@ zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (T80, done), zh-268f8d15 93.0 (T84, 98.8 now),
 zh-de3410bd 93.2 (Mac, looked: p1 holds a two-line paragraph Word sends on — the zh-e061a08e page foot, same footer, same margins, PMingLiU; within a point), zh-fe536967 94.0 (T83, 99.0 now). zh-d89c3840 was T70.
 
+### T87. Fractional line heights (zh-de3410bd and three more) — claimed
+Owner: session 017F2GnT (Linux), from 2026-10-17
+Documents: zh-de3410bd (93.9%), zh-d35cbbdb, zh-e061a08e, zh-232090e0.
+Building the switch the Linux note below measured: an engine patch
+(skparagraph keeps a line's fraction where the paragraph asks; bridge bit
+13), on for Word's paragraphs only. zh-de3410bd's page 1 is the
+zh-e061a08e foot: 12pt PMingLiU is 15.61 a line, and rounded to 15.6 its
+last two lines fit with 0.35pt to spare. The three the note lost are
+being fixed first: bug59058 (a missing face drawn in Cambria is a line of
+Cambria's ascent over Times's descent), zh-1a3c7aa0 (in a file of mode
+below 15, a row at the foot asks room for half the line under it), and
+delins (Balloon Text was dropped on import). Engine and Swift sides land
+together; other boxes then rerun scripts/apply_engine_patches.sh.
+
 ### T78. zh-fec5fa30: 56 pages where Word's are 55 — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
 Documents: zh-fec5fa30 (84.7%, third sample).
