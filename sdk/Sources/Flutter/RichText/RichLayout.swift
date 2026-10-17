@@ -6034,7 +6034,12 @@ public final class RichLayout {
             if let found = lastIdeograph(children), let own = found.style {
                 let glyph = TextSpan(text: String(found.ch), style: own)
                 let alone = height([glyph])
-                style = [own.copyWith(letterSpacing: 0), latin].first { height([glyph, TextSpan(text: "\u{2060}", style: $0)]) <= alone + 0.01 }
+                // (Within half a point: on the Mac the Latin one sets the pair
+                // 0.4pt taller, the ideographs' 0.8, and at no height a line
+                // of the spaces alone — zh-c5b5087b's four — takes none,
+                // where Word's is a line of the text; on Linux the
+                // ideographs' adds nothing and the Latin 1.2.)
+                style = [own.copyWith(letterSpacing: 0), latin].first { height([glyph, TextSpan(text: "\u{2060}", style: $0)]) <= alone + _px(0.5) }
                     ?? latin.copyWith(height: 0.01)
             }
             children.append(TextSpan(text: "\u{2060}", style: style))
