@@ -2142,7 +2142,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if colors.showGrid {
             let line = Paint()
             line.style = .stroke
-            line.strokeWidth = printing ? 0.5 : 1
+            // (On paper one printer dot, as Excel prints them: 0.12 pt.)
+            line.strokeWidth = printing ? 72.0 / 600 : 1
             line.color = colors.grid
             // A text that runs over its neighbours runs over the lines between
             // them too: no gridline is drawn through it.

@@ -525,7 +525,7 @@ extension SheetGridState {
                     // letter or number centred, in the default font.
                     let rule = Paint()
                     rule.style = .stroke
-                    rule.strokeWidth = 0.75
+                    rule.strokeWidth = 0.96   // eight printer dots, as Excel rules its headings
                     rule.color = Color(0xFF000000)
                     func label(_ text: String, in r: Rect) {
                         canvas.drawRect(r, rule)
