@@ -258,6 +258,17 @@ text where the full row would have put it. The patch and labs
 (mkbase*.py, mkrows.py, baseln*.py) are in that session's scratchpad;
 the rule that joins cell font, book font and row is still open.
 
+Held back, 2026-10-16: drawing and chart parts written in their own
+namespace as the default (`<wsDr xmlns="…spreadsheetDrawing">`,
+`<chartSpace xmlns="…chart">`, chart-tdf119138 and chart-tdf137734)
+read once their element names are given the `xdr:` and `c:` prefixes,
+and tdf119138's four charts then draw, from their sheet references, in
+the right places — but with no text properties their text comes out at
+our defaults, far smaller than Excel's (its title and axis titles about
+13 pt, tick labels about 8), and the page scores worse (6.88 -> 9.45).
+The reader half waits for those defaults (a lab of a chart with no
+txPr and `<c:style val="10"/>`).
+
 Not understood: in 45544's "Hires by Location" Excel prints the page a
 footnote runs onto, blank — the run-over text not drawn there — though
 in labs and in lo-cell-value it draws it; the column widths decide it,
