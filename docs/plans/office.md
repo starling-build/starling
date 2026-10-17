@@ -4554,6 +4554,21 @@ fitter dropped the paragraph's tail).
   their 30pt, where ours, counting no line on that side, took two. A
   cell's side with no line of its own now takes its neighbour's.
   zh-37b6536f 96.2 -> 97.7; nothing else moved.
+- **Before 2013's layout, a Latin word at a body line's end is taken
+  wherever the marks and spaces can give (2026-10-16).** Lab `dg`
+  (Word 16, zh-2a241df1's package, mode 14, justified 14pt
+  仿宋_GB2312): "季度，杭州…举报43.5" takes "43.5" up to a need of 8.1pt and
+  not 9.1. The comma gives its whole half, 7pt, then half the 3.56pt
+  space before the digits. With no full-width mark on the line it is
+  not taken even at 2.1. Ours capped such a word at half the character
+  before it (7pt, after 报), which holds for an ideograph but not for a
+  word. Two limits stand. A word that starts past the margin is not
+  taken: zh-9dd9ce6d's "…次年" leaves its "3", whose space before it is
+  already over the line. And none of this applies on a character grid:
+  zh-d68ac84a's "给予50", 11pt over with 12.8 to give, stays a line
+  down, and that grid's rule is not measured. zh-2a241df1 9.5 -> 35.2
+  and zh-8112041b 69.4 -> 70.8 in the second sample; zh-1563bd74
+  99.7 -> 100 and zh-06c46ba9 94.8 -> 94.9 in the first; nothing down.
 - **A column chart's line on a second value axis is drawn
   (2026-10-16).** zh-2a241df1 (second sample) charts its complaint
   counts as columns, with their year-on-year shares as a line on a

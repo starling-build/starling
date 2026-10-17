@@ -7042,6 +7042,22 @@ public final class RichLayout {
                         // test: zh-06c46ba9's "（詳參附錄1）" takes "1）" 9pt
                         // over in Word's print.)
                         : (!wide && inCell && (lineBlank || need < set / 2 - _px(0.25) || (a ..< last).contains { units[$0] >= 0x2E80 })) || x + min(lead, w) - width <= before / 2 + edge
+                            // (In the body a Latin word is taken wherever the
+                            // marks and automatic spaces can give what it
+                            // needs, with no half of what stands before it
+                            // to keep to. Lab `dg` (Word 16, zh-2a241df1's
+                            // package, mode 14, justified 14pt): "…，杭州…举报
+                            // 43.5" takes "43.5" 8pt over and not 9 — the
+                            // comma's 7 and half the 3.56pt space before the
+                            // digits; with no comma on the line not even 2.
+                            // Not one that starts past the margin: zh-9dd9ce6d's
+                            // "…次年" leaves its "3", the automatic space before
+                            // it already over the line, though the line's
+                            // comma and spaces could give the 9.75pt. Not on a
+                            // character grid, where the digits carry the grid's
+                            // room: zh-d68ac84a's "给予50" stays a line down at
+                            // 11pt over with 12.8 to give.)
+                            || (!wide && !inCell && !onCharacterGrid && x < width)
                             // (After a space no half of what stands before
                             // limits it: it is taken wherever the marks can
                             // give what it needs — Taiwan's centred "，。、"
