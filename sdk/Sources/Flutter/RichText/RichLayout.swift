@@ -9367,9 +9367,7 @@ public final class RichLayout {
     /// (Only at the size the file gave it: resized in the editor, the
     /// picture is written afresh, without either.)
     func _pictureRoom(_ image: ImageAttachment) -> (top: Double, bottom: Double, side: Double) {
-        // (Not once resized: its effect extent was the old size's. A kept
-        // object, a chart, has no source size and keeps its own.)
-        guard image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height) else { return (0, 0, 0) }
+        guard image.sourceWidth == image.width, image.sourceHeight == image.height else { return (0, 0, 0) }
         let frame = image.frame.map { _px($0.space + $0.width) } ?? 0
         return (_px(image.effectTop) + frame, _px(image.effectBottom) + frame, frame)
     }
