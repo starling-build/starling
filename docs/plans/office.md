@@ -1840,6 +1840,12 @@ fitter dropped the paragraph's tail).
   without `compressPunctuation`, before and in mode 15 — and a
   full-width colon, comma and full stop keep their em on a line that
   fits; the 10.5 and 2.6 of the document were the squeeze alone.
+  (2026-10-17, Linux: a word in a cell that carries a full-width mark
+  of its own — zh-06c46ba9's "1）", 9pt over — had no limit at all, and
+  zh-d35cbbdb's cell took "1333、" 35pt over with six marks squeezed,
+  where Word's print squeezes none and leaves it. Such a word is now
+  taken up to half an em and what its own marks give: "1）" still,
+  "1333、" not. zh-d35cbbdb 89.4 -> 89.7%; nothing else moved.)
 
 - **Floating pictures that text wraps round (2026-10-14).**
   zh-37b6536f's report has five photographs anchored in empty

@@ -7217,7 +7217,14 @@ public final class RichLayout {
                         // carries a full-width mark of its own keeps the room
                         // test: zh-06c46ba9's "（詳參附錄1）" takes "1）" 9pt
                         // over in Word's print.)
-                        : (!wide && inCell && (lineBlank || need < set / 2 - _px(0.25) || (a ..< last).contains { units[$0] >= 0x2E80 })) || x + min(lead, w) - width <= before / 2 + edge
+                        : (!wide && inCell && (lineBlank || need < set / 2 - _px(0.25)
+                            // (… up to half an em and what its own marks give:
+                            // zh-d35cbbdb's cell takes no "1333、" 35pt over,
+                            // its six marks able to give 44, where Word's
+                            // print leaves it and squeezes nothing.)
+                            || ((a ..< last).contains { units[$0] >= 0x2E80 }
+                                && need <= set / 2 + (a ..< last).filter { units[$0] >= 0x2E80 }.reduce(0.0) { $0 + half($1) } + hair)))
+                            || x + min(lead, w) - width <= before / 2 + edge
                             // (In the body a Latin word is taken wherever the
                             // marks and automatic spaces can give what it
                             // needs, with no half of what stands before it
