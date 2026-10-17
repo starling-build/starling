@@ -1069,6 +1069,15 @@ such a grid (d68ac84a 98.8 -> 35.4); none for a character or a word
 size, and the text's size against Normal's changes nothing. A lab of
 one line with one, two and three marks, the over varied, would say what
 Word counts on such a grid.
+Lab run (Mac, 2026-10-17, ~/starling-word-check/lab/tools/squeezelab.py:
+one justified or left line of 仿宋_GB2312 — Word's YaHei — the first 24
+characters holding 1, 2 or 3 "，", the over bisected to 0.12pt by the right
+margin): on charSpace -842 at 16pt (pitch 15.75) Word takes the 24th only
+within 0.12pt, whatever the marks — no squeeze, f0bd9ea8's case; on -5544 at
+16pt (pitch 14.65) within 4.0-4.12pt, the same for 1, 2 and 3 marks; on
+-5544 at 12pt and -2800 at 16pt, within 0.12. So it is no count of marks:
+something of 16pt on the -5544 grid gives about 4pt (3 x the grid's 1.353?
+the others do not follow). Not built; free.
 
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
