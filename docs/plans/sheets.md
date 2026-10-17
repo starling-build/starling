@@ -270,6 +270,17 @@ row printed 4 dots short of its height (some lab rows were) keeps its
 text where the full row would have put it. The patch and labs
 (mkbase*.py, mkrows.py, baseln*.py) are in that session's scratchpad;
 the rule that joins cell font, book font and row is still open.
+Second try, 2026-10-17: labs of fitted rows in four books (Calibri 11,
+Arial 10, Calibri 10, Arial 12) show a cell whose font's line is no
+taller than the default row standing on the DEFAULT font's win descent
+plus 1.05 pt (3.18, 3.66, 3.66, 4.02 — within a printer dot), and a
+taller font on its own (Calibri 11 4.14, Arial 12 3.18, Calibri 12
+4.50-4.62), though Arial 12 as the default stands at 3.18, not 3.59.
+That rule alone: corpus neutral (1.435 -> 1.436, 11 better, 13 worse);
+the worse are Calibri 11 books whose rows are fitted shorter than the
+default (57523's 13.32 pt rows of Calibri 10), where Excel's drop lies
+between the rule's and the font's own. Rows shorter than the default
+need a lab of their own.
 
 Held back, 2026-10-16: drawing and chart parts written in their own
 namespace as the default (`<wsDr xmlns="…spreadsheetDrawing">`,
