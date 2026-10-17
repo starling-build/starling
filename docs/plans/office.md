@@ -5555,6 +5555,19 @@ fitter dropped the paragraph's tail).
   largest of the row's stated height, the kept cells and the whole-set
   cells. All four labs within 0.1pt. zh-15728c84 98.5 -> 100,
   zh-1a3c7aa0 98.1 -> 99.8; nothing else moved.
+- **A paragraph that is only a column break opens the next column with
+  its line (2026-10-17).** zh-6cd1befe p51: a two-column section ("附件3"
+  | the roster's title), set as a row of a borderless table. Between the
+  columns is a paragraph holding only a column break. Word (for Mac, and
+  for Windows alike) prints that paragraph's empty line at the second
+  column's head and the title under it, 20.7pt lower than ours. The
+  reader keeps a break-only paragraph's line on the page before, which
+  is right for a page break, so ours left it in the first column. Now
+  the column split carries it into the column it opens. The gap cells
+  between columns also take no indents from their column's last
+  paragraph: carried, that became "12", whose 56pt indent widened
+  zh-a0e932c2's gap and moved its second column 16pt right (100 -> 78.8
+  until this). zh-6cd1befe 99.4 -> 99.5 (p51 whole); nothing else moved.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than

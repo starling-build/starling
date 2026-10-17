@@ -1380,7 +1380,18 @@ enum DocxFormat {
                 for k in start ... i {
                     var q = paragraphs[k]
                     if k > start, q.style.columnBreak, q.style.pageBreakBefore {
-                        columns.append([])
+                        // (A paragraph that is only the break opens the next
+                        // column with its line, where a page's would stay on
+                        // the page before: zh-6cd1befe's "附件3" | (break) |
+                        // "应急保障职责部门任务分配表" has the break's empty
+                        // line at the second column's head in Word's print,
+                        // the title under it, 20.7pt lower than ours.)
+                        var carried: RichParagraph? = nil
+                        if q.style.breakEndsPrevious, let prev = columns[columns.count - 1].last, prev.text.isEmpty, prev.image == nil,
+                           columns[columns.count - 1].count > 1 {
+                            carried = columns[columns.count - 1].removeLast()
+                        }
+                        columns.append(carried.map { [$0] } ?? [])
                         q.style.pageBreakBefore = false
                         q.style.columnBreak = false
                         q.style.breakEndsPrevious = false
@@ -1413,6 +1424,11 @@ enum DocxFormat {
                     if c < columns.count - 1 {
                         var gap = RichParagraph(style: column.last?.style ?? RichParagraphStyle())
                         gap.style.sectionXML = nil; gap.style.sectionPage = nil; gap.style.sectionBreaksPage = nil
+                        // (None of its indents: in the narrow gap a column's
+                        // last paragraph's 56pt indent widened the gap, and
+                        // zh-a0e932c2's second column stood 16pt right.)
+                        gap.style.indentLeft = 0; gap.style.indentRight = 0; gap.style.firstLineIndent = 0
+                        for key in ["w:leftChars", "w:startChars", "w:rightChars", "w:endChars", "w:hangingChars", "w:firstLineChars"] { gap.style.eastAsian[key] = nil }
                         gap.cell = CellRef(table: id, row: 0, column: c * 2 + 1)
                         out.append(gap)
                         widths.append(gaps[c].space)
