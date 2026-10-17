@@ -782,6 +782,13 @@ zh-4d143b5e (the Mac's second sample, its lead): a row parting under
 centred cells merged down over six rows went over whole; a merged cell
 now parts from its text's start as a cell of its own row does — 36.5 ->
 99.8.
+zh-f59a76e9 p17 (98.4%, second sample), measured and left: Word parts
+row 70 ("A090370 政府举办的公益性人才交流活动的组织与实施服务") at page 17's
+foot, its band 158.0 -> 100.7 there and "服务"/"组织与实施" opening page
+18; ours sets row 70 whole (157.9 -> 128.5) and parts row 71 under it
+with nothing of it on page 17, so the merged "基本公共服务事项" and
+"人才服务类" centre over a span 28pt shorter and stand 11.5pt high.
+Which row Word parts there is the open question.
 
 Note from the Mac (2026-10-16): zh-799c91cd 96.8 -> 95.6 between the
 n225 and n230 sweeps. Page 6's table, whose last row runs to the foot,
