@@ -128,7 +128,7 @@ zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (T80, done), zh-268f8d15 93.0 (T84, 98.8 now),
 zh-de3410bd 93.2 (Mac, looked: p1 holds a two-line paragraph Word sends on — the zh-e061a08e page foot, same footer, same margins, PMingLiU; within a point), zh-fe536967 94.0 (T83, 99.0 now). zh-d89c3840 was T70.
 
-### T78. zh-fec5fa30: 55 pages where Word's are 56 — claimed
+### T78. zh-fec5fa30: 56 pages where Word's are 55 — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
 Documents: zh-fec5fa30 (84.7%, third sample).
 Built (Mac, 2026-10-17): body text under "內文2", a style not based on
@@ -139,7 +139,12 @@ T76's a309c7a1 (a fixed table keeps a grid wider than its share) also
 fixes the 附件 forms here, which say 105.3% of the column (513pt) over a
 524.5pt grid: 86.1 -> 88.8 measured on the Mac (s286). It also lifted
 zh-547fc43c 13.2 -> 88.7 (Word's 17 pages) and zh-a5745784 79.3 -> 99.7.
-Still claimed: the tables on pp 47-48 and 54, and the missing page.
+Built (Mac, 2026-10-17): a repeated header of stated rows at their own
+height (merged cells cut there), and an autofit cell's first piece
+measured from the first line's start (the 附件2 calendar keeps its
+grid). 88.8 -> 94.2 with Word's 55 pages (the title had it backwards:
+ours were 56). Nothing else moved. Left: p47-48's header (51.2pt in
+Word, ours 44.7) and p54's calendar 3pt low; T78 released after this.
 
 ### T76. zh-540dc149: 9 pages where Word's are 10 — DONE (2026-10-17)
 Owner: the Windows box (011ZXp8e), 2026-10-17 (claimed first by 017F2GnT, Linux, who handed it over)

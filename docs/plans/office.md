@@ -5666,6 +5666,27 @@ fitter dropped the paragraph's tail).
     style's, then the document's.
 
   zh-fec5fa30 84.7 -> 86.1; nothing else moved.
+- **A repeated header of stated rows is repeated at their height, its
+  cells merged down past it cut there (2026-10-17).** zh-fec5fa30's
+  forms head with one row of 45.35pt (exact on the first form, at
+  least on the others), every cell merged into a row under it that has
+  no cell of its own, so ours folded that row's 34pt into the header.
+  Word's later pages open with the header row alone: 45.0pt where it is
+  exact, 46.4 (the height and its rule) where it is at least. A cell
+  merged down past the header asks no room of it: "評核重點項目", 50pt
+  with half lines before and after, stands centred in the 46.4. Ours
+  repeated all 79.35pt, every row 34pt low.
+- **An autofit cell's narrowest takes its first piece from where the
+  first line starts (2026-10-17).** zh-fec5fa30's 附件2 calendar indents
+  its day cells left 640, hanging 640, some right 560 too: "14" stands at
+  the cell's edge. Ours counted the 32pt left indent against every
+  piece, wanted 84.8pt for "14" in a 76pt column, and refitted the
+  table; "18 連江縣" then wrapped and the calendar ran onto a 56th page.
+  Word keeps the grid. Now the first piece is measured from the first
+  line's start and the others from the left indent (not for a list
+  paragraph, whose indents are the list's).
+
+  Both: zh-fec5fa30 88.8 -> 94.2, Word's 55 pages; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

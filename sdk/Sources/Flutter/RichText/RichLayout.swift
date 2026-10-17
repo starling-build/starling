@@ -1626,7 +1626,7 @@ public final class RichLayout {
     /// ideographs came out as wide as all of them.)
     private func _minContent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> Double {
         if let m = _cellMins[i] { return m }
-        var m = 0.0
+        var m = 0.0, first = 0.0   // the pieces after the first; the first
         let units = Array(p.text.utf16)
         if !units.isEmpty {
             let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: 100_000)
@@ -1663,11 +1663,11 @@ public final class RichLayout {
                 else if breakBefore.contains(k) { parts = true }
                 else { parts = !Self._glued(a, b) }
                 if parts {
-                    m = max(m, piece(start, k))
+                    if start == 0 { first = piece(start, k) } else { m = max(m, piece(start, k)) }
                     start = k
                 }
             }
-            m = max(m, piece(start, units.count))
+            if start == 0 { first = piece(start, units.count) } else { m = max(m, piece(start, units.count)) }
             probe.dispose()
         }
         let sides = _sideIndents(p, document)
@@ -1675,7 +1675,16 @@ public final class RichLayout {
         // bug65649's equipment table indents every paragraph -113 twips
         // a side, and its "№ п/п" column of 54pt holds "(согласно" in
         // Word's print, 49.3pt of text over the 43.2 between margins.)
-        m += (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)
+        // (The first piece from where the first line starts: zh-fec5fa30's
+        // calendar sets "14" under a hanging indent of 32pt, its line
+        // at the cell's edge, and Word keeps the grid's 76pt column —
+        // ours, counting the indent for it too, wanted 84.8 and gave
+        // "18 連江縣" a column too narrow to hold it.)
+        if theme.wordRules, _wordList(p, document) == nil {
+            m = max(m > 0 ? _px(sides.left) + m : 0, _px(sides.left + firstLineIndent(p, document)) + first, 0) + _px(sides.right)
+        } else {
+            m = max(m, first) + (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)
+        }
         _cellMins[i] = m
         return m
     }
@@ -2449,7 +2458,71 @@ public final class RichLayout {
             var j = k0
             var height = 0.0
             var pieces: [PagePiece] = []
-            while j < count, let d = _cells[j], d.table == table, d.row < rows {
+            // (A header of exact rows whose cells are merged down past it
+            // is repeated at its rows' own height, each cell's text set
+            // in that again: zh-fec5fa30's forms head with one row of
+            // exactly 45.35pt, every cell merged into a row under it that
+            // has none of its own, and Word's later pages open with the
+            // 45.35 — ours repeated both, 79.35, and every row went down
+            // 34pt.)
+            // (One of at least its height too, with its rule, and as
+            // tall as the text of its cells that end in it needs: pages
+            // 31-32's, at least 45.35pt, open with 46.4 in Word's print.)
+            var cut: Double? = nil
+            if theme.wordRules, let ts = document.tableStyles[table], (0 ..< rows).allSatisfy({ ts.rowHeights[$0] != nil }) {
+                var n = k0
+                var past = false
+                var need = 0.0
+                while n < count, let d = _cells[n], d.table == table, d.row < rows {
+                    past = past || d.row + d.rowSpan > rows
+                    var last = n
+                    while last + 1 < count, let e = _cells[last + 1], e.table == table, e.row == d.row, e.column == d.column { last += 1 }
+                    // (A cell merged down asks its room of the rows it
+                    // ends in, not of the header: pages 31-32's
+                    // "評核重點項目", 50pt with its half lines before and
+                    // after, stands in Word's 46.4.)
+                    if d.row + d.rowSpan <= rows {
+                        need = max(need, _tops[last] + _heights[last] - _tops[n] + d.pad.top + d.pad.bottom)
+                    }
+                    n = last + 1
+                }
+                let stated = (0 ..< rows).reduce(0.0) {
+                    $0 + _px(ts.rowHeights[$1]!) + (ts.rowsExactHeight.contains($1) ? 0 : max(0, h.rules - h.ruleBelow))
+                }
+                let all = (0 ..< rows).allSatisfy { ts.rowsExactHeight.contains($0) } ? stated : max(stated, need)
+                if past, all < h.ownRowHeight - 0.5 { cut = all }
+            }
+            if let cut {
+                var n = k0
+                while n < count, let d = _cells[n], d.table == table, d.row < rows {
+                    // The cell's paragraphs, and where its text stands in them.
+                    var last = n
+                    while last + 1 < count, let e = _cells[last + 1], e.table == table, e.row == d.row, e.column == d.column { last += 1 }
+                    let text = _tops[last] + _heights[last] - _tops[n]
+                    // (Centred over it even where it is taller, as Word
+                    // sets "評核重點項目" in 46.4.)
+                    let spare = cut - d.pad.top - d.pad.bottom - text
+                    let room = d.verticalAlign == "center" ? spare : max(0, spare)
+                    let at = d.rowTop + d.pad.top + (d.verticalAlign == "center" ? room / 2 : d.verticalAlign == "bottom" ? room : 0)
+                    let up = d.vertical ? 0 : _tops[n] - at
+                    let pageY = y + (d.rowTop - h.rowTop)
+                    for k in n ... last {
+                        var piece = PagePiece(paragraph: k, flowTop: d.rowTop + up, flowBottom: d.rowTop + up + cut, page: page, pageY: pageY)
+                        piece.repeated = true
+                        piece.part = .text
+                        pieces.append(piece)
+                    }
+                    var rules = PagePiece(paragraph: n, flowTop: d.rowTop, flowBottom: d.rowTop + cut, page: page, pageY: pageY)
+                    rules.repeated = true
+                    rules.part = .rules
+                    rules.inner = true
+                    pieces.append(rules)
+                    n = last + 1
+                }
+                j = n
+                height = cut
+            }
+            while cut == nil, j < count, let d = _cells[j], d.table == table, d.row < rows {
                 let bottom = d.rowSpan > 1 ? d.rowTop + d.rowHeight : d.rowTop + d.ownRowHeight
                 var piece = PagePiece(paragraph: j, flowTop: d.rowTop, flowBottom: bottom, page: page, pageY: y + (d.rowTop - h.rowTop))
                 piece.repeated = true
