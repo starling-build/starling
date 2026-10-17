@@ -1046,6 +1046,14 @@ Done here: zh-4d143b5e 36.5 -> 99.8 (6ef30c71), zh-b13d0fb4 93.5 -> 100
   an over-wide table's right edge in mode 14 is not found. (Lab `sq14`
   on the way: Word takes a character exactly half an em over — 7.0 at
   14pt — and leaves it at 7.05; our legacy squeeze agrees.)
+  Linux, 2026-10-17: Word's right edge on page 2's full lines is 530.8,
+  ours 531.0, so the over-wide table is not it. The misses are lines on
+  the half-em threshold: article 24's first line takes "縣" 6.9993pt over
+  in ours (`STARLING_RICHTEXT_FIT`, column 370.0); in Word's print the
+  line starts 89.88 (ours 90.0) and ends by 530.8, 0.08pt narrower, so
+  its "縣" is ~7.08 over and goes down. Where Word's 0.12 and 0.2 come
+  from (twips rounding of the cell's or the chars-based indents?) is
+  what is left.
 
 ### zh-f0bd9ea8: punctuation squeeze on a grid narrower than the ems — measured, released (Mac)
 Mode 14, linesAndChars charSpace -842 at 16pt (Normal 10.5). Done: the
