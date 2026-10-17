@@ -580,8 +580,17 @@ final class SlidePainter: CustomPainter {
                     canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
                     canvas.translate(-c.dx, -c.dy)
                 }
+                // Its recolouring as a bitmap's — duotone, transparency,
+                // levels — over the played drawing as a whole: customGeo's
+                // WMF signposts under an accent1 duotone print blue in
+                // PowerPoint, and were their own black and yellow.
+                let recoloured = shape.pictureDuotone != nil || shape.pictureAlpha < 1 || shape.pictureLevels != nil
+                if recoloured {
+                    canvas.saveLayer(r, Self.imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone, levels: shape.pictureLevels))
+                }
                 metafile.paint(canvas, in: whole, image: { cache.image($0) }, font: OfficeFonts.substitute,
                                change: shape.pictureColorChange)
+                if recoloured { canvas.restore() }
                 canvas.restore()
             } else if let decoded = cache.image(image) {
                 let w = Double(decoded.width), h = Double(decoded.height)

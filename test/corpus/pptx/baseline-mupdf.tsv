@@ -53,7 +53,7 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=2.48% mean=2.48%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=13.01% mean=4.07%
+customGeo.pptx	summary pages=48 worst=13.01% mean=4.06%
 ececapstonespring2012.pptx	summary pages=24 worst=3.09% mean=1.80%
 highlight-test-case.pptx	summary pages=1 worst=0.82% mean=0.82%
 layouts.pptx	summary pages=10 worst=1.48% mean=0.58%

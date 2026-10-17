@@ -2126,6 +2126,14 @@ an inch there), as PowerPoint does; the table's own base style is level
 one's, and had put them at the cell's edge. Every bullet of that slide
 now stands within 0.1 pt of PowerPoint's.
 
+**A metafile picture recoloured, 2026-10-17** (customGeo 4.07 → 4.06;
+the 35 decks with a metafile or a duotone otherwise unchanged). A WMF or
+EMF picture's duotone, transparency and levels were applied to bitmaps
+only; PowerPoint applies them to the played drawing too — customGeo's
+signpost WMFs under an `accent1` duotone print 39,87,145 and were their
+own black and yellow. The drawing is now played into a layer that takes
+the same colour filter (`SlidePainter.imagePaint`).
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so
