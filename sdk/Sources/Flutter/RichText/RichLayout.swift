@@ -2732,6 +2732,7 @@ public final class RichLayout {
                 // five 15pt lines of its centred cells on page 3 and Word
                 // sets them 3.9pt down in a part of 83.2 — ours at its top.)
                 var shift: [Int: Double] = [:]
+                var partHeight: Double? = nil
                 if theme.wordRules, !fits, first {
                     var extent: [Int: (top: Double, bottom: Double)] = [:]
                     for (n, column) in columns.enumerated() where setWhole[n] == nil {
@@ -2741,6 +2742,15 @@ public final class RichLayout {
                         extent[n] = (textTop, bottom)
                     }
                     let part = min(avail, max(stated, extent.map { n, e in e.bottom - columns[n].cut }.max() ?? 0))
+                    // (The rules end with the part only where no cell
+                    // merged down from above has text below it: zh-e6d54ae4's
+                    // "(二)衡酌實際需求…" runs on beside the row's part to the
+                    // page's foot, and the part with it.)
+                    let below = (0 ..< i).reversed().prefix(while: { _cells[$0]?.table == c.table }).contains { m in
+                        let d = _cells[m]!
+                        return d.row < c.row && d.row + d.rowSpan - 1 >= c.row && _tops[m] + _heights[m] > c.rowTop + part + 0.01
+                    }
+                    if !below { partHeight = part }
                     for (n, e) in extent {
                         let d0 = _cells[columns[n].members[0]]!
                         guard d0.verticalAlign == "center" || d0.verticalAlign == "bottom" else { continue }
@@ -2751,7 +2761,12 @@ public final class RichLayout {
                 }
                 // The rules: from the row's top down to the page's foot,
                 // then the row's last stretch with its bottom line.
-                let shown = fits ? rest : avail
+                // (A first part's rules end with it, not at the page's
+                // foot: zh-91e44bcb's "5.要求行政机关确认…", at least
+                // 38.95pt, keeps one 31.2pt line on page 4 and Word closes
+                // it 40.1 under its top with 16pt of the page left under
+                // it — ours ran its sides and its bottom line to the foot.)
+                let shown = fits ? rest : partHeight ?? avail
                 let from = first && !(fits && rest > c.ownRowHeight + 0.01) ? c.rowTop
                     : fits ? rowBottom - rest : max(c.rowTop + 1, min(rowBottom - rest, rowBottom - avail - 1))
                 var rule = PagePiece(paragraph: i, flowTop: from, flowBottom: min(rowBottom, from + shown), page: page, pageY: y)
@@ -3074,7 +3089,15 @@ public final class RichLayout {
                                 }
                                 n += 1
                             }
-                            if kept > 0, columns.values.allSatisfy({ $0 }) { part += min(kept, contentH - y - part) }
+                            // (And no shorter than the row says it is, as
+                            // `splitRow` sets the part: Word's
+                            // "5.要求行政机关确认…" keeps 40.1pt on zh-91e44bcb's
+                            // page 4, its stated 38.95 and its rule, where its
+                            // line and margin are 33.2.)
+                            let ts = document.tableStyles[c.table]
+                            let stated = ts.flatMap { ts in ts.rowsExactHeight.contains(r) ? nil : ts.rowHeights[r] }
+                                .map { _px($0) + max(0, e.rules - e.ruleBelow) } ?? 0
+                            if kept > 0, columns.values.allSatisfy({ $0 }) { part += min(max(kept, stated), contentH - y - part) }
                         }
                         guard part > 0, part < d.rowHeight - 0.01 else { continue }
                         // (What it was given to spare over the whole span:

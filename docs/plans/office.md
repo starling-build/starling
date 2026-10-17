@@ -3297,6 +3297,19 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **A parted row's part ends where Word closes it (2026-10-16).** The
+  part of a row parted at a page's foot was ruled down to the foot, and
+  the merged cells centred beside it counted it as only its kept line
+  and margin. Word closes the part at its own height, no less than the
+  row's stated one: zh-91e44bcb's "5.要求行政机关确认…", at least 38.95pt,
+  keeps one 31.2pt line on page 4 and Word draws its bottom line 40.1
+  under its top, 16pt above the foot; its "三、本年度办理结果" and
+  "（五）不予处理" stand centred over that part (ours 3.5 to 5pt high,
+  centred on the line). Not where a cell merged down from above runs
+  its text on below the part (zh-e6d54ae4's "(二)衡酌實際需求…" beside
+  a parted row): the part is then to the foot, as before. (T32.)
+  zh-91e44bcb 97.1% -> 100; nothing else moved.
+
 - **No header repeated where a page breaks inside it (2026-10-16).**
   A table's header rows (`w:tblHeader`) were set again at the top of
   every page it went on to, even where the page broke between them.
