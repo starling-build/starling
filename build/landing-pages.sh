@@ -8,7 +8,7 @@ if [ -e "$OUT" ]; then
     echo "error: output already exists: $OUT (choose a fresh directory)" >&2
     exit 1
 fi
-mkdir -p "$OUT/starling/desktop" "$OUT/office/img"
+mkdir -p "$OUT/starling/desktop" "$OUT/office/img" "$OUT/office/video"
 cp "$ROOT/ui/index.html" "$ROOT/ui/styles.css" "$ROOT/ui/main.js" "$ROOT/ui/CNAME" "$OUT/starling/"
 cp -R "$ROOT/ui/img" "$ROOT/ui/video" "$OUT/starling/"
 cp "$ROOT/ui/desktop/index.html" "$OUT/starling/desktop/"
@@ -16,6 +16,9 @@ cp "$ROOT/ui/openoffice/index.html" "$ROOT/ui/styles.css" "$OUT/office/"
 cp -R "$ROOT/ui/img/office" "$OUT/office/img/"
 cp "$ROOT/ui/openoffice/download.html" "$ROOT/ui/openoffice/download.css" "$ROOT/ui/openoffice/download.js" "$OUT/office/"
 cp -R "$ROOT/ui/openoffice/images" "$OUT/office/"
+cp "$ROOT/ui/video/office-compatibility.mp4" \
+   "$ROOT/ui/video/office-compatibility-poster.webp" \
+   "$ROOT/ui/video/office-compatibility.vtt" "$OUT/office/video/"
 printf 'openoffice.starling.build\n' > "$OUT/office/CNAME"
 touch "$OUT/starling/.nojekyll" "$OUT/office/.nojekyll"
 python3 - "$OUT" <<'PY'
@@ -42,6 +45,9 @@ for site in [root / 'starling', root / 'office']:
         for preview in (site / 'images').glob('*-sample.png'):
             version = hashlib.sha256(preview.read_bytes()).hexdigest()[:12]
             source = source.replace(f'{preview.name}"', f'{preview.name}?v={version}"')
+        for media in (site / 'video').glob('office-compatibility*'):
+            version = hashlib.sha256(media.read_bytes()).hexdigest()[:12]
+            source = source.replace(f'{media.name}"', f'{media.name}?v={version}"')
         for app in ['writer', 'slides', 'sheets']:
             source = source.replace(f'href="apps/{app}/"', f'href="https://{app}.starling.build/"')
             source = source.replace(f'href="openoffice/apps/{app}/"', f'href="https://{app}.starling.build/"')

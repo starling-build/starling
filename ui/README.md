@@ -12,7 +12,7 @@ Desktop each have a separate page with product details and direct action links.
   and installation links. 3D is one feature of the broader desktop.
 - `styles.css`: shared responsive typography and layouts for all three pages.
 - `main.js`: legacy desktop hash redirects and production-only analytics.
-- `img/`, `video/`: existing desktop captures, film, and captions.
+- `img/`, `video/`: desktop captures and films, the Office compatibility walkthrough, and captions.
 
 The pages do not load the Office WASM runtime, render slide images, capture
 keyboard navigation, or require JavaScript to read their content and use links.

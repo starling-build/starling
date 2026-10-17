@@ -1,0 +1,134 @@
+[
+  {
+    "id": "v2-01-problem",
+    "kind": "problem",
+    "eyebrow": "THE HARDEST PART: RENDERING FIDELITY",
+    "title": "The same file should look the same.",
+    "subtitle": "Microsoft Office \u2192 reference PDF     /     Starling Office \u2192 comparison PDF",
+    "narration": "The hardest part of building an Office alternative is making documents look the same as they do in Microsoft Office. Reading the file is only the beginning. Fonts, line breaks, chart labels, and page boundaries must agree. Here is how we find those differences and fix them, one document at a time."
+  },
+  {
+    "id": "v2-02-corpus",
+    "kind": "corpus",
+    "eyebrow": "STEP 1 \u00b7 BUILD A BROAD TEST COLLECTION",
+    "title": "Many documents. Many layout rules.",
+    "subtitle": "Real test files from the Apache POI and LibreOffice collections",
+    "narration": "We build a broad collection of documents, presentations, and spreadsheets. It needs ordinary layouts and awkward edge cases: floating pictures, tables, chart themes, empty paragraphs, and printing settings. A simple document may look right while a more complicated one exposes a rule we have missed."
+  },
+  {
+    "id": "v2-03-workflow",
+    "kind": "workflow",
+    "eyebrow": "STEP 2 \u00b7 ESTABLISH THE EXPECTED RESULT",
+    "title": "Microsoft Office is the visual reference.",
+    "subtitle": "Same input file \u2192 two independent renderers \u2192 two PDFs",
+    "narration": "We let Word, PowerPoint, and Excel render those files, then print or export them as PDFs. Those Microsoft PDFs are our source of truth for appearance. We keep the reference files and their rendering settings, so repeated comparisons have a stable target. Starling then renders exactly the same input files into its own PDFs."
+  },
+  {
+    "id": "v2-04-exports",
+    "kind": "exports",
+    "eyebrow": "FROM THE REPOSITORY \u00b7 REAL EXPORT TOOLS",
+    "title": "Generate both sides of the comparison.",
+    "subtitle": "Existing Microsoft reference PDFs + fresh Starling exports",
+    "narration": "The repository automates both sides. PowerPoint exports through AppleScript, Word uses its print dialog, and Excel has a Windows export script. Starling exports through command-line options for each app. These examples use the saved Microsoft references and actual Starling outputs. Now we can compare complete pages without manually switching between two applications."
+  },
+  {
+    "id": "v2-05-diff-method",
+    "kind": "diff-method",
+    "eyebrow": "STEP 3 \u00b7 RASTERIZE AND COMPARE",
+    "title": "Turn a visual mismatch into a diff.",
+    "subtitle": "Recorded run of test/pdf-diff.py \u00b7 identical settings before and after",
+    "narration": "This is the comparison command. It rasterizes both PDFs at the same resolution, then compares corresponding pixels. In this run, a pixel turns red when any color channel differs by more than thirty-two. The output contains the Microsoft page, the Starling page, and a red difference mask. Fonts and rasterization can also contribute to the red pixels."
+  },
+  {
+    "id": "v2-06-diff",
+    "kind": "diff",
+    "eyebrow": "EXAMPLE 1 \u00b7 POWERPOINT CHART \u00b7 BEFORE",
+    "title": "The red pixels show where to investigate.",
+    "subtitle": "Full page comparison \u00b7 144 dpi \u00b7 red = pixels above the difference threshold",
+    "narration": "Here is the earlier chart export. Compare the colors, title, labels, and legend. The red mask marks thirteen point zero five percent of the page. It tells us where the images disagree; it does not tell us why. To find the cause, we inspect the document structure and the code that draws it.",
+    "comparison": "slides-before",
+    "page": 0
+  },
+  {
+    "id": "v2-07-chart-steps",
+    "kind": "chart-steps",
+    "eyebrow": "STEP 4 \u00b7 FIND AND FIX THE UNDERLYING RULE",
+    "title": "One chart. Several small corrections.",
+    "subtitle": "October 13 \u00b7 theme \u2192 title \u2192 axis \u2192 labels \u2192 legend",
+    "narration": "The chart has its own theme, separate from the presentation theme. Reading that override fixes the colors. Other changes restore title formatting, labels from cells, and legend layout. These are separate, reviewable code changes. We fix the general rendering rules, so other files using those rules can benefit too."
+  },
+  {
+    "id": "v2-08-diff",
+    "kind": "diff",
+    "eyebrow": "STEP 5 \u00b7 EXPORT AGAIN AND RERUN THE DIFF",
+    "title": "The same test shows the improvement.",
+    "subtitle": "Same Microsoft PDF, scale and threshold \u00b7 earlier 13.05% \u2192 current 2.08%",
+    "narration": "Export the file again and run exactly the same comparison. The current chart is much closer, and the differing pixels drop to two point zero eight percent. Some red remains. That is the next investigation, rather than a reason to declare perfect compatibility. These outputs span several improvements, not just one patch.",
+    "comparison": "slides-current",
+    "page": 0
+  },
+  {
+    "id": "v2-09-writer-before",
+    "kind": "writer-before",
+    "eyebrow": "EXAMPLE 2 \u00b7 WORD \u00b7 PAGE FOUR, ENLARGED",
+    "title": "A tiny line-height error moves the text.",
+    "subtitle": "Identical crop and scale \u00b7 Microsoft Word / Starling before the fix",
+    "narration": "A smaller difference can affect a whole document. On page four, Starling starts the text too low. The cause is on the preceding page: blank lines containing spaces and tabs are measured too tall. Word sizes those lines using the smaller paragraph mark. The extra height accumulates and shifts later content."
+  },
+  {
+    "id": "v2-10-writer-diffs",
+    "kind": "writer-diffs",
+    "eyebrow": "OCTOBER 15 \u00b7 FIX f4cc1940",
+    "title": "Correct the rule. Compare again.",
+    "subtitle": "Page 4 difference masks \u00b7 same crop, renderer and threshold",
+    "narration": "After correcting that rule, the heading and table return to their expected positions. Here are the actual before and after difference masks for the same region. Across page four, differing pixels fall from seven point five zero to three point eight one percent. The extra fifth page also disappears. Remaining text differences still need inspection."
+  },
+  {
+    "id": "v2-11-sheets-before",
+    "kind": "sheets-before",
+    "eyebrow": "EXAMPLE 3 \u00b7 EXCEL \u00b7 PIE CHART LABELS",
+    "title": "The right data needs the right presentation.",
+    "subtitle": "Microsoft Excel / earlier Starling export \u00b7 chart excerpts enlarged",
+    "narration": "Excel gives us another example. The reference prints category names and percentages outside the pie. The earlier Starling export puts values inside the slices. Reading the label content, placement, and formatting improves this. Printing changes also matter: the earlier output is missing a page present in the reference."
+  },
+  {
+    "id": "v2-12-diff",
+    "kind": "diff",
+    "eyebrow": "SHEETS \u00b7 RERUN THE PAGE COMPARISON",
+    "title": "Improvement, with the remaining gaps visible.",
+    "subtitle": "Page 1: 16.53% \u2192 3.42% differing pixels \u00b7 current output includes page 2",
+    "narration": "Here is the current page and its difference mask. Page one improves from sixteen point five three to three point four two percent. Some label text and percentages still differ. The mask helps us choose the next case to investigate. A rendering comparison measures appearance; formulas, editing, and saving back need their own checks.",
+    "comparison": "sheets-current",
+    "page": 0,
+    "crop": [
+      65,
+      65,
+      550,
+      450
+    ]
+  },
+  {
+    "id": "v2-13-regressions",
+    "kind": "regressions",
+    "eyebrow": "STEP 6 \u00b7 CHECK THE WIDER COLLECTION",
+    "title": "A fix must survive the other documents.",
+    "subtitle": "Recorded engineering example \u00b7 a print-area hypothesis was reverted",
+    "narration": "Then we rerun the wider collection. A proposed print-area rule once improved one spreadsheet but added eleven unwanted pages to another. That change was reverted. The collection keeps us honest: a local improvement is not enough if it breaks other documents. Every mismatch gives us evidence to refine the rule."
+  },
+  {
+    "id": "v2-14-timeline",
+    "kind": "timeline",
+    "eyebrow": "FROM THE OFFICE BRANCH HISTORY",
+    "title": "A little closer, day by day.",
+    "subtitle": "October 12\u201316, 2026 \u00b7 selected compatibility fixes",
+    "narration": "That is the daily loop: document, Microsoft reference, Starling export, diff, investigation, fix, and another comparison. The history shows printing fixes, chart formatting, floating pictures, blank-line heights, and chart labels progressing across the week. We keep repeating the process, including the small differences that are easy to overlook."
+  },
+  {
+    "id": "v2-15-closing",
+    "kind": "closing",
+    "eyebrow": "STARLING OFFICE \u00b7 FREE AND OPEN SOURCE",
+    "title": "Help us find the next difficult document.",
+    "subtitle": "openoffice.starling.build  \u00b7  github.com/starling-build/starling",
+    "narration": "Our goal is simple: your document should look the way its author intended. There is still work ahead. A small file you can share, together with its expected Microsoft output, can become the next test. That is how we improve compatibility, one reproducible difference at a time."
+  }
+]
