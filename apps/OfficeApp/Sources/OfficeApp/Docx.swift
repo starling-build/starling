@@ -2136,7 +2136,13 @@ enum DocxFormat {
                 f.verticalAnchor = node["w:vAnchor"] ?? (node["w:y"] != nil || node["w:yAlign"] != nil ? "margin" : "text")
                 f.horizontalAlign = node["w:xAlign"]
                 f.verticalAlign = node["w:yAlign"]
-                style.frame = f
+                // (A frame set "inline" vertically, of no width or height of
+                // its own, stays in the flow as a paragraph: zh-fe536967's
+                // footer, over a style's framed 29pt box, is one, and Word
+                // sets its page-number box from the footer's line, 21pt
+                // above where ours took it out of the flow.)
+                let inline = node["w:yAlign"] == "inline" && (Double(node["w:w"] ?? "") ?? 0) == 0 && node["w:hRule"] != "exact"
+                style.frame = inline ? nil : f
             }
         }
         if let k = pPr.first("w:keepNext") { style.keepNext = !_isOff(k) }

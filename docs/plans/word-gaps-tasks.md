@@ -118,7 +118,7 @@ second started at 74.5). Its low ones, unclaimed unless marked:
 zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 16), zh-a5745784 26.5 (T77, 99.7 now), zh-540dc149 34.3 (T76, done),
 zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (T80, done), zh-268f8d15 93.0 (Mac, looking: footer "-1-"),
-zh-de3410bd 93.2, zh-fe536967 94.0 (Mac, looking: footer 21pt low). zh-d89c3840 was T70.
+zh-de3410bd 93.2, zh-fe536967 94.0 (T83, 99.0 now). zh-d89c3840 was T70.
 
 ### T78. zh-fec5fa30: 55 pages where Word's are 56 — claimed
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
@@ -137,6 +137,16 @@ table keeps a grid wider than its pct share (Word rules the form's 638.6pt
 grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
+
+### T83. zh-fe536967: a frame set inline is a paragraph in the flow — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+Its footer paragraph's own `w:framePr` (`w:w` 0, `hRule` auto,
+`yAlign` inline) over its style's framed box (exact 581 twips, y -164):
+ours took it out of the flow as a frame, and the page-number text box
+anchored in it stood 21pt low on all 40 pages. Word sets it as a
+paragraph. A frame `yAlign` inline with no width and no exact height is
+none now. zh-fe536967 94.0 -> 99.0; zh-90e0cea8 (the only other) did
+not move; nothing fell.
 
 ### T80. zh-9e020c95: a first line indented past the margin holds a character — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
