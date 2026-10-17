@@ -361,6 +361,10 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(f(12.3, "0.###"), "12.3")
         XCTAssertEqual(f(1500000, "#,##0,,\"M\""), "2M")
         XCTAssertEqual(NumberFormat.display(.text("abc"), "\"<\"@\">\"").text, "<abc>")
+        // A pad (`_x`) is a space, except to the grid, which is told x.
+        XCTAssertEqual(f(3750, "#,##0_)"), "3,750 ")
+        XCTAssertEqual(NumberFormat.format(3750, "#,##0\\ _\u{20AC}_-", pads: true).text, "3,750 \u{2}\u{20AC}\u{2}-")
+        XCTAssertEqual(NumberFormat.display(.text("x"), "_(@_)", pads: true).text, "\u{2}(x\u{2})")
     }
 
     func testTypedFormatSticks() {

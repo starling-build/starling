@@ -2388,9 +2388,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let width = right - left
         guard width > 2 else { return }
         let chars = max(1, Int(width / (7 * zoom)))
-        var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars)
+        var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars, pads: true)
         if cell.value.isText { text = Self.shown(text) }
         let style = _textStyle(st, color: color, ink: ink)
+        // Pads before the text (`_W0`, Accounting's `_(@_)`) are a gap of
+        // their characters' width ahead of it. (Spaced out as `_TextCache`
+        // spaces the rest, the text after them was drawn half the spacing
+        // late: the pad lab's `_W0` stood 3.6 pt right of Excel's.)
+        var lead = 0.0
+        while text.first == NumberFormat.padMark, let x = text.dropFirst().first {
+            lead += texts.painter(String(x), style).width
+            text = String(text.dropFirst(2))
+        }
         var align = st.hAlign
         if align == .general {
             switch cell.value {
@@ -2407,10 +2416,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
         var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2) : .infinity, align: wraps ? lineAlign : .left)
         // A number too wide for its cell is ####, never cut.
-        if case .number = cell.value, tp.width > width - pad * 2 {
+        if case .number = cell.value, lead + tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))
             text = String(repeating: "#", count: hashes)
             color = nil
+            lead = 0
             tp = texts.painter(text, style)
         }
         // Text spills over empty neighbours.
@@ -2448,11 +2458,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let margin = printing
             ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).digit / 4
             : pad
+        let rightMargin = printing ? margin - 0.4 : margin
         let tx: Double
         switch align {
-        case .right: tx = right - (printing ? margin - 0.4 : margin) - inset - tp.width
-        case .center: tx = left + (width - tp.width) / 2
-        default: tx = left + margin + inset
+        case .right: tx = right - rightMargin - inset - tp.width
+        case .center: tx = left + (width - lead - tp.width) / 2 + lead
+        default: tx = left + margin + inset + lead
         }
         let ty: Double
         switch st.vAlign {
@@ -2470,9 +2481,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // at the right, the character repeated between — Accounting's "$"
         // at the cell's left edge and its number at the right, where ours
         // were side by side (LIBRE_OFFICE-128382-0).
-        if !wraps, tp.width <= width - pad * 2, let parts = NumberFormat.fillParts(cell.value, st.numberFormat, width: chars) {
+        if !wraps, tp.width <= width - pad * 2, let parts = NumberFormat.fillParts(cell.value, st.numberFormat, width: chars, pads: true) {
             let lp = texts.painter(parts.left, style), rp = texts.painter(parts.right, style)
-            let x0 = left + pad + lp.width, x1 = right - pad - rp.width
+            let x0 = left + margin + lp.width, x1 = right - rightMargin - rp.width
             if parts.fill != " ", x1 > x0 {
                 let one = texts.painter(String(parts.fill), style).width
                 if one > 0 {
@@ -2480,7 +2491,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     fp.paint(canvas, at(x1 - fp.width))
                 }
             }
-            lp.paint(canvas, at(left + pad))
+            lp.paint(canvas, at(left + margin))
             rp.paint(canvas, at(x1))
             canvas.restore()
             return
@@ -2631,11 +2642,34 @@ final class _TextCache {
         let k = Key(text: text, style: style, width: maxWidth.isFinite ? Int(maxWidth) : -1, align: align)
         if let tp = _cache[k] { return tp }
         if _cache.count > 4000 { clear() }
-        let lines = maxWidth.isFinite ? _breakLines(text, style, maxWidth) : text
-        let tp = TextPainter(text: TextSpan(text: lines, style: style.flutter), textAlign: align, textDirection: .ltr)
+        let lines = maxWidth.isFinite ? _breakLines(NumberFormat.unpad(text), style, maxWidth) : text
+        let tp = TextPainter(text: _span(lines, style), textAlign: align, textDirection: .ltr)
         tp.layout(minWidth: 0, maxWidth: maxWidth)
         _cache[k] = tp
         return tp
+    }
+
+    /// The text as one span, or as runs where a format pads it (`_x`, as
+    /// `NumberFormat` marks it): each pad a space spaced out to x's width,
+    /// blank on the page and nothing in its text but the space.
+    private func _span(_ text: String, _ style: GridTextStyle) -> TextSpan {
+        guard text.contains(NumberFormat.padMark) else { return TextSpan(text: text, style: style.flutter) }
+        // (A lone space measures as its advance only between letters.)
+        let space = _width("a a", style) - _width("aa", style)
+        var spans: [InlineSpan] = [], run = "", padding = false
+        for ch in text {
+            if padding {
+                if !run.isEmpty { spans.append(TextSpan(text: run, style: style.flutter)); run = "" }
+                spans.append(TextSpan(text: " ", style: style.flutter.copyWith(letterSpacing: _width(String(ch), style) - space)))
+                padding = false
+            } else if ch == NumberFormat.padMark {
+                padding = true
+            } else {
+                run.append(ch)
+            }
+        }
+        if !run.isEmpty { spans.append(TextSpan(text: run, style: style.flutter)) }
+        return TextSpan(children: spans)
     }
 
     /// Wrapped text broken where Excel breaks it: a word that does not

@@ -11,10 +11,34 @@ import Foundation
 enum NumberFormat {
     /// The text a value shows in a cell with format `code`, and a colour
     /// the format asks for ([Red] etc.), if any.
-    static func display(_ v: CellValue, _ code: String, width: Int = 11) -> (text: String, color: UInt32?) {
+    /// `pads`: keep each `_x` as `padMark` and x, for the grid to leave
+    /// x's width blank (Excel's `_€_-` stands a euro and a hyphen in from
+    /// the edge, lo-forum-mso-de-104083's columns). Everywhere else a pad
+    /// is one space, as TEXT() shows it.
+    static func display(_ v: CellValue, _ code: String, width: Int = 11, pads: Bool = false) -> (text: String, color: UInt32?) {
+        let r = _display(v, code, width: width)
+        return pads ? r : (unpad(r.text), r.color)
+    }
+
+    /// The mark before a pad's character (`_x`) in what `display` and
+    /// `format` give with `pads`.
+    static let padMark: Character = "\u{2}"
+
+    /// `s` with each pad as one space.
+    static func unpad(_ s: String) -> String {
+        guard s.contains(padMark) else { return s }
+        var out = "", skip = false
+        for ch in s {
+            if skip { skip = false; continue }
+            if ch == padMark { out.append(" "); skip = true } else { out.append(ch) }
+        }
+        return out
+    }
+
+    private static func _display(_ v: CellValue, _ code: String, width: Int) -> (text: String, color: UInt32?) {
         switch v {
         case .empty: return ("", nil)
-        case .bool(let b): return display(.text(b ? "TRUE" : "FALSE"), code, width: width)
+        case .bool(let b): return _display(.text(b ? "TRUE" : "FALSE"), code, width: width)
         case .error(let e): return (e.rawValue, nil)
         case .text(let s):
             let sections = _sections(code)
@@ -25,8 +49,8 @@ enum NumberFormat {
             // A number under a text format (`@`, Text) shows as General:
             // lo-tdf118668's row numbers, 7 in a cell formatted Text, print
             // as 7, where ours printed the @.
-            if isText(code) { return format(n, "General", width: width) }
-            return format(n, code, width: width)
+            if isText(code) { return _format(n, "General", width: width) }
+            return _format(n, code, width: width)
         }
     }
 
@@ -40,7 +64,7 @@ enum NumberFormat {
     /// the text as `display` shows it, cut at the fill, and the character
     /// repeated there to the cell's width. Nil for a format without one.
     /// Only painting asks: everywhere else the fill is nothing, as before.
-    static func fillParts(_ v: CellValue, _ code: String, width: Int = 11) -> (left: String, fill: Character, right: String)? {
+    static func fillParts(_ v: CellValue, _ code: String, width: Int = 11, pads: Bool = false) -> (left: String, fill: Character, right: String)? {
         guard code.contains("*") else { return nil }
         let marker: Character = "\u{1}"
         var out = "", fill: Character? = nil
@@ -61,14 +85,19 @@ enum NumberFormat {
             out.append(ch); k += 1
         }
         guard let fill else { return nil }
-        let shown = display(v, out, width: width).text
+        let shown = display(v, out, width: width, pads: pads).text
         guard let i = shown.firstIndex(of: marker) else { return nil }
         return (String(shown[..<i]), fill, String(shown[shown.index(after: i)...]).filter { $0 != marker })
     }
 
     /// `inText`: TEXT() shows a negative elapsed time ([h]:mm) with a minus
     /// where a cell shows ########.
-    static func format(_ n: Double, _ code: String, width: Int = 11, inText: Bool = false) -> (text: String, color: UInt32?) {
+    static func format(_ n: Double, _ code: String, width: Int = 11, inText: Bool = false, pads: Bool = false) -> (text: String, color: UInt32?) {
+        let r = _format(n, code, width: width, inText: inText)
+        return pads ? r : (unpad(r.text), r.color)
+    }
+
+    private static func _format(_ n: Double, _ code: String, width: Int = 11, inText: Bool = false) -> (text: String, color: UInt32?) {
         if code.isEmpty || code.lowercased() == "general" { return (general(n, width: width), nil) }
         let sections = _sections(code)
         let conds = sections.map(_condition)
@@ -344,7 +373,7 @@ enum NumberFormat {
                 k += 1
                 while k < chars.count, chars[k] != "\"" { out.append(chars[k]); k += 1 }
             case "\\": if k + 1 < chars.count { out.append(chars[k + 1]); k += 1 }
-            case "_": if k + 1 < chars.count { out += " "; k += 1 }
+            case "_": if k + 1 < chars.count { out.append(padMark); out.append(chars[k + 1]); k += 1 }
             case "*": k += 1
             case "@": out += text
             default: out.append(ch)
@@ -370,7 +399,7 @@ enum NumberFormat {
                 while k < chars.count, chars[k] != "\"" { s.append(chars[k]); k += 1 }
                 toks.append(.lit(s))
             case "\\": if k + 1 < chars.count { toks.append(.lit(String(chars[k + 1]))); k += 1 }
-            case "_": if k + 1 < chars.count { toks.append(.lit(" ")); k += 1 }   // a space as wide as the next char
+            case "_": if k + 1 < chars.count { toks.append(.lit(String([padMark, chars[k + 1]]))); k += 1 }   // a space as wide as the next char
             case "*": k += 1                                                       // fill character: ignored
             case "0", "#", "?": toks.append(.digit(ch))
             case ".": toks.append(.point)
@@ -817,7 +846,9 @@ enum NumberFormat {
                     continue
                 }
                 out.append(ch); k += 1; continue
-            case "_": k += 2; out.append(" "); continue
+            case "_":
+                if k + 1 < chars.count { out.append(padMark); out.append(chars[k + 1]) }
+                k += 2; continue
             case "*": k += 2; continue
             default:
                 out.append(ch); k += 1
