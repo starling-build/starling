@@ -338,6 +338,9 @@ struct Chart: Equatable {
     /// The chart names an Office chart style (`c:style`): one an Office
     /// application wrote, not LibreOffice.
     var officeStyled = true
+    /// Painted on a slide (set by the slide painter), where a few of
+    /// PowerPoint's measures differ from Word's and Excel's.
+    var onSlide = false
     var categoryTicksOut = false
     var categoryAxisDeleted = false
 
@@ -1826,7 +1829,12 @@ enum ChartPainter {
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
             if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
-            plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2, area.right - right, area.bottom - bottom)
+            // (A 2013-style chart on a slide starts 1.5 pt lower:
+            // chart-slide-bg's top gridline at 100.5 in PowerPoint's
+            // print, where ours stood at 99; its three like charts and
+            // tdf149985's the same.)
+            let lower = c.styled2013 && c.onSlide ? 1.5 * k : 0
+            plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the
         // categories and one for each series, and the room before the

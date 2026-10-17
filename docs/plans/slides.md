@@ -2274,6 +2274,16 @@ The shared layout's `RichTextTheme.kernsByRun` (on for slides, off for
 Word, which keeps its own `wordRules`) turns the engine's kerning off
 for a run whose `kerningFrom` is 0 or above its size.
 
+**A newer chart's plot 1.5 pt lower on a slide, 2026-10-17** (sweep
+172: 1.0301 → 1.0254%; chart-picture-bg 2.66 → 1.63, chart-slide-bg
+2.32 → 1.61, chart-texture-bg 2.24 → 1.59, tdf149985, tdf112089 and
+tdf114821 a little; none worse). A 2013-style column chart's top
+gridline stands 1.5 pt lower in PowerPoint's print than ours (100.5
+against 99 on chart-slide-bg), its foot where ours was; 1.25 and 1.75
+both scored worse. Its value labels' middles stand 1.2 pt above their
+lines, which made no difference to the score and is left. Slides only
+(`Chart.onSlide`): the half-line top was measured on Word's prints.
+
 **Also looked at, 2026-10-17:** PowerPoint's line positions wobble by
 up to a point in a repeating pattern — the AES 2011 tables' 16.8 pt
 lines step 17.04, 17.04, 17.04, 16.08, 16.80, averaging ours exactly —

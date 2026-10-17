@@ -645,7 +645,9 @@ final class SlidePainter: CustomPainter {
         }
         if let chart = shape.chart {
             if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation) }
-            ChartPainter.paint(chart, canvas, r, pxPerPt: px, theme: theme)
+            var onSlide = chart
+            onSlide.onSlide = true
+            ChartPainter.paint(onSlide, canvas, r, pxPerPt: px, theme: theme)
         }
         if shape.chart != nil {
             // The chart's own drawing, over it.
