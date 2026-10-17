@@ -989,6 +989,16 @@ cell's paragraph is exact 25pt (lines print 24 apart in both), 14pt 標楷體,
 hanging indent; table margins default. Every page after runs a line ahead.
 What Word keeps for the parted row below its last line is the question —
 T32's ground (Windows).
+Measured (Windows box, 2026-10-17): nothing is kept below the line. Word's
+footer (page number and an empty paragraph, Calibri 10pt, 12.24 apart, foot
+at 792.4) tops at about 767.98; its fourth line would end at 761.28 + 6.0
+with the 0.48 rule under it, 768.24 — over by 0.26pt. Ours ends at 767.15,
+0.6 higher, all of it spread across the page in under-a-quarter-point
+pieces: lines 0.22 high by 664, the row rule 6.33 under the baseline to
+Word's 6.48, the next row's first baseline 18.28 under it to 18.48 (Word's
+bold YaHei line sits 0.48 lower in a line of the same 24.2). It is the
+0.24pt raster (see the Linux box's scale-30 note, which turns it to 100).
+Released.
 
 ### Footer trailing spaces in a right-aligned paragraph (zh-c5b5087b, zh-9dd9ce6d) — measured, released (Mac)
 Both footers share zh-1563bd74's build: a page-number box on an empty
