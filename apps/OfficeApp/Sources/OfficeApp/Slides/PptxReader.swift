@@ -3060,6 +3060,14 @@ private struct SlideContext {
                     fontSize: ((s.size ?? 18) * 10).rounded() / 10, color: s.color ?? tx1))],
                     style: style))
             } else {
+                // A bullet before a link is in the text's own colour, not
+                // the link's: customGeo's resources list has black bullets
+                // before its blue links in PowerPoint's print.
+                if style.list != nil, style.bulletColor == nil,
+                   let first = p.children.first(where: { $0.name == "a:r" })?.first("a:rPr"),
+                   let link = first.first("a:hlinkClick"), link.descendant("ahyp:hlinkClr")?["val"] != "tx" {
+                    style.bulletColor = first.first("a:solidFill").flatMap { colors.color(in: $0) } ?? level.color ?? tx1
+                }
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
             }
             runLooks.append(looks)

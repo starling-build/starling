@@ -2134,6 +2134,12 @@ signpost WMFs under an `accent1` duotone print 39,87,145 and were their
 own black and yellow. The drawing is now played into a layer that takes
 the same colour filter (`SlidePainter.imagePaint`).
 
+**A bullet before a link in the text's colour, 2026-10-17** (no deck
+moved at two places). A paragraph whose first run is a link drew its
+bullet in the link's colour; PowerPoint draws it in the run's own (or
+the level's): customGeo's resources page, black bullets before blue
+links.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so
