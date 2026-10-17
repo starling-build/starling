@@ -938,6 +938,14 @@ the first line's indent box (HowWeRefactor's quotes); Word's paragraphs
 do not yet. With a letter before the tab the line is right.
 Built: documents too. The header within 2.4pt of Word's; no score moved.
 
+### T59. Moved text is read, kept and printed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: Tika-792 (0%; its "Moved (insertion) [1]" balloon).
+Known: the reader skips `w:moveTo` and `w:moveFrom` whole — moved text
+is gone from the page and from a save. Word shows the new place as an
+insertion (and prints "Moved (insertion) [n]" beside it), the old one
+as a deletion.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
