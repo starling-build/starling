@@ -7265,7 +7265,20 @@ public final class RichLayout {
                 // whose final marks Word hangs by 3.5pt). It holds for the
                 // `zh-TW` list before that layout: zh-ae3d78ee (mode 14)
                 // 84.4% to 100, zh-64044a1d (mode 11) +5.6.)
-                let holdsFinal = (document.keptSettings["w:noLineBreaksBefore"]?.containsSubstring("w:lang=\"zh-TW\"") ?? false)
+                let listed = document.keptSettings["w:noLineBreaksBefore"]?.containsSubstring("w:lang=\"zh-TW\"") ?? false
+                // (Without the list, in Taiwan's Chinese, a centred mark that
+                // ends the paragraph neither hangs nor gives anything, the
+                // line's other marks giving their halves: lab `hang` in
+                // zh-a5745784's package (Word 16, mode 14, zh-TW, 12pt) keeps
+                // "…大隊長代理。" or "…代理：", one comma on the line, to 6.0pt
+                // over, "…資格者，…資格：", two, to 12.0 — and with text after
+                // the colon to 18.0, its hang and the half before it. In the
+                // body, and of a paragraph not justified where the document
+                // compresses punctuation: zh-06c46ba9's justified ones, and
+                // zh-6c6adfde's that compress none, hang theirs in Word's
+                // print; a cell's last mark gives its half, lab `pe`.)
+                let centredFinal = !listed && !inCell && squeezes && p.style.alignment != .justify && document.marksCentred && Self._centredUnits.contains(units[tail])
+                let holdsFinal = (listed || centredFinal)
                     && (document.compatibilityMode ?? 12) < 15
                     && tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
                 // (From 2013's layout on a Latin comma hangs too, whole:
@@ -7332,7 +7345,7 @@ public final class RichLayout {
                     // 3.1 and 3.0 narrower in Word's print. Alone — the
                     // labs' line with a "？", which gives nothing — it
                     // gives nothing either.)
-                    let kept = hang > 0 || (holdsFinal && !(marks + own).contains { $0 != tail }) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
+                    let kept = hang > 0 || (holdsFinal && (centredFinal || !(marks + own).contains { $0 != tail })) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
                     let all = (marks + own).filter { !kept || $0 != tail }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
@@ -7352,16 +7365,7 @@ public final class RichLayout {
                     // line 16.9 over at 16pt, zh-457a8d62. A full-width
                     // quote is its glyph and a blank: half its em.)
                     func half(_ k: Int) -> Double { wideQuote(k) ? ems[k] / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2 }
-                    // (Where the mark that hangs ends the paragraph, Taiwan's
-                    // centred marks give nothing more before 2013's layout:
-                    // lab `hang` in zh-a5745784's package (Word 16, mode 14,
-                    // zh-TW, 12pt), "止，…資格者，…志工資格：" keeps "格" on the
-                    // line up to 12.0pt over when the colon ends the
-                    // paragraph — its hang alone — and up to 18.0 with text
-                    // after it; without the commas, 12.0 either way. Its
-                    // "…資格：" 15.7 over goes down in Word's print.)
-                    let finalHang = legacy && hang > 0 && endsParagraph && document.marksCentred
-                    let markRoom = all.reduce(0.0) { $0 + (finalHang && Self._centredUnits.contains(units[$1]) ? 0 : half($1)) }
+                    let markRoom = all.reduce(0.0) { $0 + half($1) }
                     let room = given.reduce(markRoom) { $0 + (gaps[$1] ?? 0) / 2 }
                     let need = over - hang - after
                     // From Word 2013's layout on the test is another:
