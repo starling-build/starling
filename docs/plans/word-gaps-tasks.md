@@ -1298,6 +1298,13 @@ zh-64044a1d 97.8 -> 99.0 (a table in a text box; exact rows), chartex 76.4
   line's end did not change the 35. Counting a no-break space inside a
   paragraph twice broke pages 9-10. Reverted; the fitter needs the
   engine's width for a final no-break space.
+- zh-7dc3afad p26: "【附錄一】" (12pt 標楷體) then its 20pt title (default
+  face) on one line in a landscape section: our baseline 15.1 under the
+  margin, Word's 25.6, the title's glyphs over the margin. Lab `ap1` L
+  (`甲乙丙丁` 12pt 標楷體 + `戊己庚辛` 20pt default face) reproduces it; with
+  the 標楷體 on the 20pt run instead (M), or no font on either (K), the
+  line is right. Not the paragraph strut: the single-line strut takes the
+  20pt run as the tallest (h 1.30). Not found.
 - zh-e02b0479 (68.6%): its form's last row is two 15.6pt grid pitches in
   Word because its text, 楷体_GB2312 10.5pt, is YaHei there (an 18pt
   line); our 楷体 is KaiTi, one pitch, and the merged "所需信息情况" above
