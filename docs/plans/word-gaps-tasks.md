@@ -862,7 +862,7 @@ Built: a floating text box's text takes the document's line grid, as
 Word's does (not `w:combine` text, a box in the line). Labels within
 0.4pt of Word's; no score moved (the line match groups that row alike).
 
-### T53. Web spacing between two lists
+### T55. Web spacing between two lists (numbered T53, then T54, at first; the Mac's came first) — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
 Documents: delins (its body under the markup).
 Known: delins's bullets are web-spaced (before/after 100 with
@@ -871,6 +871,9 @@ languages…" (numId 1) and the nested "the subcommentaries…" (numId 2)
 stand 19.1pt apart in Word's print (scaled; 27.6 unscaled), 10.3 in ours:
 Word gives 14pt between items of two lists, ours none, the two being the
 same kind. The same after a list's last item under a paragraph of none.
+Built: one list is one numbering (listId) where the file names it; an
+item's automatic space after is none only before an item of its own
+list. bug57031 94.4 -> 100%, delins 23.3 -> 35.0; nothing else moved.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

@@ -3994,6 +3994,15 @@ fitter dropped the paragraph's tail).
   Not built: moved text ("Moved (insertion)": Tika-792), "Field Code
   Changed" (the reader drops field codes), change bars in the margin,
   the comment range's tint in its author's colour.
+- **Web spacing parts two lists (2026-10-16).** delins: bullets with
+  automatic spacing (beforeAutospacing/afterAutospacing), "A name in
+  various Indian languages…" of numId 1, then a nested bullet of numId 2:
+  Word sets them the web's 14pt apart, ours none, taking them for one
+  list because both are bullets. One list is now the same numbering
+  (`listId`) where the file names one, the kind only for the editor's
+  own; and an item's automatic space after is none only where an item
+  of its own list follows. bug57031 94.4 -> 100%, delins 23.3 -> 35.0;
+  nothing else moved.
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

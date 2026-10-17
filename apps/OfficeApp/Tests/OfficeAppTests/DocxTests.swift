@@ -1981,6 +1981,34 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(gap(hidden: false), 14, accuracy: 0.8, "the larger space alone")
     }
 
+    /// delins: web-spaced bullets of one list stand with no space between
+    /// them; a bullet of another list under them — the same kind, another
+    /// numbering — keeps the web's 14pt, and so does a list's last item
+    /// over a paragraph of none.
+    func testWebSpacingPartsTwoLists() throws {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        func item(_ text: String, list: String?) -> RichParagraph {
+            var p = RichParagraph(text: text)
+            p.style.spaceBeforeAuto = true
+            p.style.spaceAfterAuto = true
+            if let list { p.style.list = .bullet; p.style.listId = list }
+            return p
+        }
+        func gap(_ a: RichParagraph, _ b: RichParagraph) -> Double {
+            var doc = RichDocument(paragraphs: [a, b])
+            doc.htmlAutoSpacing = true
+            doc.readFromFile = true   // (a list of the editor's own is List Paragraph, contextual)
+            let l = RichLayout(theme: theme, paragraphCount: 2)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return (l.geometry(1).textTop - (l.geometry(0).textTop + l.geometry(0).painter.height)) / theme.pixelsPerPoint
+        }
+        XCTAssertEqual(gap(item("a", list: "1"), item("b", list: "1")), 0, accuracy: 1.1, "one list: none between")
+        XCTAssertEqual(gap(item("a", list: "1"), item("b", list: "2")), 14, accuracy: 1.1, "two lists: the web's 14pt")
+        XCTAssertEqual(gap(item("a", list: "1"), item("b", list: nil)), 14, accuracy: 1.1, "a list's last item over a paragraph of none")
+    }
+
     private func tableCount(_ x: String) -> Int { x.components(separatedBy: "<w:tbl>").count + x.components(separatedBy: "<w:tbl ").count - 2 }
 
     /// A small nested table is a table of its own: one block in its

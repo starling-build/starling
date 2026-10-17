@@ -3802,7 +3802,16 @@ public final class RichLayout {
         // sets bug59058's first reference 30pt under its "References"
         // (9pt after), its others 24 apart, where ours gave the first
         // none and stood it 5pt high.)
-        let autoGap = style.list == nil || !(i > 0 && document.paragraphs[i - 1].style.list == style.list) ? 14.0 : 0.0
+        // (One list: the same numbering where the file names one, of any
+        // level — delins's bullets of numId 1 and the nested one of
+        // numId 2 under them stand 14pt apart in Word's print, where ours
+        // took them for one list, both being bullets, and set none.)
+        func oneList(_ a: RichParagraphStyle, _ b: RichParagraphStyle) -> Bool {
+            guard a.list != nil, b.list != nil else { return false }
+            if let x = a.listId, let y = b.listId { return x == y }
+            return a.list == b.list
+        }
+        let autoGap = style.list == nil || !(i > 0 && oneList(document.paragraphs[i - 1].style, style)) ? 14.0 : 0.0
         // Contextual spacing: no space against a neighbour of the same style.
         func sameStyle(_ j: Int) -> Bool {
             guard j >= 0, j < document.paragraphs.count else { return false }
@@ -3850,8 +3859,12 @@ public final class RichLayout {
             guard theme.wordRules, let v = Double(s.eastAsian[key] ?? ""), v != 0 else { return nil }
             return v / 100 * (_grid(i, document).pitch ?? 12)
         }
-        func spaceAfter(_ s: RichParagraphStyle) -> Double {
-            web && s.spaceAfterAuto ? (s.list == nil ? 14.0 : 0.0) : inLines(s, "w:afterLines") ?? s.spaceAfter
+        // (Paragraph `j`'s: an item's automatic space after is none only
+        // where an item of its own list follows it.)
+        func spaceAfter(_ j: Int) -> Double {
+            let s = document.paragraphs[j].style
+            let listGoesOn = j + 1 < document.paragraphs.count && oneList(s, document.paragraphs[j + 1].style)
+            return web && s.spaceAfterAuto ? (s.list == nil || !listGoesOn ? 14.0 : 0.0) : inLines(s, "w:afterLines") ?? s.spaceAfter
         }
         var spaceBefore = web && style.spaceBeforeAuto ? autoGap : inLines(style, "w:beforeLines") ?? style.spaceBefore
         // (Automatic spacing gives way at a cell's edges, as a web page's
@@ -3871,7 +3884,7 @@ public final class RichLayout {
                 // two paragraphs: `_sharedSpace` is the body's.)
                 let above = document.paragraphs[i - 1]
                 if p.cell != nil, above.cell == p.cell, style.spaceBeforeAuto || above.style.spaceAfterAuto {
-                    spaceBefore = max(0, spaceBefore - spaceAfter(above.style))
+                    spaceBefore = max(0, spaceBefore - spaceAfter(i - 1))
                 }
             }
         }
@@ -3885,7 +3898,7 @@ public final class RichLayout {
             let a = document.paragraphs[i - 1].style
             if a.contextualSpacing, a.named == style.named, a.heading == style.heading,
                a.list == style.list || (style.named != nil && a.list != nil && style.list != nil) {
-                spaceBefore = max(0, spaceBefore - spaceAfter(a))
+                spaceBefore = max(0, spaceBefore - spaceAfter(i - 1))
             }
         }
         // An HTML block's margins: its top over its first paragraph, its
@@ -3897,7 +3910,7 @@ public final class RichLayout {
         }
         let k = spacingFollowsFont ? fontScale : 1
         return ((skipBefore ? 0 : _px(spaceBefore * k)) + _px(divTop),
-                (skipAfter || dropAfter ? 0 : _px(spaceAfter(style) * k)) + _px(divBottom))
+                (skipAfter || dropAfter ? 0 : _px(spaceAfter(i) * k)) + _px(divBottom))
     }
 
     /// The sheet's Normal look, for `RichTextTheme.textStyle`.
