@@ -1767,6 +1767,24 @@ less its mark's descent over it. Same-base sweep: zh-547fc43c 87.9 ->
 zh-9c5d0c3f's pictures on grids among them. Left on its p6: the chart's
 axis titles ("亿元", "%") at the axes' tops and its line's data labels.
 
+### T81. zh-5a9a85c6: a VML page number fitted on every page — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+Documents: zh-5a9a85c6 (94.9%).
+Known: its footers' "— PAGE —" is a VML-only text box (`w:pict`,
+mso-wrap-style:none, mso-fit-shape-to-text). Word's print never wraps it
+("— 15 —" whole on every page); ours keeps the width of page 1's "— 1 —"
+(lab `ftD`'s rule) and wraps the closing dash from page 10. Lab `ftD`'s
+box was DrawingML (zh-a4b0f6ea, `wps` with a VML fallback). Plan: size
+once only a DrawingML box; fit a VML one on each page.
+
+### T82. Writer charts: axis titles placed by manualLayout, line-series data labels — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17 (handed over by Slides)
+Documents: zh-547fc43c (p5, p6, p8 charts).
+Known: "亿元" (a catAx title, manualLayout x .0147 y .0369) stands at the
+chart's top left in Word's print, ours under the plot; a secondary
+axis's "%" likewise; a line series' dLbls (showVal, dLblPos t) print
+in Word and not in ours.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
