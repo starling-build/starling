@@ -2087,6 +2087,17 @@ private struct SlideContext {
                         if level.bullet == .char { style.bulletText = level.bulletGlyph }
                         style.bulletColor = level.bulletColor
                         style.bulletScale = level.bulletScale
+                        // In its own face, as a shape's: AES 2011's Arial
+                        // "•" before Verdana text is Arial's 4.9 pt at 14,
+                        // where Verdana's 6.9 pushed "that tell" apart.
+                        if level.bullet == .char, let f = level.bulletFont,
+                           !["wingdings", "symbol", "webdings"].contains(where: { f.lowercased().hasPrefix($0) }) {
+                            style.bulletFontFamily = _font(f)
+                        }
+                        if level.bullet == .char, level.bulletFont?.lowercased() == "wingdings", style.bulletText == "●" {
+                            style.bulletStandInFamily = OfficeFonts.calibri
+                            style.bulletStandInScale = 0.565 / 0.46
+                        }
                     default:
                         break
                     }

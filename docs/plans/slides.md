@@ -2185,6 +2185,20 @@ charts in PowerPoint's print, across the bars, where ours sat at the
 top. The text stands 4.5 pt in and 1.5 down from the box's corner,
 drawn after the plot; the plot keeps its room as before.
 
+**A table cell's bullet in its own face, 2026-10-17** (AES 2011
+Maloney 4.97 → 4.69; the 54 other table decks unchanged). A cell's
+`a:buFont` was dropped, so its "•" came out in the text's face: in
+Maloney's Verdana tables a 6.9 pt dot where PowerPoint sets Arial's
+4.9, and "Can you headings that tell" went a word early. Cells now
+take the bullet's face, and Wingdings' round bullet's stand-in, as a
+shape's paragraphs do.
+
+**Looked at and left, 2026-10-17:** the Office 2007 theme's intense
+effect — a 5 × 2 pt `bevelT` under `threePt` — on 60810's eight
+SmartArt boxes (one page): PowerPoint lifts the face 7% and lights a
+5 pt band, white-hot 1.5 pt in along the top, the sides and foot
+darkened to about 0.7 at the edge. Only 60810 and customGeo use it.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so
