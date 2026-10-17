@@ -3025,6 +3025,12 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
   /// This is derived from `textHeightBehavior?.leadingDistribution ?? .proportional`.
   internal let _leadingDistribution: TextLeadingDistribution
 
+  /// Starling: each line keeps the fraction of its height rather than
+  /// rounding to a whole layout unit, as a word processor's lines do (a
+  /// 12pt line of 1332/1024 em is 15.61, not 15.6 or 16). No Dart
+  /// counterpart; the bridge passes it as bit 13 of the encoded style.
+  public var fractionalLineHeights = false
+
   // MARK: - Equatable
 
   /// **Dart Source:** `text.dart:2081-2098`
@@ -3049,6 +3055,7 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
       && lhs.ellipsis == rhs.ellipsis
       && lhs.locale == rhs.locale
       && lhs._leadingDistribution == rhs._leadingDistribution
+      && lhs.fractionalLineHeights == rhs.fractionalLineHeights
   }
 
   // MARK: - Hashable
@@ -3073,6 +3080,7 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
     hasher.combine(ellipsis)
     hasher.combine(locale)
     hasher.combine(_leadingDistribution)
+    hasher.combine(fractionalLineHeights)
   }
 
   // MARK: - CustomStringConvertible
@@ -4407,6 +4415,11 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     if let textHeightBehavior = style.textHeightBehavior {
       mask |= (1 << 6)
       encodedStyle[6] = Int32(textHeightBehavior.encode())
+    }
+
+    // (Starling: a flag alone, no value of its own.)
+    if style.fractionalLineHeights {
+      mask |= (1 << 13)
     }
 
     encodedStyle[0] = mask

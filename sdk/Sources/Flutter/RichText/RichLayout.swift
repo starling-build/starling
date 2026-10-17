@@ -2186,6 +2186,7 @@ public final class RichLayout {
     private func _detachedHeight(_ p: RichParagraph, _ document: RichDocument) -> Double {
         let (span, _, _) = _span(for: p, at: nil, document, textWidth: _px(1000))
         let painter = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: _strut(span))
+        painter.fractionalLineHeights = theme.wordRules
         painter.layout()
         defer { painter.dispose() }
         let body = p.style.lineCollapsed ? 0 : painter.height
@@ -2576,7 +2577,12 @@ public final class RichLayout {
             // asking its own top line's width, as before — zh-e061a08e's
             // page 4 parts a row under a thicker line at Word's line.)
             if c.ruleBelow > 0 && !parted { return 0 }
-            return parted ? max(0, c.rules - c.ruleBelow) : max(0, c.ruleNext)
+            // (Before Word 2013's mode, the half of the line that hangs
+            // under the row's edge: zh-1a3c7aa0, mode 12, sets page 13's
+            // "5 O,O-二甲基…" row under a 0.5pt line with 0.22pt left,
+            // where bug65649's 0.75 line with 0.6 left, mode 15, did not.)
+            if parted { return max(0, c.rules - c.ruleBelow) }
+            return max(0, c.ruleNext) / ((document.compatibilityMode ?? 12) >= 15 ? 1 : 2)
         }
         func cellCuts(_ k: Int) -> [Double] {
             let g = geometry(k)
@@ -4886,6 +4892,12 @@ public final class RichLayout {
                 textDirection: style.rightToLeft ? .rtl : .ltr,
                 strutStyle: picturesInLine || Self._risesForNumber(inline) ? nil : _strut(span)
             )
+            // (Word's lines keep the fraction of their height: a 12pt
+            // PMingLiU line is 15.61pt, 1332/1024 em, and zh-de3410bd's
+            // page 1 ends where Word's does only with it — rounded to
+            // 15.6, its last two lines fit with 0.35pt to spare where
+            // Word's print takes them to page 2.)
+            painter.fractionalLineHeights = theme.wordRules
             if !inline.isEmpty { painter.setPlaceholderDimensions(inline.map { $0.dimensions }) }
             // (A thousandth of a point over: a line that is exactly the
             // column's width — ten ideographs in ten ems — must fit, and
@@ -4933,6 +4945,7 @@ public final class RichLayout {
                let strut = _strut(span, tallest: true),
                lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
+                held.fractionalLineHeights = painter.fractionalLineHeights
                 if !inline.isEmpty { held.setPlaceholderDimensions(inline.map { $0.dimensions }) }
                 held.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
                 if held.computeLineMetrics().count == lines {
@@ -4951,6 +4964,7 @@ public final class RichLayout {
                        painter.computeLineMetrics().contains(where: { $0.height < size * h - _px(pitch) / 2 }) {
                         let even = TextPainter(text: Self._evenLeading(span), textAlign: align,
                                                textDirection: style.rightToLeft ? .rtl : .ltr)
+                        even.fractionalLineHeights = painter.fractionalLineHeights
                         if !inline.isEmpty { even.setPlaceholderDimensions(inline.map { $0.dimensions }) }
                         even.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
                         return even.computeLineMetrics().count == lines ? even : painter
@@ -5236,6 +5250,7 @@ public final class RichLayout {
             let (span, held, _) = _span(for: empty, at: nil, document, textWidth: textWidth)
             let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr,
                                     strutStyle: held.contains(where: { $0.image != nil }) ? nil : _strut(span))
+            probe.fractionalLineHeights = theme.wordRules
             if !held.isEmpty { probe.setPlaceholderDimensions(held.map { $0.dimensions }) }
             probe.layout(minWidth: 0, maxWidth: max(1, textWidth))
             bodyHeight = max(bodyHeight, probe.height)
@@ -6923,6 +6938,7 @@ public final class RichLayout {
         }
         let wide = TextPainter(text: copy(root), textAlign: painter.textAlign, textDirection: painter.textDirection ?? .ltr,
                                strutStyle: strut)
+        wide.fractionalLineHeights = painter.fractionalLineHeights
         if let dims = painter.placeholderDimensions {
             wide.setPlaceholderDimensions(dims.map {
                 PlaceholderDimensions(size: Size($0.size.width / k, $0.size.height), alignment: $0.alignment,
@@ -8660,6 +8676,7 @@ public final class RichLayout {
             }
         }
         let painter = TextPainter(text: span, textAlign: align, textDirection: p.style.rightToLeft ? .rtl : .ltr)
+        painter.fractionalLineHeights = g.painter.fractionalLineHeights
         painter.layout(minWidth: g.textWidth, maxWidth: g.textWidth)
         let top = start == 0 ? 0 : g.painter.getOffsetForCaret(TextPosition(offset: start), Rect.zero).dy
         return (painter, top, start == 0, lines)
@@ -9624,6 +9641,7 @@ public final class RichLayout {
         let width = max(1, _flowWidth(i))
         let (span, held, _) = _span(for: empty, at: i, document, textWidth: width)
         let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: _strut(span))
+        probe.fractionalLineHeights = theme.wordRules
         if !held.isEmpty { probe.setPlaceholderDimensions(held.map { $0.dimensions }) }
         probe.layout(minWidth: 0, maxWidth: width)
         defer { probe.dispose() }

@@ -878,6 +878,13 @@ public final class TextPainter {
     /// The strut style to use.
     ///
     /// **Dart Source:** `text_painter.dart:998-1006`
+    /// Starling: each line keeps the fraction of its height rather than
+    /// rounding to a whole unit (`ParagraphStyle.fractionalLineHeights`),
+    /// as a word processor's lines do. Off unless asked for.
+    public var fractionalLineHeights = false {
+        didSet { if fractionalLineHeights != oldValue { markNeedsLayout() } }
+    }
+
     public var strutStyle: StrutStyle? {
         get { _strutStyle }
         set {
@@ -956,7 +963,7 @@ public final class TextPainter {
             "TextPainter.textDirection must be set to a non-nil value before using the TextPainter."
         )
         let baseStyle = _text?.style ?? TextStyle()
-        return baseStyle.getParagraphStyle(
+        var style = baseStyle.getParagraphStyle(
             textAlign: textAlignOverride ?? textAlign,
             textDirection: textDirection,
             textScaler: textScaler,
@@ -966,6 +973,8 @@ public final class TextPainter {
             locale: _locale,
             strutStyle: _strutStyle
         )
+        style.fractionalLineHeights = fractionalLineHeights
+        return style
     }
 
     private func _createLayoutTemplate() -> any Paragraph {

@@ -325,11 +325,17 @@ struct PdfMarkup {
         var authors: [String] = []
         for n in notes where !authors.contains(n.author) { authors.append(n.author) }
         var floor = -Double.infinity
-        let balloon: (family: String, size: Double) = {
+        let balloon: (family: String, size: Double, line: Double?) = {
             guard let style = document.styles.styles.first(where: { $0.name.lowercased() == "balloon text" }) else {
-                return (OfficeFonts.serif, 9)
+                return (OfficeFonts.serif, 9, nil)
             }
-            return (OfficeFonts.substitute(style.char.fontFamily ?? "Tahoma"), style.char.fontSize ?? 8)
+            // (Its lines as high as Word's face has them, where that is
+            // not its clone's: Tahoma's 1.207 ems, its ascent and descent
+            // — delins's balloons stand 15.06pt apart, a 9.66pt line and
+            // the padding, where the clone's line put them 15.75 apart.)
+            let family = style.char.fontFamily ?? "Tahoma"
+            return (OfficeFonts.substitute(family), style.char.fontSize ?? 8,
+                    family.trimmingWhitespace().lowercased() == "tahoma" ? 1.207 : nil)
         }()
         for note in notes {
             let caret = layout.caretRect(note.anchor, document)
@@ -341,11 +347,13 @@ struct PdfMarkup {
             // for Mac's own, Times 9pt: Tika-792's and comment's balloons.
             // Deleted text and a comment's in their own face at that size.)
             let family = balloon.family, size = balloon.size
-            let plain = TextStyle(color: Color(0xFF000000), fontSize: size, fontFamily: note.family ?? family)
-            let bold = TextStyle(color: Color(0xFF000000), fontSize: size, fontWeight: .bold, fontFamily: family)
+            let lineHeight = note.family == nil ? balloon.line : nil
+            let plain = TextStyle(color: Color(0xFF000000), fontSize: size, height: lineHeight, fontFamily: note.family ?? family)
+            let bold = TextStyle(color: Color(0xFF000000), fontSize: size, fontWeight: .bold, height: lineHeight, fontFamily: family)
             var spans: [InlineSpan] = [TextSpan(text: note.label + " ", style: bold)]
             spans.append(TextSpan(text: note.paragraphs.joined(separator: "\n"), style: plain))
             let tp = TextPainter(text: TextSpan(children: spans), textDirection: .ltr)
+            tp.fractionalLineHeights = true
             // (A deletion's text stands 8.8pt further in: delins's "Deleted:"
             // lines start at 424.0 where its "Formatted:" ones do at 417.9,
             // scaled, and part where Word's do.)

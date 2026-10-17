@@ -595,7 +595,10 @@ enum DocxFormat {
                     entry.paragraph = ps
                     if let next = style.first("w:next")?["w:val"] { entry.next = styleByDocx[next] ?? _styleId(next.lowercased()) }
                     sheet[ours] = entry
-                } else if used.contains(id), sheet[id] == nil {
+                } else if used.contains(id) || name == "balloon text", sheet[id] == nil {
+                    // (Balloon Text too, which no paragraph names: Word
+                    // prints a document's markup balloons in it — delins's
+                    // Tahoma 8pt, which went to the 9pt serif without it.)
                     styleByDocx[id] = id
                     sheet[id] = RichNamedStyle(id: id, name: rawName, paragraph: chain.paragraph, char: chain.char)
                 }

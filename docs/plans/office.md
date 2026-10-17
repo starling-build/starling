@@ -5538,6 +5538,39 @@ fitter dropped the paragraph's tail).
   zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
   lower in Word than the two-line cells beside them: the same rule);
   nothing else moved.
+- **Word's lines keep their fraction (2026-10-17).** skparagraph rounds
+  each line's height to a whole layout unit; Word does not. A 12pt
+  PMingLiU line is 1332/1024 em, 15.61pt: zh-de3410bd's page 1, forty
+  such lines under three headings, ends at Word's foot only with the
+  fraction (rounded to 15.6, its last two lines fit with 0.35pt to spare
+  and Word's print takes them to page 2; Word's lines step 15.6 with a
+  0.24 every 33, its print's 1/300in grid). An engine patch
+  (`skia-fractional-line-heights.patch`: `ParagraphStyle::
+  setFractionalLineHeights`, bit 13 of the bridge's encoded paragraph
+  style) keeps the fraction where a paragraph asks; `TextPainter.
+  fractionalLineHeights` asks, and the layout sets it for a Word
+  document's paragraphs only — nothing else in the app changes.
+  zh-de3410bd 93.9 -> 100, zh-d35cbbdb 89.7 -> 100, zh-232090e0 95.6 ->
+  100, zh-e061a08e 94.3 -> 99.8, zh-6d1afa56 +0.2. Three fits that
+  rounding had won were fixed first, each its own rule:
+  - A face Word does not have and draws in Cambria (MinionPro-Regular,
+    -It) is a line of Cambria's ascent over Times New Roman's descent,
+    1.166 ems, not Cambria's 1.172: bug59058's 13pt-at-least-15 lines
+    step 15.17 (29 lines) and 15.16 (69) in Word's print, Caladea's 15.24.
+    With the fraction its page 38 had lost a line; now 100.
+  - A row that ends a page in a file of a mode before 15 asks room for
+    half the line under it, not all of it: zh-1a3c7aa0 p13's
+    "5 O,O-二甲基…" row ends at Word's 495.6 under a 0.5pt line, 0.22
+    above the footer's top (its page number's box puts that at 495.82);
+    bug65649 (mode 15)'s 0.75 line with 0.6 left still goes over. With
+    the fraction the row had gone over and the document ran 92 pages.
+  - Balloon Text was dropped on import (no paragraph names it), so
+    markup balloons were set in the 9pt serif; delins's are Tahoma 8pt,
+    lines of Tahoma's 1.207 ems, stacked 15.06 apart as Word's are. Its
+    first balloon, for two deleted paragraphs, still stands 6.6pt lower
+    than Word's (Word lifts it into the gap above its line; the three
+    other prints with balloons put the first at its line's top, as ours
+    does), and the stack under it with it: delins 80 -> 45, the one loss.
 - **A line a hair over its column goes over (2026-10-17).** zh-ae655121
   p4: the cell "(F)＝(D)－(E)", 14pt 標楷體 (YaHei's widths in Word on a
   Mac), measures 81.8535pt in a cell of 81.85; Word's print puts "(E)"
