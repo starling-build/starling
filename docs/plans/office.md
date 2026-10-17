@@ -5343,6 +5343,28 @@ fitter dropped the paragraph's tail).
   - Without the grid, 20pt spaces in a 10.5pt Latin line (`cap3`) keep
     the line's height right but draw its text 9pt low, clipped by the
     next line. That was so before this change too.
+- **A chart's data table is drawn (2026-10-17).** zh-2a241df1's two
+  charts set their numbers in a table under the plot (`c:dTable`): the
+  categories over the columns, then a row for each series with its key
+  and name, and grey rules. This app drew none, and set the categories
+  under the plot. In Word's print, at 10pt:
+  - each row is 16.4pt tall, the categories' 16.1;
+  - the last row ends 4.9pt over the frame's foot;
+  - the names' column starts 17pt in from the frame;
+  - the key starts 3.2pt into that column and is 19.2pt long;
+  - the name starts 2pt after the key and ends 2.5pt clear of the plot;
+  - the plot's top is 11.1pt under the frame's (ours was 4.3pt lower;
+    changed only with a table).
+
+  A line's key is its stroke. Over a legend at the foot, the table
+  stops where the legend's band begins, as in Excel's print of the xlsx
+  corpus' chart-ChartDataTable. zh-2a241df1 72.4 -> 93.3, and 97.1 with
+  Slides' ten-step axis (cf320772); nothing else moved. Left:
+  - Chart 1 stands 2.5pt lower than Word's. It is an inline object in a
+    grid line, and chart 2's lands right.
+  - The fills Word gives a chart with no `spPr` (c:style 2: light blue
+    frame and plot).
+  - Excel's newer charts key a row with a square, not a bar.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

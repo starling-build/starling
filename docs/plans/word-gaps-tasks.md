@@ -1062,7 +1062,7 @@ size, and the text's size against Normal's changes nothing. A lab of
 one line with one, two and three marks, the over varied, would say what
 Word counts on such a grid.
 
-### T59. A column chart with a line on a second value axis
+### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
 unprinted zh documents: prints in ~/starling-word-check/zh2, scored with
@@ -1073,8 +1073,12 @@ drawn. Plan: read the line's axes, scale the line by its own axis, and
 label that axis on the right (Slides' ChartPainter, shared with decks).
 Done: the second axis (ae2d227a). The caption under a table is one
 pitch, because spaces beside text add no height (2026-10-17). That was
-page 2 on, 35.2 -> 72.4. Left: the data table (`c:dTable`), the chart's
-fills and borders, and Excel's axis step. Still claimed.
+page 2 on, 35.2 -> 72.4. The data table is drawn (369e2840): 72.4 ->
+93.3. With Slides' ten-step axis (cf320772) it is 97.1. Left:
+- chart 1 stands 2.5pt low, an inline object on the grid;
+- the style-2 fills.
+
+DONE (2026-10-17).
 
 ### T58. A paragraph that opens with a tab: the line stays at its indent — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
