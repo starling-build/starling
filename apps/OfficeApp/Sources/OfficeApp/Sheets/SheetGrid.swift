@@ -343,7 +343,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             for r in Set(fit.keys).union(ws.fittedRows) {
                 let floor = ws.rowStyle(r).map(line) ?? blank
-                fit[r] = max(fit[r] ?? 0, floor)
+                // A row with a medium or thick border at its foot or head
+                // (`thickBot`, `thickTop`) is a screen pixel taller for each:
+                // Excel_file_with_trash_item's rows of medium borders, written
+                // 15.75 for 15, print at 14.88 for 14.52 — 39 of the 192-dpi
+                // screen's pixels for 38.
+                let thick = ["thickBot", "thickTop"].filter { ["1", "true"].contains(ws.rowAttrs[r]?[$0] ?? "") }.count
+                fit[r] = max(fit[r] ?? 0, floor) + Double(thick) * 72 / 192 * m.rowScale
             }
             for (r, line) in fit {
                 // (A row of super- or subscript keeps the file's fit: `Worksheet.scriptRows`.)
