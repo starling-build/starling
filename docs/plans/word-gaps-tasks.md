@@ -770,6 +770,14 @@ cells beside it centre over a part no shorter than the row's stated
 height — zh-91e44bcb 97.1 -> 100 — except where a cell merged down from
 above runs its text below the part (zh-e6d54ae4). Left: zh-1a3c7aa0
 p22/p32.
+zh-1a3c7aa0 p57 (row 170, every cell centred, "限制新建氟化氢…" 3 lines
+of 31.2 parted 2+1): Word's part is 70.8 to the body's foot, 重点监管…
+(2 lines, whole) 4.2 down, "170" centred, and the cut cell's 2 lines
+8.4 down — at the part's bottom, as if centred over both parts (p58's
+part 39.6 = 31.2 + 8.4). Ours: part 62.65, the cut cell at the top.
+Tried "a centred cell that parts: part to the foot, its lines at the
+bottom": p57 unchanged and zh-1a3c7aa0 (13 pages), zh-15728c84 p3,
+zh-91e44bcb, zh-84702a67 worse — reverted, not the rule.
 
 Note from the Mac (2026-10-16): zh-799c91cd 96.8 -> 95.6 between the
 n225 and n230 sweeps. Page 6's table, whose last row runs to the foot,
