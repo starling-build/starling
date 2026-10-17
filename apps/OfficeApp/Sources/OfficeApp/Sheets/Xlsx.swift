@@ -515,9 +515,23 @@ enum Xlsx {
         }
         let base = fonts.first ?? _Font()
         var fills: [UInt32?] = []
+        // A pattern prints as fine lines or dots of its colour over its
+        // background — black over white where it names neither — and is
+        // drawn here as the colour they average to: FillWithoutColor's
+        // "lightUp" cells, grey in Excel's print, were white.
+        let coverage: [String: Double] = [
+            "gray0625": 0.0625, "gray125": 0.125, "lightGray": 0.25, "mediumGray": 0.5, "darkGray": 0.75,
+            "lightHorizontal": 0.25, "lightVertical": 0.25, "lightDown": 0.25, "lightUp": 0.25, "lightGrid": 0.44, "lightTrellis": 0.25,
+            "darkHorizontal": 0.5, "darkVertical": 0.5, "darkDown": 0.5, "darkUp": 0.5, "darkGrid": 0.5, "darkTrellis": 0.75,
+        ]
         for f in st.child("fills")?.kids("fill") ?? [] {
             if let p = f.child("patternFill"), p["patternType"] == "solid" {
                 fills.append(p.child("fgColor").flatMap { _color($0, theme: theme) })
+            } else if let p = f.child("patternFill"), let k = coverage[p["patternType"] ?? ""] {
+                func auto(_ c: XNode?) -> Bool { c == nil || ["64", "65"].contains(c?["indexed"] ?? "") && c?["rgb"] == nil && c?["theme"] == nil }
+                let fg: UInt32 = auto(p.child("fgColor")) ? 0x000000 : p.child("fgColor").flatMap { _color($0, theme: theme) } ?? 0x000000
+                let bg: UInt32 = auto(p.child("bgColor")) ? 0xFFFFFF : p.child("bgColor").flatMap { _color($0, theme: theme) } ?? 0xFFFFFF
+                fills.append(CFEvaluator._mix(bg, fg, k))
             } else { fills.append(nil) }
         }
         var borders: [CellStyle.Borders] = []
