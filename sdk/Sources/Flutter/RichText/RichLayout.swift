@@ -182,6 +182,10 @@ public final class RichTextTheme {
     /// 32 → 21, 34 → 23, 11 → 8 in its prints), where 65% exactly is
     /// Word's.
     public var scriptSizeWholeUp = false
+    /// A run in capitals is measured — spaced, kerned, put on the grid —
+    /// by the capitals it shows rather than the letters it holds, as
+    /// PowerPoint fits a title in caps. Off for Word.
+    public var measuresShownCaps = false
 
     /// Each face's own single line, even with `singleLineHeight` set: a
     /// PowerPoint diagram's text steps at its face's height (Calibri
@@ -5332,10 +5336,20 @@ public final class RichLayout {
             }
             var offset = base
             var i = text.startIndex
+            // (Measured as shown: a run in capitals (`capped`) is spaced,
+            // kerned and put on the grid by its capitals — 60810's titles,
+            // "Connection to global talent programmes/R200" in caps, lost
+            // "TA" and "LT"'s kerning and wrapped a line PowerPoint fits.)
+            let shownCaps = theme.measuresShownCaps && (run.caps || ((named?.char.caps ?? false) && !run.off.contains(.caps)))
+            func shown(_ c: Character) -> Character {
+                guard shownCaps else { return c }
+                let up = String(c).uppercased()
+                return up.utf16.count == String(c).utf16.count && up.count == 1 ? Character(up) : c
+            }
             while i < text.endIndex {
-                let ch = text[i]
+                let ch = shown(text[i])
                 let after = text.index(after: i)
-                let following = after < text.endIndex ? text[after] : next
+                let following = (after < text.endIndex ? text[after] : next).map(shown)
                 // (An ideographic space on a line of spaces alone is set
                 // as the mark is, in the run's Latin face: see `lineSize`.)
                 let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)

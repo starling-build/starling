@@ -2043,6 +2043,24 @@ first eleven slides, which PowerPoint prints blank (every one names a
 `tags` part and a sound its cut-short zip lost; the twelfth names
 neither and prints) — copying that would hide text a reader can use.
 
+**A run in capitals fitted by its capitals, 2026-10-17** (sweep 161:
+1.0603 → 1.0598%; 60810 5.19 → 5.09, its slide 18 10.1 → about 4,
+themes 1.51 → 1.38; lo-numfmt +0.01). A title in `cap="all"` was
+spaced, kerned and put on the eighth-point grid by the letters it holds,
+not the capitals it shows: 60810's "Connection to global talent
+programmes/R200", 24 pt bold Calibri in a 547.75 pt line, is 547.4 kerned
+as capitals ("TA", "LT") on the grid and fits in PowerPoint's print; as
+lowercase pairs it came to 552 and wrapped. The measuring loop now
+reads a capped run's letters as their capitals
+(`RichTextTheme.measuresShownCaps`, shared and off for Word).
+
+**Looked at and left, 2026-10-17:** customGeo's bevelled diagram
+headers (`chilly`, `translucentPowder`, a 10 pt `softRound` bevel)
+print with the face lifted about 31% toward white — 79,129,189 →
+134,168,215, 0,176,80 → 78,201,136, 255,102,0 → 255,150,78 — and a
+lit band along the top and right; the only deck with that rig, and
+four boxes of one slide.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so
