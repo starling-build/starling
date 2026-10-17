@@ -1007,6 +1007,17 @@ reformatted mark joins the next paragraph's (read off the connector
 lines in Word's print). delins 55 -> 75%, nothing else moved. Open:
 which of a link's balloons comes first (office.md).
 
+### T63. A 1.5-spaced line at a page's foot: does its extra space count?
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: zh-8112041b (70.8%, new sample; 標楷體, which both samples
+print in YaHei).
+Known: page 2 matches Word's to 0.3pt line by line, then Word keeps four
+empty 1.5-spaced paragraphs (36pt each, 24 of it the line) under article
+nine and ours three: the fourth's line box runs about 5pt past the
+margin, its text does not. Word sets the extra space of a multiple
+spacing below the text. Try: let that extra hang past the foot as the
+grid's half leading does (`_overhang`), and see what the sweep says.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
