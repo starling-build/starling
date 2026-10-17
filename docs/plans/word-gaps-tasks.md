@@ -117,8 +117,12 @@ that commit, compare per document. The sample started at 80.9% (the
 second started at 74.5). Its low ones, unclaimed unless marked:
 zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 16), zh-a5745784 26.5 (T77, 79.3 now), zh-540dc149 34.3 (9 pages, Word 10; Windows box, looking),
-zh-fec5fa30 84.7 (55, Word 56), zh-9e020c95 89.3, zh-268f8d15 93.0,
+zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3, zh-268f8d15 93.0,
 zh-de3410bd 93.2, zh-fe536967 94.0. zh-d89c3840 was T70.
+
+### T78. zh-fec5fa30: 55 pages where Word's are 56 — claimed
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
+Documents: zh-fec5fa30 (84.7%, third sample).
 
 ### T76. zh-540dc149: 9 pages where Word's are 10 — claimed
 Owner: session 017F2GnT (Linux), from 2026-10-17
