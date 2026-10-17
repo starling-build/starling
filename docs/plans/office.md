@@ -5511,6 +5511,12 @@ fitter dropped the paragraph's tail).
   saves and restores its own state and the note and comment counts
   the box reader keeps. zh-64044a1d 97.8 -> 98.8 (page 97 23 of 27);
   nothing else moved. The only box in the corpus with a table.
+- **A merged cell does not grow rows of exact height (2026-10-17).**
+  In that same form, "離所方式" (a 5.5pt line and a 12pt one) is merged
+  over two rows of exact 18.5pt. Word cuts the cell off. Ours grew the
+  span's last row to fit the cell, 5pt, so the form's last four rows
+  stood 5pt low. The stretch now skips a span whose rows are all exact.
+  zh-64044a1d 98.8 -> 99.0 (page 97 now whole); nothing else moved.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than

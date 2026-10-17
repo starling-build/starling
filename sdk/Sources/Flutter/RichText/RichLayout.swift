@@ -1942,7 +1942,12 @@ public final class RichLayout {
             }
             for (_, cell) in spanning.enumerated().sorted(by: { ($0.element.last, $0.offset) < ($1.element.last, $1.offset) }) {
                 let have = rows[cell.first ... cell.last].map(\.height).reduce(0, +)
-                if cell.need > have + 0.01 {
+                // (Not over rows of exact height alone, which Word does not
+                // grow: zh-64044a1d's "離所方式", a 5.5pt line and a 12pt one
+                // merged over two 18.5pt rows, is cut off in Word's print,
+                // where ours stood the form's last rows 5pt low.)
+                let exact = theme.wordRules && (cell.first ... cell.last).allSatisfy { ts?.rowsExactHeight.contains($0) ?? false }
+                if cell.need > have + 0.01, !exact {
                     let extra = cell.need - have
                     rows[cell.last].height += extra
                     stretched[cell.last] += extra
