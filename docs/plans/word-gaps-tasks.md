@@ -809,7 +809,7 @@ gaps between its stacked HTML tables run short, not its rows (Word's rows
 alternate 21.1/21.4, ours 21.3); by the foot of p11 ours has room for one
 line of the two-line "Note:" row that Word carries whole to p12.
 
-### T44. zh-a4b0f6ea p20: a page-anchored floating table Word breaks after its first row — measured, released
+### T44. zh-a4b0f6ea p20: a page-anchored floating table Word breaks after its first row — DONE (2026-10-17)
 Owner: the Windows box (011ZXp8e), from 2026-10-17 — released by 01Xgpbk5; was with zh-6cd1befe p51 (a 26-row
 page-anchored table: Word sets its header row alone on p51, the rest on p52; found by starling-bd)
 Built (partial): a page-anchored table (`TableStyle.pageAnchored`) that
@@ -853,6 +853,17 @@ the table change nothing (F: none, G: two). "单位（盖章）" at 438.0 is
 Word counted the table 41.9pt taller than its rows (0.85 header
 distance?) and, with the paragraph to set under it, found no room.
 Not built.
+Correction and DONE (Windows box, 2026-10-17): there is no 41.9. The table
+stands at its tblpY in every lab. In B and H the merged-down centred cells
+were centred over rows 0-1, which moved their text, and that was all.
+Word sets "单位（盖章）" where the whole table would end (442). It then
+takes the table up again under that line, where row 0 fits and the 66pt
+row 1 does not. Built: at a page-anchored table's first rows, the whole
+table plus the text set under it plus row 1 is tested against the foot.
+If it fails, the text stays under where the whole table would end, the
+table goes on at the next page's head, and row 0's centred merged cells
+are set in row 0 alone. zh-a4b0f6ea 89.0 -> 99.4; nothing else moved.
+Left: two of row 0's merged cells sit 3.9pt lower in Word.
 
 ### T50. drawing: the mark under a nested table at half a point, a short picture's line its mark's — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16

@@ -2978,11 +2978,45 @@ public final class RichLayout {
                 // at the next page's head: Word sets zh-6cd1befe's 26-row
                 // duty table's header row alone on page 51 and the rest
                 // on 52, where ours filled 51 from the header down.
-                if theme.wordRules, c.row == 1, c.firstInRow, y > 0.01, document.tableStyles[c.table]?.pageAnchored == true {
-                    var bottom = rowBottom
+                // (The text set under it counts too: the flow takes the
+                // table up again under that text, and goes on to the next
+                // page with the rows that do not fit there — the text
+                // staying where the whole table would end. Lab `t44/A`,
+                // Word 16: the roster's header row at its tblpY, "单位（盖
+                // 章）" under where the whole table would end, 442 of a 505
+                // foot, and the 66pt row 1 on with the rest on page 2;
+                // with that line after the table instead, lab C, the
+                // table stays whole.) Asked at the first row too, whose
+                // centred cells merged down are then set in it alone.
+                func anchoredParts() -> (whole: Bool, under: Double)? {
+                    guard theme.wordRules, c.row <= 1, c.firstInRow, y > 0.01, document.tableStyles[c.table]?.pageAnchored == true else { return nil }
+                    var bottom = rowBottom, next = c.row == 1 ? c.ownRowHeight : 0
                     var k = j
-                    while k < count, let d = _cells[k], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); k += 1 }
-                    if y + (bottom - c.rowTop) > contentH + 0.01 { newPage() }
+                    while k < count, let d = _cells[k], d.table == c.table {
+                        bottom = max(bottom, d.rowTop + d.ownRowHeight)
+                        if d.row == 1, next == 0 { next = d.ownRowHeight }
+                        k += 1
+                    }
+                    let under = deferredTable == c.table ? deferredUnder.reduce(0) { $0 + $1.flowBottom - $1.flowTop } : 0
+                    // (At the second row, y is the first row's foot.)
+                    let rest = bottom - c.rowTop
+                    if y + rest > contentH + 0.01 { return (true, 0) }
+                    if under > 0, y + rest + under + next > contentH + 0.01 { return (false, rest) }
+                    return nil
+                }
+                let partsAfterFirst = c.row == 0 && anchoredParts() != nil && j < count && _cells[j]?.table == c.table
+                if c.row == 1, let parts = anchoredParts() {
+                    if parts.whole {
+                        newPage()
+                    } else {
+                        // (The cells merged down from the first row go on
+                        // from its foot, not from under that text.)
+                        let foot = y
+                        y += parts.under
+                        placeDeferred()
+                        y = foot
+                        newPage()
+                    }
                 }
                 let atTop = y < 0.01
                 if atTop { goOn() }
@@ -3129,7 +3163,8 @@ public final class RichLayout {
                         // a row, 8.6pt, under Word's.)
                         // (A row with no cell of its own — every one merged
                         // down into it — takes no room: zh-84702a67's row 6.)
-                        while r < c.row + d.rowSpan, case let h = heights[r] ?? 0, part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
+                        while r < c.row + d.rowSpan, !(partsAfterFirst && r > c.row), case let h = heights[r] ?? 0,
+                              part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
                         // (… and the part of the next that parts at the
                         // page's foot, to the last of its lines kept there:
                         // zh-91e44bcb's "（五）不予处理" and "三、本年度办理结果"
@@ -3142,7 +3177,7 @@ public final class RichLayout {
                         // "事故灾难类" ends with "重污染天气事件", at least
                         // 43.65pt with 33 left on page 48, and Word centres it
                         // in the rows above that one.)
-                        if r < c.row + d.rowSpan,
+                        if !partsAfterFirst, r < c.row + d.rowSpan,
                            let first = (j ..< count).first(where: { _cells[$0]?.table == c.table && _cells[$0]?.row == r }),
                            let e = _cells[first], document.tableStyles[c.table]?.rowsCantSplit.contains(r) != true,
                            !document.paragraphs[first].style.keepNext,

@@ -5385,10 +5385,33 @@ fitter dropped the paragraph's tail).
   wants half a twip. No corpus document moved (zh-e061a08e's 0.2pt over
   the footer is decided elsewhere); the Slides session reports
   PowerPoint's baselines on the same 0.24pt raster, rounded down.
-- **Lead, not taken: a page-anchored floating table that Word breaks
-  after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
-  the rest of the table, which would fit, goes to page 21 in Word's
-  print, and the text under it stays on page 20.
+- **A page-anchored table parts after its first row when the text set
+  under it leaves no room (2026-10-17).** zh-a4b0f6ea p20: the roster
+  (`tblpPr vertAnchor="page"`, tblpY 183.4pt) fits whole on the page,
+  yet Word's print keeps only its header row there. Rows 1-4 go to
+  page 21, and "单位（盖章）", the line before it in the file, stays on
+  page 20, set under where the whole table would end.
+
+  Labs `t44/A`-`I` (Word for Windows, the page alone):
+  - The table always stands at its tblpY. The board's earlier note that it
+    dropped 41.9pt without the line was wrong: vAlign-centred cells
+    merged down re-centre over whichever rows are on the page.
+  - Word sets the line under the whole table (442 of a 505 foot),
+    then takes the table up again from there. Row 0 fits; the 66pt
+    row 1 does not, so it and the rows after it go over.
+  - With the line after the table (lab C), or with no line (B), the
+    table stays whole.
+
+  Now, at a page-anchored table's first and second rows: if the
+  whole table plus the text set under it plus row 1 would pass the
+  foot, the text is placed where the whole table ends and the table
+  goes on at the next page's head. The centred cells merged down
+  from row 0 are then set in row 0 alone, with their overflow carried
+  over, as Word prints "出生" on page 20 and "年月" on 21.
+  zh-a4b0f6ea 89.0 -> 99.4; nothing else moved.
+
+  Left: Word sets "出生年月" and "行政职务" 3.9pt lower in row 0 than
+  the two-line cells beside them; ours sets them level.
 - **Spaces beside other characters add no height to a line, in any
   face (2026-10-17).** zh-2a241df1's "（图表5…）" caption opens with two
   14pt spaces in 仿宋_GB2312, then 10.5pt 宋体 text, on a 15.6pt line
