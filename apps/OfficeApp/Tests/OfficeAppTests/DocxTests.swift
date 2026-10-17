@@ -2043,6 +2043,28 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(firstLine("20") + 1, firstLine(nil), "the 10pt face's line, not a 12pt one")
     }
 
+    /// WordWithAttachments' header: "<tab>Страница 1" on a stop. The
+    /// tab's widening went on the tab, which the engine sets half before
+    /// it, and at a line's start the whole line moved on by half a tab.
+    func testAParagraphThatOpensWithATabStaysAtItsIndent() throws {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        var p = RichParagraph(text: "\tPage")
+        p.style.tabStops = [TabStop(position: 100, alignment: .left)]
+        let doc = RichDocument(paragraphs: [p])
+        let l = RichLayout(theme: theme, paragraphCount: 1)
+        l.width = 600
+        l.ensureLaidOut(doc)
+        // (The tab's widening in the first line's indent box, which the
+        // engine sets where it is: a box at the line's start as wide as
+        // the way to the stop, less the tab's own width. The unit tests
+        // have no ICU, so carets cannot say where the text stands.)
+        let box = try XCTUnwrap(l.geometry(0).painter.inlinePlaceholderBoxes?.first, "a box before the text")
+        XCTAssertEqual(box.left, 0, accuracy: 0.5)
+        XCTAssertGreaterThan(box.right / theme.pixelsPerPoint, 50, "most of the way to the stop at 100pt")
+        XCTAssertLessThanOrEqual(box.right / theme.pixelsPerPoint, 100.5)
+    }
+
     private func tableCount(_ x: String) -> Int { x.components(separatedBy: "<w:tbl>").count + x.components(separatedBy: "<w:tbl ").count - 2 }
 
     /// A small nested table is a table of its own: one block in its

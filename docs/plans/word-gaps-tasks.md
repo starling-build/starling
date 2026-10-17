@@ -927,7 +927,7 @@ labs' four lines within 0.8-3.1pt of Windows Word's, but in the whole
 document joins them in twos and sets them 7.6pt high. Word for Windows
 and for Mac disagree on this cover, so a Windows lab cannot settle it;
 needs the Mac's Word.
-### T58. A paragraph that opens with a tab: the line stays at its indent
+### T58. A paragraph that opens with a tab: the line stays at its indent — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
 Documents: WordWithAttachments (its header's "<tab>Страница 1", centred
 on a stop at 233.85pt, stands 101pt right of Word's).
@@ -936,6 +936,7 @@ a character's spacing half before it: at a line's start that moves the
 whole line on by half the tab. Slides put a leading tab's widening into
 the first line's indent box (HowWeRefactor's quotes); Word's paragraphs
 do not yet. With a letter before the tab the line is right.
+Built: documents too. The header within 2.4pt of Word's; no score moved.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

@@ -4026,6 +4026,16 @@ fitter dropped the paragraph's tail).
   12pt Times made a 14.7pt line where Word's is the text's 13.8, each
   bullet 0.9pt (scaled 0.6) taller. Now at the level's own size where it
   says one. delins 35 -> 50%; nothing else moved.
+- **A paragraph that opens with a tab stays at its indent (2026-10-16).**
+  A tab is widened by spacing on the tab itself, and the engine sets a
+  character's spacing half before it: at a line's start that moved the
+  whole line on by half the tab. WordWithAttachments' header,
+  "<tab>Страница 1" on a centre stop at 233.85pt, stood 101pt right of
+  Word's. Slides already put a leading tab's widening into the first
+  line's indent box (HowWeRefactor); documents now do too. The header
+  within 2.4pt of Word's; no score moved (the line match goes by height),
+  zh-6cd1befe and zh-7dc3afad a line each way (a line opening with a tab
+  now has its indent box, in its first run's face).
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

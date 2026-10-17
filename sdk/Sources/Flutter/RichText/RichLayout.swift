@@ -4483,8 +4483,10 @@ public final class RichLayout {
         // into the first line's indent box instead. The engine sets a
         // character's added spacing half before it, and at the start of a
         // line that moved the whole line on — HowWeRefactor's quotes
-        // started 10.8pt right of their indent.)
-        if theme.markersAtHang, p.text.utf16.first == 0x09, let e = tabs[0], e != 0 {
+        // started 10.8pt right of their indent. A document's the same:
+        // WordWithAttachments' header, "<tab>Страница 1" on a centre stop,
+        // stood half its tab — 101pt — right of Word's.)
+        if theme.markersAtHang || theme.wordRules, p.text.utf16.first == 0x09, let e = tabs[0], e != 0 {
             lead += e
             tabs[0] = nil
             _leadWidth[i] = lead
