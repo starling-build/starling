@@ -849,6 +849,16 @@ delins 23.3, WordWithAttachments 23.7 (their bodies' own layout now
 shows: delins's lists, WWA's header and table). Not built: moves
 (Tika-792), "Field Code Changed", change bars.
 
+### T53. Web spacing between two lists
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16
+Documents: delins (its body under the markup).
+Known: delins's bullets are web-spaced (before/after 100 with
+beforeAutospacing/afterAutospacing). "A name in various Indian
+languages…" (numId 1) and the nested "the subcommentaries…" (numId 2)
+stand 19.1pt apart in Word's print (scaled; 27.6 unscaled), 10.3 in ours:
+Word gives 14pt between items of two lists, ours none, the two being the
+same kind. The same after a list's last item under a paragraph of none.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
