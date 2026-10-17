@@ -2098,6 +2098,25 @@ where nine made the step 100,000. Nine had only ever been told from
 eight here; the 19 chart decks are the same either way. Horizontal
 value axes keep eight.
 
+**Tried and dropped, 2026-10-17:** a free Trebuchet MS stand-in. Istok
+Web, PT Sans and Fira Sans are nearer Trebuchet's widths than Liberation
+Sans (0.027, 0.028, 0.030 em off per letter, weighted, to 0.038), but
+the letters already stand at Trebuchet's own advances
+(`SlideFonts.face`), and the seven Trebuchet decks moved −0.04, −0.01
+and +0.05 in sum (2411 unchanged at 2.26): not worth four more font
+files.
+
+**Aptos's baseline, 2026-10-17** (the 22 Aptos decks −0.05 in sum:
+tdf173712 2.00 → 1.88, tdf160490 −0.02, liststyle −0.02; text-highlight
+1.36 → 1.45, table-with-different-font-colors +0.01). Aptos is drawn in
+a clone whose descent is a smaller share of its height, and its lines
+stood 0.013 to 0.08 em below PowerPoint's in twelve decks. The copies
+PowerPoint's PDFs embed keep only `hhea` (1923 over 577, a share of
+0.23), which overshot to 0.02 em high; 0.21 lands ten decks within
+0.016 em (`SlideFonts.ownDescentShare`). text-highlight's baselines are
+now PowerPoint's to 0.05 pt, but its highlight's foot rose half a point
+with them, past PowerPoint's. tdf173712 is still 0.066 em low.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so

@@ -163,6 +163,12 @@ enum SlideFonts {
         if n == "century gothic" { return 451.0 / 2440 }
         if n == "gill sans mt" { return 472.0 / 2375 }
         if n == "palatino linotype" { return 613.0 / 2763 }
+        // (Aptos, drawn in a clone of other proportions. Its twelve decks'
+        // lines stood 0.02 em low; 0.21 puts ten of them within 0.016 em
+        // of PowerPoint's. The `hhea` the prints' embedded copies keep,
+        // 1923 over 577 — 0.23 — put them 0.02 em high: the Windows
+        // metrics it goes by are stripped from those copies.)
+        if n.hasPrefix("aptos") { return 0.21 }
         // (And Arial and Times New Roman by theirs, no line gap counted:
         // their clones' gap — a thirtieth and a twenty-fourth of an em —
         // put a share of it under the baseline in the engine's line, and
