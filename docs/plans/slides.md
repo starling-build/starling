@@ -2117,6 +2117,15 @@ PowerPoint's PDFs embed keep only `hhea` (1923 over 577, a share of
 now PowerPoint's to 0.05 pt, but its highlight's foot rose half a point
 with them, past PowerPoint's. tdf173712 is still 0.066 em low.
 
+**A table cell's deeper levels at their default indents, 2026-10-17**
+(the AES deck 5.11 → 4.97, its slide 18 13.5 → 9.5; no other table
+deck moved). A cell paragraph with `lvl="1"` or `lvl="2"` and no
+`marL` of its own takes its level's from the master's other-text style
+or the presentation's default (`lvl2pPr`, `lvl3pPr`: half an inch and
+an inch there), as PowerPoint does; the table's own base style is level
+one's, and had put them at the cell's edge. Every bullet of that slide
+now stands within 0.1 pt of PowerPoint's.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so

@@ -2016,8 +2016,22 @@ private struct SlideContext {
                 var cellParas: [RichParagraph] = []
                 var cellLevels: [Int] = [], cellNumbering: [(type: String, start: Int)?] = []
                 for p in tc.first("a:txBody")?.all("a:p") ?? [] {
-                    let level = LevelStyle.paragraph(p.first("a:pPr"), colors).filled(from: look)
-                    cellLevels.append(p.first("a:pPr")?["lvl"].flatMap(Int.init) ?? 0)
+                    var level = LevelStyle.paragraph(p.first("a:pPr"), colors).filled(from: look)
+                    let cellLevel = p.first("a:pPr")?["lvl"].flatMap(Int.init) ?? 0
+                    cellLevels.append(cellLevel)
+                    // A deeper level's text edge and hang, where the
+                    // paragraph says neither, are its level's in the
+                    // master's other-text style or the presentation's
+                    // default: the AES tables' `lvl="1"` and `lvl="2"`
+                    // bullets, at half an inch and an inch (marL 457200 and
+                    // 914400 in `lvl2pPr` and `lvl3pPr`), stood at the edge.
+                    if cellLevel > 0, p.first("a:pPr")?["marL"] == nil, p.first("a:pPr")?["indent"] == nil {
+                        let tag = "a:lvl\(min(cellLevel, 8) + 1)pPr"
+                        let own = LevelStyle.paragraph(master?.first("p:txStyles")?.first("p:otherStyle")?.first(tag), colors)
+                            .filled(from: LevelStyle.paragraph(defaults?.first(tag), colors))
+                        level.marL = own.marL
+                        level.indent = own.indent
+                    }
                     cellNumbering.append(level.bullet == .number ? (level.autoNumType ?? "arabicPeriod", level.autoNumStart ?? 1) : nil)
                     var text = "", runs: [Run] = []
                     for child in p.children where child.name == "a:r" || child.name == "a:br" || child.name == "a:fld" {
