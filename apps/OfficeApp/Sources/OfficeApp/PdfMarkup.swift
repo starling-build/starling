@@ -104,7 +104,10 @@ struct PdfMarkup {
         let last = max(0, paragraphs.count - 1)
         deletions = deletions.map { var n = $0; if n.anchor.paragraph > last { n.anchor = RichPosition(paragraph: last, offset: 0) }; return n }
         document = printed
-        notes = (deletions + PdfMarkup._comments(printed) + PdfMarkup._formats(printed)).sorted { $0.anchor < $1.anchor }
+        // (By anchor, and in the order made where two share one: a
+        // field's "Field Code Changed" before its result's "Formatted".)
+        notes = (deletions + PdfMarkup._comments(printed) + PdfMarkup._formats(printed)).enumerated()
+            .sorted { ($0.element.anchor, $0.offset) < ($1.element.anchor, $1.offset) }.map(\.element)
     }
 
     /// The formatting changes: a balloon for each stretch of runs whose
@@ -117,6 +120,13 @@ struct PdfMarkup {
             var last: (text: String, end: Int)? = nil
             for run in p.runs {
                 defer { at += run.length }
+                // (A field whose code was reformatted: "Field Code Changed"
+                // where its result begins, before the result's own.)
+                if run.length > 0, run.style.fieldCodeChanged, run.style.revision?.kind != .deleted {
+                    out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Field Code Changed", paragraphs: [""],
+                                    author: run.style.formatChange?.author ?? ""))
+                    last = nil
+                }
                 guard run.length > 0, let change = run.style.formatChange, run.style.revision?.kind != .deleted else { last = nil; continue }
                 let text = _describe(run.style, was: change.oldRPrXML)
                 guard !text.isEmpty else { last = nil; continue }
@@ -242,11 +252,17 @@ struct PdfMarkup {
             var spans: [InlineSpan] = [TextSpan(text: note.label + " ", style: bold)]
             spans.append(TextSpan(text: note.paragraphs.joined(separator: "\n"), style: plain))
             let tp = TextPainter(text: TextSpan(children: spans), textDirection: .ltr)
-            tp.layout(minWidth: 0, maxWidth: boxRight - boxLeft - 2 * inset)
+            // (A deletion's text stands 8.8pt further in: delins's "Deleted:"
+            // lines start at 424.0 where its "Formatted:" ones do at 417.9,
+            // scaled, and part where Word's do.)
+            let indent = note.label == "Deleted:" ? 8.8 : 0
+            tp.layout(minWidth: 0, maxWidth: boxRight - boxLeft - 2 * inset - indent)
             defer { tp.dispose() }
             let top = max(anchor.top, floor)
             let box = Rect.fromLTRB(boxLeft, top, boxRight, top + tp.height + 2 * 2.7)
-            floor = box.bottom + 2
+            // (Stacked edge to edge: delins's one-line balloons stand
+            // 15.1pt apart, an 8pt line and the padding.)
+            floor = box.bottom
             let colour = PdfMarkup.colours[(authors.firstIndex(of: note.author) ?? 0) % PdfMarkup.colours.count]
             let fill = Paint()
             fill.color = Color(note.label.hasPrefix("Commented") ? colour.fill : 0xFFFFFFFF)
@@ -262,7 +278,7 @@ struct PdfMarkup {
             let under = anchor.bottom
             canvas.drawLine(Offset(anchor.left, under), Offset(textRight + 9.1, under), line)
             canvas.drawLine(Offset(textRight + 9.1, under), Offset(boxLeft, top + 5.5), line)
-            tp.paint(canvas, Offset(boxLeft + inset, top + 2.7))
+            tp.paint(canvas, Offset(boxLeft + inset + indent, top + 2.7))
         }
     }
 }

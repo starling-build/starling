@@ -62,6 +62,29 @@ final class PdfMarkupTests: XCTestCase {
         XCTAssertEqual(PdfMarkup._describe(bold, was: "<w:rPr/>"), "Font: Bold")
     }
 
+    /// delins: a hyperlink field whose code was reformatted under change
+    /// tracking — "Field Code Changed" where its result begins, before the
+    /// result's own "Formatted:".
+    func testAReformattedFieldCodeHasItsBalloon() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let change = "<w:rPrChange w:id=\"1\" w:author=\"pavel\"><w:rPr/></w:rPrChange>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>"
+            + "<w:r><w:rPr>\(change)</w:rPr><w:instrText xml:space=\"preserve\"> HYPERLINK \"http://x\" </w:instrText></w:r>"
+            + "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
+            + "<w:r><w:rPr><w:lang w:val=\"en-US\"/>\(change)</w:rPr><w:t>Lucene Boot Camp</w:t></w:r>"
+            + "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r><w:r><w:t> - a session</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let runs = doc.paragraphs[0].runs
+        XCTAssertTrue(runs.first?.style.fieldCodeChanged == true, "the result's first run")
+        XCTAssertFalse(runs.dropFirst().contains { $0.style.fieldCodeChanged }, "and no other")
+        XCTAssertEqual(PdfMarkup(doc).notes.map(\.label), ["Field Code Changed", "Formatted:"])
+    }
+
     /// The page and a markup area 3.7in wide from its text's right edge,
     /// scaled to the paper's width: testComment (letter, 1in margins) at
     /// 0.727 in Word's print, its pane from 407.5 to 594.5.

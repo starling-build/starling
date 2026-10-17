@@ -159,6 +159,10 @@ public struct CharStyle: Hashable, Sendable {
     /// Ruby set over this run's text (Word's `w:ruby`: furigana over
     /// kanji); nil for none.
     public var ruby: RubyText? = nil
+    /// Set on the first run of a field's result whose field code was
+    /// reformatted under change tracking: Word's markup shows "Field Code
+    /// Changed" there. Read, not written back.
+    public var fieldCodeChanged = false
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,

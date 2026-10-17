@@ -3991,9 +3991,14 @@ fitter dropped the paragraph's tail).
   Balloon Text, else Word's own (Tahoma 8pt). `PdfExport.MarkupFrame`,
   `PdfMarkup`. comment, testComment, 58067 0 -> 100%, delins 3.3 -> 23.3,
   WordWithAttachments 5.3 -> 23.7, the POI mean +1.9; nothing else moved.
-  Not built: moved text ("Moved (insertion)": Tika-792), "Field Code
-  Changed" (the reader drops field codes), change bars in the margin,
-  the comment range's tint in its author's colour.
+  Then (same day): "Field Code Changed" where a field's result begins
+  when its code was reformatted (`CharStyle.fieldCodeChanged`, flagged by
+  the reader, not saved), before the result's own balloon; balloons
+  stacked edge to edge (delins's one-line ones 15.1pt apart), a
+  deletion's text 8.8pt further in. delins 50 -> 55%.
+  Not built: moved text ("Moved (insertion)": Tika-792), a reformatted
+  paragraph mark's balloon, change bars in the margin, the comment
+  range's tint in its author's colour.
 - **Web spacing parts two lists (2026-10-16).** delins: bullets with
   automatic spacing (beforeAutospacing/afterAutospacing), "A name in
   various Indian languages…" of numId 1, then a nested bullet of numId 2:

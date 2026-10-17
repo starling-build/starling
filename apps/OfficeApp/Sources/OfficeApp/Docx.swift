@@ -2205,6 +2205,10 @@ enum DocxFormat {
         /// contents field spans paragraphs and holds a page reference per
         /// line): each one's instruction, and whether its result has begun.
         var fields: [(instr: String, result: Bool)] = []
+        /// Whether the code of the field being read was reformatted under
+        /// change tracking: its result's first run says so
+        /// (`CharStyle.fieldCodeChanged`).
+        var fieldCodeChanged = false
         /// Every comment id whose range has been opened (a reference run
         /// for one of these ends a range; any other is a point comment).
         var seenComments = Set<String>()
@@ -2983,8 +2987,20 @@ enum DocxFormat {
             if link != nil, !cs.underline { cs.off.insert(.underline) }
             for child in r.children {
                 switch child.name {
-                case "w:t": addText(_runText(child), cs)
+                case "w:t":
+                    if notes.fieldCodeChanged, notes.fields.last?.result == true {
+                        var first = cs
+                        first.fieldCodeChanged = true
+                        addText(_runText(child), first)
+                        notes.fieldCodeChanged = false
+                    } else {
+                        addText(_runText(child), cs)
+                    }
                 case "w:fldChar":
+                    if cs.formatChange != nil, child["w:fldCharType"] != "end", notes.fields.last.map({ !$0.result }) ?? true {
+                        notes.fieldCodeChanged = true
+                    }
+                    if child["w:fldCharType"] == "end" { notes.fieldCodeChanged = false }
                     switch child["w:fldCharType"] {
                     case "begin": notes.fields.append((instr: "", result: false)); notes.fieldShown = false
                     case "separate": if !notes.fields.isEmpty { notes.fields[notes.fields.count - 1].result = true }
@@ -3010,6 +3026,7 @@ enum DocxFormat {
                     }
                 case "w:instrText":
                     if let f = notes.fields.last, !f.result { notes.fields[notes.fields.count - 1].instr += child.text }
+                    if cs.formatChange != nil { notes.fieldCodeChanged = true }
                     if let on = pendingCheckbox, child.text.uppercased().containsSubstring("FORMCHECKBOX") {
                         addText(on ? "\u{2612}" : "\u{2610}", cs)
                         pendingCheckbox = nil
