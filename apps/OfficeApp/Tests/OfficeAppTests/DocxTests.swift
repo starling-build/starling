@@ -654,6 +654,33 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(pageOfFourth { 4 * $0 - $0 / 2 }, 1, "its text is over too")
     }
 
+    /// A fit-to-text box Word sizes once is DrawingML's (lab `ftD`); a VML
+    /// one is fitted on each page — zh-5a9a85c6's "— 15 —" whole in Word's
+    /// print, where a box sized by "— 1 —" wrapped its closing dash.
+    func testOnlyADrawingMLBoxIsFittedOnce() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let text = "<w:txbxContent><w:p><w:r><w:t>1</w:t></w:r></w:p></w:txbxContent>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:pict><v:shape xmlns:v=\"urn:schemas-microsoft-com:vml\" type=\"#_x0000_t202\" "
+            + "style=\"position:absolute;margin-top:0pt;height:144pt;width:144pt;mso-wrap-style:none\" filled=\"f\" stroked=\"f\">"
+            + "<v:textbox inset=\"0mm,0mm,0mm,0mm\" style=\"mso-fit-shape-to-text:t;\">\(text)</v:textbox></v:shape></w:pict></w:r></w:p>"
+            + "<w:p><w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:align>outside</wp:align></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"paragraph\"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx=\"1828800\" cy=\"1828800\"/>"
+            + "<wp:wrapNone/><wp:docPr id=\"2\" name=\"b\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wps:cNvSpPr txBox=\"1\"/><wps:spPr><a:prstGeom prst=\"rect\"/></wps:spPr><wps:txbx>\(text)</wps:txbx>"
+            + "<wps:bodyPr wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"><a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let boxes = doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.textBox }
+        XCTAssertEqual(boxes.map(\.fitsText), [true, true])
+        XCTAssertEqual(boxes.map(\.fitsOnce), [false, true])
+    }
+
     /// zh-547fc43c p6: a 233.75pt chart and 1.75pt of effect extent on a
     /// 15.6pt grid take 16 pitches in Word's print, and stand centred in
     /// them — 7.05pt of the 14.1 spare over it.

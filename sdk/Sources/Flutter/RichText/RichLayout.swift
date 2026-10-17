@@ -819,7 +819,8 @@ public final class RichLayout {
     public var leftHandPage = false
     /// The widths (pixels, by image id) a header's or footer's fit-to-text
     /// boxes keep from the first page that header or footer is on: Word
-    /// sizes such a box once and wraps later pages' text inside it.
+    /// sizes such a box once and wraps later pages' text inside it (a
+    /// DrawingML box: `RichTextBox.fitsOnce`).
     var inheritedFitWidths: [String: Double] = [:]
     /// … and up, where its paragraph's line was moved down under the
     /// pictures and the picture stays where the paragraph first stood.
@@ -9306,7 +9307,10 @@ public final class RichLayout {
         // line — zh-1a3c7aa0's footer page number, in a 144pt box set
         // to fit its text and centred, stands at the page's middle in
         // Word's print, where the whole box centred put it 65pt left.)
-        if box.fitsText, let w = inheritedFitWidths[image.id] {
+        // (A VML box is fitted again on each page: zh-5a9a85c6's "— PAGE —",
+        // VML alone, is never wrapped in Word's print, "— 15 —" whole in
+        // a box first drawn round "— 1 —".)
+        if box.fitsText, box.fitsOnce, let w = inheritedFitWidths[image.id] {
             // (A header's or footer's box as wide as on the first page it
             // is on — lab `ftD`, Word 16, 2026-10-15: zh-a4b0f6ea's
             // "— PAGE —", fit to its text without wrapping, first drawn

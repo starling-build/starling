@@ -2970,6 +2970,7 @@ enum DocxFormat {
                         box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
                     } else if let body = node.descendant("wps:bodyPr") {
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
+                        box.fitsOnce = box.fitsText
                         if let v = Double(body["lIns"] ?? "") { box.insetLeft = v / 12700 }
                         if let v = Double(body["tIns"] ?? "") { box.insetTop = v / 12700 }
                         if let v = Double(body["rIns"] ?? "") { box.insetRight = v / 12700 }

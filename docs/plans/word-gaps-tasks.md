@@ -1788,7 +1788,7 @@ less its mark's descent over it. Same-base sweep: zh-547fc43c 87.9 ->
 zh-9c5d0c3f's pictures on grids among them. Left on its p6: the chart's
 axis titles ("亿元", "%") at the axes' tops and its line's data labels.
 
-### T81. zh-5a9a85c6: a VML page number fitted on every page — claimed
+### T81. zh-5a9a85c6: a VML page number fitted on every page — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-5a9a85c6 (94.9%).
 Known: its footers' "— PAGE —" is a VML-only text box (`w:pict`,
@@ -1797,6 +1797,9 @@ mso-wrap-style:none, mso-fit-shape-to-text). Word's print never wraps it
 (lab `ftD`'s rule) and wraps the closing dash from page 10. Lab `ftD`'s
 box was DrawingML (zh-a4b0f6ea, `wps` with a VML fallback). Plan: size
 once only a DrawingML box; fit a VML one on each page.
+Built: `RichTextBox.fitsOnce`, set for a DrawingML box; a VML one is
+fitted on each page. Same-base sweep: zh-5a9a85c6 94.9 -> 97.9, nothing
+else moved (zh-1a3c7aa0 and zh-e02b0479, VML too, as they were).
 
 ### T82. Writer charts: axis titles placed by manualLayout, line-series data labels — claimed
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17 (handed over by Slides)
