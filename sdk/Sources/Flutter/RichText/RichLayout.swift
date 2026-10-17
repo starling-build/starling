@@ -8486,9 +8486,10 @@ public final class RichLayout {
     }
 
     /// Whether a framed paragraph stands at a height on the page: its frame
-    /// anchored to the page or its margin, or naming no anchor — Word's
-    /// default is the page (zh-90e0cea8's "发布" frame, which says only its
-    /// y, prints at 751pt down the page).
+    /// anchored to the page or its margin, or naming no anchor. (One that
+    /// names a height and no anchor is read as on the margin, the schema's
+    /// default: zh-90e0cea8's "发布" frame, which says only its y, prints
+    /// 784.9pt down the page, 751 under a 16.9pt margin.)
     static func _onThePage(_ style: RichParagraphStyle) -> Bool {
         guard let frame = style.frame else { return false }
         return frame.verticalAnchor == "page" || frame.verticalAnchor == "margin" || !(style.frameXML ?? "").contains("w:vAnchor=")

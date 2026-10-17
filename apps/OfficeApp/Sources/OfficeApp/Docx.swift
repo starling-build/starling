@@ -2019,7 +2019,12 @@ enum DocxFormat {
                 if let v = Double(node["w:y"] ?? "") { f.y = v / 20 }
                 if let v = Double(node["w:w"] ?? ""), v > 0 { f.width = v / 20 }
                 f.horizontalAnchor = node["w:hAnchor"] ?? "text"
-                f.verticalAnchor = node["w:vAnchor"] ?? "text"
+                // (A frame that gives its height on the page and no
+                // anchor is set from the margin — the schema's default:
+                // zh-90e0cea8's cover's "山东省市场监督管理局 发布", y 15027
+                // twips, stands at the page's foot in Word's print and
+                // was in the flow under the title here.)
+                f.verticalAnchor = node["w:vAnchor"] ?? (node["w:y"] != nil || node["w:yAlign"] != nil ? "margin" : "text")
                 f.horizontalAlign = node["w:xAlign"]
                 f.verticalAlign = node["w:yAlign"]
                 style.frame = f

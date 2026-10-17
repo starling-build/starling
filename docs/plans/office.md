@@ -3310,6 +3310,17 @@ fitter dropped the paragraph's tail).
   a parted row): the part is then to the foot, as before. (T32.)
   zh-91e44bcb 97.1% -> 100; nothing else moved.
 
+- **A frame that names a height and no anchor is set from the margin
+  (2026-10-16).** A framed paragraph's `w:y` with no `w:vAnchor` was read
+  as anchored to its text; the schema's default is the margin, which
+  9c6cc3ca now places. zh-90e0cea8's cover ends with "山东省市场监督管理局
+  发布", its frame at y 15027 twips under a margin of 16.9pt
+  (`w:top="-338"`): Word prints it 784.9pt down the page, at the foot;
+  from the page it would stand 13pt high, from the margin it stands 4pt
+  under Word's (its exact 29.2pt line). The cover's score is as it was
+  (5 of 10 lines: "ICS"/"CCS" 7.6pt high in their page frame, "37"
+  33pt low — next); nothing else moved.
+
 - **A cell's own right side is drawn where its neighbour draws no left
   (2026-10-16).** A table's inside lines between columns came from each
   cell's left side; a cell stating only its right (and bottom), beside
