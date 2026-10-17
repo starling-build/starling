@@ -3316,6 +3316,19 @@ fitter dropped the paragraph's tail).
   a parted row): the part is then to the foot, as before. (T32.)
   zh-91e44bcb 97.1% -> 100; nothing else moved.
 
+- **A face Word emboldens widens a character by 1/52 of its size
+  (2026-10-17).** Word sets bold in a Chinese face it has no bold of
+  (仿宋, the stand-ins) by widening each character; ours by 1/57 em,
+  0.28pt at 16pt, where the Mac session measured Word for Mac's at 0.31
+  on zh-15428325's bold "（一）使用房票基础奖。" (T66). That line, 16pt
+  spaced -0.3 under `w:balanceSingleByteDoubleByteWidth`, took "励"
+  7.49pt over in ours — inside half its spaced advance, 7.7 — where
+  Word, its ten bold characters 0.3pt wider (and its first line 30.95
+  in, 0.15 more), is about 7.94 over and sends it down. Now 1/52.
+  zh-15428325 94.8% -> 96.1 (pages 2 and 6); nothing else moved, in
+  either set. (Word for Windows emboldens less — lab `bold`, the same
+  line: about 0.1pt a character — so a Windows lab cannot measure it.)
+
 - **A paragraph in no list takes no indent from its style (2026-10-17).**
   A paragraph whose `w:numPr` says `w:numId` 0 (in no list) takes no left,
   hanging or first-line indent from its style, in twips or characters;
