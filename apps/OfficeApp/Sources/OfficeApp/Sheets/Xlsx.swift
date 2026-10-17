@@ -82,6 +82,14 @@ enum Xlsx {
             book.styleSource = _part(parts, "xl/styles.xml").map(_styleSource)
             if book.styles.isEmpty { book.styles = [.plain] }
             book.dxfs = (st.child("dxfs")?.kids("dxf") ?? []).map { _dxf($0, theme: theme) }
+            for ts in st.child("tableStyles")?.kids("tableStyle") ?? [] {
+                guard let name = ts["name"] else { continue }
+                var parts: [String: Int] = [:]
+                for e in ts.kids("tableStyleElement") {
+                    if let type = e["type"], let d = e["dxfId"].flatMap(Int.init) { parts[type] = d }
+                }
+                book.tableStyles[name] = parts
+            }
         }
         if let raw = _part(parts, "xl/styles.xml") {
             let split = RawXML.split([UInt8](raw))
@@ -564,6 +572,10 @@ enum Xlsx {
         }
         if let p = d.child("fill")?.child("patternFill") {
             if let c = p.child("bgColor") ?? p.child("fgColor") { x.fill = _color(c, theme: theme) }
+        }
+        for side in ["left", "right", "top", "bottom", "horizontal", "vertical"] {
+            guard let b = d.child("border")?.child(side), let style = b["style"], style != "none" else { continue }
+            x.borders[side] = b.child("color").flatMap { _color($0, theme: theme) } ?? 0
         }
         return x
     }

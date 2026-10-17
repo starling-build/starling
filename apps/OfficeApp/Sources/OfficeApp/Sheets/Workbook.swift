@@ -381,6 +381,10 @@ final class Workbook {
     var keptStyleParts: [String: String] = [:]
     /// Those differential formats, read for drawing conditional formats.
     var dxfs: [DxfStyle] = []
+    /// The file's own table styles (`tableStyles`): by name, each part of a
+    /// table it formats (wholeTable, headerRow, firstRowStripe…) and the
+    /// differential format it gives that part.
+    var tableStyles: [String: [String: Int]] = [:]
     /// The theme's twelve colour slots (lt1, dk1, lt2, dk2, accent1–6, links).
     var themeColors: [UInt32] = Xlsx._themeColors(nil)
     /// What charts draw with: the file's theme, or Office's.
@@ -439,6 +443,9 @@ struct DxfStyle: Equatable, Sendable {
     var strike: Bool? = nil
     var color: UInt32? = nil
     var fill: UInt32? = nil
+    /// Rules by side — left, right, top, bottom, and horizontal and
+    /// vertical between the cells of what it formats — and their colour.
+    var borders: [String: UInt32] = [:]
 }
 
 /// A styles.xml as read: its numFmts, fonts, fills and borders as written,

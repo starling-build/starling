@@ -2099,7 +2099,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 for row in rs where row >= t.ref.top && row <= t.ref.bottom {
                     for col in cs where col >= t.ref.left && col <= t.ref.right {
                         let a = CellAddress(row: row, col: col)
-                        if let look = TableStyles.look(t, a, theme: book.themeColors) { tableLooks[a] = look }
+                        if let look = TableStyles.look(t, a, theme: book.themeColors, book: book) { tableLooks[a] = look }
                     }
                 }
             }

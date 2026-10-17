@@ -157,8 +157,10 @@ struct TableCellLook: Equatable {
 /// An approximation of presetTableStyles — the header, stripes and lines
 /// that make a table read as one, not every rule of every style.
 enum TableStyles {
-    static func look(_ t: SheetTable, _ a: CellAddress, theme: [UInt32]) -> TableCellLook? {
-        guard t.ref.contains(a), let name = t.style, name.hasPrefix("TableStyle") else { return nil }
+    static func look(_ t: SheetTable, _ a: CellAddress, theme: [UInt32], book: Workbook? = nil) -> TableCellLook? {
+        guard t.ref.contains(a), let name = t.style else { return nil }
+        if let parts = book?.tableStyles[name], let book { return custom(t, a, parts: parts, dxfs: book.dxfs) }
+        guard name.hasPrefix("TableStyle") else { return nil }
         let rest = name.dropFirst("TableStyle".count)
         let family = rest.prefix { $0.isLetter }
         guard let n = Int(rest.dropFirst(family.count)), n >= 1 else { return nil }
@@ -219,6 +221,48 @@ enum TableStyles {
         }
         if edgeCol && !header { x.bold = true }
         if totals { x.bold = true; x.top = x.top ?? base }
+        return x
+    }
+
+    /// A style the file defines: each part's differential format laid over
+    /// the last, in Excel's order — the whole table, column stripes, row
+    /// stripes, last and first columns, header and totals rows — its fill,
+    /// font and the rules at that part's edges and between its cells
+    /// (lo-Book1_custom's green stripes and blue header, printed plain).
+    static func custom(_ t: SheetTable, _ a: CellAddress, parts: [String: Int], dxfs: [DxfStyle]) -> TableCellLook {
+        let r = t.ref
+        let header = t.headerRow && a.row == r.top
+        let totals = t.totalsRow && a.row == r.bottom
+        let body = CellRange(top: r.top + (t.headerRow ? 1 : 0), left: r.left, bottom: r.bottom - (t.totalsRow ? 1 : 0), right: r.right)
+        let inBody = !header && !totals
+        let dataRow = a.row - body.top, dataCol = a.col - r.left
+        // The parts that hold the cell, each with the range it spans.
+        var regions: [(String, CellRange)] = [("wholeTable", r)]
+        if t.columnStripes {
+            regions.append((dataCol % 2 == 0 ? "firstColumnStripe" : "secondColumnStripe",
+                            CellRange(top: body.top, left: a.col, bottom: body.bottom, right: a.col)))
+        }
+        if t.rowStripes && inBody {
+            regions.append((dataRow % 2 == 0 ? "firstRowStripe" : "secondRowStripe",
+                            CellRange(top: a.row, left: r.left, bottom: a.row, right: r.right)))
+        }
+        if t.lastColumn && a.col == r.right { regions.append(("lastColumn", CellRange(top: r.top, left: r.right, bottom: r.bottom, right: r.right))) }
+        if t.firstColumn && a.col == r.left { regions.append(("firstColumn", CellRange(top: r.top, left: r.left, bottom: r.bottom, right: r.left))) }
+        if header { regions.append(("headerRow", CellRange(top: r.top, left: r.left, bottom: r.top, right: r.right))) }
+        if totals { regions.append(("totalRow", CellRange(top: r.bottom, left: r.left, bottom: r.bottom, right: r.right))) }
+        var x = TableCellLook()
+        for (type, g) in regions {
+            guard let d = parts[type], d >= 0, d < dxfs.count else { continue }
+            let s = dxfs[d]
+            if let f = s.fill { x.fill = f }
+            if let b = s.bold { x.bold = b }
+            if let c = s.color { x.color = c }
+            let b = s.borders
+            if let c = a.row == g.top ? b["top"] : b["horizontal"] { x.top = c }
+            if let c = a.row == g.bottom ? b["bottom"] : b["horizontal"] { x.bottom = c }
+            if let c = a.col == g.left ? b["left"] : b["vertical"] { x.left = c }
+            if let c = a.col == g.right ? b["right"] : b["vertical"] { x.right = c }
+        }
         return x
     }
 }
