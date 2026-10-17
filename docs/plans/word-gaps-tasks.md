@@ -2008,6 +2008,15 @@ within a point, p2's line and p8's two. Same-base sweep: zh-3c055c9b
 spaces near nothing — the one beside the character taken may not count).
 Unit fonts never reach this squeeze, so the sweep is its test.
 
+### T92. zh-830ef10d p2: a cell narrower than an em holds a character a line — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+Documents: zh-830ef10d (89.2%, fourth sample).
+Known: a 16.8pt cell (6pt inside its margins) holds "个性要求（6分）",
+12pt on exact 13pt lines, centred beside a cell of five lines. Word sets
+it eight lines, "（", "6", "分" and "）" each alone; ours kept "（6" and
+"分）" by the line-start and line-end rules, then "6分" (the "6" just
+fills the column): seven lines, all half a line off the neighbour's.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
