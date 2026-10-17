@@ -1106,6 +1106,13 @@ zh-64044a1d 97.8 -> 99.0 (a table in a text box; exact rows), chartex 76.4
   搶修 )開口合約廠" unsqueezed (12.32 a cell); ours squeezes "、" to 8.2
   and takes "商，" too. The spaces before the brackets are 6pt each in
   ours. Squeeze ground: left to whoever holds it.
+- zh-c5b5087b p6-9 (95.4%), the same shape: mode 14, compressPunctuation,
+  no character grid, the body paragraphs `w:kinsoku` 0, justified, 16pt
+  仿宋_GB2312 (YaHei), Normal's `w:kern` 0. Word sets "…损耗损失，" (25
+  cells, 16.43 apart) and starts the next line with "由"; ours squeezes the
+  "，" 5.76pt (0.36 em) to take "由". Its next line in ours squeezes two
+  commas 2.9pt each for two characters more. Word squeezes nothing on
+  these lines. Data for the kinsoku-off note above (zh-799c91cd p2).
 - delins balloons: Word's one-line balloons step 10.46pt (scaled), ours
   10.0. Pinning the line to Tahoma's 1.2075 em made ours 10.7 and set
   the deletion balloon 11pt low (delins 45 -> 37 lines of 60); reverted.
