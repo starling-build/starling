@@ -5901,6 +5901,17 @@ public final class RichLayout {
                                             eastAsian: true, gridPitch: pitch)
                     spans.append(TextSpan(text: String(ch), style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
                     start = after
+                } else if ea, theme.wordRules, let cjk = Self._cjkFaceFamily, let u = ch.unicodeScalars.first?.value, (0x2160 ... 0x217F).contains(u) {
+                    // (A Roman numeral in East Asian text is the CJK face's,
+                    // an em wide: zh-78729cf9's "（Ⅰ级）、重大（Ⅱ级）" in a
+                    // hinted 仿宋_GB2312 run is YaHei's in Word's print, each
+                    // numeral a full cell. The Latin stand-in has none, and
+                    // the fallback found DejaVu's, 0.34 to 0.73 em: the line
+                    // took a character more than Word's, three times.)
+                    flush(i)
+                    let s = style(kind)
+                    spans.append(TextSpan(text: String(ch), style: (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)))
+                    start = after
                 } else if ea, theme.wordRules, let cjk = Self._cjkSymbolFamily, Self._cjkSymbols.contains(ch) {
                     // (A dash or an ellipsis in East Asian text is the
                     // CJK face's glyph, with its metrics: the Latin
@@ -7628,6 +7639,17 @@ public final class RichLayout {
     private static let _cjkSymbolFamily: String? = "PingFang SC"
     #else
     private static let _cjkSymbolFamily: String? = nil
+    #endif
+    /// The platform's CJK face, as the theme's glyph fallback names it:
+    /// what an East Asian run's Roman numerals are drawn in (see `styled`).
+    #if os(macOS) || os(iOS)
+    private static let _cjkFaceFamily: String? = "PingFang SC"
+    #elseif os(Windows)
+    private static let _cjkFaceFamily: String? = "Microsoft YaHei"
+    #elseif os(Linux)
+    private static let _cjkFaceFamily: String? = "Noto Sans CJK SC"
+    #else
+    private static let _cjkFaceFamily: String? = nil
     #endif
     private static let _closingMarks: Set<Character> = ["，", "。", "、", "；", "：", "！", "）", "》", "」", "』", "】", "〕", "〉", "｝", "］", "．"]
     private static let _openingMarks: Set<Character> = ["（", "《", "「", "『", "【", "〔", "〈", "｛", "［"]

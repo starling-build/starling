@@ -5488,6 +5488,18 @@ fitter dropped the paragraph's tail).
   - chart 1 stands 2.2pt low;
   - the second axis's labels stand 9.2pt off the plot in Word, ours 6;
   - Word's plot is 3.2pt wider at the right.
+- **A Roman numeral in East Asian text is the CJK face's (2026-10-17).**
+  zh-78729cf9's "特别重大（Ⅰ级）、重大（Ⅱ级）、一般（Ⅲ级）" sits in a
+  run of 仿宋_GB2312 hinted East Asian. Word's print draws it all in
+  YaHei, each numeral a full 16pt cell. The classifier already counted
+  U+2160-217F as East Asian under the hint, but the East Asian style
+  is built on a Latin stand-in that has no such glyph, and the fallback
+  reached DejaVu Sans (0.34-0.73 em) before YaHei. So the line took a
+  character more than Word's, on pages 10, 16 and 17. Now those
+  numerals are drawn from the platform's CJK face (YaHei on Windows,
+  PingFang on the Mac, Noto Sans CJK on Linux), as dashes and
+  ellipses already were on the Mac. zh-78729cf9 99.3 -> 100; nothing
+  else moved.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than
