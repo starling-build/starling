@@ -854,10 +854,13 @@ delins 23.3, WordWithAttachments 23.7 (their bodies' own layout now
 shows: delins's lists, WWA's header and table). Not built: moves
 (Tika-792), "Field Code Changed", change bars.
 
-### T54. zh-454e2e29 p4: a diagonal header cell's text-box labels 8pt high
+### T54. zh-454e2e29 p4: a diagonal header cell's text-box labels 8pt high — DONE (2026-10-16)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-454e2e29 (95.3%). "人數", "官等", "類別" are text boxes
 anchored in the cell, beside two `wps` diagonal lines.
+Built: a floating text box's text takes the document's line grid, as
+Word's does (not `w:combine` text, a box in the line). Labels within
+0.4pt of Word's; no score moved (the line match groups that row alike).
 
 ### T53. Web spacing between two lists
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16

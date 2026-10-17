@@ -8574,7 +8574,13 @@ public final class RichLayout {
         // (A table nested in a cell keeps to the page's grid, as its
         // cell does: zh-454e2e29's nested form, its rows of 14pt 標楷體
         // two 18pt pitches each in Word's print, came out 33pt short.)
-        if box.growsToFit {
+        // (And so does a floating text box's text: zh-454e2e29's
+        // diagonal cell labels, 12pt 標楷體 in boxes 2pt and 23pt under
+        // their paragraph's top, stand two 18pt pitches deep, centred,
+        // in Word's print — 8pt lower than their own line set them. Not
+        // text set two lines in one (`w:combine`), a box in the line:
+        // on the grid its row grew a pitch.)
+        if box.growsToFit || image.float != nil {
             sub.lineGridPitch = document.lineGridPitch
             sub.characterGridSpace = document.characterGridSpace
         }

@@ -4492,6 +4492,16 @@ fitter dropped the paragraph's tail).
   their 30pt, where ours, counting no line on that side, took two. A
   cell's side with no line of its own now takes its neighbour's.
   zh-37b6536f 96.2 -> 97.7; nothing else moved.
+- **A floating text box's text is on the document's line grid
+  (2026-10-16).** zh-454e2e29's diagonal header cell labels its corners
+  "人數", "官等" and "類別" with 12pt 標楷體 text boxes (wrapNone,
+  anchored in the cell's paragraph). In Word's print each stands two
+  18pt pitches deep, centred in them, as body text on that grid does.
+  Ours set the box text on its own line, 8pt higher. A floating box's
+  text now takes the grid. Text set two lines in one (`w:combine`)
+  stays off it: it is a box in the line, and on the grid its row grew
+  a pitch. The labels are within 0.4pt of Word's now. No score moved,
+  since the line match groups those cell lines alike either way.
 - **After a space, a character is taken wherever the marks can give
   (2026-10-16).** Before Word 2013's layout a justified line takes a
   character over its end by no more than half the one before it.
