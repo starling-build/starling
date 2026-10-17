@@ -2284,6 +2284,13 @@ both scored worse. Its value labels' middles stand 1.2 pt above their
 lines, which made no difference to the score and is left. Slides only
 (`Chart.onSlide`): the half-line top was measured on Word's prints.
 
+**A 2007-style bar chart's value labels back at the foot, 2026-10-17**
+(bar-chart 1.40 → 1.31; the other chart decks unchanged). Raising its
+plot 3.8 pt (2026-10-16) took the value labels under it up too —
+they are drawn from the plot's foot — where PowerPoint's stay at the
+frame's: 401.4 in its print, ours 397.8. They now stand 7.8 pt under
+the plot, as the plot was raised.
+
 **Also looked at, 2026-10-17:** PowerPoint's line positions wobble by
 up to a point in a repeating pattern — the AES 2011 tables' 16.8 pt
 lines step 17.04, 17.04, 17.04, 16.08, 16.80, averaging ours exactly —

@@ -1927,7 +1927,12 @@ enum ChartPainter {
                         canvas.drawLine(Offset(p, plot.top), Offset(p, plot.bottom), gridPaint)
                     }
                 }
-                tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + 4 * k + belowOut))
+                // (Where the plot's foot left them: a 2007-style chart's
+                // plot ends 7.8 pt over them, and they stay at the frame's
+                // foot — bar-chart's at 401.4 in PowerPoint's print, where
+                // ours had risen with the plot to 397.8.)
+                let under = (c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : 4) * k
+                tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + under + belowOut))
             } else {
                 if c.valueGrid {
                     if box != .zero {
