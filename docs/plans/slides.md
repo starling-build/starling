@@ -2291,6 +2291,13 @@ they are drawn from the plot's foot — where PowerPoint's stay at the
 frame's: 401.4 in its print, ours 397.8. They now stand 7.8 pt under
 the plot, as the plot was raised.
 
+**Tried and dropped, 2026-10-17:** a percentage before a paragraph
+taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
+whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the
+three 45541s +0.57, five more worse, none better. Its gaps are the
+wobble, not the rule. Also not drawn: reflections (`a:reflection`),
+whose only printed case is themes' Trek title, three pages.
+
 **Also looked at, 2026-10-17:** PowerPoint's line positions wobble by
 up to a point in a repeating pattern — the AES 2011 tables' 16.8 pt
 lines step 17.04, 17.04, 17.04, 16.08, 16.80, averaging ours exactly —
