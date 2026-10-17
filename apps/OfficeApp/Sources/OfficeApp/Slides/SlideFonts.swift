@@ -66,6 +66,15 @@ enum SlideFonts {
             face.advances = t.0
             face.boldAdvances = t.1
             return face
+        case "times new roman", "calibri":
+            // (Hebrew at the face's own widths: tdf98603's title and quote
+            // are a fifth narrower in PowerPoint's print than the stand-ins
+            // set them, and broke a word early.)
+            var face = RichResolvedFace(family: resolve(family))
+            let hebrew = family.trimmingWhitespace().lowercased() == "calibri" ? SlideFontWidths.calibriHebrew : SlideFontWidths.timesHebrew
+            face.otherAdvances = hebrew
+            face.boldOtherAdvances = hebrew
+            return face
         case "arial black":
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.arialBlackAdvances

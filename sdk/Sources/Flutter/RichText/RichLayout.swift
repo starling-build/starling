@@ -5438,6 +5438,7 @@ public final class RichLayout {
                         extra += target - _glyphWidth(s, ch)
                     }
                 } else if !ea, let grid = theme.advanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline,
+                          latinFace?.otherAdvances.flatMap({ t in ch.unicodeScalars.first.flatMap { t[$0.value] } }) == nil,
                           ch.unicodeScalars.first.map({ $0.value >= 0x20 && $0.value < 0x2E80 }) ?? false {
                     // On the print's grid (`advanceGrid`) — kerned with the
                     // next where the run kerns at its size (`kerningFrom`).
@@ -5452,7 +5453,13 @@ public final class RichLayout {
                     let s = style(kind)
                     if let w = (s.fontWeight == .bold ? face.boldOtherAdvances : face.otherAdvances)?[u], let px = s.fontSize, px > 0.5 {
                         let classScale = classed ? face.classScales.flatMap { kind >= 0 && kind < $0.count ? $0[kind] : nil } ?? 1 : 1
-                        extra += w * px / (face.sizeScale * classScale) - _glyphWidth(s, ch)
+                        var target = w * px / (face.sizeScale * classScale)
+                        // (On the print's grid, where the theme has one.)
+                        if let grid = theme.advanceGrid, grid > 0 {
+                            let g = grid * theme.pixelsPerPoint * scale
+                            if g > 0 { target = (target / g).rounded() * g }
+                        }
+                        extra += target - _glyphWidth(s, ch)
                     }
                 }
                 if let following {

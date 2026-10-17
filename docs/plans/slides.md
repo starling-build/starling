@@ -2014,6 +2014,16 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Hebrew at Times New Roman's and Calibri's own widths, 2026-10-16**
+(sweep 154: 1.0996 → 1.088%; tdf98603 5.96 → 4.79, nothing else
+moved). PowerPoint sets tdf98603's Hebrew title in Times New Roman and
+its quote in Calibri; their Hebrew letters are a fifth narrower than
+Liberation Serif's and DejaVu Sans's (alef 0.481 em to 0.600), and our
+lines broke a word early. `SlideFontWidths.timesHebrew`/`calibriHebrew`
+(U+05B0–U+05F4, from Windows' times.ttf and calibri.ttf) are their
+`otherAdvances`; such a character is set at that width on the advance
+grid, before the grid's own rounding (shared; only with a grid).
+
 **A 2007-style bar chart's plot as PowerPoint sizes it, 2026-10-16**
 (bar-chart 2.27 → 1.52; the other chart decks unchanged). Its plot
 starts at 156.4 in PowerPoint's print where ours started at 151.4, ends
