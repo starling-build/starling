@@ -5977,8 +5977,24 @@ public final class RichLayout {
             }
         }
         if roomyTrail, let last = p.runs.last {
-            let style = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
-                                        gridPitch: pitch, scriptHidden: true)
+            // (In the style the last ideograph was set in, where one was:
+            // its line is that style's height already, and a line of the
+            // spaces alone is a line of the text's height, as Word's is.
+            // In the run's Latin style the joiner's descent — Liberation
+            // Mono's, on Linux — made zh-1563bd74's footer 1.2pt taller and
+            // its document a page long; in the ideographs' face resolved
+            // anew, the Mac's YaHei stand-in, a point taller there.)
+            func lastIdeograph(_ spans: [InlineSpan]) -> TextStyle? {
+                for span in spans.reversed() {
+                    guard let t = span as? TextSpan else { continue }
+                    if let inner = t.children, let found = lastIdeograph(inner) { return found }
+                    if let text = t.text, text.contains(where: { Self.isEastAsian($0, hinted: false) }) { return t.style }
+                }
+                return nil
+            }
+            let style = lastIdeograph(children)?.copyWith(letterSpacing: 0)
+                ?? theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                   gridPitch: pitch, scriptHidden: true)
             children.append(TextSpan(text: "\u{2060}", style: style))
             inserts.append(p.text.utf16.count)
         }
