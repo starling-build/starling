@@ -7244,7 +7244,8 @@ public final class RichLayout {
                         fits = true
                     }
                 }
-                if !fits, !opening, squeezesSpaces, !wordSpaces.isEmpty {
+                if !fits, !opening, squeezesSpaces,
+                   !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
                     // (Less what its last mark hangs.)
                     let need = x + w - after - width - hang
                     // (The automatic spaces between ideographs and Latin
@@ -7254,8 +7255,16 @@ public final class RichLayout {
                     // print, 2.46pt over, its two spaces set at 2.3 of
                     // 3.12 and the space after "牌" at 1.8 of 3.0 — ours
                     // gave the spaces only and left "度。" for the next.)
+                    // (… with no word space on the line as well: zh-c5f59397's
+                    // "期程自112年度至114年度，113年度…貨櫃", its five spaces
+                    // between ideographs and digits set at 2.7 of 3.0 in
+                    // Word's print, takes "櫃" 1.16pt over. Half of each, and a
+                    // quarter of an em in all: zh-adfe24a7's "…善用GIS、…計畫
+                    // 執行" leaves "行" 2.88pt over with its one, and the same
+                    // document's "…3艘35噸級巡緝艇及3艘5噸級快艇，113年度預定
+                    // 辦" takes no "理" with eight.)
                     let autos = spaces + ownSpaces
-                    let roomAutos = autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2
+                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, em / 4)
                     let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4 + roomAutos
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
@@ -7265,14 +7274,15 @@ public final class RichLayout {
                     // to a tenth of a point, as are lab `jt`'s lines of
                     // "ab" and "abcd". bug65649's Cyrillic took a word
                     // Word leaves, or left one it takes, line after line.)
-                    let stretch = width - (x - wordSpaces[wordSpaces.count - 1].w)
+                    let stretch = width - (x - (wordSpaces.last?.w ?? 0))
                     let halfStretch = wordSpaces.count < 2
                         || need / Double(wordSpaces.count) <= stretch / Double(wordSpaces.count - 1) / 2 + hair
                     if need <= roomSpaces + hair, halfStretch {
                         // (Each gives the same share of what it can.)
                         let share = min(1, (need + 0.02) / max(0.001, roomSpaces))
                         for space in wordSpaces { adjust[space.k, default: 0] -= space.w / 4 * share }
-                        for k in autos { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * share }
+                        let autoShare = roomAutos / max(0.001, autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
+                        for k in autos { adjust[k, default: 0] -= (gaps[k] ?? 0) * autoShare * share }
                         if after > 0 { adjust[last - 1, default: 0] -= after }
                         if hang > 0 { adjust[tail, default: 0] -= hang }
                         fits = true

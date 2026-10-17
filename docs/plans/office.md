@@ -3310,6 +3310,21 @@ fitter dropped the paragraph's tail).
   a parted row): the part is then to the foot, as before. (T32.)
   zh-91e44bcb 97.1% -> 100; nothing else moved.
 
+- **A justified line's automatic spaces give without word spaces too, a
+  quarter of an em in all (2026-10-17).** b9952df9 let the automatic
+  spaces between ideographs and Latin give with a line's word spaces,
+  half of themselves at most. A line with none of the latter gave
+  nothing: zh-c5f59397's "期程自112年度至114年度，113年度…貨櫃" (mode 15,
+  justified, no word space — the gaps Word's PDF shows as spaces are
+  its automatic ones) takes "櫃" 1.16pt over, its five set at 2.7 of
+  3.0. They now give there too, half of each and a quarter of an em on
+  the line at most: zh-adfe24a7's "…善用GIS、…計畫執行" leaves "行"
+  2.88pt over with one (half of it is 1.5), and zh-c5f59397's "…3艘35噸級
+  巡緝艇及3艘5噸級快艇，113年度預定辦" takes no "理" with eight (whose
+  halves alone would take two characters). zh-c5f59397 98.5% -> 100;
+  nothing else moved. (Uncapped, zh-3c055c9b went 44.9 -> 70.1 and
+  zh-c5f59397 to 89.9: a lead for zh-3c055c9b's lines.)
+
 - **Times and Arial keep their line gap over the text on Windows too
   (2026-10-17).** Writer draws Liberation Serif and Sans as Word holds
   Times and Arial, their `hhea` line gap moved over the ascent (T19).
