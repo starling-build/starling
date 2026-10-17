@@ -736,7 +736,7 @@ paragraph whose other line is taller — Word's height for each line.
   (Linux, 2026-10-16, 82e6e51d: drawing groups and lone shapes the
   outline skipped are drawn now — every preset, theme and system
   colours, arrowheads; one of this cell's diagonals shows. The labels'
-  8pt is untouched.)
+  8pt is untouched.) Both diagonals draw now; labels: T54.
 - zh-1563bd74's footer (for the Linux note under "Note from the Linux dev
   box"): its height is right as ours has it. Lab `ft` (Word for Windows,
   the document's own footer): the page number stands at 112.6 and "红河
@@ -878,6 +878,9 @@ anchored in the cell, beside two `wps` diagonal lines.
 Built: a floating text box's text takes the document's line grid, as
 Word's does (not `w:combine` text, a box in the line). Labels within
 0.4pt of Word's; no score moved (the line match groups that row alike).
+Linux built the same at the same time; merged as each box's own section's
+grid (zh-6cd1befe's flow chart is in a section of none) and inline boxes
+too. On Linux zh-454e2e29 94.8 -> 96.7%; nothing else moved.
 
 ### T55. Web spacing between two lists (numbered T53, then T54, at first; the Mac's came first) — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16

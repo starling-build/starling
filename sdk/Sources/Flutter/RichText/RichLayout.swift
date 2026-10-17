@@ -1182,6 +1182,7 @@ public final class RichLayout {
             invalidateAll()
             _resize(document.paragraphs.count)
         }
+        _imageParagraphs = nil
         if _resolveSections(document) {
             // A section's page changed, or which paragraphs are in it:
             // everything wraps and paginates again.
@@ -8551,6 +8552,7 @@ public final class RichLayout {
     }
 
     private var _textBoxCache: [String: _HeaderFooter] = [:]
+    private var _imageParagraphs: [String: Int]? = nil
     /// The boxes Word's two lines in one are set in (`_span`), by their
     /// text and look: one attachment each, so its laid-out box is kept.
     private var _combineBoxes: [String: ImageAttachment] = [:]
@@ -8633,9 +8635,24 @@ public final class RichLayout {
     }
 
     /// A text box's text, laid out at the box's width inside its insets.
+    /// The paragraph an image with this id stands in, inline or as its
+    /// own (the first one, if a copy stands in more).
+    private func _paragraphHolding(_ id: String, _ document: RichDocument) -> Int? {
+        if _imageParagraphs == nil {
+            var map: [String: Int] = [:]
+            for (i, p) in document.paragraphs.enumerated() {
+                if let image = p.image, map[image.id] == nil { map[image.id] = i }
+                for image in p.inlineImages.values where map[image.id] == nil { map[image.id] = i }
+            }
+            _imageParagraphs = map
+        }
+        return _imageParagraphs?[id]
+    }
+
     private func _textBox(_ image: ImageAttachment, _ document: RichDocument) -> _HeaderFooter? {
         guard theme.wordRules, let box = image.textBox else { return nil }
-        let key = "\(image.id)|\(image.width)|\(scale)|\(box.hashValue)"
+        let grid = image.name == "combine" && !box.growsToFit ? (pitch: nil, chars: nil) : _grid(_paragraphHolding(image.id, document), document)
+        let key = "\(image.id)|\(image.width)|\(scale)|\(box.hashValue)|\(grid.pitch ?? 0)|\(grid.chars ?? 0)"
         if let hit = _textBoxCache[key] { return hit }
         var sub = RichDocument(paragraphs: box.paragraphs)
         sub.styles = document.styles
@@ -8653,19 +8670,17 @@ public final class RichLayout {
         sub.defaultTabStop = document.defaultTabStop
         sub.tableStyles = box.tableStyles
         sub.tableColumns = box.tableColumns
-        // (A table nested in a cell keeps to the page's grid, as its
-        // cell does: zh-454e2e29's nested form, its rows of 14pt 標楷體
-        // two 18pt pitches each in Word's print, came out 33pt short.)
-        // (And so does a floating text box's text: zh-454e2e29's
-        // diagonal cell labels, 12pt 標楷體 in boxes 2pt and 23pt under
-        // their paragraph's top, stand two 18pt pitches deep, centred,
-        // in Word's print — 8pt lower than their own line set them. Not
-        // text set two lines in one (`w:combine`), a box in the line:
-        // on the grid its row grew a pitch.)
-        if box.growsToFit || image.float != nil {
-            sub.lineGridPitch = document.lineGridPitch
-            sub.characterGridSpace = document.characterGridSpace
-        }
+        // (A box's text keeps to its section's grid, as the page's does:
+        // zh-454e2e29's nested form, its rows of 14pt 標楷體 two 18pt
+        // pitches each in Word's print, came out 33pt short, and the
+        // labels "人數", "官等" and "類別" of its diagonal header cell —
+        // 12pt YaHei, two pitches, centred — stood 8pt high. The two
+        // lines in one of `w:combine` stand on the line's own grid. The
+        // section is the anchor's: zh-6cd1befe's flow chart stands in a
+        // section of no grid, and on the last section's its 22pt title
+        // went 4pt low.)
+        sub.lineGridPitch = grid.pitch
+        sub.characterGridSpace = grid.chars
         // (A group whose boxes stand beside one another — one starts
         // above the foot of the one before — cannot be one flow: each of
         // its later boxes is laid out alone and painted at its place.

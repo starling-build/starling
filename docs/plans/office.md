@@ -4536,6 +4536,12 @@ fitter dropped the paragraph's tail).
   stays off it: it is a box in the line, and on the grid its row grew
   a pitch. The labels are within 0.4pt of Word's now. No score moved,
   since the line match groups those cell lines alike either way.
+  (Linux, the same day, built at the same time and merged into this:
+  every box but `w:combine`'s, floating or inline, and the grid of the
+  section its anchor stands in, not the document's — zh-6cd1befe's flow
+  chart stands in a section of no grid, and on the last section's its
+  22pt title went 4pt low. On Linux zh-454e2e29 94.8 -> 96.7%; nothing
+  else moved.)
 - **After a space, a character is taken wherever the marks can give
   (2026-10-16).** Before Word 2013's layout a justified line takes a
   character over its end by no more than half the one before it.
