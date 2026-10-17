@@ -113,7 +113,7 @@ start from there.
 ### Note from the Mac (2026-10-17, later): the zh corpus is 128 documents — a fourth sample
 Twenty more (`random.seed(20261018)`, the unprinted rest of 15-400 KB,
 Word 16.113.3 prints) are checked in; compare per document across it.
-It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (6 pages),
+It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (6 pages; Mac, looking),
 zh-5dc5ce34 20.3 (21), zh-167ee06c 55.4 (14), zh-21421b7d 69.2 (2),
 zh-70094a34 70.8 (19), zh-621d8756 82.4 (52), zh-34a6519a 84.0 (53),
 zh-830ef10d 89.2, zh-fb482d33 89.7 (6 pages, Word 7), zh-ad224275 93.2.
