@@ -126,8 +126,12 @@ Documents: zh-fec5fa30 (84.7%, third sample).
 Built (Mac, 2026-10-17): body text under "內文2", a style not based on
 Normal, takes the defaults' zh-TW rather than Normal's en-US, so its
 lines keep the East Asian rules ("，" no longer opens a line). 84.7 ->
-86.1, nothing else moved. Still claimed: the tables on pp 9-10, 31-32,
-47-48 and 54-55, and the missing page.
+86.1, nothing else moved.
+T76's a309c7a1 (a fixed table keeps a grid wider than its share) also
+fixes the 附件 forms here, which say 105.3% of the column (513pt) over a
+524.5pt grid: 86.1 -> 88.8 measured on the Mac (s286). It also lifted
+zh-547fc43c 13.2 -> 88.7 (Word's 17 pages) and zh-a5745784 79.3 -> 99.7.
+Still claimed: the tables on pp 47-48 and 54, and the missing page.
 
 ### T76. zh-540dc149: 9 pages where Word's are 10 — DONE (2026-10-17)
 Owner: the Windows box (011ZXp8e), 2026-10-17 (claimed first by 017F2GnT, Linux, who handed it over)
