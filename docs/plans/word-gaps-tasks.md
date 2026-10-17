@@ -165,6 +165,9 @@ questions end "…（TSG S7001-2013）…。（      ）", and twenty such chara
 put the "）" 0.02pt past the margin and a line down, where Word's ends
 on it; every question after slipped. Scale 1024/1229 now. zh-f6686f89
 6.0 -> 100, zh-a0e932c2 98.5 -> 99.2, nothing fell.
+Also (Linux, 017F2's sweep without e4ff8b67): a309c7a1's fixed-grid rule
+alone takes zh-f6686f89 5.6 -> 99.6 (22 pages like Word's), and zh-fec5fa30
+83.8 -> 85.7. Both fixes hold together; nothing to redo here.
 
 ### T70. Kerning in a stand-in set to the original's advances (YaHei's "TC") — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
