@@ -5517,6 +5517,14 @@ fitter dropped the paragraph's tail).
   span's last row to fit the cell, 5pt, so the form's last four rows
   stood 5pt low. The stretch now skips a span whose rows are all exact.
   zh-64044a1d 98.8 -> 99.0 (page 97 now whole); nothing else moved.
+- **A list item that is a picture alone has its number (2026-10-17).**
+  chartex's third bullet holds nothing but an inline chart. Word prints
+  the "•" at the margin, on the chart's line, its baseline at the
+  chart's foot (379.4). A picture paragraph is painted on its own path,
+  which drew no marker, and `_wordList` declines a paragraph with a
+  picture. The marker is now painted there, from the paragraph's list
+  level as for text, its baseline at the picture's foot (379.5).
+  chartex 76.4 -> 77.8; nothing else moved.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than

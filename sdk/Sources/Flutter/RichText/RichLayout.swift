@@ -8616,6 +8616,19 @@ public final class RichLayout {
                 paint.color = Color(0x22808080)
                 canvas.drawRect(box, paint)
             }
+            // A list item that is a picture alone has its number too, on
+            // the picture's line, at its foot: chartex's third bullet
+            // stands beside its chart's lower edge in Word's print, where
+            // ours drew none.
+            var bare = document.paragraphs[i]
+            bare.image = nil
+            if theme.wordRules, image.float == nil, let label = listLabel(i, document), let wl = _wordList(bare, document) {
+                let marker = _marker(i, bare, document, label: label, strut: nil)
+                let at = g.textLeft + _px(wl.first)
+                marker.paint(canvas, Offset(wl.format?.justification == "right" ? at - marker.width : at,
+                                            box.bottom - marker.computeDistanceToActualBaseline(.alphabetic)))
+                marker.dispose()
+            }
             return
         }
         if let c = _cells[i], c.vertical {
