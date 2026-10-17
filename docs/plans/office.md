@@ -3310,6 +3310,19 @@ fitter dropped the paragraph's tail).
   a parted row): the part is then to the foot, as before. (T32.)
   zh-91e44bcb 97.1% -> 100; nothing else moved.
 
+- **A justified line's automatic spaces give with its word spaces
+  (2026-10-16).** From Word 2013's layout on a justified line's spaces
+  give a quarter of themselves for what is over; the automatic spaces
+  between ideographs and Latin gave nothing where punctuation is not
+  compressed. zh-b13d0fb4 (mode 15, `doNotCompress`) sets "家新創品牌
+  Startup Island TAIWAN，提升臺灣國際能見度。" on one line of a 304.6pt
+  cell, 2.46pt over: Word's print has its two spaces at 2.3 of PMingLiU's
+  3.12 and the space after "牌" at 1.8 of 3.0. Ours gave the spaces'
+  1.4 and left "度。" a line of its own. The automatic spaces now give
+  up to half of themselves there too (the most they give from 2013's
+  layout on where marks are squeezed), every space the same share of
+  what it can. zh-b13d0fb4 93.5% -> 100; nothing else moved.
+
 - **A centred cell merged down parts from its text's start
   (2026-10-16).** A row that parts at a page's foot under other text
   takes the lines of a centred cell too tall for the room from where its

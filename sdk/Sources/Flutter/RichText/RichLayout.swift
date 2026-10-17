@@ -7155,7 +7155,16 @@ public final class RichLayout {
                 if !fits, !opening, squeezesSpaces, !wordSpaces.isEmpty {
                     // (Less what its last mark hangs.)
                     let need = x + w - after - width - hang
-                    let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4
+                    // (The automatic spaces between ideographs and Latin
+                    // give too, half of themselves at most: zh-b13d0fb4's
+                    // "家新創品牌Startup Island TAIWAN，提升臺灣國際能見度。"
+                    // (mode 15, justified, a cell) is one line in Word's
+                    // print, 2.46pt over, its two spaces set at 2.3 of
+                    // 3.12 and the space after "牌" at 1.8 of 3.0 — ours
+                    // gave the spaces only and left "度。" for the next.)
+                    let autos = spaces + ownSpaces
+                    let roomAutos = autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2
+                    let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4 + roomAutos
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
                     // next line: lab `jg` (Word for Windows, Times New
@@ -7168,8 +7177,10 @@ public final class RichLayout {
                     let halfStretch = wordSpaces.count < 2
                         || need / Double(wordSpaces.count) <= stretch / Double(wordSpaces.count - 1) / 2 + hair
                     if need <= roomSpaces + hair, halfStretch {
-                        let each = (need + 0.02) / Double(wordSpaces.count)
-                        for space in wordSpaces { adjust[space.k, default: 0] -= each }
+                        // (Each gives the same share of what it can.)
+                        let share = min(1, (need + 0.02) / max(0.001, roomSpaces))
+                        for space in wordSpaces { adjust[space.k, default: 0] -= space.w / 4 * share }
+                        for k in autos { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * share }
                         if after > 0 { adjust[last - 1, default: 0] -= after }
                         if hang > 0 { adjust[tail, default: 0] -= hang }
                         fits = true
