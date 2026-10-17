@@ -1155,6 +1155,18 @@ Built: against db1a7940's prints, same base with and without, Linux:
 zh-e02b0479 68.6 -> 97.1, zh-15728c84 86.9 -> 98.5, zh-232090e0 86.7 ->
 95.6, zh-69bbcc3c 99.4 -> 99.5; nothing down; mean 91.25 -> 91.49.
 
+### T66. Balanced widths double the spacing only in a face Word stands in for
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+Documents: zh-15428325 (94.1%; its bold "（一）…" lines take a character
+more than Word's).
+Known: under `w:balanceSingleByteDoubleByteWidth` ours spaces every
+full-width character twice (16pt at -0.3 set 15.4 apart). Word's prints:
+twice for 仿宋_GB2312 and 標楷體 (YaHei stood in: zh-6cd1befe 15.4 and
+11.0, zh-9c5d0c3f 10.0), once for a face Word has (zh-15428325's 仿宋,
+15.68), and zh-232090e0's 楷体_GB2312 once (11.8) in the KaiTi print of
+2026-10-12, twice (11.6) in the YaHei reprint. Try: double only where
+the East Asian face is a stand-in.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
