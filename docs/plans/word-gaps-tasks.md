@@ -1154,6 +1154,16 @@ zh-64044a1d 97.8 -> 99.0 (a table in a text box; exact rows), chartex 76.4
 - chartex's sunburst: Word sets its labels turned along the radius and
   wrapped mid-word ("Branc" / "h 1"), and leaves the small segments
   unlabelled. Not built.
+- zh-6cd1befe p49-50 (99.5%): body text wraps round the footer's framed
+  page number. The footer is a `w:framePr` "— 49 —" (wrap around, vAnchor
+  text, 11.75pt above the footer's empty paragraph, x 451pt). On page 49
+  Word sets the note "3.随着…" at 778.1, beside the frame, its line ending
+  at 451.9 where the frame begins, and the rest of it on page 50. On page
+  48 a table row that would end beside the number goes over whole (rows
+  do not wrap). `_bodyInsets` raises the whole body's foot by the frame's
+  rise, which is right for the row and costs page 49 that line. The build:
+  page-level wrap bands for a footer's wrapping frames, which body lines
+  narrow round and rows clear. Not built.
 - zh-e02b0479 (68.6%): its form's last row is two 15.6pt grid pitches in
   Word because its text, 楷体_GB2312 10.5pt, is YaHei there (an 18pt
   line); our 楷体 is KaiTi, one pitch, and the merged "所需信息情况" above
