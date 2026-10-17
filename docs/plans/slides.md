@@ -2014,6 +2014,13 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**A 2007-style bar chart's plot as PowerPoint sizes it, 2026-10-16**
+(bar-chart 2.27 → 1.52; the other chart decks unchanged). Its plot
+starts at 156.4 in PowerPoint's print where ours started at 151.4, ends
+3.8 pt higher (390.1, not 393.9) and stands 1.9 pt further right: the
+top inset is 7 pt, the bottom 7.8 over the value labels, the gap beside
+the category labels 7.9 (were 2, 4 and 6), for a 2007-style chart only.
+
 **A metafile's empty text record fills nothing when the background is
 transparent, 2026-10-16** (lo-activex_textbox 4.02 → 0.37,
 lo-activex_combobox 0.92 → 0.11; the other 24 decks with WMF pictures
