@@ -1937,6 +1937,13 @@ value label's foot about 6pt over its bar (baseline 7.5 over at 10.5pt
 labels' baselines 16.5 under the axis, ours 19.8. Word's charts and
 PowerPoint's may differ here, so the painter would need to know which it
 draws for; the Slides decks are tuned to PowerPoint's.
+Tried (behind `Chart.inWord`, 2026-10-17): value labels 3.2pt higher and
+category labels 3.3pt higher in Word. zh-547fc43c 96.6 -> 98.4, but
+chartex's Calibri years (Mac print too) stood where ours were and went
+3.5pt high (77.8 -> 75.0). The two shifts are one size, and both charts'
+text is 宋体 in Word (digits too) where ours sets digits in Liberation
+Sans and ideographs in a CJK fallback — a face's line, not Word's gap.
+Reverted; the lead is the chart text's stand-in faces.
 
 ### T85. zh-3c055c9b: a character grid's automatic spaces in the squeeze — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
