@@ -905,6 +905,11 @@ ours gave it the engine's proportional leading at 1.8824 em, 2.73 lower.
 And Latin in a 標楷體 run (Word: YaHei's own Latin) is set in the Liberation
 Sans stand-in at YaHei's height, whose proportional ascent stands 0.9pt
 over YaHei's ("據與Invoice…" 21.5 for 20.6).
+Built: Noto Sans SC's line at 1.750 em, which gives Word's ascent (17.02pt
+at 12pt; its 0.48 deeper is not given): zh-8e8d4c40 90.4 -> 96.6, nothing
+else moved. Left: the Latin stand-in's ascent — the engine shares a run's
+height by its face's own ascent and descent, so no height gives both
+YaHei's ascent and its depth; a baseline shift would move the glyphs too.
 
 ### Leads for the Mac session (from the Windows box, 2026-10-16)
 Each needs Word or is in an area the Mac has worked; claim here first.
