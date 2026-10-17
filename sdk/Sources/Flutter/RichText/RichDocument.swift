@@ -284,6 +284,11 @@ public struct ImageFloat: Hashable, Sendable {
     /// `b`, points): its outline's and shadow's share of the room Word
     /// gives it.
     public var effectBottom = 0.0
+    /// How far text keeps from its top and its foot where it wraps round
+    /// it (`wp:anchor`'s `distT`/`distB`, VML's `mso-wrap-distance-top`
+    /// and `-bottom`), in points.
+    public var distanceTop = 0.0
+    public var distanceBottom = 0.0
     public init() {}
 }
 

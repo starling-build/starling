@@ -5142,6 +5142,24 @@ fitter dropped the paragraph's tail).
   scripts/apply_engine_patches.sh; Skia itself stays upstream's): a U+3000
   is justified as an ideograph. Sideways drift 552 -> 537; no score moved.
   An engine built without the patch keeps the old placement.
+- **A wrapping float set over content before its anchor is pinned, and
+  that content moves under it (2026-10-17; Linux).** zh-06c46ba9 p70:
+  the VML box "分工表格式" (square wrap, 3.6pt wrap distance above and
+  below, 2.2pt under its paragraph's top) is anchored in "附錄3", after a
+  table row parted onto the page. Word's print stands the box where the
+  row's foot puts its paragraph and then sets the row's part UNDER the
+  box, "附錄3" under that; ours drew the box over the row. Now the
+  pagination notes such a float (one whose band, wrap distances in,
+  reaches a table row set before its anchor on its page), pins it there
+  (`_pinnedFloats`: page, band, where its anchor stood) and sets the
+  pages again: the pinned band is on its page from the top, rows and
+  their parts keep under it, and the float is drawn where it was pinned
+  however far its paragraph then moves (`_floatShiftY`). An incremental
+  setting keeps the pins of the pages it takes back unchanged. The wrap
+  distances (`ImageFloat.distanceTop`/`distanceBottom`: `wp:anchor`'s
+  distT/distB, VML's mso-wrap-distance-top/-bottom) are now part of every
+  wrapping float's band; nothing else moved with them. zh-06c46ba9 95.5
+  -> 97.3% (p70's box within 0.3pt, its table 2pt high of Word's).
 - **A paragraph ending in a line break ends with its mark's own line
   (2026-10-17; Linux).** zh-17749c13 page 57: a paragraph of one bold
   仿宋_GB2312 `w:br` (YaHei to Word, two 15.6pt pitches) under a 12pt

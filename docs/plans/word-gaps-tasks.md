@@ -1162,8 +1162,8 @@ Left: the real paragraph's pStyle and its run properties, the text after
 "牌", and its length. A bisection that strips the real paragraph a piece at
 a time until it reaches the lab's ~13.8 would find it. Released.
 
-### Lead from the Linux box (2026-10-17): zh-06c46ba9 p70-72, a float pushes the table above its anchor
-Owner: the Linux box (017F2), built (a second pagination pass with pinned floats; pushing 2026-10-17). The Windows box's claim crossed it and is withdrawn. Pages 70-72 stand 80pt high (28 lines).
+### Lead from the Linux box (2026-10-17): zh-06c46ba9 p70-72, a float pushes the table above its anchor — DONE (2026-10-17)
+Owner: session 017F2GnT (Linux) built it while the Windows box's claim crossed it (told). Built: a second pagination pass with the float pinned (office.md); zh-06c46ba9 95.5 -> 97.3%, nothing else moved; the table's part stands 2pt high of Word's still. Was: pages 70-72 stand 80pt high (28 lines).
 Page 70 opens with the rest of a parted table (row "三、內文格式"), then
 "附錄3", then "報告撰擬分工表". The VML box "分工表格式" (wrap square, 95.5
 x 23.5, 2.2pt under its paragraph's top, `mso-position-vertical-relative:

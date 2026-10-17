@@ -1937,6 +1937,8 @@ enum DocxFormat {
             f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
+            if let t = Double(anchor["distT"] ?? "") { f.distanceTop = t / 12700 }
+            if let b = Double(anchor["distB"] ?? "") { f.distanceBottom = b / 12700 }
             return f
         }
         if let shape = _vmlTop(node), let st = shape["style"], st.containsSubstring("position:absolute") {
@@ -1952,6 +1954,8 @@ enum DocxFormat {
                 case "mso-position-vertical-relative": f.verticalFrom = value == "text" ? "paragraph" : value
                 case "mso-position-horizontal": if value != "absolute" { f.horizontalAlign = value }
                 case "mso-position-vertical": if value != "absolute" { f.verticalAlign = value }
+                case "mso-wrap-distance-top": if let v = _length(value) { f.distanceTop = v }
+                case "mso-wrap-distance-bottom": if let v = _length(value) { f.distanceBottom = v }
                 default: break
                 }
             }

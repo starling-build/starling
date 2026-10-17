@@ -818,6 +818,10 @@ public final class RichLayout {
     /// … and up, where its paragraph's line was moved down under the
     /// pictures and the picture stays where the paragraph first stood.
     private var _floatShiftY: [String: Double] = [:]
+    /// Floats set before the content above their anchor on their page
+    /// (see `_paginate`): the page, their band there (page y, x from the
+    /// column's edge, wrap distances in) and where their anchor stood.
+    private var _pinnedFloats: [String: (page: Int, top: Double, bottom: Double, left: Double, right: Double, anchorY: Double)] = [:]
 
     /// Table cells: per paragraph, the row's top and height (for borders and
     /// hit-testing) and the column geometry; nil for ordinary paragraphs.
@@ -2205,7 +2209,19 @@ public final class RichLayout {
     /// Cut the flow into pages. A paragraph that straddles a page boundary
     /// is split between lines (its painter is painted twice, clipped), so
     /// the breakable positions inside a block are the bottoms of its lines.
-    private func _paginate(_ document: RichDocument, from start: Int = 0, settled: Int = Int.max) {
+    private func _paginate(_ document: RichDocument, from start: Int = 0, settled: Int = Int.max, pinPass: Bool = false) {
+        // (A float that wraps, set where its anchor puts it, over content
+        // set before that anchor on its page: Word leaves the float there
+        // and moves that content out from under it — zh-06c46ba9's
+        // "分工表格式" box, anchored under a table row parted onto page 70,
+        // stands where the row's foot puts its paragraph, and the row's
+        // part stands under the box. Found here, such a float is pinned:
+        // the pages are set once more with it in place from its page's
+        // top (`_pinnedFloats`).)
+        var pinnedAnew = false
+        defer {
+            if theme.wordRules, !pinPass, pinnedAnew { _paginate(document, from: start, settled: settled, pinPass: true) }
+        }
         var contentH = 1.0
         var page = 0
         var y = 0.0
@@ -2267,11 +2283,37 @@ public final class RichLayout {
         }
         let oldNotes = _pageNotes
         _pageNotes = _pageNotes.filter { $0.key < page }
+        // (The pins of the pages set again are found again; those of the
+        // pages kept stand, and so do their floats' shifts.)
+        var shelvedPins: [String: (pin: (page: Int, top: Double, bottom: Double, left: Double, right: Double, anchorY: Double), shift: Double?)] = [:]
+        if !pinPass {
+            for (id, pin) in _pinnedFloats where pin.page >= page {
+                shelvedPins[id] = (pin, _floatShiftY[id])
+                _floatShiftY[id] = nil
+                _pinnedFloats[id] = nil
+            }
+        }
         var prevContentH = contentH
         var prevY = 0.0   // how far down the page before was filled
         // The floating pictures on this page that text wraps round: page
         // y, and x from the column's edge.
         var bands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
+        // The pinned floats' bands on this page (in `bands` too), which a
+        // table's rows keep clear of as well.
+        var pinBands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
+        func loadPins() {
+            pinBands = _pinnedFloats.values.filter { $0.page == page }.map { ($0.top, $0.bottom, $0.left, $0.right) }
+            bands += pinBands
+        }
+        // Down past the pinned floats that what is `height` tall would
+        // run into here.
+        func underPins(_ height: Double) {
+            var steps = 0
+            while steps < 4, let b = pinBands.first(where: { $0.top < y + height - 0.5 && $0.bottom > y + 0.5 }) {
+                y = b.bottom
+                steps += 1
+            }
+        }
         // The paragraphs of nothing but floating pictures set on this
         // page since the last with text (`_anchorsOnly`).
         var anchorRun: [Int] = []
@@ -2347,8 +2389,10 @@ public final class RichLayout {
             y = 0
             prevContentH = contentH
             openPage()
+            loadPins()
             reserveNotes(carried)
         }
+        loadPins()
         _blankPages = _blankPages.filter { $0 < page / _columns }
         if restarted {
             // (The page restarted on keeps its section.)
@@ -2571,7 +2615,7 @@ public final class RichLayout {
             var rules: [PagePiece] = []
             var first = true
             while true {
-                let avail = contentH - y
+                var avail = contentH - y
                 // (What goes over is a row again, and no shorter than
                 // the file says a row is: the second half of a row of
                 // 28.5pt at least is 28.75 at the head of Word's page.)
@@ -2607,6 +2651,12 @@ public final class RichLayout {
                         max(0, column.bottom - column.cut)
                             + (theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - ruleUnder(c, parted: true)) : 0)
                     }.max() ?? 0)
+                // (A part, or the row on the next page, goes under a pinned
+                // float it would run into, as a whole row does.)
+                if !pinBands.isEmpty {
+                    underPins(rest)
+                    avail = contentH - y
+                }
                 var fits = rest + ruleUnder(c) <= avail + 0.01
                 // A row is not begun where the height the file states
                 // for it has no room: it goes to the next page whole,
@@ -2885,6 +2935,11 @@ public final class RichLayout {
                 _allPieces.append(contentsOf: oldPieces[oldStart[i]...])
                 _pages[page].append(contentsOf: oldPages[page].filter { $0.paragraph >= i })
                 if page + 1 < oldPages.count { _pages.append(contentsOf: oldPages[(page + 1)...]) }
+                // (The pages taken back keep their pinned floats.)
+                for (id, kept) in shelvedPins where kept.pin.page >= page && _pinnedFloats[id] == nil {
+                    _pinnedFloats[id] = kept.pin
+                    _floatShiftY[id] = kept.shift
+                }
                 if notesOn {
                     pageNotes = oldNotes[page] ?? pageNotes
                     for (k, v) in oldNotes where k > page { _pageNotes[k] = v }
@@ -3042,6 +3097,9 @@ public final class RichLayout {
                     // page asks this row for all four.)
                     return continued ? max(c.ownRowHeight - c.stretched, need) : c.ownRowHeight
                 }
+                // (Under a pinned float that it would run into: see
+                // `_pinnedFloats`.)
+                if c.firstInRow { underPins(c.ownRowHeight) }
                 var shown = pageHeight()
                 // (`STARLING_RICHTEXT_ROWS=<page>` prints each row as it
                 // is set on that page: where it stands, what is left,
@@ -3059,6 +3117,7 @@ public final class RichLayout {
                 if wentOver {
                     // (The row went to a new page whole: there it is laid
                     // out again, and parted if the page cannot hold it.)
+                    underPins(c.ownRowHeight)
                     shown = pageHeight()
                     if shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: true) {
                         if y > contentH - 0.01 { newPage() }
@@ -3068,6 +3127,7 @@ public final class RichLayout {
                 } else if !atTop, shown + ruleUnder(c) > contentH - y + 0.01, y > 0.01 {
                     newPage()
                     goOn()
+                    underPins(c.ownRowHeight)
                     shown = pageHeight()
                 } else if theme.wordRules, !atTop, y > 0.01, j < count, _cells[j] == nil, document.paragraphs[i].style.keepNext,
                           !_pageBreak[j], !document.paragraphs[j].style.pageBreakBefore {
@@ -3445,12 +3505,30 @@ public final class RichLayout {
                 while let below = noRoom(at: y, []), guardSteps < 20 { y = below; guardSteps += 1 }
                 if y > contentH - 0.01 { newPage() }
                 var mine = _wrapBoxes(i)
-                for box in mine { if let dy = _floatShiftY[box.id] { _floatShiftY[box.id] = nil; let r = box.rect; mine = mine.map { $0.id == box.id ? ($0.id, Rect.fromLTWH(r.left, r.top - dy, r.width, r.height)) : $0 } } }
+                for box in mine { if let dy = _floatShiftY[box.id] { _floatShiftY[box.id] = nil; let r = box.rect; mine = mine.map { $0.id == box.id ? ($0.id, Rect.fromLTWH(r.left, r.top - dy, r.width, r.height), $0.above, $0.below) : $0 } } }
                 if !mine.isEmpty {
-                    if y > 0.01, mine.contains(where: { y + $0.rect.bottom - top > contentH + 0.5 }) { newPage() }
+                    if y > 0.01, mine.contains(where: { _pinnedFloats[$0.id]?.page != page && y + $0.rect.bottom - top > contentH + 0.5 }) { newPage() }
                     var placed: [(top: Double, bottom: Double, left: Double, right: Double)] = []
                     for box in mine {
-                        var r = (top: y + box.rect.top - top, bottom: y + box.rect.bottom - top, left: box.rect.left, right: box.rect.right)
+                        var r = (top: y + box.rect.top - top - box.above, bottom: y + box.rect.bottom - top + box.below, left: box.rect.left, right: box.rect.right)
+                        // (Pinned: where the first setting put it, its band
+                        // already on the page, drawn there however far its
+                        // paragraph has moved since.)
+                        if let pin = _pinnedFloats[box.id], pin.page == page {
+                            let moved = y - pin.anchorY
+                            _floatShiftY[box.id] = abs(moved) > 0.01 ? -moved : nil
+                            continue
+                        }
+                        // (Found over a table's row set before its anchor
+                        // on this page: a table does not wrap.)
+                        if theme.wordRules, !pinPass,
+                           _pages[page].contains(where: { piece in
+                               !piece.repeated && piece.part != .rules && piece.paragraph < i && _cells[piece.paragraph] != nil
+                                   && piece.pageY < r.bottom - 0.5 && piece.pageY + (piece.flowBottom - piece.flowTop) > r.top + 0.5
+                           }) {
+                            _pinnedFloats[box.id] = (page, r.top, r.bottom, r.left, r.right, y)
+                            pinnedAnew = true
+                        }
                         let before = _floatShift[box.id] ?? 0
                         r.left -= before; r.right -= before
                         var shift = 0.0
@@ -9228,13 +9306,13 @@ public final class RichLayout {
     /// The pictures paragraph `i` anchors that text wraps round (Word's
     /// square, tight and through wrapping, placed from the paragraph):
     /// each one's id and box in the flow, x from the column's edge.
-    private func _wrapBoxes(_ i: Int) -> [(id: String, rect: Rect)] {
+    private func _wrapBoxes(_ i: Int) -> [(id: String, rect: Rect, above: Double, below: Double)] {
         guard theme.wordRules, i < count, _cells[i] == nil, _painters[i] != nil else { return [] }
         var images: [ImageAttachment] = []
         if i < _floatImages.count, let image = _floatImages[i] { images.append(image) }
         if i < _inline.count { images += _inline[i] }
         let g = geometry(i)
-        var out: [(id: String, rect: Rect)] = []
+        var out: [(id: String, rect: Rect, above: Double, below: Double)] = []
         for image in images {
             guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil,
                   ["paragraph", "line"].contains(float.verticalFrom), float.horizontalFrom != "page",
@@ -9246,7 +9324,7 @@ public final class RichLayout {
                   // it at the page's foot and the calendar from page 2.)
                   !image.data.isEmpty || Self.drawsObject?(image) == true || image.textBox != nil
                     || (image.textBox == nil && image.sourceXML?.containsSubstring("drawingml/2006/chart") == true) else { continue }
-            out.append((image.id, _floatRect(float, image, g, i)))
+            out.append((image.id, _floatRect(float, image, g, i), _px(float.distanceTop), _px(float.distanceBottom)))
         }
         return out
     }
