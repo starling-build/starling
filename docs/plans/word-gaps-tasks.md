@@ -947,13 +947,17 @@ row parting (Windows, T32), zh-2a241df1's charts (Mac, T59).
   fitting the Linux session built. A lab of this line, with the over
   varied, would say what Word counts.
 
-### T62. A table nested in a parting row parts between its rows — claimed
+### T62. A table nested in a parting row parts between its rows — DONE (2026-10-16)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16
 Documents: zh-d35cbbdb (55.4%, second sample). Its body is one cell of a
 page-long layout table; the consent table nested in it starts at page
 4's foot. Word sets its header row there and the rest on page 5; ours
 took the nested table over whole (a nested table is one block to the
 row's cuts), and every page after ran a block behind.
+DONE: a nested table's row bottoms are cuts of its cell (`cellCuts`):
+zh-d35cbbdb 55.4 -> 88.9, nothing else moved. Left: the header's "項目",
+merged down into row 2 and centred over both, is not drawn on page 4
+(Word's is, at the row's middle).
 
 ### T59. A column chart with a line on a second value axis
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16

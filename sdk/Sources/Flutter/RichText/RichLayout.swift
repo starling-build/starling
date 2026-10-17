@@ -2424,6 +2424,22 @@ public final class RichLayout {
         }
         func cellCuts(_ k: Int) -> [Double] {
             let g = geometry(k)
+            // (A table nested in the cell parts between its rows, as
+            // Word's does: zh-d35cbbdb's consent table, its first row
+            // "項目 / 土地部分 / 合法建物部分" at page 4's foot in a cell
+            // of the page-long layout table, the rest on page 5 — ours
+            // took the whole table over.)
+            if theme.wordRules, let image = document.paragraphs[k].image, image.textBox?.growsToFit == true,
+               let inside = _textBox(image, document) {
+                let top = g.textTop + (k < _imageDrop.count ? _imageDrop[k] : 0)
+                var rows = Set<Double>()
+                for m in 0 ..< min(inside.document.paragraphs.count, inside.layout._cells.count) {
+                    if let c = inside.layout._cells[m], c.firstInRow, c.table == inside.layout._cells.compactMap({ $0 }).first?.table {
+                        rows.insert(top + c.rowTop + c.ownRowHeight)
+                    }
+                }
+                return Array(rows.sorted().dropLast()) + [_tops[k] + _heights[k]]
+            }
             var lines = Self._lineBottoms(g.painter).map { g.textTop + $0 }
             if (document.compatibilityMode ?? 12) >= 15, document.paragraphs[k].style.widowControl {
                 lines = lines.count >= 4 ? Array(lines[1 ..< lines.count - 2]) : []
