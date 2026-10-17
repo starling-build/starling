@@ -1289,6 +1289,11 @@ Each needs Word or is in an area the Mac has worked; claim here first.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
+- `measuresShownCaps` for Word (Linux, 2026-10-17): Slides' opt-in that
+  fits an all-caps run by the capitals it shows (781ec612). Turned on for
+  Word's three themes and swept with and without on one base: no
+  document moved (mean 91.509 either way). Left off: nothing in the
+  corpus says which Word does.
 - zh-6600d539 (91.8%, Linux 2026-10-16): all 16 misses are text that
   overflows its exact-height table rows (the file is a PDF conversion,
   page margins 0). Word cuts it off at the row and so do we, but Word's
