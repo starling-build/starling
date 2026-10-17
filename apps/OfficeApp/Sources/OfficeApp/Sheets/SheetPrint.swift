@@ -34,6 +34,8 @@ struct SheetPrintSetup: Equatable {
     /// bottom, from the paper's edge. Excel's Normal: 0.3 in.
     var headerMargin = 21.6, footerMargin = 21.6
     var headerFooter = HeaderFooter()
+    /// `pageSetup@blackAndWhite`.
+    var blackAndWhite = false
     /// `pageSetup@pageOrder="overThenDown"`.
     var overThenDown = false
     /// `pageSetup@firstPageNumber`, when `useFirstPageNumber` is set.
@@ -74,6 +76,7 @@ struct SheetPrintSetup: Equatable {
             s.landscape = p["orientation"] == "landscape"
             if let v = Double(p["scale"] ?? ""), v >= 10, v <= 400 { s.scale = v }
             s.overThenDown = p["pageOrder"] == "overThenDown"
+            s.blackAndWhite = yes(p["blackAndWhite"])
             if p["useFirstPageNumber"] == "1" || p["useFirstPageNumber"] == "true",
                let n = Int(p["firstPageNumber"] ?? "") { s.firstPageNumber = n }
             if fit {
@@ -289,6 +292,7 @@ extension SheetGridState {
         defer {
             printing = false
             printRowScale = 0
+            printMono = false
             if c.activeSheet != savedSheet { c.activeSheet = savedSheet }
             scrollX = savedX; scrollY = savedY
         }
@@ -332,6 +336,7 @@ extension SheetGridState {
             await _preloadPictures(ws)
             let setup = SheetPrintSetup.read(ws)
             printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
+            printMono = setup.blackAndWhite
             let ca = cols, ra = rows   // in points while printing
             let head = _headingSize(setup, lastRow: areas.map(\.bottom).max() ?? 0)
             let titleH = (names.titleRows.map { $0.reduce(0) { $0 + ra.size($1) } } ?? 0) + head.height
@@ -441,6 +446,7 @@ extension SheetGridState {
             return
         }
         printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
+        printMono = setup.blackAndWhite
         let ca = cols, ra = rows   // in points while printing
         let titleRows = names.titleRows.map { Array($0).filter { ra.size($0) > 0 } } ?? []
         let titleCols = names.titleCols.map { Array($0).filter { ca.size($0) > 0 } } ?? []

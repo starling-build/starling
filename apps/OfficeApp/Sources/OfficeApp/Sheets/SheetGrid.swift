@@ -260,6 +260,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// or a sheet fitted to its pages, whose scale is not known yet —
     /// leaves the rows as they are.
     var printRowScale = 0.0
+    /// The sheet prints in black and white (`pageSetup@blackAndWhite`): no
+    /// fills, its text and rules black.
+    var printMono = false
 
     private func _axes() -> (cols: GridAxis, rows: GridAxis) {
         let ws = controller.sheet
@@ -2068,6 +2071,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let p = Paint()
         p.style = .fill
         let editing = printing ? nil : edit?.cell
+        let mono = printing && printMono
         // Styled cells, looked up by position: what is on screen, not what is in the sheet.
         var styled: [(CellAddress, CellStyle)] = []
         for row in rs { for col in cs {
@@ -2077,12 +2081,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // A formatted column's or row's fill, under its cells' own.
         if !ws.colAttrRuns.isEmpty || !ws.rowAttrs.isEmpty {
             for col in cs {
-                guard let st = ws.colStyle(col), let f = book.style(st).fill else { continue }
+                guard !mono, let st = ws.colStyle(col), let f = book.style(st).fill else { continue }
                 p.color = Color(Int64(0xFF00_0000) | Int64(f))
                 canvas.drawRect(Rect.fromLTRB(colX(col), clip.top, colX(col) + ca.size(col), clip.bottom), p)
             }
             for row in rs {
-                guard let st = ws.rowStyle(row), let f = book.style(st).fill else { continue }
+                guard !mono, let st = ws.rowStyle(row), let f = book.style(st).fill else { continue }
                 p.color = Color(Int64(0xFF00_0000) | Int64(f))
                 canvas.drawRect(Rect.fromLTRB(clip.left, rowY(row), clip.right, rowY(row) + ra.size(row)), p)
             }
@@ -2100,12 +2104,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 }
             }
             for (a, look) in tableLooks {
-                guard let f = look.fill else { continue }
+                guard !mono, let f = look.fill else { continue }
                 p.color = Color(Int64(0xFF00_0000) | Int64(f))
                 canvas.drawRect(rect(a), p)
             }
         }
-        for (a, st) in styled where !covered.contains(a) {
+        for (a, st) in styled where !covered.contains(a) && !mono {
             if let f = st.fill {
                 p.color = Color(Int64(0xFF00_0000) | Int64(f))
                 let m = merges.first { $0.topLeft == a }
@@ -2121,7 +2125,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             } }
         }
         for (a, look) in looks {
-            guard let f = look.dxf.fill ?? look.fill else { continue }
+            guard !mono, let f = look.dxf.fill ?? look.fill else { continue }
             p.color = Color(Int64(0xFF00_0000) | Int64(f))
             canvas.drawRect(merges.first { $0.topLeft == a }.map { rect($0) } ?? rect(a), p)
         }
@@ -2157,7 +2161,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         for m in merges {
             let r = rect(m)
             let st = book.style(ws.cells[m.topLeft]?.style ?? 0)
-            p.color = st.fill.map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.paper
+            p.color = (mono ? nil : st.fill).map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.paper
             canvas.drawRect(Rect.fromLTRB(r.left + 0.5, r.top + 0.5, r.right - 1, r.bottom - 1), p)
         }
         // Tables' lines, over the gridlines.
@@ -2274,7 +2278,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             /// One side as the file drew it: thicker, doubled, dashed or dotted.
             func line(_ side: String, _ a: Offset, _ z: Offset, inward: Offset) {
                 let kind = b.kinds[side] ?? "thin"
-                border.color = b.colors[side].map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.ink
+                border.color = (printing && printMono ? nil : b.colors[side]).map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? colors.ink
                 border.strokeWidth = kind == "medium" || kind.hasPrefix("medium") ? 2 : kind == "thick" ? 3 : 1
                 if kind == "hair" { border.color = border.color.withAlpha(140) }
                 if kind == "double" {
@@ -2347,7 +2351,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// The text style a cell draws with.
     private func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
-        let c = (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
+        let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
         let book = controller.book
         return GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(st)),
                              size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
