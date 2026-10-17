@@ -1,6 +1,6 @@
 # The .docx corpus, and Word's printing of it
 
-What Writer is measured against: 198 real Word documents, and for 179 of
+What Writer is measured against: 218 real Word documents, and for 199 of
 them the PDF that Microsoft Word itself prints. The counterpart of
 `test/corpus/pptx` and `test/corpus/xlsx`, and meant to work the same way.
 
@@ -124,14 +124,17 @@ stays under the licence and copyright it came with:
 | names | from | licence |
 |---|---|---|
 | no prefix (130) | Apache POI, `test-data/document` | Apache License 2.0 |
-| `zh-*` (68) | docxcorp.us, topic government, language zh | ODC-BY 1.0 for the collection |
+| `zh-*` (88) | docxcorp.us, topic government, language zh | ODC-BY 1.0 for the collection |
 
 The POI files are what `test/docx-corpus.py` fetches: real documents from
 that project's bug reports, plus fuzzer cases that are deliberately
 broken.
 
-The `zh-*` files are a seeded sample (one in ten) of 679 Chinese
-government documents — policies mostly, with forms, reports, standards
+The `zh-*` files are two seeded samples of 679 Chinese
+government documents: 68 (one in ten, `random.seed(20261011)`, the
+first, which the tables above measure) and 20 more added 2026-10-16
+(`random.seed(20261016)` among the rest of 15 to 400 KB, a fresh set
+of gaps once the first stood at 98%), all — policies mostly, with forms, reports, standards
 and teaching material — listed by
 `https://api.docxcorp.us/documents?topic=government&lang=zh` and fetched
 from `https://docxcorp.us/documents/<sha256>.docx`. The name after the
