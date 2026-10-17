@@ -2256,15 +2256,14 @@ none worse past 0.02). The engine kerned every pair of every run.
 PowerPoint's prints say otherwise, three ways:
 - A run's `kern` is the size it kerns from (`kern="0"`: not at all).
 - Where a run's styles say no `kern` at all, it depends on the deck.
-  A deck that says `kern` anywhere in its defaults or masters — as
-  PowerPoint's own files do, in the presentation's default text style
-  — leaves such a run unkerned: alterman's body text at 24 pt sets
-  "You" at its plain width, its title and body styles saying nothing.
-  A deck that never says it (LibreOffice's) is kerned throughout:
-  lo-open-as-read-only's "read-only," is 2.7 pt short of plain. (Of
-  the decks this moved, all nine that say it went nearer unkerned, ten
-  of thirteen that never do nearer kerned; bug68703, outliner-list-style
-  and bug65228 a little the other way.)
+  A deck with a default text style of its own (`p:defaultTextStyle`,
+  which every PowerPoint file has) leaves such a run unkerned:
+  alterman's body text at 24 pt sets "You" at its plain width, its
+  title and body styles saying nothing — and so do bug68703 and
+  bug65228, which say `kern` nowhere. A deck with none (LibreOffice's)
+  takes PowerPoint's built-in default, kerned from 12 pt up:
+  lo-open-as-read-only's "read-only," is 2.7 pt short of plain.
+  (Sweep 174 settled this: 1.0254 → 1.0247%, bug68703 1.15 → 0.93.)
 - A face with no `kern` table is never kerned: Work Sans and Poppins
   kern only in their OpenType layout, which PowerPoint does not use
   (tdf140852's "Training" and lo-master-slides' "Avoid" at their plain

@@ -549,13 +549,6 @@ struct PptxReader {
 
     init(_ package: PptxPackage) { self.package = package }
 
-    /// Whether any run look under `node` says `kern`.
-    fileprivate static func _saysKern(_ node: XNode?) -> Bool {
-        guard let node else { return false }
-        if node["kern"] != nil { return true }
-        return node.children.contains { _saysKern($0) }
-    }
-
     func read() throws -> (DeckState, DeckTheme, PptxPackage) {
         guard let root = package.xml("_rels/.rels"),
               let presPart = root.all("Relationship").first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") })?["Target"]
@@ -574,7 +567,7 @@ struct PptxReader {
             if let rid = id["r:id"], let r = rels.first(where: { $0.id == rid }) { slideParts.append(r.target) }
         }
         let defaults = presentation.first("p:defaultTextStyle")
-        let saysKern = Self._saysKern(defaults)
+        let unsaidKern: Double = defaults != nil ? 0 : 12
         // The deck's table styles, by id: what each table's `tableStyleId`
         // names (PowerPoint writes every style a deck uses into the part).
         var tableStyles: [String: XNode] = [:]
@@ -616,7 +609,7 @@ struct PptxReader {
             let ctx = SlideContext(package: package, part: part, slide: slide, layout: layout, master: master,
                                    colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
                                    tableStyles: tableStyles, foreignTheme: n > 0 && themePart != deckThemePart,
-                                   saysKern: saysKern || Self._saysKern(master))
+                                   unsaidKern: unsaidKern)
             var shapes: [ShapeState] = []
             if let tree = slide.first("p:cSld")?.first("p:spTree") {
                 ctx.shapes(in: tree, transform: nil, into: &shapes, id: id)
@@ -635,7 +628,7 @@ struct PptxReader {
                     let octx = SlideContext(package: package, part: ownerPart, slide: xml, layout: layout, master: master,
                                             colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
                                             foreignTheme: n > 0 && themePart != deckThemePart,
-                                            saysKern: saysKern || Self._saysKern(master))
+                                            unsaidKern: unsaidKern)
                     var found: [ShapeState] = []
                     octx.shapes(in: tree, transform: nil, into: &found, id: id)
                     decorations += found.filter { s in
@@ -1036,14 +1029,14 @@ private struct SlideContext {
     /// first slide's): what follows the theme is drawn against the deck's,
     /// so a chart takes this one's colours as its own.
     var foreignTheme = false
-    /// The deck says `kern` somewhere in its defaults or masters, as
-    /// PowerPoint's own files do: a run whose styles then say none is
-    /// not kerned. In a deck that never says it (LibreOffice's), every
-    /// run is. (Sweep 170: the nine decks that say it nearer unkerned —
-    /// alterman's 24 pt "You" at its plain width — and ten of the
-    /// thirteen that never do nearer kerned: lo-open-as-read-only's
-    /// "read-only," 2.7 pt short of plain.)
-    var saysKern = false
+    /// The size a run whose styles say no `kern` is kerned from: none
+    /// (0) in a deck with a default text style of its own, as every
+    /// PowerPoint file has, and PowerPoint's built-in 12 pt in one with
+    /// none (LibreOffice's). Sweep 170-174: alterman's 24 pt body sets
+    /// "You" at its plain width, and so do bug68703's and bug65228's,
+    /// which say `kern` nowhere but have the style; lo-open-as-read-only's
+    /// "read-only," is 2.7 pt short of plain.
+    var unsaidKern: Double? = nil
 
     // MARK: Placeholders
 
@@ -2064,9 +2057,7 @@ private struct SlideContext {
                         // (Kerned from the size `kern` says up, as a text box's runs.)
                         if Self._unkerned(_font(s.font), bold: s.bold ?? false) {
                             runs[runs.count - 1].style.kerningFrom = 0
-                        } else if let k = s.kern { runs[runs.count - 1].style.kerningFrom = k } else if saysKern {
-                            runs[runs.count - 1].style.kerningFrom = 0
-                        }
+                        } else { runs[runs.count - 1].style.kerningFrom = s.kern ?? unsaidKern }
                         Self.faceSpacing(&runs[runs.count - 1].style)
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
@@ -2507,7 +2498,7 @@ private struct SlideContext {
         }
         let ctx = SlideContext(package: package, part: drawingPart, slide: slide, layout: layout, master: master,
                                colors: colors, theme: theme, defaults: defaults, slideSize: slideSize, images: images,
-                               saysKern: saysKern)
+                               unsaidKern: unsaidKern)
         var out: [ShapeState] = []
         ctx.shapes(in: tree, transform: { r in r.shift(Offset(frame.left, frame.top)) }, into: &out, id: id)
         out = out.flatMap { s -> [ShapeState] in
@@ -3079,7 +3070,7 @@ private struct SlideContext {
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
                 // Kerned from the size `kern` says up (PowerPoint's own
                 // masters say 12 pt); none where it says nothing.
-                if Self._unkerned(cs.fontFamily, bold: cs.bold) { cs.kerningFrom = 0 } else if let k = s.kern { cs.kerningFrom = k } else if saysKern { cs.kerningFrom = 0 }
+                if Self._unkerned(cs.fontFamily, bold: cs.bold) { cs.kerningFrom = 0 } else { cs.kerningFrom = s.kern ?? unsaidKern }
                 let plain = cs
                 Self.faceSpacing(&cs)
                 cs.shadow = s.shadow
