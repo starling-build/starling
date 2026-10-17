@@ -1119,6 +1119,24 @@ likely the Latin digits and their automatic spaces on the grid. The fix is
 those widths; then no squeeze on such a grid. Lab: lab/tools/squeezelab.py
 (args docx repo font size marks; env LABJC LABGRID LABMAR LABRPR LABMARK
 LABSTART LABTAG). Not built.
+CORRECTION (2026-10-17): squeezelab.py's numbers on a character grid are
+void — it moved the right margin, and on linesAndChars Word fits the pitch
+to the text width, so the threshold tracked the grid's count (hence 0, or 4
+in f0bd9ea8's package). Redone with lab/tools/squeezelab2.py: the margins
+and pitch fixed, a negative w:ind w:left in twips giving the line room, the
+first line filled to N characters plus one, "over" bisected (w:spacing on a
+character instead breaks the line apart). Results:
+- d68ac84a's -5544 grid (pitch 14.65, N 30): justified, one "，", one "》（"
+  or "，，" — each taken within 7.21-7.32 (half a cell); left, one "，" the
+  same; no mark 0.
+- f0bd9ea8's -842 section (its pgSz and margins, pitch 15.79, N 27), left:
+  no mark 5.92-6.05; one "，" 13.82-13.94 (6 + half a cell); "，，" fills 28
+  at 15.43, then 5.54-5.67.
+So a mark gives half a cell; and a grid has a base tolerance besides (0 on
+-5544, ~6 on -842) — perhaps the width's leftover over N cells (436.55 -
+27 x 15.79 = 10.2; d68ac84a's is 0). f0bd9ea8's own body lines leave a
+character 5.1 over with a "，" all the same, so they differ from the lab
+(its runs, style, first-line indent). Handed to starling-bd.
 
 ### Lead from the Linux box (2026-10-17): zh-06c46ba9 p70-72, a float pushes the table above its anchor
 Owner: none — measured, not built. Pages 70-72 stand 80pt high (28 lines).
