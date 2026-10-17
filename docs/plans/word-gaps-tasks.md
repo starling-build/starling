@@ -175,13 +175,18 @@ grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
 
-### delins: the first balloon's place, over two deleted whole paragraphs — claimed (Mac)
+### T90. delins: whole paragraphs deleted, their balloon above the line they mark — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
-From lenovo-2's T87 note: Word lifts delins's first balloon (two deleted
-whole paragraphs, HTML autospacing 14pt) 6.6 page-points into the gap
-above its anchor line, and every balloon under it follows; the other
-balloon prints set the first at its anchor line's top. Labs varying the
-spacing around the deletion to find what it is anchored to.
+From lenovo-2's T87 note: Word's first balloon in delins (two deleted
+whole list items) stands 6.6 page-points above its anchor line, and
+every balloon under it follows. Labs `dl` (Word 16, delins's package):
+its box top is 6.27 page-points under the line before the deletion
+("the subcommentaries") whether the space after that line is 10, 14 or
+28pt and whatever space the anchor line ("March 2009") has over it, and
+at the anchor line's top once that is nearer (space after 0); the
+deleted paragraphs' size does not move it. Now a "Deleted:" balloon
+holding paragraph marks stands at the nearer of its line's top and
+6.27pt under the line before. delins 45.0 -> 76.7; nothing else moved.
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)

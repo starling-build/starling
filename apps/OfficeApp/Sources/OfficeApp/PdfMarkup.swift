@@ -360,7 +360,23 @@ struct PdfMarkup {
             let indent = note.label == "Deleted:" ? 8.8 : 0
             tp.layout(minWidth: 0, maxWidth: boxRight - boxLeft - 2 * inset - indent)
             defer { tp.dispose() }
-            let top = max(anchor.top, floor)
+            // (Whole paragraphs deleted stand a little above the line they
+            // are anchored to: at most 6.27pt under the line before them.
+            // Labs `dl` (Word 16, delins's package, "the subcommentaries"
+            // above two deleted list items above "March 2009"): its box top
+            // is 6.27 page-points under the line before whether the space
+            // between is 10, 14 or 28pt, or the line it marks has 30pt
+            // more over it — and at that line's top once it is nearer.)
+            var want = anchor.top
+            if note.label == "Deleted:", note.anchor.offset == 0, note.anchor.paragraph > 0,
+               note.paragraphs.contains(where: { $0.hasSuffix("¶") }) {
+                let above = document.paragraphs[note.anchor.paragraph - 1]
+                let end = layout.caretRect(RichPosition(paragraph: note.anchor.paragraph - 1, offset: above.text.utf16.count), document)
+                if let r = layout.canvasRects(end).first, layout.page(atCanvasY: r.top) == p {
+                    want = min(want, (r.bottom - page.top) / px + 6.27)
+                }
+            }
+            let top = max(want, floor)
             let box = Rect.fromLTRB(boxLeft, top, boxRight, top + tp.height + 2 * 2.7)
             // (Stacked edge to edge: delins's one-line balloons stand
             // 15.1pt apart, an 8pt line and the padding.)
