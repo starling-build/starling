@@ -110,6 +110,17 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
+### T70. Kerning in a stand-in set to the original's advances (YaHei's "TC") — CLAIMED
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+Documents: zh-d89c3840 (third sample, 96.5%), p2: "（TC）、…（SC）秘".
+Known: a face set from an advances table (YaHei, YaHei UI, JhengHei,
+DengXian, Verdana, ...) has its kerning switched off, the stand-in's
+pairs being wrong. Word kerns those runs by the original's own table:
+Normal's `w:kern` 2, YaHei's T-C pair -99/2048, and Word's print sets
+"T" 8.4pt where its advance is 9.17. Ours, 0.77 wider, ends the line
+8.21pt short of "秘", past the mode-14 half of "）" (8.0), and both lines
+of p2 that hold "（TC）…（SC）" leave "秘" a line down.
+
 ### T1. Autofit tables — DONE (2026-10-15)
 Owner: session 017F2GnTfScURKYZPmRxVQvW (Linux dev box, no Word)
 Built as office.md's "Autofit tables" has it (b7b42101): a cell whose
