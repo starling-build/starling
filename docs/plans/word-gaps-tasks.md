@@ -1136,6 +1136,18 @@ Each needs Word or is in an area the Mac has worked; claim here first.
 
 ### T16. Leads looked at and left (Mac, 2026-10-14)
 Owner: none — notes for whoever takes them.
+- zh-6600d539 (91.8%, Linux 2026-10-16): all 16 misses are text that
+  overflows its exact-height table rows (the file is a PDF conversion,
+  page margins 0). Word cuts it off at the row and so do we, but Word's
+  PDF keeps the hidden glyphs under the clip, and Skia's PDF device drops
+  every glyph wholly outside the clip (SkPDFDevice.cpp, the
+  clipStackBounds test). The line matcher keeps clipped glyphs, so it
+  counts them. Not built: it would only put invisible, searchable text
+  in our PDFs.
+- zh-ae655121 p7, zh-e6d54ae4 (Linux, 2026-10-16): Word's PDF lacks some
+  characters in its text layer (流, 金, 累 come out blank), and lines 3-4pt
+  apart in neighbouring columns merge into one in the matcher. Neither
+  is layout.
 - zh-e061a08e: page 1 holds one line more than Word's. Its footer is a
   page number in a frame (`w:framePr`, vAnchor text, y=1) and an empty
   paragraph; our footer extent counts the empty paragraph only, and
