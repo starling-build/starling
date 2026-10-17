@@ -1117,6 +1117,18 @@ before its anchor on that page out of its way. Ours keeps floats out of
 the paragraphs after their anchor only. Needs a second pass over a page
 when a wrapping float lands on content set before its anchor.
 
+### Note from the Linux box (2026-10-17): the export at twice the resolution
+Measured, not built. `OFFICE_PDF_SCALE=30` (forty layout steps to the
+point, twice the twip) against the default 15, same build, whole corpus:
+the mean holds at 92.0; up zh-d35cbbdb 89.7 -> 100 (its p9 foot in a
+parted row), zh-799c91cd 98.4 -> 99.6, form_footnotes 97.7 -> 98.9,
+zh-9dd9ce6d -> 100, zh-e6d54ae4 +0.3, zh-6d1afa56 and zh-64044a1d +0.1;
+down zh-9c5d0c3f 95.9 -> 94.9, zh-d68ac84a 99.8 -> 98.9, zh-8e8d4c40
+98.9 -> 98.3, zh-2b955411 and zh-7dc3afad -0.1/-0.2. zh-e061a08e (the
+PMingLiU page-foot lead, whose 0.19 twip a line was the reason to try)
+does not move. Page feet decided by under a twip a line either way: the
+model is Word's own 0.24pt raster, not a finer one.
+
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
