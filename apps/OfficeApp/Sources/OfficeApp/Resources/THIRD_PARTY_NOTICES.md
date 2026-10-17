@@ -33,6 +33,31 @@ Copyright (c) 2012 Huerta Tipografica. Apache License 2.0.
 Document face standing in for Cambria.
 Full text: fonts/Caladea-LICENSE.txt.
 
+## Poppins
+Copyright 2020 The Poppins Project Authors (Indian Type Foundry). SIL Open Font License 1.1.
+Slides draw a deck's Poppins in it.
+Full text: fonts/Poppins-LICENSE.txt.
+
+## Work Sans
+Copyright 2019 The Work Sans Project Authors. SIL Open Font License 1.1.
+Slides draw a deck's Work Sans in it (fixed weights cut from the variable font).
+Full text: fonts/WorkSans-LICENSE.txt.
+
+## Libre Franklin
+Copyright 2015 The Libre Franklin Project Authors. SIL Open Font License 1.1.
+Slides' stand-in for Franklin Gothic (fixed weights cut from the variable font).
+Full text: fonts/LibreFranklin-LICENSE.txt.
+
+## Selawik (document copy)
+Copyright (c) 2015 Microsoft Corporation. SIL Open Font License 1.1.
+Slides' stand-in for Segoe UI, loaded as "Selawik Doc".
+Full text: fonts/Selawik-LICENSE.txt.
+
+## TeX Gyre Cursor, Adventor and Pagella
+Copyright (c) 2006-2009 B. Jackowski, J. M. Nowacki (GUST e-foundry), based on URW++ fonts. GUST Font License.
+Slides' stand-ins for Courier New, Century Gothic and Palatino.
+Full text: fonts/TeXGyre-LICENSE.txt.
+
 ## zlib
 Copyright (c) 1995-2024 Jean-loup Gailly and Mark Adler. zlib License.
 The compression behind the .docx container.

@@ -2014,6 +2014,22 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Free fonts bundled for Slides, 2026-10-17** (sweep 157: 1.088 →
+1.070%, 27 decks better, two +0.01/+0.02; lo-master-slides 5.02 → 1.62,
+eaVertAnchor 2.76 → 1.22, vert_and_padding 1.33 → 0.38,
+TextFittingStored 1.74 → 0.97, KEY02 2.46 → 1.98). With the user's go-
+ahead, families decks name are drawn in free fonts where one exists:
+Poppins and Work Sans in themselves (every weight a deck names — "Poppins
+Light", "Work Sans Medium" — loaded under that name), Segoe UI in
+Selawik (Microsoft's own free stand-in, loaded as "Selawik Doc"),
+Franklin Gothic in Libre Franklin, Courier New in TeX Gyre Cursor (a
+Courier, where Liberation Mono is a sans mono), Century Gothic in TeX
+Gyre Adventor, Palatino in TeX Gyre Pagella. `SlideFonts.freeFaces`;
+the files, sources and licences are in Resources/fonts/README.md and
+THIRD_PARTY_NOTICES.md; the web build loads them on demand. Word keeps
+its stand-ins; the fonts are there for it if it wants them. The
+fonts directory grew from 9.8 to 16 MB.
+
 **Tried and dropped, 2026-10-16:** Courier New's lines at its own
 height (1.133 em) rather than 1.2 — tdf149551's three diagrams step at
 it at 90%, but the 13 Courier decks went +1.47 in sum (vert_and_padding

@@ -13,7 +13,24 @@ import Foundation
 /// nearer, n862510_4's "Segoe UI Light" — a weight we have no face for
 /// either way — and tdf98603's Hebrew FrankRuehl a little further.)
 enum SlideFonts {
+    /// The free faces bundled for families decks name (Resources/fonts/
+    /// README.md): the font itself (Poppins, Work Sans) or the nearest free
+    /// design (Selawik for Segoe UI, Libre Franklin, TeX Gyre's Courier,
+    /// Avant Garde and Palatino).
+    static let freeFaces: [String: String] = [
+        "poppins": "Poppins", "poppins light": "Poppins Light", "poppins medium": "Poppins Medium",
+        "poppins semibold": "Poppins SemiBold", "poppins black": "Poppins Black",
+        "work sans": "Work Sans", "work sans light": "Work Sans Light", "work sans medium": "Work Sans Medium",
+        "segoe ui": "Selawik Doc", "segoe ui light": "Selawik Doc Light", "segoe ui semilight": "Selawik Doc Semilight",
+        "segoe ui semibold": "Selawik Doc Semibold",
+        "franklin gothic book": "Libre Franklin", "franklin gothic medium": "Libre Franklin Medium",
+        "courier new": "TeX Gyre Cursor", "courier": "TeX Gyre Cursor",
+        "century gothic": "TeX Gyre Adventor",
+        "palatino linotype": "TeX Gyre Pagella", "palatino": "TeX Gyre Pagella", "book antiqua": "TeX Gyre Pagella",
+    ]
+
     static func resolve(_ family: String) -> String {
+        if let free = freeFaces[family.trimmingWhitespace().lowercased()] { return free }
         let face = OfficeFonts.substitute(family)
         guard face == OfficeFonts.cambria else { return face }
         let n = family.trimmingWhitespace().lowercased()
@@ -99,6 +116,7 @@ enum SlideFonts {
         if n.hasPrefix("tahoma") { return 423.0 / 2472 }
         if n.hasPrefix("segoe ui") { return 514.0 / 2724 }
         if n == "lucida sans unicode" { return 901.0 / 3147 }
+        if n == "courier new" || n == "courier" { return 615.0 / 2320 }
         if n == "trebuchet ms" { return 455.0 / 2378 }
         if n.hasPrefix("franklin gothic") { return 445.0 / 2322 }
         if n == "century gothic" { return 451.0 / 2440 }

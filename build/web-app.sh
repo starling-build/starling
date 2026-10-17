@@ -171,7 +171,8 @@ FONTS=(
     "$REPO/web/fonts/FluentSystemIcons-Regular.ttf=FluentSystemIcons"
 )
 if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
-    for f in "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts"/*.ttf; do
+    for f in "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts"/*.ttf "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts"/*.otf; do
+        [ -e "$f" ] || continue
         family=""
         if [ "$TARGET" = OfficeApp ]; then
             # Keep the default document face eager. The paragraph builder asks
@@ -183,6 +184,24 @@ if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
                 LiberationSerif-*) family="Liberation Serif?" ;;
                 LiberationMono-*) family="Liberation Mono?" ;;
                 DejaVuSans-*) family="DejaVu Sans?" ;;
+                # Slides' free faces (OfficeFonts.slideFaces), by weight.
+                Poppins-Regular*|Poppins-Bold*|Poppins-Italic*) family="Poppins?" ;;
+                Poppins-Light*) family="Poppins Light?" ;;
+                Poppins-Medium*) family="Poppins Medium?" ;;
+                Poppins-SemiBold*) family="Poppins SemiBold?" ;;
+                Poppins-Black*) family="Poppins Black?" ;;
+                WorkSans-Light*) family="Work Sans Light?" ;;
+                WorkSans-Medium*) family="Work Sans Medium?" ;;
+                WorkSans-*) family="Work Sans?" ;;
+                LibreFranklin-Medium*) family="Libre Franklin Medium?" ;;
+                LibreFranklin-*) family="Libre Franklin?" ;;
+                SelawikDoc-Light*) family="Selawik Doc Light?" ;;
+                SelawikDoc-Semilight*) family="Selawik Doc Semilight?" ;;
+                SelawikDoc-Semibold*) family="Selawik Doc Semibold?" ;;
+                SelawikDoc-*) family="Selawik Doc?" ;;
+                TeXGyreCursor-*) family="TeX Gyre Cursor?" ;;
+                TeXGyreAdventor-*) family="TeX Gyre Adventor?" ;;
+                TeXGyrePagella-*) family="TeX Gyre Pagella?" ;;
             esac
         fi
         FONTS+=("$f=$family")

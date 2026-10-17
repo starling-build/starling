@@ -292,7 +292,7 @@ final class Backstage: StatelessWidget {
         } + [
             Chrome.vgap(24),
             _heading("About \(session.kind.appName)", fluent),
-            Text("Built with Fluent UI System Icons and the fluent_ui controls (MIT), the Selawik, Liberation and Carlito fonts (SIL OFL), the Caladea font (Apache 2.0), zlib, and the Flutter engine (BSD).",
+            Text("Built with Fluent UI System Icons and the fluent_ui controls (MIT), the Selawik, Liberation, Carlito, Poppins, Work Sans and Libre Franklin fonts (SIL OFL), the Caladea font (Apache 2.0), the TeX Gyre fonts (GUST Font License), zlib, and the Flutter engine (BSD).",
                  style: secondary),
             Chrome.vgap(4),
             Text("The full notices ship with the app as THIRD_PARTY_NOTICES.md.", style: secondary),

@@ -1101,6 +1101,28 @@ enum OfficeFonts {
         return nil
     }
 
+    /// The files of Slides' free faces and the family each is loaded as.
+    static let slideFaces: [(String, String)] = {
+        var faces: [(String, String)] = []
+        for (file, family) in [("Poppins", "Poppins"), ("WorkSans", "Work Sans"), ("LibreFranklin", "Libre Franklin")] {
+            faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("\(file)-\($0).ttf", family) }
+        }
+        for weight in ["Light", "Medium", "SemiBold", "Black"] {
+            faces += [("Poppins-\(weight).ttf", "Poppins \(weight)"), ("Poppins-\(weight)Italic.ttf", "Poppins \(weight)")]
+        }
+        for weight in ["Light", "Medium"] {
+            faces += [("WorkSans-\(weight).ttf", "Work Sans \(weight)"), ("WorkSans-\(weight)Italic.ttf", "Work Sans \(weight)")]
+        }
+        faces += [("LibreFranklin-Medium.ttf", "Libre Franklin Medium"), ("LibreFranklin-MediumItalic.ttf", "Libre Franklin Medium")]
+        faces += [("SelawikDoc-Regular.ttf", "Selawik Doc"), ("SelawikDoc-Bold.ttf", "Selawik Doc"),
+                  ("SelawikDoc-Light.ttf", "Selawik Doc Light"), ("SelawikDoc-Semilight.ttf", "Selawik Doc Semilight"),
+                  ("SelawikDoc-Semibold.ttf", "Selawik Doc Semibold")]
+        for (file, family) in [("TeXGyreCursor", "TeX Gyre Cursor"), ("TeXGyreAdventor", "TeX Gyre Adventor"), ("TeXGyrePagella", "TeX Gyre Pagella")] {
+            faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("\(file)-\($0).otf", family) }
+        }
+        return faces
+    }()
+
     @discardableResult
     static func register() -> Bool {
         if _registered { return true }
@@ -1183,6 +1205,15 @@ enum OfficeFonts {
             }
         }
         _gapAboveLoaded = !gapAboveFailed
+        // Slides' free faces (Resources/fonts/README.md), each file under
+        // the family `SlideFonts.resolve` names.
+        for (file, family) in slideFaces {
+            let path = bundle.bundleURL.appendingPathComponent("fonts/\(file)").path
+            if !flutter.swift_bridge.LoadFontFromFile(path, family) {
+                ok = false
+                FileHandle.standardError.write("[Office] could not load \(path)\n".data(using: .utf8)!)
+            }
+        }
         return ok
         #endif
     }

@@ -38,3 +38,28 @@ Google Fonts serves) kept the name and dropped the widths: its text runs
 word more on a line than Word gives it. It was bundled here until
 2026-10-13. Check a replacement against Word's own Cambria before
 trusting the name.
+
+## Slides' free faces (2026-10-17)
+
+Families PowerPoint decks name that none of the six clones draws well,
+each its own font or the nearest free design, used by Slides only
+(`SlideFonts.resolve`; the widths, where the face is a stand-in, are the
+original's — `SlideFontWidths`):
+
+| In the deck | Drawn with | Licence |
+|---|---|---|
+| Poppins (Light, Medium, SemiBold, Black) | Poppins itself | Poppins-LICENSE.txt (OFL) |
+| Work Sans (Light, Medium) | Work Sans itself | WorkSans-LICENSE.txt (OFL) |
+| Segoe UI (Light, Semilight, Semibold) | Selawik, Microsoft's free Segoe UI stand-in, as "Selawik Doc" | Selawik-LICENSE.txt (OFL) |
+| Franklin Gothic (Book, Medium) | Libre Franklin | LibreFranklin-LICENSE.txt (OFL) |
+| Courier New, Courier | TeX Gyre Cursor (a Courier design, 0.6 em) | TeXGyre-LICENSE.txt (GUST Font License) |
+| Century Gothic | TeX Gyre Adventor | " |
+| Palatino Linotype, Book Antiqua | TeX Gyre Pagella | " |
+
+Sources: Poppins, Work Sans and Libre Franklin from github.com/google/fonts
+(`ofl/`; Work Sans and Libre Franklin as fixed weights cut from the
+variable fonts with fontTools' instancer), Selawik 1.01
+(github.com/microsoft/Selawik releases; "Selawik Doc" so as not to meet the
+chrome's own Selawik), TeX Gyre 2.5 OpenType from CTAN
+(fonts/tex-gyre/opentype).
+
