@@ -83,6 +83,12 @@ struct ChartSeries: Equatable {
     var markerLine: Color? = nil
     var unmarked: Set<Int> = []
     var lineHidden = false
+    /// A combination's line with its values by its points (`c:dLbls`
+    /// showVal, above them), and where single ones are moved
+    /// (`c:dLbl/c:layout`, fractions of the chart's frame): zh-547fc43c's
+    /// growth rates over its columns in Word's print.
+    var valueLabels = false
+    var labelNudges: [Int: Offset] = [:]
 }
 
 struct Chart: Equatable {
@@ -112,6 +118,12 @@ struct Chart: Equatable {
     var percent = false
     var categoryAxisTitle: String? = nil
     var valueAxisTitle: String? = nil
+    /// An axis title the file places itself (`c:title/c:layout`, edge-mode
+    /// x and y of the chart's frame), set across and in its own size: the
+    /// unit over zh-547fc43c's charts, "亿元" at their top left in Word's
+    /// print. nil takes a band beside the plot.
+    var categoryAxisTitleAt: PlacedAxisTitle? = nil
+    var valueAxisTitleAt: PlacedAxisTitle? = nil
     /// The value axis's labels' size in points where the file gives one
     /// (`c:valAx/c:txPr`); nil is the default, 12. It also decides how
     /// many marks the axis has room for.
@@ -649,6 +661,22 @@ enum ChartXML {
             for pt in ser.all("c:dPt") where pt.first("c:marker")?.first("c:symbol")?["val"] == "none" {
                 if let i = pt.first("c:idx")?["val"].flatMap(Int.init) { s.unmarked.insert(i) }
             }
+            // Its values, where its labels (else its chart's) show them.
+            let own = ser.first("c:dLbls"), group = overlay?.first("c:dLbls")
+            s.valueLabels = (own?.first("c:showVal") ?? group?.first("c:showVal"))?["val"] == "1"
+                && own?.first("c:delete")?["val"] != "1"
+            if s.valueLabels, let d = own {
+                for one in d.all("c:dLbl") {
+                    guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
+                          let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
+                    s.labelNudges[i] = Offset(x, y)
+                }
+                if let run = d.first("c:txPr")?.descendant("a:defRPr") {
+                    s.labelSize = run["sz"].flatMap(Double.init).map { $0 / 100 }
+                    s.labelBold = ["1", "true"].contains(run["b"] ?? "")
+                    if let f = run.first("a:solidFill") { s.labelColor = color(f) }
+                }
+            }
             lines.append(s)
         }
         let n = max(categories.count, series.map(\.values.count).max() ?? 0)
@@ -847,14 +875,23 @@ enum ChartXML {
             let s = _texts(t, "a:t").joined()
             return s.isEmpty ? "Axis Title" : s
         }
-        let axes = plot.children.filter { ["c:catAx", "c:valAx", "c:dateAx"].contains($0.name) }
-        if type == .scatter {
-            c.categoryAxisTitle = axisTitle(axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") })
-            c.valueAxisTitle = axisTitle(axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") })
-        } else {
-            c.categoryAxisTitle = axisTitle(axes.first { $0.name != "c:valAx" })
-            c.valueAxisTitle = axisTitle(axes.first { $0.name == "c:valAx" })
+        // (Placed: edge-mode x and y, read across where its text is not
+        // turned — `a:bodyPr rot="0"`.)
+        func placed(_ ax: XNode?) -> PlacedAxisTitle? {
+            guard let t = ax?.first("c:title"), let m = t.first("c:layout")?.first("c:manualLayout"),
+                  (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
+                  let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
+                  t.descendant("a:bodyPr")?["rot"] == "0" else { return nil }
+            let size = (t.descendant("a:rPr") ?? t.descendant("a:defRPr"))?["sz"].flatMap(Double.init).map { $0 / 100 }
+            return PlacedAxisTitle(at: Offset(x, y), size: size)
         }
+        let axes = plot.children.filter { ["c:catAx", "c:valAx", "c:dateAx"].contains($0.name) }
+        let titledCategory = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") } : axes.first { $0.name != "c:valAx" }
+        let titledValue = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") } : axes.first { $0.name == "c:valAx" }
+        c.categoryAxisTitle = axisTitle(titledCategory)
+        c.valueAxisTitle = axisTitle(titledValue)
+        c.categoryAxisTitleAt = c.categoryAxisTitle == nil ? nil : placed(titledCategory)
+        c.valueAxisTitleAt = c.valueAxisTitle == nil ? nil : placed(titledValue)
         let valueAxis = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") }
             : axes.first { $0.name == "c:valAx" }
         if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
@@ -1634,9 +1671,19 @@ enum ChartPainter {
         }
         let xs = xScale
         var area = area0
-        // Axis titles take a band at the side and bottom.
+        // Axis titles take a band at the side and bottom — or, placed by
+        // the file, stand there across, taking none: Word sets the text
+        // 3 pt in, its glyphs' tops 2.9 down (zh-547fc43c's "亿元" and
+        // "万吨", 10 and 10.5 pt, over three charts of its print).
         let titleSize = 13.3
-        if let t = c.valueAxisTitle {
+        for (t, placed) in [(c.valueAxisTitle, c.valueAxisTitleAt), (c.categoryAxisTitle, c.categoryAxisTitleAt)] {
+            guard let t, let placed else { continue }
+            let tp = text(t, placed.size ?? titleSize, .infinity)
+            let top = tp.computeLineMetrics().first.map { $0.baseline - $0.ascent } ?? 0
+            tp.paint(canvas, Offset(frame.left + placed.at.dx * frame.width + 3 * k, frame.top + placed.at.dy * frame.height + 2.9 * k - top))
+            tp.dispose()
+        }
+        if let t = c.valueAxisTitle, c.valueAxisTitleAt == nil {
             let tp = text(t, titleSize, horizontal ? area.width : area.height)
             if horizontal {
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
@@ -1651,7 +1698,7 @@ enum ChartPainter {
             }
             tp.dispose()
         }
-        if let t = c.categoryAxisTitle {
+        if let t = c.categoryAxisTitle, c.categoryAxisTitleAt == nil {
             let tp = text(t, titleSize, horizontal ? area.height : area.width)
             if horizontal {
                 canvas.save()
@@ -2087,6 +2134,24 @@ enum ChartPainter {
                     for i in 0 ..< n where !l.unmarked.contains(i) {
                         guard let q = at(i) else { continue }
                         Self._mark(l, at: q, k: k, colour: colour, canvas)
+                    }
+                    // Its values above its points, in its labels' look,
+                    // single ones moved where the file moves them: each
+                    // label's foot 6.5 pt over its point (zh-547fc43c's 10 pt
+                    // rates in Word's print; centred 9 pt over, as a line
+                    // chart's, they stood 4 pt low).
+                    if l.valueLabels {
+                        for i in 0 ..< n {
+                            guard let q = at(i), let v = l.values[safe: i] ?? nil else { continue }
+                            let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
+                                color: l.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
+                                fontSize: max(3, (l.labelSize ?? c.baseTextSize) * k), fontWeight: l.labelBold ? .bold : .normal,
+                                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
+                            tp.layout(minWidth: 0, maxWidth: .infinity)
+                            let nudge = l.labelNudges[i].map { Offset($0.dx * frame.width, $0.dy * frame.height) } ?? .zero
+                            tp.paint(canvas, Offset(q.dx - tp.width / 2 + nudge.dx, q.dy - 6.5 * k - tp.height + nudge.dy))
+                            tp.dispose()
+                        }
                     }
                 }
             }
@@ -2698,6 +2763,13 @@ struct DataTable: Equatable {
     var verticalRules = true
     var outline = true
     var keys = true
+    var size: Double? = nil
+}
+
+/// Where a placed axis title stands (`Chart.categoryAxisTitleAt`), and
+/// its size in points where the file gives one.
+struct PlacedAxisTitle: Equatable {
+    var at: Offset
     var size: Double? = nil
 }
 

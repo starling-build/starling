@@ -1810,13 +1810,21 @@ Built: `RichTextBox.fitsOnce`, set for a DrawingML box; a VML one is
 fitted on each page. Same-base sweep: zh-5a9a85c6 94.9 -> 97.9, nothing
 else moved (zh-1a3c7aa0 and zh-e02b0479, VML too, as they were).
 
-### T82. Writer charts: axis titles placed by manualLayout, line-series data labels — claimed
+### T82. Writer charts: axis titles placed by manualLayout, line-series data labels — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17 (handed over by Slides)
 Documents: zh-547fc43c (p5, p6, p8 charts).
 Known: "亿元" (a catAx title, manualLayout x .0147 y .0369) stands at the
 chart's top left in Word's print, ours under the plot; a secondary
 axis's "%" likewise; a line series' dLbls (showVal, dLblPos t) print
 in Word and not in ours.
+Built: an axis title placed by edge-mode manualLayout and set across
+(`a:bodyPr rot="0"`) stands there in its own size, 3pt in, its glyphs'
+tops 2.9 down, and takes no band (`Chart.categoryAxisTitleAt`); a
+combination's line shows its values (`ChartSeries.valueLabels`), each
+label's foot 6.5pt over its point, single ones moved by their
+`c:dLbl/c:layout`. Same-base sweep: zh-547fc43c 94.1 -> 96.6, nothing
+else moved; Slides' 19 chart decks unchanged. The "%" by chart 4 is a
+text box in the document, not the chart's.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

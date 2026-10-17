@@ -71,6 +71,33 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(try reread(c), c)
     }
 
+    /// zh-547fc43c's charts: the unit over the columns is the category
+    /// axis's title, placed at the chart's top left and read across; the
+    /// line of rates over them shows its values, one moved.
+    func testAPlacedAxisTitleAndALinesValuesAreRead() throws {
+        let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
+        func val(_ a: String, _ b: String) -> String {
+            "<c:val><c:numRef><c:numCache><c:ptCount val=\"2\"/><c:pt idx=\"0\"><c:v>\(a)</c:v></c:pt><c:pt idx=\"1\"><c:v>\(b)</c:v></c:pt></c:numCache></c:numRef></c:val>"
+        }
+        let xml = """
+        <c:chartSpace \(ns)><c:chart><c:plotArea>
+        <c:barChart><c:barDir val="col"/><c:ser><c:idx val="0"/><c:order val="0"/>\(val("28.4", "28.8"))</c:ser><c:axId val="1"/><c:axId val="2"/></c:barChart>
+        <c:lineChart><c:ser><c:idx val="1"/><c:order val="1"/><c:dLbls><c:dLbl><c:idx val="1"/><c:layout><c:manualLayout><c:x val="0.028"/><c:y val="0.05"/></c:manualLayout></c:layout><c:showVal val="1"/></c:dLbl>
+        <c:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz="1000"/></a:pPr></a:p></c:txPr><c:dLblPos val="t"/><c:showVal val="1"/></c:dLbls>\(val("2.9", "4.7"))</c:ser><c:axId val="1"/><c:axId val="2"/></c:lineChart>
+        <c:catAx><c:axId val="1"/><c:delete val="0"/><c:axPos val="b"/><c:title><c:tx><c:rich><a:bodyPr rot="0" vert="horz"/><a:p><a:r><a:rPr sz="1000"/><a:t>亿元</a:t></a:r></a:p></c:rich></c:tx>
+        <c:layout><c:manualLayout><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="0.0147"/><c:y val="0.0369"/></c:manualLayout></c:layout><c:overlay val="0"/></c:title><c:crossAx val="2"/></c:catAx>
+        <c:valAx><c:axId val="2"/><c:delete val="0"/><c:axPos val="l"/><c:crossAx val="1"/></c:valAx></c:plotArea></c:chart></c:chartSpace>
+        """
+        let c = try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(xml.utf8))), color: { _ in nil }))
+        XCTAssertEqual(c.categoryAxisTitle, "亿元")
+        XCTAssertEqual(c.categoryAxisTitleAt, PlacedAxisTitle(at: Offset(0.0147, 0.0369), size: 10))
+        XCTAssertNil(c.valueAxisTitleAt)
+        let line = try XCTUnwrap(c.lineSeries.first)
+        XCTAssertTrue(line.valueLabels)
+        XCTAssertEqual(line.labelNudges, [1: Offset(0.028, 0.05)])
+        XCTAssertEqual(line.labelSize, 10)
+    }
+
     /// What an old chart states about its look: slices' own colours, a
     /// plot's fill and place, axes deleted, no gridlines, its labels'
     /// number format — and no title from a series with no name.
