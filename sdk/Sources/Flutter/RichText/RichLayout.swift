@@ -5139,8 +5139,10 @@ public final class RichLayout {
         let trailingSpaces = p.text.utf16.count - p.text.utf16.reversed().prefix(while: { $0 == 0x20 }).count
         let breaksAtQuotes = theme.wordRules && document.usesEastAsianLayout
         // (A paragraph that turns the line-breaking rules off —
-        // `w:kinsoku` 0 — may start a line with a closing mark and end
-        // one with an opening mark; the engine allows neither, so a mark
+        // `w:kinsoku` 0 — may start a line with a closing mark (not end
+        // one with an opening mark: Word keeps "（" with what it opens,
+        // zh-c5b5087b, under kinsoku off and an en-US East Asian language
+        // both); the engine allows neither, so a mark
         // that did not fit stayed on its line past the margin where Word
         // carries it over: zh-799c91cd's "各執1份為憑" and the "。" alone
         // under it, whose page 2 then ran a line long.)
@@ -5446,7 +5448,7 @@ public final class RichLayout {
                     inserts.append(offset)
                     afterHeld = false
                 } else if breaksAtQuotes, let b = before,
-                          Self._breaksBetween(b, ch) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._openingMarks.contains(b))) {
+                          Self._breaksBetween(b, ch) || (lineRulesOff && Self._closingMarks.contains(ch)) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -6691,7 +6693,11 @@ public final class RichLayout {
         }
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
-            if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._openingMarks.contains(Character(a)) { return true }
+            // (But not an opening mark at a line's end, either way: Word
+            // carries "（" over with what it opens — zh-c5b5087b, its
+            // defaults' East Asian language en-US and kinsoku off, has
+            // "…负责承储" / "（以下简称…" where ours ended the line on it.)
+            if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) { return true }
             return Self._breaksBetween(Character(a), Character(b))
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
