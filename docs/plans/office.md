@@ -4778,6 +4778,13 @@ fitter dropped the paragraph's tail).
   scripts/apply_engine_patches.sh; Skia itself stays upstream's): a U+3000
   is justified as an ideograph. Sideways drift 552 -> 537; no score moved.
   An engine built without the patch keeps the old placement.
+- **An exact row's own bottom line hangs under it (2026-10-16; Linux).**
+  zh-ae655121's budget tables end on an exact 36.05pt row over a 0.75pt
+  double line. Word's print centres the row's text in the whole 36.05 and
+  sets the text after the table the line's 2.2 lower; ours took the line
+  out of the row's room, so the text stood 1.1 high and the table 2.2
+  short. Now the table's last row, when its height is exact, is that tall
+  plus its cells' bottom line. zh-ae655121 93.8 -> 95.2%; nothing else moved.
 - **Off the grid too, a paragraph whose every line holds its tallest
   stretch takes that stretch's strut (2026-10-16; Linux).** zh-d68ac84a's
   cells (`w:line="0" atLeast`, 宋体 with a Times digit opening the first

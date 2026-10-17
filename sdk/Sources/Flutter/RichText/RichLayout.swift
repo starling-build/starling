@@ -1830,7 +1830,15 @@ public final class RichLayout {
                     // margins as the cell's; an exact one stays 28.65.
                     // zh-a4b0f6ea's form of such rows ran 10pt short.)
                     let around = theme.wordRules ? max(ruled, padded) : ruled
-                    rowHeight = exact ? _px(least) : max(rowHeight, _px(least) + around)
+                    // (The last row's own bottom line hangs under an exact
+                    // height, not inside it: zh-ae655121's budget tables
+                    // end on a 36.05pt row over a 0.75pt double line, and
+                    // Word's print centres the row's text in all 36.05 and
+                    // sets the text after the table the line's 2.2 lower.
+                    // Ours had taken the line from the row's room, the text
+                    // 1.1 high and the table that much short.)
+                    let hung = exact && lastRow ? (k0 ..< j).map { _cells[$0]!.ruleBelow }.max() ?? 0 : 0
+                    rowHeight = exact ? _px(least) + hung : max(rowHeight, _px(least) + around)
                 }
                 rowHeight += ruleAbove + ruleBelow
                 rules.append((ruleAbove, ruleBelow))
