@@ -789,6 +789,11 @@ foot, its band 158.0 -> 100.7 there and "服务"/"组织与实施" opening page
 with nothing of it on page 17, so the merged "基本公共服务事项" and
 "人才服务类" centre over a span 28pt shorter and stand 11.5pt high.
 Which row Word parts there is the open question.
+2026-10-17 (Windows): a centred merged cell whose text overflows its part
+on the page now centres the lines that fit in that part (zh-6d1afa56 p25,
+five of nine lines 4.4 down). zh-6d1afa56 99.0 -> 99.6, zh-f59a76e9 98.4 ->
+99.4, zh-a4b0f6ea 99.4 -> 100. Note that a single row that parts is another
+case: zh-1a3c7aa0 p57's cut cell stands at the part's foot (above).
 
 Note from the Mac (2026-10-16): zh-799c91cd 96.8 -> 95.6 between the
 n225 and n230 sweeps. Page 6's table, whose last row runs to the foot,

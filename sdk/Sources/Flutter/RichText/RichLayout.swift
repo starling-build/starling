@@ -3290,7 +3290,23 @@ public final class RichLayout {
                         // above its text and below it, less its margins.)
                         let free = (_tops[g.first] - c.rowTop) + (c.rowTop + d.rowHeight - _tops[g.last] - _heights[g.last])
                             - d.pad.top - d.pad.bottom
-                        let up = min(max(0, free), d.rowHeight - part) * (d.verticalAlign == "center" ? 0.5 : 1)
+                        var up = min(max(0, free), d.rowHeight - part) * (d.verticalAlign == "center" ? 0.5 : 1)
+                        // (A centred cell whose text does not fit the part:
+                        // the lines that do stand centred in it, the rest
+                        // going on at the next page's head. zh-6d1afa56 p25:
+                        // "《预算法》…", nine 18pt lines merged over a 98.8pt
+                        // row and an 80.8 one, five on page 25 4.4 down —
+                        // 17.2 under the rule in Word's print, ours 13.2 —
+                        // and the four others at page 26's top.)
+                        let text = _tops[g.last] + _heights[g.last] - _tops[g.first]
+                        let room = part - d.pad.top - d.pad.bottom
+                        if d.verticalAlign == "center", free > 0, text > room + 0.01 {
+                            var shown = 0.0
+                            for k in g.first ... g.last {
+                                for cut in cellCuts(k) where cut - _tops[g.first] <= room + 0.01 { shown = max(shown, cut - _tops[g.first]) }
+                            }
+                            if shown > 0 { up = max(0, free / 2 - (room - shown) / 2) }
+                        }
                         for k in g.first ... g.last { lift[k] = up }
                     }
                 }

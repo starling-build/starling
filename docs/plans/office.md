@@ -5525,6 +5525,19 @@ fitter dropped the paragraph's tail).
   picture. The marker is now painted there, from the paragraph's list
   level as for text, its baseline at the picture's foot (379.5).
   chartex 76.4 -> 77.8; nothing else moved.
+- **A centred merged cell that does not fit its page's part centres
+  the lines that do (2026-10-17).** zh-6d1afa56 p25: "《预算法》…" is
+  nine 18pt lines merged over a 98.8pt row and an 80.8pt one, and the
+  page breaks between the two rows. In Word's print five lines stand on
+  page 25, centred in the 98.8 (17.2 under the rule), and the other four
+  at page 26's top. Ours set the five from the part's top (13.2): the
+  lift that brings a centred cell into the rows on its page took all of
+  its spare room once the text was taller than the part. Now, when the
+  text overflows the part, the lines that fit (by `cellCuts`) are
+  centred in it. zh-6d1afa56 99.0 -> 99.6, zh-f59a76e9 98.4 -> 99.4,
+  zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
+  lower in Word than the two-line cells beside them: the same rule);
+  nothing else moved.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than
