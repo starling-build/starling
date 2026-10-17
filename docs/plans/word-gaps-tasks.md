@@ -115,7 +115,7 @@ Twenty more (`random.seed(20261018)`, the unprinted rest of 15-400 KB,
 Word 16.113.3 prints) are checked in; compare per document across it.
 It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (T86, 83.6 now),
 zh-5dc5ce34 20.3 (21; Windows box, looking), zh-167ee06c 55.4 (14; T88, 72.9 now), zh-21421b7d 69.2 (2; Mac 011uWpmC, 97.4 now — slash break, parted centred cell),
-zh-70094a34 70.8 (19; Mac, looked: Word's text layer drops glyphs, the lines match), zh-621d8756 82.4 (52; Mac 011uWpmC, looking), zh-34a6519a 84.0 (53; Mac, looked: the TOC matches — Word's page numbers are drawn but not in its text layer, so the matcher splits our lines),
+zh-70094a34 70.8 (19; Mac, looked: Word's text layer drops glyphs, the lines match), zh-621d8756 82.4 (52; Mac 011uWpmC, looking — see the wordWrap note below), zh-34a6519a 84.0 (53; Mac, looked: the TOC matches — Word's page numbers are drawn but not in its text layer, so the matcher splits our lines),
 zh-830ef10d 89.2, zh-fb482d33 89.7 (T89, 95.7 now, 6 pages), zh-ad224275 93.2 (Mac, looked: the lines match — the misses are text-layer, a Wingdings bullet and pdf-text grouping).
 
 ### Note from the Mac (2026-10-17): the zh corpus is 108 documents now — a third sample
@@ -202,6 +202,21 @@ the file a page long (0.4%). zh-167ee06c 55.4 -> 72.9; nothing fell.
 Left there: "hangingChars" 200 sets its lines 21.6pt in where ours
 stand 28 (two of the 14pt ems); its first line's "、" squeezed to take
 "系", which Word leaves.
+
+### Note (Mac 011uWpmC, 2026-10-17): `w:wordWrap` off wraps a paragraph's closing spaces
+zh-621d8756 pp 21-27 run a line or two short, every page after p21 late:
+its forms end paragraphs in long runs of underlined spaces under
+`w:wordWrap w:val="0"`. Lab `ws` (Word 16, p21's paragraphs, four
+variants: as is / wordWrap on / no underline / both): the underline does
+nothing; wordWrap does. On, the closing spaces hang past the margin out
+to the page's edge (lines to x 596 on a 595pt page) and only then wrap,
+as ours do. Off, they wrap at the margin as characters do, the last
+space straddling it (lines end at 498.8-509.1, margin 505.2):
+"陈述申辩人：（…）" and 56 spaces is two lines, a paragraph of 102
+spaces two. Tried: holding the closing spaces (no-break, a zero-width
+break between each) and plain spaces with the breaks — both overran,
+the fitter counting the spaces ~8pt wider over a line than Word and no
+space allowed to straddle. Not built; lab in the Mac's scratchpad.
 
 ### T86. A Latin word at a body line's end starts half an em inside the margin — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
