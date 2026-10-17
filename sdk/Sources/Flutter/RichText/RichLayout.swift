@@ -4192,6 +4192,22 @@ public final class RichLayout {
             : ownLeft + (style.list != nil ? _px(_listIndents(p, document)?.left ?? theme.listIndent * Double(style.listLevel + 1)) : 0)
         let right = _px(sides.right)
         var width = _flowWidth(i)
+        // On a grid of characters a body line holds whole characters of
+        // Normal's size: as wide as the most of them the column takes,
+        // its addition with each. zh-f0bd9ea8's 436.55pt column holds 42
+        // of 10.29 (10.5, the grid -0.21), and its justified lines end at
+        // 432.4 in Word's print, 4.2 short of the margin; with the
+        // margin 5.1 or 10.1pt in they end at 422.1 both (lab `f0b`,
+        // 2026-10-17). zh-d68ac84a's 439.4 is 30 of 14.65 exactly.
+        // (Not a header's or footer's, which keep to no line grid: the
+        // footer's "-1-" stands where it would without one.)
+        // (Where the grid takes room away. Where it adds some, Word does
+        // not round: zh-ac627439 (+0.3, 442.2pt, 40.9 cells of 10.8) sets
+        // a 15pt line to 437.6.)
+        if theme.wordRules, p.cell == nil, _grid(i, document).pitch != nil, let add = _grid(i, document).chars, add < 0 {
+            let cell = _px((_normalChar(document)?.fontSize ?? theme.fontSize) + add)
+            if cell > 0 { width = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell) }
+        }
         // A floating frame: as wide as it says, from where it says.
         var frameLeft: Double? = nil
         if floatsFrames, theme.wordRules, p.cell == nil, let frame = style.frame {

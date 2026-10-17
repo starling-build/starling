@@ -5473,6 +5473,27 @@ fitter dropped the paragraph's tail).
   - The fills Word gives a chart with no `spPr` (c:style 2: light blue
     frame and plot).
   - Excel's newer charts key a row with a square, not a bar.
+- **On a grid that takes room away, a body line is whole cells of
+  Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
+  charSpace -842, Normal 10.5, 16pt text) took a character more than
+  Word on nearly every body line. Labs on its real first paragraph
+  (`lab/f0b`, shifting the line with a negative `w:ind w:left` in twips,
+  which leaves the grid's pitch alone; margins move it) found:
+  - The justified lines end at 432.36pt in Word's print, 4.19 short of
+    the 436.55 column. That is 42 cells of 10.294: Normal's 10.5 plus
+    the grid's -0.206.
+  - With the margin 5.1 or 10.1pt in, the lines end at 422.07 both
+    times, 41 cells.
+  - The squeeze rule held all along (a comma gives half a cell); the
+    line was 4.19 too wide.
+
+  zh-d68ac84a's 439.4 is exactly 30 cells of 14.647 (Normal 16), so it
+  was right already. Now a body line on such a grid is as wide as the
+  most whole cells the column holds. Not in a cell, and not in a header
+  or footer, which keeps to no line grid: d68ac84a's footer "-1-"
+  moved. Not where the grid adds room: zh-ac627439 (+0.3, 40.9 cells of
+  10.8) sets lines past 40 cells, and fell 100 -> 75.5 with it.
+  zh-f0bd9ea8 53.6 -> 84.1; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

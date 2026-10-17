@@ -1290,7 +1290,11 @@ whole cells with nothing left over, and reads 0 and half a cell either
 way. So the open question is narrower: what sets f0bd9ea8's -4.2
 against a leftover of 10.11.
 
-Released.
+**Found and built (Mac, 2026-10-17).** On a negative grid a body line
+is whole cells of Normal's size plus the grid's addition: 42 of 10.294
+= 432.36, which is 4.19 short. With the margin 5.1 or 10.1pt in, both
+prints' lines end at 41 cells. f0bd9ea8 53.6 -> 84.1, nothing else
+down. A positive grid does not round (zh-ac627439). DONE for this cause.
 
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
