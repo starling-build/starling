@@ -50,6 +50,10 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(ChartPainter.scale(0, 8.2).step, 1)
         XCTAssertEqual(ChartPainter.scale(0, 8.2, intervals: 8).hi, 10)
         XCTAssertEqual(ChartPainter.scale(0, 8.2, intervals: 8).step, 2)
+        // Up to ten steps up the page: 435,043 runs to 500,000 by 50,000 in
+        // Word's print of zh-2a241df1 (nine steps made it 100,000).
+        XCTAssertEqual(ChartPainter.scale(0, 435_043).step, 50_000)
+        XCTAssertEqual(ChartPainter.scale(0, 435_043).hi, 500_000)
         XCTAssertEqual(ChartPainter.label(2.5, percent: false), "2.5")
         XCTAssertEqual(ChartPainter.label(0.3, percent: true), "30%")
     }

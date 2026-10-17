@@ -2091,6 +2091,13 @@ blend was brighter, and nearer them by chance. tdf93868's plain black
 to grey (three stops, two the same) and KEY02's text gradient print
 in sRGB, unexplained; neither moves, being grey or white.
 
+**A chart's value axis up the page in up to ten steps, 2026-10-17** (no
+deck moved). The Mac's Word session found Word's prints of zh-2a241df1's
+charts (Excel's engine) need ten: 435,043 runs to 500,000 by 50,000,
+where nine made the step 100,000. Nine had only ever been told from
+eight here; the 19 chart decks are the same either way. Horizontal
+value axes keep eight.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so
