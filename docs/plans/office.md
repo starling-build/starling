@@ -4570,6 +4570,15 @@ fitter dropped the paragraph's tail).
   their 30pt, where ours, counting no line on that side, took two. A
   cell's side with no line of its own now takes its neighbour's.
   zh-37b6536f 96.2 -> 97.7; nothing else moved.
+- **A balanced half-width space takes half the grid's addition, not twice
+  it (2026-10-16).** Where single- and double-byte widths are balanced, a
+  space is half an em and the run's spacing twice (lab `sp`, 8.31pt at
+  16pt spaced 0.15). The spacing the style holds includes the character
+  grid's addition, and that went twice too. zh-f0bd9ea8's two spaces
+  after "第一条", 16pt on a grid of -0.21, are 7.9pt apiece natural in
+  Word's print (8.13 justified, the ideographs 15.79 + 0.24) and were
+  7.6 here. Now the grid's share is half. zh-64044a1d 96.7 -> 97.1,
+  zh-6d1afa56 97.8 -> 98.3; nothing down.
 - **Before 2013's layout, a Latin word at a body line's end is taken
   wherever the marks and spaces can give (2026-10-16).** Lab `dg`
   (Word 16, zh-2a241df1's package, mode 14, justified 14pt

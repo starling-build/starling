@@ -5509,6 +5509,12 @@ public final class RichLayout {
                     // once more: off twice.)
                     extra += em / 2 - _spaceWidth(s) + (s.letterSpacing ?? 0)
                         - 2 * spread * (latinFace?.boldSpread ?? 0) + spread * (eaFace?.boldSpread ?? 0) / 2
+                    // (The grid's addition, which the style's spacing holds
+                    // too, half of it, not twice: zh-f0bd9ea8's two spaces
+                    // after "第一条" on a grid of -0.21 are 7.9pt apiece at
+                    // 16pt in Word's print, ours 7.6, and every line took a
+                    // character Word wraps.)
+                    if let grid, grid != 0 { extra -= 1.5 * _px(grid) }
                 } else if !ea, let face = latinFace, face.advances != nil, ch.unicodeScalars.count == 1,
                           let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E {
                     // The width the original face gives this character
