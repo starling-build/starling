@@ -981,6 +981,15 @@ its last space, so our line is a few points wider than Word's 201.3.
 Our natural width of that paragraph traces as 421pt, where its glyphs
 come to about 200, so something unseen is counted. Find that first,
 then the joiner is the fix. Released.
+Found and built (01Xgpbk5, Mac, 6a5f56b7): the unseen width was the
+trailing spaces themselves — set in the ideographs' face (kind -2), their
+spacing carries the stand-in's width, and the half-em rule counted it
+twice (13.3pt each, Word's 7.15). With that, the joiner holds: page
+numbers 713.0 (Word 713.3), 728.6 (729.4), 727.3 (727.9). It replaces
+19599caf's held spaces (Linux, 017F2), which held on Linux but on the Mac
+set these footers a point taller and cost zh-c5b5087b and zh-1563bd74 a
+page each. Mac: zh-c5b5087b 28.6 -> 94.4, zh-1563bd74 88.9 -> 100.
+Awaiting a Linux sweep of 6a5f56b7.
 Built (Linux, 19599caf, at the same time): the trailing spaces after an
 ideograph in a right-aligned paragraph set as held (no-break) spaces,
 each after a zero-width break, at a space's width set outright (the
