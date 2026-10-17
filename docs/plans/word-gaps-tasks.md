@@ -175,6 +175,15 @@ grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
 
+### T91. zh-621d8756: a table set in a frame, and closing spaces under wordWrap off — claimed
+Owner: session 017F2GnT (Linux), from 2026-10-17
+Documents: zh-621d8756 (82.3%, 52 pages; the Mac looked and released it).
+Known: the first miss is p15, before the wordWrap pages. Its form table's
+every cell paragraph carries one `w:framePr` (vAnchor text, y 342,
+xAlign center, wrap notBeside): Word sets the table as a frame, 17.1pt
+under "需要补正内容如下：", and ours sat on that line's foot. Then pp
+21-27's closing spaces (the wordWrap note below).
+
 ### T90. delins: whole paragraphs deleted, their balloon above the line they mark — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 From lenovo-2's T87 note: Word's first balloon in delins (two deleted
