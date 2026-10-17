@@ -4985,6 +4985,19 @@ fitter dropped the paragraph's tail).
   scripts/apply_engine_patches.sh; Skia itself stays upstream's): a U+3000
   is justified as an ideograph. Sideways drift 552 -> 537; no score moved.
   An engine built without the patch keeps the old placement.
+- **An empty paragraph overhangs the foot by the smaller of its mark's
+  two faces' half leading (2026-10-16; Linux).** The last line on a
+  gridded page may reach past the foot by its grid's overhang (the half
+  of the box its face's natural height leaves). An empty paragraph's line
+  is its mark's, and we took the East Asian face for it: zh-64044a1d's
+  empty Body Text marks (12pt 標楷體 over Times) are one 18pt pitch, but
+  YaHei's own box would be two, and its 7.7pt overhang kept a fourteenth
+  empty line on page 97 where Word keeps thirteen (with "E1".."E17" in
+  them ours parted as Word's). The Latin face alone instead broke
+  zh-6d1afa56: its 14pt mark (Times over 方正小标宋) is two 15.6pt pitches
+  either way, and Times' 7.55 left the page overfull, the page break
+  after it then opening a blank page. The smaller of the two is right for
+  both: zh-64044a1d 97.2 -> 97.7%; nothing else moved.
 - **An exact row's own bottom line hangs under it (2026-10-16; Linux).**
   zh-ae655121's budget tables end on an exact 36.05pt row over a 0.75pt
   double line. Word's print centres the row's text in the whole 36.05 and

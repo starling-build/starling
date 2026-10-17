@@ -4754,10 +4754,24 @@ public final class RichLayout {
             _overhang[i] = 0
             if theme.wordRules, p.image == nil, p.cell == nil, style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch {
                 let named = _named(p, document)
-                // (An empty paragraph's line is its mark's.)
+                // (An empty paragraph's line is its mark's, and the mark
+                // has two faces: its overhang is the smaller of theirs —
+                // the half leading the taller face leaves. zh-64044a1d's
+                // empty Body Text marks, 12pt 標楷體 over Times, are one
+                // 18pt pitch; the East Asian face's own box would be two,
+                // and its 7.7pt overhang let ours keep a fourteenth on page
+                // 97 where Word's print keeps thirteen. zh-6d1afa56's 14pt
+                // mark, Times over 方正小标宋, is two 15.6pt pitches either
+                // way, and Times' 7.55 sent the page break after it onto a
+                // blank page; the East Asian face's 3.6 keeps Word's.)
                 let look = p.text.isEmpty ? (style.mark ?? p.runs.first?.style ?? CharStyle()) : p.runs[0].style
-                let ea = p.text.isEmpty || p.text.contains { Self.isEastAsian($0, hinted: false) }
-                _overhang[i] = _px(theme.gridOverhang(for: look, in: style, named: named, eastAsian: ea, gridPitch: pitch))
+                if p.text.isEmpty {
+                    _overhang[i] = _px(min(theme.gridOverhang(for: look, in: style, named: named, eastAsian: true, gridPitch: pitch),
+                                           theme.gridOverhang(for: look, in: style, named: named, eastAsian: false, gridPitch: pitch)))
+                } else {
+                    let ea = p.text.contains { Self.isEastAsian($0, hinted: false) }
+                    _overhang[i] = _px(theme.gridOverhang(for: look, in: style, named: named, eastAsian: ea, gridPitch: pitch))
+                }
             }
         }
         _painters[i] = painter
