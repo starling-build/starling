@@ -2150,6 +2150,16 @@ chart, whose axes are both deleted and whose floor and back wall say
 no line, stood on an axis line and in a box's edges; it now stands in
 neither (`Chart.BarView.walled`).
 
+**A 3-D bar as deep as it is wide, 2026-10-17** (LIBRE_OFFICE-100610
+2.04 → 2.00; aascu 5864 unchanged). A 3-D bar chart's box was a
+category deep and each bar a 1 + gapDepth share of it. PowerPoint's
+bars are as deep as they are wide, in a box `gapDepth` deeper: the
+survey's four bars abreast, 46.5 pt wide with no gap, show 15.5 across
+and 12 up in its print (46.5 deep), where ours took the whole
+category's 186. aascu 5864's single series comes out the same either
+way (11.2 wide, its box 28). Left: that chart's deleted value axis
+runs to 6.3 in PowerPoint's print (6 × 1.05, unrounded), ours to 7.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so
