@@ -118,7 +118,7 @@ second started at 74.5). Its low ones, unclaimed unless marked:
 zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 16), zh-a5745784 26.5 (T77, 99.7 now), zh-540dc149 34.3 (T76, done),
 zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (T80, done), zh-268f8d15 93.0 (T84, 98.8 now),
-zh-de3410bd 93.2, zh-fe536967 94.0 (T83, 99.0 now). zh-d89c3840 was T70.
+zh-de3410bd 93.2 (Mac, looked: p1 holds a two-line paragraph Word sends on — the zh-e061a08e page foot, same footer, same margins, PMingLiU; within a point), zh-fe536967 94.0 (T83, 99.0 now). zh-d89c3840 was T70.
 
 ### T78. zh-fec5fa30: 55 pages where Word's are 56 — claimed
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
