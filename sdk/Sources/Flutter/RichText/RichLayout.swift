@@ -8035,6 +8035,16 @@ public final class RichLayout {
                     canvas.drawLine(from + inward * 0.5, to + inward * 0.5, stroke)
                 }
             }
+            // Whether the cell of this row whose left side stands at `x`
+            // draws it.
+            func leftDrawn(at x: Double) -> Bool {
+                var n = i
+                while n < _cells.count, let e = _cells[n], e.table == c.table, e.row == c.row {
+                    if abs(e.colLeft.rounded() - x) < 1 { return on(e.edges?.left, te?.insideV) }
+                    n += 1
+                }
+                return false
+            }
             func paintEdges(_ d: _CellGeo, bottomHere: Bool, ownTop: Bool) {
                 let cellRight = (d.colLeft + d.colWidth).rounded()
                 line(d.borders.left, on(d.edges?.left, d.column == 0 ? te?.left : te?.insideV),
@@ -8054,6 +8064,13 @@ public final class RichLayout {
                          Offset(right, rowTop), Offset(right, rowBottom), inward: Offset(-1, 0))
                 } else if d.borders.right != nil {
                     line(d.borders.right, false, Offset(cellRight, rowTop), Offset(cellRight, rowBottom), inward: Offset(-1, 0))
+                } else if theme.wordRules, d.edges?.right == true, !leftDrawn(at: cellRight) {
+                    // (A cell's own right side where the cell beside it
+                    // draws no left: Word draws the line either cell
+                    // states. zh-91e44bcb's tables give each cell a right
+                    // and a bottom and no left or top, and stood without
+                    // a line between their columns.)
+                    line(nil, true, Offset(cellRight, rowTop), Offset(cellRight, rowBottom), inward: Offset(-1, 0))
                 }
             }
             // Each cell of the row draws its edges; a cell from above that

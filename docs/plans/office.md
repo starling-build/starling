@@ -3310,6 +3310,16 @@ fitter dropped the paragraph's tail).
   a parted row): the part is then to the foot, as before. (T32.)
   zh-91e44bcb 97.1% -> 100; nothing else moved.
 
+- **A cell's own right side is drawn where its neighbour draws no left
+  (2026-10-16).** A table's inside lines between columns came from each
+  cell's left side; a cell stating only its right (and bottom), beside
+  one stating `nil` on its left, left no line between them. Word draws
+  a side either cell states: zh-91e44bcb's tables, every cell right and
+  bottom, printed as ruled rows without a column line. Under Word's
+  rules the right side is drawn where the cell beside it draws no left
+  (never both, which would double the line). Nothing moved in the
+  sweeps (lines only).
+
 - **No header repeated where a page breaks inside it (2026-10-16).**
   A table's header rows (`w:tblHeader`) were set again at the top of
   every page it went on to, even where the page broke between them.
