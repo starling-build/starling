@@ -1210,6 +1210,31 @@ commas do give. Only the labs and zh-f0bd9ea8 give nothing, so the
 difference between the packages is still not found. Next:
 starling-ios-5c's LABRAW lab, with the real runs' rPr (no rFonts).
 
+Correction (2026-10-17): on a linesAndChars grid the pitch is fitted to
+the text width, so a lab that moves the right margin moves the pitch.
+squeezelab's numbers on character grids, and `lab/sqa`, are void.
+starling-ios-5c's squeeze2 (a negative `w:ind w:left` in twips, which
+leaves the margins and the pitch alone) gives, left-aligned:
+- d68ac84a's grid: no mark 0; one comma, two, or a "》（" pair 7.2-7.3
+  (half a cell);
+- f0bd9ea8's grid: no mark about 6; one comma 13.9.
+
+Mac, f0bd9ea8's real first paragraph by the same method (`lab/f0b/bis.py`):
+"第一条" in 黑体, two 16pt spaces, justified, firstLineChars 200, one
+comma on the line. "牌" is 5.71 over by our natural widths (15.794 a
+cell; Word's unjustified last line steps 15.794 too). Word takes it
+from a 2.00pt shift and not at 1.85, so it allows about 3.7pt on that
+line, against the lab's 13.9. 黑体 or 仿宋 for 第一条 changes nothing.
+
+So the lab and the real paragraph still disagree. Untried variables:
+- justification (the labs were left-aligned);
+- the first-line indent;
+- the two spaces as givers.
+
+Ours leaves "牌" here as well, with the line's comma not counted (room
+0). In the corpus document ours takes it, so the paragraph's context
+there differs from this lab copy. Not taken further.
+
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
