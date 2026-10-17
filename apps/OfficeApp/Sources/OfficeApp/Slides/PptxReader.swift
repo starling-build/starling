@@ -2828,6 +2828,20 @@ private struct SlideContext {
         }
     }
 
+    /// Whether the first strong letter of `text` is Hebrew or Arabic
+    /// (a letter, not a digit or a mark, before any Latin one).
+    static func _startsRightToLeft(_ text: String) -> Bool {
+        for u in text.unicodeScalars {
+            switch u.value {
+            case 0x0590 ... 0x08FF, 0xFB1D ... 0xFDFF, 0xFE70 ... 0xFEFF:
+                if u.properties.isAlphabetic { return true }
+            default:
+                if u.properties.isAlphabetic { return false }
+            }
+        }
+        return false
+    }
+
     private func _font(_ f: String?) -> String {
         switch f {
         case nil, "+mn-lt", "+mn-ea", "+mn-cs": return theme.minor
@@ -3102,6 +3116,13 @@ private struct SlideContext {
                    let link = first.first("a:hlinkClick"), link.descendant("ahyp:hlinkClr")?["val"] != "tx" {
                     style.bulletColor = first.first("a:solidFill").flatMap { colors.color(in: $0) } ?? level.color ?? tx1
                 }
+                // Right to left where the paragraph says so, or where its
+                // first strong letter is Hebrew or Arabic and it says
+                // nothing itself: tdf98603's quoted Hebrew under a master
+                // that says left to right, its opening quote at the right
+                // in PowerPoint's print.
+                let own = p.first("a:pPr")?["rtl"]
+                if own == "1" || (own == nil && Self._startsRightToLeft(text)) { style.rightToLeft = true }
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
             }
             runLooks.append(looks)

@@ -100,7 +100,14 @@ enum SlideFonts {
             face.boldAdvances = OfficeFonts.arialBlackAdvances
             return face
         default:
-            return nil
+            // (A face no one knows is Calibri in PowerPoint's print, its
+            // Hebrew too: tdf98603's FrankRuehl quote, a fifth narrower
+            // than Carlito's own Hebrew.)
+            guard resolve(family) == OfficeFonts.calibri else { return nil }
+            var face = RichResolvedFace(family: OfficeFonts.calibri)
+            face.otherAdvances = SlideFontWidths.calibriHebrew
+            face.boldOtherAdvances = SlideFontWidths.calibriHebrew
+            return face
         }
     }
 

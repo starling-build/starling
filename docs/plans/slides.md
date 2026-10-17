@@ -2235,6 +2235,19 @@ PowerPoint's (its back wall 5 pt shorter) — so left for now. Its
 labels are Lucida Sans Unicode in PowerPoint's print, Liberation Sans
 in ours.
 
+**Hebrew paragraphs right to left, and an unknown face's Hebrew at
+Calibri's widths, 2026-10-17** (sweep 167: 1.0460 → 1.0441%;
+tdf98603 4.79 → 3.74; tdf134862 +0.02). A slide paragraph's direction
+(`a:pPr rtl`) was not read at all. Now a paragraph that says `rtl="1"`
+runs right to left, and so does one that says nothing itself and
+starts (first strong letter) in Hebrew or Arabic — tdf98603's quoted
+line under a master that says `rtl="0"` everywhere has its opening
+quote at the right in PowerPoint's print, where ours put it at the
+left. Its face, FrankRuehl, is missing on the printing machine and
+set in Calibri; Calibri's Hebrew widths (narrower than Carlito's by a
+fifth) now go with any face that falls back to Calibri, not only one
+named so, and the line breaks after the word PowerPoint's does.
+
 **Also looked at, 2026-10-17:** PowerPoint's line positions wobble by
 up to a point in a repeating pattern — the AES 2011 tables' 16.8 pt
 lines step 17.04, 17.04, 17.04, 16.08, 16.80, averaging ours exactly —
