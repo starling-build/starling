@@ -834,6 +834,16 @@ baseline, Word's 28.8.
 Built (38a62adb): the space a paragraph shares is the nearest shown
 paragraph's above it. drawing 98.1 -> 100%; nothing else moved.
 
+### T52. Print markup as Word does: comment and change balloons in the margin
+Owner: session starling-office1-df (Linux dev box), from 2026-10-16 — the user's call: keep Word's behaviour
+Documents: 58067, Tika-792, delins, comment, testComment, WordWithAttachments
+(all near 0%: Word's references are prints with markup).
+Known (the Windows box's note below): the page drawn at a scale k, 8.3pt
+from the paper's left, a grey balloon pane ~188pt wide ending ~18pt
+from the paper's right (letter k 0.729, pane 407.5-594.5; A4 k 0.7367,
+pane 387.0-576.6), centred top to bottom; balloons "Commented [s1]: …",
+"Deleted: …", "Formatted: …" in ~6.5pt, level with their anchors.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
