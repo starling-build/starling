@@ -2180,7 +2180,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             line.strokeWidth = 1
             for (a, look) in tableLooks {
                 let r = rect(a)
-                let l = r.left.rounded() - 0.5, rr = r.right.rounded() - 0.5, t = r.top.rounded() - 0.5, b = r.bottom.rounded() - 0.5
+                // (On paper where the cell's edge is, as cell borders are:
+                // a page has no pixels to round to.)
+                let l = printing ? r.left : r.left.rounded() - 0.5, rr = printing ? r.right : r.right.rounded() - 0.5
+                let t = printing ? r.top : r.top.rounded() - 0.5, b = printing ? r.bottom : r.bottom.rounded() - 0.5
                 if let c = look.bottom { line.color = Color(Int64(0xFF00_0000) | Int64(c)); canvas.drawLine(Offset(l, b), Offset(rr, b), line) }
                 if let c = look.top { line.color = Color(Int64(0xFF00_0000) | Int64(c)); canvas.drawLine(Offset(l, t), Offset(rr, t), line) }
                 if let c = look.left { line.color = Color(Int64(0xFF00_0000) | Int64(c)); canvas.drawLine(Offset(l, t), Offset(l, b), line) }
