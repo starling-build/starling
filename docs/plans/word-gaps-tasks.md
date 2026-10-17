@@ -1210,7 +1210,14 @@ Word's — the engine sets a character's spacing half before it (as for
 tabs, T58), Word after. A lab of this line, the over varied, would say
 what Word counts.
 
-<<<<<<< HEAD
+Windows box, 2026-10-17: lab `bold` (Word for Windows, the line with
+its right indent varied): Word takes "励" down to -500 twips bold, -480
+plain; ours -540 bold, -480 plain — so ours meets Word's limit plain,
+and Word for Windows emboldens ~0.1pt a character, not the Mac's 0.31.
+With the Mac's figure, fake bold 1/57 -> 1/52 em (0.31 at 16pt):
+zh-15428325 94.8 -> 96.1, nothing else moved in either set. The first
+line's 30.95 (ours 30.8) is still open.
+
 ### T67. A comment's balloon hangs at the comment's end — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: WordWithAttachments (23.7%).
@@ -1247,15 +1254,6 @@ whole drawing: it takes no room, and p1 below it stands ~57pt high.
 Build: the outermost VML element decides floating and size; the text
 box's text set at its own place in the group.
 
-=======
-Windows box, 2026-10-17: lab `bold` (Word for Windows, the line with
-its right indent varied): Word takes "励" down to -500 twips bold, -480
-plain; ours -540 bold, -480 plain — so ours meets Word's limit plain,
-and Word for Windows emboldens ~0.1pt a character, not the Mac's 0.31.
-With the Mac's figure, fake bold 1/57 -> 1/52 em (0.31 at 16pt):
-zh-15428325 94.8 -> 96.1, nothing else moved in either set. The first
-line's 30.95 (ours 30.8) is still open.
->>>>>>> f03ea73d (office: a face Word emboldens widens a character by 1/52 of its size)
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
