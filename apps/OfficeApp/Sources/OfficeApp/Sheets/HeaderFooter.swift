@@ -124,9 +124,12 @@ enum HeaderFooterText {
             i += 2
             switch code {
             case "&": text.append("&")
-            case "L", "l": flush(); section = 0
-            case "C", "c": flush(); section = 1
-            case "R", "r": flush(); section = 2
+            // (Each section starts in the default font: lo-tdf58243's right
+            // section, "&R&D" after a centre set "&14", prints its date at
+            // the default size.)
+            case "L", "l": flush(); section = 0; style = RunStyle()
+            case "C", "c": flush(); section = 1; style = RunStyle()
+            case "R", "r": flush(); section = 2; style = RunStyle()
             case "P", "p": flush(); add(.page)
             case "N", "n": flush(); add(.pages)
             case "D", "d": flush(); add(.date)
@@ -166,6 +169,9 @@ enum HeaderFooterText {
                     var digits = String(code)
                     while i < chars.count, chars[i].isNumber, digits.count < 3 { digits.append(chars[i]); i += 1 }
                     if let n = Double(digits), n >= 1 { flush(); style.size = n }
+                } else if code == " " {
+                    // "& " is nothing: lo-tdf58243's "- ED & Université -"
+                    // prints "- ED Université -".
                 } else {
                     // An unknown code: keep the characters, Excel shows them.
                     text.append("&"); text.append(code)

@@ -88,11 +88,13 @@ extension SheetsPrintTests {
 
 extension SheetsPrintTests {
     func testHeaderFooterCodes() {
-        // Font and size carry across sections until changed; &"-,Regular" ends the bold.
+        // Each section starts in the default font (a lab, Excel 16, 2026-10-16:
+        // "&L&\"Courier New,Bold\"&16AAA&CBBB&RCCC" prints BBB and CCC in Calibri
+        // 11); &"-,Regular" ends the bold.
         let s = HeaderFooterText.parse("&L&\"Arial,Bold\"&14Report&\"-,Regular\"&C&BPage &P of &N&B&R&D && &A")
         XCTAssertEqual(s.left, [.init(piece: .text("Report"), style: .init(bold: true, size: 14, family: "Arial"))])
         XCTAssertEqual(s.center.map(\.piece), [.text("Page "), .page, .text(" of "), .pages])
-        XCTAssertTrue(s.center.allSatisfy { $0.style.bold && $0.style.family == "Arial" && $0.style.size == 14 })
+        XCTAssertTrue(s.center.allSatisfy { $0.style.bold && $0.style.family == nil && $0.style.size == nil })
         XCTAssertEqual(s.right.map(\.piece), [.date, .text(" & "), .sheet])
         // No section code: centred, as Excel shows it.
         XCTAssertEqual(HeaderFooterText.parse("Plain").center, [.init(piece: .text("Plain"), style: .init())])
