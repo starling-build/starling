@@ -1083,7 +1083,35 @@ change is lenovo-3's (Linux).
 
 ### Leads from the second sample (Windows box, 2026-10-17)
 Done here: zh-4d143b5e 36.5 -> 99.8 (6ef30c71), zh-b13d0fb4 93.5 -> 100
-(b9952df9). Measured and left:
+(b9952df9). Later the same day: zh-a4b0f6ea 89.0 -> 99.4 (T44), zh-2a241df1
+94.3 -> 97.1 (data table baselines), zh-78729cf9 -> 100 (Roman numerals),
+zh-64044a1d 97.8 -> 99.0 (a table in a text box; exact rows), chartex 76.4
+-> 77.8 (a picture list item's bullet). Measured and left:
+- zh-799c91cd p7: YaHei 12pt lines are 20.6pt in ours (skparagraph
+  rounds each line to the layout's 1/20pt) and 20.586 in Word. Over 22
+  lines and a ruled row, the empty line under page 6's table is 0.15pt
+  over the foot, where Word's fits by 0.3. The rounding note under T16.
+- zh-2a241df1 p1: chart 1 stands 2.2pt low (an inline chart in a 15.6pt
+  grid line: where in the line Word puts it is not known; chart 2 is
+  right). Its title's two misses are the faces' bbox bottoms: SimHei in
+  Word's print, YaHei Bold in ours, the characters within 0.4pt.
+- zh-454e2e29 p1/p4/p5: every position within 0.3pt; the matcher groups
+  pieces whose bbox bottoms differ by face (Times against Liberation).
+- zh-64044a1d p30: a line holding a Noto compatibility ideograph carries
+  our word joiner (the `cj2` height), which the PDF extracts as a 30.4pt
+  space; its bbox moves the matcher's line bottom 3-5pt. Baselines are
+  within 1.3pt. p93-95: glyphs clipped inside exact rows, which Word's
+  PDF keeps and ours drops (the zh-6600d539 note).
+- zh-64044a1d p58: compat 11, compressPunctuation. Word sets "工程 (搶救、
+  搶修 )開口合約廠" unsqueezed (12.32 a cell); ours squeezes "、" to 8.2
+  and takes "商，" too. The spaces before the brackets are 6pt each in
+  ours. Squeeze ground: left to whoever holds it.
+- delins balloons: Word's one-line balloons step 10.46pt (scaled), ours
+  10.0. Pinning the line to Tahoma's 1.2075 em made ours 10.7 and set
+  the deletion balloon 11pt low (delins 45 -> 37 lines of 60); reverted.
+- chartex's sunburst: Word sets its labels turned along the radius and
+  wrapped mid-word ("Branc" / "h 1"), and leaves the small segments
+  unlabelled. Not built.
 - zh-e02b0479 (68.6%): its form's last row is two 15.6pt grid pitches in
   Word because its text, 楷体_GB2312 10.5pt, is YaHei there (an 18pt
   line); our 楷体 is KaiTi, one pitch, and the merged "所需信息情况" above
