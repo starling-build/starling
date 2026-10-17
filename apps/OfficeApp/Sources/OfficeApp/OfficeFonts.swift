@@ -988,9 +988,14 @@ enum OfficeFonts {
             // "……" in 標楷體 runs — YaHei to Word on a Mac — are 13.52pt
             // apiece at 16pt on its grid in Word's print, where the stand-in's
             // em-wide glyph set them 17.01.)
+            // (And its middle dot, a run's "·" Word sets in the East
+            // Asian face — `w:hint`: 0.2407 em, 0.4395 bold, where the
+            // Latin stand-in's is Arial's 0.333. zh-6d1afa56's
+            // "·申报内容（含项目名称、项" fills its cell's 106.2pt in
+            // Word's print, its dot 2.2pt; ours put "项" on the next line.)
             if ea.height == yaHei.height {
-                face.otherAdvances = [0x2026: 0.8135]
-                face.boldOtherAdvances = [0x2026: 0.9629]
+                face.otherAdvances = [0x2026: 0.8135, 0xB7: 0.2407]
+                face.boldOtherAdvances = [0x2026: 0.9629, 0xB7: 0.4395]
             }
             face.scaledHeight = ea.scaledHeight
             face.scaledBaseline = ea.scaledBaseline
@@ -1008,6 +1013,12 @@ enum OfficeFonts {
         face.advances = ea.latinAdvances
         face.boldAdvances = ea.latinBoldAdvances
         face.symbolFamily = ea.symbols
+        // (YaHei's middle dot, which its table of ASCII widths leaves to
+        // the stand-in's: see the East Asian face above.)
+        if ea.height == yaHei.height {
+            face.otherAdvances = [0xB7: 0.2407]
+            face.boldOtherAdvances = [0xB7: 0.4395]
+        }
         // A no-break space in a square face is an em, where its space is
         // half of one (lab `nb1`, Word 16, 2026-10-15: "甲" + ten U+00A0 +
         // "乙" at 12pt is 12pt a space in 宋体, 黑体, 楷体 and 仿宋, 6pt

@@ -3310,6 +3310,21 @@ fitter dropped the paragraph's tail).
   a parted row): the part is then to the foot, as before. (T32.)
   zh-91e44bcb 97.1% -> 100; nothing else moved.
 
+- **YaHei's middle dot is its own width (2026-10-16).** Under Word on a
+  Mac, Chinese names it has no face for (仿宋_GB2312, 方正…) are YaHei;
+  our YaHei stand-in sets ASCII at YaHei's widths and left "·" (U+00B7)
+  to Liberation Sans, Arial's 0.333 em. Word's print draws it in YaHei,
+  0.2407 em (0.4395 bold, by msyh.ttc/msyhbd.ttc), in a hinted run and
+  not. zh-6d1afa56's "·申报内容（含项目名称、项" fills its cell's 106.2pt
+  in Word's print, the dot 2.2pt and the bracket and comma 2pt short
+  each; ours put "项" on the next line, and its rows on p59 and p62 went
+  down a line. zh-6d1afa56 97.9% -> 98.6; nothing else moved.
+  Tried and dropped: all of YaHei's widths past ASCII (Latin-1, general
+  punctuation, arrows, operators, shapes — "√" 0.7017, "■" 0.604, "─"
+  0.7085 in this very print): 13 documents worse, zh-e5709b89 100 -> 36
+  with its lines a character short from page 1 — so not all of them are
+  Word's; settle them one by one.
+
 - **A frame that names a height and no anchor is set from the margin
   (2026-10-16).** A framed paragraph's `w:y` with no `w:vAnchor` was read
   as anchored to its text; the schema's default is the margin, which
