@@ -3428,6 +3428,14 @@ public final class RichLayout {
                         let text = _tops[g.last] + _heights[g.last] - _tops[g.first]
                         let room = part - d.pad.top - d.pad.bottom
                         if d.verticalAlign == "center", free > 0, text > room + 0.01 {
+                            // (Its lines down to the cut, which leaves no
+                            // bottom margin on this page — the cell's foot
+                            // is on the next: zh-21421b7d's "所需信息情况",
+                            // ten 26pt lines in a part of 260.5, stands at
+                            // the part's top in Word's print, its tenth
+                            // under the cut; ours kept nine and centred
+                            // them 13pt down.)
+                            let room = part - d.pad.top
                             var shown = 0.0
                             for k in g.first ... g.last {
                                 for cut in cellCuts(k) where cut - _tops[g.first] <= room + 0.01 { shown = max(shown, cut - _tops[g.first]) }
@@ -8126,7 +8134,11 @@ public final class RichLayout {
         // keeps with it: zh-1a3c7aa0's chemical names part "…三甲基" from
         // "-4,6-二氨基…" in Word's print, where ours took "基-4,6-" over
         // whole and left the line a character short.)
-        if b == "-" {
+        // (And before a slash, which no line-start list holds either:
+        // zh-21421b7d's "法人/其他组织", two characters a line in a narrow
+        // cell, is "法人", "/其", "他组", "织" in Word's print — the
+        // engine kept "人/" together and left "法" alone on the first.)
+        if b == "-" || b == "/" {
             return wide(a) && !_openingMarks.contains(a) && !_closingMarks.contains(a)
         }
         // (And after a multiplication sign, which the engine reads as a

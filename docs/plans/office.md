@@ -5687,6 +5687,19 @@ fitter dropped the paragraph's tail).
   paragraph, whose indents are the list's).
 
   Both: zh-fec5fa30 88.8 -> 94.2, Word's 55 pages; nothing else moved.
+- **A line may open with "/" after an ideograph, and a centred merged
+  cell parted at a page's foot keeps its lines down to the cut
+  (2026-10-17).** zh-21421b7d's narrow cell "法人/其他组织" is "法人",
+  "/其", "他组", "织" in Word's print: "/" is on no line-start list,
+  so it parts from the ideograph before it, as a hyphen does. The
+  engine kept "人/" whole and set "法" alone. Its "所需信息情况",
+  centred and merged down over a page's foot, has ten 26pt lines in a
+  part of 260.5pt; Word sets all ten from the part's top. Ours took the
+  cell's bottom margin from the part too, although the cell's foot is
+  on the next page. So it kept nine, centred them 13pt down, and
+  carried the tenth over to push "况" down a line. zh-21421b7d 69.2 ->
+  97.4; nothing else moved. Left: its last row's line takes two grid
+  pitches in Word (one in ours), a 楷体_GB2312 line on a 15.6pt grid.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
