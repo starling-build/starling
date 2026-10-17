@@ -896,6 +896,16 @@ notes give Word's prints too. Lab `bd1` shows Word's body steps 20.64/20.88
 (mean 20.76) where ours step 20.8: whoever takes the page-foot rounding
 question can start there.
 
+### T53. zh-8e8d4c40 p5: lines with Noto Sans SC glyphs, and Latin in 標楷體 — claimed
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16
+On the Mac it has been 90.4% all along (98.9% was another platform); page 5
+drifts 5pt low. Word's line with a Noto glyph (a compatibility ideograph
+YaHei lacks) is 1.44pt lower and 0.48 deeper than YaHei's (as lab `cj2`);
+ours gave it the engine's proportional leading at 1.8824 em, 2.73 lower.
+And Latin in a 標楷體 run (Word: YaHei's own Latin) is set in the Liberation
+Sans stand-in at YaHei's height, whose proportional ascent stands 0.9pt
+over YaHei's ("據與Invoice…" 21.5 for 20.6).
+
 ### Leads for the Mac session (from the Windows box, 2026-10-16)
 Each needs Word or is in an area the Mac has worked; claim here first.
 - zh-1a3c7aa0 p32 row 111 (T32's remainder): a row that parts at the
