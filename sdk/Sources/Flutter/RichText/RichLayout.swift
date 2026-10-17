@@ -5525,8 +5525,14 @@ public final class RichLayout {
             // scale for all).
             let classed = latinFace?.classScales != nil
             var styles: [Int: TextStyle] = [:]
-            // (The grid's addition to each character, unless the run opts out.)
+            // (The grid's addition to each character, unless the run opts
+            // out — or its paragraph: zh-268f8d15's footer, "- 1 -" in a
+            // text box whose style sets `w:snapToGrid` 0, is Times's own
+            // widths in Word's print on a grid of -0.28 an em; ours set it
+            // 1.3pt a character closer, and the box, sized so, lost its
+            // closing dash.)
             let grid = theme.wordRules && !(run.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false)
+                && p.style.eastAsian["w:snapToGrid"] != "0"
                 ? _grid(index, document).chars : nil
             // (Where single and double byte widths are balanced, a
             // full-width character takes the run's spacing twice: 16pt
@@ -6973,7 +6979,8 @@ public final class RichLayout {
         var span = latinStyle.map { latin in
             TextSpan(children: label.map { TextSpan(text: String($0), style: latinChar($0) ? advanced($0, latin) : markerStyle) })
         } ?? TextSpan(text: label, style: markerStyle)
-        if theme.wordRules, let g = _grid(i, document).chars, g != 0, !(markerChar.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false) {
+        if theme.wordRules, let g = _grid(i, document).chars, g != 0, !(markerChar.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false),
+           p.style.eastAsian["w:snapToGrid"] != "0" {
             func spaced(_ st: TextStyle, _ by: Double) -> TextStyle { st.copyWith(letterSpacing: (st.letterSpacing ?? 0) + by) }
             let latin = latinStyle ?? markerStyle
             span = TextSpan(children: label.map { ch in

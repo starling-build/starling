@@ -117,7 +117,7 @@ that commit, compare per document. The sample started at 80.9% (the
 second started at 74.5). Its low ones, unclaimed unless marked:
 zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 16), zh-a5745784 26.5 (T77, 99.7 now), zh-540dc149 34.3 (T76, done),
-zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (T80, done), zh-268f8d15 93.0 (Mac, looking: footer "-1-"),
+zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (T80, done), zh-268f8d15 93.0 (T84, 98.8 now),
 zh-de3410bd 93.2, zh-fe536967 94.0 (T83, 99.0 now). zh-d89c3840 was T70.
 
 ### T78. zh-fec5fa30: 55 pages where Word's are 56 — claimed
@@ -137,6 +137,17 @@ table keeps a grid wider than its pct share (Word rules the form's 638.6pt
 grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
+
+### T84. A paragraph's `w:snapToGrid` 0 takes its characters off the character grid too — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-268f8d15 (linesAndChars, charSpace -5544): its footer's "- 1 -", in a
+text box fit to its text, its style `w:snapToGrid` 0, is set at Times's
+own widths in Word's print; ours took each character 1.3pt in by the
+grid — only a run's own snapToGrid 0 was read for the characters, the
+paragraph's for its lines — and the box, sized so, lost its closing
+dash on every page. Both the text and a list number honour the
+paragraph's now. zh-268f8d15 93.0 -> 98.8, zh-3c055c9b +0.3; nothing
+fell.
 
 ### T83. zh-fe536967: a frame set inline is a paragraph in the flow — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
