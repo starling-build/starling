@@ -2014,6 +2014,15 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
+their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
+PowerPoint's print, the last where ours both stand, and stacking them so
+put each in its place — but PowerPoint also sets the outer line tighter
+(its 13 letters over about 95° where ours run past 100°), and the deck
+went 2.38 → 2.48. Also tried: Myriad Pro taking Segoe UI's descent, and
+Trebuchet's and Franklin Gothic's Windows descents left out — −0.04 in
+sum, mixed, not kept.
+
 **Poppins' and Work Sans' baselines, 2026-10-17** (lo-master-slides
 1.62 → 1.04, tdf157740 0.09 → 0.00, tdf140852 −0.12, three more a
 little; none worse). Bundled as themselves, they still sat off
