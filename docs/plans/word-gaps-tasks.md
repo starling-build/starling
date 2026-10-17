@@ -1134,6 +1134,12 @@ row parting (Windows, T32), zh-2a241df1's charts (Mac, T59).
   would take to ~45. So Word weighs them part-way, or caps the share; the
   lab files (ab3c_*.docx, both sides' PDFs) are there to vary it. Not
   built — handed to the grid fitting's owner.
+  Variants (lenovo-3's H1/H2, same lab): (a) the digits as ideographs, no
+  autospaces — Word 227 twips, ours 225, over 45.36 with room 51.02: we
+  match; (b) "8時9分" added, four autospaces more — Word -778, ours -857,
+  over 31.58 at Word's limit, room 82.91. So the marks are counted right
+  and the autospaces over-weighted in the mode-15 stretch term (H1);
+  a fixed share (H2) does not fit (45.4 vs 34.4 vs 31.6).
 
 ### T62. A table nested in a parting row parts between its rows — DONE (2026-10-16)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16
