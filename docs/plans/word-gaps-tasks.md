@@ -1172,6 +1172,26 @@ d68ac84a 98.8 -> 70.3. Ours squeezes d68ac84a's lines into place, so
 taking that squeeze away needs the pair's close-up in the natural width
 first.
 
+Later (Mac, same day), the real paragraph in Word (starling-ios-5c's g67):
+- In a wide line "》（" is a full 14.65pt. So the close-up is a squeeze
+  on demand, not a natural width, and the line above corrects itself:
+  its 7.32 is "厅《" 2.44 + "》（" 4.88.
+- The no-exact-spacing and no-kern variants are the same as the
+  original; without the indent the breaks move.
+
+Two rules tried on zh-d68ac84a, and neither holds:
+- "Only brackets give": its p2 line "《技" (14.64 over) needs the 。
+  too.
+- "Marks give only where the line has a bracket" (f0bd9ea8 81.5,
+  d68ac84a 72.4): its p2 "10.市本级…辖区内" takes "有" 3.3 over with
+  one comma and no bracket.
+
+Neither do brackets or Latin decide it. Word leaves "原" (p16, 3.8 over)
+on a line with both, and "增" (p17) on one with digits. So in zh-d68ac84a
+commas do give. Only the labs and zh-f0bd9ea8 give nothing, so the
+difference between the packages is still not found. Next:
+starling-ios-5c's LABRAW lab, with the real runs' rPr (no rFonts).
+
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
