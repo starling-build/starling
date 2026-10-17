@@ -378,12 +378,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // empty wrapping cells printed nearly twice as tall.)
                     guard !text.isEmpty else { continue }
                     let style = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
-                    let lines = texts.painter(text, style, maxWidth: width).height
+                    // (Line breaks at the end draw nothing but are lines to the
+                    // fit: LIBRE_OFFICE-116306-0's rows keep theirs.)
+                    let one = texts.painter("X", style).height
+                    let trailing = Double(text.reversed().prefix { $0 == "\n" }.count)
+                    let lines = texts.painter(text, style, maxWidth: width).height + trailing * one
                     // (Text that wraps to one line is its font's line, which the
                     // fonts above have given the row: lo-pivottable_invalid_formats'
                     // wrapping one-line rows print at Arial 10's 12.36, where
                     // this measure made them 12.5 and lost a row a page.)
-                    let one = texts.painter("X", style).height
                     guard lines > one * 1.5 else { continue }
                     let line = st.fontName == nil && st.fontSize == nil ? m.defaultRow
                         : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
@@ -2667,6 +2670,10 @@ final class _TextCache {
             }
             out.append(line)
         }
+        // (A line break at the end makes no line: lo-tdf118668's
+        // "41.49618,52.892124⏎" stands at the foot of its cell in Excel's
+        // print, where an empty last line held it a line up.)
+        while out.count > 1, out.last?.isEmpty == true { out.removeLast() }
         return out.joined(separator: "\n")
     }
 
