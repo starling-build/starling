@@ -1090,6 +1090,20 @@ those widths; then no squeeze on such a grid. Lab: lab/tools/squeezelab.py
 (args docx repo font size marks; env LABJC LABGRID LABMAR LABRPR LABMARK
 LABSTART LABTAG). Not built.
 
+### Lead from the Linux box (2026-10-17): zh-06c46ba9 p70-72, a float pushes the table above its anchor
+Owner: none — measured, not built. Pages 70-72 stand 80pt high (28 lines).
+Page 70 opens with the rest of a parted table (row "三、內文格式"), then
+"附錄3", then "報告撰擬分工表". The VML box "分工表格式" (wrap square, 95.5
+x 23.5, 2.2pt under its paragraph's top, `mso-position-vertical-relative:
+text`, x 344pt of the margin) is anchored in the paragraph after the
+table. Word's print stands the box where its anchor would be with the
+table at the page's head (text baseline 697.8, as ours), then sets the
+table's rows UNDER the box (rule at 690.1, ours 769.7) and "附錄3" under
+them. So Word places the float first and then moves the content
+before its anchor on that page out of its way. Ours keeps floats out of
+the paragraphs after their anchor only. Needs a second pass over a page
+when a wrapping float lands on content set before its anchor.
+
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
