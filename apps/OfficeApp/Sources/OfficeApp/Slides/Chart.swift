@@ -1404,9 +1404,17 @@ enum ChartPainter {
         let rows = c.series.map { ($0, c.type == .line) } + c.lineSeries.map { ($0, true) }
         let bottom = top + Double(rows.count + 1) * row
         let slot = plot.width / Double(max(1, n))
+        // Each row's text on one baseline, 0.27 em under the row's middle,
+        // whatever its face: Word's print of zh-2a241df1's tables sets
+        // Calibri digits and SimSun names 10.9pt into a 16.4pt row at
+        // 10pt, where centring each line's own box set the digits 0.7pt
+        // and the names (a YaHei-tall line) 1.3pt lower.
+        func textTop(_ tp: TextPainter, _ y: Double) -> Double {
+            y + row / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
+        }
         func centred(_ s: String, _ cx: Double, _ y: Double) {
             let tp = text(s, size, slot)
-            tp.paint(canvas, Offset(cx - tp.width / 2, y + (row - tp.height) / 2))
+            tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, y)))
             tp.dispose()
         }
         for i in 0 ..< n { centred(c.categories[safe: i] ?? "", plot.left + (Double(i) + 0.5) * slot, top) }
@@ -1432,7 +1440,7 @@ enum ChartPainter {
                 x += 21.2 * k
             }
             let name = text(s.name, size, .infinity)
-            name.paint(canvas, Offset(x, y + (row - name.height) / 2))
+            name.paint(canvas, Offset(x, textTop(name, y)))
             name.dispose()
             for i in 0 ..< n {
                 guard let v = s.values[safe: i] ?? nil else { continue }
@@ -1851,9 +1859,12 @@ enum ChartPainter {
             guard let s2 = secondScale else { return vpos(v) }
             return plot.bottom - (v - s2.lo) / (s2.hi - s2.lo) * plot.height
         }
+        // (Raised as the first axis' are: Word's print of zh-2a241df1 sets
+        // "60.00%" on the line of "500000", where ours stood 1.5pt lower.)
+        let lift2 = c.styled2013 ? 0 : 1.45 * k
         for (i, v) in secondTicks.enumerated() {
             let tp = secondLabels[i]
-            tp.paint(canvas, Offset(plot.right + 6 * k, vpos2(v) - tp.height / 2))
+            tp.paint(canvas, Offset(plot.right + 6 * k, vpos2(v) - tp.height / 2 - lift2))
         }
         for t in secondLabels { t.dispose() }
         // The category axis line, at zero.

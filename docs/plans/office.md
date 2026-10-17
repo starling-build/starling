@@ -5473,6 +5473,21 @@ fitter dropped the paragraph's tail).
   - The fills Word gives a chart with no `spPr` (c:style 2: light blue
     frame and plot).
   - Excel's newer charts key a row with a square, not a bar.
+- **A chart's data table sets each row's text on one baseline
+  (2026-10-17).** Word's print of zh-2a241df1 sets the table's Calibri
+  digits and SimSun names 10.9pt into a 16.4pt row at 10pt, 0.27 em
+  under the row's middle. Excel's print of chart-ChartDataTable has
+  the same ratio (0.662 of the row). Ours centred each text's own line
+  box. That set digits 0.7pt low and a row with a CJK name, which
+  is a YaHei-tall line, 1.3pt low: three of page 1's lines missed.
+  The second value axis's labels now take the first axis's 1.45pt
+  lift too: "60.00%" stood 1.5pt under "500000", which Word sets on
+  one line with it. zh-2a241df1 94.3 -> 97.1 on the Windows box;
+  nothing else moved. The xlsx books with a data table or a second
+  axis keep their pixel scores, and no pptx deck has either. Left:
+  - chart 1 stands 2.2pt low;
+  - the second axis's labels stand 9.2pt off the plot in Word, ours 6;
+  - Word's plot is 3.2pt wider at the right.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than
