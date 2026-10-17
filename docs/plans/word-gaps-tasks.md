@@ -927,7 +927,7 @@ labs' four lines within 0.8-3.1pt of Windows Word's, but in the whole
 document joins them in twos and sets them 7.6pt high. Word for Windows
 and for Mac disagree on this cover, so a Windows lab cannot settle it;
 needs the Mac's Word.
-### T57. A paragraph that opens with a tab: the line stays at its indent
+### T58. A paragraph that opens with a tab: the line stays at its indent
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
 Documents: WordWithAttachments (its header's "<tab>Страница 1", centred
 on a stop at 233.85pt, stands 101pt right of Word's).
