@@ -209,6 +209,12 @@ final class Worksheet {
     /// height Excel fits taller than their fonts' line: their fit, as the
     /// file has it, is kept (45544's "Number of Hires⁽¹⁾" header rows).
     var scriptRows: Set<Int> = []
+    /// A formatted row's span as the file gave it (`spans`): the columns
+    /// in it the file has no cell for. Excel makes them cells in the row's
+    /// format, and a fill or border there prints (FormatConditionTests'
+    /// yellow row 1, cells A–D, spans 1:8, puts columns E–H on a page of
+    /// their own).
+    var rowSpanGaps: [Int: [Int]] = [:]
 
     /// The style a new cell at `a` takes: its row's when the row is
     /// formatted, else its column's, as Excel does.
@@ -247,7 +253,10 @@ final class Worksheet {
 
     /// Columns hidden by hand or by a collapsed group, apart from their widths.
     var hiddenCols: Set<Int> = [] { didSet { layoutVersion &+= 1 } }
-    func isColHidden(_ c: Int) -> Bool { hiddenCols.contains(c) || colWidths[c] == 0 }
+    func isColHidden(_ c: Int) -> Bool { hiddenCols.contains(c) || colWidths[c] == 0 || hiddenColRuns.contains { $0.contains(c) } }
+    /// Hidden runs too long to list column by column (FillWithoutColor's
+    /// G to the sheet's end).
+    var hiddenColRuns: [ClosedRange<Int>] = []
 
     /// Hidden for any reason: filtered, hidden, or height 0.
     func isRowHidden(_ r: Int) -> Bool { filteredRows.contains(r) || hiddenRows.contains(r) || rowHeights[r] == 0 }
@@ -295,6 +304,8 @@ final class Worksheet {
         s.viewAttrs = viewAttrs
         s.hasView = hasView
         s.scriptRows = scriptRows
+        s.rowSpanGaps = rowSpanGaps
+        s.hiddenColRuns = hiddenColRuns
         s.tables = tables
         s.removedTables = removedTables
         s.notes = notes

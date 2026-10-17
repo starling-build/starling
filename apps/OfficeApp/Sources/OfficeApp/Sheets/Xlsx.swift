@@ -237,6 +237,8 @@ enum Xlsx {
             let hidden = col["hidden"] == "1" || col["hidden"] == "true"
             if hidden, hi - lo <= 2000 {
                 for c in lo ... hi where c >= 1 && c <= CellAddress.maxCols { ws.hiddenCols.insert(c - 1) }
+            } else if hidden, lo >= 1, lo <= hi {
+                ws.hiddenColRuns.append((lo - 1) ... (min(hi, CellAddress.maxCols) - 1))
             }
             guard let w = Double(col["width"] ?? "") else { continue }
             let pt = w == 0 ? 0 : _charsToPoints(w, digit: digit)
@@ -265,6 +267,18 @@ enum Xlsx {
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
             if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }
+            if ["1", "true"].contains(row["customFormat"] ?? ""), let span = row["spans"],
+               let end = span.split(separator: ":").last.flatMap({ Int($0) }), end > 0, end <= 1024 {
+                // (Every <c> counts, the bare ones the model does not keep.)
+                var at = 0
+                let present = Set(row.kids("c").map { c -> Int in
+                    let col = c["r"].flatMap { CellAddress($0)?.col } ?? at
+                    at = col + 1
+                    return col
+                })
+                let gaps = (0 ..< end).filter { !present.contains($0) }
+                if !gaps.isEmpty { ws.rowSpanGaps[rowIndex] = gaps }
+            }
             let setHeight = row["customHeight"] == "1" || row["customHeight"] == "true"
             if row["ht"] != nil, !setHeight { ws.fittedRows.insert(rowIndex) }
             // `ht` is the row's height whether or not it is marked custom (a

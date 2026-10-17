@@ -168,7 +168,14 @@ enum SheetPrintLayout {
         for r in ws.rowAttrs.keys {
             guard let s = ws.rowStyle(r) else { continue }
             let st = book.style(s)
-            if st.fill != nil || st.borders != CellStyle.Borders() { top = min(top, r); bottom = max(bottom, r) }
+            if st.fill != nil || st.borders != CellStyle.Borders() {
+                top = min(top, r); bottom = max(bottom, r)
+                // Across the row's span, the cells it has no record of take
+                // the row's format; a visible one prints (FormatConditionTests'
+                // row 1 to H, where lo-user_defined_function's rows record
+                // every cell of theirs in their own formats).
+                if let c = ws.rowSpanGaps[r]?.last(where: { !ws.isColHidden($0) }) { right = max(right, c) }
+            }
         }
         guard bottom >= 0 else { return nil }
         return CellRange(top: 0, left: 0, bottom: bottom, right: max(0, right))
