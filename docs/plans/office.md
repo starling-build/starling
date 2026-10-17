@@ -4534,6 +4534,20 @@ fitter dropped the paragraph's tail).
   their 30pt, where ours, counting no line on that side, took two. A
   cell's side with no line of its own now takes its neighbour's.
   zh-37b6536f 96.2 -> 97.7; nothing else moved.
+- **A column chart's line on a second value axis is drawn
+  (2026-10-16).** zh-2a241df1 (second sample) charts its complaint
+  counts as columns, with their year-on-year shares as a line on a
+  percentage axis at the right, `c:valAx` `axPos="r"`. A combination
+  was read only where both kinds share one pair of axes, so both charts
+  printed as empty boxes. The line's own value axis is now read (its
+  format, bounds, step, deletion). The line is scaled by it, and its
+  labels ("60.00%") stand at the plot's right, which gives up their
+  room. zh-2a241df1 went from 7.6% to 9.5%; nothing else moved. Left:
+  Word's charts there carry a data table (`c:dTable`) under the plot,
+  which this app does not draw. Excel's left axis runs 0 to 500,000 by
+  50,000, where our nice-step rule (×1.05, nine intervals) gives
+  100,000. That rule is Slides', and PowerPoint's prints set it, so it
+  is left alone here.
 - **A no-break space takes its width, and the hAnsi face's past ASCII
   (2026-10-16).** zh-17749c13 is from a second Word sample: 20
   unprinted documents of the zh corpus, prints in

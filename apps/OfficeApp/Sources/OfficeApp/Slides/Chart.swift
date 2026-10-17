@@ -152,6 +152,10 @@ struct Chart: Equatable {
     /// theirs — aascu 5864's 1995 graduation rates as red dots over the
     /// 2005 columns).
     var lineSeries: [ChartSeries] = []
+    /// The value axis `lineSeries` stand on where it is not the columns'
+    /// (a combination's second value axis, at the right); nil: they share
+    /// the columns'.
+    var secondValueAxis: SecondValueAxis? = nil
     /// The legend's own place (`c:legend/c:layout/c:manualLayout`, edge
     /// mode), as fractions of the chart's frame: entries in a row in it,
     /// the plot keeping its room. nil: beside the plot by `legendPosition`.
@@ -484,10 +488,21 @@ enum ChartXML {
         // A combination this app draws: columns (or bars) with lines over
         // them, both on one pair of axes.
         var overlay: XNode? = nil
+        var secondAxis: XNode? = nil
         var main = kinds.first
         if kinds.count == 2, let bar = kinds.first(where: { $0.name == "c:barChart" }),
-           let line = kinds.first(where: { $0.name == "c:lineChart" }),
-           Set(bar.all("c:axId").compactMap { $0["val"] }) == Set(line.all("c:axId").compactMap { $0["val"] }) {
+           let line = kinds.first(where: { $0.name == "c:lineChart" }) {
+            let barAxes = Set(bar.all("c:axId").compactMap { $0["val"] })
+            let lineAxes = Set(line.all("c:axId").compactMap { $0["val"] })
+            // (… or the lines on a value axis of their own, at the right:
+            // zh-2a241df1's complaint counts in columns, their shares as
+            // a line on 0% to 60%.)
+            if barAxes != lineAxes {
+                guard bar.first("c:barDir")?["val"] != "bar",
+                      let own = plot.all("c:valAx").first(where: { lineAxes.contains($0.first("c:axId")?["val"] ?? "") && !barAxes.contains($0.first("c:axId")?["val"] ?? "") })
+                else { return nil }
+                secondAxis = own
+            }
             main = bar
             overlay = line
         } else if kinds.count != 1 {
@@ -659,6 +674,22 @@ enum ChartXML {
             var l = l
             if l.values.count < n { l.values += Array(repeating: nil, count: n - l.values.count) }
             return l
+        }
+        if let axis = secondAxis {
+            var second = SecondValueAxis()
+            second.deleted = ["1", "true"].contains(axis.first("c:delete")?["val"] ?? "")
+            if let fmt = axis.first("c:numFmt") {
+                let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
+                let source = overlay?.descendant("c:val")?.descendant("c:formatCode")?.text
+                let code = (linked ? source : nil) ?? fmt["formatCode"] ?? ""
+                if !code.isEmpty, code.lowercased() != "general" { second.format = code }
+            }
+            if let scaling = axis.first("c:scaling") {
+                second.min = scaling.first("c:min")?["val"].flatMap(Double.init)
+                second.max = scaling.first("c:max")?["val"].flatMap(Double.init)
+            }
+            second.step = axis.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
+            c.secondValueAxis = second
         }
         if let sz = spaceRun?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.textSize = sz / 100 }
         func greyText(_ n: XNode) -> Bool {
@@ -1415,8 +1446,11 @@ enum ChartPainter {
             let all = c.series.flatMap { $0.values.compactMap { $0 } }
             lo = all.min() ?? 0; hi = all.max() ?? 1
         }
-        // (The lines over a combination's columns share the axis.)
-        for v in c.lineSeries.flatMap({ $0.values.compactMap { $0 } }) { lo = min(lo, v); hi = max(hi, v) }
+        // (The lines over a combination's columns share the axis — unless
+        // they stand on one of their own.)
+        if c.secondValueAxis == nil {
+            for v in c.lineSeries.flatMap({ $0.values.compactMap { $0 } }) { lo = min(lo, v); hi = max(hi, v) }
+        }
         // (A box chart's axis spans every sample, its outliers too.)
         for v in (c.boxes ?? []).joined().joined() { lo = min(lo, v); hi = max(hi, v) }
         let labelSize = c.valueLabelSize ?? c.baseTextSize
@@ -1433,6 +1467,16 @@ enum ChartPainter {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
         let sc = valueScale
+        // The lines' own axis, scaled as the first is, by their values.
+        var secondScale: (lo: Double, hi: Double, step: Double)? = nil
+        if let second = c.secondValueAxis, !horizontal {
+            let all = c.lineSeries.flatMap { $0.values.compactMap { $0 } }
+            var s2 = scale(min(0, all.min() ?? 0), max(0, all.max() ?? 1), intervals: 9)
+            if second.min != nil || second.max != nil || second.step != nil {
+                s2 = fixedScale(auto: s2, min: second.min, max: second.max, step: second.step)
+            }
+            secondScale = s2
+        }
         var xScale = (lo: 0.0, hi: Double(n), step: 1.0)
         if c.type == .scatter {
             let x = (0 ..< n).map { c.x($0) }
@@ -1491,6 +1535,13 @@ enum ChartPainter {
             return shown.isEmpty ? label(v, percent: false) : shown
         }
         let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
+        // The second axis' labels, in its own format ("60.00%").
+        let secondTicks = secondScale.map { s2 in Array(stride(from: s2.lo, through: s2.hi + s2.step * 1e-6, by: s2.step)) } ?? []
+        let secondLabels: [TextPainter] = secondTicks.map { v in
+            let code = c.secondValueAxis?.format
+            let shown = code.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? label(v, percent: false)
+            return valueText(c.secondValueAxis?.deleted == true ? "" : (shown.isEmpty ? label(v, percent: false) : shown), labelSize, .infinity)
+        }
         let catSize = c.categoryLabelSize ?? c.baseTextSize
         var catLabels: [TextPainter]
         // Categories too long for their slot even word by word are set
@@ -1575,6 +1626,9 @@ enum ChartPainter {
             let edges = c.type == .scatter || c.type == .area
             var right = edges ? (catLabels.last?.width ?? 0) / 2 : 4 * k
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
+            // (The second axis' labels take a band at the right, as the
+            // first's do at the left.)
+            if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2, area.right - right, area.bottom - bottom)
         }
         if let placed, c.plotLayoutInner { plot = placed }
@@ -1597,7 +1651,7 @@ enum ChartPainter {
             }
         }
         guard plot.width > 4, plot.height > 4 else {
-            for t in valueLabels + catLabels { t.dispose() }
+            for t in valueLabels + catLabels + secondLabels { t.dispose() }
             return
         }
         if let f = c.plotFill {
@@ -1658,6 +1712,16 @@ enum ChartPainter {
                 tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width, p - tp.height / 2 - lift))
             }
         }
+        // The second axis' labels, beside the plot's right edge.
+        func vpos2(_ v: Double) -> Double {
+            guard let s2 = secondScale else { return vpos(v) }
+            return plot.bottom - (v - s2.lo) / (s2.hi - s2.lo) * plot.height
+        }
+        for (i, v) in secondTicks.enumerated() {
+            let tp = secondLabels[i]
+            tp.paint(canvas, Offset(plot.right + 6 * k, vpos2(v) - tp.height / 2))
+        }
+        for t in secondLabels { t.dispose() }
         // The category axis line, at zero.
         let zero = vpos(max(sc.lo, min(sc.hi, 0)))
         if c.type == .scatter {
@@ -1812,7 +1876,7 @@ enum ChartPainter {
                     let colour = l.color ?? c.color(series: c.series.count + j, accents: theme.accents)
                     func at(_ i: Int) -> Offset? {
                         guard let v = l.values[safe: i] ?? nil else { return nil }
-                        return Offset(plot.left + (Double(i) + 0.5) * slot, vpos(v))
+                        return Offset(plot.left + (Double(i) + 0.5) * slot, vpos2(v))
                     }
                     if !l.lineHidden {
                         let path = Path()
@@ -2394,4 +2458,14 @@ extension ChartPainter {
 
 extension Array {
     subscript(safe i: Int) -> Element? { indices.contains(i) ? self[i] : nil }
+}
+
+/// A chart's second value axis (`Chart.secondValueAxis`): its own number
+/// format and bounds, labelled at the plot's right unless deleted.
+struct SecondValueAxis: Equatable {
+    var format: String? = nil
+    var deleted = false
+    var min: Double? = nil
+    var max: Double? = nil
+    var step: Double? = nil
 }
