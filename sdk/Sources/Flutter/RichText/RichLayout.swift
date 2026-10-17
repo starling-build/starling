@@ -2357,6 +2357,12 @@ public final class RichLayout {
             return theme.wordRules && n > (_tableRows[table] ?? 0) ? 0 : n
         }
         func repeatHeader(of table: String, before i: Int) {
+            // (Nothing where the page breaks inside the header: its rows
+            // go on as rows. bug57031's "Test of Equality over Strata",
+            // two header rows parted after the first at page 12's foot,
+            // opens page 13 with its second once in Word's print, where
+            // ours set both again above it: the second twice.)
+            if theme.wordRules, let r = _cells[i]?.row, _cells[i]?.table == table, r < headerRows(table) { return }
             var k0 = i
             while k0 > 0, let d = _cells[k0 - 1], d.table == table { k0 -= 1 }
             guard let h = _cells[k0], h.row == 0 else { return }

@@ -3297,6 +3297,17 @@ fitter dropped the paragraph's tail).
   is now where Word has it. zh-84702a67 98.2% -> 100; nothing else
   moved (T31).
 
+- **No header repeated where a page breaks inside it (2026-10-16).**
+  A table's header rows (`w:tblHeader`) were set again at the top of
+  every page it went on to, even where the page broke between them.
+  bug57031's "Test of Equality over Strata" has two header rows, its
+  title and its column heads, and only the first fits under page 12's
+  last table: Word opens page 13 with the column heads once, as rows
+  going on, and repeats nothing — ours set both again above them, the
+  heads twice, and its SAS code ran to page 14. Under Word's rules a
+  page opened by one of the header rows repeats none of them.
+  bug57031 94.4% -> 100; nothing else moved.
+
 - **A box-and-whisker chart is drawn (2026-10-16).** Word 2016's
   charts live in a chartex part (`cx:chartSpace`), which nothing read:
   Writer showed the Fallback picture, the right look and none of its
