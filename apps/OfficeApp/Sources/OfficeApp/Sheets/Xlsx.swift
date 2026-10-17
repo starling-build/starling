@@ -29,15 +29,18 @@ enum Xlsx {
             // Style tables are read by position; a font or xf wrapped in
             // mc:AlternateContent (Hancom's HCell) would otherwise vanish and
             // shift every index after it.
-            if e.name.hasSuffix("styles.xml") { d = _resolveAlternateContent(d) }
-            return ZipEntry(name: e.name, data: d)
+            if e.name.lowercased().hasSuffix("styles.xml") { d = _resolveAlternateContent(d) }
+            // (A part named with backslashes and in lower case —
+            // "xl\worksheets\sheet1.xml", 49609's — is the part all the
+            // same: Excel opens it.)
+            return ZipEntry(name: e.name.replacingAll("\\", with: "/"), data: d)
         }
         var parts: [String: Data] = [:]
         for e in entries { parts[e.name] = e.data }
-        func xml(_ name: String) -> XNode? { parts[name].flatMap { XNode.parse($0) } }
+        func xml(_ name: String) -> XNode? { _part(parts, name).flatMap { XNode.parse($0) } }
 
         guard let wbNode = xml("xl/workbook.xml") else { throw ReadError.notAWorkbook }
-        let wbRels = _rels(parts["xl/_rels/workbook.xml.rels"], base: "xl/")
+        let wbRels = _rels(_part(parts, "xl/_rels/workbook.xml.rels"), base: "xl/")
         let book = Workbook(sheets: [])
         book.package = entries
         if let p = wbNode.child("workbookProtection") { book.structureLocked = p["lockStructure"] == "1" || p["lockStructure"] == "true" }
@@ -76,11 +79,11 @@ enum Xlsx {
                 if let z = f.child("sz").flatMap({ Double($0["val"] ?? "") }), z > 0, z != 11 { book.defaultFontSize = z }
             }
             for i in book.styles.indices { book.styles[i].baseXf = i }
-            book.styleSource = parts["xl/styles.xml"].map(_styleSource)
+            book.styleSource = _part(parts, "xl/styles.xml").map(_styleSource)
             if book.styles.isEmpty { book.styles = [.plain] }
             book.dxfs = (st.child("dxfs")?.kids("dxf") ?? []).map { _dxf($0, theme: theme) }
         }
-        if let raw = parts["xl/styles.xml"] {
+        if let raw = _part(parts, "xl/styles.xml") {
             let split = RawXML.split([UInt8](raw))
             for (name, text) in split.children where ["dxfs", "tableStyles", "colors", "extLst"].contains(name) {
                 book.keptStyleParts[name] = text
@@ -97,10 +100,13 @@ enum Xlsx {
         // parsed the part again, each of them — an 18 MB sheet four times.
         var sheetRoots: [String: XNode] = [:]
         for s in wbNode.child("sheets")?.kids("sheet") ?? [] {
-            guard let name = s["name"], let rid = s["r:id"], let path = wbRels[rid] else { continue }
+            // (The relationships namespace under any prefix: 49609 writes
+            // d3p1:id.)
+            let rid = s["r:id"] ?? s.attrs.first { $0.key.hasSuffix(":id") }?.value
+            guard let name = s["name"], let rid, let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
-            if let raw = parts[path] { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, book: book) }
+            if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
             book.sheets.append(ws)
@@ -840,7 +846,7 @@ enum Xlsx {
     }
 
     private static func _sheetPaths(_ parts: [String: Data]) -> [String] {
-        _relList(parts["xl/_rels/workbook.xml.rels"]).filter { $0.type.hasSuffix("/worksheet") }.map { _resolve($0.target, base: "xl/") }
+        _relList(_part(parts, "xl/_rels/workbook.xml.rels")).filter { $0.type.hasSuffix("/worksheet") }.map { _resolve($0.target, base: "xl/") }
     }
 
     /// A part by its name, whatever its case: part names in a package are
