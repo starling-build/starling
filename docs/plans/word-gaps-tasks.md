@@ -778,6 +778,10 @@ part 39.6 = 31.2 + 8.4). Ours: part 62.65, the cut cell at the top.
 Tried "a centred cell that parts: part to the foot, its lines at the
 bottom": p57 unchanged and zh-1a3c7aa0 (13 pages), zh-15728c84 p3,
 zh-91e44bcb, zh-84702a67 worse — reverted, not the rule.
+zh-4d143b5e (the Mac's second sample, its lead): a row parting under
+centred cells merged down over six rows went over whole; a merged cell
+now parts from its text's start as a cell of its own row does — 36.5 ->
+99.8.
 
 Note from the Mac (2026-10-16): zh-799c91cd 96.8 -> 95.6 between the
 n225 and n230 sweeps. Page 6's table, whose last row runs to the foot,

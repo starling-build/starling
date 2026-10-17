@@ -2623,7 +2623,13 @@ public final class RichLayout {
                 if theme.wordRules, first, !fits, (document.compatibilityMode ?? 12) >= 12 {
                     for n in columns.indices where columns[n].cut <= c.rowTop + 0.01 {
                         let d0 = _cells[columns[n].members[0]]!
-                        guard d0.rowSpan == 1, !d0.vertical, d0.verticalAlign == "center" || d0.verticalAlign == "bottom" else { continue }
+                        // (A cell merged down too: zh-4d143b5e's row 11, its
+                        // first three cells centred and merged over six rows,
+                        // parts at page 6's foot in Word's print with two
+                        // lines of every cell there, from the row's top —
+                        // where centring over the six rows put their first
+                        // lines below the foot and the row went over whole.)
+                        guard !d0.vertical, d0.verticalAlign == "center" || d0.verticalAlign == "bottom" else { continue }
                         let blockTop = _tops[columns[n].members[0]]
                         let blockBottom = _tops[columns[n].members[columns[n].members.count - 1]] + _heights[columns[n].members[columns[n].members.count - 1]]
                         let room = avail - ruleUnder(c, parted: true) - d0.pad.top - d0.pad.bottom - (blockBottom - blockTop)

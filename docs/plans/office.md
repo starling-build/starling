@@ -3310,6 +3310,19 @@ fitter dropped the paragraph's tail).
   a parted row): the part is then to the foot, as before. (T32.)
   zh-91e44bcb 97.1% -> 100; nothing else moved.
 
+- **A centred cell merged down parts from its text's start
+  (2026-10-16).** A row that parts at a page's foot under other text
+  takes the lines of a centred cell too tall for the room from where its
+  text starts, not from where centring puts them — but only for a cell
+  of its own row. zh-4d143b5e's row 11 (at least 66pt, its first three
+  cells centred and merged down over six rows, 414pt) starts at 626 of
+  698pt on page 6: centred over the six rows, those cells' first lines
+  stood below the foot, no line of them fitted, and the row went over
+  whole — every page after it 50 to 120pt behind Word's. Word parts the
+  row with two lines of every cell on page 6, from the row's top. A
+  merged cell now takes the same rule. zh-4d143b5e 36.5% -> 99.8;
+  nothing else moved (T32).
+
 - **YaHei's middle dot is its own width (2026-10-16).** Under Word on a
   Mac, Chinese names it has no face for (仿宋_GB2312, 方正…) are YaHei;
   our YaHei stand-in sets ASCII at YaHei's widths and left "·" (U+00B7)
