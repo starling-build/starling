@@ -1078,6 +1078,17 @@ within 0.12pt, whatever the marks — no squeeze, f0bd9ea8's case; on -5544 at
 -5544 at 12pt and -2800 at 16pt, within 0.12. So it is no count of marks:
 something of 16pt on the -5544 grid gives about 4pt (3 x the grid's 1.353?
 the others do not follow). Not built; free.
+Then on zh-d68ac84a's own package (Normal 16pt, its -5544 grid, w:kern 21,
+justified): no character runs over beyond 0.12pt with 1 or 3 commas, 1 or 2
+"》（" pairs (full cells even in a wide line), a line opening "（", or 1-2
+runs of "2023" Latin digits (335.1 for 24 with one). The 4pt above came from
+f0bd9ea8's package (its Normal 10.5?). So on these grids Word takes nothing
+over: d68ac84a's "政" 7.3 over and "质" 3.1 over are against ours' widths,
+not Word's, and ours' squeeze there makes up for widths ours sets wider —
+likely the Latin digits and their automatic spaces on the grid. The fix is
+those widths; then no squeeze on such a grid. Lab: lab/tools/squeezelab.py
+(args docx repo font size marks; env LABJC LABGRID LABMAR LABRPR LABMARK
+LABSTART LABTAG). Not built.
 
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
