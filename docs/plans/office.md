@@ -4448,13 +4448,6 @@ fitter dropped the paragraph's tail).
   their 30pt, where ours, counting no line on that side, took two. A
   cell's side with no line of its own now takes its neighbour's.
   zh-37b6536f 96.2 -> 97.7; nothing else moved.
-- **A header parted by the page is not repeated (2026-10-16).**
-  bug57031's "Test of Equality over Strata" table marks two header
-  rows, a caption and the column heads. The caption ends page 12, and
-  Word's page 13 opens with the column heads once. Ours repeated the
-  whole header there (caption and heads) and then set the heads again
-  as the row the page had moved. A header is now repeated only on a
-  page that goes on past it. bug57031 94.1 -> 99.7; nothing else moved.
 - **A line holding a compatibility ideograph has Noto's line over and
   under the baseline (2026-10-16).** Word on a Mac sets a few CJK
   compatibility ideographs (狀 U+F9FA, 行 U+FA08, …) in Noto Sans SC.
