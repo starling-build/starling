@@ -905,8 +905,8 @@ bullets under 12pt Times make a 14.7pt line where Word's is 13.8.
 Built: at the level's own size where it says one. delins 35 -> 50%;
 nothing else moved.
 
-### T57. zh-90e0cea8 p1: the standard's cover — its "37" logo frame and ICS/CCS lines
-Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-16 (handed over by the Mac, 011uWpmC)
+### T57. zh-90e0cea8 p1: the standard's cover — its "37" logo frame and ICS/CCS lines — measured, released
+Owner: none — released by 011ZXp8eXomzYegGkuu7484P (Windows box), 2026-10-16 (handed over by the Mac, 011uWpmC)
 Documents: zh-90e0cea8 (p1: 5 of 10 lines).
 Known: 9c6cc3ca (margin-anchored frames at their y) and 7d14992b (a frame
 naming a y and no anchor is on the margin) put the cover in Word's order.
@@ -917,6 +917,16 @@ style frame at the margin's x 6748 y 171; a logo picture and 54.6pt bold
 "37") 33pt low, 122.0 against 88.56, Word's logo at y 57-88; the title
 4pt low; "发布" 4pt low.
 
+Labs `cov/cA`-`cF` (Windows box: the cover's first 4, 5, 6 and 10
+paragraphs in the document's own package, its first section; top margin
+-338, 338 and 1440 twips): Word for Windows sets ICS, 03.080, CCS and
+"A 12" on four lines (38.16, 51.0, 65.76, 80.76) whatever the margin —
+not the Mac print's two ("ICS 03.080" at 38.16, "CCS A 12" at 54.0) —
+and moves "37" with what follows it (128.5, 198.4, 249.1). Ours sets the
+labs' four lines within 0.8-3.1pt of Windows Word's, but in the whole
+document joins them in twos and sets them 7.6pt high. Word for Windows
+and for Mac disagree on this cover, so a Windows lab cannot settle it;
+needs the Mac's Word.
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
