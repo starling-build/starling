@@ -765,6 +765,11 @@ shorter than the row's stated height; centred cells stand centred in it.
 Progress (Windows): the centred cells now stand so (zh-15728c84 96.0 ->
 98.5). Left: the part's rule still runs to the page's foot, and
 zh-1a3c7aa0 p22/p32 (their rows' heights there).
+2026-10-16 (a980bef8): the part's rules end with it, and merged centred
+cells beside it centre over a part no shorter than the row's stated
+height — zh-91e44bcb 97.1 -> 100 — except where a cell merged down from
+above runs its text below the part (zh-e6d54ae4). Left: zh-1a3c7aa0
+p22/p32.
 
 Note from the Mac (2026-10-16): zh-799c91cd 96.8 -> 95.6 between the
 n225 and n230 sweeps. Page 6's table, whose last row runs to the foot,
