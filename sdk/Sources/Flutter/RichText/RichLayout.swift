@@ -6054,7 +6054,7 @@ public final class RichLayout {
             // whole 14pt line was 0.45pt deeper, and every numbered
             // paragraph set what followed that much lower.)
             var rise: Double? = nil
-            if theme.wordRules, let size = _levelNumberSize(p, document),
+            if theme.wordRules, let size = _levelNumberSize(p, document) ?? (p.style.list != nil ? p.style.mark?.fontSize : nil),
                size > (p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) + 0.01 {
                 leadChar.fontSize = size
                 // (On a line grid the whole line of that size, as before:
@@ -6849,6 +6849,17 @@ public final class RichLayout {
     /// A list paragraph's marker, laid out at its own width.
     private func _marker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String, strut: StrutStyle?) -> TextPainter {
         var markerChar = p.runs[0].style
+        // (In the paragraph mark's formatting where the file gives the
+        // mark any, not the text's, and underlined only where its level
+        // says so: zh-9c5d0c3f's "四、" is 18pt as its mark over 16pt
+        // text in Word's print, and none of its headings' numbers
+        // carries the underline their marks and text have — nor
+        // zh-90e0cea8's "12.", its mark underlined.)
+        if theme.wordRules, p.style.list != nil {
+            if let mark = p.style.mark { markerChar = mark }
+            let xml = p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML } ?? ""
+            markerChar.underline = xml.containsSubstring("<w:u ") && !xml.containsSubstring("<w:u w:val=\"none\"")
+        }
         if let c = p.style.bulletColor { markerChar.color = c }
         // (The level's own size, where it says one: bug65649's "3.1.1."
         // is 14pt over 12pt text in Word's print.)

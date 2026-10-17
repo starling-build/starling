@@ -5538,6 +5538,20 @@ fitter dropped the paragraph's tail).
   zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
   lower in Word than the two-line cells beside them: the same rule);
   nothing else moved.
+- **A list number in its paragraph mark's formatting, not underlined
+  (2026-10-17).** zh-9c5d0c3f p3: "四、常見交通標誌" has a mark of 18pt
+  bold underlined over a run of 16pt; Word's print sets "四、" at 18pt
+  (36pt for the two) and draws no underline under it, the text's from
+  126pt on. Ours took the number from the first run (16pt, underlined).
+  The same document's "一、" to "三、" (marks underlined at the text's
+  size) and zh-90e0cea8's "12." (its mark underlined) carry no underline
+  in Word's print either. The number now takes the mark's run
+  properties where the file gives the mark any (else the first run's,
+  as before), the level's own size over them, and an underline only
+  where the level's `w:rPr` says one; a mark larger than the text
+  makes the first line as tall as a number of that size, as a level's
+  own size did. No score moved (the lines were already where Word's
+  are); the number's size and the underline are drawn as Word's.
 - **A parted row's part is as tall as the row says and as its cells set
   whole in it (2026-10-17).** zh-15728c84 p8: a row of 81pt at least
   parts over the page, its left cell's two lines on page 8, and a
