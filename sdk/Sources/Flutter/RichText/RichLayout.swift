@@ -1396,12 +1396,14 @@ public final class RichLayout {
                     // its indent, keeps its columns.)
                     if let pct = ts.widthPercent {
                         scale = (theme.wordRules ? width * pct / 100 : min(width, width * pct / 100)) / _px(sum)
-                        // (An autofit table whose grid — Word's own last
-                        // fit of it — is wider than its share keeps the
-                        // grid: zh-06c46ba9's table 4 says 100% of 415.6pt
-                        // and Word sets its 426.4pt grid, columns where the
-                        // grid has them.)
-                        if theme.wordRules, !ts.fixedLayout, scale < 1 { scale = 1 }
+                        // (A table whose grid — Word's own last fit of it —
+                        // is wider than its share keeps the grid: zh-06c46ba9's
+                        // table 4 says 100% of 415.6pt and Word sets its
+                        // 426.4pt grid, columns where the grid has them. A
+                        // fixed one too: zh-540dc149's form says 98% of
+                        // 640.6pt and Word rules its 638.6pt grid, where ours,
+                        // 627.7 wide, wrapped its cells a word early.)
+                        if theme.wordRules, scale < 1 { scale = 1 }
                     }
                     else if let w = ts.width {
                         scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum)
@@ -2735,7 +2737,14 @@ public final class RichLayout {
                         let blockTop = _tops[column.members[0]]
                         let blockBottom = _tops[column.members[column.members.count - 1]] + _heights[column.members[column.members.count - 1]]
                         let room = avail - ruleUnder(c, parted: true) - d0.pad.top - d0.pad.bottom - (blockBottom - blockTop)
-                        if theme.wordRules, column.cut <= c.rowTop + 0.01, d0.rowSpan == 1, !d0.vertical,
+                        // (Merged down over the rows below, too, where its text
+                        // has no cut in the part: zh-540dc149's "（3）桥隧（8分）",
+                        // centred over its row and the next, stands centred in
+                        // its row's part on page 5 in Word's print, the row
+                        // parting under it; ours had no line of it to keep there
+                        // and sent the row over whole.)
+                        let wholeMerged = d0.rowSpan > 1 && !column.cuts.contains { $0 > column.cut + 0.01 && $0 <= limit }
+                        if theme.wordRules, column.cut <= c.rowTop + 0.01, d0.rowSpan == 1 || wholeMerged, !d0.vertical,
                            d0.verticalAlign == "center" || d0.verticalAlign == "bottom", room >= -0.01 {
                             // A centred cell (or one set at the bottom)
                             // whose text all fits the row's part on this

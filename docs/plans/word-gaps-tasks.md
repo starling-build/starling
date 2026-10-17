@@ -116,7 +116,7 @@ Word 16.113.3 prints) are checked in; means are not comparable across
 that commit, compare per document. The sample started at 80.9% (the
 second started at 74.5). Its low ones, unclaimed unless marked:
 zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
-16), zh-a5745784 26.5 (T77, 99.7 now), zh-540dc149 34.3 (9 pages, Word 10; Windows box, looking),
+16), zh-a5745784 26.5 (T77, 99.7 now), zh-540dc149 34.3 (T76, done),
 zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (Mac, looking), zh-268f8d15 93.0,
 zh-de3410bd 93.2, zh-fe536967 94.0. zh-d89c3840 was T70.
 
@@ -129,9 +129,14 @@ lines keep the East Asian rules ("，" no longer opens a line). 84.7 ->
 86.1, nothing else moved. Still claimed: the tables on pp 9-10, 31-32,
 47-48 and 54-55, and the missing page.
 
-### T76. zh-540dc149: 9 pages where Word's are 10 — claimed
+### T76. zh-540dc149: 9 pages where Word's are 10 — DONE (2026-10-17)
 Owner: session 017F2GnT (Linux), from 2026-10-17
 Documents: zh-540dc149 (35.9%, third sample).
+Built by the Windows box (011ZXp8e), whose claim crossed this one: a fixed
+table keeps a grid wider than its pct share (Word rules the form's 638.6pt
+grid, ours scaled it to 98%), and a centred merged cell with no cut in a
+parting row's part is set whole there (row 3 parted at page 5's foot as
+Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
 
 ### T77. zh-a5745784: a Taiwanese mark that ends its paragraph neither hangs nor gives — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)

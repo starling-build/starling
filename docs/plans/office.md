@@ -5595,6 +5595,25 @@ fitter dropped the paragraph's tail).
   no number for it and numbers the next heading "肆、計畫內容"; ours
   counted it, and every heading after was one on ("伍", "陸", "柒、其他"
   for "陸、其他"). zh-e6d54ae4 99.2 -> 99.5; nothing else moved.
+- **zh-540dc149's scoring form: a fixed table keeps its grid, and a
+  centred merged cell lets its row part (2026-10-17).** Two causes:
+  - The form is `tblLayout` fixed, `tblW` 98% of a 640.6pt landscape
+    column. Word rules its 638.6pt grid unscaled (borders 93.6 to
+    732.2); ours scaled it to 627.7, and its cells wrapped a word
+    early. A table whose grid is wider than its percentage share now
+    keeps it, fixed or autofit (autofit ones already did).
+  - Row 3 runs 3.8pt past page 5's foot. Its centred cell "（3）桥隧（8
+    分）", merged down over rows 3 and 4, has no line to cut in the
+    part, which counted as stuck and sent the row over whole. Word
+    parts the row (its last cell's "扣完为止。" opens page 6) and
+    centres that cell in the part. `splitRow`'s rule that sets a
+    centred cell whole in the part now takes a merged cell with no cut
+    there.
+
+  zh-540dc149 35.9 -> 97.5 (Word's 10 pages); nothing fell. In the same
+  sweep, with upstream's commits: zh-fec5fa30 85.1 -> 87.7 (it has
+  fixed percentage tables and merged cells). Left: page 1's "(JTG
+  H10-2009)", which Word wraps after "(JTG", and page 5's last lines.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than
