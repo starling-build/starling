@@ -2014,6 +2014,11 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+Tried again and dropped: Calibri Light at Windows' own widths, now
+kerned and on the grid — still +2.41 over its 39 decks (bug62736 +0.47,
+tdf115394-zero +0.51). PowerPoint's prints here are a Mac's, and its
+Calibri Light's lines are shorter than Windows' widths make them.
+
 **A face at its own widths is kerned and on the grid too, 2026-10-16**
 (the AES deck 5.91 → 5.58, tdf129686 −0.08, ooxtheme −0.06, KEY02 −0.04,
 six more −0.01 or −0.02; pptx2svg +0.02, two +0.01; 51 decks run). Where
