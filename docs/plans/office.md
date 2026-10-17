@@ -3950,6 +3950,27 @@ fitter dropped the paragraph's tail).
   had both spaces, 40.75, and the page lost its foot. The space a
   paragraph shares is now the nearest shown paragraph's above it.
   drawing 98.1 -> 100%; nothing else moved.
+- **A document with comments or tracked changes prints with its markup
+  (2026-10-16, the user's call: keep Word's behaviour).** Word prints
+  such a document with its balloons by default, and POI's six references
+  are those prints. Measured off them: the page and a markup area 3.7in
+  wide from its text's right edge are scaled together to the paper's
+  width with 36.5pt to spare (k 0.693-0.737), the page 8.6pt from the
+  paper's left and 5.2pt under the middle top to bottom; a grey pane
+  from 9.1pt past the text, 257.3pt wide (unscaled). Balloons stand from
+  32.1 to 262.4pt past the text, their tops level with their anchors'
+  lines, stacked down; each joined to its anchor by a line along under
+  it. Comments ("Commented [ab1]:", numbered through the document) in a
+  serif at 9pt; deletions ("Deleted:", the text in its own face, a
+  deleted mark as ¶ — and gone from the page, a paragraph whose mark is
+  deleted joined to the next) and formatting changes ("Formatted:
+  English (US)", "Font color: Auto", "Font: Bold") in the document's
+  Balloon Text, else Word's own (Tahoma 8pt). `PdfExport.MarkupFrame`,
+  `PdfMarkup`. comment, testComment, 58067 0 -> 100%, delins 3.3 -> 23.3,
+  WordWithAttachments 5.3 -> 23.7, the POI mean +1.9; nothing else moved.
+  Not built: moved text ("Moved (insertion)": Tika-792), "Field Code
+  Changed" (the reader drops field codes), change bars in the margin,
+  the comment range's tint in its author's colour.
 - **A tab stop nearer than the engine's own tab width makes the tab
   that narrow (2026-10-15).** bug65649's "5.1.1.<tab>Гарантийный срок
   на материалы…": the number ends 1.35pt before the stop at 1134

@@ -12,6 +12,12 @@ import Foundation
 enum PdfExport {
     static func write(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme,
                       to path: String, title: String) -> Bool {
+        // A document with comments or tracked changes prints with its
+        // markup, as Word prints it by default: the page smaller, its
+        // balloons beside it (`MarkupFrame`, `PdfMarkup`), its deleted
+        // text gone into them.
+        let markup = hasMarkup(document) ? PdfMarkup(document) : nil
+        let document = markup?.document ?? document
         let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
         // Laid out fifteen times finer than the screen's pixel — twenty
         // steps to the point, Word's own twip: the engine rounds every
@@ -51,10 +57,21 @@ enum PdfExport {
             let recorder = NativePictureRecorder()
             let canvas = NativeCanvas(recorder: recorder,
                                       cullRect: Rect.fromLTWH(0, 0, pageSetup.width, pageSetup.height))
+            if let markup {
+                let frame = MarkupFrame(pageSetup)
+                let pane = Paint()
+                pane.color = Color(0xFFF2F2F2)
+                canvas.drawRect(frame.pane, pane)
+                canvas.save()
+                canvas.translate(frame.left, frame.top)
+                canvas.scale(frame.scale, frame.scale)
+                markup.paint(page: p, layout: layout, setup: pageSetup, theme: theme, zoom: zoom, canvas: canvas)
+            }
             canvas.scale(1 / (theme.pixelsPerPoint * zoom), 1 / (theme.pixelsPerPoint * zoom))
             canvas.translate(0, -rect.top)
             layout.paint(canvas, visible: rect, document: document, selection: nil, caret: nil,
                          pageBackground: nil)
+            if markup != nil { canvas.restore() }
             pages.append(PdfDocument.Page(picture: recorder.endRecording(),
                                           width: pageSetup.width, height: pageSetup.height))
         }
@@ -63,6 +80,35 @@ enum PdfExport {
 }
 
 extension PdfExport {
+    /// Whether Word prints the document with its markup: it carries a
+    /// comment or a tracked change (inserted, deleted or reformatted text).
+    static func hasMarkup(_ document: RichDocument) -> Bool {
+        document.paragraphs.contains { p in
+            p.runs.contains { !$0.style.comments.isEmpty || $0.style.revision != nil || $0.style.formatChange != nil }
+        }
+    }
+
+    /// Where a page printed with its markup stands on the paper, as Word
+    /// prints it (POI's six markup prints, Word 16, letter and A4): the
+    /// page and a markup area 3.7in wide from its text's right edge are
+    /// scaled together to the paper's width, with 36.5pt to spare
+    /// (k 0.693-0.737); the page 8.6pt from the paper's left and 5.2pt
+    /// under the middle top to bottom; a grey pane over the markup area
+    /// from 9.1pt past the text, 257.3pt wide (unscaled).
+    struct MarkupFrame {
+        let scale: Double
+        let left: Double
+        let top: Double
+        let pane: Rect
+        init(_ setup: PageSetup) {
+            let textRight = setup.width - setup.marginRight
+            scale = setup.width / (textRight + 266.4 + 36.5)
+            left = 8.6
+            top = (setup.height - scale * setup.height) / 2 + 5.2
+            pane = Rect.fromLTWH(left + scale * (textRight + 9.1), top, scale * 257.3, scale * setup.height)
+        }
+    }
+
     /// The document's author: the user's full name where there is a user.
     static func authorName() -> String {
         #if os(WASI)
