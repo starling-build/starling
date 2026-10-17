@@ -972,6 +972,21 @@ perhaps a cloud font it had downloaded. The second sample (2026-10-17)
 reflects today's Word: YaHei. One rule cannot match both; reprinting
 the first sample is the user's call and has not been done.
 
+### Leads from the second sample (Windows box, 2026-10-17)
+Done here: zh-4d143b5e 36.5 -> 99.8 (6ef30c71), zh-b13d0fb4 93.5 -> 100
+(b9952df9). Measured and left:
+- zh-e02b0479 (68.6%): its form's last row is two 15.6pt grid pitches in
+  Word because its text, 楷体_GB2312 10.5pt, is YaHei there (an 18pt
+  line); our 楷体 is KaiTi, one pitch, and the merged "所需信息情况" above
+  centres 6pt high. The 楷体_GB2312 question above — not to build alone.
+- zh-f39e54b6 (94.6%): a one-cell borderless table, tblW 8820 on a text
+  width of 8306 (mode 14, tblInd 108, the cell 5000 pct): its lines end
+  at 524.5pt in Word's print, 531.0 in ours (the left edges agree, 146.6
+  and 146.7), so ours takes a character more on some lines. The rule for
+  an over-wide table's right edge in mode 14 is not found. (Lab `sq14`
+  on the way: Word takes a character exactly half an em over — 7.0 at
+  14pt — and leaves it at 7.05; our legacy squeeze agrees.)
+
 ### zh-f0bd9ea8: punctuation squeeze on a grid narrower than the ems — measured, released (Mac)
 Mode 14, linesAndChars charSpace -842 at 16pt (Normal 10.5). Done: the
 balanced half-width spaces' grid share (57849075). Left: every body line
