@@ -186,6 +186,12 @@ public final class RichTextTheme {
     /// by the capitals it shows rather than the letters it holds, as
     /// PowerPoint fits a title in caps. Off for Word.
     public var measuresShownCaps = false
+    /// A run that names a `kerningFrom` is kerned only from that size up
+    /// (0: not at all), where the engine kerns every pair; one that
+    /// names none is kerned as the engine kerns it. PowerPoint kerns by a
+    /// run's `kern` where it says one, and every pair where it says none.
+    /// Off for Word, whose `wordRules` kern only where a run says so.
+    public var kernsByRun = false
 
     /// Each face's own single line, even with `singleLineHeight` set: a
     /// PowerPoint diagram's text steps at its face's height (Calibri
@@ -497,6 +503,9 @@ public final class RichTextTheme {
                 // Times New Roman bold, kerned, fitted "State," on a line
                 // Word's unkerned "Women by" filled ("Wo" alone 0.67pt).
                 if wordRules, !((style.kerningFrom ?? named?.char.kerningFrom ?? normal?.kerningFrom).map { $0 > 0 && size >= $0 } ?? false) {
+                    features.append(FontFeature("kern", 0))
+                } else if kernsByRun, let from = style.kerningFrom ?? named?.char.kerningFrom ?? normal?.kerningFrom,
+                          !(from > 0 && size >= from) {
                     features.append(FontFeature("kern", 0))
                 }
                 return features.isEmpty ? nil : features

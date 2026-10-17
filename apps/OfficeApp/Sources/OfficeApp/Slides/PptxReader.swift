@@ -549,6 +549,13 @@ struct PptxReader {
 
     init(_ package: PptxPackage) { self.package = package }
 
+    /// Whether any run look under `node` says `kern`.
+    fileprivate static func _saysKern(_ node: XNode?) -> Bool {
+        guard let node else { return false }
+        if node["kern"] != nil { return true }
+        return node.children.contains { _saysKern($0) }
+    }
+
     func read() throws -> (DeckState, DeckTheme, PptxPackage) {
         guard let root = package.xml("_rels/.rels"),
               let presPart = root.all("Relationship").first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") })?["Target"]
@@ -567,6 +574,7 @@ struct PptxReader {
             if let rid = id["r:id"], let r = rels.first(where: { $0.id == rid }) { slideParts.append(r.target) }
         }
         let defaults = presentation.first("p:defaultTextStyle")
+        let saysKern = Self._saysKern(defaults)
         // The deck's table styles, by id: what each table's `tableStyleId`
         // names (PowerPoint writes every style a deck uses into the part).
         var tableStyles: [String: XNode] = [:]
@@ -607,7 +615,8 @@ struct PptxReader {
             if n == 0 { deckTheme = Self._deckTheme(theme, colors); deckThemePart = themePart }
             let ctx = SlideContext(package: package, part: part, slide: slide, layout: layout, master: master,
                                    colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
-                                   tableStyles: tableStyles, foreignTheme: n > 0 && themePart != deckThemePart)
+                                   tableStyles: tableStyles, foreignTheme: n > 0 && themePart != deckThemePart,
+                                   saysKern: saysKern || Self._saysKern(master))
             var shapes: [ShapeState] = []
             if let tree = slide.first("p:cSld")?.first("p:spTree") {
                 ctx.shapes(in: tree, transform: nil, into: &shapes, id: id)
@@ -625,7 +634,8 @@ struct PptxReader {
                     guard let tree = xml.first("p:cSld")?.first("p:spTree") else { continue }
                     let octx = SlideContext(package: package, part: ownerPart, slide: xml, layout: layout, master: master,
                                             colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
-                                            foreignTheme: n > 0 && themePart != deckThemePart)
+                                            foreignTheme: n > 0 && themePart != deckThemePart,
+                                            saysKern: saysKern || Self._saysKern(master))
                     var found: [ShapeState] = []
                     octx.shapes(in: tree, transform: nil, into: &found, id: id)
                     decorations += found.filter { s in
@@ -1026,6 +1036,14 @@ private struct SlideContext {
     /// first slide's): what follows the theme is drawn against the deck's,
     /// so a chart takes this one's colours as its own.
     var foreignTheme = false
+    /// The deck says `kern` somewhere in its defaults or masters, as
+    /// PowerPoint's own files do: a run whose styles then say none is
+    /// not kerned. In a deck that never says it (LibreOffice's), every
+    /// run is. (Sweep 170: the nine decks that say it nearer unkerned —
+    /// alterman's 24 pt "You" at its plain width — and ten of the
+    /// thirteen that never do nearer kerned: lo-open-as-read-only's
+    /// "read-only," 2.7 pt short of plain.)
+    var saysKern = false
 
     // MARK: Placeholders
 
@@ -2044,7 +2062,11 @@ private struct SlideContext {
                             fontFamily: _font(s.font), fontSize: s.size ?? 18,
                             color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
                         // (Kerned from the size `kern` says up, as a text box's runs.)
-                        if let k = s.kern, k > 0 { runs[runs.count - 1].style.kerningFrom = k }
+                        if Self._unkerned(_font(s.font), bold: s.bold ?? false) {
+                            runs[runs.count - 1].style.kerningFrom = 0
+                        } else if let k = s.kern { runs[runs.count - 1].style.kerningFrom = k } else if saysKern {
+                            runs[runs.count - 1].style.kerningFrom = 0
+                        }
                         Self.faceSpacing(&runs[runs.count - 1].style)
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
@@ -2484,7 +2506,8 @@ private struct SlideContext {
             tree.children.insert(sp, at: 0)
         }
         let ctx = SlideContext(package: package, part: drawingPart, slide: slide, layout: layout, master: master,
-                               colors: colors, theme: theme, defaults: defaults, slideSize: slideSize, images: images)
+                               colors: colors, theme: theme, defaults: defaults, slideSize: slideSize, images: images,
+                               saysKern: saysKern)
         var out: [ShapeState] = []
         ctx.shapes(in: tree, transform: { r in r.shift(Offset(frame.left, frame.top)) }, into: &out, id: id)
         out = out.flatMap { s -> [ShapeState] in
@@ -2828,6 +2851,17 @@ private struct SlideContext {
         }
     }
 
+    /// A face PowerPoint does not kern, whatever `kern` says: it kerns
+    /// by a face's `kern` table, and these have none — Work Sans and
+    /// Poppins kern only in their OpenType layout (tdf140852's "Training"
+    /// and lo-master-slides' "Avoid" at their plain widths in
+    /// PowerPoint's print, where ours were 4 and 1.5 pt shorter), Tahoma
+    /// Bold too, and Century Gothic not at all (its stand-in does).
+    static func _unkerned(_ family: String?, bold: Bool) -> Bool {
+        guard let n = family?.trimmingWhitespace().lowercased() else { return false }
+        return n.hasPrefix("work sans") || n.hasPrefix("poppins") || n.hasPrefix("century gothic") || (bold && n == "tahoma")
+    }
+
     /// Whether the first strong letter of `text` is Hebrew or Arabic
     /// (a letter, not a digit or a mark, before any Latin one).
     static func _startsRightToLeft(_ text: String) -> Bool {
@@ -3045,7 +3079,7 @@ private struct SlideContext {
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
                 // Kerned from the size `kern` says up (PowerPoint's own
                 // masters say 12 pt); none where it says nothing.
-                if let k = s.kern, k > 0 { cs.kerningFrom = k }
+                if Self._unkerned(cs.fontFamily, bold: cs.bold) { cs.kerningFrom = 0 } else if let k = s.kern { cs.kerningFrom = k } else if saysKern { cs.kerningFrom = 0 }
                 let plain = cs
                 Self.faceSpacing(&cs)
                 cs.shadow = s.shadow

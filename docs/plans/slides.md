@@ -2248,6 +2248,32 @@ set in Calibri; Calibri's Hebrew widths (narrower than Carlito's by a
 fifth) now go with any face that falls back to Calibri, not only one
 named so, and the line breaks after the word PowerPoint's does.
 
+**Kerning as PowerPoint kerns, 2026-10-17** (sweep 171: 1.0441 →
+1.0301%; tdf140852 3.86 → 1.85, HowWeRefactor 3.50 → 2.29, alterman
+5.54 → 4.84, smartart-simple 3.90 → 3.24, tdf93868 1.72 → 1.25,
+2411-Performance_Up, 45541 ×2 and 45545 −0.40, fourteen more a little;
+none worse past 0.02). The engine kerned every pair of every run.
+PowerPoint's prints say otherwise, three ways:
+- A run's `kern` is the size it kerns from (`kern="0"`: not at all).
+- Where a run's styles say no `kern` at all, it depends on the deck.
+  A deck that says `kern` anywhere in its defaults or masters — as
+  PowerPoint's own files do, in the presentation's default text style
+  — leaves such a run unkerned: alterman's body text at 24 pt sets
+  "You" at its plain width, its title and body styles saying nothing.
+  A deck that never says it (LibreOffice's) is kerned throughout:
+  lo-open-as-read-only's "read-only," is 2.7 pt short of plain. (Of
+  the decks this moved, all nine that say it went nearer unkerned, ten
+  of thirteen that never do nearer kerned; bug68703, outliner-list-style
+  and bug65228 a little the other way.)
+- A face with no `kern` table is never kerned: Work Sans and Poppins
+  kern only in their OpenType layout, which PowerPoint does not use
+  (tdf140852's "Training" and lo-master-slides' "Avoid" at their plain
+  widths), Tahoma Bold the same, and Century Gothic has no kerning at
+  all where its stand-in does.
+The shared layout's `RichTextTheme.kernsByRun` (on for slides, off for
+Word, which keeps its own `wordRules`) turns the engine's kerning off
+for a run whose `kerningFrom` is 0 or above its size.
+
 **Also looked at, 2026-10-17:** PowerPoint's line positions wobble by
 up to a point in a repeating pattern — the AES 2011 tables' 16.8 pt
 lines step 17.04, 17.04, 17.04, 16.08, 16.80, averaging ours exactly —
