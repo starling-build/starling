@@ -982,6 +982,13 @@ DONE: a nested table's row bottoms are cuts of its cell (`cellCuts`):
 zh-d35cbbdb 55.4 -> 88.9, nothing else moved. Left: the header's "項目",
 merged down into row 2 and centred over both, is not drawn on page 4
 (Word's is, at the row's middle).
+Lead (2026-10-17, now 89.3%): page 9's part of the page-long row. Word ends
+it at the rule 743.8, after "公尺長)，考量UB…設站" (baseline 737.3); ours sets
+"行空間。" too (761.0) and ends at 767.1, the foot 770 (bottom 1440). The
+cell's paragraph is exact 25pt (lines print 24 apart in both), 14pt 標楷體,
+hanging indent; table margins default. Every page after runs a line ahead.
+What Word keeps for the parted row below its last line is the question —
+T32's ground (Windows).
 
 ### Footer trailing spaces in a right-aligned paragraph (zh-c5b5087b, zh-9dd9ce6d) — measured, released (Mac)
 Both footers share zh-1563bd74's build: a page-number box on an empty
