@@ -4087,6 +4087,12 @@ fitter dropped the paragraph's tail).
   reformatted marks — one file does not say why.
   Not built: change bars in the margin, the comment
   range's tint in its author's colour.
+- **楷体_GB2312 is YaHei to today's Word for Mac (2026-10-17).** The
+  first zh sample's prints (2026-10-12) set it in KaiTi; Word 16.113.3
+  sets it in Microsoft YaHei, alt name or not, and the Mac reprinted all
+  68 with it (db1a7940). The mac font mode now stands YaHei in for it,
+  as for 仿宋_GB2312. zh-e02b0479 68.6 -> 97.1%, zh-15728c84 86.9 -> 98.5,
+  zh-232090e0 86.7 -> 95.6; nothing down.
 - **A multiple's extra space may hang past the page's foot; a page
   break in a table cell is nothing (2026-10-17).** Off the grid, Word
   sets a line's 1.5 or double spacing under its text, and the page's

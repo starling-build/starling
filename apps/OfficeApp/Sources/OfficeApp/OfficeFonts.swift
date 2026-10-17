@@ -769,16 +769,17 @@ enum OfficeFonts {
         // is under it come from them.
         if has("noto sans sc") { return EastAsianFace(height: 1.8824, latin: sans, latinScale: 1.0, fakeBold: false, baseline: 1.377) }
         // Word on a Mac has 宋体, 黑体, 楷体, 仿宋 and the 明體 pair, and
-        // sets every other Chinese name — 仿宋_GB2312, the 方正 faces,
-        // 標楷體 — in Microsoft YaHei, which is taller and wider than
+        // sets every other Chinese name — 仿宋_GB2312, 楷体_GB2312, the
+        // 方正 faces, 標楷體 — in Microsoft YaHei, which is taller and wider than
         // any of them. `OFFICE_WORD_FONTS=mac` does the same, so that a
         // print can be compared with that Word's; without it such a
         // name is taken for the square face its author had.
         // (A name with an alternate the table gives is set in that,
         // where the alternate is one Word has.)
         // (Only for a name Word has no face for at all, and only to an
-        // alternate it has: 楷体_GB2312 is KaiTi to it whatever the table
-        // offers — zh-232090e0's 方正楷体_GBK — and 方正 names fall back.)
+        // alternate it has; 方正 names fall back. 楷体_GB2312 was KaiTi in
+        // the prints of 2026-10-12 and is YaHei in Word 16.113.3's, alt
+        // name or not: zh-78729cf9 reprinted, zh-17749c13's alt 楷体.)
         let wordHas = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                        "微软雅黑", "microsoft yahei", "幼圆", "全真楷書", "標楷", "方正", "小标宋"]
         if wordOnMac, !isEmbedded(family), !wordHas.contains(where: { n.containsSubstring($0) }),
@@ -790,7 +791,7 @@ enum OfficeFonts {
             }
         }
         if wordOnMac, !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
-                           "幼圆", "全真楷書") || has("仿宋_gb2312", "方正", "小标宋", "標楷") {
+                           "幼圆", "全真楷書") || has("仿宋_gb2312", "楷体_gb2312", "kaiti_gb2312", "方正", "小标宋", "標楷") {
             var standIn = yaHei
             standIn.symbols = "SimSun"
             return standIn
