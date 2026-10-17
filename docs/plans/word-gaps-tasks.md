@@ -120,6 +120,10 @@ zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 zh-fec5fa30 84.7 (55, Word 56), zh-9e020c95 89.3, zh-268f8d15 93.0,
 zh-de3410bd 93.2, zh-fe536967 94.0. zh-d89c3840 was T70.
 
+### T76. zh-540dc149: 9 pages where Word's are 10 — claimed
+Owner: session 017F2GnT (Linux), from 2026-10-17
+Documents: zh-540dc149 (35.9%, third sample).
+
 ### T75. zh-f6686f89: a square face's Latin is exactly half an em — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 宋体's Latin stand-in is Liberation Mono at 5/6, but its advance is
