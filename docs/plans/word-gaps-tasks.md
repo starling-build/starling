@@ -1643,7 +1643,7 @@ a deletion's text in Normal's face where its own names none. Same-base
 sweep: Tika-792 0 -> 100, delins 75 -> 80, nothing else moved; mean
 92.544 -> 93.071.
 
-### T71. rtl: Arabic in a Times stand-in, at Times' widths — claimed
+### T71. rtl: Arabic in a Times stand-in, at Times' widths — tried, released
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: rtl (0%).
 Known: the file (from LibreOffice) names "Noto Sans Arabic UI" for
@@ -1654,6 +1654,15 @@ because Liberation Serif has no Arabic: words 32% wider than Word's
 breaks early. FreeSerif's Arabic is 4.7% wider, Noto Naskh Arabic's
 14.8%, Noto Sans Arabic's 25.6%.
 Plan: on Linux, the serif stand-in falls back to FreeSerif first.
+Tried: FreeSerif as the serif face's fallback on Linux. The lines then
+break where Word's do (1 and 2 exactly, 3 a word short), but the score
+stays 0: our PDF lays an RTL line's words down left to right, each
+word's letters in logical order, and the matcher reads the line from
+its visual left end, where Word's reads in logical order throughout.
+FreeSerif's contextual Arabic forms also lack cmap entries, so the PDF's
+text maps them to junk (㒘, 㒡), which DejaVu's presentation forms do not
+do. Released: the order is the PDF writer's (the engine's), and a face
+whose text cannot be copied out is worse than a wider one.
 
 ### T73. zh-547fc43c: 17 pages where Word's are 16 — claimed
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
