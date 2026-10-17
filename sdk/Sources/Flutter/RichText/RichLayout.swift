@@ -5992,9 +5992,23 @@ public final class RichLayout {
                 }
                 return nil
             }
-            let style = lastIdeograph(children)?.copyWith(letterSpacing: 0)
-                ?? theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
-                                   gridPitch: pitch, scriptHidden: true)
+            // (Whichever of the two is the shorter line: which face each
+            // resolves to differs by machine — the Latin one is the taller
+            // on Linux, the ideographs' on the Mac — and the shorter is the
+            // text's own, which a line of spaces alone takes and the
+            // text's line does not exceed.)
+            let latin = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                        gridPitch: pitch, scriptHidden: true)
+            func joinerHeight(_ s: TextStyle) -> Double {
+                let t = TextPainter(text: TextSpan(text: "\u{2060}", style: s), textDirection: .ltr)
+                t.layout(minWidth: 0, maxWidth: 100_000)
+                defer { t.dispose() }
+                return t.height
+            }
+            var style = latin
+            if let ideograph = lastIdeograph(children)?.copyWith(letterSpacing: 0), joinerHeight(ideograph) < joinerHeight(latin) - 0.01 {
+                style = ideograph
+            }
             children.append(TextSpan(text: "\u{2060}", style: style))
             inserts.append(p.text.utf16.count)
         }
