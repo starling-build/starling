@@ -981,6 +981,14 @@ row parting (Windows, T32), zh-2a241df1's charts (Mac, T59).
   character grid (zh-3c055c9b -> 13.1). Released: it is the grid
   fitting the Linux session built. A lab of this line, with the over
   varied, would say what Word counts.
+  Lab (Mac, 2026-10-17, lab/tools/squeezelab2.py on its own package,
+  Normal 16, left, cells of 17.01): with no mark, or one lone "，", Word
+  takes nothing over (0.00-0.13); with a "】，" pair 8.07-8.20, half an em.
+  So on a positive grid a lone comma gives nothing — unlike the negative
+  grids, where it gives half a cell. Word's page-2 lines end at 523.6, the
+  end of exactly 26 cells, so f57bbe07's whole-cell width would not move it.
+  The real line's squeeze ("職→【" 11.7, "】→，" 9.0, "，→於" 14.3) closes
+  more than the pair: what the rest of that line lends is still to find.
 
 ### T62. A table nested in a parting row parts between its rows — DONE (2026-10-16)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16
