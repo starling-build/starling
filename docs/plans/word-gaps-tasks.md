@@ -1542,6 +1542,20 @@ sweep). Its text within 1.5pt of Word's. Left: the box's frame — Word
 draws it 49.9pt square at 87.3, 274.6, where the group's coordinates
 make the box 72pt; the WordArt.
 
+### T70. Tika-792's balloons: Word's own face, moves inside changes — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+Documents: Tika-792 (0%).
+Known: Word's print (Mac) has three balloons: "Moved (insertion) [1]",
+"Deleted: s.", "Formatted: Font color: Auto", in Times New Roman 9pt
+(scaled 6.24 on paper); the body prints nothing. Ours: "Deleted: s." and
+"Moved down [1]: b" in Tahoma 8pt. With no Balloon Text style in the
+file, Word for Mac sets balloons in Times 9pt (comment, testComment and
+WordWithAttachments' labels follow their Balloon Text style the same
+way). A moveTo whose only text was deleted still gets its "Moved
+(insertion)" balloon, ahead of the deletion's; an insertion inside a
+moveFrom (typed, then moved away) is gone, with no balloon, though its
+formatting change keeps one.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
