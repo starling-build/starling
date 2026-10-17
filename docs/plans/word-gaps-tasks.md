@@ -901,8 +901,8 @@ notes give Word's prints too. Lab `bd1` shows Word's body steps 20.64/20.88
 (mean 20.76) where ours step 20.8: whoever takes the page-foot rounding
 question can start there.
 
-### T53. zh-8e8d4c40 p5: lines with Noto Sans SC glyphs, and Latin in 標楷體 — claimed
-Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16
+### T53. zh-8e8d4c40 p5: lines with Noto Sans SC glyphs, and Latin in 標楷體 — Noto part DONE, Latin part open
+Owner: none (was 01Xgpbk5, Mac, 2026-10-16)
 On the Mac it has been 90.4% all along (98.9% was another platform); page 5
 drifts 5pt low. Word's line with a Noto glyph (a compatibility ideograph
 YaHei lacks) is 1.44pt lower and 0.48 deeper than YaHei's (as lab `cj2`);
@@ -915,6 +915,12 @@ at 12pt; its 0.48 deeper is not given): zh-8e8d4c40 90.4 -> 96.6, nothing
 else moved. Left: the Latin stand-in's ascent — the engine shares a run's
 height by its face's own ascent and descent, so no height gives both
 YaHei's ascent and its depth; a baseline shift would move the glyphs too.
+Tried and reverted: the stand-in's height in YaHei runs x 0.9448 (its
+ascent then YaHei's): zh-7dc3afad 98.9 -> 82.7 (a page short), zh-69bbcc3c
+99.1 -> 90.2, zh-64044a1d 96.7 -> 91.2, zh-33aa9899 99.3 -> 96.9, and the
+two it was for unmoved; bug57031 94.1 -> 99.7 (worth a look: what in it is
+a YaHei run's Latin). Lines and paragraphs wholly in the stand-in are the
+likely losers — they are YaHei's height in Word. Released.
 
 ### Leads for the Mac session (from the Windows box, 2026-10-16)
 Each needs Word or is in an area the Mac has worked; claim here first.
