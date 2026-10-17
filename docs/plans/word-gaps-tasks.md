@@ -959,6 +959,30 @@ zh-d35cbbdb 55.4 -> 88.9, nothing else moved. Left: the header's "項目",
 merged down into row 2 and centred over both, is not drawn on page 4
 (Word's is, at the row's middle).
 
+### Note from the Mac (2026-10-17): Word's 楷体_GB2312 changed between the two samples
+A fresh print of zh-78729cf9 today (Word 16.113.3 / 26092714, macOS 27.0
+26A428, the same OS build as both samples' PDFs) sets all its 楷体_GB2312
+text in Microsoft YaHei. The corpus print of 2026-10-12 has 545
+characters of it in KaiTi. So the first 68's KaiTi was Word's state then,
+perhaps a cloud font it had downloaded. The second sample (2026-10-17)
+reflects today's Word: YaHei. One rule cannot match both; reprinting
+the first sample is the user's call and has not been done.
+
+### zh-f0bd9ea8: punctuation squeeze on a grid narrower than the ems — measured, released (Mac)
+Mode 14, linesAndChars charSpace -842 at 16pt (Normal 10.5). Done: the
+balanced half-width spaces' grid share (57849075). Left: every body line
+takes one character more than Word's ("…工程品" + "牌" 5.1pt over, "，"
+the one mark to give). zh-d68ac84a (charSpace -5544) agrees: Word leaves
+"增" (7.3 over, one mark), "土" (6.7, one mark) and "50" (11.0, one mark),
+and takes "政" (7.3, three marks) and "质" (3.1, five marks). But it
+leaves "原" (3.8, two marks). Tried and reverted: no squeeze at all on
+such a grid (d68ac84a 98.8 -> 35.4); none for a character or a word
+(-> 47.9); none with one mark (d68ac84a -> 93.9, f0bd9ea8 only 53.6 ->
+54.3). Lab `cg1`/`cg2` (this package): the grid's -0.21 applies at every
+size, and the text's size against Normal's changes nothing. A lab of
+one line with one, two and three marks, the over varied, would say what
+Word counts on such a grid.
+
 ### T59. A column chart with a line on a second value axis
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
