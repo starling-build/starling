@@ -1613,7 +1613,7 @@ sweep). Its text within 1.5pt of Word's. Left: the box's frame — Word
 draws it 49.9pt square at 87.3, 274.6, where the group's coordinates
 make the box 72pt; the WordArt.
 
-### T70. Tika-792's balloons: Word's own face, moves inside changes — DONE (2026-10-17)
+### T72. Tika-792's balloons (numbered T70 at first; the Mac's came first): Word's own face, moves inside changes — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: Tika-792 (0%).
 Known: Word's print (Mac) has three balloons: "Moved (insertion) [1]",

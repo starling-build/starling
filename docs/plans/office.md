@@ -5626,7 +5626,7 @@ body, `w:topLinePunct` inside a paragraph,
 drawn lines and shapes (a red rule under a letterhead), and whatever
 the next first-differing line turns out to be.
 
-### Balloons in Word for Mac's own face; changes nested in moves (T70, 2026-10-17)
+### Balloons in Word for Mac's own face; changes nested in moves (T72, 2026-10-17)
 
 A file with no Balloon Text style prints its balloons in Times 9pt in
 Word for Mac (Tika-792, comment), not Tahoma 8pt; where the style exists
