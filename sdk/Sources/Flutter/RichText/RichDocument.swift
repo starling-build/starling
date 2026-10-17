@@ -63,8 +63,12 @@ public struct RevisionMark: Hashable, Sendable {
     /// deletion): shown so in a print with markup, written back as the
     /// insertion or deletion it is.
     public var moved = false
-    public init(kind: Kind, author: String = "", date: String = "", moved: Bool = false) {
-        self.kind = kind; self.author = author; self.date = date; self.moved = moved
+    /// Changed twice, with a move: a deletion made in moved text's new
+    /// place (the place still printed "Moved (insertion)"), or moved-away
+    /// text that was itself an insertion (gone from a print, unremarked).
+    public var nested = false
+    public init(kind: Kind, author: String = "", date: String = "", moved: Bool = false, nested: Bool = false) {
+        self.kind = kind; self.author = author; self.date = date; self.moved = moved; self.nested = nested
     }
 }
 

@@ -3318,9 +3318,16 @@ enum DocxFormat {
                     // written back as the insertion or deletion it was.
                     // (Text moved away stays moved away, whatever was done
                     // to it before.)
-                    if let r = revision, r.moved, r.kind == .deleted { walkInline(child, link: link, revision: r); break }
+                    // (Both changes are kept, as Tika-792 prints them: an
+                    // insertion moved away is gone, a deletion in moved
+                    // text's new place leaves the place marked.)
+                    if var r = revision, r.moved, r.kind == .deleted {
+                        if child.name == "w:ins" { r.nested = true }
+                        walkInline(child, link: link, revision: r); break
+                    }
                     let mark = RevisionMark(kind: child.name == "w:ins" ? .inserted : .deleted,
-                                            author: child["w:author"] ?? "", date: child["w:date"] ?? "")
+                                            author: child["w:author"] ?? "", date: child["w:date"] ?? "",
+                                            nested: child.name == "w:del" && revision?.moved == true && revision?.kind == .inserted)
                     walkInline(child, link: link, revision: mark)
                 case "w:moveTo", "w:moveFrom":
                     // Moved text: at its new place an insertion, at its old

@@ -5625,3 +5625,15 @@ vertical alignment), cover pages and frames in the
 body, `w:topLinePunct` inside a paragraph,
 drawn lines and shapes (a red rule under a letterhead), and whatever
 the next first-differing line turns out to be.
+
+### Balloons in Word for Mac's own face; changes nested in moves (T70, 2026-10-17)
+
+A file with no Balloon Text style prints its balloons in Times 9pt in
+Word for Mac (Tika-792, comment), not Tahoma 8pt; where the style exists
+its face labels comments as well as changes (WordWithAttachments' Tahoma,
+testComment's 宋体), and a comment's text is in Comment Text's face, else
+Normal's. A deletion inside `w:moveTo` still leaves its place marked
+"Moved (insertion) [n]", listed before a deletion at the same spot; an
+insertion inside `w:moveFrom` (typed, then moved away) prints nothing
+but its formatting change. Both are kept on the run as
+`RevisionMark.nested`.

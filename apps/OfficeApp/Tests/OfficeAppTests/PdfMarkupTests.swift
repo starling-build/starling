@@ -173,6 +173,30 @@ final class PdfMarkupTests: XCTestCase {
         XCTAssertEqual(print.notes.map(\.label), ["Moved (insertion) [1]", "Moved up [1]:"])
     }
 
+    /// Tika-792: a period deleted in moved text's new place, and a "b"
+    /// typed then moved away. Word prints the place "Moved (insertion)
+    /// [1]" ahead of "Deleted: s." (in the deletion's own face), nothing
+    /// for the "b" but how it had been reformatted, and no body text.
+    func testAChangeInsideAMoveIsPrintedAsWordPrintsIt() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:del w:id=\"1\" w:author=\"A\"><w:r><w:delText>s</w:delText></w:r></w:del>"
+            + "<w:moveTo w:id=\"3\" w:author=\"A\"><w:del w:id=\"4\" w:author=\"A\"><w:r><w:delText>.</w:delText></w:r></w:del></w:moveTo></w:p>"
+            + "<w:p><w:moveFrom w:id=\"6\" w:author=\"A\"><w:ins w:id=\"7\" w:author=\"A\"><w:r><w:rPr><w:rPrChange w:id=\"8\" w:author=\"A\">"
+            + "<w:rPr><w:color w:val=\"FF0000\"/></w:rPr></w:rPrChange></w:rPr><w:t>b</w:t></w:r></w:ins></w:moveFrom></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let print = PdfMarkup(doc)
+        XCTAssertEqual(print.document.paragraphs.map(\.text), ["", ""])
+        XCTAssertEqual(print.notes.map(\.label), ["Moved (insertion) [1]", "Deleted:", "Formatted:"])
+        XCTAssertEqual(print.notes.map(\.paragraphs), [[""], ["s."], ["Font color: Auto"]])
+        XCTAssertEqual(print.notes[1].family, doc.styles[RichNamedStyle.normalId]?.char.fontFamily.map(OfficeFonts.substitute))
+        XCTAssertNotNil(print.notes[1].family)
+    }
+
     /// The page and a markup area 3.7in wide from its text's right edge,
     /// scaled to the paper's width: testComment (letter, 1in margins) at
     /// 0.727 in Word's print, its pane from 407.5 to 594.5.

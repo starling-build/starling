@@ -31,6 +31,12 @@ struct PdfMarkup {
     init(_ source: RichDocument) {
         var paragraphs: [RichParagraph] = []
         var deletions: [Note] = []
+        // What Word marks of text gone with no balloon of its own: where
+        // moved text went, all of it then deleted, and how the text moved
+        // away had been reformatted (Tika-792's "Moved (insertion) [1]"
+        // and "Formatted: Font color: Auto").
+        var places: [Note] = []
+        var gone: [Note] = []
         // A deletion still open: its text so far, and where it stands.
         var open: Note? = nil
         func close() {
@@ -73,14 +79,24 @@ struct PdfMarkup {
                     let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
                     var piece = String(p.text[at ..< end])
                     at = end
+                    if let r = run.style.revision, r.kind == .deleted, r.moved, r.nested {
+                        if let change = run.style.formatChange, case let said = PdfMarkup._describe(run.style, was: change.oldRPrXML), !said.isEmpty {
+                            gone.append(Note(anchor: RichPosition(paragraph: paragraphs.count, offset: text.utf16.count), label: "Formatted:",
+                                             paragraphs: [said], author: change.author))
+                        }
+                        continue
+                    }
                     if run.style.revision?.kind == .deleted {
                         let anchor = RichPosition(paragraph: paragraphs.count, offset: text.utf16.count)
+                        if run.style.revision?.nested == true, places.last?.anchor != anchor {
+                            places.append(Note(anchor: anchor, label: "Moved (insertion)", paragraphs: [""], author: run.style.revision?.author ?? ""))
+                        }
                         let label = run.style.revision?.moved == true ? "Moved:" : "Deleted:"
                         if open == nil || open!.anchor != anchor || open!.label != label {
                             close()
                             open = Note(anchor: anchor, label: label, paragraphs: [""], author: run.style.revision?.author ?? "",
-                                        family: run.style.fontFamily.map(OfficeFonts.substitute)
-                                            ?? source.styles.resolve(p.style)?.char.fontFamily.map(OfficeFonts.substitute))
+                                        family: (run.style.fontFamily ?? source.styles.resolve(p.style)?.char.fontFamily
+                                            ?? source.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.substitute))
                         }
                         // A list item deleted with its mark loses its number
                         // too, which Word writes "<#>" (delins's tika items).
@@ -119,7 +135,11 @@ struct PdfMarkup {
         document = printed
         // (By anchor, and in the order made where two share one: a
         // field's "Field Code Changed" before its result's "Formatted".)
-        let made = PdfMarkup._moves(deletions + PdfMarkup._insertedMoves(printed)) + PdfMarkup._comments(printed) + PdfMarkup._formats(printed)
+        // (A move's new place before a deletion at the same spot, as
+        // Tika-792's stand.)
+        let tos = PdfMarkup._insertedMoves(printed)
+        let made = PdfMarkup._moves(tos + places.filter { p in !tos.contains { $0.anchor == p.anchor } } + deletions)
+            + PdfMarkup._comments(printed) + PdfMarkup._formats(printed) + gone
         notes = made.enumerated()
             .sorted { ($0.element.anchor, $0.offset) < ($1.element.anchor, $1.offset) }.map(\.element)
     }
@@ -274,10 +294,15 @@ struct PdfMarkup {
                 }
             }
         }
+        // (Its text in Comment Text's face, else Normal's: WordWithAttachments'
+        // in Times under Tahoma labels, testComment's in Calibri.)
+        let face = (document.styles.styles.first { $0.name.lowercased() == "annotation text" }?.char.fontFamily
+            ?? document.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.substitute)
         var out: [Note] = []
         for id in order {
             guard let body = bodies[id], let end = ends[id] else { continue }
-            out.append(Note(anchor: end, label: "Commented [\(body.initials)\(out.count + 1)]:", paragraphs: body.paragraphs, author: body.author))
+            out.append(Note(anchor: end, label: "Commented [\(body.initials)\(out.count + 1)]:", paragraphs: body.paragraphs, author: body.author,
+                            family: face))
         }
         return out
     }
@@ -302,7 +327,7 @@ struct PdfMarkup {
         var floor = -Double.infinity
         let balloon: (family: String, size: Double) = {
             guard let style = document.styles.styles.first(where: { $0.name.lowercased() == "balloon text" }) else {
-                return (OfficeFonts.substitute("Tahoma"), 8)
+                return (OfficeFonts.serif, 9)
             }
             return (OfficeFonts.substitute(style.char.fontFamily ?? "Tahoma"), style.char.fontSize ?? 8)
         }()
@@ -311,13 +336,11 @@ struct PdfMarkup {
             guard let rect = layout.canvasRects(caret).first, layout.page(atCanvasY: rect.top) == p else { continue }
             let anchor = Rect.fromLTWH(rect.left / px, (rect.top - page.top) / px, rect.width / px, rect.height / px)
             // The balloon's text: its label in bold, then its paragraphs.
-            // (A change's balloon in the document's Balloon Text, else in
-            // Word's own, Tahoma 8pt — delins's "Formatted:" balloons from
-            // Windows stand 15.1pt apart, 58067's Lucida Grande 9pt. Its
-            // deleted text in its own face at that size. A comment's in a
-            // serif at 9pt, as the prints from the Mac have them.)
-            let family = note.isComment ? OfficeFonts.serif : balloon.family
-            let size = note.isComment ? 9 : balloon.size
+            // (In the document's Balloon Text — delins's Tahoma 8pt,
+            // 58067's Lucida Grande 9pt, testComment's 宋体 — else in Word
+            // for Mac's own, Times 9pt: Tika-792's and comment's balloons.
+            // Deleted text and a comment's in their own face at that size.)
+            let family = balloon.family, size = balloon.size
             let plain = TextStyle(color: Color(0xFF000000), fontSize: size, fontFamily: note.family ?? family)
             let bold = TextStyle(color: Color(0xFF000000), fontSize: size, fontWeight: .bold, fontFamily: family)
             var spans: [InlineSpan] = [TextSpan(text: note.label + " ", style: bold)]
@@ -336,7 +359,7 @@ struct PdfMarkup {
             floor = box.bottom
             let colour = PdfMarkup.colours[(authors.firstIndex(of: note.author) ?? 0) % PdfMarkup.colours.count]
             let fill = Paint()
-            fill.color = Color(note.label.hasPrefix("Commented") ? colour.fill : 0xFFFFFFFF)
+            fill.color = Color(note.isComment ? colour.fill : 0xFFFFFFFF)
             canvas.drawRect(box, fill)
             let line = Paint()
             line.style = .stroke

@@ -1602,7 +1602,7 @@ sweep). Its text within 1.5pt of Word's. Left: the box's frame — Word
 draws it 49.9pt square at 87.3, 274.6, where the group's coordinates
 make the box 72pt; the WordArt.
 
-### T70. Tika-792's balloons: Word's own face, moves inside changes — claimed
+### T70. Tika-792's balloons: Word's own face, moves inside changes — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: Tika-792 (0%).
 Known: Word's print (Mac) has three balloons: "Moved (insertion) [1]",
@@ -1615,6 +1615,14 @@ way). A moveTo whose only text was deleted still gets its "Moved
 (insertion)" balloon, ahead of the deletion's; an insertion inside a
 moveFrom (typed, then moved away) is gone, with no balloon, though its
 formatting change keeps one.
+Built: a run keeps both changes (`RevisionMark.nested`): the place of
+moved text all deleted is printed "Moved (insertion)" ahead of the
+deletion, an insertion moved away prints nothing but its "Formatted:";
+balloons with no Balloon Text style in Times 9pt, a comment's label in
+the Balloon Text face too and its text in Comment Text's (else Normal's),
+a deletion's text in Normal's face where its own names none. Same-base
+sweep: Tika-792 0 -> 100, delins 75 -> 80, nothing else moved; mean
+92.544 -> 93.071.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
