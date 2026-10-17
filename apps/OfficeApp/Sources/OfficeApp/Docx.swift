@@ -1869,9 +1869,58 @@ enum DocxFormat {
         ["w:strictFirstAndLastChars", "w:noLineBreaksAfter", "w:noLineBreaksBefore"],
     ]
 
+    static let _vmlShapes: Set<String> = ["v:shape", "v:rect", "v:group", "v:line", "v:oval", "v:roundrect"]
+
+    /// The outermost VML shape of a drawing — a group before the shapes
+    /// in it, which stand in the group's own coordinates (`style`'s
+    /// unitless left, top, width and height).
+    static func _vmlTop(_ node: XNode) -> XNode? {
+        var level = [node]
+        while !level.isEmpty {
+            if let hit = level.first(where: { _vmlShapes.contains($0.name) }) { return hit }
+            level = level.flatMap(\.children)
+        }
+        return nil
+    }
+
+    /// Where the text of a VML group's text box stands in the group, in
+    /// points from its top left: the box's place in the group's
+    /// coordinates (`coordorigin`, `coordsize`) inside the textbox's
+    /// insets (VML's 7.2pt and 3.6pt where it states none).
+    static func _vmlTextPlace(_ group: XNode) -> Rect? {
+        guard let shape = group.all("v:shape").first(where: { $0.first("v:textbox") != nil }) ?? group.all("v:rect").first(where: { $0.first("v:textbox") != nil }),
+              let textbox = shape.first("v:textbox") else { return nil }
+        func style(_ n: XNode) -> [String: String] {
+            var out: [String: String] = [:]
+            for pair in (n["style"] ?? "").split(separator: ";") {
+                let kv = pair.split(separator: ":", maxSplits: 1)
+                if kv.count == 2 { out[kv[0].trimmingWhitespace()] = String(kv[1]).trimmingWhitespace() }
+            }
+            return out
+        }
+        func pair(_ raw: String?, _ fallback: (Double, Double)) -> (Double, Double) {
+            let v = (raw ?? "").split(separator: ",", omittingEmptySubsequences: false).map { Double($0.trimmingWhitespace()) }
+            return (v.count > 0 ? v[0] ?? fallback.0 : fallback.0, v.count > 1 ? v[1] ?? fallback.1 : fallback.1)
+        }
+        let g = style(group), sh = style(shape)
+        guard let gw = g["width"].flatMap(_length), let gh = g["height"].flatMap(_length), gw > 0, gh > 0,
+              let x = sh["left"].flatMap({ Double($0) }), let y = sh["top"].flatMap({ Double($0) }),
+              let w = sh["width"].flatMap({ Double($0) }), let h = sh["height"].flatMap({ Double($0) }) else { return nil }
+        let origin = pair(group["coordorigin"], (0, 0)), size = pair(group["coordsize"], (1000, 1000))
+        guard size.0 > 0, size.1 > 0 else { return nil }
+        let kx = gw / size.0, ky = gh / size.1
+        let inset = (textbox["inset"] ?? "").split(separator: ",", omittingEmptySubsequences: false).map { _length(String($0)) }
+        func at(_ k: Int, _ d: Double) -> Double { k < inset.count ? inset[k] ?? d : d }
+        return Rect.fromLTRB((x - origin.0) * kx + at(0, 7.2), (y - origin.1) * ky + at(1, 3.6),
+                             (x - origin.0 + w) * kx - at(2, 7.2), (y - origin.1 + h) * ky - at(3, 3.6))
+    }
+
     /// Where an anchored drawing floats (`wp:anchor`: its two positions
     /// and its wrapping), or nil for one in the line. A VML shape floats
-    /// when its style positions it absolutely.
+    /// when its style positions it absolutely — the outermost one: a
+    /// drawing canvas in the line (`v:group`, WordWithAttachments'
+    /// "Словарь" box) holds shapes placed absolutely in it, and floated
+    /// by its text box it took no room.
     static func _float(_ node: XNode) -> ImageFloat? {
         if let anchor = node.name == "wp:anchor" ? node : node.descendant("wp:anchor") {
             var f = ImageFloat()
@@ -1890,9 +1939,7 @@ enum DocxFormat {
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
             return f
         }
-        if let shape = ["v:shape", "v:rect", "v:group", "v:line", "v:oval", "v:roundrect"].contains(node.name) ? node
-            : (node.descendant("v:shape") ?? node.descendant("v:group") ?? node.descendant("v:rect") ?? node.descendant("v:line")),
-           let st = shape["style"], st.containsSubstring("position:absolute") {
+        if let shape = _vmlTop(node), let st = shape["style"], st.containsSubstring("position:absolute") {
             var f = ImageFloat()
             for pair in st.split(separator: ";") {
                 let kv = pair.split(separator: ":", maxSplits: 1)
@@ -2677,9 +2724,7 @@ enum DocxFormat {
                 // (One of them may be nothing: a level line is no height.)
                 w = cx / 12700
                 h = cy / 12700
-            } else if let shape = ["v:shape", "v:rect", "v:roundrect", "v:oval"].contains(node.name) ? node
-                        : (node.descendant("v:shape") ?? node.descendant("v:rect") ?? node.descendant("v:roundrect") ?? node.descendant("v:oval")),
-                      let st = shape["style"] {
+            } else if let shape = _vmlTop(node), shape.name != "v:line", let st = shape["style"] {
                 for pair in st.split(separator: ";") {
                     let kv = pair.split(separator: ":", maxSplits: 1)
                     guard kv.count == 2, let v = _length(String(kv[1])), v > 0 else { continue }
@@ -2861,6 +2906,15 @@ enum DocxFormat {
                             box.insetRight += (1 - r.right) * att.width
                             box.insetBottom += (1 - r.bottom) * att.height
                         }
+                    } else if let group = Self._vmlTop(node), group.name == "v:group", let place = Self._vmlTextPlace(group) {
+                        // (A text box in a VML group: its text at the box's
+                        // own place in the group, inside its insets.)
+                        for q in box.paragraphs.indices {
+                            box.paragraphs[q].style.indentLeft += place.left
+                            box.paragraphs[q].style.indentRight += max(0, att.width - place.right)
+                        }
+                        box.parts = [RichTextBox.Part(first: 0, top: place.top, height: max(0, place.bottom - place.top), atFoot: false)]
+                        box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
                     } else if let textbox = node.descendant("v:textbox"), let inset = textbox["inset"] {
                         let shapeStyle = (node.name == "v:shape" ? node : node.descendant("v:shape"))?["style"] ?? ""
                         box.fitsText = shapeStyle.containsSubstring("mso-wrap-style:none")

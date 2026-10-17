@@ -565,6 +565,36 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(split.paragraphs[2].style.pageBreakBefore)
     }
 
+    /// WordWithAttachments' "Словарь" box: a VML drawing canvas in the line
+    /// (a `v:group`, no absolute position) holding a text box placed
+    /// absolutely in the group's coordinates. The group is in the line, at
+    /// its own size, and the box's text stands at the box's place in it —
+    /// floated by the box inside, it took no room and the page ran 57pt high.
+    func testAVMLCanvasInTheLineHoldsItsTextBoxAtItsPlace() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        if !xml.contains("xmlns:v=") { xml = xml.replacingAll("<w:document ", with: "<w:document xmlns:v=\"urn:schemas-microsoft-com:vml\" ") }
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:pict><v:group style=\"width:126pt;height:99pt;mso-position-horizontal-relative:char;mso-position-vertical-relative:line\" coordorigin=\"3834,5690\" coordsize=\"1976,1533\">"
+            + "<v:shape style=\"position:absolute;left:3834;top:5690;width:1976;height:1533\"/>"
+            + "<v:shape style=\"position:absolute;left:4257;top:5969;width:1130;height:1115\"><v:textbox><w:txbxContent>"
+            + "<w:p><w:r><w:t>Словарь</w:t></w:r></w:p><w:p><w:r><w:t>dictionary</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape>"
+            + "</v:group></w:pict></w:r><w:r><w:t>Hyperlink</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let canvas = try XCTUnwrap(doc.paragraphs.first { $0.text.contains("Hyperlink") }?.inlineImages.values.first)
+        XCTAssertNil(canvas.float, "in the line")
+        XCTAssertEqual(canvas.width, 126, accuracy: 0.01)
+        XCTAssertEqual(canvas.height, 99, accuracy: 0.01)
+        let box = try XCTUnwrap(canvas.textBox)
+        // (27pt and 18pt into the group by its coordinates, and VML's
+        // 7.2 and 3.6pt insets.)
+        XCTAssertEqual(box.parts.first?.top ?? 0, 18.0 + 3.6, accuracy: 0.05)
+        XCTAssertEqual(box.paragraphs.first?.style.indentLeft ?? 0, 27.0 + 7.2, accuracy: 0.05)
+    }
+
     /// WordWithAttachments' "Tryhere.jpg" package prints as its icon: the
     /// object's WMF carries the icon as a bitmap (DibStretchBlt) beside
     /// its caption. Painted, the metafile asks for the bitmap, and once it

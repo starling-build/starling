@@ -1326,7 +1326,7 @@ its pictures, and let the export wait for them.
 Built: WordWithAttachments' two icons and tika-3388's print, at Word's
 place and size. No score moved (the line match reads text).
 
-### T69. A VML drawing canvas in the line, with a text box in it
+### T69. A VML drawing canvas in the line, with a text box in it — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: WordWithAttachments (23.7%; p1's "Словарь/dictionary/Луғат").
 Known: a `v:group` (editas canvas, 126x99pt, no position:absolute) sits
@@ -1336,6 +1336,10 @@ any `v:shape` before the group, finds the inner box and floats the
 whole drawing: it takes no room, and p1 below it stands ~57pt high.
 Build: the outermost VML element decides floating and size; the text
 box's text set at its own place in the group.
+Built: WordWithAttachments 23.7 -> 84.2%, nothing else moved (same-base
+sweep). Its text within 1.5pt of Word's. Left: the box's frame — Word
+draws it 49.9pt square at 87.3, 274.6, where the group's coordinates
+make the box 72pt; the WordArt.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

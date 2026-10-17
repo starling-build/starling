@@ -4137,6 +4137,16 @@ fitter dropped the paragraph's tail).
   reformatted marks — one file does not say why.
   Not built: change bars in the margin, the comment
   range's tint in its author's colour.
+- **A VML drawing canvas in the line holds its text box at its place
+  (2026-10-17).** WordWithAttachments' "Словарь/dictionary/Луғат" is a
+  `v:group` (a drawing canvas, 126x99pt) in the line, its text box a
+  shape placed absolutely in the group's coordinates. The reader took
+  the first `v:shape` anywhere in a drawing for its float and its size:
+  the inner box floated the whole canvas, which took no room (and was
+  read as 1976 by 1533pt). Now the outermost VML element decides both
+  (`_vmlTop`), and a group's text box sets its text at the box's place
+  in the group (`_vmlTextPlace`, VML's 7.2/3.6pt insets). 23.7 -> 84.2%,
+  nothing else moved.
 - **An embedded object prints its icon (2026-10-17).** An OLE object
   shows the WMF or EMF its `v:imagedata` names, and Writer played it
   with no image provider: the caption printed, the icon — a bitmap in
