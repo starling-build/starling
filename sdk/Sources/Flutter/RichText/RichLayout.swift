@@ -535,6 +535,12 @@ public struct RichResolvedFace: Sendable {
     /// a scaled sans's .711.
     public var advances: [Double]? = nil
     public var boldAdvances: [Double]? = nil
+    /// The original face's kern pairs among those characters, in ems,
+    /// keyed first << 8 | second, and its bold's: set where the run
+    /// kerns at its size (`kerningFrom`), as Word kerns them — the
+    /// stand-in's own kerning is off, its pairs not the original's.
+    public var kerns: [UInt32: Double]? = nil
+    public var boldKerns: [UInt32: Double]? = nil
     /// The same for characters past those which the original face has
     /// and its stand-in has not, by code point: the stand-in's fallback
     /// draws them, and the line is set by the original's widths (Times
@@ -5814,6 +5820,17 @@ public final class RichLayout {
                     if let table = s.fontWeight == .bold ? face.boldAdvances : face.advances, k < table.count, let px = s.fontSize, px > 0.5 {
                         let classScale = classed ? face.classScales.flatMap { own >= 0 && own < $0.count ? $0[own] : nil } ?? 1 : 1
                         var target = table[k] * px / (face.sizeScale * classScale)
+                        // (Kerned with the next of the run by the original's
+                        // pair, where the run kerns at its size: zh-d89c3840's
+                        // "（TC）" in YaHei at 16pt, "T" 8.4 in Word's print
+                        // where its advance is 9.17, and its line took "秘".)
+                        let kernsFrom: Double? = run.kerningFrom ?? named?.char.kerningFrom ?? _normalChar(document)?.kerningFrom
+                        let points: Double = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
+                        let pairs: [UInt32: Double]? = s.fontWeight == .bold ? face.boldKerns : face.kerns
+                        if theme.wordRules, let from = kernsFrom, from > 0, points >= from, let pairs, after < text.endIndex,
+                           let v = shown(text[after]).unicodeScalars.first?.value, v >= 0x20, v <= 0x7E, let pair = pairs[u << 8 | v] {
+                            target += pair * px / (face.sizeScale * classScale)
+                        }
                         // (On the print's grid too, kerned as the stand-in
                         // kerns, where the theme has one: `advanceGrid`.)
                         if let grid = theme.advanceGrid, grid > 0 {

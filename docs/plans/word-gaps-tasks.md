@@ -110,7 +110,7 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
-### T70. Kerning in a stand-in set to the original's advances (YaHei's "TC") — CLAIMED
+### T70. Kerning in a stand-in set to the original's advances (YaHei's "TC") — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 Documents: zh-d89c3840 (third sample, 96.5%), p2: "（TC）、…（SC）秘".
 Known: a face set from an advances table (YaHei, YaHei UI, JhengHei,
@@ -120,6 +120,13 @@ Normal's `w:kern` 2, YaHei's T-C pair -99/2048, and Word's print sets
 "T" 8.4pt where its advance is 9.17. Ours, 0.77 wider, ends the line
 8.21pt short of "秘", past the mode-14 half of "）" (8.0), and both lines
 of p2 that hold "（TC）…（SC）" leave "秘" a line down.
+Built: YaHei's (and YaHei UI's, the same), its bold's and JhengHei's
+ASCII pairs from the `kern` tables of the faces Word for Mac carries
+(`RichResolvedFace.kerns`), set where the run kerns at its size. The
+corpus's Word prints agree: 23 of the 33 YaHei pairs over 0.3pt are
+kerned, the rest in runs that do not kern. zh-d89c3840 96.5 -> 100;
+nothing else moved (zh 97.5, POI 88.0). DengXian has GPOS pairs only
+and no `kern` table; left until a print shows Word kerning it.
 
 ### T1. Autofit tables — DONE (2026-10-15)
 Owner: session 017F2GnTfScURKYZPmRxVQvW (Linux dev box, no Word)
