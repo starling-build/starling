@@ -49,6 +49,16 @@ struct SheetChart: Equatable {
     /// the part's references through it and keeps everything else.
     var formulas: [String: String] = [:]
     var formulasChanged: Bool { formulas.contains { $0.key != $0.value } }
+    /// The category axis' own number format, where it is not its source's
+    /// (`sourceLinked="0"`): live categories are shown in it rather than
+    /// in their cells' formats.
+    var categoryFormat: String? = nil
+    /// A pivot chart (`c:pivotSource`): drawn from its cache, which holds
+    /// the pivot's rows without its totals. Its references run over the
+    /// table's cells, grand total included: lo-forum-mso-de-104083's 53
+    /// weeks read live as 54 bars, the last the year's total, and every
+    /// week stood a sliver under an axis twenty times too tall.
+    var pivot = false
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
         a.chart == b.chart && a.path == b.path && a.formulas == b.formulas && a.refs.count == b.refs.count
@@ -137,6 +147,9 @@ enum SheetDrawingsXML {
                       let chart = ChartXML.read(space, allowEmpty: true, color: { colors.color(in: $0) }) {
                 d.name = frame.child("nvGraphicFramePr")?.child("cNvPr")?["name"] ?? "Chart"
                 var sc = SheetChart(chart: chart, refs: _refs(space), path: path)
+                let axis = space.descendant("c:catAx")?.first("c:numFmt") ?? space.descendant("c:dateAx")?.first("c:numFmt")
+                sc.pivot = space.descendant("c:pivotSource") != nil
+                sc.categoryFormat = axis.flatMap { ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }
                 for f in _formulas(space) { sc.formulas[f] = f }
                 d.kind = .chart(sc)
                 d.relId = ref
@@ -233,18 +246,43 @@ extension SheetChart {
     /// the cells they reference, where those resolve.
     func live(book: Workbook, engine: CalcEngine) -> Chart {
         var c = chart
-        func values(_ formula: String) -> [CellValue]? {
+        if pivot { return c }
+        func resolve(_ formula: String) -> (sheet: Int, range: CellRange)? {
             guard let expr = try? Formula.parse("=" + formula), case .ref(let r) = expr, let name = r.sheet,
                   let si = book.sheet(named: name) else { return nil }
-            let range = r.range
-            guard range.rows * range.cols <= 10_000 else { return nil }
+            guard r.range.rows * r.range.cols <= 10_000 else { return nil }
+            return (si, r.range)
+        }
+        func values(_ formula: String) -> [CellValue]? {
+            guard let (si, range) = resolve(formula) else { return nil }
             return engine.values(si, range, includeEmpty: true)
         }
         func shown(_ v: CellValue) -> String { NumberFormat.display(v, "General", width: 255).text }
+        // Names and categories as their cells show them: lo-forum-mso-de-
+        // 104083's weeks are 1-53 under "KW "00, labelled KW 01-KW 53 by
+        // Excel (its cache says so) and 1-53 by ours.
+        // (A scatter chart's x are numbers, read back from these; an axis
+        // with its own format shows them in that, as the cache path does.)
+        func shownCells(_ formula: String, own: String? = nil) -> [String]? {
+            guard let (si, range) = resolve(formula) else { return nil }
+            if c.type == .scatter { return engine.values(si, range, includeEmpty: true).map(shown) }
+            let ws = book.sheets[si]
+            let cells = engine.values(si, range, includeEmpty: true)
+            var out: [String] = [], k = 0
+            for row in range.top ... range.bottom {
+                for col in range.left ... range.right where k < cells.count {
+                    let a = CellAddress(row: row, col: col)
+                    let code = own ?? book.style(ws.cells[a]?.style ?? ws.defaultStyle(at: a)).numberFormat
+                    out.append(NumberFormat.display(cells[k], code, width: 255).text.trimmingWhitespace())
+                    k += 1
+                }
+            }
+            return out
+        }
         for (i, ref) in refs.enumerated() where i < c.series.count {
             if let f = ref.val, let cells = values(f) { c.series[i].values = cells.map { $0.number } }
-            if let f = ref.name, let cells = values(f), let first = cells.first { c.series[i].name = shown(first) }
-            if i == 0, let f = ref.cat, let cells = values(f) { c.categories = cells.map(shown) }
+            if let f = ref.name, let cells = shownCells(f), let first = cells.first { c.series[i].name = first }
+            if i == 0, let f = ref.cat, let cells = shownCells(f, own: categoryFormat) { c.categories = cells }
         }
         let n = max(c.categories.count, c.series.map(\.values.count).max() ?? 0)
         if c.categories.count < n { c.categories += (c.categories.count ..< n).map { "\($0 + 1)" } }
