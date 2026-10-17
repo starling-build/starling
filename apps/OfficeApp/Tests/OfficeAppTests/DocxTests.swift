@@ -565,6 +565,32 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(split.paragraphs[2].style.pageBreakBefore)
     }
 
+    /// WordWithAttachments' "Tryhere.jpg" package prints as its icon: the
+    /// object's WMF carries the icon as a bitmap (DibStretchBlt) beside
+    /// its caption. Painted, the metafile asks for the bitmap, and once it
+    /// is decoded draws it — before, its caption alone printed.
+    func testAnObjectsMetafileDrawsTheBitmapsItCarries() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs/WordWithAttachments.docx")
+        let wmf = try XCTUnwrap(try Zip.read(Data(contentsOf: file)).first { $0.name == "word/media/image1.wmf" }).data
+        let icon = ImageAttachment(data: wmf, width: 54, height: 38.25, name: "image1.wmf")
+        XCTAssertTrue(WriterMetafiles.register(wmf, for: icon.id))
+        func painted() -> Int {
+            let recorder = NativePictureRecorder()
+            let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, 54, 38.25))
+            XCTAssertTrue(WriterMetafiles.paint(icon, canvas, Rect.fromLTWH(0, 0, 54, 38.25)))
+            let picture = recorder.endRecording()
+            defer { picture.dispose() }
+            return picture.approximateBytesUsed
+        }
+        let caption = painted()
+        let deadline = Date().addingTimeInterval(8)
+        while WriterMetafiles.hasPendingImages, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.005)) }
+        XCTAssertFalse(WriterMetafiles.hasPendingImages, "its bitmaps decoded")
+        XCTAssertGreaterThan(painted(), caption, "and drawn with the caption")
+    }
+
     /// zh-8112041b: a 1.5-spaced line's extra space stands under its text,
     /// and at a page's foot it may reach past the margin — Word's page 2
     /// keeps a fourth empty paragraph whose line runs 5pt over and whose

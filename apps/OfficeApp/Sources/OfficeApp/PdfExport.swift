@@ -44,7 +44,7 @@ enum PdfExport {
             _ = recorder.endRecording()
         }
         let deadline = Date().addingTimeInterval(8)
-        while layout.hasPendingImages, Date() < deadline {
+        while layout.hasPendingImages || WriterMetafiles.hasPendingImages, Date() < deadline {
             RunLoop.main.run(until: Date().addingTimeInterval(0.005))
         }
         #endif

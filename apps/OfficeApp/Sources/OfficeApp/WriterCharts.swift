@@ -110,11 +110,44 @@ enum WriterCharts {
 /// the icon and its caption, or the first page of the document. No image
 /// codec reads those, so the object printed as nothing (tika-3388's
 /// "約翰的測試文件 .msg", WordWithAttachments' five attachments). Played
-/// by Slides' player, by the attachment's id; the bitmaps a metafile
-/// carries are not drawn here.
+/// by Slides' player, by the attachment's id, with the bitmaps it
+/// carries — an attachment's icon (WordWithAttachments' package and Word
+/// document, tika-3388's .msg) — decoded beside it as the layout decodes
+/// its pictures: until then they are left out, and an export waits.
 enum WriterMetafiles {
     private nonisolated(unsafe) static var entries: [String: Metafile] = [:]
+    private nonisolated(unsafe) static var decoded: [String: Image] = [:]
+    private nonisolated(unsafe) static var decoding: Set<String> = []
     private static let lock = NSLock()
+
+    /// Whether a metafile's bitmap is still being decoded.
+    static var hasPendingImages: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !decoding.isEmpty
+    }
+
+    /// A metafile's bitmap, decoded once; nil while it decodes.
+    private static func image(_ bitmap: ImageAttachment) -> Image? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let image = decoded[bitmap.id] { return image }
+        guard !decoding.contains(bitmap.id), !bitmap.data.isEmpty else { return nil }
+        decoding.insert(bitmap.id)
+        let bytes = [UInt8](bitmap.data), id = bitmap.id
+        Task { @MainActor in
+            var image: Image? = nil
+            if let codec = try? await instantiateImageCodec(bytes) {
+                image = (try? await codec.getNextFrame())?.image
+                codec.dispose()
+            }
+            lock.lock()
+            decoding.remove(id)
+            if let image { decoded[id] = image }
+            lock.unlock()
+        }
+        return nil
+    }
 
     /// Plays `data` for the object attachment `id`; false where it is no
     /// metafile this can draw.
@@ -139,7 +172,7 @@ enum WriterMetafiles {
         let played = entries[attachment.id]
         lock.unlock()
         guard let played else { return false }
-        played.paint(canvas, in: rect, image: { _ in nil }, font: OfficeFonts.substitute)
+        played.paint(canvas, in: rect, image: { image($0) }, font: OfficeFonts.substitute)
         return true
     }
 }

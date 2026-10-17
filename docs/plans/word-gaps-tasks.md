@@ -1223,7 +1223,7 @@ anchor line as in Word's (v2 445/447 there, 389/391 ours); no score
 moved — the page is still ~56pt high for its missing attachment icons
 and the unframed text box.
 
-### T68. An embedded object's icon: the bitmaps in its metafile
+### T68. An embedded object's icon: the bitmaps in its metafile — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: WordWithAttachments (the "Tryhere.jpg" package's icon, the
 Word document's icon), tika-3388 (the .msg's 40x40 icon).
@@ -1232,6 +1232,8 @@ Known: Writer plays an object's WMF/EMF with no image provider
 (DibStretchBlt, AlphaBlend) do not: our PDFs have no image where Word's
 have the icons. Build: decode the metafile's bitmaps as the layout does
 its pictures, and let the export wait for them.
+Built: WordWithAttachments' two icons and tika-3388's print, at Word's
+place and size. No score moved (the line match reads text).
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

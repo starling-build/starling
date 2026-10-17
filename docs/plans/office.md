@@ -4122,6 +4122,14 @@ fitter dropped the paragraph's tail).
   reformatted marks — one file does not say why.
   Not built: change bars in the margin, the comment
   range's tint in its author's colour.
+- **An embedded object prints its icon (2026-10-17).** An OLE object
+  shows the WMF or EMF its `v:imagedata` names, and Writer played it
+  with no image provider: the caption printed, the icon — a bitmap in
+  the metafile (DibStretchBlt, AlphaBlend) — did not. `WriterMetafiles`
+  now decodes a metafile's bitmaps as the layout does its pictures, and
+  the PDF export waits for them. WordWithAttachments' package and Word
+  document icons and tika-3388's .msg icon print as in Word's. No score
+  moved.
 - **A comment's balloon hangs at the comment's end (2026-10-17).**
   WordWithAttachments' comments each cover a quatrain; Word's balloons
   stand level with the quatrains' last lines, where the references are,
