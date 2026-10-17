@@ -1478,6 +1478,9 @@ private struct SlideContext {
            g.first("a:lin") != nil, st.fillStyle?.stops.isEmpty == false {
             st.fillStyle?.angle -= rotation
         }
+        // A shape with depth or a camera prints as a picture, in sRGB: its
+        // gradient's colours are its own (`SlideFill.unshifted`).
+        if st.scene3d != nil { st.fillStyle?.unshifted = true }
         st.invisible = hiddenByLayout
         // A diagram shape's text frame (`txXfrm`, from a SmartArt drawing):
         // the text sits in that box rather than the shape's.

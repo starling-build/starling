@@ -313,15 +313,24 @@ struct SlideFill: Equatable {
     /// read off the ramps it stores (tdf105739, tdf109067).
     var eased = false
     /// A stop is a theme colour under a modifier (`tint`, `shade`,
-    /// `satMod`…). A path gradient of such stops blends evenly in sRGB,
-    /// not in linear light, as PowerPoint's export blends it — GeomLec1's
-    /// dark background runs evenly from black to grey, and blended in
-    /// linear light it was pale for half its width. (A plain colour under
-    /// a modifier is not one: ImportWordArtGradient's alpha'd `srgbClr`
-    /// stops blend in linear light. Nor is a linear gradient: the 45541
-    /// decks' `gamma`/`shade`/`invGamma` bands were 3 points further
-    /// from PowerPoint blended evenly.)
+    /// `satMod`…). A gradient of such stops blends evenly in sRGB, not in
+    /// linear light, as PowerPoint's export blends it — GeomLec1's dark
+    /// background runs evenly from black to grey, and blended in linear
+    /// light it was pale for half its width; every one of the 350 sRGB
+    /// ramps its prints store is straight in sRGB (backgrounds' text box,
+    /// navy to pale blue, is 113,141,181 a quarter of the way, where
+    /// linear light made it 144…). Any other is blended in linear light
+    /// and shifted as PowerPoint's print shows it (`SlidePainter
+    /// .linearLight`). (A plain colour under a modifier is not one:
+    /// ImportWordArtGradient's alpha'd `srgbClr` stops are in linear
+    /// light. Nor is a `gamma` stop's, `squared`.)
     var even = false
+    /// The gradient is printed as part of a picture — a shape with depth
+    /// or a camera, which PowerPoint renders and places as an image — so
+    /// in sRGB, without the shift its own gradients print with
+    /// (`SlidePainter.linearLight`): Scene3d_orthographicFront's yellow to
+    /// cyan band starts 21,193,254 in its print, as lit, not shifted.
+    var unshifted = false
     /// A stop is under `gamma` (an Office 2003 template's shaded bands,
     /// `gamma`/`shade`/`invGamma`): PowerPoint's ramp then holds to the
     /// lighter stop and leaves it as the square of the way along, in

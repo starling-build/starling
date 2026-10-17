@@ -942,8 +942,8 @@ final class SlidePainter: CustomPainter {
             return m
         }
         let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
-            : fill.even && fill.path != nil || fill.undirected ? (fill.stops.map(\.color), fill.stops.map(\.position))
-                                            : Self.linearLight(fill.stops, eased: fill.eased)
+            : fill.even || fill.undirected ? (fill.stops.map(\.color), fill.stops.map(\.position))
+                                            : Self.linearLight(fill.stops, eased: fill.eased, shifted: !fill.unshifted)
         if let path = fill.path, r.width > 0, r.height > 0 {
             // From the focus out to the circle through the area's four
             // corners: a two-point gradient, its focus placed by the
@@ -1078,7 +1078,7 @@ final class SlidePainter: CustomPainter {
         if fill.path == .rect || fill.path == .shape, fill.stops.count >= 2, r.width > 0, r.height > 0 {
             let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
                 : fill.even ? (fill.stops.map(\.color), fill.stops.map(\.position))
-                                                : Self.linearLight(fill.stops, eased: fill.eased)
+                                                : Self.linearLight(fill.stops, eased: fill.eased, shifted: !fill.unshifted)
             func at(_ u: Double) -> Color {
                 guard let j = positions.firstIndex(where: { $0 >= u }) else { return colors.last! }
                 if j == 0 { return colors[0] }
@@ -1244,9 +1244,27 @@ final class SlidePainter: CustomPainter {
     /// red-to-green is a bright orange, not the sRGB midpoint's brown. The
     /// shader blends in sRGB; these are the stops with linear-light
     /// in-betweens spelled out, so it lands where PowerPoint does.
-    static func linearLight(_ stops: [SlideFill.GradientStop], eased: Bool = false) -> ([Color], [Double]) {
+    ///
+    /// `shifted`: as PowerPoint's export shows it. It writes such a
+    /// gradient's blend as linear values tagged "Generic RGB Linear", whose
+    /// primaries are not sRGB's, so every colour of it — the stops too —
+    /// prints a little off: pure blue as 9,48,254, red as 255,39,0
+    /// (aascu 5864's blue band, tdf105739's red to green; the profile's
+    /// own matrix, `Self.genericLinear`).
+    static func linearLight(_ stops: [SlideFill.GradientStop], eased: Bool = false, shifted: Bool = false) -> ([Color], [Double]) {
         func lin(_ v: Int) -> Double { let c = Double(v) / 255; return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
         func srgb(_ l: Double) -> Int { let c = l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055; return Int((max(0, min(1, c)) * 255).rounded()) }
+        func part(_ c: Color, _ sh: Int) -> Int { (c.value >> sh) & 0xFF }
+        func packed(_ alpha: Int, _ l: (Double, Double, Double)) -> Color {
+            var (r, g, b) = l
+            if shifted {
+                let m = Self.genericLinear
+                (r, g, b) = (m[0] * l.0 + m[1] * l.1 + m[2] * l.2, m[3] * l.0 + m[4] * l.1 + m[5] * l.2, m[6] * l.0 + m[7] * l.1 + m[8] * l.2)
+            }
+            let value: Int = (alpha << 24) | (srgb(r) << 16) | (srgb(g) << 8) | srgb(b)
+            return Color(value)
+        }
+        func linear(_ c: Color) -> (Double, Double, Double) { (lin(part(c, 16)), lin(part(c, 8)), lin(part(c, 0))) }
         var colors: [Color] = [], positions: [Double] = []
         for i in 0 ..< stops.count {
             let s = stops[i]
@@ -1254,27 +1272,28 @@ final class SlidePainter: CustomPainter {
                 let a = stops[i - 1]
                 // (An eased blend bends more, and takes more in-betweens.)
                 let steps = eased ? 16 : 8
+                let from = linear(a.color), to = linear(s.color)
                 for k in 1 ..< steps {
                     let at = Double(k) / Double(steps)
                     let t = eased ? (1 - cos(.pi * at)) / 2 : at
-                    func part(_ c: Color, _ sh: Int) -> Int { (c.value >> sh) & 0xFF }
-                    func ch(_ sh: Int) -> Int {
-                        let from = lin(part(a.color, sh)), to = lin(part(s.color, sh))
-                        return srgb(from * (1 - t) + to * t)
-                    }
                     let aa = Double(part(a.color, 24)), sa = Double(part(s.color, 24))
                     let alpha = Int((aa * (1 - t) + sa * t).rounded())
-                    let red = ch(16), green = ch(8), blue = ch(0)
-                    let packed: Int = (alpha << 24) | (red << 16) | (green << 8) | blue
-                    colors.append(Color(packed))
+                    colors.append(packed(alpha, (from.0 * (1 - t) + to.0 * t, from.1 * (1 - t) + to.1 * t, from.2 * (1 - t) + to.2 * t)))
                     positions.append(a.position + (s.position - a.position) * at)
                 }
             }
-            colors.append(s.color)
+            colors.append(shifted ? packed(part(s.color, 24), linear(s.color)) : s.color)
             positions.append(s.position)
         }
         return (colors, positions)
     }
+
+    /// Apple's "Generic RGB Linear" to sRGB, both in linear light: the
+    /// profile's D50 primaries (its rXYZ, gXYZ, bXYZ) into sRGB's, as a
+    /// viewer converts them. Row-major.
+    static let genericLinear: [Double] = [1.02419807, -0.02755359, 0.00291467,
+                                          0.02069563, 0.949455, 0.03060898,
+                                          -0.00206945, -0.00198748, 1.00323661]
 
     /// A `gamma` gradient's stops (`SlideFill.squared`) with in-betweens:
     /// each blend in sRGB, leaving the lighter of its two stops as the

@@ -206,10 +206,7 @@ lo-tdf104786.pptx
 lo-tdf104788.pptx
 lo-tdf104789.pptx
 lo-tdf104792-smart-art-animation.pptx
-lo-tdf105739.pptx
 lo-tdf106638.pptx
-lo-tdf109067.pptx
-lo-tdf109187.pptx
 lo-tdf111786.pptx
 lo-tdf111789.pptx
 lo-tdf112089.pptx

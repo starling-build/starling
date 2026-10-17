@@ -2061,6 +2061,36 @@ print with the face lifted about 31% toward white — 79,129,189 →
 lit band along the top and right; the only deck with that rig, and
 four boxes of one slide.
 
+**Gradients as PowerPoint's print colours them, 2026-10-17** (sweep 162:
+1.0598 → 1.0509%; aascu 5864 7.86 → 5.74, its slide 32 73.8 → about 2,
+tdf109067 2.51 → 0, tdf105739 0.42 → 0, tdf109187 0.06 → 0, backgrounds
+1.13 → 0.83; customGeo +0.08, tdf152606 +0.09, Scene3d_pureImage
++0.21, cropped_image +0.07). PowerPoint's PDFs hold two kinds of
+gradient, and say which by the colour space each is tagged with:
+- **sRGB** (350 in the corpus' prints): every one an even blend in sRGB.
+  These are the gradients with a theme colour under a modifier (`tint`,
+  `shade`, `satMod`, `lumMod`…), which we blended in linear light unless
+  they were path gradients: backgrounds' text box, navy to pale blue,
+  is 113,141,181 a quarter of the way in PowerPoint's print, 144,… ours.
+  Now even, whatever the direction (`SlideFill.even`).
+- **"Generic RGB Linear"** (206): the plain-colour ones, stored as
+  linear-light values in Apple's linear profile, whose primaries are not
+  sRGB's — so any viewer shows every colour of them shifted: pure blue
+  as 9,48,254, red as 255,39,0, the stops too. aascu 5864's slide-sized
+  blue band (000076 to 0000FF) differed on 74% of its page. The
+  linear-light blend now goes through the profile's own matrix to sRGB
+  (`SlidePainter.genericLinear`, from its rXYZ/gXYZ/bXYZ), which lands
+  on MuPDF's rendering of it to a level.
+Not for a shape with depth or a camera (`SlideFill.unshifted`):
+PowerPoint prints those as pictures, in sRGB (Scene3d_orthographicFront
+lost 0.28 with the shift). The losses are diagrams PowerPoint redraws
+from their style — customGeo's purple statement boxes are a two-stop
+ramp in its print, three stops in the file — and 3-D lighting it adds
+(tdf152606's arrows, brighter than their own stops); the old linear-light
+blend was brighter, and nearer them by chance. tdf93868's plain black
+to grey (three stops, two the same) and KEY02's text gradient print
+in sRGB, unexplained; neither moves, being grey or white.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so
