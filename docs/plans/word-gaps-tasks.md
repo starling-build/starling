@@ -982,7 +982,7 @@ new one "Moved (insertion) [n]". No score moved: Tika-792 still 0 — its
 move balloon prints, but Word's "Formatted: Font color: Auto" and the
 balloon order still differ.
 
-### T61. delins's balloons: a reformatted paragraph mark, deleted list items
+### T61. delins's balloons: a reformatted paragraph mark, deleted list items — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
 Documents: delins (55%).
 Known: Word gives a reformatted paragraph mark its own "Formatted:"
@@ -990,6 +990,10 @@ balloon (each link item: Field Code Changed, its text's, its mark's);
 ours prints none for marks. In a deletion's balloon Word starts each
 deleted paragraph on its own line, a list item's with "<#>"; ours runs
 them on ("Tika.¶Tika Waylan").
+Built: both, and a field's ends break a "Formatted:" stretch while a
+reformatted mark joins the next paragraph's (read off the connector
+lines in Word's print). delins 55 -> 75%, nothing else moved. Open:
+which of a link's balloons comes first (office.md).
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

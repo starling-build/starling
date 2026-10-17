@@ -4032,7 +4032,19 @@ fitter dropped the paragraph's tail).
   (saved as w:ins/w:del); printing labels them "Moved (insertion) [n]"
   and "Moved down/up [n]:". No score moved (Tika-792 still 0: Word's
   "Formatted: Font color: Auto" and the balloon order differ).
-  Not built: a reformatted paragraph mark's balloon, change bars in the margin, the comment
+  Then delins's balloons, read off the connector lines in Word's print
+  (each balloon's line runs to its anchor): a reformatted paragraph mark
+  has its "Formatted:" balloon, but joined to the stretch it ends and to
+  the next paragraph's first runs (three headings and their marks, one
+  balloon); a field's start and end break a stretch, so a link's text and
+  the words after it are two (`CharStyle.fieldResult`, read, not saved).
+  A deletion's balloon starts each deleted paragraph on a line of its
+  own, a list item's with "<#>" for its lost number. delins 55 -> 75%,
+  its 23 "Formatted:" and 10 "Field Code Changed" as Word's; nothing else
+  moved. Open: Word prints "Field Code Changed" first for links 13-15
+  and last for 16-21, and the only difference in their XML is 13-15's
+  reformatted marks — one file does not say why.
+  Not built: change bars in the margin, the comment
   range's tint in its author's colour.
 - **Web spacing parts two lists (2026-10-16).** delins: bullets with
   automatic spacing (beforeAutospacing/afterAutospacing), "A name in

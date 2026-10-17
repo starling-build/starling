@@ -167,6 +167,10 @@ public struct CharStyle: Hashable, Sendable {
     /// reformatted under change tracking: Word's markup shows "Field Code
     /// Changed" there. Read, not written back.
     public var fieldCodeChanged = false
+    /// Which field's shown result this run is, numbered through the
+    /// document (0 for none): Word's markup ends a "Formatted:" stretch
+    /// at a field's ends. Read, not written back.
+    public var fieldResult = 0
 
     public init(bold: Bool = false, italic: Bool = false, underline: Bool = false,
                 strikethrough: Bool = false, fontFamily: String? = nil,

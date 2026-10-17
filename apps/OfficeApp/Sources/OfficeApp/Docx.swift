@@ -2208,8 +2208,10 @@ enum DocxFormat {
         var pendingBookmarks: [String] = []
         /// The fields open at this point of the walk, innermost last (a
         /// contents field spans paragraphs and holds a page reference per
-        /// line): each one's instruction, and whether its result has begun.
-        var fields: [(instr: String, result: Bool)] = []
+        /// line): each one's instruction, whether its result has begun,
+        /// and its number in the document (`CharStyle.fieldResult`).
+        var fields: [(instr: String, result: Bool, id: Int)] = []
+        var fieldCount = 0
         /// Whether the code of the field being read was reformatted under
         /// change tracking: its result's first run says so
         /// (`CharStyle.fieldCodeChanged`).
@@ -2966,6 +2968,7 @@ enum DocxFormat {
             // Kinmen emergency plan listed its chapters 5 to 46 pages
             // early). Other fields stay the text they show.
             if let f = notes.fields.last, f.result {
+                cs.fieldResult = f.id
                 let instr = f.instr.trimmingWhitespace(newlines: true)
                 if instr.uppercased().hasPrefix("PAGEREF ") { cs.field = instr }
                 else if notes.inHeaderFooter, DocxFormat._isPageField(instr) { cs.field = instr; notes.fieldShown = true }
@@ -3007,7 +3010,9 @@ enum DocxFormat {
                     }
                     if child["w:fldCharType"] == "end" { notes.fieldCodeChanged = false }
                     switch child["w:fldCharType"] {
-                    case "begin": notes.fields.append((instr: "", result: false)); notes.fieldShown = false
+                    case "begin":
+                        notes.fieldCount += 1
+                        notes.fields.append((instr: "", result: false, id: notes.fieldCount)); notes.fieldShown = false
                     case "separate": if !notes.fields.isEmpty { notes.fields[notes.fields.count - 1].result = true }
                     case "end":
                         // (A page field with no result yet shows a number
@@ -3191,7 +3196,8 @@ enum DocxFormat {
                                             author: child["w:author"] ?? "", date: child["w:date"] ?? "", moved: true)
                     walkInline(child, link: link, revision: mark)
                 case "w:fldSimple" where notes.inHeaderFooter && DocxFormat._isPageField(child["w:instr"] ?? ""):
-                    notes.fields.append((instr: child["w:instr"] ?? "", result: true))
+                    notes.fieldCount += 1
+                    notes.fields.append((instr: child["w:instr"] ?? "", result: true, id: notes.fieldCount))
                     walkInline(child, link: link, revision: revision)
                     notes.fields.removeLast()
                 case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":

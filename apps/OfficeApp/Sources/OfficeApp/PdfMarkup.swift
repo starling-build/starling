@@ -34,11 +34,17 @@ struct PdfMarkup {
         // A deletion still open: its text so far, and where it stands.
         var open: Note? = nil
         func close() {
-            if let note = open { deletions.append(note) }
+            if var note = open {
+                // (A deleted mark ends its line in the balloon; nothing after it.)
+                if note.paragraphs.count > 1, note.paragraphs.last == "" { note.paragraphs.removeLast() }
+                deletions.append(note)
+            }
             open = nil
         }
         var pending: RichParagraph? = nil   // a paragraph whose mark was deleted, to be joined to the next
         for var p in source.paragraphs {
+            // Where this paragraph's own text begins (after a joined head's).
+            var own = 0
             if var head = pending {
                 // Its mark deleted, the paragraph runs on into the next:
                 // the next's text after its own, in the next's look (Word
@@ -46,6 +52,7 @@ struct PdfMarkup {
                 if head.cell == p.cell, p.image == nil, head.image == nil {
                     let runs = (head.runs.isEmpty && !head.text.isEmpty ? [Run(length: head.text.utf16.count)] : head.runs)
                         + (p.runs.isEmpty && !p.text.isEmpty ? [Run(length: p.text.utf16.count)] : p.runs)
+                    own = head.text.utf16.count
                     head.text += p.text
                     head.runs = runs
                     head.style = p.style
@@ -62,8 +69,9 @@ struct PdfMarkup {
                 var runs: [Run] = []
                 var at = p.text.utf16.startIndex
                 for run in p.runs {
+                    let start = p.text.utf16.distance(from: p.text.utf16.startIndex, to: at)
                     let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
-                    let piece = String(p.text[at ..< end])
+                    var piece = String(p.text[at ..< end])
                     at = end
                     if run.style.revision?.kind == .deleted {
                         let anchor = RichPosition(paragraph: paragraphs.count, offset: text.utf16.count)
@@ -74,6 +82,9 @@ struct PdfMarkup {
                                         family: run.style.fontFamily.map(OfficeFonts.substitute)
                                             ?? source.styles.resolve(p.style)?.char.fontFamily.map(OfficeFonts.substitute))
                         }
+                        // A list item deleted with its mark loses its number
+                        // too, which Word writes "<#>" (delins's tika items).
+                        if start == own, run.length > 0, p.style.list != nil, p.style.markRevision?.kind == .deleted { piece = "<#>" + piece }
                         open!.paragraphs[open!.paragraphs.count - 1] += piece
                     } else {
                         if !piece.isEmpty { close() }
@@ -85,8 +96,9 @@ struct PdfMarkup {
                 p.runs = runs.isEmpty ? [Run(length: 0, style: p.runs.first?.style ?? CharStyle())] : runs
             }
             if p.style.markRevision?.kind == .deleted {
-                // (Its mark goes into the balloon too, as Word writes it: ¶.)
-                if open != nil { open!.paragraphs[open!.paragraphs.count - 1] += "¶" }
+                // (Its mark goes into the balloon too, as Word writes it: ¶,
+                // and the next deleted paragraph starts a line of its own.)
+                if open != nil { open!.paragraphs[open!.paragraphs.count - 1] += "¶"; open!.paragraphs.append("") }
                 else if p.text.isEmpty {
                     open = Note(anchor: RichPosition(paragraph: paragraphs.count, offset: 0), label: "Deleted:", paragraphs: ["¶"],
                                 author: p.style.markRevision?.author ?? "")
@@ -152,28 +164,41 @@ struct PdfMarkup {
 
     /// The formatting changes: a balloon for each stretch of runs whose
     /// look was changed the same way, saying how, as Word says it —
-    /// "Formatted: English (US)", "Formatted: Font color: Auto".
+    /// "Formatted: English (US)", "Formatted: Font color: Auto". A field's
+    /// start or end breaks a stretch (a link's text and the words after it
+    /// are two); a reformatted paragraph mark joins the stretch it ends
+    /// and the next paragraph's, as Word's delins joins three headings'.
     private static func _formats(_ document: RichDocument) -> [Note] {
         var out: [Note] = []
+        // The stretch still open: what it says, and the field it is in.
+        var last: (text: String, field: Int)? = nil
         for (i, p) in document.paragraphs.enumerated() {
             var at = 0
-            var last: (text: String, end: Int)? = nil
-            for run in p.runs {
+            // (An empty run, an empty paragraph's, breaks nothing.)
+            for run in p.runs where run.length > 0 {
                 defer { at += run.length }
                 // (A field whose code was reformatted: "Field Code Changed"
                 // where its result begins, before the result's own.)
-                if run.length > 0, run.style.fieldCodeChanged, run.style.revision?.kind != .deleted {
+                if run.style.fieldCodeChanged, run.style.revision?.kind != .deleted {
                     out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Field Code Changed", paragraphs: [""],
                                     author: run.style.formatChange?.author ?? ""))
                     last = nil
                 }
-                guard run.length > 0, let change = run.style.formatChange, run.style.revision?.kind != .deleted else { last = nil; continue }
+                guard let change = run.style.formatChange, run.style.revision?.kind != .deleted else { last = nil; continue }
                 let text = _describe(run.style, was: change.oldRPrXML)
                 guard !text.isEmpty else { last = nil; continue }
-                if let l = last, l.text == text, l.end == at { last = (text, at + run.length); continue }
+                let field = run.style.fieldResult
+                if let l = last, l.text == text, l.field == field { continue }
                 out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Formatted:", paragraphs: [text], author: change.author))
-                last = (text, at + run.length)
+                last = (text, field)
             }
+            guard let mark = p.style.mark, let change = mark.formatChange, p.style.markRevision?.kind != .deleted else { last = nil; continue }
+            let text = _describe(mark, was: change.oldRPrXML)
+            guard !text.isEmpty else { last = nil; continue }
+            if let l = last, l.text == text, l.field == 0 { continue }
+            out.append(Note(anchor: RichPosition(paragraph: i, offset: p.text.utf16.count), label: "Formatted:", paragraphs: [text],
+                            author: change.author))
+            last = (text, 0)
         }
         return out
     }

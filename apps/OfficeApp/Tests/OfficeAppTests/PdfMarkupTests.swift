@@ -85,6 +85,52 @@ final class PdfMarkupTests: XCTestCase {
         XCTAssertEqual(PdfMarkup(doc).notes.map(\.label), ["Field Code Changed", "Formatted:"])
     }
 
+    /// delins: a link item whose language was set under change tracking
+    /// has three balloons in Word's print — the field code's, the link
+    /// text's, and the words after it with the paragraph's mark; a field's
+    /// end breaks a stretch, a reformatted mark joins it to the next
+    /// paragraph's (three headings, one balloon).
+    func testAFieldsEndBreaksAFormattingStretchAndAMarkJoinsOne() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let change = "<w:rPrChange w:id=\"1\" w:author=\"pavel\"><w:rPr/></w:rPrChange>"
+        let english = "<w:rPr><w:lang w:val=\"en-US\"/>\(change)</w:rPr>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr>\(english)</w:pPr><w:r>\(english)<w:t>March 2009</w:t></w:r></w:p>"
+            + "<w:p><w:pPr>\(english)</w:pPr><w:r>\(english)<w:t>Apache Tika 0.3</w:t></w:r></w:p>"
+            + "<w:p><w:pPr>\(english)</w:pPr><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>"
+            + "<w:r><w:rPr>\(change)</w:rPr><w:instrText xml:space=\"preserve\"> HYPERLINK \"http://x\" </w:instrText></w:r>"
+            + "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
+            + "<w:r>\(english)<w:t>Lucene Boot Camp</w:t></w:r>"
+            + "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r><w:r>\(english)<w:t xml:space=\"preserve\"> - a session</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:t>plain</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let notes = PdfMarkup(try DocxFormat.read(try Zip.write(entries)).document).notes
+        XCTAssertEqual(notes.map(\.label), ["Formatted:", "Field Code Changed", "Formatted:", "Formatted:"])
+        XCTAssertEqual(notes.map(\.anchor), [RichPosition(paragraph: 0, offset: 0), RichPosition(paragraph: 2, offset: 0),
+                                             RichPosition(paragraph: 2, offset: 0), RichPosition(paragraph: 2, offset: 16)])
+    }
+
+    /// delins: two list items deleted marks and all are one balloon, each
+    /// on its own line and its lost number written "<#>", as Word prints
+    /// them.
+    func testDeletedListItemsTakeALineEach() {
+        var deleted = CharStyle()
+        deleted.revision = RevisionMark(kind: .deleted, author: "pavel")
+        func item(_ text: String) -> RichParagraph {
+            var p = paragraph([run(text, deleted)])
+            p.style.list = .bullet
+            p.style.markRevision = RevisionMark(kind: .deleted, author: "pavel")
+            return p
+        }
+        let print = PdfMarkup(RichDocument(paragraphs: [item("A pendant."), item("Tika Waylan"), paragraph([run("March 2009")])]))
+        XCTAssertEqual(print.document.paragraphs.map(\.text), ["March 2009"])
+        XCTAssertEqual(print.notes.map(\.label), ["Deleted:"])
+        XCTAssertEqual(print.notes.first?.paragraphs, ["<#>A pendant.¶", "<#>Tika Waylan¶"])
+    }
+
     /// Tika-792: moved text was skipped whole, gone from the page and the
     /// save. Its new place is an insertion and its old a deletion, both
     /// marked moved; a save writes them back as an insertion and a
