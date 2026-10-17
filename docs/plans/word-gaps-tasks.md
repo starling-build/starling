@@ -1133,7 +1133,7 @@ form's title cell opens with two; ours split an empty line off, 59pt
 of the page). Mac measured the same independently. zh-8112041b 70.8 ->
 100%, nothing else moved (same-base sweep with and without).
 
-### T65. zh-17749c13 p20: a grid line's limit at the page foot is its deepest face's — claimed
+### T65. zh-17749c13 p20: a grid line's limit at the page foot is its deepest face's — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-17
 zh-17749c13 (85.6%) runs a line ahead from page 21: ours keeps "第六十六条
 申请办理船舶国籍证书…" (14pt 宋体, one line, two 15.6pt pitches, auto
@@ -1152,6 +1152,8 @@ which Word sets in YaHei (12, 14, 16pt: 5.5, 6.7, 7.4) — each face's natural
 line below its baseline; the same with 14pt of space after, auto or not.
 zh-17749c13's line is 宋体 bold and YaHei: YaHei's 6.7 decides, and ours
 took its overhang from the first run's 宋体 (6.5) and kept the line.
+DONE: a text line's overhang is its runs' least (`_overhang`): zh-17749c13
+85.6 -> 98.1, zh-2a241df1 72.4 -> 74.3; nothing else moved.
 
 ### T64. 楷体_GB2312 is YaHei in today's Word for Mac — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17

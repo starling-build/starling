@@ -4804,8 +4804,28 @@ public final class RichLayout {
                     _overhang[i] = _px(min(theme.gridOverhang(for: look, in: style, named: named, eastAsian: true, gridPitch: pitch),
                                            theme.gridOverhang(for: look, in: style, named: named, eastAsian: false, gridPitch: pitch)))
                 } else {
-                    let ea = p.text.contains { Self.isEastAsian($0, hinted: false) }
-                    _overhang[i] = _px(theme.gridOverhang(for: look, in: style, named: named, eastAsian: ea, gridPitch: pitch))
+                    // (By the deepest face on the line, not the first run's:
+                    // the foot must reach each face's natural line under the
+                    // baseline — lab `footlab` (Word 16): 0.294 em in 宋体,
+                    // 0.465 in the YaHei Word sets 仿宋_GB2312 in. zh-17749c13's
+                    // "第六十六条…" is 宋体 bold and then YaHei, and its 宋体
+                    // first run's 6.5pt let ours keep at page 20's foot a line
+                    // Word sends over.)
+                    var least = Double.infinity
+                    var at = p.text.startIndex
+                    for run in p.runs {
+                        let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.endIndex) ?? p.text.endIndex
+                        let text = p.text[at ..< end]
+                        at = end
+                        guard text.contains(where: { !$0.isWhitespace }) else { continue }
+                        let ea = text.contains { Self.isEastAsian($0, hinted: false) }
+                        least = min(least, theme.gridOverhang(for: run.style, in: style, named: named, eastAsian: ea, gridPitch: pitch))
+                    }
+                    if !least.isFinite {
+                        let ea = p.text.contains { Self.isEastAsian($0, hinted: false) }
+                        least = theme.gridOverhang(for: look, in: style, named: named, eastAsian: ea, gridPitch: pitch)
+                    }
+                    _overhang[i] = _px(least)
                 }
             } else if theme.wordRules, p.image == nil, p.cell == nil, style.lineHeightPoints == nil,
                       case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001,
