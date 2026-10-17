@@ -5307,6 +5307,27 @@ fitter dropped the paragraph's tail).
   after its first row** (zh-a4b0f6ea p20, `tblpPr vertAnchor="page"`):
   the rest of the table, which would fit, goes to page 21 in Word's
   print, and the text under it stays on page 20.
+- **Spaces beside other characters add no height to a line, in any
+  face (2026-10-17).** zh-2a241df1's "（图表5…）" caption opens with two
+  14pt spaces in 仿宋_GB2312, then 10.5pt 宋体 text, on a 15.6pt line
+  grid. In Word's print it is one pitch; ours took two, and every line
+  after it on the page stood 15pt low. The rule had already set such
+  spaces at the text's size, but in their own face, and YaHei (Word's
+  仿宋_GB2312 on a Mac) is two pitches even at 10.5. Labs `cap2` and
+  `cap3` (Word 16): 14pt and 20pt spaces before, within or after the
+  text leave the line as it is, in 仿宋_GB2312, YaHei, SimSun, Times or
+  a face no one has, with the grid or without. A tab, a no-break space
+  and a glyph do count. Now such a run of spaces has no height of its
+  own (`height: 0.01`); a line of spaces alone keeps the mark's.
+  zh-2a241df1 35.2 -> 72.4, zh-6cd1befe 98.2 -> 98.6; nothing down.
+  Left:
+  - Trailing 14pt spaces after 仿宋_GB2312 text are still a pitch tall
+    (lab `cap`, `E-trail`). That is the trailing-space joiner's style.
+  - The ideographic space is out of the rule. At no height, the line's
+    baseline came 9pt low.
+  - Without the grid, 20pt spaces in a 10.5pt Latin line (`cap3`) keep
+    the line's height right but draw its text 9pt low, clipped by the
+    next line. That was so before this change too.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

@@ -1064,6 +1064,10 @@ its own axes (a percentage axis on the right). `ChartXML.read` takes a
 combination only on one pair of axes, so both read as nil and nothing is
 drawn. Plan: read the line's axes, scale the line by its own axis, and
 label that axis on the right (Slides' ChartPainter, shared with decks).
+Done: the second axis (ae2d227a). The caption under a table is one
+pitch, because spaces beside text add no height (2026-10-17). That was
+page 2 on, 35.2 -> 72.4. Left: the data table (`c:dTable`), the chart's
+fills and borders, and Excel's axis step. Still claimed.
 
 ### T58. A paragraph that opens with a tab: the line stays at its indent — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16

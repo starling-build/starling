@@ -5295,7 +5295,20 @@ public final class RichLayout {
                 // (A run of spaces alone takes the line's height, not its own.)
                 if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " || $0 == "\t" || $0 == "\u{3000}" }), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-                    if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01) {
+                    if !lineSize.blank, kind != -2, !text.contains("\t"), !text.contains("\u{3000}") {
+                        // (Beside other characters, spaces have no height
+                        // at all, whatever their face or size: lab `cap2`
+                        // (Word 16, 2026-10-17) — two 14pt or 20pt spaces
+                        // opening a 10.5pt 宋体 caption, in 仿宋_GB2312,
+                        // YaHei, Times or a face no one has, leave it one
+                        // pitch of the grid, and `cap3` 20pt spaces before,
+                        // within or after 10.5pt text one 10.5pt line.
+                        // Sized to the text in their own face they still
+                        // counted: YaHei's 10.5 is two pitches, and
+                        // zh-2a241df1's caption took a line more. A tab, a
+                        // no-break space and a glyph do count.)
+                        s = s.copyWith(height: 0.01)
+                    } else if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01) {
                         var sized = run
                         sized.fontSize = lineSize.size
                         let r = theme.textStyle(for: sized, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
