@@ -1161,6 +1161,15 @@ enum OfficeFonts {
                 face.naturalHeight = 1.4102
                 face.baseline = 1.1006
             }
+            // (A face Word does not have, which it draws in Cambria, is a
+            // line of Cambria's ascent over Times New Roman's descent:
+            // 1.166 ems, where Cambria's own is 1.172. bug59058's
+            // MinionPro-Regular text, 13pt at least 15, steps 15.17 in
+            // Word's print over 29 lines and its MinionPro-It titles
+            // beside Times 15.16 over 69; Caladea's line made both 15.24.)
+            if clone == cambria, !["cambria", "caladea"].contains(family.trimmingWhitespace().lowercased()) {
+                face.naturalHeight = 0.95 + 0.2163
+            }
             if clone == serif {
                 face.otherAdvances?.merge(timesNumerals) { $1 }
                 face.boldOtherAdvances?.merge(timesBoldNumerals) { $1 }
