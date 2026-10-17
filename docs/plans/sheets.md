@@ -250,8 +250,11 @@ Tried and taken back: "any formatted cell widens what prints, though it
 does not lengthen it" gave FormatConditionTests Excel's fourth page (29.6%
 -> 6.0%) and lo-user_defined_function eleven pages too many — its empty
 cells in BE:BG have their column's own format; lo-tdf113271's F3 has a
-format its column lacks and does not widen Excel's print either. What
-makes FormatConditionTests' H7 count is still open.
+format its column lacks and does not widen Excel's print either.
+Solved 2026-10-17: it was never H7 (a lab without it prints the same
+four pages) but row 1's span — a filled row style with spans="1:8"
+over cells A-D, whose missing E-H Excel makes cells in the row's fill.
+With spans="1:4" Excel prints three pages, as we did.
 
 Tried and taken back, 2026-10-16: placing a cell's baseline from a
 table of the cell's face and size. Labs in a Calibri 11 book (gridlines
