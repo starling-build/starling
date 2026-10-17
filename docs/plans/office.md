@@ -5589,6 +5589,12 @@ fitter dropped the paragraph's tail).
   paragraph: carried, that became "12", whose 56pt indent widened
   zh-a0e932c2's gap and moved its second column 16pt right (100 -> 78.8
   until this). zh-6cd1befe 99.4 -> 99.5 (p51 whole); nothing else moved.
+- **An empty paragraph that ends a section is neither numbered nor
+  counted (2026-10-17).** zh-e6d54ae4's first section ends on an empty
+  paragraph holding a level-0 item of its "壹、貳、…" list. Word prints
+  no number for it and numbers the next heading "肆、計畫內容"; ours
+  counted it, and every heading after was one on ("伍", "陸", "柒、其他"
+  for "陸、其他"). zh-e6d54ae4 99.2 -> 99.5; nothing else moved.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than

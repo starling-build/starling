@@ -1378,6 +1378,11 @@ public enum RichListNumbering {
                 counters[anonymous] = nil
                 continue
             }
+            // (An empty paragraph that ends a section is the break
+            // alone: Word neither numbers nor counts it. zh-e6d54ae4's
+            // section ends on an empty level-0 item before "計畫內容",
+            // which Word's print numbers 肆, ours 伍.)
+            if p.text.isEmpty, p.image == nil, s.sectionXML != nil { continue }
             let lvl = min(max(0, s.listLevel), 8)
             if kind == .bullet {
                 let chosen = s.listId.flatMap { document.listFormats[$0]?[lvl] }
