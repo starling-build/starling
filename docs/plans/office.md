@@ -4524,6 +4524,21 @@ fitter dropped the paragraph's tail).
   their 30pt, where ours, counting no line on that side, took two. A
   cell's side with no line of its own now takes its neighbour's.
   zh-37b6536f 96.2 -> 97.7; nothing else moved.
+- **A no-break space takes its width, and the hAnsi face's past ASCII
+  (2026-10-16).** zh-17749c13 is from a second Word sample: 20
+  unprinted documents of the zh corpus, prints in
+  `~/starling-word-check/zh2`, scored with `DOCX_WORD_REFS`. It spaces
+  its "第十三条" and "（一）" openings with U+00A0. In Word's print each is
+  an em of SimSun, whether the run's ASCII face is 宋体 or 仿宋_GB2312
+  with `w:hAnsi` 宋体. Ours had two faults. The em the square face's
+  table gives a no-break space (lab `nb1`) was set as spacing on the
+  space itself, and the engine sets no spacing on a space: it came out
+  at the stand-in's 0.29 em. And the width was the ASCII face's, where
+  Word takes the `w:hAnsi` face for Latin characters past ASCII. Now
+  the width rides on a word joiner after the space, and past ASCII the
+  hAnsi face's own advance is taken where it has one. zh-17749c13 went
+  from 7.9% to 85.6% in the new sample; nothing moved in the checked-in
+  corpora.
 - **A frame on the margin stands at its y, centred where it says; a
   run's 100% scale undoes its style's (2026-10-16).** zh-90e0cea8's
   cover ends with "山东省市场监督管理局 发布" in a frame. Its style's base

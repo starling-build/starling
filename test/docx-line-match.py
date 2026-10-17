@@ -29,7 +29,8 @@ import sys
 import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WORD = os.path.join(HERE, "corpus", "docx", "word")
+# (DOCX_WORD_REFS: another folder of Word's prints, for a sample not checked in.)
+WORD = os.environ.get("DOCX_WORD_REFS") or os.path.join(HERE, "corpus", "docx", "word")
 
 
 def mupdf_text(pdf):

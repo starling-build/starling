@@ -5187,6 +5187,9 @@ public final class RichLayout {
             let latinFace = theme.wordRules || theme.setsFaceAdvances
                 ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
             let hinted = (run.fontHint ?? named?.char.fontHint) == "eastAsia" || (latinFace?.isEastAsian ?? false)
+            // (The face Word sets the Latin characters past ASCII in, where
+            // the run names one other than its ASCII face: `w:hAnsi`.)
+            let highFace = latinFace == nil ? nil : (run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             let closes = _closesUpMarks(run, named, document)
             // (So may text whose East Asian language has no such rules —
@@ -5526,12 +5529,17 @@ public final class RichLayout {
                     let w = kerns && following != nil ? _pairAdvance(s, ch, following!) : _glyphWidth(s, ch)
                     let g = grid * theme.pixelsPerPoint * scale
                     if g > 0, w > 0 { extra += (w / g).rounded() * g - w }
-                } else if !ea, let face = latinFace, face.otherAdvances != nil, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value {
+                } else if !ea, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value,
+                          let face = (u >= 0x80 && highFace?.otherAdvances?[u] != nil ? highFace : nil) ?? latinFace, face.otherAdvances != nil {
                     // … and the width it gives one the stand-in lacks.
+                    // (Past ASCII, the `w:hAnsi` face's, where it has its own:
+                    // zh-17749c13's no-break spaces in 仿宋_GB2312 runs whose
+                    // hAnsi is 宋体 are SimSun's, an em each in Word's print.)
                     let s = style(kind)
+                    let own = face.family == latinFace?.family
                     if let w = (s.fontWeight == .bold ? face.boldOtherAdvances : face.otherAdvances)?[u], let px = s.fontSize, px > 0.5 {
                         let classScale = classed ? face.classScales.flatMap { kind >= 0 && kind < $0.count ? $0[kind] : nil } ?? 1 : 1
-                        var target = w * px / (face.sizeScale * classScale)
+                        var target = own ? w * px / (face.sizeScale * classScale) : w * em
                         // (On the print's grid, where the theme has one.)
                         if let grid = theme.advanceGrid, grid > 0 {
                             let g = grid * theme.pixelsPerPoint * scale
@@ -5647,7 +5655,19 @@ public final class RichLayout {
                 } else if extra != 0 {
                     flush(i)
                     let s = style(kind)
-                    spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
+                    if theme.wordRules, ch == "\u{00A0}" {
+                        // (A no-break space's width on a word joiner after
+                        // it: the engine sets no spacing on the space
+                        // itself — zh-17749c13's "第十三条  受理…", 宋体
+                        // no-break spaces an em apiece in Word's print, came
+                        // out at the stand-in's 0.29 em with the em's
+                        // spacing on them.)
+                        spans.append(TextSpan(text: "\u{00A0}", style: s))
+                        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(kind).copyWith(letterSpacing: (zeroWidth(kind).letterSpacing ?? 0) + extra)))
+                        inserts.append(offset + 1)
+                    } else {
+                        spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
+                    }
                     start = after
                 }
                 offset += ch.utf16.count
