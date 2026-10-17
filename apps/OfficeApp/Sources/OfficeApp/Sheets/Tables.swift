@@ -199,6 +199,12 @@ enum TableStyles {
             else if !totals && stripe { x.fill = tint(0.8) }
             if !header { x.bottom = tint(0.4) }
             if totals { x.top = base; x.bold = true }
+            // An outline in the lines' tint, the header inside it, as the
+            // file-defined copies of Medium 2 spell it out (lo-Book1_custom;
+            // lo-tdf131380's right edge in Excel's print).
+            if a.col == t.ref.left { x.left = tint(0.4) }
+            if a.col == t.ref.right { x.right = tint(0.4) }
+            if a.row == t.ref.top { x.top = tint(0.4) }
         case ("Medium", 1):                    // Medium 8–14: two-tone stripes, white lines
             if header { x.fill = base; x.color = white; x.bold = true }
             else { x.fill = stripe ? tint(0.6) : tint(0.8) }
