@@ -130,7 +130,7 @@ lines keep the East Asian rules ("，" no longer opens a line). 84.7 ->
 47-48 and 54-55, and the missing page.
 
 ### T76. zh-540dc149: 9 pages where Word's are 10 — DONE (2026-10-17)
-Owner: session 017F2GnT (Linux), from 2026-10-17
+Owner: the Windows box (011ZXp8e), 2026-10-17 (claimed first by 017F2GnT, Linux, who handed it over)
 Documents: zh-540dc149 (35.9%, third sample).
 Built by the Windows box (011ZXp8e), whose claim crossed this one: a fixed
 table keeps a grid wider than its pct share (Word rules the form's 638.6pt
