@@ -2769,7 +2769,24 @@ public final class RichLayout {
                             let end = next[n] >= rowBottom - 0.01 ? column.bottom : next[n] + _cells[column.members[0]]!.pad.bottom
                             return end - column.cut
                         }
-                        if let part = kept.max(), part < avail {
+                        // (No shorter than the row says, nor than the cells
+                        // set whole in it: lab `t32c` (Word for Windows, as
+                        // the Mac's print), zh-15728c84 p8's row of 81pt at
+                        // least, its centred "每年至少开展（参加）/ 1 次政务公开
+                        // 业务培训" two 31.9pt lines and 8.5 after: Word centres
+                        // it 4.6pt down a part of 81.3, one line of it 20.5
+                        // down; with no stated height the part is that cell's
+                        // 72.4 and it stands at the top. Ours centred it in the
+                        // 64 its neighbour keeps, which it overfills, and fell
+                        // back to the room to the page's foot: 10.5 down.)
+                        var whole = 0.0
+                        for (n, _) in setWhole {
+                            let column = columns[n]
+                            let d0 = _cells[column.members[0]]!
+                            let last = column.members[column.members.count - 1]
+                            whole = max(whole, _tops[last] + _heights[last] - _tops[column.members[0]] + d0.pad.top + d0.pad.bottom)
+                        }
+                        if let keptMax = kept.max(), case let part = max(keptMax, stated, whole), part < avail {
                             for (n, _) in setWhole {
                                 let column = columns[n]
                                 let d0 = _cells[column.members[0]]!
@@ -2837,7 +2854,15 @@ public final class RichLayout {
                         let textTop = max(column.cut, _tops[column.members[0]] - d0.pad.top)
                         extent[n] = (textTop, bottom)
                     }
-                    let part = min(avail, max(stated, extent.map { n, e in e.bottom - columns[n].cut }.max() ?? 0))
+                    // (… and the cells set whole in it: see where they are.)
+                    var whole = 0.0
+                    for (n, _) in setWhole {
+                        let column = columns[n]
+                        let d0 = _cells[column.members[0]]!
+                        let last = column.members[column.members.count - 1]
+                        whole = max(whole, _tops[last] + _heights[last] - _tops[column.members[0]] + d0.pad.top + d0.pad.bottom)
+                    }
+                    let part = min(avail, max(stated, whole, extent.map { n, e in e.bottom - columns[n].cut }.max() ?? 0))
                     // (The rules end with the part only where no cell
                     // merged down from above has text below it: zh-e6d54ae4's
                     // "(二)衡酌實際需求…" runs on beside the row's part to the

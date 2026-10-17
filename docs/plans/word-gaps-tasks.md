@@ -794,6 +794,10 @@ on the page now centres the lines that fit in that part (zh-6d1afa56 p25,
 five of nine lines 4.4 down). zh-6d1afa56 99.0 -> 99.6, zh-f59a76e9 98.4 ->
 99.4, zh-a4b0f6ea 99.4 -> 100. Note that a single row that parts is another
 case: zh-1a3c7aa0 p57's cut cell stands at the part's foot (above).
+2026-10-17 (Windows, labs `t32c`): a whole-set centred cell beside a parted
+row centres in a part no shorter than the row's stated height or its own
+height (zh-15728c84 p8, 4.6 down a part of 81.3): zh-15728c84 98.5 -> 100,
+zh-1a3c7aa0 98.1 -> 99.8.
 
 Note from the Mac (2026-10-16): zh-799c91cd 96.8 -> 95.6 between the
 n225 and n230 sweeps. Page 6's table, whose last row runs to the foot,

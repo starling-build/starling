@@ -5538,6 +5538,23 @@ fitter dropped the paragraph's tail).
   zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
   lower in Word than the two-line cells beside them: the same rule);
   nothing else moved.
+- **A parted row's part is as tall as the row says and as its cells set
+  whole in it (2026-10-17).** zh-15728c84 p8: a row of 81pt at least
+  parts over the page, its left cell's two lines on page 8, and a
+  centred cell beside it ("每年至少开展（参加）/ 1 次政务公开业务培训") fits
+  whole there. In Word's print it stands 4.6pt down a part of 81.3; ours
+  stood 10.5 down. Labs `t32c` on Word for Windows, which prints the
+  document as the Mac's print has it:
+  - one line of that cell stands 20.5 down;
+  - with no stated height, the part is that cell's own 72.4 (two 31.9
+    lines and 8.5 after) and the cell stands at its top.
+
+  Ours centred the cell in the 64pt its neighbour keeps, which the cell
+  overfills, and fell back to the room to the page's foot. The part a
+  whole-set cell is centred in, and the part's drawn height, are now the
+  largest of the row's stated height, the kept cells and the whole-set
+  cells. All four labs within 0.1pt. zh-15728c84 98.5 -> 100,
+  zh-1a3c7aa0 98.1 -> 99.8; nothing else moved.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than
