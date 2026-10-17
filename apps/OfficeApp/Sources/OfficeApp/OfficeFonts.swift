@@ -993,8 +993,12 @@ enum OfficeFonts {
             // Latin stand-in's is Arial's 0.333. zh-6d1afa56's
             // "·申报内容（含项目名称、项" fills its cell's 106.2pt in
             // Word's print, its dot 2.2pt; ours put "项" on the next line.)
+            // (Its "√", "─" and "■" too: 0.7017, 0.7085 and 0.604 em —
+            // zh-6d1afa56's ticks, rules and boxes in Word's print — where
+            // the stand-in drew Liberation Sans's √ at 0.549, and the box
+            // an em.)
             if ea.height == yaHei.height {
-                face.otherAdvances = [0x2026: 0.8135, 0xB7: 0.2407]
+                face.otherAdvances = [0x2026: 0.8135, 0xB7: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604]
                 face.boldOtherAdvances = [0x2026: 0.9629, 0xB7: 0.4395]
             }
             face.scaledHeight = ea.scaledHeight

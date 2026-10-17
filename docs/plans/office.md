@@ -3324,6 +3324,10 @@ fitter dropped the paragraph's tail).
   0.7085 in this very print): 13 documents worse, zh-e5709b89 100 -> 36
   with its lines a character short from page 1 — so not all of them are
   Word's; settle them one by one.
+  Then (same day) its "√", "─" and "■" in the East Asian face, at
+  0.7017, 0.7085 and 0.604 em as this print has them (the box was an em
+  under the symbols rule, the tick Liberation Sans's 0.549): zh-6d1afa56
+  98.6 -> 99.0 (p34's ticked cells wrap as Word's); nothing else moved.
 
 - **A frame that names a height and no anchor is set from the margin
   (2026-10-16).** A framed paragraph's `w:y` with no `w:vAnchor` was read
