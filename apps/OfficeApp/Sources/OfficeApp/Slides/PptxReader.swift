@@ -1713,6 +1713,40 @@ private struct SlideContext {
         return nil
     }
 
+    /// PowerPoint's box for a picture it cannot draw: white, ruled black,
+    /// a bevelled icon with a red cross 7 pt in, and "The picture can't be
+    /// displayed." in Segoe UI 10.5 pt, 27 pt in — measured on its print.
+    static func brokenPicture(in r: Rect, id: () -> Int) -> [ShapeState] {
+        func box(_ f: Rect, fill: Color?, outline: Color? = nil, width: Double = 0, preset: String = "rect") -> ShapeState {
+            ShapeState(id: id(), name: "Broken picture", kind: .geometry(ShapePreset(rawValue: preset)), frame: f, rotation: 0,
+                       fill: fill, outline: outline, outlineWidth: width, anchor: .top,
+                       insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: nil,
+                       font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)
+        }
+        var shapes = [box(Rect.fromLTRB(r.left + 0.5, r.top + 0.5, r.right - 0.5, r.bottom - 0.5),
+                          fill: Color(0xFFFFFFFF), outline: Color(0xFF000000), width: 1)]
+        let x = r.left + 7, y = r.top + 7
+        shapes.append(box(Rect.fromLTWH(x, y, 14, 16), fill: Color(0xFF000000)))
+        shapes.append(box(Rect.fromLTWH(x, y, 13, 15), fill: Color(0xFF808080)))
+        shapes.append(box(Rect.fromLTWH(x + 1, y + 1, 12, 14), fill: Color(0xFFC0C0C0)))
+        shapes.append(box(Rect.fromLTWH(x + 1, y + 1, 11, 13), fill: Color(0xFFFFFFFF)))
+        var a = box(Rect.fromLTWH(x + 4.5, y + 5.5, 5, 4), fill: nil, outline: Color(0xFFFF0000), width: 1.3, preset: "line")
+        shapes.append(a)
+        a.id = id()
+        a.flipV = true
+        shapes.append(a)
+        var text = box(Rect.fromLTRB(r.left + 27, r.top + 8.0, max(r.left + 28, r.right - 4), r.bottom), fill: nil)
+        text.kind = .textBox
+        let message = "The picture can't be displayed."
+        let look = CharStyle(fontFamily: "Segoe UI", fontSize: 10.5, color: Color(0xFF000000))
+        text.text = RichDocument(paragraphs: [RichParagraph(text: message, runs: [Run(length: message.utf16.count, style: look)],
+                                                            style: RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0))])
+        text.font = "Segoe UI"
+        text.size = 10.5
+        shapes.append(text)
+        return shapes
+    }
+
     private func _picture(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
         // Audio and video are a `p:pic` too — the poster frame, with the
         // media hung on `p:nvPr` (`a:audioFile`/`a:videoFile`, `p14:media`)
@@ -1753,7 +1787,19 @@ private struct SlideContext {
               let target = package.rels(part).first(where: { $0.id == rid }), !target.external,
               package.parts[target.target] != nil,
               var frame = own else {
-            return _opaque(el, label: "Picture", transform, id: id)
+            guard var o = _opaque(el, label: "Picture", transform, id: id) else { return nil }
+            // A picture that names no picture (no `blipFill`, or a blip with
+            // neither `r:embed` nor `r:link`): PowerPoint's box saying so, as
+            // its print has it in missing-blip-fill, tdf147586 and a fuzzed
+            // deck. (Not one naming a part the package lacks: Divino's,
+            // its zip cut short, print as nothing.)
+            let blip = el.first("p:blipFill")?.first("a:blip")
+            if blip?["r:embed"] == nil, blip?["r:link"] == nil, case .opaque(var obj) = o.kind {
+                obj.rendering = Self.brokenPicture(in: o.frame, id: id)
+                obj.clipsRendering = true
+                o.kind = .opaque(obj)
+            }
+            return o
         }
         if let t = transform { frame = t(frame) }
         let image = images.attachment(target.target, package)

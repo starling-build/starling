@@ -714,10 +714,13 @@ final class SlidePainter: CustomPainter {
             if mirrored { canvas.restore() }
         } else if shape.opaque != nil, !shape.rendered.isEmpty {
             // The object's own drawing (a SmartArt's), shape by shape.
+            let clips = shape.opaque?.clipsRendering ?? false
+            if clips { canvas.save(); canvas.clipRect(r) }
             for sub in shape.rendered {
                 paintShape(sub, canvas, pxPerPt: px, cache: cache, theme: theme, text: text, slide: slide, backdrop: backdrop,
                            placeholders: placeholders)
             }
+            if clips { canvas.restore() }
         } else if let opaque = shape.opaque, placeholders {
             // What the deck cannot draw yet: a labelled box where it sits.
             let p = Paint()

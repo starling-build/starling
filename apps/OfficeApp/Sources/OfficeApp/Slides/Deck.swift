@@ -180,6 +180,8 @@ struct OpaqueObject: Equatable {
     /// What the object looks like, as shapes (a SmartArt's drawing part):
     /// drawn in its place, never written — the element above is the file's.
     var rendering: [ShapeState] = []
+    /// The drawing is cut to the object's frame (a broken picture's box).
+    var clipsRendering = false
 }
 
 /// An arrowhead (`a:headEnd`/`a:tailEnd`): its kind ("triangle",

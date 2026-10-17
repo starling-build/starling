@@ -2014,6 +2014,17 @@ than ours (5.5% in bold) over 28 lines compared. A run in Aptos is now
 set 0.0185 em tighter (bold 0.031), as Arial Black's stand-in is set
 looser — in the Slides reader only, the shared face untouched.
 
+**PowerPoint's box for a picture that names none, 2026-10-17**
+(tdf147586 0.95 → 0.18, missing-blip-fill 0.45 → 0.06, crash-57308
+2.69 → 2.48, clusterfuzz 4986 −0.05). A `p:pic` with no `blipFill`, or
+a blip with neither `r:embed` nor `r:link`, prints in PowerPoint as a
+white box ruled black, a bevelled icon with a red cross 7 pt in, and
+"The picture can't be displayed." in Segoe UI 10.5 pt 27 pt in, cut to
+the frame. We drew nothing; now the same (`PptxReader.brokenPicture`,
+`OpaqueObject.clipsRendering`). Not for a picture naming a part the
+package lacks: Divino_Revelado's, its zip cut short, print as nothing,
+and boxing them cost it 1.3.
+
 **Free fonts bundled for Slides, 2026-10-17** (sweep 157: 1.088 →
 1.070%, 27 decks better, two +0.01/+0.02; lo-master-slides 5.02 → 1.62,
 eaVertAnchor 2.76 → 1.22, vert_and_padding 1.33 → 0.38,
