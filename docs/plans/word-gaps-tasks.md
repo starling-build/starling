@@ -948,7 +948,7 @@ the first line's indent box (HowWeRefactor's quotes); Word's paragraphs
 do not yet. With a letter before the tab the line is right.
 Built: documents too. The header within 2.4pt of Word's; no score moved.
 
-### T59. Moved text is read, kept and printed — DONE (2026-10-16)
+### T60. Moved text is read, kept and printed — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
 Documents: Tika-792 (0%; its "Moved (insertion) [1]" balloon).
 Known: the reader skips `w:moveTo` and `w:moveFrom` whole — moved text
