@@ -1210,7 +1210,7 @@ Word's — the engine sets a character's spacing half before it (as for
 tabs, T58), Word after. A lab of this line, the over varied, would say
 what Word counts.
 
-### T67. A comment's balloon hangs at the comment's end
+### T67. A comment's balloon hangs at the comment's end — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: WordWithAttachments (23.7%).
 Known: its comments each span a quatrain. In Word's print the balloons
@@ -1218,6 +1218,10 @@ Known: its comments each span a quatrain. In Word's print the balloons
 where the comment references stand; ours with their first. Word also
 prints no balloon for v1, whose reference is alone in an empty
 paragraph, yet numbers the others from 2 — not modelled (one file).
+Built: anchored at the range's end. Each balloon now 2pt under its
+anchor line as in Word's (v2 445/447 there, 389/391 ours); no score
+moved — the page is still ~56pt high for its missing attachment icons
+and the unframed text box.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

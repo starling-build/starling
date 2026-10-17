@@ -4122,6 +4122,13 @@ fitter dropped the paragraph's tail).
   reformatted marks — one file does not say why.
   Not built: change bars in the margin, the comment
   range's tint in its author's colour.
+- **A comment's balloon hangs at the comment's end (2026-10-17).**
+  WordWithAttachments' comments each cover a quatrain; Word's balloons
+  stand level with the quatrains' last lines, where the references are,
+  and ours stood with their first. Anchored at the range's end now. No
+  score moved. Not modelled: Word prints no balloon for its first
+  comment (its reference alone in an empty paragraph) yet numbers the
+  others from 2.
 - **楷体_GB2312 is YaHei to today's Word for Mac (2026-10-17).** The
   first zh sample's prints (2026-10-12) set it in KaiTi; Word 16.113.3
   sets it in Microsoft YaHei, alt name or not, and the Mac reprinted all

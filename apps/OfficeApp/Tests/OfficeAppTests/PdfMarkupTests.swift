@@ -131,6 +131,23 @@ final class PdfMarkupTests: XCTestCase {
         XCTAssertEqual(print.notes.first?.paragraphs, ["<#>A pendant.¶", "<#>Tika Waylan¶"])
     }
 
+    /// WordWithAttachments: a comment over a whole quatrain has its
+    /// balloon level with the quatrain's last line, where its reference
+    /// stands, not its first.
+    func testACommentsBalloonHangsAtTheCommentsEnd() {
+        var commented = CharStyle()
+        commented.comments = ["3"]
+        var doc = RichDocument(paragraphs: [
+            paragraph([run("Всех, кто стар и кто молод,", commented)]),
+            paragraph([run("Мы уйдем; и за нами", commented), run(" придут.")]),
+        ])
+        doc.keptParts["word/comments.xml"] = Data(("<w:comments xmlns:w=\"w\"><w:comment w:id=\"3\" w:author=\"vbiryukova\" w:initials=\"v\">"
+            + "<w:p><w:r><w:t>Первое четверостишье</w:t></w:r></w:p></w:comment></w:comments>").utf8)
+        let notes = PdfMarkup(doc).notes
+        XCTAssertEqual(notes.map(\.label), ["Commented [v1]:"])
+        XCTAssertEqual(notes.first?.anchor, RichPosition(paragraph: 1, offset: 19))
+    }
+
     /// Tika-792: moved text was skipped whole, gone from the page and the
     /// save. Its new place is an insertion and its old a deletion, both
     /// marked moved; a save writes them back as an insertion and a

@@ -235,8 +235,10 @@ struct PdfMarkup {
         return names[tag] ?? tag
     }
 
-    /// The comments, each anchored where its range starts, numbered in
-    /// order through the document: "Commented [ab1]:" and its text.
+    /// The comments, numbered in order through the document —
+    /// "Commented [ab1]:" and its text — each anchored where its range
+    /// ends, by its reference: WordWithAttachments' comments over whole
+    /// quatrains stand level with their last lines in Word's print.
     private static func _comments(_ document: RichDocument) -> [Note] {
         guard let data = document.keptParts["word/comments.xml"], let root = XNode.parse(data) else { return [] }
         var bodies: [String: (author: String, initials: String, paragraphs: [String])] = [:]
@@ -259,19 +261,23 @@ struct PdfMarkup {
             }
             bodies[id] = (c["w:author"] ?? "", c["w:initials"] ?? "", paragraphs.isEmpty ? [""] : paragraphs)
         }
-        var seen: Set<String> = []
-        var out: [Note] = []
+        // (In the order the ranges start; each one's end, the last run it covers.)
+        var order: [String] = []
+        var ends: [String: RichPosition] = [:]
         for (i, p) in document.paragraphs.enumerated() {
             var at = 0
             for run in p.runs {
                 defer { at += run.length }
-                for id in run.style.comments where !seen.contains(id) {
-                    seen.insert(id)
-                    guard let body = bodies[id] else { continue }
-                    out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Commented [\(body.initials)\(out.count + 1)]:",
-                                    paragraphs: body.paragraphs, author: body.author))
+                for id in run.style.comments {
+                    if ends[id] == nil { order.append(id) }
+                    ends[id] = RichPosition(paragraph: i, offset: at + run.length)
                 }
             }
+        }
+        var out: [Note] = []
+        for id in order {
+            guard let body = bodies[id], let end = ends[id] else { continue }
+            out.append(Note(anchor: end, label: "Commented [\(body.initials)\(out.count + 1)]:", paragraphs: body.paragraphs, author: body.author))
         }
         return out
     }
