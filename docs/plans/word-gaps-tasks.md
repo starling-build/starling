@@ -1635,6 +1635,18 @@ a deletion's text in Normal's face where its own names none. Same-base
 sweep: Tika-792 0 -> 100, delins 75 -> 80, nothing else moved; mean
 92.544 -> 93.071.
 
+### T71. rtl: Arabic in a Times stand-in, at Times' widths — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+Documents: rtl (0%).
+Known: the file (from LibreOffice) names "Noto Sans Arabic UI" for
+complex script; Word for Mac, lacking it, sets the Arabic in Times New
+Roman. Ours draws it from DejaVu Sans, the Linux glyph fallback,
+because Liberation Serif has no Arabic: words 32% wider than Word's
+(shaped widths of 114 words against Word's print), so every line
+breaks early. FreeSerif's Arabic is 4.7% wider, Noto Naskh Arabic's
+14.8%, Noto Sans Arabic's 25.6%.
+Plan: on Linux, the serif stand-in falls back to FreeSerif first.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
