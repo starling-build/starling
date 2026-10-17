@@ -128,19 +128,25 @@ zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 zh-fec5fa30 84.7 (55, Word 56; T78, Mac), zh-9e020c95 89.3 (T80, done), zh-268f8d15 93.0 (T84, 98.8 now),
 zh-de3410bd 93.2 (Mac, looked: p1 holds a two-line paragraph Word sends on — the zh-e061a08e page foot, same footer, same margins, PMingLiU; within a point), zh-fe536967 94.0 (T83, 99.0 now). zh-d89c3840 was T70.
 
-### T87. Fractional line heights (zh-de3410bd and three more) — claimed
-Owner: session 017F2GnT (Linux), from 2026-10-17
-Documents: zh-de3410bd (93.9%), zh-d35cbbdb, zh-e061a08e, zh-232090e0.
-Building the switch the Linux note below measured: an engine patch
-(skparagraph keeps a line's fraction where the paragraph asks; bridge bit
-13), on for Word's paragraphs only. zh-de3410bd's page 1 is the
-zh-e061a08e foot: 12pt PMingLiU is 15.61 a line, and rounded to 15.6 its
-last two lines fit with 0.35pt to spare. The three the note lost are
-being fixed first: bug59058 (a missing face drawn in Cambria is a line of
-Cambria's ascent over Times's descent), zh-1a3c7aa0 (in a file of mode
-below 15, a row at the foot asks room for half the line under it), and
-delins (Balloon Text was dropped on import). Engine and Swift sides land
-together; other boxes then rerun scripts/apply_engine_patches.sh.
+### T87. Fractional line heights (zh-de3410bd and three more) — DONE (2026-10-17)
+Owner: session 017F2GnT (Linux)
+Built: engine `skia-fractional-line-heights.patch` (skparagraph's
+`ParagraphStyle::setFractionalLineHeights`; the Swift bridge sets it from
+bit 13 of the encoded paragraph style), and `TextPainter.
+fractionalLineHeights`, which the layout sets for a Word document's
+paragraphs only. **Other boxes: pull the engine's `starling`, rerun
+`scripts/apply_engine_patches.sh` and rebuild the engine before a
+sweep** — without the patch the flag does nothing and the four below go
+back. zh-de3410bd 93.9 -> 100, zh-d35cbbdb 89.7 -> 100, zh-232090e0 95.6
+-> 100, zh-e061a08e 94.3 -> 99.8, zh-6d1afa56 +0.2 (239 documents, the
+tip of 03e2ab23). With it: a face Word lacks and draws in Cambria is
+Cambria's ascent over Times's descent (bug59058), a row at a page's foot
+in a file of mode below 15 asks room for half the line under it
+(zh-1a3c7aa0 p13), and Balloon Text is kept (delins's balloons are
+Tahoma 8pt, 15.06 apart). Left: delins 80 -> 45 — its first balloon, for
+two deleted paragraphs, stands 6.6pt under Word's, which lifts it into
+the gap above its line; the other three prints with balloons put the
+first at its line's top, as ours does. Unclaimed.
 
 ### T78. zh-fec5fa30: 56 pages where Word's are 55 — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
