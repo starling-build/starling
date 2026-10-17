@@ -114,6 +114,10 @@ enum Xlsx {
                 (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors, sheet: sheetRoots[path])
                 ws.objects = SheetObjectsXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
                 ws.tables = TablesXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
+                // (Excel refills an empty header cell as it opens the file,
+                // and prints the name: lo-TableEmptyHeaders' "Column1",
+                // "Column2".)
+                _fillTableHeaders(ws)
                 (ws.notes, ws.noteParts) = NotesXML.read(sheetPath: path, parts: parts)
                 for r in _relList(_part(parts, _relsPath(path))) where r.type.hasSuffix("/hyperlink") { ws.linkTargets[r.id] = r.target }
             }
@@ -627,28 +631,30 @@ enum Xlsx {
         0x003366, 0x339966, 0x003300, 0x333300, 0x993300, 0x993366, 0x333399, 0x333333,
     ]
 
+    /// A table's header cells must hold its column names, or Excel repairs
+    /// the file: an empty one gets the name the part will carry, "Column"
+    /// and its place (Excel itself refills such a cell with "Column1" at once).
+    static func _fillTableHeaders(_ ws: Worksheet) {
+        for t in ws.tables where t.headerRow {
+            var used = Set<String>()
+            for (i, col) in (t.ref.left ... t.ref.right).enumerated() {
+                let a = CellAddress(row: t.ref.top, col: col)
+                let text = NumberFormat.display(ws.value(a), "General", width: 255).text.trimmingWhitespace()
+                if !text.isEmpty { used.insert(text.lowercased()); continue }
+                var name = "Column\(i + 1)", n = 2
+                while used.contains(name.lowercased()) { name = "Column\(i + 1)\(n)"; n += 1 }
+                used.insert(name.lowercased())
+                var cell = ws.cells[a] ?? Cell(input: "")
+                cell.input = name; cell.value = .text(name); cell.formula = nil
+                ws.cells[a] = cell
+            }
+        }
+    }
+
     // MARK: Writing
 
     static func write(_ book: Workbook) throws -> Data {
-        // A table's header cells must hold its column names, or Excel repairs
-        // the file: an emptied one gets the name the part will carry
-        // (Excel itself refills such a cell with "Column1" at once).
-        for ws in book.sheets {
-            for t in ws.tables where t.headerRow {
-                var used = Set<String>()
-                for (i, col) in (t.ref.left ... t.ref.right).enumerated() {
-                    let a = CellAddress(row: t.ref.top, col: col)
-                    let text = NumberFormat.display(ws.value(a), "General", width: 255).text.trimmingWhitespace()
-                    if !text.isEmpty { used.insert(text.lowercased()); continue }
-                    var name = "Column\(i + 1)", n = 2
-                    while used.contains(name.lowercased()) { name = "Column\(i + 1)\(n)"; n += 1 }
-                    used.insert(name.lowercased())
-                    var cell = ws.cells[a] ?? Cell(input: "")
-                    cell.input = name; cell.value = .text(name); cell.formula = nil
-                    ws.cells[a] = cell
-                }
-            }
-        }
+        for ws in book.sheets { _fillTableHeaders(ws) }
         var out: [ZipEntry] = []
         let original = book.package ?? []
         var originalParts: [String: Data] = [:]

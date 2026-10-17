@@ -154,6 +154,12 @@ enum SheetPrintLayout {
             let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
             take(a.row, a.col); take(b.row, b.col)
         }
+        // A table prints whole in its style's fills and rules, empty or not
+        // (lo-TableEmptyHeaders: one empty header row, a table to row 16,
+        // and Excel's page is all sixteen rows of it).
+        for t in ws.tables where t.style != nil {
+            take(t.ref.top, t.ref.left); take(t.ref.bottom, t.ref.right)
+        }
         // A row formatted as a whole (a fill or borders on the row itself)
         // prints across the columns in use, cells or no cells.
         for r in ws.rowAttrs.keys {
