@@ -5102,6 +5102,17 @@ public final class RichLayout {
             // baseline — ours 15.10 alone and 19.19 with the space.)
             bodyHeight = (box.bottom - box.top).rounded()
         }
+        // (A paragraph that ends in a line break ends with a line of its
+        // mark alone, as tall as the mark's own line: zh-17749c13's
+        // paragraph of one bold 仿宋_GB2312 break (YaHei to Word, two
+        // 15.6pt pitches) under a 12pt 宋体 mark is three pitches in
+        // Word's print — the break's two and the mark's one — where the
+        // grid's strut set both lines two, and its page ran a pitch long.)
+        if theme.wordRules, style.mark != nil, p.text.unicodeScalars.last == "\n" || p.text.unicodeScalars.last == "\u{2028}",
+           style.lineHeightPoints == nil, case let lines = painter.computeLineMetrics(), lines.count >= 2, let last = lines.last {
+            let own = _markLineHeight(i, document)
+            if last.height - own > 0.5 { bodyHeight -= last.height - own }
+        }
         _heights[i] = (before + push + bodyHeight + after).rounded(.up)
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.

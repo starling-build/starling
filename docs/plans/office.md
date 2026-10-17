@@ -5130,6 +5130,15 @@ fitter dropped the paragraph's tail).
   scripts/apply_engine_patches.sh; Skia itself stays upstream's): a U+3000
   is justified as an ideograph. Sideways drift 552 -> 537; no score moved.
   An engine built without the patch keeps the old placement.
+- **A paragraph ending in a line break ends with its mark's own line
+  (2026-10-17; Linux).** zh-17749c13 page 57: a paragraph of one bold
+  仿宋_GB2312 `w:br` (YaHei to Word, two 15.6pt pitches) under a 12pt
+  宋体 mark is three pitches in Word's print, the break's two and the
+  mark's one; the grid's strut set both of ours at two, and everything
+  after stood a pitch low to the end of the document. The last line of
+  such a paragraph now counts as tall as `_markLineHeight` says (only
+  where the strut set it taller; it holds nothing to draw).
+  zh-17749c13 98.0 -> 99.9%; nothing else moved.
 - **Wrong, taken out: "a first-line indent in a hanging indent's place
   takes the hang out of the inherited left" (2026-10-17; Linux).** Built
   from zh-15428325's one paragraph under "table of figures" (left and
