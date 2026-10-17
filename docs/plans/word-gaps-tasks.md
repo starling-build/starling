@@ -113,7 +113,7 @@ start from there.
 ### Note from the Mac (2026-10-17, later): the zh corpus is 128 documents — a fourth sample
 Twenty more (`random.seed(20261018)`, the unprinted rest of 15-400 KB,
 Word 16.113.3 prints) are checked in; compare per document across it.
-It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (6 pages; Mac, looking),
+It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (T86, 83.6 now),
 zh-5dc5ce34 20.3 (21; Windows box, looking), zh-167ee06c 55.4 (14), zh-21421b7d 69.2 (2),
 zh-70094a34 70.8 (19), zh-621d8756 82.4 (52), zh-34a6519a 84.0 (53),
 zh-830ef10d 89.2, zh-fb482d33 89.7 (6 pages, Word 7), zh-ad224275 93.2.
@@ -149,6 +149,20 @@ table keeps a grid wider than its pct share (Word rules the form's 638.6pt
 grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
+
+### T86. A Latin word at a body line's end starts half an em inside the margin — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-32f4ad9f (mode 14, 16pt 仿宋_GB2312, zh-CN): "…（国务院令第711" — ours took
+"711" 17.75pt over with three marks giving, Word wraps it; so on the
+next lines. Lab `ab32` (`lab/tools/abthresh.py`, its line alone at a
+bisected indent, Word's threshold and ours on the same files): "…第71"
+and "…第711" are taken while they start 8.0pt or more inside the margin
+(half of "第") and not nearer, whatever the marks could give; "…第71111"
+and "…第7111111" stop at a need of 19.1 either way (a cap, two points
+only — not built). Ours took the word wherever the marks could give, if
+it started inside the margin at all; now it must start half the
+character before it inside. zh-32f4ad9f 10.3 -> 83.6, zh-5a9a85c6 95.7
+-> 98.7, zh-547fc43c 94.9 -> 97.0; nothing fell.
 
 ### T84. A paragraph's `w:snapToGrid` 0 takes its characters off the character grid too — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)

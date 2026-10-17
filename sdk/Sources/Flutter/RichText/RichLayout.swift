@@ -7536,7 +7536,14 @@ public final class RichLayout {
                             // character grid, where the digits carry the grid's
                             // room: zh-d68ac84a's "给予50" stays a line down at
                             // 11pt over with 12.8 to give.)
-                            || (!wide && !inCell && !onCharacterGrid && x < width)
+                            // (… and one that starts half the character before it
+                            // inside the margin, no nearer: lab `ab32` (Word 16,
+                            // zh-32f4ad9f's package, mode 14, 16pt, three marks
+                            // on the line), "…令第71" and "…令第711" are taken
+                            // while they start 8.0pt or more inside it and not
+                            // nearer, "第" 16 wide — its line's "711" started
+                            // 6.25 in, and ours took it.)
+                            || (!wide && !inCell && !onCharacterGrid && x + before / 2 <= width + edge)
                             // (After a space no half of what stands before
                             // limits it: it is taken wherever the marks can
                             // give what it needs — Taiwan's centred "，。、"
