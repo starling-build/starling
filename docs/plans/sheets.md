@@ -279,8 +279,12 @@ taller font on its own (Calibri 11 4.14, Arial 12 3.18, Calibri 12
 That rule alone: corpus neutral (1.435 -> 1.436, 11 better, 13 worse);
 the worse are Calibri 11 books whose rows are fitted shorter than the
 default (57523's 13.32 pt rows of Calibri 10), where Excel's drop lies
-between the rule's and the font's own. Rows shorter than the default
-need a lab of their own.
+between the rule's and the font's own. A lab of such rows (Calibri 11
+book, every column styled Calibri 10, unsized rows): every face stands
+9.66 pt below the row's TOP (drop 3.66 in 13.32 rows), where set rows
+of any height, 9 pt to 60, keep 4.02 from the bottom; and a row of
+Calibri 8 there is 12.84, which neither its own line nor the columns'
+Calibri 10 makes. Labs: mkshort.py, mkrows.py, mkbase-fit.py.
 
 Held back, 2026-10-16: drawing and chart parts written in their own
 namespace as the default (`<wsDr xmlns="…spreadsheetDrawing">`,
