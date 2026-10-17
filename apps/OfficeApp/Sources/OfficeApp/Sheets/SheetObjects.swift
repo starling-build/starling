@@ -170,6 +170,25 @@ enum SheetObjectsXML {
     /// VML is read as text: Excel's is XML, other writers' is not always.
     static func _vmlShapes(_ vml: String) -> [String: _VmlShape] {
         var out: [String: _VmlShape] = [:]
+        // Groups, where shapes inside give their place in the group's own
+        // coordinates (coordorigin, coordsize) over the group's box in points.
+        var groups: [(range: Range<String.Index>, x: Double, y: Double, w: Double, h: Double, ox: Double, oy: Double, cw: Double, ch: Double)] = []
+        var at = vml.startIndex
+        while let g = vml[at...].firstRange(of: "<v:group ") {
+            let tagEnd = vml[g.upperBound...].firstIndex(of: ">") ?? vml.endIndex
+            let tag = vml[g.upperBound ..< tagEnd]
+            let end = vml[tagEnd...].firstRange(of: "</v:group>")?.upperBound ?? vml.endIndex
+            let style = _attr(tag, "style") ?? ""
+            func pair(_ name: String) -> (Double, Double)? {
+                let v = (_attr(tag, name) ?? "").split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
+                return v.count == 2 ? (v[0], v[1]) : nil
+            }
+            if let x = _css(style, "margin-left"), let y = _css(style, "margin-top"), let w = _css(style, "width"), let h = _css(style, "height") {
+                let o = pair("coordorigin") ?? (0, 0), c = pair("coordsize") ?? (w, h)
+                if c.0 > 0, c.1 > 0 { groups.append((g.lowerBound ..< end, x, y, w, h, o.0, o.1, c.0, c.1)) }
+            }
+            at = tagEnd
+        }
         var rest = Substring(vml)
         while let start = rest.firstRange(of: "<v:shape ") {
             let after = rest[start.upperBound...]
@@ -192,6 +211,14 @@ enum SheetObjectsXML {
                     shape.anchor = .twoCell(from: SheetMarker(col: Int(n[0]), colOff: n[1] * 0.75, row: Int(n[2]), rowOff: n[3] * 0.75),
                                             to: SheetMarker(col: Int(n[4]), colOff: n[5] * 0.75, row: Int(n[6]), rowOff: n[7] * 0.75))
                 }
+            } else if let g = groups.first(where: { $0.range.contains(start.lowerBound) }),
+                      let l = _css(style, "left"), let t = _css(style, "top"), let w = _css(style, "width"), let h = _css(style, "height") {
+                // No cells to hold it: its place in its group, in points
+                // (45540_form_Header's industry check boxes, a group of 28).
+                let sx = g.w / g.cw, sy = g.h / g.ch
+                shape.anchor = .absolute(x: g.x + (l - g.ox) * sx, y: g.y + (t - g.oy) * sy, width: w * sx, height: h * sy)
+            } else if let x = _css(style, "margin-left"), let y = _css(style, "margin-top"), let w = _css(style, "width"), let h = _css(style, "height") {
+                shape.anchor = .absolute(x: x, y: y, width: w, height: h)
             }
             if let image = body.firstRange(of: "<v:imagedata ") {
                 let tag = body[image.upperBound...]
@@ -222,6 +249,21 @@ enum SheetObjectsXML {
             out[String(id[s.upperBound...])] = shape
         }
         return out
+    }
+
+    /// A length in a VML style (`margin-left:7.5pt`, `left:9`): points,
+    /// or a bare number (a group's own units, which its caller scales).
+    private static func _css(_ style: String, _ key: String) -> Double? {
+        for part in style.split(separator: ";") {
+            let kv = part.split(separator: ":", maxSplits: 1).map { $0.trimmingWhitespace() }
+            guard kv.count == 2, kv[0].lowercased() == key else { continue }
+            var v = kv[1].lowercased()
+            var k = 1.0
+            if v.hasSuffix("pt") { v.removeLast(2) } else if v.hasSuffix("px") { v.removeLast(2); k = 0.75 }
+            else if v.hasSuffix("in") { v.removeLast(2); k = 72 }
+            return Double(v).map { $0 * k }
+        }
+        return nil
     }
 
     /// `name="value"` or `name='value'` in a run of tag text.

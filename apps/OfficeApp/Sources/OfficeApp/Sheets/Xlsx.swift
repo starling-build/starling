@@ -127,6 +127,13 @@ enum Xlsx {
             if let path = ws.origin {
                 (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors, sheet: sheetRoots[path])
                 ws.objects = SheetObjectsXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
+                // (A legacy shape placed in points, not cells, held to the
+                // cells under it, so that it prints where they print.)
+                for i in ws.objects.indices {
+                    if case .absolute(let x, let y, let w, let h) = ws.objects[i].anchor {
+                        ws.objects[i].anchor = ws.anchor(x: x, y: y, width: w, height: h)
+                    }
+                }
                 ws.tables = TablesXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
                 // (Excel refills an empty header cell as it opens the file,
                 // and prints the name: lo-TableEmptyHeaders' "Column1",
