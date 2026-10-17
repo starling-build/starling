@@ -2053,6 +2053,17 @@ private struct SlideContext {
                         style.list = level.bullet == .char ? .bullet : .numbered
                         style.listLevel = p.first("a:pPr")?["lvl"].flatMap(Int.init) ?? 0
                         style.indentLeft = max(18, level.marL ?? 0)
+                        // The file's own text edge and bullet offset when it
+                        // says them (the bullet's offset against the 18 pt
+                        // slot, as a shape's): the AES tables' "•" at marL 0,
+                        // 36 and 72, indent 0, stand at the cell's edge, half
+                        // an inch and an inch in, each with its text right
+                        // after it, where all three hung 18 pt before the
+                        // text.
+                        if level.marL != nil || level.indent != nil {
+                            style.indentLeft = level.marL ?? 0
+                            style.firstLineIndent = (level.indent ?? 0) + 18
+                        }
                         // The cell's own bullet, as a shape's: the AES
                         // tables' "•" at every level, where the layout's
                         // own drew "◦" below the first.

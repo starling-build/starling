@@ -2031,6 +2031,18 @@ original's height: `SlideFonts.drawnNaturalHeight`): Pie 0.48 → 0.17,
 Venn 0.42 → 0.16, Pyramid −0.15; Gear +0.14, GeomLec1 +0.06.
 missing-bullet's text is fitted, and fits at another size.
 
+**A table cell's bullets where the file puts them, 2026-10-17** (the
+AES deck 5.57 → 5.11, its slide 18 13.5 → about 6, tdf123090 0.17 →
+0.15; no other table deck moved). A bulleted cell paragraph hung its
+bullet in an 18 pt slot before the text at every level; PowerPoint
+puts it at `marL + indent` and the text at `marL`, as in a shape: the
+AES tables' "•" at marL 0, 36 and 72 with indent 0 stand at the cell's
+edge, half an inch and an inch in, the text right after each. A cell
+that says neither keeps the old slot. Also left: Divino_Revelado's
+first eleven slides, which PowerPoint prints blank (every one names a
+`tags` part and a sound its cut-short zip lost; the twelfth names
+neither and prints) — copying that would hide text a reader can use.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so
