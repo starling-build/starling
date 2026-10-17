@@ -1647,6 +1647,10 @@ breaks early. FreeSerif's Arabic is 4.7% wider, Noto Naskh Arabic's
 14.8%, Noto Sans Arabic's 25.6%.
 Plan: on Linux, the serif stand-in falls back to FreeSerif first.
 
+### T73. zh-547fc43c: 17 pages where Word's are 16 — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+Documents: zh-547fc43c (13.2%, third sample).
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
