@@ -115,11 +115,19 @@ Twenty more (`random.seed(20261017)`, the unprinted rest of 15-400 KB,
 Word 16.113.3 prints) are checked in; means are not comparable across
 that commit, compare per document. The sample started at 80.9% (the
 second started at 74.5). Its low ones, unclaimed unless marked:
-zh-f6686f89 6.0 (Mac, looking: the layout matches Word's line for
-line; the matcher loses step on it), zh-547fc43c 13.2 (17 pages, Word
+zh-f6686f89 6.0 (T75, done), zh-547fc43c 13.2 (17 pages, Word
 16), zh-a5745784 26.5, zh-540dc149 34.3 (9 pages, Word 10),
 zh-fec5fa30 84.7 (55, Word 56), zh-9e020c95 89.3, zh-268f8d15 93.0,
 zh-de3410bd 93.2, zh-fe536967 94.0. zh-d89c3840 was T70.
+
+### T75. zh-f6686f89: a square face's Latin is exactly half an em — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+宋体's Latin stand-in is Liberation Mono at 5/6, but its advance is
+1229/2048 em, not 0.6: each character 6.00098pt at 12pt. The bank's
+questions end "…（TSG S7001-2013）…。（      ）", and twenty such characters
+put the "）" 0.02pt past the margin and a line down, where Word's ends
+on it; every question after slipped. Scale 1024/1229 now. zh-f6686f89
+6.0 -> 100, zh-a0e932c2 98.5 -> 99.2, nothing fell.
 
 ### T70. Kerning in a stand-in set to the original's advances (YaHei's "TC") — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)

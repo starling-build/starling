@@ -537,7 +537,12 @@ enum OfficeFonts {
         var boldBaseline: Double? = nil
     }
 
-    private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 5.0 / 6.0, fakeBold: true, baseline: 1.005)
+    // (Its Latin exactly half an em, as 宋体's is: Liberation Mono's
+    // advance is 1229/2048 of its em, not 0.6, and at 5/6 every character
+    // came out a thousandth of an em wide — 20 on zh-f6686f89's line
+    // "…（TSG S7001-2013）…。（      ）" put the "）" 0.02pt past the
+    // margin, a line down, where Word's ends on it.)
+    private static let square = EastAsianFace(height: 1.3, latin: mono, latinScale: 1024.0 / 1229.0, fakeBold: true, baseline: 1.005)
     // (YaHei's bold, msyhbd.ttc, is a face of its own and a line of it
     // is taller: Word sets bold YaHei lines 1.73 ems apart — 24.21 at
     // 14pt (zh-33aa9899's body), 27.66 at 16 and 34.62 at 20 (zh-7dc3afad's
