@@ -116,7 +116,7 @@ Word 16.113.3 prints) are checked in; compare per document across it.
 It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (T86, 83.6 now),
 zh-5dc5ce34 20.3 (21; Windows box, looking), zh-167ee06c 55.4 (14; T88, 72.9 now), zh-21421b7d 69.2 (2; Mac 011uWpmC, looking),
 zh-70094a34 70.8 (19; Mac, looked: Word's text layer drops glyphs, the lines match), zh-621d8756 82.4 (52), zh-34a6519a 84.0 (53; Mac, looked: the TOC matches — Word's page numbers are drawn but not in its text layer, so the matcher splits our lines),
-zh-830ef10d 89.2, zh-fb482d33 89.7 (6 pages, Word 7), zh-ad224275 93.2.
+zh-830ef10d 89.2, zh-fb482d33 89.7 (6 pages, Word 7; Mac, looking), zh-ad224275 93.2.
 
 ### Note from the Mac (2026-10-17): the zh corpus is 108 documents now — a third sample
 Twenty more (`random.seed(20261017)`, the unprinted rest of 15-400 KB,
