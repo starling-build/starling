@@ -6004,37 +6004,38 @@ public final class RichLayout {
             }
         }
         if roomyTrail, let last = p.runs.last {
-            // (In the style the last ideograph was set in, where one was:
-            // its line is that style's height already, and a line of the
-            // spaces alone is a line of the text's height, as Word's is.
-            // In the run's Latin style the joiner's descent — Liberation
-            // Mono's, on Linux — made zh-1563bd74's footer 1.2pt taller and
-            // its document a page long; in the ideographs' face resolved
-            // anew, the Mac's YaHei stand-in, a point taller there.)
-            func lastIdeograph(_ spans: [InlineSpan]) -> TextStyle? {
+            // (In a style that adds nothing to the text's line, tried
+            // beside the last ideograph: which face each style resolves
+            // the joiner to differs by machine. In the run's Latin style its
+            // descent — Liberation Mono's on Linux — made zh-1563bd74's
+            // footer 1.2pt taller and its document a page long, though
+            // alone it is the shorter line; in the ideographs' style the
+            // Mac's stand-in ran a point tall. The ideographs' style first,
+            // which also gives a line of the spaces alone the text's
+            // height, as Word's is; else the Latin one; else one that takes
+            // no part in the line.)
+            func lastIdeograph(_ spans: [InlineSpan]) -> (style: TextStyle?, ch: Character)? {
                 for span in spans.reversed() {
                     guard let t = span as? TextSpan else { continue }
                     if let inner = t.children, let found = lastIdeograph(inner) { return found }
-                    if let text = t.text, text.contains(where: { Self.isEastAsian($0, hinted: false) }) { return t.style }
+                    if let text = t.text, let ch = text.last(where: { Self.isEastAsian($0, hinted: false) }) { return (t.style, ch) }
                 }
                 return nil
             }
-            // (Whichever of the two is the shorter line: which face each
-            // resolves to differs by machine — the Latin one is the taller
-            // on Linux, the ideographs' on the Mac — and the shorter is the
-            // text's own, which a line of spaces alone takes and the
-            // text's line does not exceed.)
             let latin = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                         gridPitch: pitch, scriptHidden: true)
-            func joinerHeight(_ s: TextStyle) -> Double {
-                let t = TextPainter(text: TextSpan(text: "\u{2060}", style: s), textDirection: .ltr)
+            func height(_ spans: [InlineSpan]) -> Double {
+                let t = TextPainter(text: TextSpan(children: spans), textDirection: .ltr)
                 t.layout(minWidth: 0, maxWidth: 100_000)
                 defer { t.dispose() }
                 return t.height
             }
             var style = latin
-            if let ideograph = lastIdeograph(children)?.copyWith(letterSpacing: 0), joinerHeight(ideograph) < joinerHeight(latin) - 0.01 {
-                style = ideograph
+            if let found = lastIdeograph(children), let own = found.style {
+                let glyph = TextSpan(text: String(found.ch), style: own)
+                let alone = height([glyph])
+                style = [own.copyWith(letterSpacing: 0), latin].first { height([glyph, TextSpan(text: "\u{2060}", style: $0)]) <= alone + 0.01 }
+                    ?? latin.copyWith(height: 0.01)
             }
             children.append(TextSpan(text: "\u{2060}", style: style))
             inserts.append(p.text.utf16.count)
