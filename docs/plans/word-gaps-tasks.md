@@ -1263,6 +1263,15 @@ zh-64044a1d 97.8 -> 99.0 (a table in a text box; exact rows), chartex 76.4
   rise, which is right for the row and costs page 49 that line. The build:
   page-level wrap bands for a footer's wrapping frames, which body lines
   narrow round and rows clear. Not built.
+- zh-c6ab068c p5 (99.3%, third sample): "…经批准后予以公开。" ends in a
+  no-break space (U+00A0). Word squeezes the line's three marks 1.44pt
+  each to keep "开。" on it; ours sends "开。" down. Without the U+00A0,
+  ours keeps it unsqueezed. The engine sets the space an em (7pt and a
+  joiner's 7), while the fitter's piece "开。 " measures 35pt, the probe's
+  boxes showing no more, so it plans no squeeze. Counting to the probe
+  line's end did not change the 35. Counting a no-break space inside a
+  paragraph twice broke pages 9-10. Reverted; the fitter needs the
+  engine's width for a final no-break space.
 - zh-e02b0479 (68.6%): its form's last row is two 15.6pt grid pitches in
   Word because its text, 楷体_GB2312 10.5pt, is YaHei there (an 18pt
   line); our 楷体 is KaiTi, one pitch, and the merged "所需信息情况" above
