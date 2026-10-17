@@ -840,6 +840,19 @@ line under the table; `fa2` keeps them above (header "姓" at 228, ours 229).
 zh-a4b0f6ea 88.6 -> 88.9 ("单位（盖章）" now at 423 as Word's), zh-6cd1befe
 97.8 -> 98.2; nothing else moved. Still open: Word parting the roster
 after its header row on p20 (ours keeps it whole and runs past the foot).
+Windows box, 2026-10-17 (taken over from the Mac): labs `t44/A`-`I` (Word
+for Windows, the 附件5 page alone in its landscape section, the
+document's package) reproduce the split: row 0 at tblpY (its text at
+195.9 from the top), rows 1-4 on page 2, "单位（盖章）" at 438.0. Without
+"单位（盖章）" before the table (B), or with it moved after (C), the
+whole table stays on page 1 — and in B it stands 41.9pt BELOW its tblpY
+(row 0's text 237.8); with tblpY 5000 (H) likewise 41.9 below (304.4,
+for 262.4), the notes after it flowing above it. The paragraphs after
+the table change nothing (F: none, G: two). "单位（盖章）" at 438.0 is
+12.75 under where the whole table would end plus the same 41.9 — as if
+Word counted the table 41.9pt taller than its rows (0.85 header
+distance?) and, with the paragraph to set under it, found no room.
+Not built.
 
 ### T50. drawing: the mark under a nested table at half a point, a short picture's line its mark's — DONE (2026-10-16)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-16
