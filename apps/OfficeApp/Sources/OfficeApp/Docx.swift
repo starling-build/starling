@@ -2534,6 +2534,18 @@ enum DocxFormat {
                     style.heading = heading
                 }
             }
+            // (A paragraph that says it is in no list — `w:numId` 0 — takes
+            // no left, hanging or first-line indent from its style: lab
+            // `lc2` (Word for Windows, zh-15428325's package), its style
+            // "table of figures" at leftChars 200 hangingChars 200, sets the
+            // paragraph's lines at the margin and its first two characters
+            // in, where the same paragraph without the `w:numPr` keeps the
+            // style's two; the corpus print has its lines so.)
+            if pPr.first("w:numPr")?.first("w:numId")?["w:val"] == "0" {
+                style.indentLeft = 0
+                style.firstLineIndent = 0
+                for key in ["w:leftChars", "w:startChars", "w:hangingChars", "w:firstLineChars"] { style.eastAsian[key] = nil }
+            }
             _paragraphProps(pPr, into: &style)
             style.indentLeft += indent
             if let rPr = pPr.first("w:rPr"), let rev = rPr.first("w:del") ?? rPr.first("w:ins") {

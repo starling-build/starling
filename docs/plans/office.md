@@ -3316,6 +3316,20 @@ fitter dropped the paragraph's tail).
   a parted row): the part is then to the foot, as before. (T32.)
   zh-91e44bcb 97.1% -> 100; nothing else moved.
 
+- **A paragraph in no list takes no indent from its style (2026-10-17).**
+  A paragraph whose `w:numPr` says `w:numId` 0 (in no list) takes no left,
+  hanging or first-line indent from its style, in twips or characters;
+  what its own `w:ind` says stands. Lab `lc`/`lc2` (Word for Windows,
+  zh-15428325's package, its style "table of figures" at leftChars 200
+  and hangingChars 200, the paragraph naming firstLineChars 200): with
+  `numId` 0 the lines are at the margin and the first two characters in;
+  without the `w:numPr` they keep the style's two characters (97.6 and
+  129.6 against 76.6 and 108.6). zh-15428325's paragraphs carry the
+  `numId` 0. 2f4793e4 (the Linux box) reaches the same lines of
+  zh-15428325 by taking the hang out of the inherited left whenever a
+  first-line count replaces it — which the lab without `w:numPr` says
+  Word does not; on top of it this moves nothing in the sweeps.
+
 - **A justified line's automatic spaces give without word spaces too, a
   quarter of an em in all (2026-10-17).** b9952df9 let the automatic
   spaces between ideographs and Latin give with a line's word spaces,
