@@ -5166,21 +5166,7 @@ public final class RichLayout {
         // The spaces to set as no-break ones (`held`, by the layout: see
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
-        // (A right-aligned paragraph's trailing spaces are set as held
-        // ones too, each after a zero-width space: Word aligns the line
-        // by them and parts them over lines one by one. zh-c5b5087b's
-        // footer, "沧源佤族自治县人民政府发布" and five spaces at the right
-        // margin, keeps two on the line, ending at the margin, and sets
-        // the other three on a line of their own; zh-1563bd74's shorter
-        // "红河县人民政府发布" keeps all five, the text 36pt left of where
-        // the engine, hanging them past the margin, stood it.)
-        // (After an ideograph only: zh-7dc3afad's right-aligned figures,
-        // "7,567 " in a table cell, stand where the space hangs past the
-        // margin in Word's print, as the engine sets them.)
-        let rightTrailing: Set<Int> = theme.wordRules && p.style.alignment == .right && trailingSpaces > 0
-            && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
-            ? Set(trailingSpaces ..< p.text.utf16.count) : []
-        let heldSpaces = held.union(rightTrailing)
+        let heldSpaces = held
         var afterHeld = false
         var heldKind: Int? = nil   // the held spaces' style kind, for the break after them
         if theme.wordRules, document.balancesSpaceWidth || document.usesEastAsianLayout, p.text.utf16.contains(0x20) {
@@ -5566,6 +5552,15 @@ public final class RichLayout {
                     // once more: off twice.)
                     extra += em / 2 - _spaceWidth(s) + (s.letterSpacing ?? 0)
                         - 2 * spread * (latinFace?.boldSpread ?? 0) + spread * (eaFace?.boldSpread ?? 0) / 2
+                    // (A trailing space set in the ideographs' face (kind -2)
+                    // has the stand-in's width in its spacing: that is not
+                    // the run's own, and not counted twice — zh-9dd9ce6d's
+                    // five after "…发布" at 14.25pt are 7.15 apiece in Word's
+                    // print, ours 13.3, and its footer took a line more.)
+                    if kind == -2 {
+                        let base = style(classed ? RichResolvedFace.characterClass(" ") : 0)
+                        extra -= 2 * ((s.letterSpacing ?? 0) - (base.letterSpacing ?? 0))
+                    }
                     // (The grid's addition, which the style's spacing holds
                     // too, half of it, not twice: zh-f0bd9ea8's two spaces
                     // after "第一条" on a grid of -0.21 are 7.9pt apiece at
@@ -5671,28 +5666,7 @@ public final class RichLayout {
                 if heldSpaces.contains(offset) {
                     flush(i)
                     let s = style(kind)
-                    if rightTrailing.contains(offset) {
-                        // (The break in the ideographs' own style: on their
-                        // line it is as tall as they are — in the Latin
-                        // stand-in's, its ascent made zh-1563bd74's footer
-                        // 1.2pt taller — and a line of the spaces alone,
-                        // which take no height, is a line of the text's
-                        // height, as zh-c5b5087b's three are in Word's.)
-                        spans.append(TextSpan(text: "\u{200B}", style: kind == -2 ? style(-1).copyWith(letterSpacing: 0) : zeroWidth(kind)))
-                        inserts.append(offset)
-                        // (At a space's width, set outright: half an em
-                        // where Word balances it so, else the Latin
-                        // stand-in's. Through the held spaces' spacing it
-                        // counted the run's spacing twice, and an
-                        // ideograph face's no-break space is an em:
-                        // zh-1563bd74's five stood 13pt apart and went over
-                        // to a line of their own.)
-                        let want = wideSpaces.contains(offset) ? em / 2
-                            : _spaceWidth(style(kind == -2 ? (classed ? RichResolvedFace.characterClass(" ") : 0) : kind))
-                        spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: want - _glyphWidth(s, "\u{00A0}"))))
-                    } else {
-                        spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
-                    }
+                    spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
                     start = after
                     afterHeld = true
                     heldKind = kind
@@ -5776,7 +5750,14 @@ public final class RichLayout {
             flush(text.endIndex)
             return spans
         }
-        if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil {
+        // (A right-aligned paragraph's trailing spaces take room, as
+        // Word's do: a word joiner after them, so the engine does not let
+        // them hang past the margin. zh-c5b5087b's footer, "…人民政府发布"
+        // and five spaces in a 203pt line, wraps four of them to a line
+        // of their own in Word's print, and its page number stands a line
+        // higher.)
+        let roomyTrail = theme.wordRules && p.style.alignment == .right && p.text.hasSuffix(" ")
+        if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail {
             let spans = styled(p.text[...], p.runs[0].style)
             if spans.count == 1 { return (spans[0], [], inserts) }
             return (TextSpan(children: spans), [], inserts)
@@ -5990,6 +5971,12 @@ public final class RichLayout {
                 children.append(TextSpan(text: "\u{2060}", style: style.copyWith(letterSpacing: tail)))
                 inserts.append(pos)
             }
+        }
+        if roomyTrail, let last = p.runs.last {
+            let style = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                        gridPitch: pitch, scriptHidden: true)
+            children.append(TextSpan(text: "\u{2060}", style: style))
+            inserts.append(p.text.utf16.count)
         }
         return (TextSpan(children: children), inline, inserts)
     }
