@@ -4469,6 +4469,18 @@ fitter dropped the paragraph's tail).
   their 30pt, where ours, counting no line on that side, took two. A
   cell's side with no line of its own now takes its neighbour's.
   zh-37b6536f 96.2 -> 97.7; nothing else moved.
+- **After a space, a character is taken wherever the marks can give
+  (2026-10-16).** Before Word 2013's layout a justified line takes a
+  character over its end by no more than half the one before it.
+  After a space no such half applies: the character is taken wherever
+  the line's marks can give what it needs. Taiwan's centred "，。、"
+  give nothing toward it. Lab `sp` (Word 16, zh-06c46ba9's package,
+  mode 14, justified 14pt) tested "（drug abuse）之機制建構，2007 年".
+  Word takes "年" 14pt over and not 15, the two brackets' halves. As
+  "2007年" it leaves it from 5 over, the "7"'s half. With no full-width
+  mark on the line it takes it up to about half its own em, as before.
+  zh-06c46ba9 p55 had sent "年" and then the URL down a line.
+  zh-06c46ba9 94.3 -> 94.8; nothing else moved.
 - **A line holding a compatibility ideograph has Noto's line over and
   under the baseline (2026-10-16).** Word on a Mac sets a few CJK
   compatibility ideographs (狀 U+F9FA, 行 U+FA08, …) in Noto Sans SC.

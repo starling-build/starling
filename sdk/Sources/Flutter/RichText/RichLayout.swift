@@ -6907,6 +6907,16 @@ public final class RichLayout {
                         // test: zh-06c46ba9's "（詳參附錄1）" takes "1）" 9pt
                         // over in Word's print.)
                         : (!wide && inCell && (lineBlank || need < set / 2 - _px(0.25) || (a ..< last).contains { units[$0] >= 0x2E80 })) || x + min(lead, w) - width <= before / 2 + edge
+                            // (After a space no half of what stands before
+                            // limits it: it is taken wherever the marks can
+                            // give what it needs — Taiwan's centred "，。、"
+                            // nothing. Lab `sp` (Word 16, zh-06c46ba9's
+                            // package, mode 14, justified 14pt): "（drug
+                            // abuse）之機制建構，2007 年" takes "年" 14pt over
+                            // and not 15, the brackets' halves; as "2007年"
+                            // it leaves it from 5 over, the "7"'s half.)
+                            || (!opening && a > 0 && isSpace(units[a - 1])
+                                && need <= all.filter { !(document.marksCentred && Self._centredUnits.contains(units[$0])) }.reduce(0.0) { $0 + half($1) } + hair)
                     if traced {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken)\n".utf8))
