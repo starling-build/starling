@@ -947,6 +947,14 @@ row parting (Windows, T32), zh-2a241df1's charts (Mac, T59).
   fitting the Linux session built. A lab of this line, with the over
   varied, would say what Word counts.
 
+### T62. A table nested in a parting row parts between its rows — claimed
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac), from 2026-10-16
+Documents: zh-d35cbbdb (55.4%, second sample). Its body is one cell of a
+page-long layout table; the consent table nested in it starts at page
+4's foot. Word sets its header row there and the rest on page 5; ours
+took the nested table over whole (a nested table is one block to the
+row's cuts), and every page after ran a block behind.
+
 ### T59. A column chart with a line on a second value axis
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
