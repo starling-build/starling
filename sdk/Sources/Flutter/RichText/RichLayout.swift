@@ -4919,6 +4919,14 @@ public final class RichLayout {
                p.text.unicodeScalars.allSatisfy({ [0xFFFC, 0x20, 0x0A, 0x0B, 0x2028].contains($0.value) }) {
                 lineWidth = widest
             }
+            // (A line too narrow for one character is laid out one
+            // character wide, every character a line — see `_span`: over
+            // its width the engine keeps "6分" on one line, a break
+            // between them or not.)
+            if theme.wordRules, !p.text.isEmpty {
+                let em = _px(p.runs.first?.style.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize)
+                if textWidth < em { lineWidth = max(lineWidth, em) }
+            }
             painter.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
             if let key = Self.debugFit, !key.isEmpty, p.text.containsSubstring(key) {
                 let line = "width \(i): column \(textWidth / _px(1))pt, text \(painter.maxIntrinsicWidth / _px(1))pt, \(painter.computeLineMetrics().count) lines\n"
@@ -5876,7 +5884,14 @@ public final class RichLayout {
                     inserts.append(offset)
                     afterHeld = false
                 } else if breaksAtQuotes, let b = before,
-                          Self._breaksBetween(b, ch) || (lineRulesOff && Self._closingMarks.contains(ch)) {
+                          Self._breaksBetween(b, ch) || (lineRulesOff && Self._closingMarks.contains(ch))
+                            // (In a line too narrow for one character
+                            // every character is a line, the marks
+                            // too: zh-830ef10d's 6pt cell sets
+                            // "个性要求（6分）" one to a line in Word's
+                            // print, "（" and "6" and "分" and "）" each
+                            // alone, where ours kept "（6" and "分）".)
+                            || (b != "\n" && textWidth > 0 && textWidth < (style(kind).fontSize ?? 0)) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
@@ -7224,6 +7239,8 @@ public final class RichLayout {
             // defaults' East Asian language en-US and kinsoku off, has
             // "…负责承储" / "（以下简称…" where ours ended the line on it.)
             if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) { return true }
+            // (In a line too narrow for one character, at every one: see `_span`.)
+            if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
             return Self._breaksBetween(Character(a), Character(b))
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),

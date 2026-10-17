@@ -5733,6 +5733,18 @@ fitter dropped the paragraph's tail).
   carried the tenth over to push "况" down a line. zh-21421b7d 69.2 ->
   97.4; nothing else moved. Left: its last row's line takes two grid
   pitches in Word (one in ours), a 楷体_GB2312 line on a 15.6pt grid.
+- **A line too narrow for one character sets every character on a line
+  of its own, the marks too (2026-10-17).** zh-830ef10d's merged cell
+  of 336 twips leaves 6pt for its 12pt "个性要求（6分）". Word's print
+  sets eight lines, with "（", "6", "分" and "）" each alone. Ours kept
+  "（6" and "分）" together, as the line rules ask. The engine, laying the
+  line out 6pt wide, overflowed and kept "6分" together even with a break
+  between them, so we set seven lines centred 9pt low. Now:
+  - such a paragraph gets a break before every character;
+  - the fitter keeps those breaks;
+  - the engine lays the line out one em wide.
+
+  zh-830ef10d 89.2 -> 97.3; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
