@@ -1651,6 +1651,27 @@ Plan: on Linux, the serif stand-in falls back to FreeSerif first.
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-547fc43c (13.2%, third sample).
 
+### T74. An embedded object as wide as the column: its mark on a line of its own — DONE (2026-10-17)
+Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac)
+Documents: WordWithAttachments (84.2%; page 1's icon and page 2's
+sheets stood a line high).
+Known: a `w:object` of 468pt in a 467.75pt column. Word sets its
+paragraph mark on the next line. Lab `wide`: in a 456.75pt column the
+mark drops when the object is 456.75 wide and stays at 456.7. In a
+467.75pt column it drops at 467.48.
+Built: under an object at least the column's width, the paragraph is
+the object plus its mark's line. A DrawingML picture keeps its mark
+beside it: with every picture, bug57031 99.7 -> 92.6 (480pt plots in
+468), zh-06c46ba9, zh-15428325 and chartex fell. Not in cells (not
+measured). WordWithAttachments 84.2 -> 100; nothing else moved.
+Left there: VML WordArt (`v:textpath`) is drawn as grey boxes, and Word
+prints it as images the line match cannot see.
+Also looked at and left: zh-e029cf49 (94.0%) is the matcher grouping
+centred cells' "1" and "-10" with a row's first line. Every glyph is
+within 0.3pt of Word's. 55966 (33%) is Word showing the first
+placeholder control's text in a second control (`w:showingPlcHdr`,
+one docPart). One sample is not enough for a rule.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark

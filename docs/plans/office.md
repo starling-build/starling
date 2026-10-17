@@ -5603,6 +5603,24 @@ fitter dropped the paragraph's tail).
   moved. Not where the grid adds room: zh-ac627439 (+0.3, 40.9 cells of
   10.8) sets lines past 40 cells, and fell 100 -> 75.5 with it.
   zh-f0bd9ea8 53.6 -> 84.1; nothing else moved.
+- **An embedded object as wide as the column sends its paragraph mark
+  to a line of its own (2026-10-17).** WordWithAttachments' document
+  object (`w:object`, 468pt) stands in a 467.75pt column. Word's print
+  sets the next paragraph a whole Times line lower than ours, and page 2
+  opened a line high. Lab `wide`: an object, an empty paragraph and
+  "Bravo", with the object's width varied:
+  - in a 456.75pt column, the mark stays beside an object of 456.7 and
+    drops at 456.75;
+  - in a 467.75pt column, it drops at 467.48 (the 0.3pt there was not
+    explained).
+
+  A DrawingML picture keeps its mark beside it: bug57031's 480pt plots
+  in a 468pt column fell 99.7 -> 92.6 with the rule, as did
+  zh-06c46ba9, zh-15428325 and chartex. So the rule is for an object
+  only, and not in a cell. WordWithAttachments 84.2 -> 100; nothing
+  else moved. Left there: its VML WordArt (`v:textpath`) is drawn as
+  grey boxes. Word prints it as pictures, which the line match does
+  not score.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

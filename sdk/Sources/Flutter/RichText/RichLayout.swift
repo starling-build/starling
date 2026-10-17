@@ -5179,6 +5179,18 @@ public final class RichLayout {
                     bodyHeight = (bodyHeight + line - own).rounded()
                 }
             }
+            // (A picture as wide as the line leaves its paragraph mark no
+            // room, and the mark opens a line of its own under it: lab
+            // `wide`, an object of 456.75pt in a column of 456.75 puts the
+            // next paragraph a 12pt Times line lower in Word's print, one
+            // of 456.7 does not. WordWithAttachments' 468pt document
+            // object in its 467.75pt column. Ours set the mark beside it.
+            // An embedded object's only: a DrawingML picture keeps its mark
+            // beside it, bug57031's 480pt plots in a 468pt column.)
+            if theme.wordRules, image.float == nil, image.textBox == nil, image.name == "w:object", p.cell == nil,
+               w + _px(0.01) >= textWidth {
+                bodyHeight = (bodyHeight + _markLineHeight(i, document)).rounded()
+            }
             _ensureDecoded(image)
         } else {
             _imageSize[i] = nil
