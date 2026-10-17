@@ -1275,6 +1275,21 @@ Untried variables:
 - the run's rFonts without hAnsi, with hint eastAsia;
 - the paragraph's later lines.
 
+Then a deletion bisect on the real line (`lab/f0b/bis.py`, Mac). Every
+variant is taken from 2.00: text cut after "牌建设，", the mark's rPr
+gone, no exact spacing, and the two spaces as one 中 (the same width).
+With the comma replaced by 中 it needs 10.00, so the comma gives 8.0,
+its half cell. Measured from the margin, Word allows -4.3 with no mark
+(a character must end 4.3 inside) and +3.7 with one comma.
+
+That agrees with squeeze2 if its over is reckoned from the Nth whole
+cell, not the margin. f0bd9ea8's lines leave 10.11 past their whole
+cells (436.55 - 27 x 15.794; the first line 404.96 - 25 x 15.794), and
+its 5.9 and 13.8 less 10.11 are -4.2 and 3.7. d68ac84a's line is 30
+whole cells with nothing left over, and reads 0 and half a cell either
+way. So the open question is narrower: what sets f0bd9ea8's -4.2
+against a leftover of 10.11.
+
 Released.
 
 ### T59. A column chart with a line on a second value axis — DONE (2026-10-17)
