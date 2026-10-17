@@ -835,6 +835,41 @@ enum DocxFormat {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
                 if recordingBody, currentCell == nil { for k in first ..< paragraphs.count { bodyNodes[k] = node } }
+                // A text box whose text holds a table (`_Shared.boxTables`):
+                // its text read again here, tables and all, as a small table
+                // in a cell is (below). zh-64044a1d's 災民收容登記表 is a form
+                // in a VML box behind the text; read for its paragraphs alone,
+                // the box held one empty line and printed as nothing.
+                if !notes.boxTables.isEmpty {
+                    func boxed(_ image: ImageAttachment) -> ImageAttachment {
+                        guard let content = notes.boxTables.removeValue(forKey: image.id), var box = image.textBox else { return image }
+                        let saved = (paragraphs, currentCell, cellChar, cellBase, cellRootBase, recordingBody,
+                                     pendingPageBreak, pendingBreakCharacter, pendingBreakRPr, pendingBreakColumn)
+                        let counts = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                                      notes.seenComments, notes.fieldShown)
+                        paragraphs = []; currentCell = nil; recordingBody = false; pendingPageBreak = false
+                        notes.inTextBox = true
+                        for child in content.children { walkBlock(child, indent: 0, depth: 1) }
+                        notes.inTextBox = false
+                        let inner = paragraphs
+                        (paragraphs, currentCell, cellChar, cellBase, cellRootBase, recordingBody,
+                         pendingPageBreak, pendingBreakCharacter, pendingBreakRPr, pendingBreakColumn) = saved
+                        (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.fields,
+                         notes.seenComments, notes.fieldShown) = counts
+                        guard !inner.isEmpty else { return image }
+                        let ids = Set(inner.compactMap { $0.cell?.table })
+                        box.paragraphs = inner
+                        box.tableStyles = tableStyles.filter { ids.contains($0.key) }
+                        box.tableColumns = tableColumns.filter { ids.contains($0.key) }
+                        var out = image
+                        out.textBox = box
+                        return out
+                    }
+                    for k in first ..< paragraphs.count {
+                        if let image = paragraphs[k].image { paragraphs[k].image = boxed(image) }
+                        for (key, image) in paragraphs[k].inlineImages { paragraphs[k].inlineImages[key] = boxed(image) }
+                    }
+                }
             case "w:tbl" where currentCell != nil && depth < maxNesting && _nestingDepth(node) == 1
                                 && unwrapped(node, "w:tr").count <= 15 && textLength(node) <= 600:
                 // A small table in a cell, with none in it, is a table of
@@ -2245,6 +2280,10 @@ enum DocxFormat {
         var inHeaderFooter = false
         /// Reading a text box's paragraphs (a box inside a box is not read).
         var inTextBox = false
+        /// A text box whose text holds a table, by its attachment's id:
+        /// its `w:txbxContent`, for the body's reader to read again with
+        /// its tables (this reader sets paragraphs only).
+        var boxTables: [String: XNode] = [:]
         var fieldShown = false   // the innermost field's result has text
         let rootNS: [String: String]
         let part: (String) -> Data?
@@ -2799,6 +2838,7 @@ enum DocxFormat {
                 }
                 notes.fields = []
                 var inside: [RichParagraph] = []
+                var holdsTable = false
                 func read(_ content: XNode) {
                     var stack = Array(content.children.reversed())
                     while let n = stack.popLast() {
@@ -2806,6 +2846,8 @@ enum DocxFormat {
                             for b in _paragraphs(n, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, cellChar, nil) { inside.append(b.paragraph) }
                         } else if n.name != "w:tbl" {
                             stack.append(contentsOf: n.children.reversed())
+                        } else {
+                            holdsTable = true
                         }
                     }
                 }
@@ -2882,8 +2924,9 @@ enum DocxFormat {
                     }
                 }
                 notes.inTextBox = false
-                if inside.contains(where: { !$0.text.isEmpty }) {
+                if inside.contains(where: { !$0.text.isEmpty }) || (holdsTable && parts.isEmpty) {
                     var box = RichTextBox(paragraphs: inside)
+                    if holdsTable, parts.isEmpty { notes.boxTables[att.id] = content }
                     box.parts = parts
                     if perPart {
                         // (Each part carries its own place: the group's

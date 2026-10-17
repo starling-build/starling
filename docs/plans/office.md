@@ -5500,6 +5500,17 @@ fitter dropped the paragraph's tail).
   PingFang on the Mac, Noto Sans CJK on Linux), as dashes and
   ellipses already were on the Mac. zh-78729cf9 99.3 -> 100; nothing
   else moved.
+- **A table in a text box is read (2026-10-17).** zh-64044a1d's
+  附件十二, the 災民收容登記表, is a 27-line form inside a VML text box
+  (419.65 by 428.75pt, behind the text). The text-box reader sets
+  paragraphs only and skipped `w:tbl`, so the box held one empty line
+  and the form printed as nothing (page 97: 8 of Word's 27 lines). Such
+  a box's content is now noted (`_Shared.boxTables`), and the body's
+  reader reads it again once the paragraph holding the box is set,
+  tables and all, as it reads a small table in a cell into a box. It
+  saves and restores its own state and the note and comment counts
+  the box reader keeps. zh-64044a1d 97.8 -> 98.8 (page 97 23 of 27);
+  nothing else moved. The only box in the corpus with a table.
 - **On a grid that takes room away, a body line is whole cells of
   Normal's size (2026-10-17).** zh-f0bd9ea8 (mode 14, linesAndChars,
   charSpace -842, Normal 10.5, 16pt text) took a character more than
