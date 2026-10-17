@@ -1011,6 +1011,20 @@ perhaps a cloud font it had downloaded. The second sample (2026-10-17)
 reflects today's Word: YaHei. One rule cannot match both; reprinting
 the first sample is the user's call and has not been done.
 
+**Reprinted (Mac, 2026-10-17).** All 68 of the first sample's prints
+were redone with Word 16.113.3. That commit changes references only. Old
+KaiTi is YaHei in every print that had it, and zh-64044a1d also lost
+STHeiti. Same build, scored on the Mac against old and new references:
+zh 95.6 -> 95.4, 73 -> 71 at 95% or more. Five documents moved:
+- zh-15728c84: 98.0 -> 86.4
+- zh-232090e0: 97.8 -> 90.5
+- zh-37b6536f: 97.7 -> 96.9
+- zh-64044a1d: 97.1 -> 97.0
+- zh-69bbcc3c: 99.1 -> 99.0
+
+The OfficeFonts mac rule 楷体_GB2312 -> KaiTi now goes to YaHei; that
+change is lenovo-3's (Linux).
+
 ### Leads from the second sample (Windows box, 2026-10-17)
 Done here: zh-4d143b5e 36.5 -> 99.8 (6ef30c71), zh-b13d0fb4 93.5 -> 100
 (b9952df9). Measured and left:

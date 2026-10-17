@@ -90,6 +90,10 @@ changes). So the gate reprints the originals every time and the PDFs in
 ## Word's side
 
 `word/` was made on 2026-10-11 and -12 by Microsoft Word for Mac 16.113,
+except the `zh-*` prints, all 88 of which are Word for Mac 16.113.3 on
+2026-10-16 (the first sample's 68 reprinted that day: by then Word set
+楷体_GB2312 in Microsoft YaHei, where the 2026-10-12 prints had KaiTi,
+so the two halves had disagreed; the old prints are in git history),
 through
 
     test/docx-word-render.sh IN_DIR OUT_DIR WORK [names…]
