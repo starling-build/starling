@@ -963,6 +963,25 @@ zh-d35cbbdb 55.4 -> 88.9, nothing else moved. Left: the header's "項目",
 merged down into row 2 and centred over both, is not drawn on page 4
 (Word's is, at the row's middle).
 
+### Footer trailing spaces in a right-aligned paragraph (zh-c5b5087b, zh-9dd9ce6d) — measured, released (Mac)
+Both footers share zh-1563bd74's build: a page-number box on an empty
+first paragraph indented past the column, then a right-aligned (`wordWrap`
+0) paragraph of an invisible FAFAFA "X" or "嘉" with spaces, the publisher's
+name, and five trailing spaces, then an empty paragraph. Measured from
+Word's prints: in a right-aligned paragraph trailing spaces take room.
+zh-9dd9ce6d's second line, two leading 8pt spaces, "嘉峪关市人民政府发布"
+(14.25 a character) and five trailing spaces, is 201.3pt of its 202.85
+and stays one line. zh-c5b5087b's thirteen characters with five spaces
+do not fit: four spaces go to a line of their own, the text stands 14.5pt
+left of the margin, and the page number 18pt higher (Word 128.7, ours
+110.8). Tried (Mac): a word joiner after a right-aligned paragraph's
+trailing spaces, so the engine gives them room and wraps what does not
+fit. zh-c5b5087b 84.7 -> 94.4, but zh-9dd9ce6d 100 -> 89.9: ours wraps
+its last space, so our line is a few points wider than Word's 201.3.
+Our natural width of that paragraph traces as 421pt, where its glyphs
+come to about 200, so something unseen is counted. Find that first,
+then the joiner is the fix. Released.
+
 ### Note from the Mac (2026-10-17): Word's 楷体_GB2312 changed between the two samples
 A fresh print of zh-78729cf9 today (Word 16.113.3 / 26092714, macOS 27.0
 26A428, the same OS build as both samples' PDFs) sets all its 楷体_GB2312
