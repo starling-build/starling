@@ -5251,6 +5251,12 @@ public final class RichLayout {
                         r.eastAsiaFontFamily = "Noto Sans SC"
                         notoStyle = theme.textStyle(for: r, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                                     eastAsian: true, gridPitch: pitch, scriptHidden: true)
+                        // (Noto's line over and under the baseline, not
+                        // its height shared out as the joiner's own face
+                        // shares its ascent and descent: zh-8e8d4c40's
+                        // lines holding "狀" and "行" stood 2.6pt under
+                        // the line above, Word's 1.4, and no deeper.)
+                        if let joiner = _notoJoiner(r, notoStyle!, run, named, style(kind), p.style, pitch, scale) { notoStyle = joiner }
                     }
                     spans.append(TextSpan(text: "\u{2060}", style: notoStyle!))
                     inserts.append(offset)
@@ -6279,6 +6285,40 @@ public final class RichLayout {
     /// undo.
     private static func _risesForNumber(_ inline: [(image: ImageAttachment?, dimensions: PlaceholderDimensions)]) -> Bool {
         inline.contains { $0.image == nil && $0.dimensions.size.height > 0.5 }
+    }
+
+    /// The style of the word joiner that gives a line holding a CJK
+    /// compatibility ideograph Noto Sans SC's line (`_span`): as much
+    /// higher over the baseline and deeper under it than the line of
+    /// `own` (the ideographs' style) as Word's Noto line is than that
+    /// face's. The joiner's glyph is whatever face has it, and the engine
+    /// shares a height out by that face's ascent and descent; at an even
+    /// share its ascent less its descent is fixed by the size alone, so
+    /// the size sets that and the height the rest. Nil where either
+    /// face's baseline is not known, or the line's height is exact.
+    private func _notoJoiner(_ noto: CharStyle, _ notoStyle: TextStyle, _ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle,
+                             _ paragraph: RichParagraphStyle, _ pitch: Double?, _ scale: Double) -> TextStyle? {
+        guard paragraph.lineHeightPoints == nil || paragraph.lineHeightIsMinimum,
+              let notoBase = theme.baseline(for: noto, in: paragraph, named: named, eastAsian: true, gridPitch: pitch),
+              let ownBase = theme.baseline(for: run, in: paragraph, named: named, eastAsian: true, gridPitch: pitch),
+              let nh = notoStyle.height, let ns = notoStyle.fontSize, let oh = own.height, let os = own.fontSize else { return nil }
+        let k = theme.pixelsPerPoint * scale
+        let rise = (notoBase - ownBase) * k
+        let fall = (nh * ns - notoBase * k) - (oh * os - ownBase * k)
+        guard rise > 0.01 || fall > 0.01 else { return nil }
+        func metrics(_ text: String, _ style: TextStyle) -> (Double, Double)? {
+            let t = TextPainter(text: TextSpan(text: text, style: style), textDirection: .ltr)
+            t.layout(minWidth: 0, maxWidth: 100_000)
+            defer { t.dispose() }
+            return t.computeLineMetrics().first.map { ($0.ascent, $0.descent) }
+        }
+        let probe = notoStyle.copyWith(fontSize: 100, letterSpacing: 0, height: 1, leadingDistribution: .even)
+        guard let line = metrics("\u{4E00}", own), let joiner = metrics("\u{2060}", probe) else { return nil }
+        let ascent = line.0 + max(0, rise), descent = line.1 + max(0, fall)
+        let split = (joiner.0 - joiner.1) / 100
+        guard split > 0.05, ascent > descent else { return nil }
+        let size = (ascent - descent) / split
+        return notoStyle.copyWith(fontSize: size, letterSpacing: 0, height: (ascent + descent) / size, leadingDistribution: .even)
     }
 
     private func _levelNumberSize(_ p: RichParagraph, _ document: RichDocument) -> Double? {

@@ -4437,6 +4437,19 @@ fitter dropped the paragraph's tail).
   their 30pt, where ours, counting no line on that side, took two. A
   cell's side with no line of its own now takes its neighbour's.
   zh-37b6536f 96.2 -> 97.7; nothing else moved.
+- **A line holding a compatibility ideograph has Noto's line over and
+  under the baseline (2026-10-16).** Word on a Mac sets a few CJK
+  compatibility ideographs (狀 U+F9FA, 行 U+FA08, …) in Noto Sans SC.
+  Its line then stands 1.4pt further under the line above at 12pt and
+  0.5 deeper (lab `cj2`). Ours gave the line Noto's height through a
+  word joiner. The joiner's glyph comes from whatever face has one
+  (Caladea on the Mac), and the engine shares a height out by that
+  face's ascent and descent. Each such line stood 2.6pt under the line
+  above and no deeper. The joiner is now sized and set at an even
+  share, so its ascent and descent are Noto's less the ideographs'
+  face's, added to that face's measured line. At an even share the
+  size fixes ascent less descent, and the height sets the rest.
+  zh-8e8d4c40 90.4 -> 98.9; nothing else moved.
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints
