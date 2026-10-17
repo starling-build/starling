@@ -2176,6 +2176,15 @@ gridlines, runs to the data and a twentieth past it, unrounded: the
 survey's 3-D bars reach 6 of 6.3 and 14 of 14.7, where ours stopped at
 6 of 7. Left: 45544's moved pie labels land off the chart.
 
+**A chart title where the file places it, 2026-10-17**
+(LIBRE_OFFICE-100610 1.51 → 1.49, aascu 5864 5.74 → 5.73; workbooks
+mixed by a few hundredths). A title's own place
+(`c:title/c:layout/c:manualLayout`, edge mode) was dropped: the
+survey's bar charts' titles stand a third of the way down their
+charts in PowerPoint's print, across the bars, where ours sat at the
+top. The text stands 4.5 pt in and 1.5 down from the box's corner,
+drawn after the plot; the plot keeps its room as before.
+
 **Tried and dropped, 2026-10-17:** WordArt lines on a circle each on
 their own ring. tdf125582's two 40 pt lines stand 42.5 pt apart in
 PowerPoint's print, the last where ours both stand, and stacking them so

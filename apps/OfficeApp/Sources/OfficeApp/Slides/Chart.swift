@@ -167,6 +167,10 @@ struct Chart: Equatable {
     /// mode), as fractions of the chart's frame: entries in a row in it,
     /// the plot keeping its room. nil: beside the plot by `legendPosition`.
     var legendBox: Rect? = nil
+    /// The title's own place (`c:title/c:layout/c:manualLayout`, edge
+    /// mode): its box's top left, as fractions of the chart's frame, the
+    /// plot keeping its room. nil: centred at the top.
+    var titleAt: Offset? = nil
     /// A 3-D pie's tilt toward the viewer (`c:view3D/c:rotX`, degrees): drawn
     /// as a disc seen from above at that angle, its rim showing below. nil
     /// is a flat pie.
@@ -656,6 +660,7 @@ enum ChartXML {
         var title: String? = nil
         let deleted = chart.first("c:autoTitleDeleted")?["val"] == "1"
         var titleSize: Double? = nil, titleBold = false, titleColor: Color? = nil, titleFace: String? = nil
+        var titleAt: Offset? = nil
         if let t = chart.first("c:title") {
             // Line by line: a paragraph, or a break inside one, starts a new line.
             let paragraphs = t.first("c:tx")?.first("c:rich")?.all("a:p") ?? []
@@ -666,6 +671,11 @@ enum ChartXML {
             // no name gives "Chart Title": zh-37b6536f's pie in Word's
             // print, where ours read "Series 1".)
             title = text.isEmpty ? (series.count == 1 && named ? series[0].name : "Chart Title") : text
+            if let m = t.first("c:layout")?.first("c:manualLayout"),
+               (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
+               let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
+                titleAt = Offset(x, y)
+            }
             // Its look: the first run's, over the paragraph's default run
             // properties, over the title's own (`c:txPr`).
             let run = paragraphs.first?.first("a:r")?.first("a:rPr")
@@ -733,6 +743,7 @@ enum ChartXML {
             c.plainText = true
         }
         c.titleSize = titleSize
+        c.titleAt = titleAt
         c.titleBold = titleBold
         c.titleColor = titleColor
         // (A theme slot, "+mn-lt", is the theme's face: none of its own.)
@@ -1222,6 +1233,7 @@ enum ChartPainter {
                                  r.bottom - (old ? 6.5 : c.chartex ? 4.6 : 9) * k)
 
         let titled = !(c.title ?? "").isEmpty
+        var placed: (TextPainter, Offset)? = nil
         if let title = c.title, !title.isEmpty {
             // In the file's size, weight and colour where it gives them,
             // each line centred.
@@ -1231,8 +1243,15 @@ enum ChartPainter {
                 fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)),
                 textAlign: .center, textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: max(1, area.width))
-            // (Two points higher than the area's edge: where PowerPoint's sits.)
-            tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.top - 2 * k))
+            // (Two points higher than the area's edge: where PowerPoint's
+            // sits. Or where the file places its box, 4.5 pt in and 1.5
+            // down, over the plot: LIBRE_OFFICE-100610's bar charts'
+            // titles, across their bars.)
+            if let at = c.titleAt {
+                placed = (tp, Offset(r.left + at.dx * r.width + 4.5 * k, r.top + at.dy * r.height + 1.5 * k))
+            } else {
+                tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.top - 2 * k))
+            }
             // (Gaps from PowerPoint's own default chart, chart-slide-bg:
             // title to plot 3.6, plot to its category labels 7.6, labels to
             // the legend 8.4, the legend 1.2 above the margin, value labels
@@ -1240,7 +1259,7 @@ enum ChartPainter {
             // (A chartex chart's plot 2 pt nearer: 12.8 under the title's
             // baseline in Word's print of chartex's, a `c:` chart's 14.9.)
             area = Rect.fromLTRB(area.left, area.top + tp.height + (c.chartex ? 1.6 : 3.6) * k, area.right, area.bottom)
-            tp.dispose()
+            if placed == nil { tp.dispose() }
         }
 
         // The legend: one row of key + name, centred, wrapped when wide.
@@ -1393,6 +1412,10 @@ enum ChartPainter {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, grid: c.gridColor ?? grid, text: text,
                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor) })
+        }
+        if let (tp, at) = placed {
+            tp.paint(canvas, at)
+            tp.dispose()
         }
         canvas.restore()
     }
