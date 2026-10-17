@@ -114,7 +114,7 @@ start from there.
 Twenty more (`random.seed(20261018)`, the unprinted rest of 15-400 KB,
 Word 16.113.3 prints) are checked in; compare per document across it.
 It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (T86, 83.6 now),
-zh-5dc5ce34 20.3 (21; Windows box, looking), zh-167ee06c 55.4 (14; Mac, looking), zh-21421b7d 69.2 (2; Mac 011uWpmC, looking),
+zh-5dc5ce34 20.3 (21; Windows box, looking), zh-167ee06c 55.4 (14; T88, 72.9 now), zh-21421b7d 69.2 (2; Mac 011uWpmC, looking),
 zh-70094a34 70.8 (19), zh-621d8756 82.4 (52), zh-34a6519a 84.0 (53),
 zh-830ef10d 89.2, zh-fb482d33 89.7 (6 pages, Word 7), zh-ad224275 93.2.
 
@@ -168,6 +168,19 @@ table keeps a grid wider than its pct share (Word rules the form's 638.6pt
 grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
+
+### T88. zh-167ee06c: an alternate name of JhengHei, and JhengHei UI's line — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+Its 華康雅風體W3(P) has `w:altName` "Microsoft JhengHei UI Light", and
+Word's print draws that face (embedded); ours took YaHei, its 1.5-spaced
+bold 14pt lines 36.3pt apart to Word's 34.7. An alternate naming JhengHei
+is used now, and JhengHei UI has a line of its own: ascent 2080, descent
+521 in 2048 (from the embedded subset), 1.3 of it = 1.651 em, Word's
+34.67 / 21 to the point. Not emboldened wider: 1/57 em a character ran
+the file a page long (0.4%). zh-167ee06c 55.4 -> 72.9; nothing fell.
+Left there: "hangingChars" 200 sets its lines 21.6pt in where ours
+stand 28 (two of the 14pt ems); its first line's "、" squeezed to take
+"系", which Word leaves.
 
 ### T86. A Latin word at a body line's end starts half an em inside the margin — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)

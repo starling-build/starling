@@ -924,6 +924,15 @@ enum OfficeFonts {
                                  fakeBold: false)
         }
         if has("yahei", "微软雅黑") { return yaHei }
+        // (JhengHei UI's line is its own: an ascent of 2080 and a descent of
+        // 521 in 2048, Word's 1.3 of that — zh-167ee06c's Light, set from
+        // the face its print embeds. Not emboldened wider: as 1/57 em a
+        // character, the same file ran a page long.)
+        if has("jhenghei ui") {
+            return EastAsianFace(height: 1.651, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
+                                 latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns, fakeBold: false,
+                                 baseline: 1.206)
+        }
         if has("jhenghei", "微軟正黑") {
             return EastAsianFace(height: 1.74, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
                                  latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns, fakeBold: false)
@@ -974,7 +983,11 @@ enum OfficeFonts {
         if wordOnMac, !isEmbedded(family), !wordHas.contains(where: { n.containsSubstring($0) }),
            let alt = altName(family), alt.trimmingWhitespace().lowercased() != n {
             let a = alt.trimmingWhitespace().lowercased()
-            let usable = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "mingliu", "細明體"]
+            // (… JhengHei too: zh-167ee06c's 華康雅風體W3(P), alternate
+            // "Microsoft JhengHei UI Light", is drawn in that face in Word's
+            // print, its 1.5-spaced 14pt lines 34.7pt apart where YaHei's
+            // stood 36.3.)
+            let usable = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "mingliu", "細明體", "jhenghei"]
             if usable.contains(where: { a.containsSubstring($0) }), !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { a.containsSubstring($0) }) {
                 return eastAsianFace(alt)
             }
