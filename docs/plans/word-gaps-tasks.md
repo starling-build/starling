@@ -927,6 +927,14 @@ labs' four lines within 0.8-3.1pt of Windows Word's, but in the whole
 document joins them in twos and sets them 7.6pt high. Word for Windows
 and for Mac disagree on this cover, so a Windows lab cannot settle it;
 needs the Mac's Word.
+### Note from the Mac (2026-10-16 night): the zh corpus is 88 documents now
+12fef482 adds a second seeded sample of 20 zh documents, with Word's
+prints. It started at 74.5% of Word's lines, against the first 68's 98%,
+so new gaps are there. A sweep's zh mean is not comparable across that
+commit; compare per document. Being worked: zh-4d143b5e's merged-cell
+row parting (Windows, T32), zh-2a241df1's charts (Mac, T59), zh-3c055c9b
+(Mac, a mode 15 character-grid line end).
+
 ### T59. A column chart with a line on a second value axis
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-16
 Documents: zh-2a241df1 (7.6%, from the Mac's second Word sample of 20
