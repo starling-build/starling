@@ -2760,8 +2760,12 @@ public final class RichLayout {
             // zh-e37f8d40's form marks every row, so none repeats, and
             // Word carries its 民政局社会救助股意见 row whole to page 14
             // where ours parted it three lines and two.)
+            // (Nor a row of exact height that a page could hold: zh-340d52e9's
+            // 347pt "守望相助" row (hRule exact) goes whole to page 6 in
+            // Word's print with 58pt left on page 5, where ours parted it.)
             guard let ts, !ts.rowsCantSplit.contains(c.row), c.row >= headerRows(c.table),
-                  !(theme.wordRules && ts.headerRow && c.row < ts.headerRowCount) else { return false }
+                  !(theme.wordRules && ts.headerRow && c.row < ts.headerRowCount),
+                  !(theme.wordRules && ts.rowsExactHeight.contains(c.row) && c.ownRowHeight <= contentH + 0.01) else { return false }
             // (Nor a row whose first paragraph is kept with the next: lab
             // `kr` (Word 16, modes 15 and legacy), a one-row table of
             // twelve paragraphs with room for eight at a page's foot goes
@@ -3666,7 +3670,8 @@ public final class RichLayout {
                         // "附件五" heading at page 88's foot with the
                         // first two lines of its form's five-line title
                         // row, and parts the row there.)
-                        guard theme.wordRules, document.tableStyles[c.table]?.rowsCantSplit.contains(c.row) != true else { return c.ownRowHeight }
+                        guard theme.wordRules, document.tableStyles[c.table]?.rowsCantSplit.contains(c.row) != true,
+                              !(document.tableStyles[c.table]?.rowsExactHeight.contains(c.row) == true && c.ownRowHeight <= contentH + 0.01) else { return c.ownRowHeight }
                         var need = 0.0
                         var j = k
                         while j < count, let d = _cells[j], d.table == c.table, d.row == c.row {

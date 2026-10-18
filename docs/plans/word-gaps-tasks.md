@@ -146,7 +146,7 @@ Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 76.6%. Its low ones,
 unclaimed unless marked: zh-8f9b19f4 0.0 (Word 14 pages, ours 7; Mac
 01Xgpbk5, looking), zh-117cf7c6 39.2 (3/4 pages; Mac 011uWpmC, 98.6 now — table text off the grid without adjustLineHeightInTable; released), zh-e0ca7252 41.9
-(52/51; Linux 017F2GnT, T102, claimed), zh-340d52e9 48.9 (Mac 01Xgpbk5, looking), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC, looking), zh-ea70c30e 59.1,
+(52/51; Linux 017F2GnT, T102, claimed), zh-340d52e9 48.9 (T103, 75.6 now), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC, looking), zh-ea70c30e 59.1,
 zh-5b7ae054 64.4 (44 pages), zh-82b166b4 72.8, zh-54e91165 75.4,
 zh-8d6f702e 88.0.
 
@@ -260,6 +260,14 @@ and its baseline that face's: the 1.5-spaced paragraphs from p3 are
 41.2pt a line as Word's, and stand where Word's do (to 0.1pt). 39.9 ->
 46.1, nothing else moved. Left: the matcher's — Word's text layer maps
 its 招 to U+0000, and nearly every line says 招标; the lines match.
+
+### T103. A table row of exact height goes to the next page whole — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-340d52e9's 347pt "守望相助" row is `w:hRule` exact; with 58pt left on
+page 5 Word carries it whole to page 6, where ours parted it like any
+row and everything after ran early. A row of exact height that a page
+can hold is now not parted (as `w:cantSplit`). zh-340d52e9 48.9 ->
+75.6, zh-117cf7c6 39.2 -> 98.6 (3 pages, Word's); nothing fell.
 
 ### T101. Sections that disagree on their columns are set in one — DONE (2026-10-17), zh-8f9b19f4 still open
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
