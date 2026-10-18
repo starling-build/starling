@@ -150,7 +150,7 @@ after, as ours — that rule holds.
 ### Note from the Mac (2026-10-17, late): the zh corpus is 186 documents — a seventh sample
 Eighteen more (`random.seed(20261021)`; two of the twenty Word would not
 print), checked in. It starts at 89.9%. Its low ones, unclaimed:
-zh-007ca091 35.4 (11 pages, ours 12), zh-0b87285b 77.9, zh-701eda18
+zh-007ca091 35.4 (11 pages, ours 12; Mac 01Xgpbk5, looking), zh-0b87285b 77.9, zh-701eda18
 83.0, zh-043aab43 84.4, zh-021b8feb 85.6 (18/19), zh-8f7aa519 87.7,
 zh-c8eb6e92 91.2.
 
