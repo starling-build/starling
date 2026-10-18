@@ -2,7 +2,8 @@
 
 As of 2026-10-13. The map over the four plan documents — `office.md`
 (Writer and the suite), `office-editor.md` (the editor), `slides.md`,
-`sheets.md`, and `wasm.md` (the browser) — which carry the history and
+`sheets.md`, `wasm.md` (the browser), and `wiki.md` (the documentation
+site built on the suite, drafted 2026-10-18) — which carry the history and
 the traps; this page is kept short and current.
 
 ## What it is

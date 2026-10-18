@@ -157,6 +157,77 @@ if let i = CommandLine.arguments.firstIndex(of: "--layout"), i + 1 < CommandLine
     }
 }
 
+// The wiki's stored form (docs/plans/wiki.md): a document as JSON, lossless.
+//   --page-json <in.docx|rtf|md> <out.json>   read a file, write the page
+//   --page-docx <in.json> <out.docx>          write a page back as a file
+//   --page-roundtrip <in.docx|rtf|md>         read, encode, decode, compare;
+//                                             prints OK or the first difference
+// Paragraphs get ids on the way in (Word's own where the file had them).
+if let i = CommandLine.arguments.firstIndex(of: "--page-json"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        var opened = try OfficeFormats.read(CommandLine.arguments[i + 1])
+        opened.document.assignParagraphIDs()
+        try RichDocumentEnvelope.encode(opened.document).write(to: URL(fileURLWithPath: CommandLine.arguments[i + 2]))
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("page-json failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+if let i = CommandLine.arguments.firstIndex(of: "--page-docx"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let doc = try RichDocumentEnvelope.decode(try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1])))
+        try OfficeFormats.write(doc, to: CommandLine.arguments[i + 2])
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("page-docx failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+if let i = CommandLine.arguments.firstIndex(of: "--page-roundtrip"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        var doc = try OfficeFormats.read(CommandLine.arguments[i + 1]).document
+        doc.assignParagraphIDs()
+        let data = try RichDocumentEnvelope.encode(doc)
+        let back = try RichDocumentEnvelope.decode(data)
+        if back == doc {
+            print("OK \(doc.paragraphs.count) paragraphs \(data.count) bytes")
+            exit(0)
+        }
+        // Name the first thing that differs, so the fix is a grep away.
+        if back.paragraphs.count != doc.paragraphs.count {
+            print("DIFF paragraph count \(doc.paragraphs.count) -> \(back.paragraphs.count)")
+        } else if let k = zip(doc.paragraphs, back.paragraphs).enumerated().first(where: { $0.element.0 != $0.element.1 })?.offset {
+            let (a, b) = (doc.paragraphs[k], back.paragraphs[k])
+            var what = "paragraph \(k)"
+            if a.text != b.text { what += " text" }
+            if a.runs != b.runs { what += " runs" }
+            if a.style != b.style { what += " style" }
+            if a.image != b.image { what += " image" }
+            if a.cell != b.cell { what += " cell" }
+            if a.inlineImages != b.inlineImages { what += " inlineImages" }
+            print("DIFF \(what)")
+        } else {
+            var what = "document"
+            if doc.styles != back.styles { what += " styles" }
+            if doc.tableColumns != back.tableColumns { what += " tableColumns" }
+            if doc.tableStyles != back.tableStyles { what += " tableStyles" }
+            if doc.listFormats != back.listFormats { what += " listFormats" }
+            if doc.keptParts != back.keptParts { what += " keptParts" }
+            if doc.keptTables != back.keptTables { what += " keptTables" }
+            if doc.keptHeaderFooters != back.keptHeaderFooters { what += " keptHeaderFooters" }
+            print("DIFF \(what)")
+        }
+        exit(2)
+    } catch {
+        FileHandle.standardError.write("page-roundtrip failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--sheet-layout <file.xlsx|csv>`: the active sheet as the grid lays it out
 // (SheetLayoutDump) — the native half of test/sheets-layout.sh, which diffs
 // it against `starling.debug('sheet')` in the browser.

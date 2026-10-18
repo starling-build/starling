@@ -80,4 +80,28 @@ HOST(download)
 void starling_host_download(const void* name, uint32_t nameLength, const void* bytes,
                             uint32_t byteCount);
 
+// The network, the browser's way (docs/plans/wiki.md W0). http_request
+// starts a fetch: method, URL, headers ("Name: value" lines joined by \n)
+// and body are UTF-8/bytes in OUR memory, copied before the call returns;
+// same-origin cookies ride along. The page answers through our exported
+// starling_http_done(id, status, headers, headersLength, body, bodyLength)
+// with both buffers from starling_alloc — ours to free — and status 0 for a
+// network failure. Sockets: socket_open starts a WebSocket; the page reports
+// through starling_socket_event(id, kind, bytes, length) with kind 0 open,
+// 1 text message, 2 binary message, 3 closed, 4 error (bytes as above, or
+// null). socket_send takes bytes in OUR memory (text != 0 sends a string).
+HOST(http_request)
+void starling_host_http_request(uint32_t id, const void* method, uint32_t methodLength,
+                                const void* url, uint32_t urlLength, const void* headers,
+                                uint32_t headersLength, const void* body, uint32_t bodyLength);
+HOST(socket_open) void starling_host_socket_open(uint32_t id, const void* url, uint32_t urlLength);
+HOST(socket_send)
+void starling_host_socket_send(uint32_t id, const void* bytes, uint32_t length, uint32_t text);
+HOST(socket_close) void starling_host_socket_close(uint32_t id);
+
+// The address bar: push (or replace) the tab's URL path without a load.
+// The page reports the user's back/forward through our exported
+// starling_route_changed(utf8, length).
+HOST(push_route) void starling_host_push_route(const void* utf8, uint32_t length, uint32_t replace);
+
 #endif  // STARLING_SKWASM_BASE_H

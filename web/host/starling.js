@@ -279,6 +279,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   }, 'viie');
 
   const utf8 = new TextDecoder();
+  const encoder = new TextEncoder();
   const host = {
     write(dst, src, length) {
       skBytes().set(appBytes().subarray(src, src + length), dst);
@@ -395,6 +396,83 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     },
   };
 
+  // --- the network and the address bar (docs/plans/wiki.md W0). Each
+  // answer copies into the app's memory through starling_alloc; the app
+  // frees. Requests are same-origin by default, so the session cookie
+  // rides along without the app knowing it exists.
+  const bytesIn = (pointer, length) => appBytes().slice(pointer, pointer + length);
+  const textIn = (pointer, length) => utf8.decode(appBytes().subarray(pointer, pointer + length));
+  const handOver = (bytes) => {
+    const pointer = bytes.length ? swift.starling_alloc(bytes.length) : 0;
+    if (pointer) appBytes().set(bytes, pointer);
+    return pointer;
+  };
+  host.http_request = async (id, methodPtr, methodLen, urlPtr, urlLen, headersPtr, headersLen, bodyPtr, bodyLen) => {
+    const method = textIn(methodPtr, methodLen) || 'GET';
+    const url = textIn(urlPtr, urlLen);
+    const headers = {};
+    for (const line of textIn(headersPtr, headersLen).split('\n')) {
+      const colon = line.indexOf(':');
+      if (colon > 0) headers[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+    }
+    const body = bodyLen ? bytesIn(bodyPtr, bodyLen) : undefined;
+    let status = 0, responseHeaders = new Uint8Array(0), responseBody = new Uint8Array(0);
+    try {
+      const response = await fetch(url, { method, headers, body, credentials: 'same-origin' });
+      status = response.status;
+      const lines = [];
+      response.headers.forEach((value, name) => lines.push(`${name}: ${value}`));
+      responseHeaders = encoder.encode(lines.join('\n'));
+      responseBody = new Uint8Array(await response.arrayBuffer());
+    } catch (error) {
+      console.warn(`starling: ${method} ${url}: ${error}`);
+      responseBody = encoder.encode(String(error));
+    }
+    swift.starling_http_done(id, status, handOver(responseHeaders), responseHeaders.length, handOver(responseBody), responseBody.length);
+  };
+  const sockets = new Map();
+  host.socket_open = (id, urlPtr, urlLen) => {
+    const url = new URL(textIn(urlPtr, urlLen), location.href);
+    if (url.protocol === 'http:') url.protocol = 'ws:';
+    if (url.protocol === 'https:') url.protocol = 'wss:';
+    let socket;
+    const report = (kind, bytes) => swift.starling_socket_event(id, kind, bytes ? handOver(bytes) : 0, bytes ? bytes.length : 0);
+    try {
+      socket = new WebSocket(url.href);
+    } catch (error) {
+      report(4, encoder.encode(String(error)));
+      return;
+    }
+    socket.binaryType = 'arraybuffer';
+    socket.onopen = () => report(0, null);
+    socket.onmessage = (event) => {
+      if (typeof event.data === 'string') report(1, encoder.encode(event.data));
+      else report(2, new Uint8Array(event.data));
+    };
+    socket.onerror = () => report(4, null);
+    socket.onclose = (event) => { sockets.delete(id); report(3, encoder.encode(`${event.code} ${event.reason || ''}`)); };
+    sockets.set(id, socket);
+  };
+  host.socket_send = (id, pointer, length, text) => {
+    const socket = sockets.get(id);
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(text ? textIn(pointer, length) : bytesIn(pointer, length));
+  };
+  host.socket_close = (id) => { sockets.get(id)?.close(); sockets.delete(id); };
+  host.push_route = (pointer, length, replace) => {
+    const route = textIn(pointer, length);
+    try {
+      if (replace) history.replaceState({ starling: route }, '', route);
+      else history.pushState({ starling: route }, '', route);
+    } catch (error) {
+      console.warn(`starling: route ${route}: ${error}`);
+    }
+  };
+  window.addEventListener('popstate', () => {
+    const route = location.pathname + location.search + location.hash;
+    transfer(encoder.encode(route), (pointer, length) => swift.starling_route_changed(pointer, length));
+  });
+
   // --- the Swift module
   const timers = new Map();
   host.set_timeout = (id, milliseconds) => {
@@ -436,7 +514,6 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // straight into an SkData in skwasm's memory. A font may be registered
   // under several family names — the first entry is also given skwasm's
   // fallback name, so text in a family nobody loaded still draws.
-  const encoder = new TextEncoder();
   const registerFont = (bytes, family) => {
     const data = sk.skData_create(bytes.length);
     skBytes().set(bytes, sk.skData_getPointer(data));

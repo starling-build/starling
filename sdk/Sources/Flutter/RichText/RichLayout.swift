@@ -667,7 +667,7 @@ public struct RichResolvedFace: Sendable {
 /// Paper size and margins, in points. `nil` on the layout means a continuous
 /// column (a note, a text field); set, the flow is cut into pages at line
 /// boundaries and every geometry query has a canvas-space twin.
-public struct PageSetup: Hashable, Sendable {
+public struct PageSetup: Hashable, Codable, Sendable {
     public var width: Double
     public var height: Double
     public var marginTop: Double
