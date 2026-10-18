@@ -8283,7 +8283,11 @@ public final class RichLayout {
             // a cell, indented or not, as a line with no mark does. With
             // `w:topLinePunct` the first line's is given up before the
             // fit, `_topLineSqueeze`.)
-            let lineOpener = lineWide == 0 ? (a ..< last).first { !isSpace(units[$0]) } : nil
+            // (Not one after an ideographic space, which is a character of
+            // the line: zh-70094a34's clauses open "\u{3000}\u{3000}（二）…",
+            // and Word's print takes "…设施区域范围内，" 21.75pt over with
+            // that "（" giving its half, where ours sent "内，" down.)
+            let lineOpener = lineWide == 0 ? (a ..< last).first { units[$0] != 0x20 && units[$0] != 0x09 } : nil
             // (Spaces a line opens with are no characters of it, and
             // those it ends with stretch nothing.)
             if (a ..< piece.b).contains(where: { units[$0] == 0x20 }) { lineBlank = true }

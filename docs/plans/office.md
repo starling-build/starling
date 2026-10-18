@@ -5612,6 +5612,18 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **A bracket after an ideographic space is no line's opener
+  (2026-10-18).** An opening mark a line starts with keeps its blank
+  half (lab `ls`), and the test for "starts with" skipped every space
+  — U+3000 too. zh-70094a34's clauses open "\u3000\u3000（二）…", and
+  Word's print takes "…设施区域范围内，" 21.75pt over with that "（"
+  giving its half beside the "）" and the comma's half hang; ours sent
+  "内，" down and every such page ran a line long. An ideographic space
+  is a character of the line, and a bracket after it gives.
+  zh-70094a34 85.3 -> 99.5; nothing else moved. (Tried first and
+  reverted: under `useAltKinsokuLineBreakRules` a half-hung mark also
+  giving its blank half — the same line's numbers, but zh-1563bd74's
+  "…民政部门，" with one comma is left by Word, 100 -> 58.)
 - **A right stop after a line that opens with negative spacing; an
   earlier section with no footer (2026-10-18).** zh-10e3a42b's first
   contents entry is "1．总则<tab>4", its "1" spaced -0.5pt, its dotted
