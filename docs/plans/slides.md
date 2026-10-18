@@ -2398,6 +2398,10 @@ modifiers on `phClr`: the Office 2007 theme's first line is shaded to
 95% and saturated 105%, and shapes' connector prints 4A7EBB for
 4F81BD, as ours now does. Only the width was read before.
 
+A 2007-style pie on a slide has no white rims between its slices, as
+its print shows (chart_pt_color_bg1 0.62 → 0.55, pie-chart 1.42 →
+1.44: its slices a little off PowerPoint's, which the rims hid).
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the

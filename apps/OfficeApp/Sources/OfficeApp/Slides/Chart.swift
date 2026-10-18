@@ -2478,6 +2478,9 @@ enum ChartPainter {
         edge.isAntiAlias = true
         edge.strokeWidth = max(0.5, 1.5 * k)
         edge.color = theme.background
+        // (No rims in a 2007-style chart on a slide: pie-chart's slices
+        // meet edge to edge in PowerPoint's print, fills alone.)
+        if c.onSlide, !c.styled2013, c.officeStyled { edge.color = Color(0x00000000) }
         var labels: [(String, Offset, Color)] = []
         var placed: [(index: Int, mid: Double, value: Double, color: Color)] = []
         // A doughnut's wedges are rings: the hole shows what is behind.

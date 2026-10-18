@@ -100,7 +100,7 @@ lo-bnc910045.pptx	summary pages=1 worst=0.24% mean=0.24%
 lo-bullet-indent.pptx	summary pages=1 worst=1.08% mean=1.08%
 lo-bulletColor.pptx	summary pages=1 worst=0.17% mean=0.17%
 lo-bulletMarginAndIndent.pptx	summary pages=1 worst=0.20% mean=0.20%
-lo-chart_pt_color_bg1.pptx	summary pages=1 worst=0.62% mean=0.62%
+lo-chart_pt_color_bg1.pptx	summary pages=1 worst=0.55% mean=0.55%
 lo-connector-shape-animations.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-connectors.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-content-placeholder-cases.pptx	summary pages=4 worst=0.23% mean=0.06%
@@ -527,7 +527,7 @@ oox-theme-tint.pptx	summary pages=1 worst=0.40% mean=0.40%
 oox-theme.pptx	summary pages=1 worst=0.03% mean=0.03%
 oox-transparent-text.pptx	summary pages=1 worst=0.04% mean=0.04%
 picture-transparency.pptx	summary pages=4 worst=0.00% mean=0.00%
-pie-chart.pptx	summary pages=1 worst=1.42% mean=1.42%
+pie-chart.pptx	summary pages=1 worst=1.44% mean=1.44%
 placeholder-layout-color.pptx	summary pages=1 worst=0.69% mean=0.69%
 pptx2svg.pptx	summary pages=1 worst=3.69% mean=3.69%
 prProps.pptx	summary pages=1 worst=0.03% mean=0.03%
