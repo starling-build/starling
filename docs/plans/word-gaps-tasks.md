@@ -336,7 +336,12 @@ print; ours leaves "（含" 9pt over. Word sets 1.5pt beside each digit
 ("部" to "1" 13.5, "2" to "班" 7.1 with digits 5.6), ours 3.0 (a quarter
 of an em, `averageCharWidth` 0.5 for an East Asian face). Taking PMingLiU
 at an eighth of an em fixed it and broke 30 other zh-TW files (zh-ca3ab35c
-99.1 -> 49.3), so the eighth is this file's alone — what sets it is open.
+99.1 -> 49.3), so the eighth is this file's alone. Windows 01QbbApP's lab `as`
+(Word for Windows 16, this package, 21 lines over faces 新細明體/宋体/微软雅黑,
+languages zh-TW/zh-CN/none, doNotCompress or not, modes 14 and 15) sets
+every automatic space a quarter em, 3.0pt; Windows' PMingLiU has
+xAvgCharWidth 0.5. So the 1.5 is the Mac reference print's, not the
+file's — leave it.
 
 ### T123. zh-cb56e605 (93.1%, 7 pages): a form's label cells a few points off — measured, released
 Owner: none (Linux 017F2GnT measured it, 2026-10-18)
