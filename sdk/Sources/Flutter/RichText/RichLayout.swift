@@ -1952,12 +1952,17 @@ public final class RichLayout {
                 var rowHeight = 0.0
                 var ruled = 0.0
                 var padded = 0.0
+                var paddedBelow = 0.0
                 let ruleAbove = rows.isEmpty ? rule("top", ts?.edges?.top) : 0
                 let lastRow = !(j < n && _cells[j]?.table == table)
                 let ruleBelow = lastRow ? rule("bottom", ts?.edges?.bottom) : rule("insideH", ts?.edges?.insideH)
                 for k in k0 ..< j {
                     let cell = _cells[k]!
-                    if cell.rowSpan == 1 { ruled = max(ruled, cell.rules); padded = max(padded, cell.pad.top + cell.pad.bottom) }
+                    if cell.rowSpan == 1 {
+                        ruled = max(ruled, cell.rules); padded = max(padded, cell.pad.top + cell.pad.bottom)
+                        // (The margin alone: `pad.bottom` holds the rule under it.)
+                        paddedBelow = max(paddedBelow, cell.pad.bottom - cell.ruleBelow)
+                    }
                     let offset = stack[cell.column].map { $0 - shared(k) } ?? 0
                     _tops[k] = y + ruleAbove + cell.pad.top + offset
                     _rowTops[k] = y
@@ -2026,7 +2031,15 @@ public final class RichLayout {
                     // note lost its page by 3 twips.)
                     let below = (k0 ..< j).map { _cells[$0]!.ruleBelow }.max() ?? 0
                     let hung = exact && lastRow && below > _px(1) ? below : 0
-                    rowHeight = exact ? _px(least) + hung : max(rowHeight, _px(least) + around)
+                    // (An exact one is that tall and its cells' bottom margin
+                    // under it: the Mac's lab `rh` (zh-0243e7fc's package,
+                    // modes 14 and 15) — its exact rows, the table's margins
+                    // 0, 15 and 100 twips above and below, are 0.01, 0.76
+                    // and 5.00pt over their height between rules on average
+                    // over 18 rows; 100 above alone 0.01, 100 below alone
+                    // 5.00. Its 15-twip margins had each row 0.75 short in
+                    // ours, a line a page by page 9.)
+                    rowHeight = exact ? _px(least) + hung + (theme.wordRules ? paddedBelow : 0) : max(rowHeight, _px(least) + around)
                 }
                 rowHeight += ruleAbove + ruleBelow
                 rules.append((ruleAbove, ruleBelow))
@@ -3790,8 +3803,13 @@ public final class RichLayout {
             }
             // (A paragraph that is only the break, carried to a page of its
             // own because no line of it fit at the foot under a table,
-            // stays on the page it ends where under half its line was left
-            // there — after text Word does give it the page, zh-a4b0f6ea and
+            // stays on the page it ends where the table reached the foot,
+            // or all but a quarter of the line (ours stands a few points
+            // off Word's) — not where more was left: zh-6043ad90's
+            // landscape table leaves 11.9pt of the paragraph's 37.2 line,
+            // and Word's page 3 is the break's alone, "第二部分" on page 4;
+            // ours kept it under the table, a page early. Where a little was
+            // left there — after text Word does give it the page, zh-a4b0f6ea and
             // zh-c8eb6e92 have those blank pages, and so does zh-0aac9d1a's
             // page 10 under a table that left 24.7pt of a 31.2pt line: Word leaves it there and opens the next page with
             // what follows — zh-60c80728's page 25 ends in a table 2.9pt
@@ -3802,7 +3820,7 @@ public final class RichLayout {
                resumeCursor == nil, page > 0, i > 1, document.paragraphs[i - 1].text.isEmpty, document.paragraphs[i - 1].cell == nil,
                document.paragraphs[i - 2].cell != nil,
                _pages[page].count == 1, let was = _pages[page].first, was.paragraph == i - 1, was.pageY < 0.01,
-               prevContentH - prevY < was.height / 2,
+               prevContentH - prevY < was.height / 4,
                let at = _allPieces.lastIndex(where: { $0.paragraph == i - 1 && $0.page == page }) {
                 var only = PagePiece(paragraph: was.paragraph, flowTop: was.flowTop, flowBottom: was.flowBottom, page: page - 1, pageY: contentH)
                 only.part = was.part
