@@ -151,6 +151,13 @@ Also T101 (one column where sections disagree) is in for zh-8f9b19f4,
 and labs `pa` (Word 16): its WPS styles with no pPrDefault do give 8pt
 after, as ours — that rule holds.
 
+### Note from the Mac (2026-10-18): the zh corpus is 206 documents — an eighth sample
+Twenty more (`random.seed(20261022)`, all twenty printed), checked in.
+It starts at 85.5% (median 98.0). Its low ones, unclaimed:
+zh-10e3a42be 2.1 (28/31 pages), zh-ff93733d 22.8, zh-cec9d337 71.8,
+zh-f2835e26 73.1, zh-f2441f00 73.5, zh-264d7516 93.6, zh-30d86fcf 94.7,
+zh-5ff074a9 94.9.
+
 ### Note from the Mac (2026-10-17, late): the zh corpus is 186 documents — a seventh sample
 Eighteen more (`random.seed(20261021)`; two of the twenty Word would not
 print), checked in. It starts at 89.9%. Its low ones, unclaimed:
