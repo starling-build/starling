@@ -25,6 +25,16 @@ struct ShapeRun: Equatable {
 struct ShapeParagraph: Equatable {
     var align = "l"           // l, ctr, r, just
     var runs: [ShapeRun] = []
+    /// An equation the paragraph holds (`a14:m`'s `m:oMathPara` or
+    /// `m:oMath`, in mc:Choice), drawn through WriterMath, and its size.
+    var math: ShapeMath? = nil
+}
+
+/// An equation in a shape's paragraph: the same node is the same one.
+struct ShapeMath: Equatable {
+    let node: XNode
+    var size = 11.0
+    static func == (a: ShapeMath, b: ShapeMath) -> Bool { a.node === b.node && a.size == b.size }
 }
 
 struct SheetShape: Equatable {
@@ -137,6 +147,17 @@ struct SheetShape: Equatable {
                 for r in p.children {
                     let local = r.name.split(separator: ":").last ?? ""
                     if local == "br" { para.runs.append(ShapeRun(text: "\n", size: 11)); continue }
+                    // (An equation, in mc:Choice: LIBRE_OFFICE-128382-0's
+                    // e^x = 1 + x/1! + …, which printed as nothing.)
+                    if local == "AlternateContent", let m = r.child("Choice")?.child("m"),
+                       let eq = m.child("oMathPara") ?? m.child("oMath") {
+                        let sz = eq.descendant("a:rPr")?["sz"].flatMap(Double.init).map { $0 / 100 } ?? 11
+                        para.math = ShapeMath(node: eq, size: sz)
+                        if eq.name.hasSuffix("oMathPara"), eq.child("oMathParaPr")?.child("jc")?["m:val"]?.hasPrefix("center") == true {
+                            para.align = "ctr"
+                        }
+                        continue
+                    }
                     guard local == "r" || local == "fld", let t = r.child("t") else { continue }
                     let rp = r.child("rPr")
                     func attr(_ k: String) -> String? { rp?[k] ?? defaults?[k] }
@@ -216,11 +237,14 @@ struct SheetShape: Equatable {
                 if tailArrow { _arrowhead(canvas, at: Offset(x1, y1), from: Offset(x0, y0), width: p.strokeWidth, paint: p) }
             }
         }
-        guard paragraphs.contains(where: { !$0.runs.isEmpty }) else { return }
+        guard paragraphs.contains(where: { !$0.runs.isEmpty || $0.math != nil }) else { return }
         let box = Rect.fromLTRB(r.left + insets.left * k, r.top + insets.top * k, r.right - insets.right * k, r.bottom - insets.bottom * k)
         guard box.width > 2 else { return }
         var painters: [TextPainter] = []
-        for para in paragraphs {
+        // An equation's box in place of its paragraph's text, by index.
+        var equations: [Int: WriterMath.Box] = [:]
+        for (i, para) in paragraphs.enumerated() {
+            if para.runs.isEmpty, let m = para.math, let eq = WriterMath.box(m.node, size: m.size) { equations[i] = eq }
             let spans = (para.runs.isEmpty ? [ShapeRun(text: " ", size: 11)] : para.runs).map { run -> InlineSpan in
                 TextSpan(text: run.text, style: Flutter.TextStyle(
                     color: run.color ?? textColor ?? Color(0xFF000000), fontSize: max(3, run.size * k),
@@ -232,13 +256,24 @@ struct SheetShape: Equatable {
             tp.layout(minWidth: box.width, maxWidth: box.width)
             painters.append(tp)
         }
-        let height = painters.reduce(0) { $0 + $1.height }
+        func tall(_ i: Int) -> Double { equations[i].map { ($0.ascent + $0.descent) * k } ?? painters[i].height }
+        let height = painters.indices.reduce(0) { $0 + tall($1) }
         var y = anchor == "ctr" ? box.center.dy - height / 2 : anchor == "b" ? box.bottom - height : box.top
         canvas.save()
         canvas.clipRect(r)
-        for tp in painters {
-            tp.paint(canvas, Offset(box.left, y))
-            y += tp.height
+        for (i, tp) in painters.enumerated() {
+            if let eq = equations[i] {
+                let w = eq.width * k
+                let x = paragraphs[i].align == "ctr" ? box.center.dx - w / 2 : paragraphs[i].align == "r" ? box.right - w : box.left
+                canvas.save()
+                canvas.translate(x, y)
+                canvas.scale(k, k)
+                eq.draw(canvas, Offset(0, eq.ascent))
+                canvas.restore()
+            } else {
+                tp.paint(canvas, Offset(box.left, y))
+            }
+            y += tall(i)
             tp.dispose()
         }
         canvas.restore()

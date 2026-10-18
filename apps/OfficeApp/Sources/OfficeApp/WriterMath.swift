@@ -57,6 +57,14 @@ enum WriterMath {
         return (box.width, box.ascent + box.descent, box.ascent)
     }
 
+    /// The equation `node` laid out on its own, its runs `size` points
+    /// where they say none: for a sheet's text box, which draws it where
+    /// its paragraph stands. nil for one with nothing in it.
+    static func box(_ node: XNode, size: Double) -> Box? {
+        let box = Layout(display: node.name == "m:oMathPara").row(node, size: size, level: 0)
+        return box.width > 0 ? box : nil
+    }
+
     /// Whether an equation is registered for `attachment`.
     static func has(_ attachment: ImageAttachment) -> Bool {
         lock.lock()
