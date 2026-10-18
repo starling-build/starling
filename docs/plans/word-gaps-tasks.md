@@ -431,7 +431,7 @@ piece of its own (the line breaking is as it was). zh-82b166b4 72.8 ->
 98.4; nothing else moved.
 
 ### T103. A table row of exact height goes to the next page whole — DONE (2026-10-17)
-Follow-up claimed (Mac 011uWpmC, 2026-10-18, from lenovo-2): p3's table continued onto a page has its top border (thinThickSmallGap sz 12, ~2.6pt) drawn at the page head by Word, the first row's text under it; ours gives the continued part no top rule and sets that row 2.6pt high.
+Follow-up (Mac 011uWpmC, 2026-10-18, from lenovo-2), tried and released: p3's table going on at a page's head has its top border (thinThickSmallGap sz 12) drawn there by Word, the row under its room. Built as "the top line's room less the inside line's, at a page's head with no header to repeat" and the line drawn across the head (rules 60.3 to Word's 60.2, the head's lines 22.0/23.9 to 21.4/23.5): zh-340d52e9 stays 75.6 (its p3 is within the scorer's reach either way) and zh-cec9d337 fell 84.1 -> 67.3 (27 pages), whose tables' top lines are single sz 18 with no insideH stated — Word does not set those down. Reverted; needs the rule for which tops Word repeats (compound only? only with insideH stated?).
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 zh-340d52e9's 347pt "守望相助" row is `w:hRule` exact; with 58pt left on
 page 5 Word carries it whole to page 6, where ours parted it like any
