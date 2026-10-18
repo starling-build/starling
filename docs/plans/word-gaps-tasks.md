@@ -147,6 +147,12 @@ Tahoma 8pt, 15.06 apart). Left: delins 80 -> 45 — its first balloon, for
 two deleted paragraphs, stands 6.6pt under Word's, which lifts it into
 the gap above its line; the other three prints with balloons put the
 first at its line's top, as ours does. Claimed: Mac (starling-ios-5c's session), 2026-10-17.
+Follow-up (Linux, 2026-10-17, engine cac609985ae, office 2c9d512a): the
+bridge reports a fractional paragraph's lines unrounded, and a Word
+paragraph's height, space before and shared space are exact — the Mac's
+testWebSpacingPartsTwoLists (15.23 for 14) passes. **Rebuild the engine
+again** for it. The half-line reserve is now mode 12 only (mode 14 asks
+the whole line: zh-d68ac84a p36).
 
 ### T78. zh-fec5fa30: 56 pages where Word's are 55 — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
@@ -175,14 +181,20 @@ grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
 
-### T91. zh-621d8756: a table set in a frame, and closing spaces under wordWrap off — claimed
-Owner: session 017F2GnT (Linux), from 2026-10-17
-Documents: zh-621d8756 (82.3%, 52 pages; the Mac looked and released it).
-Known: the first miss is p15, before the wordWrap pages. Its form table's
-every cell paragraph carries one `w:framePr` (vAnchor text, y 342,
-xAlign center, wrap notBeside): Word sets the table as a frame, 17.1pt
-under "需要补正内容如下：", and ours sat on that line's foot. Then pp
-21-27's closing spaces (the wordWrap note below).
+### T91. zh-621d8756: a table set in a frame — DONE (2026-10-17); closing spaces under wordWrap off — released
+Owner: session 017F2GnT (Linux)
+Built (0be4a9a6): a table whose every cell paragraph carries one
+text-anchored, notBeside `w:framePr` stands the frame's y below the
+text's place and centred where it says (p15, Word's table 17.1pt under
+its paragraph). 82.3 -> 83.9, nothing else moved. Released: pp 21-27's
+closing spaces (the wordWrap note below). Measured on p21: Word's and
+our advances agree (space 8.1, ideograph 15.6 at 15pt with 0.3 spacing),
+so it is the breaking, not the widths: a paragraph-final space may
+straddle the margin ("执法人员：…" ends at 509.1, margin 505.2) where a
+space with text after it goes to the next line ("陈述申辩人：（…）" stops at
+501.0), and Word squeezes a "：" before spaces on a full line (152.4 ->
+164.0, 11.6 where ours is 15.6). The space-only lines end at
+498.8-506.9, not on a multiple of 8.1 from the margin.
 
 ### T90. delins: whole paragraphs deleted, their balloon above the line they mark — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
