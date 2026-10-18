@@ -219,10 +219,12 @@ status table gaining the wiki's row.
 - History: version list, diff of any two versions drawn by the Writer
   (`PageDiff` output is a `RichDocument` with insert/delete char styles),
   restore as a new version.
-- Search: Postgres full-text over page plain text with `pg_jieba` for
-  Chinese alongside the English configuration; attachments indexed by
-  text extracted with our own `Docx`/`Pptx`/`Xlsx` readers; results open
-  the page at the first hit.
+- Search: Postgres full-text over page plain text — **done 2026-10-19
+  for pages** (`GET /api/v1/search`: the `simple` configuration through a
+  GIN index, plus an ILIKE substring fallback that finds Chinese by its
+  characters; `pg_jieba` can replace `simple` later); attachments indexed
+  by text extracted with our own `Docx`/`Pptx`/`Xlsx` readers; results
+  open the page at the first hit (client side still to do).
 - Gate: `test/wiki-api.sh` gains permission matrix cases and a Chinese
   search case (a query word inside an attached `.xlsx` cell is found).
 
@@ -297,7 +299,40 @@ is offered).
 
 ## Where it stands
 
-Drafted 2026-10-18. Nothing built. The suite facts this plan rests on,
+**2026-10-19 (overnight from the draft): W0 done but for IME, W1 built and
+gated server-side, the browser gate written and awaiting its first green.**
+
+- W0: `RichParagraph.id` (Word's `w14:paraId` in and out, fresh ids on
+  split), every model type `Codable`, `RichDocumentEnvelope` (schema 1),
+  `OfficeApp --page-json / --page-docx / --page-roundtrip`,
+  `test/wiki-codec.sh` — 327 of 327 readable corpus files round-trip
+  exactly (8 the reader refuses, `deep-table-cell.docx` crashes the
+  reader itself, a pre-existing recursion). The web host has fetch,
+  WebSocket and history (`starling_host_http_request` and friends,
+  `WebHTTP`/`WebSocketClient`/`WebHistory` in FlutterWeb); `index.html`
+  passes the tab's path as the app's route. **Not done: composed text
+  input in the browser** — still the blocker for a Chinese-speaking team.
+- W1: `wiki/` (Hummingbird 2.28, PostgresNIO 1.33): `wiki-server migrate |
+  add-user | create-space | import | serve`; the API in
+  `WikiServer/App.swift`; `test/wiki-api.sh` — 33 checks green against a
+  throwaway database. The client: `apps/OfficeApp/Sources/OfficeApp/Wiki/`
+  (`WikiTransport`, `WikiSession`, `WikiShell`), `--wiki <url>` natively,
+  `/s/…` routes in a tab. `test/wiki-web.sh` drives the wasm build in
+  headless Chrome (sign in, open by URL, edit, save) — written, first run
+  pending the stage.
+- WikiModel (W5's core, built early because it is pure): `PageOp`,
+  `Transform`, `PageSequencer`, `PendingOps`; 14 convergence tests.
+- Decided 2026-10-18 by the user: Hummingbird; server-ordered OT.
+
+**Trap paid for (2026-10-19): never drive the native app's GUI on the
+Mac with osascript/CGEvent while other sessions run there.** Keystrokes
+meant for the wiki's sign-in form landed first in another session's
+Slides window (undone with ⌘Z) and then in Word's Save dialog, raised by
+the .docx oracle gate another session was running (left as found). Verify
+the client in headless Chrome (`test/wiki-web.sh`, `build/tools/web-drive.mjs`),
+which steals no focus; the native client is for a human.
+
+Drafted 2026-10-18. The suite facts this plan rests on,
 checked in-tree the same day: `RichLayout` has the flow mode
 (`isPaged == false`); `RichDocumentController` already expresses every
 mutation as an `EditOp`; `RichParagraph` has no id; `RichDocument` is not
