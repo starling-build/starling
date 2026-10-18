@@ -5980,6 +5980,20 @@ fitter dropped the paragraph's tail).
   numbers those pages "1", "2"…, but ours wrote "- 1 -" on every page,
   taking the last section's format for theirs. zh-c8eb6e92 91.2 -> 97.5
   (zh-8e8d4c40 98.9 -> 99.4 with it); nothing went down.
+- **A page break followed by floating objects alone is a break
+  (2026-10-17).** zh-021b8feb's page 14 ends with a paragraph of a
+  `w:br type=page` and a box "附表" (wrap none, 16.5pt down), its mark
+  18pt bold. Lab `ab` (Word 16, four variants: as is, the mark at 12pt,
+  the anchor's run at 18pt, the box removed) prints:
+  - the box at page 14's foot, with the paragraph's start;
+  - the next paragraph at 93.7 on page 15 in every variant, as with a
+    break alone.
+
+  Ours made the rest of the paragraph a line on page 15 (20.7pt, the
+  mark's) with the box on it, and the table after ran onto a 19th page.
+  The reader now ends such a paragraph with its break on the page before,
+  floats and all. zh-021b8feb 85.6 -> 93.8; nothing else moved. (Its 19th
+  page is pages 16-18's own matter.)
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

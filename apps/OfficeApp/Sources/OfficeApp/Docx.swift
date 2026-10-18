@@ -3453,7 +3453,16 @@ enum DocxFormat {
             }
         }
         if leadingBreak {
-            if built.isEmpty, text.isEmpty, inlineImages.isEmpty {
+            // (A break followed by floating objects alone is a break too:
+            // the objects stand with the paragraph's start, on the page
+            // before, and the new page shows nothing for the mark — lab
+            // `ab` (Word 16, zh-021b8feb's p14 paragraph: a page break and
+            // a box "附表" 16.5pt down) sets the box at p14's foot, and the
+            // next paragraph where it stands after a break alone; ours set
+            // the box on p15 over a line of the mark, 20.7pt, and the
+            // table after it ran onto a 19th page.)
+            let floatsOnly = !inlineImages.isEmpty && inlineImages.values.allSatisfy { $0.float.map { !$0.takesRoom } ?? false }
+            if built.isEmpty, text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }), inlineImages.isEmpty || floatsOnly {
                 flush(pageBreakAfter: true)
                 built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = leadingBreakRPr
                 built[built.count - 1].breakColumn = leadingColumnBreak
