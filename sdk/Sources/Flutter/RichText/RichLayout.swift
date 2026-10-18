@@ -4974,9 +4974,14 @@ public final class RichLayout {
                 // text at the paragraph's stop at 92.15 — not the default
                 // stop at 70.8, where ours set it and its line took a word
                 // more than Word's.)
+                // (Nor with one, where the number runs past the indent: the
+                // paragraph's next stop, before any default one. zh-cec9d337's
+                // "（十七）" ends at 60pt over a 49.65pt indent with stops at
+                // 49.65 and 63.8, and Word starts "4月20日…" at 63.8; ours went
+                // to the default stop at 72, and the line lost a character.)
                 let ownStop = theme.wordRules
                     ? style.tabStops.filter { $0.rawKind != "bar" && $0.rawKind != "clear" }.map { _px($0.position) }.sorted()
-                        .first(where: { $0 > ownLeft + end + 0.01 && ($0 < ownLeft - 0.01 || wl.first >= 0) }) : nil
+                        .first(where: { $0 > ownLeft + end + 0.01 && ($0 < ownLeft - 0.01 || wl.first >= 0 || end > 0.01) }) : nil
                 if let stop = ownStop {
                     end = stop - ownLeft
                 } else if wl.first < 0, end <= 0.01 {

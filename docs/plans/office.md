@@ -5630,6 +5630,14 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **A list number past its indent tabs to the paragraph's next stop
+  (2026-10-18).** With a hanging indent, the text after a number goes to
+  a stop of the paragraph's own before the indent, else the indent;
+  past it, ours went straight to the default stops. zh-cec9d337's
+  "（十七）" ends at 60pt over a 49.65pt indent, with stops at 49.65 and
+  63.8, and Word starts "4月20日…" at 63.8; ours at the default 72, and
+  the line lost its "完". zh-cec9d337 +0.1, zh-7773163d +0.4; nothing
+  else moved.
 - **Where the East Asian line rules are off, a Latin ")" after an
   ideograph may start a line (2026-10-18).** zh-51af781b's "Table Text"
   style says `w:eastAsia` en-US, so its text has no East Asian line
