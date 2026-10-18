@@ -577,6 +577,22 @@ holding paragraph marks stands at the nearer of its line's top and
   "none" on every side, and zh-5dc5ce34's header paragraph sets its
   bottom to "none". But hd5's print without that pBdr kept the line, so
   borders are not the trigger either. Reverted; not found.)
+  (Mac 011uWpmC, later: lab `hl` (zh-4adfcce2's package, a five-line
+  Normal body). Two empty af3 header lines from 42.55pt end at 67, and the
+  body starts 15.6 under them, not at the 72pt margin: 22.6 with Normal
+  at 20pt, 6 with Normal at 8pt; at the margin with one header line or
+  the header 15pt down. None of these change it: the header's text (an X
+  in each), the explicit "none" pBdr on its base style or on Normal,
+  dropping the docGrid. Built as "a header that ends above the margin
+  keeps an empty Normal line under it" (East Asian layout), it took
+  zh-4adfcce2 0 -> 100 and broke the same ~40 files (zh-021b8feb mode 15,
+  two header paragraphs, header ending just above its 70.9 margin, 99.6
+  -> 3.0). zh-5dc5ce34 did not move, so its case is another. Reverted.
+  Still to separate: the lab's body is itself Normal, so "Normal's line"
+  and "the body's own first line" read alike. A body that opens with a
+  paragraph of another size would tell them apart, and zh-021b8feb's
+  header and first paragraph are the next thing to diff against
+  zh-4adfcce2's.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
