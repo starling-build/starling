@@ -399,7 +399,12 @@ public final class RichTextTheme {
     /// 18. 0 off the grid, or with a height the paragraph states.
     public func gridOverhang(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
                              eastAsian: Bool, gridPitch: Double?) -> Double {
-        guard let pitch = gridPitch, pitch > 0, paragraph.lineHeightPoints == nil else { return 0 }
+        // (An "at least" height on the grid as well: what it adds over the
+        // grid's lines goes above the text, and under it stands the
+        // grid's own half — zh-8186c98d's 16pt 仿宋, at least 30pt on a
+        // 15.6pt grid, keeps a second line at page 2's foot in Word's print
+        // whose box reaches 1.1pt past it; ours sent it over.)
+        guard let pitch = gridPitch, pitch > 0, paragraph.lineHeightPoints == nil || paragraph.lineHeightIsMinimum else { return 0 }
         let size = style.fontSize ?? named?.char.fontSize ?? fontSize
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
         let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
@@ -407,6 +412,12 @@ public final class RichTextTheme {
         let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
         let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
+        if let points = paragraph.lineHeightPoints {
+            // ("At least 0" keeps to no grid: no overhang.)
+            guard points > 0 else { return 0 }
+            let snapped = (natural * size / pitch - 0.002).rounded(.up) * pitch
+            return max(0, (snapped - natural * size) / 2)
+        }
         let h = lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: pitch).height
         return max(0, (h - natural * size) / 2)
     }
