@@ -2134,7 +2134,7 @@ zh-547fc43c 96.6 -> 96.8, nothing else moved; Slides' 19 chart decks
 unchanged. Left: its pie's best-fit labels (five slices of 1-20 by one
 of 726), which Word sets elsewhere.
 
-### T95. zh-92373179: an embedded subset's missing characters are YaHei's, and so is the line — claimed
+### T95. zh-92373179: an embedded subset's missing characters are YaHei's, and so is the line — released (done as T97, 79646c80)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-92373179 (39.9%, fifth sample).
 Known: from p3 its 1.5-spaced paragraphs (snapToGrid 0, 16pt 仿宋_GB2312)
@@ -2145,6 +2145,8 @@ line sets every such line (1.5 x 1.715 x 16 = 41.2). Ours draws them by
 glyph fallback and keeps the embedded face's 1.3-em measure.
 Plan: an embedded face notes the characters it has; on Word for Mac the
 rest are set in the face the name stands in as (YaHei), its line and all.
+Released: built the same here (39.9 -> 43.0, without the baseline) while
+T97 (Linux 017F2) landed it with the baseline too (46.1); this one dropped.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
