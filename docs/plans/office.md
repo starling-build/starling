@@ -6428,7 +6428,9 @@ prints are `test/corpus/docx/word/`, under `OFFICE_WORD_FONTS=mac` — and
 **display** aims at the author's intent, the named face's own metrics. A
 bundled 仿宋 look-alike (朱雀仿宋, OFL, re-metricked to FangSong: Latin at
 0.5 em, curly quotes 1 em, a 1.0 em line) would serve display; it covers
-all 6,763 GB2312 hanzi and 99.98% of the corpus's 仿宋 text. Not built.
+all 6,763 GB2312 hanzi and 99.98% of the corpus's 仿宋 text. Built as
+Starling FangSong (f32d5151; Resources/fonts/README.md): page difference on
+the 26 FangSong-heavy documents 7.32% -> 6.54%, line match unchanged.
 - **On a character grid the character taken is its cell (2026-10-18;
   Windows).** Before 2013's layout the next character is taken where it
   ends no more than half the one before it past the margin; the test
