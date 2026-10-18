@@ -1720,6 +1720,8 @@ private struct SlideContext {
             st.sourcePart = part
             st.keptLine = KeptLine(line: box, box: box, outline: color, width: width)
             st.outlineDash = PptxReader.dash(ln)
+            st.outlineJoin = PptxReader.join(ln)
+            st.outlineCap = ln?["cap"]
             st.headEnd = PptxReader.lineEnd(ln?.first("a:headEnd"))
             st.tailEnd = PptxReader.lineEnd(ln?.first("a:tailEnd"))
             return st
@@ -1752,6 +1754,8 @@ private struct SlideContext {
         st.sourcePart = part
         st.keptLine = KeptLine(line: frame, box: box, outline: color, width: width)
         st.outlineDash = PptxReader.dash(el.first("p:spPr")?.first("a:ln"))
+        st.outlineJoin = PptxReader.join(el.first("p:spPr")?.first("a:ln"))
+        st.outlineCap = el.first("p:spPr")?.first("a:ln")?["cap"]
         st.headEnd = PptxReader.lineEnd(ln?.first("a:headEnd"))
         st.tailEnd = PptxReader.lineEnd(ln?.first("a:tailEnd"))
         return st

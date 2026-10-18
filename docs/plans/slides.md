@@ -2450,7 +2450,12 @@ prints join 223 thick strokes round against 301 mitred, the round ones
 mostly in lines that name no join. A line's `a:round`, `a:bevel` or
 `a:miter` (or its theme line style's) is now read, and one that names
 none is joined round. Its ends too (`a:ln cap`, "rnd" or "sq", or its
-theme line style's; sweep 194: −0.01, none worse).
+theme line style's; sweep 194: −0.01, none worse). A connector's join
+and ends are read too, and a dashed line with round or square ends
+counts each cap inside its dash, the start cap reaching half a width
+before the dash's place and a dot a cap's circle alone
+(tdf134053_dashdot 0.74 → 0.07; the ten other decks with such lines,
+all charts' gridlines or WordArt, unchanged).
 
 Fixed, 2026-10-18: the whole-point bands wrote a box's text into the
 PDF again for every line when the box is turned other than by quarters

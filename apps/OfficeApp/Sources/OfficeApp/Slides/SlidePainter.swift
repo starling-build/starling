@@ -770,7 +770,7 @@ final class SlidePainter: CustomPainter {
                     p.strokeJoin = Self.join(shape.outlineJoin)
                     p.strokeCap = shape.outlineCap == "rnd" ? .round : shape.outlineCap == "sq" ? .square : .butt
                     p.color = line
-                    canvas.drawPath(Self.dashed(path, shape.outlineDash, width: p.strokeWidth), p)
+                    canvas.drawPath(Self.dashed(path, shape.outlineDash, width: p.strokeWidth, capped: shape.outlineCap == "rnd" || shape.outlineCap == "sq"), p)
                     // A connector's arrowheads, at its path's two ends.
                     if shape.headEnd != nil || shape.tailEnd != nil, let ends = Self.pathEnds(sub, in: r) {
                         let base = max(shape.outlineWidth, 2) * px
@@ -873,7 +873,7 @@ final class SlidePainter: CustomPainter {
                     outline = Path()
                     outline.addRect(r)
                 }
-                canvas.drawPath(Self.dashed(outline, dash, width: p.strokeWidth), p)
+                canvas.drawPath(Self.dashed(outline, dash, width: p.strokeWidth, capped: shape.outlineCap == "rnd" || shape.outlineCap == "sq"), p)
             } else if shape.preset?.isLine == true {
                 // From its start to its end, stopping inside a filled head.
                 var a = Offset(r.left, r.top), b = Offset(r.right, r.bottom)
@@ -1116,7 +1116,12 @@ final class SlidePainter: CustomPainter {
 
     /// `path` cut into the dash `name`'s pieces for a line `width` wide —
     /// the path itself for a solid line. Each contour starts on a dash.
-    static func dashed(_ path: Path, _ name: String?, width: Double) -> Path {
+    /// `capped`: the line's ends are round or square, which PowerPoint
+    /// counts inside each dash — a dash 4 widths long stays 4 overall, its
+    /// start cap reaching half a width before its place, and a dot (one
+    /// width) is a round cap's circle alone (lo-tdf134053_dashdot's
+    /// dash-dot line, rounded: 0.74 → 0.07).
+    static func dashed(_ path: Path, _ name: String?, width: Double, capped: Bool = false) -> Path {
         guard let pattern = dashPattern(name), width > 0 else { return path }
         let pieces = pattern.map { $0 * width }
         let out = Path()
@@ -1124,7 +1129,11 @@ final class SlidePainter: CustomPainter {
             var at = 0.0, i = 0
             while at < metric.length {
                 let len = pieces[i % pieces.count]
-                if i % 2 == 0 { out.addPath(metric.extractPath(at, min(metric.length, at + len)), Offset.zero) }
+                if i % 2 == 0 {
+                    let from = at
+                    let to = capped ? max(from + 0.01, at + len - min(len, width)) : at + len
+                    if from < metric.length { out.addPath(metric.extractPath(from, min(metric.length, to)), Offset.zero) }
+                }
                 at += len
                 i += 1
             }
