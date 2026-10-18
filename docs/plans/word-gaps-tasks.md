@@ -441,6 +441,7 @@ can hold is now not parted (as `w:cantSplit`). zh-340d52e9 48.9 ->
 4a950e13's, the Mac 011uWpmC session's, not this.)
 
 ### T101. Sections that disagree on their columns are set in one — DONE (2026-10-17), zh-8f9b19f4 still open
+(Linux 017F2GnT claimed zh-8f9b19f4 2026-10-18: its last section, continuous, three columns filled by column breaks, set a page a column — T2's columns-as-row reading extended to the final section.)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 zh-8f9b19f4 (sixth sample, a PDF conversion): thirteen sections, all one
 column but for three of the last four; the layout has one column count
