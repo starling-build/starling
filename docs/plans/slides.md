@@ -2384,7 +2384,12 @@ print, ours 160.43, now 161.43). Cooper's untitled charts stand 3.8 pt
 higher than ours, top and bottom, and their darker rules now cost a
 little; one deck, not followed. Slides only (`onSlide`). A 2007-style
 radar's rings and spokes are that grey too (radar-chart 1.58 → 1.24;
-its rings within 0.4 pt of the print's).
+its rings within 0.4 pt of the print's). And a 2007-style series' line
+is its colour shaded to 95% in linear light and saturated 105% (the
+style's line, as Office 2007 draws a shape's outline): line-chart's
+4F81BD series prints 4A7EBB, as do radar-chart's line and the rims of
+scatter-chart's marks, their fills 4F81BD (radar −0.01, scatter
+−0.02).
 
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines

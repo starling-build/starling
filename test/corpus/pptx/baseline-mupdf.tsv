@@ -532,11 +532,11 @@ placeholder-layout-color.pptx	summary pages=1 worst=0.69% mean=0.69%
 pptx2svg.pptx	summary pages=1 worst=3.69% mean=3.69%
 prProps.pptx	summary pages=1 worst=0.03% mean=0.03%
 present1.pptx	summary pages=1 worst=0.26% mean=0.26%
-radar-chart.pptx	summary pages=1 worst=1.24% mean=1.24%
+radar-chart.pptx	summary pages=1 worst=1.23% mean=1.23%
 rain.pptx	summary pages=1 worst=0.12% mean=0.12%
 sample.pptx	summary pages=2 worst=1.12% mean=0.97%
 sample_pptx_grouping_issues.pptx	summary pages=1 worst=1.11% mean=1.11%
-scatter-chart.pptx	summary pages=1 worst=1.16% mean=1.16%
+scatter-chart.pptx	summary pages=1 worst=1.14% mean=1.14%
 shapes.pptx	summary pages=6 worst=1.43% mean=0.44%
 smartart-rotated-text.pptx	summary pages=1 worst=0.55% mean=0.55%
 smartart-simple.pptx	summary pages=1 worst=0.76% mean=0.76%

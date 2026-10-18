@@ -400,6 +400,35 @@ struct Chart: Equatable {
         return Self.cycle(i, accents)
     }
 
+    /// Series `i`'s line where the file gives it no colour of its own: in
+    /// a 2007-style chart on a slide, the colour shaded to 95% (in linear
+    /// light) and saturated 105%, as Office 2007's chart styles draw a
+    /// line — line-chart's 4F81BD series prints 4A7EBB, and so do radar-
+    /// chart's line and the rims of scatter-chart's marks.
+    func lineColor(series i: Int, accents: [Color]) -> Color {
+        let base = color(series: i, accents: accents)
+        guard onSlide, !styled2013, officeStyled, i < series.count, series[i].color == nil, series[i].scheme == nil else { return base }
+        func lin(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        func srgb(_ l: Double) -> Double { l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055 }
+        let r = srgb(lin(Double((base.value >> 16) & 0xFF) / 255) * 0.95)
+        let g = srgb(lin(Double((base.value >> 8) & 0xFF) / 255) * 0.95)
+        let b = srgb(lin(Double(base.value & 0xFF) / 255) * 0.95)
+        // Saturation by 105%, in HSL.
+        let hi = max(r, g, b), lo = min(r, g, b), l = (hi + lo) / 2
+        guard hi > lo else { return Color(0xFF00_0000 | Int64((Int((r * 255).rounded()) << 16) | (Int((g * 255).rounded()) << 8) | Int((b * 255).rounded()))) }
+        let d = hi - lo, sat = l > 0.5 ? d / (2 - hi - lo) : d / (hi + lo)
+        let s2 = min(1, sat * 1.05)
+        func out(_ c: Double) -> Int {
+            // Each channel's distance from the lightness, scaled as the
+            // saturation is (the hue and lightness kept).
+            let span = l > 0.5 ? s2 * (2 - 2 * l) : s2 * 2 * l
+            let old = l > 0.5 ? sat * (2 - 2 * l) : sat * 2 * l
+            let v = old > 0 ? l + (c - l) * span / old : c
+            return Int((max(0, min(1, v)) * 255).rounded())
+        }
+        return Color(0xFF00_0000 | Int64((out(r) << 16) | (out(g) << 8) | out(b)))
+    }
+
     /// Slice `i`'s colour: its own, else its style's or the cycle's.
     func pointColor(_ i: Int, accents: [Color]) -> Color {
         if let c = pointColors[i] { return c }
@@ -1464,7 +1493,8 @@ enum ChartPainter {
                         x += key + gap + e.tp.width + spacing
                         continue
                     }
-                    p.color = byPoint ? c.pointColor(e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
+                    p.color = byPoint ? c.pointColor(e.i, accents: theme.accents)
+                        : lineKeys ? c.lineColor(series: e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
                     if lineKeys, !pie, e.i < c.series.count, c.series[e.i].lineHidden {
                         // (A series with no line: its mark alone, if any.)
                         Self._mark(c.series[e.i], at: Offset(x + lead - 11.6 * k, y + lineH / 2), k: k, colour: p.color, canvas)
@@ -2345,7 +2375,7 @@ enum ChartPainter {
                     p.strokeWidth = max(1, 2.25 * k)
                     p.strokeCap = .round
                     p.strokeJoin = .round
-                    p.color = color
+                    p.color = c.lineColor(series: j, accents: theme.accents)
                     let path = Path()
                     var pen = false
                     for i in 0 ..< n {
@@ -2380,6 +2410,14 @@ enum ChartPainter {
                     guard let v = c.series[j].values[safe: i] ?? nil else { continue }
                     let x = plot.left + (c.x(i) - xs.lo) / (xs.hi - xs.lo) * plot.width
                     canvas.drawCircle(Offset(x, vpos(v)), max(1.5, 2.5 * k), fill)
+                    if c.onSlide, !c.styled2013, c.officeStyled {
+                        let rim = Paint()
+                        rim.style = .stroke
+                        rim.isAntiAlias = true
+                        rim.strokeWidth = max(0.25, 0.75 * k)
+                        rim.color = c.lineColor(series: j, accents: theme.accents)
+                        canvas.drawCircle(Offset(x, vpos(v)), max(1.5, 2.5 * k), rim)
+                    }
                     labels.append((dataLabel(c, v), Offset(x, vpos(v) - 9 * k), j))
                 }
             }
@@ -2600,7 +2638,7 @@ extension ChartPainter {
             path.close()
             let p = Paint()
             p.isAntiAlias = true
-            p.color = c.color(series: j, accents: theme.accents)
+            p.color = c.radarFilled ? c.color(series: j, accents: theme.accents) : c.lineColor(series: j, accents: theme.accents)
             if c.radarFilled {
                 p.style = .fill
             } else {
