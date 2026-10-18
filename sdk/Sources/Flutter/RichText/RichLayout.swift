@@ -282,7 +282,13 @@ public final class RichTextTheme {
                 return (max(snapped, points), t0.map { $0 + (snapped - n) / 2 + max(0, points - snapped) })
             }
         }
-        guard let points = paragraph.lineHeightPoints else { return (multiple * n, t0) }
+        // (Under single, Word takes the cut off above and below the
+        // baseline as the face's line shares itself — the baseline that
+        // multiple of its own depth: labs `ml_*`, 宋体 12pt at 0.75 sets
+        // the line 12.48 under the one before and the next 14.64 under
+        // it, where ours, all of it off below, had 15.6 and 11.7; over
+        // single all of the extra goes below, as ours already had.)
+        guard let points = paragraph.lineHeightPoints else { return (multiple * n, t0.map { multiple < 1 ? $0 * multiple : $0 }) }
         let h = max(points, multiple * n)
         return (h, t0.map { $0 + max(0, h - n) })
     }
