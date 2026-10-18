@@ -3301,7 +3301,16 @@ public final class RichLayout {
                     let under = deferredTable == c.table ? deferredUnder.reduce(0) { $0 + $1.flowBottom - $1.flowTop } : 0
                     // (At the second row, y is the first row's foot.)
                     let rest = bottom - c.rowTop
-                    if y + rest > contentH + 0.01 { return (true, 0) }
+                    // (Whole while it ends above the footer's place, its
+                    // margin or no: zh-0b87285b's 13-row list at its tblpY
+                    // ends 530.2pt down a 595pt page — margin at 523, footer
+                    // at 545.4 — all on page 6 in Word's print, where ours
+                    // kept its header row alone there. zh-6cd1befe's 26 rows
+                    // would end at 832.8, under its footer's 792.4 and on
+                    // the page, and Word parts them.)
+                    let setup = pageSetup(forPage: page / _columns)
+                    let edge = max(contentH, _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top)
+                    if y + rest > edge + 0.01 { return (true, 0) }
                     if under > 0, y + rest + under + next > contentH + 0.01 { return (false, rest) }
                     return nil
                 }

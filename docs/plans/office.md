@@ -5940,6 +5940,19 @@ fitter dropped the paragraph's tail).
   text keeps to its paragraph's line when a float of the paragraph
   pushed that line. zh-d62da4dd now has Word's 4 pages; its score holds
   at 55.7, the rest being its charts' labels. Nothing else moved.
+- **A table placed against the page stays whole while it ends above
+  the footer's place (2026-10-17).** zh-0b87285b's 13-row list, at its
+  tblpY on a landscape page, ends at 530.2pt in Word's print. That is
+  past the bottom margin (523) but above the footer (545.4), and the
+  whole table stands on page 6. Ours split at the margin, keeping the
+  header row alone on page 6 and sending the rest over.
+  - Measuring to the page's edge instead broke zh-6cd1befe (98.7 ->
+    89.3). Its 26 rows would end at 832.8: on the page, but under its
+    footer's 792.4, and Word parts them.
+  - So the measure is the page's height less the footer distance (and no
+    less than the margin).
+
+  zh-0b87285b 77.9 -> 98.0; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
