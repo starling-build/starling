@@ -241,7 +241,7 @@ something else.
 Twenty more (`random.seed(20261030)`, all printed), checked in. It starts
 at 87.4% (median 96.3). Its low ones, unclaimed: zh-a78d52e7 6.1 (26
 pages; Mac 01Xgpbk5, 97.1 now — a page-anchored top-and-bottom float bands its page, and a VML box fitted to its text is its text's height; released), zh-6e653ca0 53.6 (Mac 01Xgpbk5 looked, released: p8's "第四章" heading fits at the foot in Word's print (695) and goes over in ours; our lines on p8 stand 2-3pt low of Word's from the page top though p3 is 1pt — the drift between, and the heading's line on the 15.6 grid, are where to look), zh-86547e97 54.3 (CLAIMED Windows 01QbbApP, 75.9 there; Mac 01Xgpbk5 looked, released: p1 "第一章　总　　则" (Normal (Web), 1.5 lines, snapToGrid 0, bold 楷体_GB2312 16pt) to "第一条" is 41pt in Word's print, 54 in ours; both lines are 1.5 × YaHei's 16pt and Word's body pitch is 41.2, so something adds 13 to our first line of "第一条" — a bold Strong-style run and a bold space start it),
-zh-ae79c618 88.4, zh-360c1df1 89.2, zh-ee9d81b3 89.6.
+zh-ae79c618 88.4 (Mac 01Xgpbk5 looked: one paragraph at p10's foot a line apart; released), zh-360c1df1 89.2 (Mac 01Xgpbk5 looked, released: lines at the fit's edge — p7's "2.自然资源…金山银山”" is 394.2pt natural against ~394.3 of room, and Word breaks before "山”", ours takes it; 12 runs of the kind), zh-ee9d81b3 89.6 (Mac 01Xgpbk5 looked: one run at p5's foot, 11pt; released).
 
 ### Note from the Mac (2026-10-18, late): the zh corpus is 346 documents — a fifteenth sample
 Twenty more (`random.seed(20261029)`, all printed), checked in. It starts
