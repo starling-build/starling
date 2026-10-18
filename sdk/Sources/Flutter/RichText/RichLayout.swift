@@ -176,7 +176,20 @@ public final class RichTextTheme {
         if spacing < 1, multiple < spacing {
             return single * (spacing - below) * multiple / spacing - multiple * single * (1 - drawn)
         }
-        return multiple < 1 ? single * (multiple * drawn - below) : multiple * single * (drawn - below)
+        // (A shrink-to-fit's reduction of a spacing said nowhere comes off
+        // above no further than three fifths of a single line down: 20%
+        // off stands the first baseline 0.72 of the size under the text's
+        // top in PowerPoint's print, eight boxes of 18 to 36 pt bounding
+        // it to 0.717–0.721 (bug62513's lists, ecodesign's, customGeo's),
+        // where all of it off above put it at 0.696, a point high in five;
+        // 10% off, 0.816, is above the floor. A stated 100% takes it all
+        // off above, lo-font-scale's lines where PowerPoint's are so, and
+        // so does a spacing under single with no reduction, tdf157740's.)
+        if multiple < 1, paragraph.lineSpacingUnstated, lineSpacingReduction > 0 {
+            return max(single * (multiple * drawn - below), single * (0.6 - multiple * (1 - drawn)))
+        }
+        if multiple < 1 { return single * (multiple * drawn - below) }
+        return multiple * single * (drawn - below)
     }
 
     /// The share of a face's single line below its baseline, by the

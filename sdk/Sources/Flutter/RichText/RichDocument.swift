@@ -441,6 +441,11 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var spaceAfterAuto = false
     /// Multiple of the font's natural line height (1.0 = single).
     public var lineSpacing: Double = 1.08
+    /// Slides: no spacing is said for the paragraph anywhere (its
+    /// single is the format's default, not a stated 100%), which a
+    /// shrink-to-fit's reduction treats otherwise (`RichTextTheme
+    /// .baselineShift`). False — Word's — for every paragraph.
+    public var lineSpacingUnstated = false
     /// Exact line height in points ("exactly 20 pt"), which then wins over
     /// `lineSpacing`; nil for a multiple.
     public var lineHeightPoints: Double? = nil

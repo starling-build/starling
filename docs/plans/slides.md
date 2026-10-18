@@ -2460,20 +2460,25 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
-**Measured and left, 2026-10-18: a shrink-to-fit's first line when the
-spacing is inherited.** bug62513's fitted lists (slides 8, 9, 17) stand
-a whole point high, every line. A survey of the corpus's 36 boxes with
-an `lnSpcReduction` (first line, ours against PowerPoint's, both snapped
-to whole points; script in the session, `~/tmp/afsurvey`) bounds where
-PowerPoint's unsnapped first baseline lies below the text's top, as a
-share of the size. Spacing inherited (no `lnSpc` anywhere), less 20%:
-0.7167–0.7206 from eight boxes of 18 to 36 pt (ours, 1.2 × (0.78 −
-0.2), is 0.696 — five of them a point high); less 10%: 0.8125–0.8167
-from seven (ours 0.816, all right). Spacing said as 100%, less 20%:
-aptia bounds it under 0.6964 and lo-font-scale agrees — ours. So the
-gap is only where the spacing is inherited and the reduction 20%; two
-points do not make a rule. (60810's slide 17, 19 pt less 10%, is off
-too, and sits outside both: a different face.)
+**A shrink-to-fit's reduction of an unstated spacing stops at three
+fifths of a line, 2026-10-18** (sweep 208: corpus mean 0.9655 → 0.9641;
+bug62513 −0.49, ecodesign −0.13, customGeo −0.07, aascu 5864 −0.06,
+tdf149961 −0.05; testPPT +0.01). bug62513's fitted lists (slides 8, 9,
+17) stood a whole point high, every line. A survey of the corpus's 36
+boxes with an `lnSpcReduction` (first line, ours against PowerPoint's,
+both snapped to whole points) bounds where PowerPoint's unsnapped first
+baseline lies under the text's top, as a share of the size. Spacing
+said nowhere, less 20%: 0.7167–0.7206 from eight Calibri boxes of 18
+to 36 pt — 0.72, three fifths of a 1.2 line — where taking all of it
+off above gives 0.696, a point high in five; less 10%: 0.8125–0.8167
+from seven, ours 0.816, above the floor. Spacing stated as 100%, less
+20% (lo-font-scale): all of it off above, as before — the floor on
+those cost it +0.68. And plain spacing under single, no reduction
+(tdf157740's 70%), is as before: +0.24 when the floor took it too.
+So the floor is for a reduction of a spacing said nowhere, which the
+reader marks (`RichParagraphStyle.lineSpacingUnstated`, false for
+Word). (60810's slide 17, 19 pt less 10%, still a point off: another
+face.)
 
 **Tried and dropped, 2026-10-18: table cell lines rounded a tenth of a
 point low.** Maloney's slide 8 cell has every fifth 16.8 pt line a

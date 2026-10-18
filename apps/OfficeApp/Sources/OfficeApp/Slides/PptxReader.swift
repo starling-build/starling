@@ -3048,6 +3048,8 @@ private struct SlideContext {
             if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints {
                 // Exactly that many points, whatever the runs' sizes.
                 style.lineHeightPoints = pts
+            } else {
+                style.lineSpacingUnstated = true
             }
             // (A percentage is of the text as drawn: under PowerPoint's own
             // shrink to fit, `fontScale` of it — bug62513's 20% before its
