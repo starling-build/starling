@@ -44,6 +44,28 @@ final class XNode {
         return nil
     }
     func all(_ name: String) -> [XNode] { children.filter { $0.name == name } }
+
+    /// The tree with each name in a namespace of `prefixes` (by URI) under
+    /// that prefix, whatever the file called it; the rest as they were.
+    func withPrefixes(_ prefixes: [String: String], scope: [String: String] = [:]) -> XNode {
+        var scope = scope
+        for (k, v) in attrs {
+            if k == "xmlns" { scope[""] = v } else if k.hasPrefix("xmlns:") { scope[String(k.dropFirst(6))] = v }
+        }
+        func renamed(_ n: String, element: Bool) -> String {
+            let colon = n.firstIndex(of: ":")
+            let prefix = colon.map { String(n[..<$0]) } ?? ""
+            // (An attribute without a prefix is in no namespace.)
+            guard element || colon != nil, prefix != "xmlns", let uri = scope[prefix], let p = prefixes[uri] else { return n }
+            return p + ":" + (colon.map { String(n[n.index(after: $0)...]) } ?? n)
+        }
+        var renamedAttrs: [String: String] = [:]
+        for (k, v) in attrs { renamedAttrs[k.hasPrefix("xmlns") ? k : renamed(k, element: false)] = v }
+        let node = XNode(name: renamed(name, element: true), attrs: renamedAttrs)
+        node.text = text
+        node.children = children.map { $0.withPrefixes(prefixes, scope: scope) }
+        return node
+    }
     var has: (String) -> Bool { { self.first($0) != nil } }
 
     /// The system's parser, with prefixes kept ("w:p") — which is what the

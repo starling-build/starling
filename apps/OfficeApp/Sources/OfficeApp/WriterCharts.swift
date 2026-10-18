@@ -31,6 +31,7 @@ enum WriterCharts {
     /// object attachment `id`; false where it is no chart this can draw.
     @discardableResult
     static func register(_ space: XNode, for id: String, themePart: Data?) -> Bool {
+        let space = ChartXML.canonical(space)
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: pptxTheme)
         let chartex = space.name == "cx:chartSpace"

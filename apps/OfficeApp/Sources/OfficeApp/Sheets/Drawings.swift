@@ -144,7 +144,7 @@ enum SheetDrawingsXML {
                 }
             } else if let frame = el.child("graphicFrame") ?? el.child("AlternateContent")?.child("Choice")?.child("graphicFrame"),
                       let ref = _chartRef(frame), let path = rels[ref],
-                      let space = parts[path].flatMap({ XNode.parse($0) }),
+                      let space = parts[path].flatMap({ XNode.parse($0) }).map(ChartXML.canonical),
                       // (An Excel 2016 chart, `cx:`, stands in mc:Choice with
                       // its picture in mc:Fallback: chart-clusteredColumn's.)
                       let chart = space.name.hasSuffix("chartSpace") && space.name.hasPrefix("cx:")

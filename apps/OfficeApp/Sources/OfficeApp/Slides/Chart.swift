@@ -122,6 +122,9 @@ struct Chart: Equatable {
     var percent = false
     var categoryAxisTitle: String? = nil
     var valueAxisTitle: String? = nil
+    /// The axis titles' size where their text says nothing at all of its
+    /// look (`bareTitles`); nil is the usual.
+    var axisTitleSize: Double? = nil
     /// An axis title the file places itself (`c:title/c:layout`, edge-mode
     /// x and y of the chart's frame), set across and in its own size: the
     /// unit over zh-547fc43c's charts, "亿元" at their top left in Word's
@@ -440,6 +443,7 @@ struct Chart: Equatable {
         c.valueLabelSize = valueLabelSize.map { $0 * f }
         c.categoryLabelSize = categoryLabelSize.map { $0 * f }
         c.textSize = textSize.map { $0 * f }
+        c.axisTitleSize = axisTitleSize.map { $0 * f }
         for i in c.series.indices { c.series[i].labelSize = series[i].labelSize.map { $0 * f } }
         if var l = pieLabels {
             l.sizes = l.sizes.mapValues { $0 * f }
@@ -844,6 +848,23 @@ enum ChartXML {
     /// chart as its points: the data where it belongs, without the depth.
     /// `allowEmpty`: a chart with no series is still a chart (Excel draws
     /// its empty frame, and gives it its room on the page).
+    /// A chart part with the usual prefixes (`c:`, `a:`, `r:`, `cx:`…)
+    /// on names it spells in other ones, or in none: openpyxl writes its
+    /// charts in the default namespace (`<chartSpace xmlns=…>`), and
+    /// chart-tdf119138's four were not drawn at all.
+    static func canonical(_ space: XNode) -> XNode {
+        guard !["c:chartSpace", "cx:chartSpace"].contains(space.name) else { return space }
+        return space.withPrefixes([
+            "http://schemas.openxmlformats.org/drawingml/2006/chart": "c",
+            "http://schemas.openxmlformats.org/drawingml/2006/main": "a",
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships": "r",
+            "http://schemas.microsoft.com/office/drawing/2014/chartex": "cx",
+            "http://schemas.microsoft.com/office/drawing/2007/8/2/chart": "c14",
+            "http://schemas.microsoft.com/office/drawing/2012/chart": "c15",
+            "http://schemas.openxmlformats.org/markup-compatibility/2006": "mc",
+        ])
+    }
+
     static func read(_ space: XNode, allowEmpty: Bool = false, color: (XNode) -> Color?) -> Chart? {
         guard let chart = space.first("c:chart"), let plot = chart.first("c:plotArea") else { return nil }
         let kinds = plot.children.filter { $0.name.hasPrefix("c:") && $0.name.hasSuffix("Chart") }
@@ -1094,6 +1115,10 @@ enum ChartXML {
             // (Bold where nothing says: the five decks of an 18 pt chart
             // whose title says nothing show it bold at 22.)
             titleBold = (layers + [space.first("c:txPr")?.descendant("a:defRPr")].compactMap { $0 }).lazy.compactMap { $0["b"] }.first.map { $0 == "1" || $0 == "true" } ?? true
+            // Text that says nothing of its look, nor does the chart: the
+            // run's own defaults, 18 pt and not bold (openpyxl's titles,
+            // chart-tdf119138's, in Excel's print).
+            if Self._bare(t, in: space) { titleSize = 18; titleBold = false }
             for layer in layers where titleColor == nil {
                 if let fill = layer.first("a:solidFill") { titleColor = color(fill) }
             }
@@ -1287,6 +1312,7 @@ enum ChartXML {
         let titledValue = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") } : axes.first { $0.name == "c:valAx" }
         c.categoryAxisTitle = axisTitle(titledCategory)
         c.valueAxisTitle = axisTitle(titledValue)
+        if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), Self._bare(t, in: space) { c.axisTitleSize = 18 }
         c.categoryAxisTitleAt = c.categoryAxisTitle == nil ? nil : placed(titledCategory)
         c.valueAxisTitleAt = c.valueAxisTitle == nil ? nil : placed(titledValue)
         let valueAxis = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") }
@@ -1395,6 +1421,13 @@ enum ChartXML {
     /// Whether `scheme` is series `i`'s colour in the default cycle, as
     /// this app (and PowerPoint) writes it: `accent(i mod 6 + 1)`, shaded or
     /// tinted on later rounds.
+    /// A title's text without a word on its look — no run, paragraph or
+    /// title properties, and none for the chart.
+    static func _bare(_ t: XNode, in space: XNode) -> Bool {
+        t.first("c:tx")?.first("c:rich") != nil && t.descendant("a:rPr") == nil && t.descendant("a:defRPr") == nil
+            && t.first("c:txPr") == nil && space.first("c:txPr") == nil
+    }
+
     /// Which points of a pie of pie go to its second plot (`c:splitType`):
     /// the last so many (`pos`), those under a value or a percent, or the
     /// ones the file lists (`cust`). With none said, the last third:
@@ -2242,7 +2275,7 @@ enum ChartPainter {
         // the file, stand there across, taking none: Word sets the text
         // 3 pt in, its glyphs' tops 2.9 down (zh-547fc43c's "亿元" and
         // "万吨", 10 and 10.5 pt, over three charts of its print).
-        let titleSize = 13.3
+        let titleSize = c.axisTitleSize ?? 13.3
         for (t, placed) in [(c.valueAxisTitle, c.valueAxisTitleAt), (c.categoryAxisTitle, c.categoryAxisTitleAt)] {
             guard let t, let placed else { continue }
             let tp = text(t, placed.size ?? titleSize, .infinity)

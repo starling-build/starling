@@ -2349,7 +2349,7 @@ private struct SlideContext {
     private func _chart(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
         guard let ref = el.descendant("c:chart")?["r:id"],
               let rel = package.rels(part).first(where: { $0.id == ref && !$0.external }),
-              let space = package.xml(rel.target) else { return nil }
+              let space = package.xml(rel.target).map(ChartXML.canonical) else { return nil }
         // A chart pasted from another file brings that file's colours with
         // it: a theme override part, whose scheme stands in for the deck's
         // wherever the chart says `schemeClr` (tdf149985's greens, where
