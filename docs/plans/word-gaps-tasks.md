@@ -223,6 +223,15 @@ space with text after it goes to the next line ("陈述申辩人：（…）" st
 164.0, 11.6 where ours is 15.6). The space-only lines end at
 498.8-506.9, not on a multiple of 8.1 from the margin.
 
+### T97. zh-92373179: an embedded subset's missing characters are YaHei's — DONE (2026-10-17)
+Owner: session 017F2GnT (Linux)
+Built (79646c80): a subset's characters outside its `cmap` are set in the
+face the name has unembedded (YaHei for 仿宋_GB2312 on a Mac), their line
+and its baseline that face's: the 1.5-spaced paragraphs from p3 are
+41.2pt a line as Word's, and stand where Word's do (to 0.1pt). 39.9 ->
+46.1, nothing else moved. Left: the matcher's — Word's text layer maps
+its 招 to U+0000, and nearly every line says 招标; the lines match.
+
 ### T96. A floating table's place across (`w:tblpX`) — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 zh-92373179's 507pt roster floats, horzAnchor page, tblpX 1129 twips:
