@@ -4879,6 +4879,15 @@ fitter dropped the paragraph's tail).
   The measure now parts a word wherever the line breaking does under
   wordWrap off. zh-f2441f00 75.2 -> 99.5; nothing else of the 206 moved
   (one base).
+- **A text box's text is inset by half its outline, drawn or not
+  (2026-10-18).** Lab `c60` (Word for Windows, 60316's package, its
+  "Allison" text box: insets 0, an outline with no fill) moves the text
+  down and right by 0.24pt for the box's 0.5pt outline, 0.96 for 2pt,
+  3.96 for 8pt, and not at all with no width stated. The same 36pt
+  exact line set in the body stands 0.24 higher. Each text box's insets
+  now take half its `a:ln` width. Nothing in the 330 swept files moved.
+  60316's own box is not yet drawn where Word draws it (ours sets its
+  text in the body column), so its line does not show it.
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints

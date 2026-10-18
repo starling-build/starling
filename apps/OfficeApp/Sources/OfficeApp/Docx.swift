@@ -2089,6 +2089,13 @@ enum DocxFormat {
     static let _eastAsianIndents = ["w:leftChars", "w:startChars", "w:rightChars", "w:endChars", "w:hangingChars", "w:firstLineChars"]
     static let _eastAsianSpacing = ["w:beforeLines", "w:afterLines"]
 
+    /// Half a shape's outline width (points), which Word adds to its
+    /// text's insets whether or not the outline is drawn (see the text
+    /// box reader); none where the outline states no width.
+    static func _halfOutline(_ spPr: XNode?) -> Double {
+        Double(spPr?.first("a:ln")?["w"] ?? "").map { $0 / 12700 / 2 } ?? 0
+    }
+
     /// `w:spacing`/`w:ind` markup with the kept line- and character-unit
     /// attributes added (an element is made for them when there is none).
     private static func _withEastAsian(_ xml: String, _ element: String, _ attrs: [String], _ style: RichParagraphStyle) -> String {
@@ -2984,7 +2991,7 @@ enum DocxFormat {
                         // (Each box's text under its own top inset, where the
                         // box as a whole takes the first's: the stamp box's
                         // 3.6pt under "掛號"'s none stood its text 3.8pt high.)
-                        func topInset(_ b: XNode) -> Double { Double(b.first("wps:bodyPr")?["tIns"] ?? "").map { $0 / 12700 } ?? 3.6 }
+                        func topInset(_ b: XNode) -> Double { (Double(b.first("wps:bodyPr")?["tIns"] ?? "").map { $0 / 12700 } ?? 3.6) + Self._halfOutline(b.first("wps:spPr")) }
                         let firstInset = topInset(boxes[0])
                         for b in boxes.dropFirst() {
                             let xfrm = b.first("wps:spPr")?.first("a:xfrm")
@@ -3017,6 +3024,8 @@ enum DocxFormat {
                             let body = b.first("wps:bodyPr")
                             var l = Double(body?["lIns"] ?? "").map { $0 / 12700 } ?? 7.2, t = Double(body?["tIns"] ?? "").map { $0 / 12700 } ?? 3.6
                             var r = Double(body?["rIns"] ?? "").map { $0 / 12700 } ?? 7.2, bottom = Double(body?["bIns"] ?? "").map { $0 / 12700 } ?? 3.6
+                            let half = Self._halfOutline(b.first("wps:spPr"))
+                            l += half; t += half; r += half; bottom += half
                             if let geom = b.first("wps:spPr")?.first("a:prstGeom"), let prst = geom["prst"], prst != "rect", w > 0, h > 0,
                                let g = PresetGeometry.geometry(prst, width: w * 12700, height: h * 12700, adjustments: PresetGeometry.adjustments(geom)),
                                let rect = g.textRect {
@@ -3049,6 +3058,15 @@ enum DocxFormat {
                         if let v = Double(body["tIns"] ?? "") { box.insetTop = v / 12700 }
                         if let v = Double(body["rIns"] ?? "") { box.insetRight = v / 12700 }
                         if let v = Double(body["bIns"] ?? "") { box.insetBottom = v / 12700 }
+                        // (And half its outline's width, drawn or not: lab
+                        // `c60` (Word for Windows, 60316's package) moves
+                        // the text of a box with no fill to its outline
+                        // 0.24pt down and right for a 0.5pt one, 0.96 for
+                        // 2pt, 3.96 for 8pt, and not at all with none —
+                        // 60316's "Allison" line, 0.24 under the same line
+                        // set in the body.)
+                        let half = Self._halfOutline(node.descendant("wps:spPr"))
+                        box.insetLeft += half; box.insetTop += half; box.insetRight += half; box.insetBottom += half
                         // (A shape that is not a rectangle sets its text in
                         // the preset's text rectangle, as Slides does: Word
                         // wraps shapes-with-text's "An ellipse with text
