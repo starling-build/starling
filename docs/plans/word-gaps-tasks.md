@@ -127,9 +127,13 @@ spacing took them 1pt under Word's (lab `sp`; office.md "Ideographs off
 the grid keep its addition"). zh-3c055c9b 91.7; T85's p2 and p8 lines
 unchanged; of the 148 nothing fell.
 
-### T102. zh-e0ca7252: 52 pages where Word's are 51 — claimed
-Owner: session 017F2GnT (Linux), from 2026-10-17
-Documents: zh-e0ca7252 (41.9%, sixth sample).
+### T102. zh-e0ca7252: 52 pages where Word's are 51 — DONE (2026-10-17)
+Owner: session 017F2GnT (Linux)
+Documents: zh-e0ca7252 (41.9%, sixth sample). 42.0 -> 98.0, Word's 52
+pages, nothing else moved: ringed-number EQ fields, a mode-15 Latin word
+taken at the line's end, a Latin ")" hanging, leftChars beside a twips
+hanging, lrTbV cells horizontal, a section's last paragraph of a
+floating box taking no room (office.md, 2026-10-17).
 
 ### Note from the Mac (2026-10-17, night): the scorer measures lines from the page's top — rebuild your cached pdf-text
 Word's print through the dialog puts a page that is nearly a standard
@@ -158,7 +162,7 @@ zh-c8eb6e92 91.2.
 Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 76.6%. Its low ones,
 unclaimed unless marked: zh-8f9b19f4 0.0 (Word 14 pages, ours 7; T101 + the scorer from the top, 47.4 now, 16 pages — its 2- and 3-column sections set in one), zh-117cf7c6 39.2 (3/4 pages; Mac 011uWpmC, 98.6 now — table text off the grid without adjustLineHeightInTable; released), zh-e0ca7252 41.9
-(52/51; Linux 017F2GnT, T102, claimed), zh-340d52e9 48.9 (T103, 75.6 now), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC: Word's 4 pages now — empty lines beside wrapped charts; left: the charts' own labels, released), zh-ea70c30e 59.1 (Mac 01Xgpbk5, measured, released — squeeze ground: mode 15, compressPunctuation, zh-TW PMingLiU 12.5pt, justified; p2 "「多數說有限英語人士團體」或「團體」是指人數至少達 10,000 名的說" ends there in Word, unsqueezed at 12.51 a character, while ours squeezes "」", "「", "」" to 9.74 and the spaces round "10,000" (17.37 -> 15.44 incl. 達, 10.74 -> 8.81) to take "有"; every line after one character early),
+(52/51; T102, 98.0 now), zh-340d52e9 48.9 (T103, 75.6 now), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC: Word's 4 pages now — empty lines beside wrapped charts; left: the charts' own labels, released), zh-ea70c30e 59.1 (Mac 01Xgpbk5, measured, released — squeeze ground: mode 15, compressPunctuation, zh-TW PMingLiU 12.5pt, justified; p2 "「多數說有限英語人士團體」或「團體」是指人數至少達 10,000 名的說" ends there in Word, unsqueezed at 12.51 a character, while ours squeezes "」", "「", "」" to 9.74 and the spaces round "10,000" (17.37 -> 15.44 incl. 達, 10.74 -> 8.81) to take "有"; every line after one character early),
 zh-5b7ae054 64.4 (44 pages; Windows 01QbbApP, 98.0 now — a compatibility ideograph's Noto joiner kept "能力" together; released), zh-82b166b4 72.8 (T105, 98.4 now), zh-54e91165 75.4 (T106, 97.4 now),
 zh-8d6f702e 88.0 (Mac 01Xgpbk5, T107 for its p21-22; the rest — lines of ours a character longer than Word's on its grid of -0.21 — released; that part Windows 01QbbApP, looking).
 

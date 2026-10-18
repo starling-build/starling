@@ -1347,10 +1347,17 @@ enum DocxFormat {
                         case "tbRl", "tbRlV", "tbLrV":
                             currentCell?.textDirection = .down
                             currentCell?.uprightIdeographs = true
-                        case "btLr", "lrTbV": currentCell?.textDirection = .up
+                        case "btLr": currentCell?.textDirection = .up
                         default: break
                         }
-                        if direction != nil, currentCell?.textDirection != .horizontal { currentCell?.textDirectionValue = direction }
+                        // (lrTbV is a horizontal cell — its text runs left to
+                        // right as any, only East Asian characters turned
+                        // where a vertical layout would stand them: zh-e0ca7252's
+                        // equipment list, every cell lrTbV, has rows of a
+                        // 12pt line in Word's print, where ours turned them
+                        // and its 29 empty rows were 4pt apiece. Kept, so the
+                        // save writes it back.)
+                        if direction != nil, currentCell?.textDirection != .horizontal || direction == "lrTbV" { currentCell?.textDirectionValue = direction }
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         let before = paragraphs.count
@@ -1852,6 +1859,18 @@ enum DocxFormat {
     /// A header/footer part's text with PAGE and NUMPAGES fields (simple or
     /// complex) turned into placeholders; paragraphs joined with spaces.
     /// Whether a field instruction is a page number or a page count.
+    /// The circled number an `eq \o\ac(○,N)` field draws (N from 1 to
+    /// 20), or nil for any other field.
+    static func _ringedNumber(_ instr: String) -> String? {
+        let compact = instr.filter { !$0.isWhitespace }
+        guard compact.lowercased().hasPrefix("eq\\o\\ac("), compact.hasSuffix(")") else { return nil }
+        let inner = compact.dropFirst("eq\\o\\ac(".count).dropLast()
+        let parts = inner.split(separator: ",", omittingEmptySubsequences: false)
+        guard parts.count == 2, ["○", "◯"].contains(String(parts[0])), let n = Int(parts[1]), (1 ... 20).contains(n),
+              let u = Unicode.Scalar(0x2460 + n - 1) else { return nil }
+        return String(Character(u))
+    }
+
     static func _isPageField(_ instr: String) -> Bool {
         let word = instr.trimmingWhitespace(newlines: true).uppercased().split(separator: " ").first.map(String.init) ?? ""
         return word == "PAGE" || word == "NUMPAGES" || word == "SECTIONPAGES"
@@ -3196,6 +3215,17 @@ enum DocxFormat {
                                 addText("1", shown)
                             }
                         }
+                        // (An EQ field that rings a number, `eq \o\ac(○,1)`,
+                        // with no result written: Word draws the two
+                        // overlaid, an em wide — the circled number.
+                        // zh-e0ca7252's 27 "○1".."○4" open lines of its
+                        // insurance clauses; dropped, each line took two
+                        // characters more and its pages ran ahead.)
+                        if let f = notes.fields.last, !f.result, let ringed = DocxFormat._ringedNumber(f.instr) {
+                            var shown = cs
+                            shown.field = f.instr.trimmingWhitespace(newlines: true)
+                            addText(ringed, shown)
+                        }
                         if !notes.fields.isEmpty { notes.fields.removeLast() }
                     default: break
                     }
@@ -4305,7 +4335,7 @@ enum DocxFormat {
                     switch ref?.textDirection {
                     case .down?: xml += "<w:textDirection w:val=\"\(direction.flatMap { ["tbRl", "tbRlV", "tbLrV"].contains($0) ? $0 : nil } ?? "tbRl")\"/>"
                     case .up?: xml += "<w:textDirection w:val=\"\(direction.flatMap { ["btLr", "lrTbV"].contains($0) ? $0 : nil } ?? "btLr")\"/>"
-                    default: break
+                    default: if direction == "lrTbV" { xml += "<w:textDirection w:val=\"lrTbV\"/>" }
                     }
                     if let v = ref?.verticalAlign { xml += "<w:vAlign w:val=\"\(v)\"/>" }
                     if let kept = ref?.keptPropertiesXML { xml += kept }

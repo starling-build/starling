@@ -5548,6 +5548,27 @@ fitter dropped the paragraph's tail).
   zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
   lower in Word than the two-line cells beside them: the same rule);
   nothing else moved.
+- **zh-e0ca7252: six small things, 42.0 -> 98.0 at Word's page count
+  (2026-10-17).** (1) An EQ field that rings a number with no result
+  written, `eq \o\ac(○,1)` (27 of them opening its insurance clauses), is
+  read as the circled number — Word draws the two overlaid, an em; dropped,
+  each line took two characters more. (2) From 2013's layout a Latin word
+  at a body line's end is taken, as before it, where the marks and
+  automatic spaces can give what it needs and it starts half the
+  character before it inside the margin: "…於109年6月15" takes "15" 7.8pt
+  over with 24.5 to give, and leaves the line before its "109" (22.6 of
+  22.75, starting 2pt in). (3) A Latin ")" hangs past the margin as a
+  Latin comma does there: "…免載於招標文件)" ends 4.2pt over. (4) With a
+  hanging indent in twips beside a leftChars count the left indent is the
+  count and the hanging together, as w:left says in all 107 of the
+  corpus's such paragraphs ("（六）…", leftChars 100, hanging 567: 12pt
+  in, the rest at 40.35). (5) A cell's text direction lrTbV is
+  horizontal (its rows a 12pt line in Word's print; ours turned it and
+  its 29 empty rows were 4pt). (6) A section's last paragraph holding
+  nothing but a floating object that takes no room takes none itself:
+  the note box under each equipment list hangs past the margin in Word's
+  print, where ours opened a page with it. Nothing else moved
+  (zh-1b74ed91 +0.3 from (4)).
 - **What an embedded subset lacks is set in the name's own face (2026-10-17).**
   zh-92373179 embeds a subset of 仿宋_GB2312 (FangSong_GB2312; its cmap
   holds 为 and 招 but not 规, 信, 运, 易, 贡 …). Word draws the subset's

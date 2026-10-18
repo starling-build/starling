@@ -5694,7 +5694,17 @@ public final class RichLayout {
         _heights[i] = painter.fractionalLineHeights ? total : total.rounded(.up)
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.
-        if theme.wordRules, p.text.isEmpty, p.image == nil, style.sectionXML != nil, p.cell == nil { _heights[i] = 0 }
+        // (… and so does one that holds nothing but objects floating
+        // clear of the text: zh-e0ca7252's equipment lists end their
+        // sections in a paragraph of one text box, wrapNone, its note
+        // set 17pt below; Word keeps the paragraph on the list's page,
+        // the box hanging past the margin, where ours took it a line
+        // and it opened a page of its own.)
+        func clear(_ image: ImageAttachment) -> Bool { image.float.map { !$0.takesRoom && !$0.wraps } ?? false }
+        let onlyFloats = p.image.map(clear)
+            ?? (!p.text.isEmpty && !p.inlineImages.isEmpty && p.text.unicodeScalars.allSatisfy { $0 == "\u{FFFC}" }
+                && p.inlineImages.values.allSatisfy(clear))
+        if theme.wordRules, (p.text.isEmpty && p.image == nil) || onlyFloats, style.sectionXML != nil, p.cell == nil { _heights[i] = 0 }
         // (So does one wholly hidden, its mark too: see `_vanishes`.)
         if _vanishes(p, document) { _heights[i] = 0; _spaceBefore[i] = 0 }
         // A floating frame takes no room either: the text that follows
@@ -6970,15 +6980,18 @@ public final class RichLayout {
         var left = p.style.indentLeft, right = p.style.indentRight
         guard theme.wordRules, !p.style.eastAsian.isEmpty else { return (left, right) }
         let unit = ((document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize) + (_grid(index, document).chars ?? 0)) / 100
-        // (With a hanging indent in characters the count is from where
-        // the first line hangs: the left indent is the count and the
-        // hanging one together — as `w:left` beside them says in 420 of
-        // the sample's 422 such paragraphs. zh-89385c94's cells say
-        // leftChars -45 and hangingChars 280 at 14pt: text at 33.8pt
-        // from the margin, the first line at -5.4.)
+        // (With a hanging indent the count is from where the first line
+        // hangs: the left indent is the count and the hanging one
+        // together — as `w:left` beside them says in 420 of the sample's
+        // 422 such paragraphs with the hanging in characters, and in all
+        // 107 of the corpus's with it in twips alone. zh-89385c94's cells
+        // say leftChars -45 and hangingChars 280 at 14pt: text at 33.8pt
+        // from the margin, the first line at -5.4; zh-e0ca7252's
+        // "（六）前款情形…", leftChars 100 and hanging 567 at 12pt, has its
+        // first line 12pt in and the rest 40.35, as w:left 807 says.)
         if let c = Double(p.style.eastAsian["w:leftChars"] ?? p.style.eastAsian["w:startChars"] ?? ""), c != 0 {
             left = (c * unit * 20).rounded() / 20
-            if let h = Double(p.style.eastAsian["w:hangingChars"] ?? ""), h > 0 { left += max(0, -firstLineIndent(p, document)) }
+            left += max(0, -firstLineIndent(p, document))
         }
         if let c = Double(p.style.eastAsian["w:rightChars"] ?? p.style.eastAsian["w:endChars"] ?? ""), c != 0 { right = (c * unit * 20).rounded() / 20 }
         return (left, right)
@@ -7726,7 +7739,11 @@ public final class RichLayout {
                 // over and not 10, "pusat" 7.0 and not 7.5 — the comma's
                 // 2.87 the difference; zh-4b8e0abc's Indonesian line ends
                 // "pusat," 2.7pt past the margin in Word's print.)
-                let latinComma = !legacy && units[tail] == 0x2C
+                // (And a Latin closing parenthesis: zh-e0ca7252 (mode 15)
+                // ends "…免載於招標文件)" with its ")" 4.2pt past the margin
+                // in Word's print, "件" squeezed in before it; ours sent
+                // "件)" to a line of its own and page 26 ran a line long.)
+                let latinComma = !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
                 let hang = hangs && !holdsFinal && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     && !runRulesOff(tail)
                     ? min(ems[tail] * (closesUp(tail) || document.hangsHalf ? 0.5 : 1), boxes(tail, tail + 1)) : 0
@@ -7883,8 +7900,18 @@ public final class RichLayout {
                     // and "2021" are taken by Word, and the body lab `ov`
                     // could not say more — its natural widths were not
                     // known to the point.)
+                    // (From 2013's layout too, a Latin word at the line's end
+                    // in the body is taken where the marks and automatic
+                    // spaces can give what it needs and it starts half the
+                    // character before it inside the margin, as before it —
+                    // labs `dg` and `ab32`: zh-e0ca7252 (mode 15) takes "15"
+                    // in "…於109年6月15" 7.8pt over, its comma and ten spaces
+                    // giving 24.5 and "月"'s half inside, and leaves the line
+                    // before it its "109", 22.6 of 22.75 and starting 2pt in.)
+                    let latinWord = modern && !wide && !inCell && !onCharacterGrid && !lineOther
+                        && x + before / 2 <= width + edge && room > 0 && hang == 0 && need <= room + hair
                     let taken = modern
-                        ? (!lineOther && lineWide > 1 && room > 0 && hang == 0
+                        ? latinWord || (!lineOther && lineWide > 1 && room > 0 && hang == 0
                             // (A sixty-fourth of each gap's em: of the line's
                             // characters as they are sized. zh-84702a67 sets
                             // twenty of a 16pt line's 33 at 10.5pt, and Word
