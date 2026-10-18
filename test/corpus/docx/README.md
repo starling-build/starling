@@ -61,6 +61,18 @@ breaks differently, and that paragraph is what the second form prints.
 that gains or loses a page against Word's count has a page that is
 wholly different.)
 
+**Where it stands, 2026-10-18** (sweep s353, `office` at 66bd69c9, on
+the Mac, `OFFICE_WORD_FONTS=mac`): the 306 Chinese documents have a mean
+of 95.2% of Word's lines where Word has them (median 98.4%; 255 at 95%
+or more, 301 at half or more, 298 with Word's page count). The 111 POI
+documents have 89.8% (median 100%; 97 at 95% or more, all 111 with
+Word's page count). Means are not comparable across samples, since each
+of the thirteen added documents; compare a document with itself. What is
+left, document by document, is on the board, `docs/plans/word-gaps-tasks.md`.
+A good share of the remaining misses is the reader's, not the layout's:
+Word's embedded subsets drop glyphs from its text layer, and PDFKit groups
+some lines differently.
+
 **The Chinese documents are compared with Word on a Mac, which has few
 Chinese fonts.** That Word has 宋体, 黑体, 楷体, 仿宋 and the 明體 pair,
 and sets every other name — 仿宋_GB2312, the 方正 faces, 標楷體, which
@@ -93,7 +105,11 @@ changes). So the gate reprints the originals every time and the PDFs in
 except the `zh-*` prints, all 306 of which are Word for Mac 16.113.3,
 on 2026-10-16 and the third to seventh samples' 98 on 2026-10-17 and the eighth to thirteenth samples' 120 on 2026-10-18 (the first sample's 68 reprinted that day: by then Word set
 楷体_GB2312 in Microsoft YaHei, where the 2026-10-12 prints had KaiTi,
-so the two halves had disagreed; the old prints are in git history),
+so the two halves had disagreed; the old prints are in git history;
+`zh-167ee06c…` reprinted alone on 2026-10-18 as well — its batch print
+had set hangingChars lines 21.55pt in where Word sets 28, the other
+nineteen of its sample reprinting unchanged, so a reference that
+disagrees with a lab is worth reprinting before it is believed),
 through
 
     test/docx-word-render.sh IN_DIR OUT_DIR WORK [names…]
