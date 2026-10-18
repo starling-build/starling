@@ -2162,6 +2162,18 @@ T97 (Linux 017F2) landed it with the baseline too (46.1); this one dropped.
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-20ff844e (95.8%, 129 pages; 108 misses, 89 of them on p15-19).
 
+### T100. Word equations (OMML): read, kept, drawn — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17 (Windows box agreed)
+Documents: zh-20ff844e (p15's two display formulas), zh-c2c92639 (14),
+zh-06c46ba9 (1).
+Known: `m:oMath` / `m:oMathPara` are not read at all: an equation is gone
+from the page (zh-20ff844e p15 loses its formulas and their 50pt, and the
+page after runs high) and from a save (a re-saved zh-20ff844e has none).
+Plan: an equation is a kept object (written back verbatim, outside any
+run), drawn by a small layout of its own — runs, sub/superscripts, n-ary
+operators with limits, fractions, delimiters, radicals, functions; the
+rest linear — display equations centred as Word's default.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
