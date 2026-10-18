@@ -158,15 +158,24 @@ zh-007ca091 35.4 (T109, 93.0 now, 11 pages), zh-0b87285b 77.9 (Mac 011uWpmC, 98.
 83.0, zh-043aab43 84.4 (Mac 011uWpmC, measured, released: p3's justified cell lines (mode 14, PMingLiU 12, wordWrap 0, the run hinted eastAsia) — Word sets "÷ " in "（歲入成長率÷ 歲出" with the space ~6pt (half an em, PMingLiU's) less justification's 1.01, ours 2.9 (the Latin space), and takes one character more on the line; lab `hs` (Word 16, 2026-10-17): the hint does nothing — Word sets PMingLiU's own Latin widths (space 0.2598 em, "÷" 0.5908, from the mingliu.ttc Word carries), ours the serif stand-in at 0.94 (space 2.82 at 12pt for 3.12). Taking PMingLiU's whole ASCII table broke zh-190d730c 97.8 -> 43.4, zh-ec01ed87 99.1 -> 77.4, zh-073c9234 97.7 -> 81.4 and zh-340d52e9: those files' widths are the stand-in's in Word's print, so which of PMingLiU's widths Word uses is still open — reverted), zh-021b8feb 85.6 (18/19; Mac 011uWpmC, 98.6 now, Word's 18 pages — a break followed by floats alone is a break (lab ab, 4aef5f9d), a row with a turned cell parts (a0fcb76c); released), zh-8f7aa519 87.7,
 zh-c8eb6e92 91.2.
 
-### T110. zh-ea70c30e: a zh-TW line Word does not squeeze — claimed
-Owner: session 017F2GnT (Linux), from 2026-10-17
-Documents: zh-ea70c30e (59.1%, sixth sample; the Mac's measure in the note below).
+### T110. zh-ea70c30e: a zh-TW line Word does not squeeze — measured, released
+Owner: none (Linux 017F2GnT measured it, 2026-10-17)
+Documents: zh-ea70c30e (60.1%, sixth sample).
+Both its lines with word spaces go by the fallback test (`lineOther`: a
+U+0020 on the line), which takes a character when its need over the
+marks that give is under the room left (lab `mh`). On p2 "…是指人數至少達
+10,000 名的說" Word leaves "有" 8.3pt over with three brackets to give
+(ours takes it); on p1 "…Dymally-Alatorre 雙語服務法案)規定地方公共" Word
+takes "機" 3.5 over with one comma. Tried: no squeeze on a justified line
+with spaces (p2 right, p1 wrong); at most half an em there (both right,
+but zh-c2c92639 77.4 -> 64.9 and four others down a little, this one
+level). So the rule is neither; more lines with spaces are needed.
 
 ### Note from the Mac (2026-10-17, night): the zh corpus is 168 documents — a sixth sample
 Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 76.6%. Its low ones,
 unclaimed unless marked: zh-8f9b19f4 0.0 (Word 14 pages, ours 7; T101 + the scorer from the top, 47.4 now, 16 pages — its 2- and 3-column sections set in one), zh-117cf7c6 39.2 (3/4 pages; Mac 011uWpmC, 98.6 now — table text off the grid without adjustLineHeightInTable; released), zh-e0ca7252 41.9
-(52/51; T102, 98.0 now), zh-340d52e9 48.9 (T103, 75.6 now), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC: Word's 4 pages now — empty lines beside wrapped charts; left: the charts' own labels, released), zh-ea70c30e 59.1 (T110, Linux 017F2GnT, claimed; Mac 01Xgpbk5 measured — squeeze ground: mode 15, compressPunctuation, zh-TW PMingLiU 12.5pt, justified; p2 "「多數說有限英語人士團體」或「團體」是指人數至少達 10,000 名的說" ends there in Word, unsqueezed at 12.51 a character, while ours squeezes "」", "「", "」" to 9.74 and the spaces round "10,000" (17.37 -> 15.44 incl. 達, 10.74 -> 8.81) to take "有"; every line after one character early),
+(52/51; T102, 98.0 now), zh-340d52e9 48.9 (T103, 75.6 now), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC: Word's 4 pages now — empty lines beside wrapped charts; left: the charts' own labels, released), zh-ea70c30e 59.1 (T110 measured, released; Mac 01Xgpbk5 measured — squeeze ground: mode 15, compressPunctuation, zh-TW PMingLiU 12.5pt, justified; p2 "「多數說有限英語人士團體」或「團體」是指人數至少達 10,000 名的說" ends there in Word, unsqueezed at 12.51 a character, while ours squeezes "」", "「", "」" to 9.74 and the spaces round "10,000" (17.37 -> 15.44 incl. 達, 10.74 -> 8.81) to take "有"; every line after one character early),
 zh-5b7ae054 64.4 (44 pages; Windows 01QbbApP, 98.0 now — a compatibility ideograph's Noto joiner kept "能力" together; released), zh-82b166b4 72.8 (T105, 98.4 now), zh-54e91165 75.4 (T106, 97.4 now),
 zh-8d6f702e 88.0 (Mac 01Xgpbk5, T107 for its p21-22; the rest — lines of ours a character longer than Word's on its grid of -0.21 — released; Windows 01QbbApP: YaHei's em dash, 88.4 now; what is left is the squeeze — Word gives two commas a quarter em each where ours gives none, and none to brackets where ours takes three in, office.md "YaHei's em dash"; released).
 
