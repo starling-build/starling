@@ -234,6 +234,16 @@ struct Chart: Equatable {
     }
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
+    /// A pie of pie or bar of pie (`c:ofPieChart`): which points leave the
+    /// main pie for the second plot, which stands beside it.
+    var ofPie: OfPie? = nil
+    struct OfPie: Equatable {
+        var bar = false
+        /// The points in the second plot, by index.
+        var second: Set<Int> = []
+        /// Its size, a share of the main pie's (`c:secondPieSize`, 75%).
+        var size = 0.75
+    }
     /// A bar chart of one series whose points each take a colour of
     /// their own (`c:varyColors`): they cycle as a pie's slices do, and
     /// the legend names the categories, as a pie's does
@@ -1301,6 +1311,9 @@ enum ChartXML {
             c.categoryLabelTurn = -rot / 60000
         }
         c.pointColors = pointColors
+        if el.name == "c:ofPieChart", let values = c.series.first?.values {
+            c.ofPie = Self._ofPie(el, values: values)
+        }
         c.variedPoints = (type == .bar || type == .column) && c.series.count == 1 && c.lineSeries.isEmpty
             && ["1", "true"].contains(el.first("c:varyColors")?["val"] ?? "")
         let styleNode = space.first("c:style") ?? space.first("mc:AlternateContent")?.first("mc:Fallback")?.first("c:style")
@@ -1382,6 +1395,35 @@ enum ChartXML {
     /// Whether `scheme` is series `i`'s colour in the default cycle, as
     /// this app (and PowerPoint) writes it: `accent(i mod 6 + 1)`, shaded or
     /// tinted on later rounds.
+    /// Which points of a pie of pie go to its second plot (`c:splitType`):
+    /// the last so many (`pos`), those under a value or a percent, or the
+    /// ones the file lists (`cust`). With none said, the last third:
+    /// Excel's prints of chart-pieOfPieChart (two of six) and
+    /// chart-barOfPieChart (three of nine).
+    static func _ofPie(_ el: XNode, values: [Double?]) -> Chart.OfPie {
+        var o = Chart.OfPie()
+        o.bar = el.first("c:ofPieType")?["val"] == "bar"
+        if let size = el.first("c:secondPieSize")?["val"].flatMap(Double.init) { o.size = max(0.05, min(2, size / 100)) }
+        let n = values.count
+        let at = el.first("c:splitPos")?["val"].flatMap(Double.init)
+        let sum = values.reduce(0) { $0 + max(0, $1 ?? 0) }
+        switch el.first("c:splitType")?["val"] ?? "auto" {
+        case "val":
+            o.second = Set(values.indices.filter { (values[$0] ?? 0) < (at ?? 0) })
+        case "percent":
+            o.second = Set(values.indices.filter { sum > 0 && (values[$0] ?? 0) / sum * 100 < (at ?? 0) })
+        case "cust":
+            o.second = Set((el.first("c:custSplit")?.all("c:secondPiePt") ?? []).compactMap { $0["val"].flatMap(Int.init) })
+        case "pos" where at != nil:
+            o.second = Set(max(0, n - Int(max(0, min(Double(n), at!)))) ..< n)
+        default:
+            o.second = Set(max(0, n - Int((Double(n) / 3).rounded())) ..< n)
+        }
+        // (Never all of them: the main pie keeps one.)
+        if o.second.count >= n { o.second.remove(0) }
+        return o
+    }
+
     /// A gradient's mean colour: its stops joined by straight runs, the
     /// first and last held to the ends.
     static func _meanColor(_ g: XNode, _ color: (XNode) -> Color?) -> Color? {
@@ -2979,6 +3021,10 @@ enum ChartPainter {
 
     private static func _pie(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,
                              text: (String, Double, Double) -> TextPainter, frame: Rect? = nil, ink: Color? = nil) {
+        if c.ofPie != nil, c.type == .pie {
+            _ofPie(c, canvas, area, k: k, theme: theme)
+            return
+        }
         let values = c.series[0].values.map { max(0, $0 ?? 0) }
         let sum = values.reduce(0, +)
         guard sum > 0 else { return }
@@ -3047,6 +3093,82 @@ enum ChartPainter {
 }
 
 extension ChartPainter {
+    /// A pie of pie or bar of pie: the main pie with one slice for the
+    /// points moved out, centred at three o'clock and facing the second
+    /// plot, its own points running on clockwise from it; the second plot
+    /// beside it, a pie starting where the main pie's points start, or a
+    /// bar stacked from the top, `size` of the main pie's height (half
+    /// that wide). The two side by side, a gap between of about two
+    /// thirds of the second plot's width, centred in the room. So Excel's prints of chart-pieOfPieChart2
+    /// (second pie from 85.7°, half its 171.4° "other" slice) and
+    /// chart-barOfPieChart (a 145.2 by 72.6 bar beside a 193.6 pie, 48.4
+    /// apart).
+    static func _ofPie(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme) {
+        guard let o = c.ofPie, let series = c.series.first else { return }
+        let values = series.values.map { max(0, $0 ?? 0) }
+        let sum = values.reduce(0, +)
+        let moved = values.indices.filter { o.second.contains($0) }
+        let other = moved.reduce(0.0) { $0 + values[$1] }
+        guard sum > 0 else { return }
+        let width2 = o.bar ? o.size / 2 : o.size, gap = 0.65 * width2
+        // (0.87 of what a pie alone would take of the room, across or
+        // down: both prints' pies, the bar of pie's held by the height
+        // and the pie of pie's by the width.)
+        let d = 0.87 * min(area.height * 0.97, area.width / (1 + width2 + gap))
+        let left = area.center.dx - d * (1 + width2 + gap) / 2
+        let centre = Offset(left + d / 2, area.center.dy)
+        let fill = Paint()
+        fill.style = .fill
+        fill.isAntiAlias = true
+        let edge = Paint()
+        edge.style = .stroke
+        edge.isAntiAlias = true
+        edge.strokeWidth = max(0.5, 1.5 * k)
+        edge.color = theme.background
+        if c.onSlide, !c.styled2013, c.officeStyled { edge.color = Color(0x00000000) }
+        func slice(_ oval: Rect, _ from: Double, _ sweep: Double, _ color: Color) {
+            fill.color = color
+            canvas.drawArc(oval, from, sweep, true, fill)
+            canvas.drawArc(oval, from, sweep, true, edge)
+        }
+        // The main pie.
+        let oval = Rect.fromCircle(center: centre, radius: d / 2)
+        let half = other / sum * .pi
+        var angle = half
+        for i in values.indices where !o.second.contains(i) && values[i] > 0 {
+            let sweep = values[i] / sum * 2 * .pi
+            slice(oval, angle, sweep, c.pointColor(i, accents: theme.accents))
+            angle += sweep
+        }
+        if other > 0 {
+            slice(oval, -half, 2 * half, series.color ?? c.pointColor(values.count, accents: theme.accents))
+        }
+        // The second plot.
+        guard other > 0 else { return }
+        let x2 = left + d * (1 + gap)
+        if o.bar {
+            let h = d * o.size, w = d * width2
+            var top = centre.dy - h / 2
+            for i in moved where values[i] > 0 {
+                let part = values[i] / other * h
+                let r = Rect.fromLTWH(x2, top, w, part)
+                fill.color = c.pointColor(i, accents: theme.accents)
+                canvas.drawRect(r, fill)
+                canvas.drawRect(r, edge)
+                top += part
+            }
+        } else {
+            let r2 = d * o.size / 2
+            let oval2 = Rect.fromCircle(center: Offset(x2 + r2, centre.dy), radius: r2)
+            var a = half
+            for i in moved where values[i] > 0 {
+                let sweep = values[i] / other * 2 * .pi
+                slice(oval2, a, sweep, c.pointColor(i, accents: theme.accents))
+                a += sweep
+            }
+        }
+    }
+
     /// A line series' mark at `q`: its symbol at its size, filled and
     /// outlined in its colours.
     static func _mark(_ l: ChartSeries, at q: Offset, k: Double, colour: Color, _ canvas: any Canvas) {
