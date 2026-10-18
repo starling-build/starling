@@ -64,3 +64,40 @@ variable fonts with fontTools' instancer), Selawik 1.01
 chrome's own Selawik), TeX Gyre 2.5 OpenType from CTAN
 (fonts/tex-gyre/opentype).
 
+## 仿宋: Starling FangSong (2026-10-18)
+
+Chinese government documents set their body text in 仿宋 (FangSong), most
+often named 仿宋_GB2312. No platform this app runs on carries a FangSong it
+may bundle, and Chinese text otherwise falls to the system's face (PingFang
+on a Mac, a sans). `StarlingFangSong-Regular.ttf` is **Zhuque Fangsong**
+(朱雀仿宋, github.com/TrionesType/zhuque, release v0.212, a technical
+preview; SIL Open Font License 1.1, no Reserved Font Name;
+StarlingFangSong-LICENSE.txt) re-metricked to FangSong's widths and
+renamed, as the licence asks of a modified font:
+
+- its ASCII each in a half-em cell, centred (FangSong's Latin is monospaced
+  at 0.5 em), the space half an em;
+- its curly quotes a full em, “ ‘ at the cell's right and ” ’ at its left;
+- the full-width forms it lacks (＜ ２ ｍ …) made from its half-width ones;
+- its Latin kerning (GPOS) dropped; its vertical metrics those of Liberation
+  Sans, the stand-in it replaces, so no line moves;
+- subset to GB2312, every character the corpus's documents use, ASCII,
+  Latin-1, general and CJK punctuation and the full-width forms (9,202
+  characters, 5.7 MB).
+
+Every advance is FangSong's (Word for Mac's DFonts Fangsong.ttf, and
+Office's cloud build 5.02 on Windows), so it changes the drawing of a 仿宋
+run and not its layout. `OfficeFonts.fangSongFamily` picks it for 仿宋 and
+FangSong; outside `OFFICE_WORD_FONTS=mac` for 仿宋_GB2312 and the 方正仿宋
+names too (Word for Mac sets those in YaHei, and its prints are the
+references). Rebuild with `build/tools/starling-fangsong.py ZHUQUE.ttf
+OUT.ttf`, then `pyftsubset … --unicodes-file=build/tools/starling-fangsong-unicodes.txt
+--layout-features='*'`.
+
+Measured 2026-10-18 against Word's prints: on the 26 corpus documents Word
+sets largely in FangSong, the page difference fell from 7.32% to 6.54%
+(zh-76d361b2 9.74 to 7.60, zh-8186c98d 8.29 to 6.24); the line match and
+every page count are as before, but for a few documents whose table rows
+the PDF reader now groups otherwise (zh-998727df 100 to 98.4; five others
+up by half a point).
+

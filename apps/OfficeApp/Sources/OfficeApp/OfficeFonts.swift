@@ -1370,7 +1370,7 @@ enum OfficeFonts {
         if eastAsian {
             // (An embedded face draws its own characters; what its subset
             // lacks falls back as before.)
-            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? ea.boldWiden ?? 1.0 / 48 : 0,
+            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? fangSongFamily(family) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? ea.boldWiden ?? 1.0 / 48 : 0,
                                         baseline: ea.baseline)
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
@@ -1481,6 +1481,28 @@ enum OfficeFonts {
     /// missing, after the symbol fallback (`RichTextTheme.glyphFallback`):
     /// what the Latin side of an East Asian family falls back to first.
     nonisolated(unsafe) static var cjkFallback: [String] = []
+
+    /// Starling FangSong: Zhuque Fangsong (OFL) set to FangSong's metrics —
+    /// its Latin half an em, its curly quotes and full-width forms an em,
+    /// a line of one em (Resources/fonts/README.md). Whether it loaded.
+    static let starlingFangSong = "Starling FangSong"
+    nonisolated(unsafe) static var _fangSongLoaded = false
+
+    /// The face that draws a 仿宋 name's ideographs, where it is one:
+    /// Starling FangSong, in place of the system's fallback (PingFang, a
+    /// sans). Its widths are FangSong's, so no line moves; only the
+    /// drawing does. Under OFFICE_WORD_FONTS=mac only the names Word for
+    /// Mac draws in its own FangSong — 仿宋 and FangSong; there
+    /// 仿宋_GB2312 and the 方正 names are YaHei's, as in its prints. In a
+    /// document shown as its author had it, those too. (华文仿宋 is a
+    /// face of its own, and keeps its own.)
+    static func fangSongFamily(_ family: String) -> String? {
+        guard _fangSongLoaded else { return nil }
+        let n = family.trimmingWhitespace().lowercased()
+        if n == "仿宋" || n == "fangsong" { return starlingFangSong }
+        guard !wordOnMac, !n.containsSubstring("华文"), !n.hasPrefix("st") else { return nil }
+        return n.containsSubstring("仿宋") || n.containsSubstring("fangsong") ? starlingFangSong : nil
+    }
 
     /// Whether `wordSans` and `wordSerif` are registered.
     nonisolated(unsafe) static var _gapAboveLoaded = false
@@ -1679,6 +1701,15 @@ enum OfficeFonts {
             }
         }
         _gapAboveLoaded = !gapAboveFailed
+        // 仿宋's ideographs in a 仿宋 face (`fangSongFamily`).
+        let fangSong = bundle.bundleURL.appendingPathComponent("fonts/StarlingFangSong-Regular.ttf").path
+        if FileManager.default.fileExists(atPath: fangSong) {
+            if flutter.swift_bridge.LoadFontFromFile(fangSong, starlingFangSong) {
+                _fangSongLoaded = true
+            } else {
+                FileHandle.standardError.write("[Office] could not load \(fangSong)\n".data(using: .utf8)!)
+            }
+        }
         if gapAboveFailed {
             FileHandle.standardError.write("[Office] the Word line faces did not load; Times and Arial lines keep the engine's gap\n".data(using: .utf8)!)
         }

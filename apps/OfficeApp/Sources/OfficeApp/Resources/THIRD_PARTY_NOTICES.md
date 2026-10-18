@@ -28,6 +28,11 @@ Copyright (c) 2010-2013 tyPoland Lukasz Dziedzic. SIL Open Font License 1.1.
 Document face standing in for Calibri.
 Full text: fonts/Carlito-LICENSE.txt.
 
+## Zhuque Fangsong (as Starling FangSong)
+Copyright (c) 2023, Zhejiang JadeFoci Technology Co. LTD. SIL Open Font License 1.1.
+Modified (re-metricked to FangSong's widths, subset) and renamed Starling FangSong;
+the face 仿宋 text is drawn in. Full text: fonts/StarlingFangSong-LICENSE.txt.
+
 ## Caladea
 Copyright (c) 2012 Huerta Tipografica. Apache License 2.0.
 Document face standing in for Cambria.
