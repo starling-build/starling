@@ -6560,7 +6560,14 @@ public final class RichLayout {
                     let g = grid * theme.pixelsPerPoint * scale
                     if g > 0, w > 0 { extra += (w / g).rounded() * g - w }
                 } else if !ea, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value,
-                          let face = (u >= 0x80 && highFace?.otherAdvances?[u] != nil ? highFace : nil) ?? latinFace, face.otherAdvances != nil {
+                          let face = (u >= 0x80 && highFace?.otherAdvances?[u] != nil ? highFace : nil) ?? latinFace, face.otherAdvances != nil,
+                          // (Not a no-break space after an ordinary one, through
+                          // others: that is the Latin text's, the space's half
+                          // em — zh-f3802561's "第一条" + U+00A0, U+0020, U+00A0,
+                          // U+00A0 in a 10.5pt 仿宋 run sets them 10.5, 5.25,
+                          // 5.25 and 5.25 in Word's print; ours set every
+                          // no-break one an em, and the line lost its "发".)
+                          !(theme.wordRules && u == 0xA0 && text[..<i].reversed().first(where: { $0 != "\u{00A0}" }) == " ") {
                     // … and the width it gives one the stand-in lacks.
                     // (Past ASCII, the `w:hAnsi` face's, where it has its own:
                     // zh-17749c13's no-break spaces in 仿宋_GB2312 runs whose

@@ -6312,6 +6312,16 @@ fitter dropped the paragraph's tail).
   lines on its 26 pages. zh-6a4fc013 38.3 -> 54.2 (it had run 693 lines
   on 29 pages); nothing else moved (s346 -> s347; no other file names
   these faces). Linux keeps its fallback unscaled for now.
+- **A no-break space after an ordinary one is the Latin text's
+  (2026-10-18).** Lab `nb1` made a no-break space in a square face an
+  em ("甲" + ten U+00A0 + "乙"). zh-f3802561's articles open "第一条"
+  + U+00A0, U+0020, U+00A0, U+00A0 in a 10.5pt 仿宋 run, which Word's
+  print sets 10.5, 5.25, 5.25, 5.25. The first follows an ideograph and
+  is an em; those after the space are the space's half em, as a neutral
+  character takes the script before it. 仿宋 has no U+00A0 of its own.
+  Ours set all three an em, 10.5pt more an article, and the first line
+  of each lost a character. zh-f3802561 69.4 -> 99.8; nothing else moved
+  (s347 -> s348).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
