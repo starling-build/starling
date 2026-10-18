@@ -4674,6 +4674,17 @@ public final class RichLayout {
             }
         }
         var textWidth = max(1, width - left - right + (frameLeft ?? 0))
+        // (Centred or set right, a numbered line is set across its
+        // hanging indent too: zh-3c055c9b's caption "表1　古佳川不實核銷表
+        // (…財物)", 表標題 centred on a 24pt hang, is one line in Word's
+        // print centred on the indent's edge, 465.8pt in a column of
+        // 450.85 and the hang; ours took no more than the column, and
+        // "物)" went over the page with the table under it.)
+        if theme.wordRules, p.cell == nil, let wl = wordList, wl.first < 0,
+           style.alignment == .center || style.alignment == .right {
+            left += _px(wl.first)
+            textWidth -= _px(wl.first)
+        }
         if let c = p.cell {
             let widths = _columnWidths[c.table] ?? []
             let colWidth = c.column < widths.count
@@ -6358,6 +6369,18 @@ public final class RichLayout {
                 // showed: zh-457a8d62 lost a character a line.)
                 if !ea, document.balancesSpaceWidth, let g = grid, g != 0, ch != " ", let following, following != " " {
                     extra -= _px(g) / 2
+                }
+                // (In a paragraph off the grid, that half alone — no
+                // whole addition to take it from: zh-8d6f702e's "24小时…
+                // 150毫米" paragraph, `w:snapToGrid` 0 on a grid of -0.21,
+                // sets each digit 7.90 in Word's print, Times's 8 less
+                // half; ours 8.00, and the line took nothing Word's does.
+                // Before a space, or a space, nothing: zh-268f8d15's
+                // footer "- 1 -" is Times's own widths. Nor in a header or
+                // footer, which keeps to no grid: zh-3c055c9b's page number.)
+                if !ea, grid == nil, document.balancesSpaceWidth, let g = ideographGrid, g != 0, _grid(index, document).pitch != nil,
+                   ch != " ", let following, following != " " {
+                    extra += _px(g) / 2
                 }
                 // (A symbol set in an East Asian face that gives it a width
                 // of its own takes that width, and half the grid's addition

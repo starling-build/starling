@@ -1436,6 +1436,75 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(thick - thin, 3.5, accuracy: 0.3, "the cell's 2.25pt over and under its one row, not the table's 0.5")
     }
 
+    func testACentredNumberedLineIsSetAcrossItsHang() throws {
+        // zh-3c055c9b's caption "表1　古佳川不實核銷表(…財物)": 表標題,
+        // centred, on a level with a 24pt hang, is one line in Word's
+        // print centred from the hang's edge to the right indent; ours
+        // was laid out between the indents, and its last two characters
+        // went over the page with the table under it.
+        func geometry(_ alignment: ParagraphAlignment) -> (left: Double, width: Double, ppp: Double) {
+            var p = RichParagraph(text: "一二三四五")
+            p.style.list = .numbered
+            p.style.listIndentLeft = 24
+            p.style.listFirstLine = -24
+            p.style.alignment = alignment
+            let doc = RichDocument(paragraphs: [p])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).textLeft, l.geometry(0).painter.width, l.theme.pixelsPerPoint)
+        }
+        let left = geometry(.left), centred = geometry(.center), right = geometry(.right)
+        XCTAssertEqual((left.left - centred.left) / left.ppp, 24, accuracy: 0.01, "from the hang's edge")
+        XCTAssertEqual((centred.width - left.width) / left.ppp, 24, accuracy: 0.01, "and the hang's width more")
+        XCTAssertEqual(right.left, centred.left, accuracy: 0.01)
+    }
+
+    func testADigitOffTheGridByItsParagraphTakesHalfTheGrid() throws {
+        // zh-8d6f702e p23: "24小时…150毫米", `w:snapToGrid` 0 on a grid
+        // of -0.21 with balanceSingleByteDoubleByteWidth, sets each digit
+        // 7.90 in Word's print — Times's 8 less half the grid; ours 8.00.
+        func digits(grid: Bool) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+            let rPr = "<w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:eastAsia=\"SimSun\"/><w:sz w:val=\"32\"/></w:rPr>"
+            func para(_ text: String) -> String {
+                "<w:p><w:pPr><w:snapToGrid w:val=\"0\"/></w:pPr><w:r>\(rPr)<w:t>\(text)</w:t></w:r></w:p>"
+            }
+            let docGrid = grid ? "<w:docGrid w:type=\"linesAndChars\" w:linePitch=\"312\" w:charSpace=\"-860\"/>" : ""
+            xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: para("1111111111字") + para("字")
+                + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/>\(docGrid)</w:sectPr>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/settings.xml" })
+            var settings = String(decoding: entries[si].data, as: UTF8.self)
+            if let compat = settings.range(of: "<w:compat>") {
+                settings.replaceSubrange(compat, with: "<w:compat><w:balanceSingleByteDoubleByteWidth/>")
+            } else {
+                let close = try XCTUnwrap(settings.range(of: "</w:settings>"))
+                settings.replaceSubrange(close, with: "<w:compat><w:balanceSingleByteDoubleByteWidth/></w:compat></w:settings>")
+            }
+            entries[si] = ZipEntry(name: "word/settings.xml", data: Data(settings.utf8))
+            let opened = try DocxFormat.read(try Zip.write(entries))
+            XCTAssertTrue(opened.document.balancesSpaceWidth)
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+            l.width = 800
+            l.ensureLaidOut(opened.document)
+            let both = try XCTUnwrap(l.geometry(0).painter.computeLineMetrics().first).width
+            let alone = try XCTUnwrap(l.geometry(1).painter.computeLineMetrics().first).width
+            return (both - alone) / l.theme.pixelsPerPoint
+        }
+        XCTAssertEqual(try digits(grid: true) - (try digits(grid: false)), 10 * -0.21 / 2, accuracy: 0.05, "half the grid's -0.21 each")
+    }
+
     func testACellsParagraphsShareTheirSpacing() throws {
         // drawing.docx: two headings of 12pt before and 3pt after in one
         // cell are 12pt apart in Word's print, as in the body — the larger
