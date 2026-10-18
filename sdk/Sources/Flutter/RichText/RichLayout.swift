@@ -6092,6 +6092,16 @@ public final class RichLayout {
                         // the line above, Word's 1.4, and no deeper.)
                         if let joiner = _notoJoiner(r, notoStyle!, run, named, style(kind), p.style, pitch, scale) { notoStyle = joiner }
                     }
+                    // (A joiner keeps the line from parting before the
+                    // character: a zero-width space before it gives the
+                    // break back, the joiner going on with the character.
+                    // zh-5b7ae054's "…基本抗災能力" ends its line at "能" in
+                    // Word's print, "力" U+F98A opening the next; ours
+                    // carried "能力" over and lost a character a line.)
+                    if let b = before, Self.isEastAsian(b, hinted: true), !Self._openingMarks.contains(b) {
+                        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                        inserts.append(offset)
+                    }
                     spans.append(TextSpan(text: "\u{2060}", style: notoStyle!))
                     inserts.append(offset)
                 }

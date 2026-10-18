@@ -4814,6 +4814,16 @@ fitter dropped the paragraph's tail).
   face's, added to that face's measured line. At an even share the
   size fixes ascent less descent, and the height sets the rest.
   zh-8e8d4c40 90.4 -> 98.9; nothing else moved.
+  (2026-10-17) That joiner kept the line from parting before the
+  character, since a word joiner forbids a break on both sides.
+  zh-5b7ae054 (121 compatibility ideographs) ends a line at "…抗災能" in
+  Word's print, with "力" U+F98A opening the next. Ours carried "能力"
+  over, and every line of the paragraph after it ran a character early:
+  with the file's own "力" swapped for U+529B, ours fit "能". A
+  zero-width space now goes before the joiner, after an ideograph that
+  is not an opening mark: the line may part there, and the joiner goes
+  on with the character. zh-5b7ae054 64.7 -> 98.0, zh-8e8d4c40 98.9 ->
+  99.4; nothing fell of the 279 files holding any (one base).
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints
