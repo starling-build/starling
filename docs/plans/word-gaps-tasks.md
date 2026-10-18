@@ -2638,6 +2638,16 @@ p91-93 and p104-113 then run a line apart); (2) zh-ff93733d p1 "…調查結果�
 on: "果" fits whole with the boxes at 0.697 (17.6pt spare) and ours hangs "。", Word carries both (and the rest of
 the document runs a line apart: 97.0 -> 6.5). Lab asked of the Mac: in legacy mode, does a line's last mark give
 anything to take it — squeezed with overflowPunct off, hung with it on — and does it matter that it ends the paragraph?
+Line-end lab (Mac 01Xgpbk5, Word for Mac 16.113.3, zh-ff93733d's package,
+compressPunctuation, YaHei 14pt justified, ~/starling-word-check/lab/tools/lp):
+the indent up to which the line's last ideograph stays, against a control
+of 958 twips (an em is 280). LEGACY: "。" ending the paragraph (overflow
+on) 679 — carried with it, no hang, no squeeze; "。" mid-paragraph (on)
+958 — hangs; "；" mid-paragraph overflowPunct 0 679 — the last mark is NOT
+squeezed to take it; on, 958 — hangs. MODE 15: "。" ending the paragraph
+958 — hangs; "；" mid overflowPunct 0 819 — squeezed by half. So legacy
+mode squeezes no line-end mark and never hangs a paragraph's final one.
+
 ### T120. zh-b4d36718: turned text in a merged cell that crosses a page sits off its part of the page — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
 Documents: zh-b4d36718 (93.7, tenth sample; p14-16 hold most of its 48 misses).
