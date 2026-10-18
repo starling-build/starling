@@ -983,6 +983,11 @@ enum ChartXML {
                     if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
                        let f = pt.first("c:spPr")?.first("a:solidFill"),
                        !(f.first("a:schemeClr").map { _isCycle($0, i) } ?? false), let c = color(f) { pointColors[i] = c }
+                    // A gradient as the colour it comes to over the slice
+                    // (LIBRE_OFFICE-128382-0's pale 3-D pie, drawn in the
+                    // accents themselves).
+                    else if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
+                            let g = pt.first("c:spPr")?.first("a:gradFill"), let c = _meanColor(g, color) { pointColors[i] = c }
                 }
             }
             if let fill {
@@ -994,6 +999,8 @@ enum ChartXML {
                 } else {
                     s.color = color(fill)
                 }
+            } else if type != .line, type != .scatter, let g = pr?.first("a:gradFill") {
+                s.color = _meanColor(g, color)
             }
             series.append(s)
         }
@@ -1369,6 +1376,30 @@ enum ChartXML {
     /// Whether `scheme` is series `i`'s colour in the default cycle, as
     /// this app (and PowerPoint) writes it: `accent(i mod 6 + 1)`, shaded or
     /// tinted on later rounds.
+    /// A gradient's mean colour: its stops joined by straight runs, the
+    /// first and last held to the ends.
+    static func _meanColor(_ g: XNode, _ color: (XNode) -> Color?) -> Color? {
+        let stops = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs -> (Double, Color)? in
+            color(gs).map { (min(1, max(0, (gs["pos"].flatMap(Double.init) ?? 0) / 100000)), $0) }
+        }.sorted { $0.0 < $1.0 }
+        guard let first = stops.first, let last = stops.last else { return nil }
+        var sum = [0.0, 0.0, 0.0, 0.0]
+        func add(_ c: Color, _ w: Double) {
+            let v = Int(c.value)
+            for (k, s) in [24, 16, 8, 0].enumerated() { sum[k] += Double((v >> s) & 0xFF) * w }
+        }
+        add(first.1, first.0)
+        add(last.1, 1 - last.0)
+        for (a, b) in zip(stops, stops.dropFirst()) {
+            let w = (b.0 - a.0) / 2
+            add(a.1, w); add(b.1, w)
+        }
+        let total = first.0 + (1 - last.0) + (last.0 - first.0)
+        guard total > 0 else { return first.1 }
+        let ch = sum.map { Int64(max(0, min(255, ($0 / total).rounded()))) }
+        return Color(ch[0] << 24 | ch[1] << 16 | ch[2] << 8 | ch[3])
+    }
+
     private static func _isCycle(_ scheme: XNode, _ i: Int) -> Bool {
         guard scheme["val"] == "accent\(i % 6 + 1)" else { return false }
         let mods = scheme.children.map { "\($0.name)=\($0["val"] ?? "")" }

@@ -109,18 +109,30 @@ struct SheetShape: Equatable {
         func color(_ n: XNode?) -> Color? { n.flatMap { colors.color(in: $0) } }
         var s = SheetShape(geometry: pr?.child("prstGeom")?["prst"] ?? (sp.name.hasSuffix("cxnSp") ? "line" : "rect"),
                            fill: nil, line: nil, lineWidth: 0.75)
-        // Fill: the shape's own, else its style's.
-        if pr?.child("noFill") != nil { s.fill = nil }
-        else if let f = pr?.child("solidFill") { s.fill = color(f) }
-        else if let g = pr?.child("gradFill") {
+        func gradient(_ g: XNode, _ colors: ColorContext) {
             let stops = (g.child("gsLst")?.kids("gs") ?? []).compactMap { gs -> (position: Double, color: Color)? in
-                guard let c = color(gs) else { return nil }
+                guard let c = colors.color(in: gs) else { return nil }
                 return ((gs["pos"].flatMap(Double.init) ?? 0) / 100_000, c)
             }.sorted { $0.position < $1.position }
             s.fill = stops.first?.color
             if stops.count > 1 { s.gradient = (stops, (g.child("lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000) }
         }
-        else { s.fill = color(style?.child("fillRef")) }
+        // Fill: the shape's own, else its style's.
+        if pr?.child("noFill") != nil { s.fill = nil }
+        else if let f = pr?.child("solidFill") { s.fill = color(f) }
+        else if let g = pr?.child("gradFill") { gradient(g, colors) }
+        else if let ref = style?.child("fillRef") {
+            s.fill = color(ref)
+            // Through the theme's fill style it names, when that is a
+            // gradient of the referred colour (LIBRE_OFFICE-128382-0's
+            // pale green note, drawn in full accent6).
+            if let idx = ref["idx"].flatMap(Int.init), colors.theme.fillStyles.indices.contains(idx - 1),
+               colors.theme.fillStyles[idx - 1].name.hasSuffix("gradFill") {
+                var c = colors
+                c.placeholder = s.fill
+                gradient(colors.theme.fillStyles[idx - 1], c)
+            }
+        }
         // Line: likewise.
         let ln = pr?.child("ln")
         if let w = ln?["w"].flatMap(Double.init) { s.lineWidth = w / 12700 }
