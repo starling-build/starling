@@ -199,7 +199,15 @@ something else.
 ### Note from the Mac (2026-10-18, late): the zh corpus is 346 documents — a fifteenth sample
 Twenty more (`random.seed(20261029)`, all printed), checked in. It starts
 at 82.4% (median 98.2). Its low ones, unclaimed: zh-e8d4c046 2.7 (1 page;
-CLAIMED Mac 01Xgpbk5), zh-5450d509 15.5, zh-27a874b7 37.4, zh-de073ee5
+Mac 01Xgpbk5, 97.3 now — an embedded face taller than its em is measured
+by its own hhea; released), zh-5450d509 15.5 (Mac 01Xgpbk5 looked,
+released: its 1.5-spaced 12pt body is 仿宋_GB2312, embedded as a
+FangSong_GB2312 of 7580 glyphs; Word's print draws all of it in SimSun,
+one pitch a line ×1.5 = 23.4, where ours, falling back to YaHei for what
+the subset lacks (as zh-92373179's print does), takes two pitches. The
+same batch printed zh-e8d4c046 just before it, whose "仿宋_GB2312" embed is
+really SimSun — Word for Mac seems to keep an embedded face by NAME for
+the session, see the note below. Reprint alone before working on it), zh-27a874b7 37.4, zh-de073ee5
 55.2, zh-c2229d4a 75.1, zh-785e46f8 88.2, zh-7fd860f9 89.6.
 
 ### Note from the Mac (2026-10-18, late): Word for Mac's face for a missing 方正 name is not reproducible
