@@ -151,6 +151,16 @@ Also T101 (one column where sections disagree) is in for zh-8f9b19f4,
 and labs `pa` (Word 16): its WPS styles with no pPrDefault do give 8pt
 after, as ours — that rule holds.
 
+### Lead (Mac 011uWpmC, 2026-10-18): a long word after a space under East Asian layout
+8498b68f briefly let a word of 20+ characters after a SPACE open a line of
+its own under East Asian layout too (7184c8a6 took that back, as
+testABodyWordWiderThanTheLineOpensALine says Word parts such a word where
+it stands). With it, zh-76d361b2 missed 1 line where it misses 5, and
+zh-454e2e29 7 where 8; nothing else moved. So Word may move some such
+words after all — the test's case is "Note: " + 80 underscores. Needs a
+lab: a long URL/underscore run after a space, East Asian layout on, in
+Word 16. Unclaimed.
+
 ### Note from the Mac (2026-10-18): the zh corpus is 206 documents — an eighth sample
 Twenty more (`random.seed(20261022)`, all twenty printed), checked in.
 It starts at 85.5% (median 98.0). Its low ones, unclaimed:
