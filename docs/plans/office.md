@@ -4836,6 +4836,22 @@ fitter dropped the paragraph's tail).
   p23's "…150毫米，或全" it is the other way round: Word gives "：" and
   "，" 3.94 apiece (a quarter em) to take "全", and ours squeezes
   nothing. (Mode 12, compressPunctuation, a -0.21 grid.)
+- **Under `w:wordWrap` off a paragraph's closing spaces wrap (2026-10-18).**
+  zh-621d8756's forms end paragraphs in runs of underlined spaces. In
+  Word's print they fill the lines up to the margin, one space over it,
+  and go on to the next line: "陈述申辩人：（…）" and its spaces take two
+  lines, "答：" and its spaces five (Word for Windows prints pages 21-27
+  the same). Ours hung them all past the margin on the text's line, and
+  every page from p21 ran a line or two short. The closing spaces of
+  such a paragraph now have a break after each but the last, and the
+  engine hangs a space only where a line ends on it. Not where the
+  paragraph is set right or centred: zh-c5b5087b's and zh-1563bd74's
+  footers, "X…人民政府发布" and five spaces set right under indents wider
+  than the line, keep one line in Word's print, and wrapping them cost
+  each page a body line. zh-621d8756 84.2 -> 95.5; nothing else of the
+  18 files with such paragraphs moved (one base). Left: Word also
+  squeezes a "：" before the spaces to take one more on the line (11.6
+  or 10.8 where it is 15.6), so its "答：" lines hold a space more.
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints

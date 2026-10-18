@@ -8476,6 +8476,24 @@ public final class RichLayout {
                 let mayStart = !Self._noStart.contains(units[k]) || traditional && (units[k] == 0x25 || units[k] == 0x27 || units[k] == 0x3E)
                 if mayStart, !Self._noEnd.contains(units[k - 1]) { out.insert(k) }
             }
+            // (And the paragraph's closing spaces wrap as characters do,
+            // the last on a line hanging past the margin: zh-621d8756's
+            // forms end paragraphs in runs of underlined spaces, and in
+            // Word's print "陈述申辩人：（…）" and 56 of them is two lines,
+            // "答：" and its spaces five, each line of spaces up to the
+            // margin and one over. Ours hung them all past the margin on
+            // the text's line. A break after each but the last: the
+            // engine hangs a space only where the line ends on it.)
+            // (Not set right or centred: zh-c5b5087b's and zh-1563bd74's
+            // footers, "X…人民政府发布" and five spaces set right under
+            // indents wider than the line, keep one line in Word's print,
+            // the spaces hanging; wrapped, the footer grew a line and
+            // each page's body lost one.)
+            var s = units.count
+            while s > 0, units[s - 1] == 0x20 { s -= 1 }
+            if s > 0, units.count - s > 1, p.style.alignment != .right, p.style.alignment != .center {
+                for k in s + 1 ..< units.count { out.insert(k) }
+            }
             return out
         }
         guard textWidth > 1, textWidth < 50_000, units.count >= 20 else { return [] }
