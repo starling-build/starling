@@ -6347,6 +6347,16 @@ fitter dropped the paragraph's tail).
   Ours set all three an em, 10.5pt more an article, and the first line
   of each lost a character. zh-f3802561 69.4 -> 99.8; nothing else moved
   (s347 -> s348).
+- **On a character grid the character taken is its cell (2026-10-18;
+  Windows).** Before 2013's layout the next character is taken where it
+  ends no more than half the one before it past the margin; the test
+  measured an ideograph by its em even on a grid narrower than that.
+  zh-eb54d3b0 (mode 12, 16pt on a grid of -0.21) has Word take "级，" at
+  the end of "…到2025年总体目标：一是产业规模升", "级" ending half "升"'s
+  cell past the margin to the twip (7.897), the "。" and "：" before it
+  and the "，" after giving their halves. Measured by its em it was 0.21
+  over that, and every line to p2's paragraph end ran a character
+  behind. zh-eb54d3b0 95.4 -> 96.8; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

@@ -8269,8 +8269,13 @@ public final class RichLayout {
                     // (… as it is set: spaced wider, an ideograph 16.6
                     // apart is 8.4 over where its em would be 7.8 over,
                     // and Word leaves it — lab `sq2`.)
+                    // (On a character grid the character is its cell, a
+                    // grid narrower than the em too: zh-eb54d3b0 (no
+                    // compatibility mode, 16pt on a grid of -0.21) takes
+                    // "级，" where "级" ends half "升"'s cell past the
+                    // margin to the twip, 0.21 short of its em.)
                     let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
-                        ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
+                        ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em : onCharacterGrid ? boxes(a, a + 1) - (gaps[a] ?? 0) : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
                     // (Half of a mark as it is set — on a character
                     // grid half of its em and of the grid's addition:
                     // two marks on a grid of 1.008 gave 8.5pt each, a
