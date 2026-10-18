@@ -521,6 +521,16 @@ holding paragraph marks stands at the nearer of its line's top and
   with headers. Both Mac marks stand at the left margin at Normal's
   size: an empty Normal paragraph, in the header or at the body's top.
   Needs a Word for Mac lab that cuts the two files down.)
+  (Mac 011uWpmC, 2026-10-18, lab `hd5` on zh-5dc5ce34's package, Word
+  16 for Mac, four prints: as is / the header's pBdr removed / an "X" in
+  the header paragraph / the header paragraph in Normal rather than
+  style 6): every one prints the extra empty line at the left margin
+  ~20pt under the header's line (101.1, 101.8, 101.1; 107.6 with the
+  Normal header), and the body's first line at 132.3–138.5. So the
+  header paragraph's border, text and style are not the trigger; the
+  extra mark is not the header's. Next lab: cut the body (its first
+  paragraphs, any frame/anchor at the page top) and the section's
+  settings. Released.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
