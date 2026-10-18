@@ -235,6 +235,28 @@ struct Chart: Equatable {
     /// the legend names the categories, as a pie's does
     /// (chart-DataTable-MultipleLegendEntriesForOneDataSeries' twelve).
     var variedPoints = false
+    /// An Excel 2016 waterfall (`layoutId="waterfall"`): its one series'
+    /// values are steps, each column floating from the running total
+    /// before it to the one after, save these points, totals, which stand
+    /// on zero. nil for any other chart. `waterfallConnectors`: a thin
+    /// line from each column's end to the next one's start.
+    var waterfallTotals: Set<Int>? = nil
+    var waterfallConnectors = false
+    /// An Excel 2016 funnel (`layoutId="funnel"`): its one series' values
+    /// as bars centred across the plot, top first, with no value axis.
+    var funnel = false
+
+    /// A waterfall's columns, by point: where each starts and ends.
+    var waterfallSpans: [(from: Double, to: Double)] {
+        guard let totals = waterfallTotals, let s = series.first else { return [] }
+        var run = 0.0
+        return s.values.enumerated().map { i, v in
+            let v = v ?? 0
+            if totals.contains(i) { run = v; return (0, v) }
+            defer { run += v }
+            return (run, run + v)
+        }
+    }
     /// A box-and-whisker chart (Office 2016's `cx:` part, series laid out
     /// "boxWhisker"): each series' samples, category by category, drawn
     /// as boxes on a column chart's axes. nil for any other chart.
@@ -564,18 +586,82 @@ enum ChartXML {
     /// plain clustered columns. nil for the rest (histograms, waterfalls,
     /// funnels, maps…).
     static func readChartex(_ space: XNode) -> Chart? {
-        readBoxWhisker(space) ?? readClusteredColumn(space)
+        readBoxWhisker(space) ?? readClusteredColumn(space) ?? readWaterfall(space) ?? readFunnel(space)
+    }
+
+    /// Excel 2016's funnel (`layoutId="funnel"`): its points the clustered
+    /// columns' way, drawn as a funnel (chart-color_funnel's).
+    static func readFunnel(_ space: XNode) -> Chart? {
+        guard var c = readClusteredColumn(space, layout: "funnel") else { return nil }
+        c.funnel = true
+        c.legend = false
+        return c
+    }
+
+    /// A sheet's `cx:` chart: as `readChartex`, framed as Excel frames
+    /// one, its own area fill and edge where it gives them (chart-
+    /// waterfall2's gradient). Colours through `color`.
+    static func readChartex(_ space: XNode, color: (XNode) -> Color?) -> Chart? {
+        guard var c = readChartex(space) else { return nil }
+        c.areaNoFill = false; c.areaNoLine = false
+        // (Each series' own fill and edge: chart-color_funnel's orange
+        // bars edged in green.)
+        let sers = space.first("cx:chart")?.first("cx:plotArea")?.first("cx:plotAreaRegion")?.all("cx:series") ?? []
+        for (j, ser) in sers.enumerated() where j < c.series.count && c.boxes == nil {
+            guard let sp = ser.first("cx:spPr") else { continue }
+            if let f = sp.first("a:solidFill") { c.series[j].color = color(f) }
+            if let ln = sp.first("a:ln"), let f = ln.first("a:solidFill") {
+                c.series[j].outline = color(f)
+                c.series[j].outlineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+            }
+        }
+        if let sp = space.first("cx:spPr") {
+            if let f = sp.first("a:solidFill") { c.areaFill = color(f) } else if sp.first("a:noFill") != nil { c.areaNoFill = true }
+            else if let g = sp.first("a:gradFill") {
+                let stops = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs -> SlideFill.GradientStop? in
+                    color(gs).map { SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: $0) }
+                }.sorted { $0.position < $1.position }
+                c.areaFill = stops.first?.color
+                if stops.count > 1 {
+                    var f = SlideFill(color: stops[0].color, stops: stops,
+                                      angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
+                    f.scaled = ["1", "true"].contains(g.first("a:lin")?["scaled"] ?? "")
+                    c.areaGradient = f
+                }
+            }
+            if let ln = sp.first("a:ln") {
+                if let f = ln.first("a:solidFill") { c.areaLine = color(f) } else if ln.first("a:noFill") != nil { c.areaNoLine = true }
+            }
+        }
+        return c
+    }
+
+    /// Excel 2016's waterfall (`layoutId="waterfall"`): its one series of
+    /// steps, the points `cx:subtotals` names standing as totals, as a
+    /// column chart's axes and text draw it (chart-waterfall's).
+    static func readWaterfall(_ space: XNode) -> Chart? {
+        guard let chart = space.first("cx:chart"),
+              let ser = chart.first("cx:plotArea")?.first("cx:plotAreaRegion")?.all("cx:series").first,
+              ser["layoutId"] == "waterfall" else { return nil }
+        // (Its points the clustered columns' way: cached, or a formula the
+        // sheet fills.)
+        guard var c = readClusteredColumn(space, layout: "waterfall") else { return nil }
+        let layout = ser.first("cx:layoutPr")
+        c.waterfallTotals = Set((layout?.first("cx:subtotals")?.all("cx:idx") ?? []).compactMap { $0["val"].flatMap(Int.init) })
+        c.waterfallConnectors = layout?.first("cx:visibility")?["connectorLines"] == "1"
+        c.legend = chart.first("cx:legend") != nil
+        return c
     }
 
     /// Excel 2016's clustered columns (`layoutId="clusteredColumn"`) with
     /// no binning — a histogram's layout is the same name, binned: each
     /// series' values over its categories, as a `c:` column chart draws
     /// them, in a 2013-style chart's text (chart-clusteredColumn's).
-    static func readClusteredColumn(_ space: XNode) -> Chart? {
+    static func readClusteredColumn(_ space: XNode, layout: String = "clusteredColumn") -> Chart? {
         guard let chart = space.first("cx:chart"),
               let region = chart.first("cx:plotArea")?.first("cx:plotAreaRegion") else { return nil }
         let all = region.all("cx:series")
-        guard !all.isEmpty, all.allSatisfy({ $0["layoutId"] == "clusteredColumn" && $0.first("cx:layoutPr")?.first("cx:binning") == nil
+        guard !all.isEmpty, all.allSatisfy({ $0["layoutId"] == layout && $0.first("cx:layoutPr")?.first("cx:binning") == nil
             && $0.first("cx:layoutPr")?.first("cx:aggregation") == nil }) else { return nil }
         func points(_ dim: XNode?) -> [String?] {
             guard let lvl = dim?.first("cx:lvl") else { return [] }
@@ -1522,8 +1608,10 @@ enum ChartPainter {
         // The legend: one row of key + name, centred, wrapped when wide.
         let pie = c.type.isPie
         if c.legend {
-            let byPoint = pie || c.variedPoints
-            let names = byPoint ? c.categories : c.series.map(\.name) + c.lineSeries.map(\.name)
+            // (A waterfall's: its rises, falls and totals.)
+            let waterfall = c.waterfallTotals.map { ["Increase", "Decrease"] + ($0.isEmpty ? [] : ["Total"]) }
+            let byPoint = pie || c.variedPoints || waterfall != nil
+            let names = waterfall ?? (byPoint ? c.categories : c.series.map(\.name) + c.lineSeries.map(\.name))
             // In the legend's own size, its keys and gaps in proportion.
             let size = c.legendSize ?? c.baseTextSize, m = size / 12
             var entries = names.enumerated().map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: c.legendBold, color: c.legendColor)) }
@@ -1621,7 +1709,8 @@ enum ChartPainter {
                         x += key + gap + e.tp.width + spacing
                         continue
                     }
-                    p.color = byPoint ? c.pointColor(e.i, accents: theme.accents)
+                    p.color = waterfall != nil ? c.color(series: e.i, accents: theme.accents)
+                        : byPoint ? c.pointColor(e.i, accents: theme.accents)
                         : lineKeys ? c.lineColor(series: e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
                     if lineKeys, !pie, e.i < c.series.count, c.series[e.i].lineHidden {
                         // (A series with no line: its mark alone, if any.)
@@ -1832,12 +1921,56 @@ enum ChartPainter {
         return s
     }
 
+    /// A funnel: its categories down the left, the first at the top, and
+    /// each value a bar centred across the room left, as wide as it is of
+    /// the largest, its value inside it in white (chart-color_funnel's).
+    private static func _funnel(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,
+                                categoryText: (String, Double, Double) -> TextPainter) {
+        guard let s = c.series.first else { return }
+        let n = c.categories.count
+        let labels = c.categories.map { categoryText($0, c.categoryLabelSize ?? c.baseTextSize, .infinity) }
+        defer { labels.forEach { $0.dispose() } }
+        let left = area.left + (labels.map(\.width).max() ?? 0) + 6 * k
+        let plot = Rect.fromLTRB(left, area.top, area.right, area.bottom)
+        let slot = plot.height / Double(n)
+        let bar = slot / (1 + c.gap)
+        let widest = s.values.compactMap { $0 }.map(abs).max() ?? 0
+        let fill = Paint()
+        fill.style = .fill
+        fill.isAntiAlias = true
+        fill.color = s.color ?? c.color(series: 0, accents: theme.accents)
+        let edge = Paint()
+        edge.style = .stroke
+        edge.strokeWidth = max(0.25, s.outlineWidth * k)
+        for i in 0 ..< n {
+            let cy = plot.top + (Double(i) + 0.5) * slot
+            labels[i].paint(canvas, Offset(left - 6 * k - labels[i].width, cy - labels[i].height / 2))
+            guard widest > 0, let v = s.values[safe: i] ?? nil else { continue }
+            let w = abs(v) / widest * plot.width
+            let r = Rect.fromLTWH(plot.center.dx - w / 2, cy - bar / 2, w, bar)
+            canvas.drawRect(r, fill)
+            if let o = s.outline { edge.color = o; canvas.drawRect(r.deflate(edge.strokeWidth / 2), edge) }
+            if c.dataLabels {
+                let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
+                    color: Color(0xFFFFFFFF), fontSize: max(3, c.baseTextSize * k),
+                    fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
+                tp.layout(minWidth: 0, maxWidth: .infinity)
+                tp.paint(canvas, Offset(r.center.dx - tp.width / 2, cy - tp.height / 2))
+                tp.dispose()
+            }
+        }
+    }
+
     private static func _axes(_ c: Chart, _ canvas: any Canvas, _ area0: Rect, frame: Rect, k: Double, theme: DeckTheme,
                               grid: Color, text: (String, Double, Double) -> TextPainter,
                               categoryText: (String, Double, Double) -> TextPainter,
                               valueText: (String, Double, Double) -> TextPainter) {
         let n = c.categories.count
         guard n > 0 else { return }
+        if c.funnel {
+            _funnel(c, canvas, area0, k: k, theme: theme, categoryText: categoryText)
+            return
+        }
         let horizontal = c.type == .bar
         // The values the value axis spans: per point, or per stacked total.
         var lo = 0.0, hi = 0.0
@@ -1860,6 +1993,13 @@ enum ChartPainter {
         }
         // (A box chart's axis spans every sample, its outliers too.)
         for v in (c.boxes ?? []).joined().joined() { lo = min(lo, v); hi = max(hi, v) }
+        // (A waterfall's, its running total and zero, not its steps:
+        // chart-waterfall's -6 is no point below zero, and its axis starts
+        // at 0 in Excel's print.)
+        if c.waterfallTotals != nil {
+            lo = 0; hi = 0
+            for s in c.waterfallSpans { lo = min(lo, s.from, s.to); hi = max(hi, s.from, s.to) }
+        }
         let labelSize = c.valueLabelSize ?? c.baseTextSize
         // (Settled here and captured as constants: the Windows
         // toolchain's optimizer (Swift 6.2.3) fails SIL verification on
@@ -2395,6 +2535,32 @@ enum ChartPainter {
         switch c.type {
         case .column where c.boxes != nil:
             Self._boxes(c, canvas, plot, k: k, theme: theme, vpos: vpos)
+        case .column where c.waterfallTotals != nil && !horizontal:
+            // A waterfall: each column from the running total before it to
+            // the one after, a total from zero; rising in the first colour,
+            // falling in the second, totals in the third; its value over a
+            // rise and under a fall; and, where it says, a thin rule from
+            // each column's end to the next one's start.
+            let slot = plot.width / Double(n)
+            let bar = slot / (1 + c.gap)
+            let spans = c.waterfallSpans
+            let totals = c.waterfallTotals ?? []
+            for (i, s) in spans.enumerated() {
+                let x = plot.left + Double(i) * slot + (slot - bar) / 2
+                let top = vpos(max(s.from, s.to)), foot = vpos(min(s.from, s.to))
+                fill.color = c.color(series: totals.contains(i) ? 2 : s.to >= s.from ? 0 : 1, accents: theme.accents)
+                canvas.drawRect(Rect.fromLTRB(x, top, x + bar, max(top + 0.5, foot)), fill)
+                if c.dataLabels, let v = c.series.first?.values[safe: i] ?? nil {
+                    labels.append((dataLabel(c, v), Offset(x + bar / 2, s.to >= s.from ? top - 9 * k : foot + 9 * k), 0))
+                }
+                if c.waterfallConnectors, i + 1 < spans.count {
+                    let line = Paint()
+                    line.style = .stroke
+                    line.strokeWidth = max(0.25, 0.75 * k)
+                    line.color = gridPaint.color
+                    canvas.drawLine(Offset(x + bar, vpos(s.to)), Offset(x + slot, vpos(s.to)), line)
+                }
+            }
         case .column, .bar:
             let slot = (horizontal ? plot.height : plot.width) / Double(n)
             // A category's slot holds its bars plus one gap; bars step by

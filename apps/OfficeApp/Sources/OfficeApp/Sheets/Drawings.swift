@@ -148,7 +148,7 @@ enum SheetDrawingsXML {
                       // (An Excel 2016 chart, `cx:`, stands in mc:Choice with
                       // its picture in mc:Fallback: chart-clusteredColumn's.)
                       let chart = space.name.hasSuffix("chartSpace") && space.name.hasPrefix("cx:")
-                        ? ChartXML.readChartex(space) : ChartXML.read(space, allowEmpty: true, color: { colors.color(in: $0) }) {
+                        ? ChartXML.readChartex(space, color: { colors.color(in: $0) }) : ChartXML.read(space, allowEmpty: true, color: { colors.color(in: $0) }) {
                 d.name = frame.child("nvGraphicFramePr")?.child("cNvPr")?["name"] ?? "Chart"
                 var sc = SheetChart(chart: chart, refs: space.name.hasPrefix("cx:") ? _chartexRefs(space) : _refs(space), path: path)
                 let axis = space.descendant("c:catAx")?.first("c:numFmt") ?? space.descendant("c:dateAx")?.first("c:numFmt")
