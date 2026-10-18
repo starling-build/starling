@@ -127,7 +127,7 @@ compare per document across it. It starts at 78.5%. Its low ones,
 unclaimed unless marked: zh-4adfcce2 0.0 (6 pages; Mac, measured, released — see below),
 zh-424775e4 7.6 (13; Mac 011uWpmC, 96.2 now — STXinwei's line, a footnote on its mark's page; released), zh-c2c92639 9.5 (54 pages, Word 57; Windows box, looking), zh-92373179
 41.6 (11; T96 — Word's text layer is garbled on its table pages), zh-c399c91a 64.3 (7; Mac 011uWpmC, 100 now — LinTimes is Calibri; released), zh-7cf85f15 76.5 (3; Mac 011uWpmC, looking), zh-74ef1528 94.1,
-zh-5c6ff0d7 97.8 (2 pages, Word 3).
+zh-5c6ff0d7 97.8 (2 pages, Word 3; Mac 01Xgpbk5, looking).
 
 ### Note from the Mac (2026-10-17, later): the zh corpus is 128 documents — a fourth sample
 Twenty more (`random.seed(20261018)`, the unprinted rest of 15-400 KB,
