@@ -110,12 +110,27 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
-### T127. zh-73534289 p27: a table row Word moves whole to the next page
-Owner: session 01QbbApP (Windows box), from 2026-10-18 (from lenovo-2's list)
+### T127. zh-73534289 p27: a table row Word moves whole to the next page — measured, released
+Owner: none (Windows 01QbbApP measured it, 2026-10-18)
 Documents: zh-73534289 (about 44 misses a page over pp28-33). Row 91
 ("強化資金規劃運用能力 | 其它 | 提供資金協助…") starts at 698 of 748 and Word
 sends it whole to p28 though it parts this table's other rows; labs
 to find what keeps it whole.
+Labs (Word for Windows, which prints pp27-28 as the Mac reference does;
+~/starling-doc-check/lab/rw on the Windows box, each the whole document
+with row 120 — the 121st w:tr — changed): the row is never parted, and
+none of these parts it: its vMerge off (v1), vMerge off rows 118-120
+(v6), w:widowControl 0 in its paragraphs (v2), w:hideMark off (v7), the
+long cell made Web style or wordWrap on (W2, W3), the long text in the
+Web cell instead (W4), the last cell 4-6 lines with 3 of room (L12-L20;
+2 and 3 lines fit whole, L6/L10), and with row 119 cut to 2 lines, 5
+lines of room and a cell of 7-10 (R4, R5) — Word leaves the room empty
+and starts p28 with it. Rows 73, 78 and 92 of the same table, built the
+same way (an empty vMerge cell with no w:p, single-paragraph cells, a Web
+cell fourth; 78 the last of its merge too), are parted in the Web cell
+with 3 to 7 lines of room. Not found: what the parted rows have that 120
+lacks. Next to try: row 73's cells pasted into row 120's place, then
+halved until it stops parting.
 
 ### T126. zh-2f9463d6 (95.9% on Windows): a cell's text before a trailing U+3000 makes its row a line taller — DONE (2026-10-18)
 Owner: none (Windows 01QbbApP built it, released)
