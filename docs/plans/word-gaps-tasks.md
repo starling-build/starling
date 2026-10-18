@@ -2615,13 +2615,17 @@ U+5EA6 there (78 twips at 13pt, 84 at 14pt; both characters, both places).
 So zh-ff93733d's "果。" is something else (its line ends the paragraph
 with "。").
 
-### T120. zh-b4d36718: turned text in a merged cell that crosses a page sits off its part of the page — claimed
+### T120. zh-b4d36718: turned text in a merged cell that crosses a page sits off its part of the page — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
 Documents: zh-b4d36718 (93.7, tenth sample; p14-16 hold most of its 48 misses).
 Known: its catalogue table merges the "基本公共服务事项" and "公共文化类" columns (tbRlV, vAlign center) over rows
 that run on past p14's foot. Word centres each one's text in the part of the merge on the page (基…项 about -494,
 the page's rows -250..-735); ours sets it 80pt lower, and "公共文化类" runs off the page's foot. A merge wholly on
 one page ("医疗卫生类") is right in both.
+Done: pagination records, for a turned cell merged past the page's foot, the rows of it that fit (as it does
+for a centred horizontal one, zh-6d1afa56); the text is turned about that part and its alignment shares out what
+the merge loses past the foot. Same-base sweep, 357 docs: zh-b4d36718 93.7 -> 96.6, zh-32f4ad9f 95.2 -> 98.8,
+zh-021b8feb 98.0 -> 99.1, nothing lower.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

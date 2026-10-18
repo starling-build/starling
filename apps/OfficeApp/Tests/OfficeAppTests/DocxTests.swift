@@ -1505,6 +1505,50 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try digits(grid: true) - (try digits(grid: false)), 10 * -0.21 / 2, accuracy: 0.05, "half the grid's -0.21 each")
     }
 
+    func testTurnedTextMergedPastAPagesFootIsSetInItsPartOnThePage() throws {
+        // zh-b4d36718 p14: "基本公共服务事项", turned and centred, merged
+        // over 35 rows of which 26 are on the page — Word centres it in
+        // those 26; ours centred it over all 35, 80pt low, and
+        // "公共文化类" ran off the page's foot.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        var rows = ""
+        for r in 0 ..< 60 {
+            let merge = r == 0 ? "<w:vMerge w:val=\"restart\"/>" : "<w:vMerge/>"
+            let text = r == 0 ? "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:t>TURNED</w:t></w:r></w:p>" : "<w:p/>"
+            rows += "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"1000\" w:type=\"dxa\"/>\(merge)<w:textDirection w:val=\"btLr\"/><w:vAlign w:val=\"center\"/></w:tcPr>\(text)</w:tc>"
+                + "<w:tc><w:tcPr><w:tcW w:w=\"4000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>row \(r)</w:t></w:r></w:p></w:tc></w:tr>"
+        }
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"1000\"/><w:gridCol w:w=\"4000\"/></w:tblGrid>\(rows)</w:tbl><w:p/>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        XCTAssertGreaterThan(l.pageCount, 1, "the rows go on over the page")
+        let turned = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "TURNED" })
+        let top = try XCTUnwrap(l.pieces[0].first { $0.paragraph == turned }).flowTop
+        // The page's foot in the flow: the last of the rows set on page 1.
+        let foot = try XCTUnwrap(l.pieces[0].filter { $0.paragraph != turned && doc.paragraphs[$0.paragraph].text.hasPrefix("row") }
+            .map(\.flowBottom).max())
+        let canvas = TurnedTextCanvas()
+        l.paint(canvas, visible: l.pageRect(0), document: doc, selection: nil, caret: nil)
+        // Reading up, the text is turned about its part's foot — the
+        // translate before the turn, in the flow's own terms — and centred
+        // along it; turned about the merge's foot, it stood off the page.
+        let turn = try XCTUnwrap(canvas.turns.first)
+        XCTAssertGreaterThan(turn, top)
+        XCTAssertLessThanOrEqual(turn, foot + 1, "turned about the part's foot, not the merge's")
+    }
+
     func testACellsParagraphsShareTheirSpacing() throws {
         // drawing.docx: two headings of 12pt before and 3pt after in one
         // cell are 12pt apart in Word's print, as in the body — the larger
@@ -3521,4 +3565,50 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(Array(out.suffix(8)), [UInt8](repeating: 0, count: 8), "only the first 32 bytes are keyed")
         XCTAssertNil(OfficeFonts.deobfuscate(Data(count: 40), key: "{not-a-guid}"))
     }
+}
+
+/// Records, for each quarter turn, the translate just before it (a
+/// turned cell's corner, in the flow's terms).
+private final class TurnedTextCanvas: Canvas {
+    var turns: [Double] = []
+    private var lastDy = 0.0
+    func save() {}
+    func saveLayer(_ bounds: Rect?, _ paint: Paint) {}
+    func restore() {}
+    func restoreToCount(_ count: Int) {}
+    func getSaveCount() -> Int { 1 }
+    func translate(_ dx: Double, _ dy: Double) { lastDy = dy }
+    func scale(_ sx: Double, _ sy: Double?) {}
+    func rotate(_ radians: Double) { turns.append(lastDy) }
+    func skew(_ sx: Double, _ sy: Double) {}
+    func transform(_ matrix4: [Double]) {}
+    func getTransform() -> [Double] { [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+    func clipRect(_ rect: Rect, clipOp: ClipOp, doAntiAlias: Bool) {}
+    func clipRRect(_ rrect: RRect, doAntiAlias: Bool) {}
+    func clipRSuperellipse(_ rsuperellipse: RSuperellipse, doAntiAlias: Bool) {}
+    func clipPath(_ path: Path, doAntiAlias: Bool) {}
+    func getLocalClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func getDestinationClipBounds() -> Rect { Rect.fromLTWH(-1e6, -1e6, 2e6, 2e6) }
+    func drawColor(_ color: Color, _ blendMode: BlendMode) {}
+    func drawLine(_ p1: Offset, _ p2: Offset, _ paint: Paint) {}
+    func drawPaint(_ paint: Paint) {}
+    func drawRect(_ rect: Rect, _ paint: Paint) {}
+    func drawRRect(_ rrect: RRect, _ paint: Paint) {}
+    func drawDRRect(_ outer: RRect, _ inner: RRect, _ paint: Paint) {}
+    func drawRSuperellipse(_ rsuperellipse: RSuperellipse, _ paint: Paint) {}
+    func drawOval(_ rect: Rect, _ paint: Paint) {}
+    func drawCircle(_ c: Offset, _ radius: Double, _ paint: Paint) {}
+    func drawArc(_ rect: Rect, _ startAngle: Double, _ sweepAngle: Double, _ useCenter: Bool, _ paint: Paint) {}
+    func drawPath(_ path: Path, _ paint: Paint) {}
+    func drawImage(_ image: Image, _ offset: Offset, _ paint: Paint) {}
+    func drawImageRect(_ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawImageNine(_ image: Image, _ center: Rect, _ dst: Rect, _ paint: Paint) {}
+    func drawPicture(_ picture: any FlutterSwiftBridge.Picture) {}
+    func drawParagraph(_ paragraph: any Paragraph, _ offset: Offset) {}
+    func drawPoints(_ pointMode: PointMode, _ points: [Offset], _ paint: Paint) {}
+    func drawRawPoints(_ pointMode: PointMode, _ points: [Float], _ paint: Paint) {}
+    func drawVertices(_ vertices: Vertices, _ blendMode: BlendMode, _ paint: Paint) {}
+    func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
+    func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
 }

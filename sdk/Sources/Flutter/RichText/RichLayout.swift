@@ -930,6 +930,10 @@ public final class RichLayout {
         /// merged down into it, whose text was taller than their rows:
         /// what a page that takes up such a cell part-way can do without.
         var stretched: Double = 0
+        /// A turned cell merged over rows that go on past its page's
+        /// foot: how much of it is on the page (px), where its text is
+        /// set; nil where the merge is whole on its page.
+        var turnedPart: Double? = nil
         /// The cell's own edge lines (`CellRef.borders`).
         var borders = CellRef.CellBorders()
         var vertical: Bool { direction != .horizontal }
@@ -3517,6 +3521,20 @@ public final class RichLayout {
                     }
                     var column: [Int: (first: Int, last: Int)] = [:]
                     for k in i ..< j { let d = _cells[k]!; column[d.column] = (column[d.column]?.first ?? k, k) }
+                    // (Turned, its text is set along the rows that fit: Word
+                    // centres zh-b4d36718's "基本公共服务事项", merged over 35
+                    // rows of which 26 are on page 14, in those 26; ours
+                    // centred it over all 35, 80pt low, and "公共文化类" ran
+                    // off the page's foot.)
+                    for (_, g) in column {
+                        let d = _cells[g.first]!
+                        guard d.rowSpan > 1, d.vertical else { continue }
+                        var part = 0.0, r = c.row
+                        while r < c.row + d.rowSpan, case let h = heights[r] ?? 0,
+                              part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
+                        let turned = part > 0 && part < d.rowHeight - 0.01 ? part : nil
+                        for k in g.first ... g.last { _cells[k]?.turnedPart = turned }
+                    }
                     for (_, g) in column {
                         let d = _cells[g.first]!
                         guard d.rowSpan > 1, !d.vertical, d.verticalAlign == "center" || d.verticalAlign == "bottom" else { continue }
@@ -9702,7 +9720,7 @@ public final class RichLayout {
             // up starts at the bottom-left corner with its lines stacking
             // rightwards, text reading down at the top-right corner with
             // its lines stacking leftwards.
-            let height = c.rowSpan > 1 ? c.rowHeight : c.ownRowHeight
+            let height = c.rowSpan > 1 ? c.turnedPart ?? c.rowHeight : c.ownRowHeight
             canvas.save()
             if c.direction == .up {
                 canvas.translate(c.colLeft, c.rowTop + height)
@@ -9711,7 +9729,13 @@ public final class RichLayout {
                 canvas.translate(c.colLeft + c.colWidth, c.rowTop)
                 canvas.rotate(Double.pi / 2)
             }
+            // (Laid out along the whole merge, set in its part on the
+            // page: what the merge loses past the page's foot comes off
+            // as its alignment shares it out.)
+            let short = c.rowSpan > 1 ? c.rowHeight - height : 0
+            let aligned = document.paragraphs[i].style.alignment
             let along = c.alongStart + _px(document.paragraphs[i].style.indentLeft)
+                - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
             let origin = Offset(along, c.across + _spaceBefore[i])
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
                _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute") {
