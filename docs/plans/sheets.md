@@ -252,10 +252,12 @@ the same base; the commits give the numbers):
 - *Pivot tables* in PivotStyleLight 15-21. A pivot written without its
   cells (64450, from Google Sheets) is not drawn: Excel lays it out from
   its cache.
-- *Charts.* Excel 2016 (`cx:`) clustered columns and box-and-whisker,
-  their data read live through hidden names (_xlchart.v1.*); waterfall,
-  funnel, histogram (binned clusteredColumn), pareto, treemap, sunburst
-  and maps are not drawn yet. Two bar groups on one pair of axes are one
+- *Charts.* Excel 2016 (`cx:`) clustered columns, box-and-whisker,
+  waterfall, funnel, histogram (binned clusteredColumn: Scott's width
+  to two figures, "[lo, hi]" then "(lo, hi]", "≤ u" and "> o") and
+  pareto, their data read live through hidden names (_xlchart.v1.*);
+  treemap, sunburst and region maps are not drawn yet, nor a chartex
+  title's own box fill. Two bar groups on one pair of axes are one
   group; two line groups on two axes are drawn; a gradient chart area;
   a varied single bar series' legend of its points; labels at zero over
   negative values; "Series1"; an empty axis title's room. Open: series
