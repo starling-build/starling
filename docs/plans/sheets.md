@@ -239,6 +239,20 @@ height" says lo-tdf113271 makes twelve pages: it still makes eleven. Its
 first page is Excel's now; its later pages hold a row more than Excel's,
 whose repeated title seems to take a little more than the row did.)
 
+Tried and taken back, 2026-10-17: printed gridlines drawn as Excel's page
+has them, each twice — a one-dot (0.12 pt) rule and a 0.14 pt line over
+it, which rasterise darker than our single dot (lo-tdf100034's black
+grid against our grey). All nineteen workbooks that print gridlines got
+worse, 0.0 to 0.6 (GeneralFormatTests 8.32 -> 8.85): our lines stand a
+fraction of a point off Excel's, and a darker line only widens the miss.
+Also open: set row heights a printer dot short of Excel's at some
+heights (lo-tdf131575's 15 pt rows in Arial 8, 125.93 dots: Excel 126,
+ours 125). Not a threshold on the fraction: the set-height labs (h-a10,
+h-c11, no sheetView, so halved) have only their 20 pt rows one over, at
+fractions .78 and .91, while 40 pt at .82 is cut down — and no cut of a
+height linear in h makes 20 pt 81 dots and 40 pt 161. Some intermediate
+(the screen's pixels?) is rounded first.
+
 Tried and taken back, 2026-10-16: Lucida Sans Typewriter drawn in
 Liberation Mono: the right widths, a serifed face where Excel's is
 sans, a little further from Excel's pages. And rows in whole dots at a
