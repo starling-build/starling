@@ -7834,7 +7834,14 @@ public final class RichLayout {
                     // document's "…3艘35噸級巡緝艇及3艘5噸級快艇，113年度預定
                     // 辦" takes no "理" with eight.)
                     let autos = spaces + ownSpaces
-                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, em / 4)
+                    // (… half an em in all for what ends with a closing mark,
+                    // which no line may start with: zh-7cf85f15's cell line
+                    // "五、辦理112年與113年總資源…經濟預測。" (mode 15,
+                    // justified, PMingLiU 12) takes "測。" 5.24pt over with
+                    // four, each set at 1.62 of 3.0 in Word's print, where
+                    // zh-c5f59397's "…噸級巡" leaves a plain "緝" 3.8 over.)
+                    let closes = last > a && Self._closingUnits.contains(units[last - 1])
+                    let roomAutos = min(autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2, closes ? em / 2 : em / 4)
                     let roomSpaces = wordSpaces.reduce(0.0) { $0 + $1.w } / 4 + roomAutos
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the

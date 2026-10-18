@@ -5830,6 +5830,18 @@ fitter dropped the paragraph's tail).
   row after it on page 4 rose 18.5pt. Now the serif guesses by name
   apply only to a name Word has, or one the table does not describe.
   zh-c399c91a 64.3 -> 100; nothing else moved.
+- **What ends with a closing mark may take half an em of the automatic
+  spaces (2026-10-17).** zh-7cf85f15's justified cell line
+  "五、辦理112年與113年總資源…經濟預測。" (mode 15, PMingLiU 12,
+  doNotCompress) takes "測。" 5.24pt over in Word's print. Its four
+  ideograph–digit spaces are set at 1.62 of their 3.0, against 3.0 on
+  that document's short lines. Ours capped what automatic spaces give at a
+  quarter em, 3pt, and wrapped "測。". Half an em for every piece was
+  tried and broke zh-c5f59397 (97.8 -> 87.7), whose "…噸級巡" leaves a
+  plain "緝" 3.8pt over in Word. So half an em only where the piece ends
+  with a closing mark, which no line may start with (zh-b13d0fb4's "度。"
+  too); a quarter otherwise. zh-7cf85f15 76.5 -> 98.5; nothing else
+  moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
