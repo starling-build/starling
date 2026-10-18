@@ -57,6 +57,10 @@ struct ChartSeries: Equatable {
     var format: String? = nil
     /// A colour the file set as itself; nil follows the theme.
     var color: Color? = nil
+    /// The series' own number (`c:idx`) where it is not its place: the
+    /// theme's colour it takes when it sets none (47813's Sine and Cosine,
+    /// idx 1 and 2, red and green where first and second were blue and red).
+    var autoIndex: Int? = nil
     /// The theme slot the file named ("accent3"), followed by a new theme.
     var scheme: String? = nil
     /// A scatter series whose points are joined by its line (the file gave
@@ -497,13 +501,13 @@ struct Chart: Equatable {
 
     /// Series colour `i` against `accents`.
     func color(series i: Int, accents: [Color]) -> Color {
-        let s = i < series.count ? series[i] : nil
+        let s = i < series.count ? series[i] : lineSeries[safe: i - series.count]
         if let c = s?.color { return c }
         if let scheme = s?.scheme, scheme.hasPrefix("accent"), let n = Int(scheme.dropFirst(6)), (1 ... 6).contains(n) {
             return accents[n - 1]
         }
         if let k = monochromeAccent { return Self.monochrome(i, of: series.count, accents[k - 1]) }
-        return Self.cycle(i, accents)
+        return Self.cycle(s?.autoIndex ?? i, accents)
     }
 
     /// Series `i`'s line where the file gives it no colour of its own: in
@@ -928,6 +932,7 @@ enum ChartXML {
             let values = (val.map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
             s.format = Self._format(val)
+            if let k = ser.first("c:idx")?["val"].flatMap(Int.init), k != series.count { s.autoIndex = k }
             let pr = ser.first("c:spPr")
             if type != .line, type != .scatter, type != .radar, let ln = pr?.first("a:ln"), let f = ln.first("a:solidFill") {
                 s.outline = color(f)
@@ -991,7 +996,7 @@ enum ChartXML {
                 }
             }
             if let fill {
-                let index = series.count
+                let index = s.autoIndex ?? series.count
                 if let scheme = fill.first("a:schemeClr"), _isCycle(scheme, index) {
                     // The theme's own colour for this series: follows the theme.
                 } else if let scheme = fill.first("a:schemeClr"), scheme.children.isEmpty {
@@ -1012,6 +1017,7 @@ enum ChartXML {
             let values = (ser.first("c:val").map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
             s.format = Self._format(ser.first("c:val"))
+            if let k = ser.first("c:idx")?["val"].flatMap(Int.init), k != series.count + lines.count { s.autoIndex = k }
             let ln = ser.first("c:spPr")?.first("a:ln")
             s.lineHidden = ln?.has("a:noFill") ?? false
             if let f = ln?.first("a:solidFill") { s.color = color(f) }
@@ -1476,7 +1482,7 @@ enum ChartXML {
         if let scheme = s.scheme { return "<a:solidFill><a:schemeClr val=\"\(scheme)\"/></a:solidFill>" }
         // A monochrome style colours the series itself: no fill of its own.
         if chart.monochromeAccent != nil { return "" }
-        return _cycleFill(i)
+        return _cycleFill(s.autoIndex ?? i)
     }
 
     /// Colour `i` of the theme's cycle, as theme references.
@@ -1513,7 +1519,7 @@ enum ChartXML {
             let tx = "<c:tx><c:strRef><c:f>Sheet1!$\(col)$1</c:f><c:strCache><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>\(_esc(s.name))</c:v></c:pt></c:strCache></c:strRef></c:tx>"
             let pts = s.values.prefix(n).enumerated().compactMap { p in p.element.map { "<c:pt idx=\"\(p.offset)\"><c:v>\(number($0))</c:v></c:pt>" } }.joined()
             let val = "<c:numRef><c:f>Sheet1!$\(col)$2:$\(col)$\(last)</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val=\"\(n)\"/>\(pts)</c:numCache></c:numRef>"
-            let head = "<c:idx val=\"\(i)\"/><c:order val=\"\(i)\"/>\(tx)"
+            let head = "<c:idx val=\"\(s.autoIndex ?? i)\"/><c:order val=\"\(i)\"/>\(tx)"
             switch c.type {
             case .column, .bar:
                 sers += "<c:ser>\(head)<c:spPr>\(_solid(c, i))<a:ln><a:noFill/></a:ln></c:spPr><c:invertIfNegative val=\"0\"/><c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
@@ -2257,6 +2263,8 @@ enum ChartPainter {
         // Turned clockwise (`rot` above zero): from the tick down to the
         // right, where turned the other way it ends at the tick.
         var clockwise = false
+        // Only every so many labels shown (one, the first, of each run).
+        var every = 1
         if c.type == .scatter {
             catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { categoryText(label($0, percent: false), catSize, .infinity) }
         } else {
@@ -2290,6 +2298,14 @@ enum ChartPainter {
                     aslant = true
                     for t in catLabels { t.dispose() }
                     catLabels = c.categories.map { categoryText($0, catSize, .infinity) }
+                    // Slots thinner than a line even turned: upright, one
+                    // label to each font size of room (47813's 720
+                    // categories in 0.66 pt slots, 1, 17, 33… at 10 pt in
+                    // Excel's print; ours ran into one black band).
+                    if slot < catSize * k {
+                        slant = .pi / 2
+                        every = Int((catSize * k / slot).rounded(.up))
+                    }
                 }
             }
         }
@@ -2567,7 +2583,7 @@ enum ChartPainter {
             }
             let slot = plot.width / Double(n)
             let foot = atZero ? zero : plot.bottom
-            for (i, tp) in catLabels.enumerated() where table == nil {
+            for (i, tp) in catLabels.enumerated() where table == nil && i % every == 0 {
                 let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
                 if aslant {
                     // Its end's middle at the tick, the rest down to the left
