@@ -7908,7 +7908,14 @@ public final class RichLayout {
                             // while they start 8.0pt or more inside it and not
                             // nearer, "第" 16 wide — its line's "711" started
                             // 6.25 in, and ours took it.)
-                            || (!wide && !inCell && !onCharacterGrid && x + before / 2 <= width + edge)
+                            // (Only where brackets are all the line has to give:
+                            // with a comma or full stop among its marks the word
+                            // is taken wherever they can give for it, as before —
+                            // zh-54e91165's "…详见附件1。" sets "1" 5.6pt inside the
+                            // margin with "。" and "、" giving 5.3 apiece in Word's
+                            // print, where the start rule left it a line down.)
+                            || (!wide && !inCell && !onCharacterGrid && x < width
+                                && (x + before / 2 <= width + edge || all.contains { Self._pauseMarks.contains(units[$0]) }))
                             // (After a space no half of what stands before
                             // limits it: it is taken wherever the marks can
                             // give what it needs — Taiwan's centred "，。、"
@@ -8131,6 +8138,7 @@ public final class RichLayout {
         return false
     }
 
+    private static let _pauseMarks = Set("，。、；：！？".utf16)
     private static func _isLatinWordUnit(_ u: UInt16) -> Bool { (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) }
     private static let _noStart = _hangingUnits.subtracting("”’".utf16)
         .union(",.:;!?%)]}-/‰℃°…～·・ー々〃ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ".utf16)

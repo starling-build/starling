@@ -153,7 +153,7 @@ compare per document across it. It starts at 76.6%. Its low ones,
 unclaimed unless marked: zh-8f9b19f4 0.0 (Word 14 pages, ours 7; Mac
 01Xgpbk5, looking), zh-117cf7c6 39.2 (3/4 pages; Mac 011uWpmC, 98.6 now — table text off the grid without adjustLineHeightInTable; released), zh-e0ca7252 41.9
 (52/51; Linux 017F2GnT, T102, claimed), zh-340d52e9 48.9 (T103, 75.6 now), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC, looking), zh-ea70c30e 59.1 (Mac 01Xgpbk5, measured, released — squeeze ground: mode 15, compressPunctuation, zh-TW PMingLiU 12.5pt, justified; p2 "「多數說有限英語人士團體」或「團體」是指人數至少達 10,000 名的說" ends there in Word, unsqueezed at 12.51 a character, while ours squeezes "」", "「", "」" to 9.74 and the spaces round "10,000" (17.37 -> 15.44 incl. 達, 10.74 -> 8.81) to take "有"; every line after one character early),
-zh-5b7ae054 64.4 (44 pages; Windows 01QbbApP, looking), zh-82b166b4 72.8 (T105, 98.4 now), zh-54e91165 75.4 (Mac 01Xgpbk5, looking),
+zh-5b7ae054 64.4 (44 pages; Windows 01QbbApP, looking), zh-82b166b4 72.8 (T105, 98.4 now), zh-54e91165 75.4 (T106, 97.4 now),
 zh-8d6f702e 88.0.
 
 ### Note from the Mac (2026-10-17, evening): the zh corpus is 148 documents — a fifth sample
@@ -266,6 +266,19 @@ and its baseline that face's: the 1.5-spaced paragraphs from p3 are
 41.2pt a line as Word's, and stand where Word's do (to 0.1pt). 39.9 ->
 46.1, nothing else moved. Left: the matcher's — Word's text layer maps
 its 招 to U+0000, and nearly every line says 招标; the lines match.
+
+### T106. T86's start rule only where brackets are all a line has to give — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-54e91165 (mode 14, compressPunctuation): "…有效期详见附件1。" — Word
+takes "1。", "1" starting 5.6pt inside the margin, with "。" and "、"
+on the line giving 5.3pt apiece and the last "。" hanging; T86's rule (a
+Latin word starts half the character before inside the margin) left it
+a line down. T86's lab had only brackets (《》（) on its line. Now the
+start rule holds only where the line has no comma, stop, enumeration
+comma, semicolon, colon or mark of exclamation or question to give;
+with one, the word is taken wherever the marks can give, as before T86.
+zh-54e91165 75.4 -> 97.4, zh-20ff844e 95.8 -> 99.1; zh-32f4ad9f (T86's)
+held; nothing fell.
 
 ### T105. Autofit's narrowest piece parts a full-width mark from a Latin word — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
