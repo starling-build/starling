@@ -413,8 +413,11 @@ final class SlidePainter: CustomPainter {
     /// same past its own), moved to its point. (PowerPoint's points lie
     /// 0.1 pt below whole ones from the text's top, and its print then
     /// rounds each down to its 1/300 in raster, 0.12 pt on average: so a
-    /// line goes to the nearest of those points, drawn 0.02 pt above a
-    /// whole one. Four decks fitted, every line of their long boxes.)
+    /// line is drawn 0.02 pt above a whole one. Four decks fitted, every
+    /// line of their long boxes. The whole point nearest our own line,
+    /// not the nearest of PowerPoint's points: ours stand a little high,
+    /// and 3289 lines across the decks land within 0.15 pt 2807 times
+    /// so, 2669 times by its points.)
     /// Not for a box in columns, whose lines stand side by side.
     static func paintOnWholePoints(_ layout: RichLayout, _ doc: RichDocument, _ canvas: any Canvas, pxPerPt px: Double,
                                    visible: Rect) {
@@ -430,7 +433,7 @@ final class SlidePainter: CustomPainter {
         }
         for (k, y) in baselines.enumerated() {
             let pt = y / px
-            let dy = ((pt - 0.1).rounded() - 0.02 - pt) * px
+            let dy = (pt.rounded() - 0.02 - pt) * px
             let above = k == 0 ? -1_000_000 : baselines[k - 1] + (y - baselines[k - 1]) / 4
             let below = k == baselines.count - 1 ? 1_000_000 : y + (baselines[k + 1] - y) / 4
             canvas.save()

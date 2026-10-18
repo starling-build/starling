@@ -2333,6 +2333,14 @@ their lines side by side in one band), turned text.
 A box of one line goes on its point too (sweep 181: 1.0016 → 0.9956,
 51 better, 30 worse; smartart-simple 1.63 → 0.76, WithMaster 1.16 →
 0.75; bnc862510_6 +0.22, tdf129686 +0.21): it had been left as set.
+And to the whole point nearest our line rather than the nearest of
+PowerPoint's (0.1 below whole ones), the line drawn 0.02 above it as
+before (sweep 182: 0.9956 → 0.9874, 60 better, 9 worse; font-scale
+−0.58, tdf125551 −0.42; bullet-indent +0.19). Our lines stand a little
+high: of 3289 lines the snap moves, 2807 land within 0.15 pt so, 2669
+the other way, a whole point out 394 times to 537. Courier New is the
+face most often a point high (28% of its lines), then Lucida Sans
+Unicode (19%); Calibri, Arial and Verdana 8–10%.
 
 **Tried and dropped, 2026-10-17: a table's lines on whole points,**
 each cell's counted from its own text's top, each line drawn in a band
