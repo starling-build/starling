@@ -289,7 +289,7 @@ grid, ours scaled it to 98%), and a centred merged cell with no cut in a
 parting row's part is set whole there (row 3 parted at page 5's foot as
 Word does). 35.9 -> 97.5, 10 pages. Left: p1's "(JTG H10-2009)" wrap.
 
-### T91. zh-621d8756: a table set in a frame — DONE (2026-10-17); closing spaces under wordWrap off — released
+### T91. zh-621d8756: a table set in a frame — DONE (2026-10-17); closing spaces under wordWrap off — claimed (Windows 01QbbApP, 2026-10-18)
 Owner: session 017F2GnT (Linux)
 Built (0be4a9a6): a table whose every cell paragraph carries one
 text-anchored, notBeside `w:framePr` stands the frame's y below the
