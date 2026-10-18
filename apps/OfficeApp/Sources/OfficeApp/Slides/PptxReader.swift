@@ -124,6 +124,8 @@ struct PptxTheme {
     /// Office 2007 theme's first line is its colour shaded to 95% and
     /// saturated 105% — shapes' connector prints 4A7EBB for 4F81BD.
     var lineColorMods: [XNode?] = []
+    /// And their joins (`PptxReader.join`).
+    var lineJoins: [String?] = []
 
     init(_ root: XNode?) {
         guard let root, let elements = root.descendant("a:themeElements") else {
@@ -143,6 +145,7 @@ struct PptxTheme {
         lineWidths = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map {
             ($0["w"].flatMap(Double.init) ?? 9525) / 12700
         }
+        lineJoins = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map { PptxReader.join($0) }
         lineColorMods = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map {
             $0.first("a:solidFill")?.first("a:schemeClr").flatMap { $0["val"] == "phClr" ? $0 : nil }
         }
@@ -902,6 +905,15 @@ struct PptxReader {
         return LineEnd(kind: kind, width: size(n["w"]), length: size(n["len"]))
     }
 
+    /// A line's join: "round", "bevel", "miter", or nil where it names none.
+    static func join(_ ln: XNode?) -> String? {
+        guard let ln else { return nil }
+        if ln.first("a:round") != nil { return "round" }
+        if ln.first("a:bevel") != nil { return "bevel" }
+        if ln.first("a:miter") != nil { return "miter" }
+        return nil
+    }
+
     /// A line's preset dash (`a:prstDash`), nil for solid.
     static func dash(_ ln: XNode?) -> String? {
         // A custom dash (`a:custDash`), its stops in thousandths of a
@@ -1475,6 +1487,8 @@ private struct SlideContext {
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.outlineDash = PptxReader.dash(spPr?.first("a:ln")) ?? inheritedDash
+        st.outlineJoin = PptxReader.join(spPr?.first("a:ln"))
+            ?? style?.first("a:lnRef")?["idx"].flatMap(Int.init).flatMap { theme.lineJoins.indices.contains($0 - 1) ? theme.lineJoins[$0 - 1] : nil }
         st.headEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:headEnd"))
         if let c = spPr?.first("a:ln")?["cmpd"], c != "sng" { st.outlineCompound = c }
         st.tailEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:tailEnd"))

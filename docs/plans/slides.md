@@ -2444,6 +2444,13 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**An outline's join, 2026-10-18** (sweeps 191–192: −0.06 in sum, 8
+decks better, one 0.01 worse). Ours mitred every outline; PowerPoint's
+prints join 223 thick strokes round against 301 mitred, the round ones
+mostly in lines that name no join. A line's `a:round`, `a:bevel` or
+`a:miter` (or its theme line style's) is now read, and one that names
+none is joined round.
+
 **A grey picture's soft mask left sharp, 2026-10-18** (sweep 190 with
 the rule's first form: lo-narration-non-media-shape 1.75 → 0.00,
 oox-graphic-stroke 1.69 → 0.58; nothing else moved but tdf93830, which

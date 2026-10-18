@@ -59,6 +59,7 @@ struct ShapeState: Equatable {
     var insetsFollowFont = false
     var sizeGroup: String? = nil
     var outlineDash: String? = nil
+    var outlineJoin: String? = nil
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
     var outlineCompound: String? = nil
@@ -1151,6 +1152,7 @@ final class DeckController: ChangeNotifier {
         st.pictureLevels = s.pictureLevels
         st.sizeGroup = s.sizeGroup
         st.outlineDash = s.outlineDash
+        st.outlineJoin = s.outlineJoin
         st.headEnd = s.headEnd
         st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
@@ -1256,6 +1258,7 @@ final class DeckController: ChangeNotifier {
         shape.insetsFollowFont = st.insetsFollowFont
         shape.sizeGroup = st.sizeGroup
         shape.outlineDash = st.outlineDash
+        shape.outlineJoin = st.outlineJoin
         shape.headEnd = st.headEnd
         shape.outlineCompound = st.outlineCompound
         shape.tailEnd = st.tailEnd

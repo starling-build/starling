@@ -767,6 +767,7 @@ final class SlidePainter: CustomPainter {
                     p.style = .stroke
                     p.isAntiAlias = true
                     p.strokeWidth = max(0.5, shape.outlineWidth * px)
+                    p.strokeJoin = Self.join(shape.outlineJoin)
                     p.color = line
                     canvas.drawPath(Self.dashed(path, shape.outlineDash, width: p.strokeWidth), p)
                     // A connector's arrowheads, at its path's two ends.
@@ -855,6 +856,7 @@ final class SlidePainter: CustomPainter {
             p.style = .stroke
             p.isAntiAlias = true
             p.strokeWidth = max(0.5, shape.outlineWidth * px)
+            p.strokeJoin = Self.join(shape.outlineJoin)
             p.color = line
             if let dash = shape.outlineDash {
                 // Dashed: the outline's path cut into the pattern's pieces.
@@ -1069,6 +1071,19 @@ final class SlidePainter: CustomPainter {
     static func pathFocus(_ fillTo: Rect) -> Offset {
         func ratio(_ a: Double, _ b: Double) -> Double { a + b > 1e-9 ? a / (a + b) : 0.5 }
         return Offset(ratio(fillTo.left, 1 - fillTo.right), ratio(fillTo.top, 1 - fillTo.bottom))
+    }
+
+    /// An outline's join as the file names it (`SlideShape.outlineJoin`),
+    /// round where it names none — 223 of PowerPoint's thick strokes in
+    /// the prints are joined round, most of them in lines that say nothing
+    /// (the diagrams' boxes, tdf114848's), and ours were all mitred.
+    static func join(_ name: String?) -> StrokeJoin {
+        switch name {
+        case "round": return .round
+        case "bevel": return .bevel
+        case "miter": return .miter
+        default: return .round
+        }
     }
 
     /// A preset dash's pieces, on and off by turns, in widths of its line
