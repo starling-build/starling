@@ -549,8 +549,8 @@ runStarlingApp(title: wikiBase != nil ? "Wiki" : initialKind.appName,
     #else
     if let wikiBase {
         // The URL may name a page: the server part is the base, the rest the route.
-        WikiRoot(base: wikiBase.range(of: "/s/").map { String(wikiBase[..<$0.lowerBound]) } ?? wikiBase,
-                 route: wikiBase.range(of: "/s/").map { String(wikiBase[$0.lowerBound...]) } ?? "/")
+        WikiRoot(base: wikiBase.findRange(of: "/s/").map { String(wikiBase[..<$0.lowerBound]) } ?? wikiBase,
+                 route: wikiBase.findRange(of: "/s/").map { String(wikiBase[$0.lowerBound...]) } ?? "/")
     } else {
         OfficeRoot(initialPath: initialPath, kind: initialKind)
     }

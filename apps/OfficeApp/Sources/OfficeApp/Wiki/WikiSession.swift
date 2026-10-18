@@ -16,6 +16,7 @@ struct WikiPage: Decodable {
     var author: String?; var createdAt: String
 }
 struct WikiVersion: Decodable { var version: Int; var base: Int?; var title: String; var author: String?; var createdAt: String }
+struct WikiHit: Decodable { var id: String; var space: String; var title: String; var slug: String; var snippet: String; var updatedAt: String }
 struct WikiLock: Decodable { var pageID: String; var userID: String; var userName: String; var token: String; var expiresAt: String }
 
 enum WikiError: Error, CustomStringConvertible {
@@ -49,12 +50,12 @@ final class WikiSession {
     func pageURL(space: String, id: String, slug: String) -> String { "\(base)/s/\(space)/p/\(id)/\(slug)" }
     func pageRoute(space: String, id: String, slug: String) -> String { "/s/\(space)/p/\(id)/\(slug)" }
 
-    private func call<T: Decodable>(_ method: String, _ path: String, json: [String: Any]? = nil, raw: Data? = nil, contentType: String? = nil,
+    private func call<T: Decodable>(_ method: String, _ path: String, json: (any Encodable)? = nil, raw: Data? = nil, contentType: String? = nil,
                                     as type: T.Type, _ completion: @escaping (Result<T, WikiError>) -> Void) {
         var body = raw
         var ct = contentType
         if let json {
-            body = try? JSONSerialization.data(withJSONObject: json)
+            body = try? JSONEncoder().encode(json)
             ct = "application/json"
         }
         transport.request(method, base + path, body: body, contentType: ct) { r in
@@ -66,6 +67,25 @@ final class WikiSession {
     }
 
     struct Nothing: Decodable {}
+    private struct Empty: Encodable {}
+    private struct LoginBody: Encodable { var login: String; var password: String }
+    private struct NewPageBody: Encodable { var title: String; var parent: String? }
+    private struct SaveBody: Encodable { var title: String; var body: String; var plainText: String; var links: [String]; var base: Int; var lockToken: String? }
+    private struct LockBody: Encodable { var token: String? }
+
+    /// Percent-encoding for a query value, without CharacterSet.
+    static func percentEncoded(_ s: String) -> String {
+        var out = ""
+        for b in s.utf8 {
+            if (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || b == 0x2D || b == 0x2E || b == 0x5F {
+                out.unicodeScalars.append(UnicodeScalar(b))
+            } else {
+                let hex = Array("0123456789ABCDEF")
+                out += "%"; out.append(hex[Int(b >> 4)]); out.append(hex[Int(b & 15)])
+            }
+        }
+        return out
+    }
 
     func me(_ done: @escaping (Result<WikiUser, WikiError>) -> Void) {
         call("GET", "/api/v1/me", as: WikiUser.self) { [weak self] r in
@@ -74,13 +94,13 @@ final class WikiSession {
         }
     }
     func login(_ login: String, password: String, _ done: @escaping (Result<WikiUser, WikiError>) -> Void) {
-        call("POST", "/api/v1/login", json: ["login": login, "password": password], as: WikiUser.self) { [weak self] r in
+        call("POST", "/api/v1/login", json: LoginBody(login: login, password: password), as: WikiUser.self) { [weak self] r in
             if case .success(let u) = r { self?.user = u }
             done(r)
         }
     }
     func logout(_ done: @escaping () -> Void) {
-        call("POST", "/api/v1/logout", json: [:], as: Nothing.self) { [weak self] _ in self?.user = nil; done() }
+        call("POST", "/api/v1/logout", json: Empty(), as: Nothing.self) { [weak self] _ in self?.user = nil; done() }
     }
     func spaces(_ done: @escaping (Result<[WikiSpace], WikiError>) -> Void) { call("GET", "/api/v1/spaces", as: [WikiSpace].self, done) }
     func space(_ key: String, _ done: @escaping (Result<WikiSpace, WikiError>) -> Void) { call("GET", "/api/v1/spaces/\(key)", as: WikiSpace.self, done) }
@@ -90,34 +110,37 @@ final class WikiSession {
     }
     func versions(_ id: String, _ done: @escaping (Result<[WikiVersion], WikiError>) -> Void) { call("GET", "/api/v1/pages/\(id)/versions", as: [WikiVersion].self, done) }
     func createPage(space: String, title: String, parent: String?, _ done: @escaping (Result<WikiPage, WikiError>) -> Void) {
-        var json: [String: Any] = ["title": title]
-        if let parent { json["parent"] = parent }
-        call("POST", "/api/v1/spaces/\(space)/pages", json: json, as: WikiPage.self, done)
+        call("POST", "/api/v1/spaces/\(space)/pages", json: NewPageBody(title: title, parent: parent), as: WikiPage.self, done)
     }
     func save(_ id: String, title: String, body: String, plainText: String, links: [String], base: Int, lockToken: String?, _ done: @escaping (Result<WikiPage, WikiError>) -> Void) {
-        var json: [String: Any] = ["title": title, "body": body, "plainText": plainText, "links": links, "base": base]
-        if let lockToken { json["lockToken"] = lockToken }
-        call("PUT", "/api/v1/pages/\(id)", json: json, as: WikiPage.self, done)
+        call("PUT", "/api/v1/pages/\(id)", json: SaveBody(title: title, body: body, plainText: plainText, links: links, base: base, lockToken: lockToken), as: WikiPage.self, done)
     }
     func deletePage(_ id: String, _ done: @escaping (Result<Nothing, WikiError>) -> Void) { call("DELETE", "/api/v1/pages/\(id)", as: Nothing.self, done) }
     func lock(_ id: String, token: String?, _ done: @escaping (Result<WikiLock, WikiError>) -> Void) {
-        call("POST", "/api/v1/pages/\(id)/lock", json: token.map { ["token": $0] } ?? [:], as: WikiLock.self, done)
+        call("POST", "/api/v1/pages/\(id)/lock", json: LockBody(token: token), as: WikiLock.self, done)
     }
     func currentLock(_ id: String, _ done: @escaping (Result<WikiLock, WikiError>) -> Void) { call("GET", "/api/v1/pages/\(id)/lock", as: WikiLock.self, done) }
     func unlock(_ id: String, token: String, _ done: @escaping () -> Void) {
         call("DELETE", "/api/v1/pages/\(id)/lock?token=\(token)", as: Nothing.self) { _ in done() }
     }
     func importFile(space: String, name: String, parent: String?, data: Data, _ done: @escaping (Result<WikiPage, WikiError>) -> Void) {
-        var path = "/api/v1/spaces/\(space)/import?name=\(name.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "upload.docx")"
+        var path = "/api/v1/spaces/\(space)/import?name=\(WikiSession.percentEncoded(name))"
         if let parent { path += "&parent=\(parent)" }
         call("POST", path, raw: data, contentType: "application/octet-stream", as: WikiPage.self, done)
+    }
+    func search(_ query: String, space: String?, _ done: @escaping (Result<[WikiHit], WikiError>) -> Void) {
+        var path = "/api/v1/search?q=\(WikiSession.percentEncoded(query))"
+        if let space { path += "&space=\(space)" }
+        call("GET", path, as: [WikiHit].self, done)
     }
     func exportDocx(_ id: String, _ done: @escaping (Result<Data, WikiError>) -> Void) { call("GET", "/api/v1/pages/\(id)/export.docx", as: Data.self, done) }
 
     // MARK: The page body
 
     static func decodeBody(_ body: String) -> RichDocument? {
-        try? RichDocumentEnvelope.decode(Data(body.utf8))
+        // `{}` is the server's "no content yet": a blank document.
+        if body.trimmingWhitespace() == "{}" { return RichDocument() }
+        return try? RichDocumentEnvelope.decode(Data(body.utf8))
     }
 
     static func encodeBody(_ doc: RichDocument) -> String? {
@@ -136,7 +159,7 @@ final class WikiSession {
         var out: [String] = []
         for p in doc.paragraphs {
             for run in p.runs {
-                guard let link = run.style.link, let r = link.range(of: "/p/") else { continue }
+                guard let link = run.style.link, let r = link.findRange(of: "/p/") else { continue }
                 let rest = link[r.upperBound...]
                 let id = String(rest.prefix { $0 != "/" && $0 != "#" && $0 != "?" })
                 if id.count == 36, !out.contains(id) { out.append(id) }

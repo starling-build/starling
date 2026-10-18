@@ -20,10 +20,8 @@ struct WikiResponse {
     var text: String { String(decoding: body, as: UTF8.self) }
     /// The server's `message` on an error, or the raw text.
     var message: String {
-        if let obj = try? JSONSerialization.jsonObject(with: body) as? [String: Any] {
-            if let e = obj["error"] as? [String: Any], let m = e["message"] as? String { return m }
-            if let m = obj["message"] as? String { return m }
-        }
+        struct Err: Decodable { struct Inner: Decodable { var message: String? }; var error: Inner?; var message: String? }
+        if let e = try? JSONDecoder().decode(Err.self, from: body), let m = e.error?.message ?? e.message { return m }
         return text.isEmpty ? "HTTP \(status)" : String(text.prefix(200))
     }
 }

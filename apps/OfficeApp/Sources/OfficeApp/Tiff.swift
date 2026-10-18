@@ -84,7 +84,7 @@ enum Tiff {
         func le16(_ v: Int) { out.append(UInt8(truncatingIfNeeded: v)); out.append(UInt8(truncatingIfNeeded: v >> 8)) }
         out += [0x42, 0x4D]; le32(14 + 108 + image); le32(0); le32(14 + 108)
         le32(108); le32(width); le32(-height); le16(1); le16(32); le32(3); le32(image); le32(2835); le32(2835); le32(0); le32(0)
-        le32(0x00FF_0000); le32(0x0000_FF00); le32(0x0000_00FF); le32(Int(0xFF00_0000))
+        le32(0x00FF_0000); le32(0x0000_FF00); le32(0x0000_00FF); le32(Int(Int32(bitPattern: 0xFF00_0000)))   // the same four bytes; the literal overflows wasm's 32-bit Int
         le32(0x7352_4742)  // 'sRGB'
         for _ in 0 ..< 12 { le32(0) }
         out.reserveCapacity(out.count + image)

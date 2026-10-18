@@ -4590,7 +4590,7 @@ public final class RichLayout {
             // (Centred between the margins where its chain says so and
             // gives no x: the cover's "山东省市场监督管理局 发布", a 372pt
             // frame, stands in the middle of the column in Word's print.)
-            if frame.horizontalAnchor == "margin", frame.horizontalAlign == "center", !(style.frameXML ?? "").contains("w:x=\""),
+            if frame.horizontalAnchor == "margin", frame.horizontalAlign == "center", !(style.frameXML ?? "").containsSubstring("w:x=\""),
                column - width > 0.5 {
                 let shift = (column - width) / 2
                 left += shift
@@ -4601,7 +4601,7 @@ public final class RichLayout {
             // (An x the style chain states wins over an alignment from
             // further down it: the date's own style puts it at 354pt, its
             // parent's says right, and Word's print has it at 354.)
-            if frame.horizontalAnchor == "page", frame.horizontalAlign == nil || (style.frameXML ?? "").contains("w:x=\"") {
+            if frame.horizontalAnchor == "page", frame.horizontalAlign == nil || (style.frameXML ?? "").containsSubstring("w:x=\"") {
                 let setup = _setup(ofParagraph: i)
                 let shift = _px(frame.x - setup.marginLeft - setup.gutter)
                 left += shift
@@ -6004,7 +6004,7 @@ public final class RichLayout {
                 // (A run of spaces alone takes the line's height, not its own.)
                 if let lineSize, !text.isEmpty, text.allSatisfy({ $0 == " " || $0 == "\t" || $0 == "\u{3000}" }), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-                    if !lineSize.blank, kind != -2, !text.contains("\t"), !text.contains("\u{3000}") {
+                    if !lineSize.blank, kind != -2, !text.contains("\t" as Character), !text.contains("\u{3000}" as Character) {
                         // (Beside other characters, spaces have no height
                         // at all, whatever their face or size: lab `cap2`
                         // (Word 16, 2026-10-17) — two 14pt or 20pt spaces
@@ -6410,7 +6410,7 @@ public final class RichLayout {
                         // Word's print, 17.5 without the border or without
                         // the balance. Its reference lists took a character
                         // a line that Word wraps.)
-                        if document.balancesSpaceWidth, run.keptXML?.contains("<w:bdr ") == true { gap *= 2 }
+                        if document.balancesSpaceWidth, run.keptXML?.containsSubstring("<w:bdr ") == true { gap *= 2 }
                         extra += gap
                         autoSpaces?(offset, gap)
                     } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
@@ -6579,7 +6579,7 @@ public final class RichLayout {
             var symbolLevel = false
             if theme.wordRules, p.style.list != nil,
                let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
-               let r = xml.range(of: "w:ascii=\"") ?? xml.range(of: "w:hAnsi=\"") {
+               let r = xml.findRange(of: "w:ascii=\"") ?? xml.findRange(of: "w:hAnsi=\"") {
                 let family = String(xml[r.upperBound...].prefix { $0 != "\"" })
                 // (Only the symbol faces, whose lines differ from any
                 // text face's: a zero-width space before every list
@@ -7405,7 +7405,7 @@ public final class RichLayout {
     private func _levelNumberSize(_ p: RichParagraph, _ document: RichDocument) -> Double? {
         guard p.style.list != nil,
               let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
-              let r = xml.range(of: "<w:sz w:val=\"") else { return nil }
+              let r = xml.findRange(of: "<w:sz w:val=\"") else { return nil }
         return Double(xml[r.upperBound...].prefix { $0 != "\"" }).map { $0 / 2 }
     }
 
@@ -8382,7 +8382,7 @@ public final class RichLayout {
     /// zh-TW — Word keeps "，" off a line's start there.)
     static func _eastAsianLineRules(_ run: CharStyle, _ document: RichDocument, named: RichNamedStyle? = nil) -> Bool {
         for xml in [run.keptXML, named?.char.keptXML].compactMap({ $0 }) {
-            if let r = xml.range(of: "w:eastAsia=\"") {
+            if let r = xml.findRange(of: "w:eastAsia=\"") {
                 return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
             }
         }
@@ -8548,7 +8548,7 @@ public final class RichLayout {
     /// font language, else the defaults' `w:lang`.
     private static func _traditionalChinese(_ document: RichDocument) -> Bool {
         func traditional(_ xml: String?) -> Bool? {
-            guard let xml, let r = xml.range(of: "w:eastAsia=\"") else { return nil }
+            guard let xml, let r = xml.findRange(of: "w:eastAsia=\"") else { return nil }
             let tag = xml[r.upperBound...].prefix { $0 != "\"" }
             return tag == "zh-TW" || tag == "zh-HK" || tag == "zh-MO"
         }
@@ -9719,7 +9719,7 @@ public final class RichLayout {
     /// 784.9pt down the page, 751 under a 16.9pt margin.)
     static func _onThePage(_ style: RichParagraphStyle) -> Bool {
         guard let frame = style.frame else { return false }
-        return frame.verticalAnchor == "page" || frame.verticalAnchor == "margin" || !(style.frameXML ?? "").contains("w:vAnchor=")
+        return frame.verticalAnchor == "page" || frame.verticalAnchor == "margin" || !(style.frameXML ?? "").containsSubstring("w:vAnchor=")
     }
 
     /// Set on a header's or footer's own layout: its framed paragraphs
@@ -10366,7 +10366,7 @@ public final class RichLayout {
                             // — zh-c3dd22c4's, in a box sized by "- 1 -",
                             // stays on one line in its print — so each
                             // space is joined to what follows it.)
-                            if piece.contains(" ") { piece = piece.replacingAll(" ", with: " \u{2060}") }
+                            if piece.contains(" " as Character) { piece = piece.replacingAll(" ", with: " \u{2060}") }
                         }
                         lastField = run.style.field
                         guard !piece.isEmpty else { continue }

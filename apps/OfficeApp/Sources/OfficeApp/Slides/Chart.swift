@@ -3024,7 +3024,7 @@ extension ChartPainter {
             if l.value { parts.append(dataLabel(c, s.value)) }
             if l.percent {
                 let share = s.value / sum
-                if let code = c.labelFormat, code.contains("%") {
+                if let code = c.labelFormat, code.contains("%" as Character) {
                     parts.append(NumberFormat.format(share, code, width: 40).text.trimmingWhitespace())
                 } else { parts.append("\(Int((share * 100).rounded()))%") }
             }

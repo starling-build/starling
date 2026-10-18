@@ -175,7 +175,7 @@ const HARD_LINE_BREAK = 100;
 async function fetchWithProgress(url, onProgress) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
-  const gzipped = new URL(url, location.href).pathname.endsWith('.gz');
+  const gzipped = new URL(url, document.baseURI).pathname.endsWith('.gz');
   if ((!onProgress && !gzipped) || !response.body) return response;
   // fetch exposes decoded bytes for HTTP compression, but Content-Length is
   // the compressed length. Do not report a fictitious percentage above 100%.
@@ -220,7 +220,9 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // --- skwasm, single-threaded. Threads need a cross-origin-isolated page
   // (COOP/COEP headers); without them skwasm renders on the main thread,
   // which is also what Flutter does on an ordinary page.
-  const skwasmUrl = new URL(`${skwasmBase}skwasm.js`, location.href).href;
+  // Asset URLs resolve against the document's base URL (a <base href>
+  // when the page is served at a deep route, else the location itself).
+  const skwasmUrl = new URL(`${skwasmBase}skwasm.js`, document.baseURI).href;
   // Both modules compile in parallel; fonts also begin fetching immediately.
   // Progress counts the module streams; phases cover font preparation.
   const progress = { app: [0, 0], skwasm: [0, 0] };
@@ -232,7 +234,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     }
   };
   const skwasmModule = WebAssembly.compileStreaming(
-    fetchWithProgress(new URL(`${skwasmBase}skwasm.wasm`, location.href), report('skwasm')));
+    fetchWithProgress(new URL(`${skwasmBase}skwasm.wasm`, document.baseURI), report('skwasm')));
   // Compile independently: only instantiation needs the renderer's imports.
   const appModule = WebAssembly.compileStreaming(fetchWithProgress(app, report('app')));
   appModule.catch(() => {}); // observed below even if the renderer fails first

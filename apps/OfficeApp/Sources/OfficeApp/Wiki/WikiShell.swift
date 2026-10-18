@@ -72,6 +72,9 @@ final class WikiShellState: State<StatefulWidget> {
     private var _newTitleOpen = false
     private let _newTitleField = TextEditingController()
     private var _loading = false
+    private let _searchField = TextEditingController()
+    private var _hits: [WikiHit]? = nil      // nil: not searching; []: nothing found
+    private var _searchGeneration = 0
 
     override func initState() {
         super.initState()
@@ -209,7 +212,7 @@ final class WikiShellState: State<StatefulWidget> {
         guard let page = _page, _editing else { return }
         let doc = _controller.document
         guard let body = WikiSession.encodeBody(doc) else { setState { _status = "Could not encode the page." }; return }
-        let title = _titleField.text.trimmingCharacters(in: .whitespaces)
+        let title = _titleField.text.trimmingWhitespace(newlines: false)
         setState { _loading = true }
         session.save(page.id, title: title.isEmpty ? page.title : title, body: body, plainText: WikiSession.plainText(doc),
                      links: WikiSession.linkedPages(doc), base: page.version, lockToken: _lock?.token) { [weak self] r in
@@ -294,8 +297,19 @@ final class WikiShellState: State<StatefulWidget> {
         }
     }
 
+    private func _search(_ query: String) {
+        let q = query.trimmingWhitespace(newlines: false)
+        _searchGeneration += 1
+        let gen = _searchGeneration
+        guard !q.isEmpty else { setState { _hits = nil }; return }
+        session.search(q, space: nil) { [weak self] r in
+            guard let self, gen == self._searchGeneration else { return }
+            if case .success(let hits) = r { self.setState { self._hits = hits } } else { self.setState { self._hits = [] } }
+        }
+    }
+
     private func _login() {
-        let login = _loginField.text.trimmingCharacters(in: .whitespaces)
+        let login = _loginField.text.trimmingWhitespace(newlines: false)
         let password = _passwordField.text
         guard !login.isEmpty else { return }
         session.login(login, password: password) { [weak self] r in
@@ -367,6 +381,9 @@ final class WikiShellState: State<StatefulWidget> {
             header.append(Padding(padding: EdgeInsets(left: 12, top: 4, right: 12, bottom: 8), child: SizedBox(width: nil, height: 30, child: FluentTextBox(
                 controller: _newTitleField, placeholderText: "New page title", onSubmitted: { [weak self] t in self?._createPage(t) }, autofocus: true))))
         }
+        header.append(Padding(padding: EdgeInsets(left: 12, top: 2, right: 12, bottom: 8), child: SizedBox(width: nil, height: 30, child: FluentTextBox(
+            controller: _searchField, placeholderText: "Search pages", onChanged: { [weak self] t in self?._search(t) },
+            onSubmitted: { [weak self] t in self?._search(t) }))))
         if _spaces.count > 1 {
             header.append(Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 6), child: Wrap(spacing: 6, children: _spaces.map { s in
                 HyperlinkButton(onPressed: { [weak self] in self?._open(route: "/s/\(s.key)", push: true) },
@@ -389,6 +406,26 @@ final class WikiShellState: State<StatefulWidget> {
         // Orphans (parent deleted or outside the space) come last.
         for n in _tree where !seen.contains(n.id) { rows.append((n, 0)) }
         let current = _page?.id
+        if let hits = _hits {
+            // Search results stand in for the tree while a query is typed.
+            let results: Widget = hits.isEmpty
+                ? Padding(padding: EdgeInsets(left: 12, top: 8, right: 12, bottom: 8), child: Text("Nothing found.", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))
+                : ListView(key: ValueKey("hits-\(hits.map(\.id).joined())"), itemCount: hits.count) { [weak self] _, i in
+                    let hit = hits[i]
+                    return Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0), child: FlyoutListTile(
+                        onPressed: { self?._open(route: "/s/\(hit.space)/p/\(hit.id)/\(hit.slug)", push: true) },
+                        text: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
+                            Text(hit.title, style: fluent.typography.bodyStrong, softWrap: false),
+                            Text(hit.snippet, style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary), maxLines: 2),
+                        ]),
+                        margin: EdgeInsets(left: 0, top: 0, right: 0, bottom: 1),
+                        selected: hit.id == current))
+                }
+            return SizedBox(width: 260, height: nil, child: DecoratedBox(
+                decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
+                                          border: Border(right: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
+                child: Column(crossAxisAlignment: .stretch, children: header + [Expanded(child: results)])))
+        }
         let list = ListView(key: ValueKey("\(rows.count)-\(current ?? "")-\(_tree.map(\.title).joined())"), itemCount: rows.count) { [weak self] _, i in
             let (node, depth) = rows[i]
             return Padding(padding: EdgeInsets(left: 8 + Double(depth) * 14, top: 0, right: 8, bottom: 0),
@@ -490,7 +527,7 @@ final class WikiShellState: State<StatefulWidget> {
     /// A link inside a page: one of ours opens in place, anything else is
     /// left to the browser or the host.
     private func _followLink(_ link: String) {
-        if let r = link.range(of: "/s/"), link.hasPrefix(session.base) || link.hasPrefix("/") {
+        if let r = link.findRange(of: "/s/"), link.hasPrefix(session.base) || link.hasPrefix("/") {
             _open(route: String(link[r.lowerBound...]), push: true)
             return
         }

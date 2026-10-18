@@ -31,7 +31,12 @@ enum WriterMath {
     }
 
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
+    #if os(WASI)
+    private struct _NoLock { func lock() {}; func unlock() {} }   // one thread in the browser, no NSLock in its Foundation
+    private static let lock = _NoLock()
+    #else
     private static let lock = NSLock()
+    #endif
 
     /// Lays out the equation `node` (`m:oMath` or `m:oMathPara`) for the
     /// object attachment `id`, its text `size` points where its runs say

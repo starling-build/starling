@@ -207,9 +207,10 @@ final class Store: Sendable {
         return out
     }
 
-    /// An empty page body, when a page is made without one. The client
-    /// knows the model; the server only needs something valid to store.
-    static let emptyBody = #"{"schema":1,"document":{"paragraphs":[{"text":"","runs":[{"length":0,"style":{}}],"style":{}}]}}"#
+    /// The body of a page made without one: not a document at all, since
+    /// the server does not know the model (a synthesised Decodable wants
+    /// every key); the client reads `{}` as "start blank".
+    static let emptyBody = "{}"
 
     func createPage(spaceID: UUID, spaceKey: String, parent: UUID?, title: String, body: String?, plainText: String, links: [UUID], by user: User?) async throws -> PageContent {
         let id = UUID()

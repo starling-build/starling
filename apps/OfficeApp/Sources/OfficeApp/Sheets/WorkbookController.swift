@@ -375,7 +375,7 @@ final class WorkbookController: ChangeNotifier {
             cell.input = text
             // A line break in what was typed turns Wrap Text on, as Excel
             // does, so the lines show as lines.
-            if text.contains("\n"), !text.hasPrefix("="), !book.style(cell.style).wrap {
+            if text.contains("\n" as Character), !text.hasPrefix("="), !book.style(cell.style).wrap {
                 var st = book.style(cell.style)
                 st.wrap = true
                 cell.style = book.styleIndex(st)
