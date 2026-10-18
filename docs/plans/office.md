@@ -6077,6 +6077,15 @@ fitter dropped the paragraph's tail).
   YaHei (zh-454e2e29's "○" and "△"), so the rule is for Times New Roman
   only. zh-cec9d337 71.8 -> 84.1; nothing else moved (s325 -> s326, one
   base, the change alone).
+- **A turned cell parted over a page is shown across its whole cell
+  (2026-10-18).** zh-264d7516's "被征地农户人员信息" (tbRlV, merged over
+  nine rows, vAlign top) comes through the parted-row path since
+  a0fcb76c. That path gave each paragraph a window of its own lines, a
+  turned cell's one line of 34pt, and the label drew nowhere. Word's
+  print has it down page 19, 156 to 256. Its window is now the cell's
+  whole span: ours 157 to 257. zh-264d7516 93.6 -> 95.3; nothing else
+  moved (s329 -> s330, one base, with starling-ios-5c's uncommitted
+  skia-run-shift-once in the engine under both).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

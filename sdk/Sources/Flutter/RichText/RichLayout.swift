@@ -3133,7 +3133,13 @@ public final class RichLayout {
                         continue
                     }
                     for k in column.members {
-                        let top = _tops[k], bottom = top + _heights[k]
+                        // (A turned cell is drawn across its whole cell, not
+                        // down its lines: zh-264d7516's "被征地农户人员信息",
+                        // merged over nine rows, showed only through its one
+                        // line's window, which is to say not at all.)
+                        let turned = theme.wordRules && _cells[k]?.vertical == true
+                        let top = turned ? _cells[k]!.rowTop : _tops[k]
+                        let bottom = turned ? _cells[k]!.rowTop + _cells[k]!.rowHeight : top + _heights[k]
                         let lo = max(top, column.cut), hi = fits ? bottom : min(bottom, next[n])
                         guard hi > lo + 0.01 || (pieces[k] == nil && hi >= lo && bottom <= lo + 0.01) else { continue }
                         // (What goes over stands its cell's top margin under
