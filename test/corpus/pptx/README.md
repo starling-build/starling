@@ -74,7 +74,7 @@ text-heavy decks score about a point lower. So `baseline.tsv` is the Mac's, and
 `baseline-mupdf.tsv` is MuPDF's, from Windows, against the same
 PowerPoint PDFs. The same sweep 27 scored both ways, 2026-10-11: mean
 2.95% by MuPDF where the Mac has 3.01%, 418 of 553 decks within 0.15 of
-each other. (The file holds sweep 221, 0.949%, run on Linux 2026-10-18; sweeps 28 to 221 have no Mac
+each other. (The file holds sweep 222, 0.948%, run on Linux 2026-10-18; sweeps 28 to 222 have no Mac
 run yet, and 33 moves the text of most decks, so the Mac's `baseline.tsv`
 and `matched.txt` want a sweep there before they are compared with.)
 Compare a sweep with the baseline of its own rasteriser. The decks furthest apart are

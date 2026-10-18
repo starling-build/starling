@@ -1748,7 +1748,12 @@ private struct SlideContext {
         let ln = el.first("p:spPr")?.first("a:ln")
         let color = ln?.first("a:solidFill").flatMap(colors.color(in:))
             ?? el.first("p:style")?.first("a:lnRef").flatMap(colors.lineColor(in:)) ?? colors.scheme("tx1")
-        let width = ln?["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
+        // (Its width the theme's line style, where it names one and says
+        // none of its own, as an elbow's: lineStyle's `lnRef idx="2"`, 2 pt
+        // in PowerPoint's print, drawn at 0.75.)
+        var width = ln?["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
+        if ln?["w"] == nil, let idx = el.first("p:style")?.first("a:lnRef")?["idx"].flatMap(Int.init),
+           theme.lineWidths.indices.contains(idx - 1) { width = theme.lineWidths[idx - 1] }
         var st = ShapeState(id: id(), name: el.first("p:nvCxnSpPr")?.first("p:cNvPr")?["name"] ?? "Line",
                             kind: .geometry(.line), frame: frame, rotation: 0, fill: nil, outline: color,
                             outlineWidth: width,

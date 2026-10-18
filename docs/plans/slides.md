@@ -2536,6 +2536,15 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A straight connector's width from the theme, 2026-10-18** (sweep
+222: corpus mean 0.9493 → 0.9482; lineStyle −0.26, tdf114845 −0.19,
+tdf149697 −0.06, tdf154363 −0.04, tdf89449 −0.03, tdf141058 −0.01; none
+worse). A straight connector with no `a:ln w` of its own was 0.75 pt
+whatever its style's `lnRef` named; an elbow or a curve already took
+the theme's line style's width. lineStyle's `lnRef idx="2"` is 2 pt in
+PowerPoint's print. (Its `effectRef idx="1"`, the 2007 theme's soft
+shadow, is not drawn under a line: left.)
+
 **A picture's soft edge, 2026-10-18** (sweep 221: corpus mean 0.9519 →
 0.9493; croppedTo0 2.00 → 0.62, 60810 −0.07; nothing worse). A
 picture's `softEdge` was not read — only a shape's — so croppedTo0's
