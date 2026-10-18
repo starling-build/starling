@@ -441,7 +441,7 @@ can hold is now not parted (as `w:cantSplit`). zh-340d52e9 48.9 ->
 4a950e13's, the Mac 011uWpmC session's, not this.)
 
 ### T101. Sections that disagree on their columns are set in one — DONE (2026-10-17), zh-8f9b19f4 still open
-(Linux 017F2GnT claimed zh-8f9b19f4 2026-10-18: its last section, continuous, three columns filled by column breaks, set a page a column — T2's columns-as-row reading extended to the final section.)
+(Linux 017F2GnT, 2026-10-18, 170afc5c: its last section, continuous, three columns filled by column breaks, set a page a column — T2's columns-as-row reading now covers the document's own last section; 16 pages -> 15, Word's 14, no line moves. Left, released: that row — "填报人：" | "审核人：" | "负责人：", 宋体/KaiTi 14.5pt at 0.77-0.91 lines, the column breaks in 1pt paragraphs of 14/240 lines — parts over page 14's foot, 33.3pt tall from 541.6 of 573. Each of its cell paragraphs is ~7pt taller (block) than its spacing before plus its line, not from `_overhang` (multiples over 1 only) nor a grid (none); Word's print holds it on page 14.)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 zh-8f9b19f4 (sixth sample, a PDF conversion): thirteen sections, all one
 column but for three of the last four; the layout has one column count
