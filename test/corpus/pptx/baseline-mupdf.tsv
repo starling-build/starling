@@ -130,7 +130,7 @@ lo-hyperlinkOnImage.pptx	summary pages=2 worst=0.19% mean=0.18%
 lo-hyperlinktest.pptx	summary pages=1 worst=0.04% mean=0.04%
 lo-layout-clrmap-override.pptx	summary pages=1 worst=0.49% mean=0.49%
 lo-layout-own-background.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-lineStyle.pptx	summary pages=1 worst=0.26% mean=0.26%
+lo-lineStyle.pptx	summary pages=1 worst=0.13% mean=0.13%
 lo-loopNoPause.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-master-and-eleven-layouts.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-master-bg-color.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -265,7 +265,7 @@ lo-tdf113198.pptx	summary pages=1 worst=0.07% mean=0.07%
 lo-tdf113818-swivel.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-tdf113822underline.pptx	summary pages=1 worst=0.12% mean=0.12%
 lo-tdf114821.pptx	summary pages=1 worst=0.31% mean=0.31%
-lo-tdf114845_rotateShape.pptx	summary pages=1 worst=0.15% mean=0.15%
+lo-tdf114845_rotateShape.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-tdf114848.pptx	summary pages=6 worst=10.59% mean=3.62%
 lo-tdf114913.pptx	summary pages=1 worst=0.12% mean=0.12%
 lo-tdf115394-zero.pptx	summary pages=1 worst=0.67% mean=0.67%

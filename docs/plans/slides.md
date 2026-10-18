@@ -2542,8 +2542,11 @@ tdf149697 −0.06, tdf154363 −0.04, tdf89449 −0.03, tdf141058 −0.01; none
 worse). A straight connector with no `a:ln w` of its own was 0.75 pt
 whatever its style's `lnRef` named; an elbow or a curve already took
 the theme's line style's width. lineStyle's `lnRef idx="2"` is 2 pt in
-PowerPoint's print. (Its `effectRef idx="1"`, the 2007 theme's soft
-shadow, is not drawn under a line: left.)
+PowerPoint's print. And a connector's shadow is read now — its own,
+or its style's `effectRef` from the theme — and an outline with no fill
+casts the shadow of its stroke, blurred (sweep 223: lineStyle −0.13,
+tdf114845 −0.04, none worse): the 2007 theme's soft shadow under
+lineStyle's line, which PowerPoint prints as a picture.
 
 **A picture's soft edge, 2026-10-18** (sweep 221: corpus mean 0.9519 →
 0.9493; croppedTo0 2.00 → 0.62, 60810 −0.07; nothing worse). A

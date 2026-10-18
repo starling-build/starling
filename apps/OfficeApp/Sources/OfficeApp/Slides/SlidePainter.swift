@@ -852,6 +852,31 @@ final class SlidePainter: CustomPainter {
             canvas.drawPath(around, p)
             canvas.restore()
         }
+        if let line = shape.outline, !drawnAlready, let sh = shape.shadow, shape.fill == nil, shape.fillStyle == nil,
+           shape.picture == nil {
+            // An outline alone casts its own shadow, blurred: lineStyle's
+            // connector, the 2007 theme's soft shadow under it in
+            // PowerPoint's print.
+            let a = -shape.rotation * .pi / 180
+            let dx = (sh.dx * cos(a) - sh.dy * sin(a)) * px, dy = (sh.dx * sin(a) + sh.dy * cos(a)) * px
+            let p = Paint()
+            p.style = .stroke
+            p.isAntiAlias = true
+            p.strokeWidth = max(0.5, shape.outlineWidth * px)
+            p.strokeJoin = Self.join(shape.outlineJoin)
+            p.color = sh.color.withOpacity(Double(sh.color.alpha) / 255 * Double(line.alpha) / 255)
+            if sh.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, sh.blur * px / 2) }
+            canvas.save()
+            canvas.translate(dx, dy)
+            if shape.preset?.isLine == true {
+                canvas.drawLine(Offset(r.left, r.top), Offset(r.right, r.bottom), p)
+            } else if let path {
+                canvas.drawPath(path, p)
+            } else {
+                canvas.drawRect(r, p)
+            }
+            canvas.restore()
+        }
         if let line = shape.outline, !drawnAlready {
             let p = Paint()
             p.style = .stroke

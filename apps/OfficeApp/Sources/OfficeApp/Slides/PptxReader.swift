@@ -1728,6 +1728,7 @@ private struct SlideContext {
             st.outlineCap = ln?["cap"]
             st.headEnd = PptxReader.lineEnd(ln?.first("a:headEnd"))
             st.tailEnd = PptxReader.lineEnd(ln?.first("a:tailEnd"))
+            st.shadow = _shapeShadow(el.first("p:spPr"), el.first("p:style"))
             return st
         }
         // Flips turn the box's diagonal into the line's direction, and the
@@ -1762,6 +1763,7 @@ private struct SlideContext {
         st.sourceXML = PptxXML.serialize(el)
         st.sourcePart = part
         st.keptLine = KeptLine(line: frame, box: box, outline: color, width: width)
+        st.shadow = _shapeShadow(el.first("p:spPr"), el.first("p:style"))
         st.outlineDash = PptxReader.dash(el.first("p:spPr")?.first("a:ln"))
         st.outlineJoin = PptxReader.join(el.first("p:spPr")?.first("a:ln"))
         st.outlineCap = el.first("p:spPr")?.first("a:ln")?["cap"]
