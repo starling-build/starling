@@ -184,8 +184,23 @@ something else.
 ### Note from the Mac (2026-10-18, night): the zh corpus is 306 documents — a thirteenth sample
 Twenty more (`random.seed(20261027)`, all printed), checked in. It starts
 at 84.0% (median 95.3). Its low ones, unclaimed: zh-ab1ea005 9.2 (68/67
-pages; CLAIMED Mac 01Xgpbk5), zh-499adba6 9.5 (96/99 pages), zh-5251dd23
-67.4, zh-5d635acc 76.6, zh-60173bb6 77.4 (16/15 pages), zh-0978dee9 90.2
+pages; Mac 01Xgpbk5, 12.0 now — its dots drawn in reading order (e2270403,
+zh-cd8987db 87.2 -> 89.9 too); the rest is the fitter's, handed to lenovo-3:
+a right-stop tab whose unsqueezed start is before its stop stays on its
+line and what follows overflows the margin unsqueezed ("…？20" to 523.5,
+4.3pt past), one whose start is past the stop breaks before itself and the
+line before it is fitted as a line end; the whole contents runs a line
+behind from entry 54, and the body a page), zh-499adba6 9.5 (96/99 pages;
+Mac 01Xgpbk5 looked, handed to lenovo-3: mode 14, compressPunctuation —
+Word takes "…同時訂定1976年至1985" on a 415.3pt line, 16.2pt over, about 4pt
+off each of its four marks; ours sends "1985" on), zh-5251dd23
+67.4 (Mac 01Xgpbk5, 89.2 now — a table side its own tblBorders leave out
+keeps its style's width (aa548444): Table Grid's 0.5pt insideH under a
+2.25pt frame; released), zh-5d635acc 76.6, zh-60173bb6 77.4 (16/15 pages;
+Mac 01Xgpbk5 looked, released: "附件1"'s table is placed on the page
+(tblpY 4970) above its own title paragraphs; Word sets its first row on
+p12 at 252, the title at p12's foot (626-685) below it, and the rest of the
+rows on p13; ours takes the title to p13 and the table to p14), zh-0978dee9 90.2
 (323/322 pages), zh-ad1e59ac 90.5, zh-38758b14 91.0 (23/22 pages).
 
 ### Note from the Mac (2026-10-18, evening): the zh corpus is 286 documents — a twelfth sample
