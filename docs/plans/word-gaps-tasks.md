@@ -171,6 +171,13 @@ in Word's print; after "Note: " they part where they stand. Built that
 way; no document moved (s327 -> s328), and zh-76d361b2's own case is
 something else.
 
+### Note from the Mac (2026-10-18, night): the zh corpus is 226 documents — a ninth sample
+Twenty more (`random.seed(20261023)`, all printed), checked in. It starts
+at 85.3% (median 96.1). Its low ones, unclaimed: zh-8699644f 9.5 (CLAIMED
+Mac 01Xgpbk5), zh-c25d08c5 55.3, zh-15f60bac 64.6, zh-60c80728 65.9
+(35/37 pages), zh-73534289 80.5, zh-b24b396a 82.0, zh-51af781b 83.3
+(65/70 pages), zh-749cb15a 87.2.
+
 ### Note from the Mac (2026-10-18, night): exact lines' baseline is 0.80, not 13/16 — measured, not built
 Word for Mac 16.113.3 (labs ~/starling-word-check/lab/tools/ex: 仿宋, 宋体,
 Times at 12 and 16pt, exact 11-60pt) and Word for Windows 16 (windows'
