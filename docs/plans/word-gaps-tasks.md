@@ -110,6 +110,17 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
+### Regression (Mac 011uWpmC, 2026-10-17 night): fdceb326 takes zh-3c055c9b 76.7 -> 33.5 on the Mac
+Same-base sweep on the Mac (s299 -> s300, the tip with fdceb326 "a run's
+character spacing falls back to its style's, then Normal's"): zh-3c055c9b
+76.7 -> 33.5, every page; nothing else moved. With fdceb326's
+RichLayout change alone reversed on e3c3b781 the document misses 137
+lines, with it 391. (The commit's note gives 44.9 -> 61.4 against s124,
+a build before T85's grid squeeze, so the two disagree on the base.)
+zh-3c055c9b is mode 15 on a linesAndChars grid of 17.0pt at 16pt; its
+styles' spacing is probably double-counted with the grid's own addition.
+For session 01QbbApP (fdceb326's) or whoever holds T85.
+
 ### Note from the Mac (2026-10-17, evening): the zh corpus is 148 documents — a fifth sample
 Twenty more (`random.seed(20261019)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 78.5%. Its low ones,
