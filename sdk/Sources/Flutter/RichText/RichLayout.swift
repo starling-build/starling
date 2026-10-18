@@ -6209,7 +6209,16 @@ public final class RichLayout {
             // (The face Word sets the Latin characters past ASCII in, where
             // the run names one other than its ASCII face: `w:hAnsi`.)
             let highFace = latinFace == nil ? nil : (run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }
-            let hinted = (run.fontHint ?? named?.char.fontHint) == "eastAsia" || (latinFace?.isEastAsian ?? false)
+            // (Not where the run says `w:hint="default"` over a Latin hAnsi
+            // face: its shared marks are that face's then —
+            // zh-785e46f8's "产业链“链长" in 仿宋_GB2312 over a Times hAnsi
+            // has its "“" in Times in Word's print, 7.1pt, where ours set
+            // a full-width one, 16, and the line lost a character.)
+            // (zh-7fd860f9's runs say the same hint over a 仿宋_GB2312
+            // hAnsi, and their "“" is full-width in Word's print: the
+            // hAnsi face decides.)
+            let hint = run.fontHint ?? named?.char.fontHint
+            let hinted = hint == "eastAsia" || (latinFace?.isEastAsian ?? false) && (hint != "default" || (highFace?.isEastAsian ?? true))
             // (… but an en dash, unhinted, is its hAnsi face's where that is
             // a Latin one: zh-ea70c30e's "辦公室 – 投訴", `w:ascii` PMingLiU
             // over an inherited Times hAnsi, sets its "–" in Times in Word's
@@ -8106,7 +8115,9 @@ public final class RichLayout {
             ems.append(contentsOf: repeatElement(em, count: run.length))
             closing.append(contentsOf: repeatElement(_closesUpMarks(run.style, named, document), count: run.length))
             let face = theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, false)
-            let hinted = (run.style.fontHint ?? named?.char.fontHint) == "eastAsia" || (face?.isEastAsian ?? false)
+            let hint = run.style.fontHint ?? named?.char.fontHint
+            let high = (run.style.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }
+            let hinted = hint == "eastAsia" || (face?.isEastAsian ?? false) && (hint != "default" || (high?.isEastAsian ?? true))
             wideQuotes.append(contentsOf: repeatElement(hinted, count: run.length))
         }
         guard ems.count == units.count else { return [:] }
