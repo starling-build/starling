@@ -2066,7 +2066,10 @@ enum ChartPainter {
                 // above their lines, line- and scatter-chart's 18 pt
                 // labels. A newer chart's are measured so too, and came
                 // out no nearer raised.)
-                let lift = c.styled2013 ? 0 : 1.45 * k
+                // (A newer one's on a slide, 1.25 pt above theirs: its plot
+                // stands 1.5 pt lower there, and chart-slide-bg's labels
+                // print 1.1 to 1.5 above where that put them.)
+                let lift = c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : 1.45 * k
                 tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width, p - tp.height / 2 - lift))
             }
         }

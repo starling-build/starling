@@ -2402,6 +2402,13 @@ A 2007-style pie on a slide has no white rims between its slices, as
 its print shows (chart_pt_color_bg1 0.62 → 0.55, pie-chart 1.42 →
 1.44: its slices a little off PowerPoint's, which the rims hid).
 
+A newer chart's value labels on a slide stand 1.25 pt above their
+gridlines' places (chart-slide-bg and its three like it −0.02 each;
+tdf114821 +0.02, tdf149985 +0.01): lowering its plot 1.5 pt took them
+down with it, and they print 1.1 to 1.5 above. tdf149985's and
+tdf114821's category labels and plot foot stand 2.1 pt high, the rest
+of the chart where PowerPoint's is; not yet looked into.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the
