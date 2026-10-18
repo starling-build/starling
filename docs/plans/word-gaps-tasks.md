@@ -2576,14 +2576,22 @@ between them, stand 1.75pt taller in Word's print for a 2.25pt line stated on th
 side is the wider of the table's line there and the cell's own. Same-base sweep, 337 docs: zh-701eda18 92.8 -> 96.0,
 nothing else moved.
 
-### T119. Legacy-mode line ends (zh-12c4f07a, zh-749cb15a): first, a compatibility ideograph YaHei lacks — claimed
-Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Mac's four legacy-mode cases, handed over)
+### T119. Legacy-mode line ends (zh-12c4f07a, zh-749cb15a): first, a compatibility ideograph YaHei lacks — measured, released
+Owner: — (released by starling-office1-df, 2026-10-18: needs a Word lab)
 Documents: zh-12c4f07a, zh-749cb15a; zh-5b7ae054, zh-8e8d4c40, zh-4adfcce2, zh-7dc3afad and others hold the same.
 Known: zh-12c4f07a p8's "於契約…本委" ends at 委 in Word because its "契" is U+F909, which Word for Mac draws in a
 YaHei run as YaHei's missing-glyph box, 0.697 em (9.06 at 13pt, glyph 0 in the print) — not in Noto Sans SC as the
 `_notoCompatibility` ones are, nor in Heiti SC. Across Word's prints there are 54 such boxes, all 0.697 em, all
 YaHei, in the documents holding compatibility ideographs outside that set (counts match per document). Ours gives
 the character a whole em, and the line's last character goes over. Fix to try: such a character takes 0.697 em.
+Tried, reverted: zh-12c4f07a 78.6 -> 79.3, but zh-ff93733d 97.0 -> 6.5 and zh-749cb15a 87.3 -> 82.5. zh-ff93733d p1
+(標楷體 -> YaHei 14pt, legacy mode, compressPunctuation): "二、本機關106年□員工…滿意□及問卷調查結" — two "度" U+FA01
+boxes drawn 9.76 (0.697 em) — ends at 結, justified 14.63 a character, "果。" on the next line. Its natural width with
+the boxes at 0.697 leaves 17.6pt, room for "果" and "。" both; Word took neither, which fits only if its line
+breaking counts the box a whole em (then 果 is 4.8 over) and only its drawing is narrow. Its next line ("三、…107年□
+施政…首長施", 景、 at 13.33) agrees with a whole-em break. But zh-12c4f07a's "委" fits only with the box at 0.697 in
+the break (a whole em leaves it 7.75 over against "，"'s 6.5). Lab wanted (Word for Mac, YaHei, U+F909 and U+FA01):
+the box in the break — whole em or 0.697 — and whether it differs by character or position.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
