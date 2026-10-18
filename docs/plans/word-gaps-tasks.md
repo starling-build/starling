@@ -189,8 +189,19 @@ sends all of "“1”" to the next line; the legacy Latin-word tests (lab
 `dg`'s room, `ab32`'s start half a character in) both pass it. Perhaps
 a word's own marks give nothing, or the room is the marks before it.
 
-### T112. zh-5c6ff0d7: 2 pages where Word's are 3 — claimed
-Owner: session 017F2GnT (Linux), from 2026-10-18
+### T112. zh-5c6ff0d7: 2 pages where Word's are 3 — measured, released
+Owner: none (Linux 017F2GnT measured it, 2026-10-18)
+It is 3 twips, not 15.6pt: the closing note's 312-twip line starts at
+12444 of 12756 in our flow, so it ends exactly on the foot and the `pf`
+rule sends it on; in Word's print table 2 ends 0.14pt higher (726.96,
+ours 727.08) and the note fits. Our exact rows are right (28.35); the
+two header rows are not: ours 29.85 apiece centre to centre, Word's
+29.28 and 29.76 — row 0's cells top 1.5pt (sz 12) over a bottom 1pt
+(sz 8) meeting row 1's 1.5 top, row 1's bottom 0.5, insideH `outset` sz
+6, no tblBorders outside. The text between the tables is 0.95pt shorter
+in ours. And ours draws a top rule at p2's head (105.3) Word does not.
+A lab of those borders (which width a shared edge takes, and how much of
+it the atLeast height holds) would settle it.
 Documents: zh-5c6ff0d7 (97.8%; the Mac's measure in the fifth-sample note:
 a row parted from p1 stands 15.6pt lower in the flow than drawn).
 
