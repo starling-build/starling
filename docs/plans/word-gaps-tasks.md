@@ -175,7 +175,7 @@ something else.
 Twenty more (`random.seed(20261025)`, all printed), checked in. It starts
 at 86.4% (median 98.0). Its low ones, unclaimed: zh-8d72961c 4.3 (1/2
 pages; Mac 01Xgpbk5, looked, released: not Chinese — a Greek/Turkish/Arabic notice in "Nunito Sans Light", which Word for Mac has (a cloud font; NunitoSans-Light embedded in its print, a 1.36 em line, 16pt pitch at 11pt x 1.07) and we do not (14.4pt pitch, other breaks); page 2's Arabic is a picture's text in Word's print), zh-10eab555 5.0 (136/135 pages; Mac 01Xgpbk5, 75.6 now, Word's 135 pages — text after a table placed down the page flows round it; left: p100's org chart (VML boxes match Word's to the point) leaves the paragraph after it 104pt low, its anchored "北岙街道各行政村、单位" box with it, and pp100-110 run late; released), zh-f3802561 69.4 (Mac 011uWpmC, 99.8 now — a no-break space after an ordinary one is the space's half em; released), zh-7b5b3de2
-84.5 (Mac 01Xgpbk5, looked, released: the tables lay out as Word's — the same column edges to 0.4pt, the same lines — and Word's text layer drops characters in them, "序号", "项目名称"'s 目名, "面积"'s 积), zh-2e7ef069 87.5.
+84.5 (Mac 01Xgpbk5, looked, released: the tables lay out as Word's — the same column edges to 0.4pt, the same lines — and Word's text layer drops characters in them, "序号", "项目名称"'s 目名, "面积"'s 积), zh-2e7ef069 87.5 (CLAIMED Mac 01Xgpbk5).
 
 ### Note from the Mac (2026-10-18, morning): the zh corpus is 246 documents — a tenth sample
 Twenty more (`random.seed(20261024)`, all printed), checked in. It starts
