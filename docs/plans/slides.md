@@ -2364,6 +2364,14 @@ point counted from the top of the cell's text, and the marker with the
 first line. The fills and the rules are drawn once, where they were,
 and the PDF holds each line once.
 
+**Lucida Sans Unicode's own widths, 2026-10-17** (GeomLec1 5.71 →
+5.35, aascu 5864 5.13 → 4.99; no other deck sets it). PowerPoint's
+prints of the two embed the face's subsets, and their /Widths (codes
+read through MacRoman, there being no ToUnicode) give 71 printable
+characters and the dash, quotes and ellipsis: 18 of our estimates
+from Arial's were out, "/" 0.32 em for 0.52, "?" 0.63 for 0.42, "J"
+0.48 for 0.31, "+" and "=" 0.67 for 0.80. Word's table is the same one.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the

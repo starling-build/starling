@@ -51,6 +51,8 @@ enum SlideFonts {
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.lucidaSansUnicodeAdvances
             face.boldAdvances = OfficeFonts.lucidaSansUnicodeAdvances
+            face.otherAdvances = OfficeFonts.lucidaSansUnicodeOtherAdvances
+            face.boldOtherAdvances = OfficeFonts.lucidaSansUnicodeOtherAdvances
             return face
         case "verdana":
             // (Verdana in DejaVu Sans, at Verdana's widths: its space is
