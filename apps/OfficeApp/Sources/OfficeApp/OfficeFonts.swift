@@ -404,6 +404,59 @@ enum OfficeFonts {
     /// changes what is drawn, not where.
     nonisolated(unsafe) private static var embeddedFaces: [String: String] = [:]
     nonisolated(unsafe) private static var loadedEmbedded: Set<String> = []
+    /// The characters each loaded embedded face holds (its `cmap`).
+    nonisolated(unsafe) private static var embeddedCoverage: [String: Set<UInt32>] = [:]
+
+    /// The characters an sfnt's `cmap` maps (formats 4 and 12, Unicode
+    /// subtables); nil where it has none this reads.
+    static func coverage(_ data: Data) -> Set<UInt32>? {
+        let b = [UInt8](data)
+        func u16(_ o: Int) -> Int { o + 1 < b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+        func u32(_ o: Int) -> Int { u16(o) << 16 | u16(o + 2) }
+        guard b.count > 12 else { return nil }
+        var cmap = -1
+        for t in 0 ..< u16(4) where 12 + 16 * t + 16 <= b.count {
+            let at = 12 + 16 * t
+            if b[at] == 0x63, b[at + 1] == 0x6D, b[at + 2] == 0x61, b[at + 3] == 0x70 { cmap = u32(at + 8) }
+        }
+        guard cmap >= 0, cmap + 4 <= b.count else { return nil }
+        var best = -1, bestFormat = 0
+        for k in 0 ..< u16(cmap + 2) {
+            let rec = cmap + 4 + 8 * k
+            let platform = u16(rec), encoding = u16(rec + 2), sub = cmap + u32(rec + 4)
+            guard platform == 0 || (platform == 3 && (encoding == 1 || encoding == 10)) else { continue }
+            let format = u16(sub)
+            if format == 12 || (format == 4 && bestFormat != 12) { best = sub; bestFormat = format }
+        }
+        guard best >= 0 else { return nil }
+        var out = Set<UInt32>()
+        if bestFormat == 12 {
+            for g in 0 ..< u32(best + 12) {
+                let at = best + 16 + 12 * g
+                let start = u32(at), end = u32(at + 4)
+                guard end >= start, end - start < 0x20000 else { continue }
+                for c in start ... end { out.insert(UInt32(c)) }
+            }
+        } else {
+            let segs = u16(best + 6) / 2
+            let ends = best + 14, starts = ends + 2 * segs + 2, deltas = starts + 2 * segs, offsets = deltas + 2 * segs
+            for s in 0 ..< segs {
+                let start = u16(starts + 2 * s), end = u16(ends + 2 * s)
+                let delta = u16(deltas + 2 * s), range = u16(offsets + 2 * s)
+                guard end >= start, end != 0xFFFF || start != 0xFFFF else { continue }
+                for c in start ... end {
+                    var glyph: Int
+                    if range == 0 { glyph = (c + delta) & 0xFFFF } else {
+                        let at = offsets + 2 * s + range + 2 * (c - start)
+                        glyph = u16(at)
+                        if glyph != 0 { glyph = (glyph + delta) & 0xFFFF }
+                    }
+                    if glyph != 0 { out.insert(UInt32(c)) }
+                }
+            }
+        }
+        return out
+    }
 
     /// Notes the faces a file embeds (name to registered family).
     static func noteEmbeddedFaces(_ faces: [String: String]) {
@@ -415,6 +468,11 @@ enum OfficeFonts {
         declaredLock.lock()
         defer { declaredLock.unlock() }
         return embeddedFaces.isEmpty ? nil : embeddedFaces[family.trimmingWhitespace().lowercased()]
+    }
+    private static func embeddedCovers(_ registered: String) -> Set<UInt32>? {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        return embeddedCoverage[registered]
     }
 
     /// Loads one embedded face (`word/fonts/*.odttf`, already
@@ -439,8 +497,10 @@ enum OfficeFonts {
             return family.withCString { flutter.swift_bridge.LoadFontFromList(base, data.count, $0) }
         }
         guard ok else { return nil }
+        let covered = coverage(data)
         declaredLock.lock()
         loadedEmbedded.insert(family)
+        if let covered { embeddedCoverage[family] = covered }
         declaredLock.unlock()
         return family
     }
@@ -921,7 +981,7 @@ enum OfficeFonts {
         0.332, 0.2783, 0.332, 0.6943
     ]
 
-    private static func eastAsianFace(_ family: String) -> EastAsianFace {
+    private static func eastAsianFace(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { n.containsSubstring($0) } }
         if has("yahei ui") {
@@ -994,7 +1054,7 @@ enum OfficeFonts {
         // name or not: zh-78729cf9 reprinted, zh-17749c13's alt 楷体.)
         let wordHas = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                        "微软雅黑", "microsoft yahei", "幼圆", "全真楷書", "標楷", "方正", "小标宋"]
-        if wordOnMac, !isEmbedded(family), !wordHas.contains(where: { n.containsSubstring($0) }),
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), !wordHas.contains(where: { n.containsSubstring($0) }),
            let alt = altName(family), alt.trimmingWhitespace().lowercased() != n {
             let a = alt.trimmingWhitespace().lowercased()
             // (… JhengHei too: zh-167ee06c's 華康雅風體W3(P), alternate
@@ -1006,7 +1066,7 @@ enum OfficeFonts {
                 return eastAsianFace(alt)
             }
         }
-        if wordOnMac, !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                            "幼圆", "全真楷書") || has("仿宋_gb2312", "楷体_gb2312", "kaiti_gb2312", "方正", "小标宋", "標楷") {
             var standIn = yaHei
             standIn.symbols = "SimSun"
@@ -1208,6 +1268,18 @@ enum OfficeFonts {
             // Noto Sans SC; PMingLiU and the others it has draw their own —
             // zh-db93607e's in PMingLiU are as any character in Word's print.)
             face.lacksCompatibilityIdeographs = ea.height == yaHei.height
+            // (What an embedded subset lacks, Word sets in the face the
+            // name has unembedded — YaHei, for the names it stands in
+            // for — and the line takes that face's height: zh-92373179's
+            // FangSong_GB2312 holds none of "运用", "易", "贡献", and its
+            // 1.5-spaced 16pt lines that hold one are 41.2pt apart in
+            // Word's print, YaHei's, where the subset's square line made
+            // them 31.2.)
+            if own, let registered = embeddedFamily(family), let covered = embeddedCovers(registered),
+               eastAsianFace(family, ignoringEmbedding: true).height == yaHei.height {
+                face.covers = covered
+                face.uncoveredFamily = "Microsoft YaHei"
+            }
             face.symbolFamily = ea.symbols
             // (YaHei's ellipsis is its own width, not an em: 0.8135, and
             // 0.9629 in bold, by msyh.ttc and msyhbd.ttc. zh-457a8d62's

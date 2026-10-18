@@ -580,6 +580,11 @@ public struct RichResolvedFace: Sendable {
     /// Word's fallback sets in Noto Sans SC (`_notoCompatibility`) —
     /// YaHei, the face Word on a Mac sets most Chinese names in.
     public var lacksCompatibilityIdeographs = false
+    /// The characters the face holds, where it is a subset a document
+    /// embeds (nil: any), and the face Word sets the others in —
+    /// whose line they then give theirs (see `_span`).
+    public var covers: Set<UInt32>? = nil
+    public var uncoveredFamily: String? = nil
     /// Whether the name is an East Asian face's: the quotes, dashes and
     /// dots both scripts claim are then its full-width ones, whatever
     /// the run's hint.
@@ -5196,6 +5201,33 @@ public final class RichLayout {
                         }
                     }
                 }
+                // (… and where its first line holds a character an
+                // embedded subset lacks, the face Word sets that in: its
+                // YaHei, whose baseline under the line's top is lower than
+                // the subset's square one — zh-92373179's 1.5-spaced 16pt
+                // lines stood 4.1pt high of Word's print.)
+                if lead.1 {
+                    let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)
+                    let units = Array(p.text.utf16)
+                    var start = 0
+                    scan: for run in p.runs where run.length > 0 {
+                        defer { start += run.length }
+                        guard start < firstEnd else { break }
+                        guard let face = theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily
+                                                             ?? _normalChar(document)?.eastAsiaFontFamily ?? run.style.fontFamily
+                                                             ?? named?.char.fontFamily ?? theme.fontFamily, true),
+                              let covers = face.covers, let alt = face.uncoveredFamily else { continue }
+                        let end = min(start + run.length, firstEnd, units.count)
+                        guard start < end else { continue }
+                        for ch in String(decoding: units[start ..< end], as: UTF16.self) {
+                            guard let u = ch.unicodeScalars.first?.value, u >= 0x2E80, !covers.contains(u) else { continue }
+                            var r = run.style
+                            r.eastAsiaFontFamily = alt
+                            if let b = theme.baseline(for: r, in: style, named: named, eastAsian: true, gridPitch: pitch) { target = max(target, b) }
+                            break scan
+                        }
+                    }
+                }
                 _inkShift[i] = _px(target) - line.baseline
             }
         }
@@ -5753,9 +5785,19 @@ public final class RichLayout {
             let spacing = (run.letterSpacing ?? (theme.wordRules ? named?.char.letterSpacing ?? _normalChar(document)?.letterSpacing : nil) ?? 0)
                 * theme.pixelsPerPoint * scale
             let doubles = theme.wordRules && document.balancesSpaceWidth && spacing != 0
+            // A character an embedded subset lacks (`RichResolvedFace.covers`)
+            // is set in the face the name has unembedded, Word's fallback,
+            // its line that face's height (kind -3).
+            let uncovered = theme.wordRules
+                ? theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                      ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true).flatMap { face in
+                    face.uncoveredFamily.flatMap { alt in face.covers.map { (alt, $0) } }
+                } : nil
             func style(_ kind: Int) -> TextStyle {
                 if let s = styles[kind] { return s }
-                var s = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
+                var styled = run
+                if kind == -3, let (alt, _) = uncovered { styled.eastAsiaFontFamily = alt }
+                var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
                                         characterClass: classed && kind >= 0 ? kind : nil, characterGrid: grid, scriptHidden: true)
                 if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
                 // (A space set in the ideographs' face keeps the stand-in's width.)
@@ -5848,6 +5890,7 @@ public final class RichLayout {
                 // as the mark is, in the run's Latin face: see `lineSize`.)
                 let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)
                 var kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
+                if ea, let (_, covers) = uncovered, let u = ch.unicodeScalars.first?.value, u >= 0x2E80, !covers.contains(u) { kind = -3 }
                 // The spaces that end a paragraph after ideographs, in a run
                 // whose Latin letters stand in for an East Asian face's
                 // own, take the ideographs' face, at the stand-in's width

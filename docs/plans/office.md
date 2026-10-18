@@ -5538,6 +5538,20 @@ fitter dropped the paragraph's tail).
   zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
   lower in Word than the two-line cells beside them: the same rule);
   nothing else moved.
+- **What an embedded subset lacks is set in the name's own face (2026-10-17).**
+  zh-92373179 embeds a subset of 仿宋_GB2312 (FangSong_GB2312; its cmap
+  holds 为 and 招 but not 规, 信, 运, 易, 贡 …). Word draws the subset's
+  characters in it and the rest in the face the name has unembedded —
+  YaHei, on a Mac — and the line takes that face's height and baseline:
+  its 1.5-spaced 16pt paragraphs (snapToGrid 0) are 41.2pt a line in
+  Word's print, YaHei's 27.44 by 1.5, where the subset's square measure
+  made ours 31.2, and their baselines YaHei's. An embedded face's
+  `cmap` is now read (formats 4 and 12), and where the name stands in
+  for YaHei unembedded, a character outside it is set in YaHei (its own
+  run kind in `_span`), and a first line holding one takes YaHei's
+  baseline. zh-92373179 39.9 -> 46.1; nothing else moved. Most of what
+  is left there is the matcher's: Word's text layer has no Unicode for
+  its 招 (U+0000), and the document says 招标 on most lines.
 - **YaHei's circled numbers are an em (2026-10-17).** zh-34a6519a p11:
   Word's print sets "①".."⑤" in Microsoft YaHei (its 仿宋_GB2312), 12.0pt
   apart at 12pt and 10.5 at 10.5. The YaHei stand-in has none, and the
