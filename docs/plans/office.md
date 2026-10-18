@@ -5642,6 +5642,14 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **A border of none is no border (2026-10-18).** Under balanced widths
+  the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
+  and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's
+  body runs carry `<w:bdr w:val="none"/>`, and Word sets "14号" 2pt apart
+  (a quarter of its 8pt) where ours set 4; every line held a character
+  less, and "…布局合理、" went over by the difference (lenovo-3 found the
+  2pt in the Mac's measure). The test reads the element whatever the
+  order of its attributes. zh-f10c8f34 74.4 -> 100; nothing else moved.
 - **A line fits to two thousandths of a point, not five (2026-10-18).**
   The fitter took a stretch as fitting up to 0.005pt past the line.
   zh-0978dee9's cell line "《中华人民共和国河道管理条例》（2018" is

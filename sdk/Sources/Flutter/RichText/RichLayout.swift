@@ -6785,7 +6785,13 @@ public final class RichLayout {
                         // Word's print, 17.5 without the border or without
                         // the balance. Its reference lists took a character
                         // a line that Word wraps.)
-                        if document.balancesSpaceWidth, run.keptXML?.contains("<w:bdr ") == true { gap *= 2 }
+                        // (A border said to be none is none: zh-f10c8f34's body runs
+                        // carry `<w:bdr w:val="none"/>`, and Word sets "14号" with
+                        // 2pt between, a quarter of its 8pt; ours took the run for
+                        // ruled and set 4, and every line held a character less.)
+                        if document.balancesSpaceWidth, let xml = run.keptXML, let r = xml.range(of: "<w:bdr "),
+                           case let tag = xml[r.upperBound...].prefix(while: { $0 != ">" }),
+                           !tag.containsSubstring("w:val=\"none\""), !tag.containsSubstring("w:val=\"nil\"") { gap *= 2 }
                         extra += gap
                         autoSpaces?(offset, gap)
                     } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
