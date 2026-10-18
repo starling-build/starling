@@ -521,7 +521,7 @@ enum ChartXML {
                 by[name, default: []].append(v)
             }
             grouped.append(by)
-            names.append(series.first("cx:tx")?.descendant("cx:v")?.text ?? "Series \(j + 1)")
+            names.append(series.first("cx:tx")?.descendant("cx:v")?.text ?? "Series\(j + 1)")
         }
         guard !categories.isEmpty else { return nil }
         let boxes = grouped.map { by in categories.map { (by[$0] ?? []).sorted() } }
@@ -717,7 +717,9 @@ enum ChartXML {
         var pointColors: [Int: Color] = [:]
         var named = false
         for ser in el.all("c:ser") + merged.flatMap({ $0.all("c:ser") }) {
-            let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series \(series.count + 1)"
+            // (A series with no name is "Series1", no space, as Office names it:
+            // chart-testDataseriesOverlapStackedChart's legend.)
+            let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series\(series.count + 1)"
             if series.isEmpty { named = ser.first("c:tx") != nil }
             let cat = ser.first("c:cat") ?? ser.first("c:xVal")
             let val = ser.first("c:val") ?? ser.first("c:yVal")
@@ -811,7 +813,7 @@ enum ChartXML {
         // The lines over the columns, with their marks.
         var lines: [ChartSeries] = []
         for ser in overlay?.all("c:ser") ?? [] {
-            let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series \(series.count + lines.count + 1)"
+            let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series\(series.count + lines.count + 1)"
             let values = (ser.first("c:val").map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
             s.format = Self._format(ser.first("c:val"))
@@ -1046,6 +1048,11 @@ enum ChartXML {
         func axisTitle(_ ax: XNode?) -> String? {
             guard let t = ax?.first("c:title") else { return nil }
             let s = _texts(t, "a:t").joined()
+            // (A title of its own text that is empty prints nothing, but
+            // keeps its room beside the plot: 64450's two axes, where ours
+            // said "Axis Title" — and with no title at all its plot stood
+            // further out than Excel's. No text at all is the default's.)
+            if s.isEmpty, t.first("c:tx")?.first("c:rich") != nil { return " " }
             return s.isEmpty ? "Axis Title" : s
         }
         // (Placed: edge-mode x and y, read across where its text is not
@@ -1962,6 +1969,9 @@ enum ChartPainter {
         // names); we had broken them inside words.
         var aslant = false
         var slant = Double.pi / 4
+        // Turned clockwise (`rot` above zero): from the tick down to the
+        // right, where turned the other way it ends at the tick.
+        var clockwise = false
         if c.type == .scatter {
             catLabels = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step)).map { categoryText(label($0, percent: false), catSize, .infinity) }
         } else {
@@ -1979,6 +1989,7 @@ enum ChartPainter {
                 if turn != 0 {
                     aslant = true
                     slant = min(90, abs(turn)) * .pi / 180
+                    clockwise = turn < 0
                     for t in catLabels { t.dispose() }
                     catLabels = c.categories.map { categoryText($0, catSize, .infinity) }
                 }
@@ -2274,11 +2285,14 @@ enum ChartPainter {
             for (i, tp) in catLabels.enumerated() where table == nil {
                 let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
                 if aslant {
-                    // Its end's middle at the tick, the rest down to the left.
+                    // Its end's middle at the tick, the rest down to the left
+                    // — or, turned clockwise, its start's middle there and
+                    // the rest down to the right (chart-chart-text-can-
+                    // overlap's 45°).
                     canvas.save()
                     canvas.translate(cx, foot + 7.6 * k + belowOut)
-                    canvas.rotate(-slant)
-                    tp.paint(canvas, Offset(-tp.width, -tp.height / 2))
+                    canvas.rotate(clockwise ? slant : -slant)
+                    tp.paint(canvas, Offset(clockwise ? 0 : -tp.width, -tp.height / 2))
                     canvas.restore()
                 } else {
                     tp.paint(canvas, Offset(cx - tp.width / 2, foot + 7.6 * k + belowOut))
