@@ -222,7 +222,7 @@ lo-table-list.pptx	summary pages=1 worst=0.63% mean=0.63%
 lo-tableBorderLineStyle.pptx	summary pages=1 worst=1.77% mean=1.77%
 lo-tablescale.pptx	summary pages=1 worst=0.04% mean=0.04%
 lo-tcPr-vert-roundtrip.pptx	summary pages=1 worst=0.54% mean=0.54%
-lo-tdf100065.pptx	summary pages=1 worst=0.04% mean=0.04%
+lo-tdf100065.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-tdf100926.pptx	summary pages=1 worst=0.33% mean=0.33%
 lo-tdf100926_ODP.pptx	summary pages=1 worst=0.33% mean=0.33%
 lo-tdf102261_testParaTabStopDefaultDistance.pptx	summary pages=1 worst=0.23% mean=0.23%

@@ -2452,6 +2452,13 @@ mostly in lines that name no join. A line's `a:round`, `a:bevel` or
 none is joined round. Its ends too (`a:ln cap`, "rnd" or "sq", or its
 theme line style's; sweep 194: −0.01, none worse).
 
+Fixed, 2026-10-18: the whole-point bands wrote a box's text into the
+PDF again for every line when the box is turned other than by quarters
+(tdf149538_upright, 289° with its text upright: 26 letters held twelve
+times over, 256 characters become 3040). Found by counting each page's
+text against PowerPoint's print. Such a box is no longer snapped
+(tdf100065 +0.02, the 13 other turned decks unchanged).
+
 **A grey picture's soft mask left sharp, 2026-10-18** (sweep 190 with
 the rule's first form: lo-narration-non-media-shape 1.75 → 0.00,
 oox-graphic-stroke 1.69 → 0.58; nothing else moved but tdf93830, which

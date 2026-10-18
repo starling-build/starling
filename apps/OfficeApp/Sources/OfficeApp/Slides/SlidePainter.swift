@@ -970,7 +970,11 @@ final class SlidePainter: CustomPainter {
                         draw()
                     }
                 }
-            } else if shape.kind != .table, shape.columns <= 1, shape.textSpin == 0 {
+            } else if shape.kind != .table, shape.columns <= 1, shape.textSpin == 0,
+                      abs(shape.rotation.truncatingRemainder(dividingBy: 90)) < 0.01 {
+                // (Not in a box turned other than by quarters: under such a
+                // turn a band's cut leaves every line's text in the PDF —
+                // tdf149538_upright's held its 26 letters twelve times.)
                 Self.paintOnWholePoints(layout, doc, canvas, pxPerPt: px, visible: visible)
             } else {
                 layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
