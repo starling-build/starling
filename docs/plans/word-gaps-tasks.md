@@ -232,6 +232,16 @@ and its baseline that face's: the 1.5-spaced paragraphs from p3 are
 46.1, nothing else moved. Left: the matcher's — Word's text layer maps
 its 招 to U+0000, and nearly every line says 招标; the lines match.
 
+### T98. Before 2013's layout a cell's text keeps its margin whatever its side lines — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+From the Mac's zh-e029cf49 note (its cell text 0.25pt right of Word's).
+Lab `cb` (Word 16, zh-e029cf49's package, a two-cell table ruled 0.5, 1
+and 3pt, 108-twip margins): in mode 14 "AAAA" starts at 76.56 in all
+three, the rules where they were; in mode 15 at 82.08, 82.56, 83.52 —
+half the line in, as lab `cb3` (bug65649, mode 15) had it. Ours set
+the half-line inset in every mode. Now from mode 15 only. zh-e029cf49's
+table text 110.9 -> 110.65 (Word's 110.64); no score moved, nothing fell.
+
 ### T96. A floating table's place across (`w:tblpX`) — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 zh-92373179's 507pt roster floats, horzAnchor page, tblpX 1129 twips:

@@ -4611,7 +4611,16 @@ public final class RichLayout {
                         // in ours and on two in Word's print.)
                         pad = EdgeInsets(left: pad.left + l, top: pad.top, right: pad.right + r, bottom: pad.bottom)
                     } else {
-                        pad = EdgeInsets(left: max(pad.left + l / 2, l), top: pad.top, right: max(pad.right - r / 2, 0), bottom: pad.bottom)
+                        // (From 2013's layout on: before it the text keeps its
+                        // margin whatever the line — lab `cb` (Word 16,
+                        // zh-e029cf49's package, mode 14, 108-twip margins):
+                        // "AAAA" starts 76.56 in cells ruled 0.5, 1 and 3pt
+                        // alike, where mode 15 sets it 82.08, 82.56, 83.52;
+                        // ours stood a quarter point in at 0.5.)
+                        let modern = (document.compatibilityMode ?? 12) >= 15
+                        pad = modern
+                            ? EdgeInsets(left: max(pad.left + l / 2, l), top: pad.top, right: max(pad.right - r / 2, 0), bottom: pad.bottom)
+                            : EdgeInsets(left: max(pad.left, l), top: pad.top, right: pad.right, bottom: pad.bottom)
                     }
                 }
                 var below = 0.0
