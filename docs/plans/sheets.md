@@ -267,6 +267,9 @@ the same base; the commits give the numbers):
   slots thinner than their font stand upright, one to each font size of
   room (47813's 720: 1, 17, 33…). A 2007-style chart that states no text
   size prints at 10 pt, its title at 18 (ours were 7.5 and 14).
+  Pie of pie and bar of pie draw their second plot (split by position,
+  value, percent or list; the last third when unsaid); the gap between
+  the two is fitted to two prints, not a rule.
   Open: chart-fdo78080's chart (LibreOffice's: no c:title, no
   autoTitleDeleted, no varyColors) has no title in Excel's print and a
   legend of its points; ours titles it "col1" as PowerPoint would. One
