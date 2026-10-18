@@ -9021,7 +9021,22 @@ public final class RichLayout {
                 let word = String(decoding: units[k ..< part], as: UTF16.self)
                 let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
                 painter.layout(minWidth: 0, maxWidth: 1_000_000)
-                if painter.width > textWidth { out.insert(k) }
+                // (At the face's own advances where it has them, as `_span`
+                // sets the word: zh-de073ee5's ")" and sixty underscores
+                // in 標楷體 are 383pt drawn and 505 by the stand-in's
+                // glyphs, which took them for wider than the 479pt cell
+                // and sent them to a line of their own, "(請列舉" alone
+                // above them; Word's print has the one line.)
+                var width = painter.width
+                if let face = theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false),
+                   let table = style.fontWeight == .bold ? face.boldAdvances : face.advances, let px = style.fontSize, px > 0.5 {
+                    width = word.reduce(0.0) { sum, ch in
+                        guard let u = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1, u >= 0x20, u <= 0x7E, Int(u) - 0x20 < table.count
+                        else { return sum + _glyphWidth(style, ch) }
+                        return sum + table[Int(u) - 0x20] * px / face.sizeScale + (style.letterSpacing ?? 0)
+                    }
+                }
+                if width > textWidth { out.insert(k) }
                 painter.dispose()
             }
             k = end
