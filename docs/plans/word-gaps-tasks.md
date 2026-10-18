@@ -171,6 +171,23 @@ in Word's print; after "Note: " they part where they stand. Built that
 way; no document moved (s327 -> s328), and zh-76d361b2's own case is
 something else.
 
+### Note from the Mac (2026-10-18, night): exact lines' baseline is 0.80, not 13/16 — measured, not built
+Word for Mac 16.113.3 (labs ~/starling-word-check/lab/tools/ex: 仿宋, 宋体,
+Times at 12 and 16pt, exact 11-60pt) and Word for Windows 16 (windows'
+labs: seven faces, 12-36pt, 15-60pt lines, modes 14 and 15) both set the
+baseline 0.797-0.803 of an exact line down; `lineBox` says 13/16. Swapped
+in alone (s108 -> s109) it gains zh-5ff074a9 +0.6 (a page's last line
+fits), zh-8f7aa519 +0.4 and loses zh-454e2e29, zh-32f4ad9f -0.7,
+zh-cec9d337 -0.4, POI 60316 -3.1 — line tops elsewhere tuned against
+13/16 (60316's 36pt line follows an anchored group, so its top is not the
+margin). Open: find the compensating tops, then take 0.8.
+Also: the engine counted a run's baseline shift twice in its line
+(starling-engine 7f57bb77e56, patches/skia-run-shift-once.patch, now
+fixed); with that, w:position in auto lines (zh-f2835e26) is a patch in
+waiting — f2835e26 +2.2 but zh-10e3a42be -1.4, zh-64044a1d -0.7: a line
+raised whole needs the paragraph mark's depth (Word counts the unraised
+mark) and Word's own pitch for whole-raised multi-line paragraphs.
+
 ### Note from the Mac (2026-10-18): zh-167ee06c (72.9) looked at, released
 p2's "七、經同意…為必要" (legacy mode, compressPunctuation, bold JhengHei
 UI Light 14pt): ours squeezes 、 and ， to take 要 (over 4.7 of 14), Word
