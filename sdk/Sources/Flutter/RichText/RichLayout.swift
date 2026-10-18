@@ -2789,7 +2789,11 @@ public final class RichLayout {
             // or last one does, or the second cell's first. form_footnotes'
             // "INSTRUCTIONS" box opens with a Heading 5.)
             if theme.wordRules, document.paragraphs[i].style.keepNext { return false }
-            for k in i ..< j { guard let d = _cells[k], !d.vertical else { return false } }
+            // (A turned cell does not keep its row whole: zh-021b8feb's
+            // "職場人力協助" row, its first cell turned (tbRlV), parts at
+            // page 17's foot in Word's print, where ours took it whole to
+            // page 18 and the table ran onto a 19th.)
+            if !theme.wordRules { for k in i ..< j { guard let d = _cells[k], !d.vertical else { return false } } }
             var fresh = atTop
             let rowBottom = c.rowTop + c.ownRowHeight
             struct Column { var members: [Int]; var cuts: [Double]; var bottom: Double; var cut: Double }
