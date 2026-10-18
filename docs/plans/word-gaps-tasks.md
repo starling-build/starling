@@ -155,7 +155,7 @@ after, as ours — that rule holds.
 Twenty more (`random.seed(20261022)`, all twenty printed), checked in.
 It starts at 85.5% (median 98.0). Its low ones, unclaimed:
 zh-10e3a42be 2.1 (28/31 pages; Mac 01Xgpbk5, 96.4 now — w:position raised text, line multiples under single shared above and below, a Latin altName set in 宋体; the TOC lines are the page-number artefact; released), zh-ff93733d 22.8 (Mac 011uWpmC, 96.2 now — a long word after an ideograph opens a line; released), zh-cec9d337 71.8 (Mac 011uWpmC, looking),
-zh-f2835e26 73.1, zh-f2441f00 73.5, zh-264d7516 93.6, zh-30d86fcf 94.7,
+zh-f2835e26 73.1, zh-f2441f00 73.5 (CLAIMED Mac 01Xgpbk5), zh-264d7516 93.6, zh-30d86fcf 94.7,
 zh-5ff074a9 94.9.
 
 ### Note from the Mac (2026-10-17, late): the zh corpus is 186 documents — a seventh sample
