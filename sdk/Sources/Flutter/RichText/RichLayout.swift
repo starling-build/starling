@@ -7093,10 +7093,16 @@ public final class RichLayout {
             // (Twice where the document balances its widths: see `_span`.)
             if document.balancesSpaceWidth { spacing *= 2 }
             let grid: Double = _grid(index, document).chars ?? 0
+            // (At the run's own width, `w:w` with it: zh-b24b396a's cover
+            // title, 22pt at 135% spaced 1pt under Normal's 200
+            // firstLineChars, starts 63.4pt in in Word's print, two of
+            // 22 × 1.35 + 2 — lab `b24`, and 48 at 100% — where ours
+            // took 48 and set "标" on the first line.)
+            let wide: Double = p.runs.first?.style.horizontalScale ?? named?.char.horizontalScale ?? 1
             // (In whole twips, as Word keeps an indent: 2 characters of
             // 14.6465pt are 586 twips, 29.3pt — lab `hc` sets the line as
             // it does `w:firstLine="586"`, not as 29.293.)
-            return (chars / 100 * (size + spacing + grid) * 20).rounded() / 20 - _topLineSqueeze(p, document)
+            return (chars / 100 * (size * wide + spacing + grid) * 20).rounded() / 20 - _topLineSqueeze(p, document)
         }
         return p.style.firstLineIndent - _topLineSqueeze(p, document)
     }
