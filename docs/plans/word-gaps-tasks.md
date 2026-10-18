@@ -2661,6 +2661,15 @@ Done as tried. Same-base sweep, 357 docs: zh-c2c92639 97.8 -> 97.9, nothing lowe
 move yet. With "°" an em the line's natural width is Word's, but Word still carries "土中。" though "土" fits
 (natural end 530.2 of 538.5): the paragraph-end case sent to the Mac's line-end lab with T119's two.
 
+### T122. Linux only: a symbol an East Asian family's Latin side lacks falls to DejaVu, not the CJK face — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-18
+Documents: zh-117cf7c6 (Linux 92.0, Mac 98.6: p3's list paragraph under a "※" bullet).
+Known: the level's "※" is in 標楷體 with no hint, so the layout takes the family's Latin side, whose stand-in has no
+"※"; on Linux the glyph fallback list starts with DejaVu Sans, which draws it at 12.8pt (scaled), on the Mac the
+system finds PingFang. Word draws it in YaHei at 13.9, and its line is 2.5pt taller than ours; every line after on
+the page drifts 3-5pt. Fix to try: the Latin side of an East Asian face falls back to that family's own East Asian
+stand-in first.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
