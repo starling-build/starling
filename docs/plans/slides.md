@@ -2444,6 +2444,14 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**Tried and dropped, 2026-10-18: a shape's shadow at full strength to
+its moved outline**, fading outward over the blur's radius (the outline
+grown by half the radius, blurred by a quarter), from one edge of
+customGeo's page 9 where PowerPoint's shadow read twice as dark as
+ours. Sweep 189: +10.5 in sum, 22 decks worse and one better —
+customGeo itself +0.27, tdf125551 +2.17, 54542_cropped_bitmap +1.30.
+Our blur about the outline, sigma half the radius, stays.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the
