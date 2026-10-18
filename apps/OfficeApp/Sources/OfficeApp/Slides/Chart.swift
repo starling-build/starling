@@ -1361,7 +1361,13 @@ enum ChartPainter {
                 lines[lines.count - 1].append(e)
             }
             // (An entry to a line: PowerPoint's 9 pt entries are 16.9 pt apart.)
-            let textH = entries.map(\.tp.height).max() ?? size * k
+            // (A line of the chart's Latin face, whatever the names' script:
+            // zh-37b6536f's Chinese entries, 9pt, stand 16.8 apart in Word's
+            // print — Calibri's line and the gap — where the CJK fallback's
+            // taller line set ours 19.05 apart.)
+            let latin = styled("X", size, .infinity, bold: c.legendBold, color: c.legendColor)
+            let textH = entries.isEmpty ? size * k : latin.height
+            latin.dispose()
             let lineH = beside ? textH + 6 * k : textH
             let columnW = (entries.map(\.tp.width).max() ?? 0) + lead
             var y: Double, columnX = 0.0
