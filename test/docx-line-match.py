@@ -51,7 +51,16 @@ def mupdf_text(pdf):
                     # (Every space, a no-break one too: the page's text
                     # names what a print set there, and ours sets some.)
                     t = "".join(c for s in l["spans"] for c in s["text"] if not c.isspace())
-                    x0, _, _, y1 = l["bbox"]
+                    x0 = l["bbox"][0]
+                    # (No deeper than a little under each piece's baseline:
+                    # Word prints raised text (`w:position`) with a text rise,
+                    # and PyMuPDF's box for such a piece reaches down by the
+                    # rise — zh-10e3a42b's clauses, 10.5pt up, read 10.5pt
+                    # low, where PDFKit reads them where they are drawn.)
+                    # (Text set across only: a turned label's origin is no
+                    # baseline under its box.)
+                    y1 = max(min(s["bbox"][3], s["origin"][1] + 0.35 * s["size"]) for s in l["spans"]) \
+                        if tuple(round(d, 3) for d in l["dir"]) == (1, 0) else l["bbox"][3]
                     out.append(f"p{i + 1}	{round(-y1)}	{round(x0)}	{t}")
     return out
 
