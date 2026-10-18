@@ -240,6 +240,10 @@ zh-007ca091 35.4 (T109, 93.0 now, 11 pages), zh-0b87285b 77.9 (Mac 011uWpmC, 98.
 83.0, zh-043aab43 84.4 (Mac 011uWpmC, measured, released: p3's justified cell lines (mode 14, PMingLiU 12, wordWrap 0, the run hinted eastAsia) — Word sets "÷ " in "（歲入成長率÷ 歲出" with the space ~6pt (half an em, PMingLiU's) less justification's 1.01, ours 2.9 (the Latin space), and takes one character more on the line; lab `hs` (Word 16, 2026-10-17): the hint does nothing — Word sets PMingLiU's own Latin widths (space 0.2598 em, "÷" 0.5908, from the mingliu.ttc Word carries), ours the serif stand-in at 0.94 (space 2.82 at 12pt for 3.12). Taking PMingLiU's whole ASCII table broke zh-190d730c 97.8 -> 43.4, zh-ec01ed87 99.1 -> 77.4, zh-073c9234 97.7 -> 81.4 and zh-340d52e9: those files' widths are the stand-in's in Word's print, so which of PMingLiU's widths Word uses is still open — reverted), zh-021b8feb 85.6 (18/19; Mac 011uWpmC, 98.6 now, Word's 18 pages — a break followed by floats alone is a break (lab ab, 4aef5f9d), a row with a turned cell parts (a0fcb76c); released), zh-8f7aa519 87.7 (97.4 now on the Windows box — others' fixes; nothing large left, released),
 zh-c8eb6e92 91.2.
 
+### T120. zh-cb56e605 (93.1%, 7 pages): a form's label cells a few points off — claimed
+Owner: Linux 017F2GnT (2026-10-18)
+Documents: zh-cb56e605 (no note on the board before).
+
 ### T110. zh-ea70c30e: a zh-TW line Word does not squeeze — DONE (2026-10-18, b62eedc7)
 Owner: none (Linux 017F2GnT built it)
 Built from the Mac's lab `sq-sp`: from 2013's layout, on a line with a
