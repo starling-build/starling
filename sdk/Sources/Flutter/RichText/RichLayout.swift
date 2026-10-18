@@ -2208,6 +2208,16 @@ public final class RichLayout {
 
     /// The grid paragraph `i` keeps to: its section's, which for the
     /// last section (and a document of one) is the document's.
+    /// Whether paragraph `i`'s lines keep off the line grid: it says
+    /// `w:snapToGrid` 0, or it is a cell's in a file that does not set
+    /// table text to the grid (`RichDocument.adjustsLineHeightInTable`).
+    private func _offGrid(_ i: Int, _ document: RichDocument) -> Bool {
+        guard i >= 0, i < document.paragraphs.count else { return false }
+        let p = document.paragraphs[i]
+        if p.style.eastAsian["w:snapToGrid"] == "0" { return true }
+        return theme.wordRules && p.cell != nil && !document.adjustsLineHeightInTable
+    }
+
     private func _grid(_ i: Int?, _ document: RichDocument) -> (pitch: Double?, chars: Double?) {
         guard let i, _sectionSetups.count > 1, i >= 0, i < _sectionOf.count, _sectionOf[i] < _sectionSetups.count - 1 else {
             return (document.lineGridPitch, document.characterGridSpace)
@@ -5044,7 +5054,7 @@ public final class RichLayout {
             // of 12pt 標楷體 with Times digits and brackets among them are
             // two pitches each, where the engine stacked them 36 to 37.6
             // apart — zh-64044a1d.)
-            let gridded = style.eastAsian["w:snapToGrid"] != "0" && style.lineHeightPoints == nil && _grid(i, document).pitch != nil
+            let gridded = !_offGrid(i, document) && style.lineHeightPoints == nil && _grid(i, document).pitch != nil
             let lines = painter.computeLineMetrics().count
             // (And off the grid, every line of a paragraph whose lines
             // each hold some of its tallest stretch: zh-d68ac84a's cells
@@ -5202,7 +5212,7 @@ public final class RichLayout {
         if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly,
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
-            let pitch = style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(i, document).pitch
+            let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
             var at = 0
             var lead: (CharStyle, Bool) = (p.runs[0].style, false)
             search: for run in p.runs {
@@ -5474,7 +5484,7 @@ public final class RichLayout {
             // opened 5.8pt high. Off the line grid, which sets a
             // picture's line its own way.)
             else if theme.wordRules, image.float == nil, image.textBox == nil, style.lineHeightPoints == nil,
-                    _grid(i, document).pitch == nil || style.eastAsian["w:snapToGrid"] == "0" {
+                    _grid(i, document).pitch == nil || _offGrid(i, document) {
                 let line = _markLineHeight(i, document, single: true)
                 let own = h + room.top + room.bottom
                 if line > own + 0.5 {
@@ -5522,7 +5532,7 @@ public final class RichLayout {
         // them over the sign — ours had set it flush and its captions
         // 14pt high. Only an exact height leaves the grid.)
         if theme.wordRules, inLine, style.lineHeightPoints == nil || style.lineHeightIsMinimum,
-           style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch, pitch > 0 {
+           !_offGrid(i, document), let pitch = _grid(i, document).pitch, pitch > 0 {
             let px = _px(pitch)
             // (The descent of a picture paragraph's mark: what of its line
             // may hang past a page's foot. Word's 25pt picture ends 3.4pt
@@ -5550,7 +5560,7 @@ public final class RichLayout {
             // the foot of its page in Word's print, its line 2.6pt past.)
             if p.image != nil, i < _overhang.count { _overhang[i] = max(_overhang[i], descent) }
         } else if theme.wordRules, p.image == nil, p.inlineImages.values.contains(where: { $0.float == nil }),
-                  style.lineHeightPoints == nil, style.eastAsian["w:snapToGrid"] != "0",
+                  style.lineHeightPoints == nil, !_offGrid(i, document),
                   let pitch = _grid(i, document).pitch, pitch > 0,
                   case let lines = painter.computeLineMetrics(), lines.count > 1,
                   let box = painter.inlinePlaceholderBoxes?.first, box.bottom <= lines[0].height + 0.5 {
@@ -5591,7 +5601,7 @@ public final class RichLayout {
             }
         } else if theme.wordRules, p.image == nil, p.inlineImages.count == 1, p.inlineImages.values.allSatisfy({ $0.float == nil }),
                   style.lineHeightPoints == nil || style.lineHeightIsMinimum,
-                  !(inLine && style.eastAsian["w:snapToGrid"] != "0" && _grid(i, document).pitch != nil),
+                  !(inLine && !_offGrid(i, document) && _grid(i, document).pitch != nil),
                   style.lineSpacing - theme.lineSpacingReduction <= 1.001,
                   p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0.value == 0x20 }),
                   case let lines = painter.computeLineMetrics(), lines.count == 1,
@@ -5654,7 +5664,7 @@ public final class RichLayout {
                        held: Set<Int> = [], spread: [Int: Double] = [:], autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         let named = _named(p, document)
-        let pitch = p.style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(index, document).pitch
+        let pitch = (index.map { _offGrid($0, document) } ?? (p.style.eastAsian["w:snapToGrid"] == "0")) ? nil : _grid(index, document).pitch
         if p.text.isEmpty {
             // (The mark under a nested table at half a point:
             // `RichParagraphStyle.markUnderNestedTable`.)
@@ -7235,7 +7245,7 @@ public final class RichLayout {
         if let k = p.style.bulletScale {
             markerChar.fontSize = (markerChar.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize) * k
         }
-        let pitch = p.style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(i, document).pitch
+        let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
         let named = _named(p, document)
         // East Asian numbers in the run's East Asian face, as the text.
         let ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
@@ -7399,7 +7409,7 @@ public final class RichLayout {
             return Self._breaksBetween(Character(a), Character(b))
                 || (latinOnly && Self._breaksAfterHyphen(o > 1 ? Unicode.Scalar(units[o - 2]).map { Character($0) } : nil, Character(a), Character(b), letters: true))
         }).union(_looseWordOffsets(p, document, textWidth: width, named: _named(p, document),
-                                   pitch: p.style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(i, document).pitch))
+                                   pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
         let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
         if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
         probe.layout(minWidth: 0, maxWidth: 1)
@@ -9285,7 +9295,7 @@ public final class RichLayout {
                 var run = p.runs[0].style
                 for r in p.runs { if leader.offset < at + r.length { run = r.style; break }; at += r.length }
                 let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
-                                            gridPitch: p.style.eastAsian["w:snapToGrid"] == "0" ? nil : _grid(i, document).pitch)
+                                            gridPitch: _offGrid(i, document) ? nil : _grid(i, document).pitch)
                 let one = TextPainter(text: TextSpan(text: leader.fill, style: style), textDirection: .ltr)
                 one.layout(minWidth: 0, maxWidth: 10_000)
                 let n = Int(((box.right - box.left) / max(0.5, one.width)).rounded(.down))

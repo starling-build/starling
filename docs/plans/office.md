@@ -5866,6 +5866,16 @@ fitter dropped the paragraph's tail).
   line-counted space stays, and only between two cells.
   zh-fec5fa30 94.2 -> 96.6, zh-92373179 41.6 -> 47.3; nothing else
   moved.
+- **A table's text keeps off the line grid unless the file says
+  `w:adjustLineHeightInTable` (2026-10-17).** zh-117cf7c6 (mode 15, a
+  line grid of 18.25pt, no such compat) has a form of 12pt 標楷體 rows (YaHei
+  to Word, a 20.6pt line) at least 26.65pt. Word's print makes them 26.65
+  to 35.6pt, off the grid. Ours snapped each line to two pitches, 37pt,
+  and the form ran onto a fourth page. The reader now takes the setting
+  (`RichDocument.adjustsLineHeightInTable`), and a cell's paragraph in a
+  file without it is off the line grid wherever the layout asks
+  (`_offGrid`); the character grid is untouched. zh-117cf7c6 39.2 ->
+  98.6, Word's 3 pages; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

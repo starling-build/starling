@@ -2034,6 +2034,11 @@ public struct RichDocument: Hashable, Sendable {
     /// — unless it stands between two Latin words. The spaces that push
     /// a signature across the page are then twice as wide in most faces.
     public var balancesSpaceWidth = false
+    /// Word's `w:adjustLineHeightInTable`: a table's text keeps to the
+    /// section's line grid as body text does. Without it Word sets a
+    /// cell's lines off the grid (zh-117cf7c6's 12pt rows on an 18.25pt
+    /// grid are 26.65pt in Word's print, ours two pitches).
+    public var adjustsLineHeightInTable = true
     /// The settings' `compatibilityMode` (15 for Word 2013 on; nil
     /// where they name none, which Word takes for an older one). Below
     /// 15 a line's punctuation hangs and gives in a paragraph set any

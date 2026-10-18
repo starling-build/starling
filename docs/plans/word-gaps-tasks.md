@@ -145,7 +145,7 @@ after, as ours — that rule holds.
 Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 76.6%. Its low ones,
 unclaimed unless marked: zh-8f9b19f4 0.0 (Word 14 pages, ours 7; Mac
-01Xgpbk5, looking), zh-117cf7c6 39.2 (3/4 pages; Mac 011uWpmC, looking), zh-e0ca7252 41.9
+01Xgpbk5, looking), zh-117cf7c6 39.2 (3/4 pages; Mac 011uWpmC, 98.6 now — table text off the grid without adjustLineHeightInTable; released), zh-e0ca7252 41.9
 (52/51; Linux 017F2GnT, T102, claimed), zh-340d52e9 48.9, zh-d62da4dd 55.7 (4/5), zh-ea70c30e 59.1,
 zh-5b7ae054 64.4 (44 pages), zh-82b166b4 72.8, zh-54e91165 75.4,
 zh-8d6f702e 88.0.
