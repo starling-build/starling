@@ -5919,10 +5919,20 @@ public final class RichLayout {
         func styled(_ text: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil) -> [TextSpan] {
             let latinFace = theme.wordRules || theme.setsFaceAdvances
                 ? theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false) : nil
-            let hinted = (run.fontHint ?? named?.char.fontHint) == "eastAsia" || (latinFace?.isEastAsian ?? false)
             // (The face Word sets the Latin characters past ASCII in, where
             // the run names one other than its ASCII face: `w:hAnsi`.)
             let highFace = latinFace == nil ? nil : (run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }
+            let hinted = (run.fontHint ?? named?.char.fontHint) == "eastAsia" || (latinFace?.isEastAsian ?? false)
+            // (… but an en dash, unhinted, is its hAnsi face's where that is
+            // a Latin one: zh-ea70c30e's "辦公室 – 投訴", `w:ascii` PMingLiU
+            // over an inherited Times hAnsi, sets its "–" in Times in Word's
+            // print, half an em, where ours drew PMingLiU's at 0.82. Its
+            // quotes and other marks stay East Asian: taken as Latin too,
+            // eight documents fell.)
+            let hAnsiFace = highFace ?? (run.fontFamily == nil ? nil
+                : (named?.char.hAnsiFontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily).flatMap { theme.faceResolver?($0, false) })
+            let latinDash = theme.wordRules && (run.fontHint ?? named?.char.fontHint) != "eastAsia" && (latinFace?.isEastAsian ?? false)
+                && hAnsiFace.map { !$0.isEastAsian } == true
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             let closes = _closesUpMarks(run, named, document)
             // (So may text whose East Asian language has no such rules —
@@ -6068,6 +6078,7 @@ public final class RichLayout {
                 // (An ideographic space on a line of spaces alone is set
                 // as the mark is, in the run's Latin face: see `lineSize`.)
                 let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)
+                    && !(latinDash && ch == "\u{2013}")
                 var kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
                 if ea, let (_, covers) = uncovered, let u = ch.unicodeScalars.first?.value, u >= 0x2E80, !covers.contains(u) { kind = -3 }
                 // The spaces that end a paragraph after ideographs, in a run

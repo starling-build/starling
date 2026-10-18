@@ -2416,6 +2416,15 @@ over a level that states only firstLine 720, the paragraph only hanging
 720 — Word sets them at 72pt, ours at the margin (the list's indent
 replaces the style's left, though neither the level nor the paragraph
 gives one).
+The Mac's labs (2026-10-18): p2 spaced, Word takes "有" to over 8.2,
+ours to 9.3; closed up, both to 9.66 — the spaces beside the ideographs
+cost Word ~0.7pt more each. p3's "辦公室 – 投訴" and its unspaced form
+part on the dash: Word sets an unhinted "–" in the hAnsi face (Times,
+6.25) where the run's `w:ascii` is PMingLiU; ours drew PMingLiU's (10.3).
+Built: that en dash is the hAnsi face's (U+2013 only — taking the run's
+quotes and other shared marks as Latin too cost eight documents). No
+document moved. Left: the spaces' cost in the squeeze decision (p2; p3's
+"…交通課；動", which Word justifies by stretching its spaces to 3.94).
 
 ### T108. A list item whose level and paragraph give no left keeps its style's — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
