@@ -2414,6 +2414,17 @@ a slide with no legend under it keeps 6.9 pt there, not 9 (tdf149985
 scatter's x labels stand 7.6 pt under its plot, as a line chart's do,
 not 4 (scatter-chart 1.14 → 1.08; they printed 3.5 pt lower).
 
+**A shrink-to-fit's reduction under a spacing of its own, 2026-10-18**
+(lo-3columns 6.34 → 5.17, GeomLec1 −0.02; the other 16 shrink-to-fit
+decks unchanged). Where the paragraph's own spacing is under single,
+PowerPoint takes the autofit's `lnSpcReduction` off the whole line,
+baseline and all, not off the space above: lo-3columns' 90% less 20%
+at 15 pt puts the first baseline 9.5 pt down (every one of its column's
+twelve lines on its whole point fits 9.4 to 9.6 only), where ours stood
+at 8.7. From single, it comes off above as before: font-scale's 100%
+less 20% are PowerPoint's so, and a point low scaled (+3.18 tried);
+aptia and testPPT the same way.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the

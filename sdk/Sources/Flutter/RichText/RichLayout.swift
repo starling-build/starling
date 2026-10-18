@@ -164,6 +164,18 @@ public final class RichTextTheme {
         // (The face the text asks for, where its stand-in is not its
         // clone, keeps its own depth below the baseline: `ownDescentShare`.)
         let below = own ?? drawn
+        // Under a spacing of its own below single, a shrink-to-fit's
+        // reduction (`lineSpacingReduction`) scales the whole line,
+        // baseline and all: lo-3columns' 90% less 20% stands its first
+        // baseline 9.5 pt down at 15 pt, where taking it all off above
+        // gave 8.7 and set its later lines a point high. From single, it
+        // comes off above as the paragraph's own does (font-scale's 100%
+        // less 20%, its lines where PowerPoint's are so and a point low
+        // scaled).
+        let spacing = paragraph.lineSpacing
+        if spacing < 1, multiple < spacing {
+            return single * (spacing - below) * multiple / spacing - multiple * single * (1 - drawn)
+        }
         return multiple < 1 ? single * (multiple * drawn - below) : multiple * single * (drawn - below)
     }
 
