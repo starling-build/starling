@@ -218,8 +218,8 @@ at 84.6% (median 98.3). Its low ones, unclaimed: zh-608e661b 7.3 (4/5
 pages; Mac 01Xgpbk5 looked, released: its 18pt 方正小标宋_GBK title is in
 Arial Unicode MS in Word's print, three 15.6 pitches a line where ours,
 in YaHei, takes two — and see the note below: which face Word takes is
-not the file's to say), zh-6043ad90 28.4 (8/9 pages), zh-0243e7fc
-58.4, zh-e1b09977 65.4, zh-f10c8f34 74.4, zh-65e6c317 77.0, zh-d0a207ac
+not the file's to say), zh-6043ad90 28.4 (8/9 pages; Mac 01Xgpbk5, 100 now — a break under a table takes its page unless the table left under a quarter line; released), zh-0243e7fc
+58.4 (Mac 01Xgpbk5, 80.7 now — an exact row is its height and its bottom margin, lab `rh`; left: cells' reading order; released), zh-e1b09977 65.4 (Mac 01Xgpbk5 looked: its rows, two exact 17pt lines, are 34.5 in Word and 36.25 in ours — the 2.25pt left line its vMerge-continued first cells state takes room above and below in ours (7ca4dd65's rule, lenovo-3's), and none in Word; asked lenovo-3), zh-f10c8f34 74.4, zh-65e6c317 77.0, zh-d0a207ac
 95.0.
 
 ### Note from the Mac (2026-10-18, night): the zh corpus is 306 documents — a thirteenth sample
