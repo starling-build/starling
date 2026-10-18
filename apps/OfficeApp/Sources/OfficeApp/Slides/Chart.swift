@@ -359,6 +359,15 @@ struct Chart: Equatable {
     /// without one.
     var valueLine = false
     var categoryLine = true
+    /// `c:catAx/c:tickLblPos` low: the category labels at the plot's foot
+    /// however far below zero its values go. Otherwise (`nextTo`, the
+    /// default) they stand by the axis, at zero: chart-invertIfNeg_bar's
+    /// under its zero line, mid-plot, where ours were at the foot.
+    var categoryLabelsLow = false
+    /// A combination whose columns stand on the right-hand value axis and
+    /// its lines on the left (chart-testCombinedChartAxis): the category
+    /// axis crosses the lines' axis, whose scale this app does not keep.
+    var columnsOnRight = false
 
     var gap: Double { Double(gapWidth ?? (stacked ? 150 : 219)) / 100 }
     var overlapFraction: Double { Double(overlap ?? (stacked ? 100 : -27)) / 100 }
@@ -545,6 +554,79 @@ enum ChartXML {
         return c
     }
 
+    /// A chart in a `cx:chartSpace` this app draws: box-and-whisker, or
+    /// plain clustered columns. nil for the rest (histograms, waterfalls,
+    /// funnels, maps…).
+    static func readChartex(_ space: XNode) -> Chart? {
+        readBoxWhisker(space) ?? readClusteredColumn(space)
+    }
+
+    /// Excel 2016's clustered columns (`layoutId="clusteredColumn"`) with
+    /// no binning — a histogram's layout is the same name, binned: each
+    /// series' values over its categories, as a `c:` column chart draws
+    /// them, in a 2013-style chart's text (chart-clusteredColumn's).
+    static func readClusteredColumn(_ space: XNode) -> Chart? {
+        guard let chart = space.first("cx:chart"),
+              let region = chart.first("cx:plotArea")?.first("cx:plotAreaRegion") else { return nil }
+        let all = region.all("cx:series")
+        guard !all.isEmpty, all.allSatisfy({ $0["layoutId"] == "clusteredColumn" && $0.first("cx:layoutPr")?.first("cx:binning") == nil
+            && $0.first("cx:layoutPr")?.first("cx:aggregation") == nil }) else { return nil }
+        func points(_ dim: XNode?) -> [String?] {
+            guard let lvl = dim?.first("cx:lvl") else { return [] }
+            var out = [String?](repeating: nil, count: min(100_000, max(0, Int(lvl["ptCount"] ?? "") ?? 0)))
+            for pt in lvl.all("cx:pt") {
+                guard let i = Int(pt["idx"] ?? ""), i >= 0, i < 100_000 else { continue }
+                if i >= out.count { out += [String?](repeating: nil, count: i - out.count + 1) }
+                out[i] = pt.text
+            }
+            return out
+        }
+        var data: [String: (cats: [String?], vals: [String?])] = [:]
+        for d in space.first("cx:chartData")?.all("cx:data") ?? [] {
+            let cat = d.all("cx:strDim").first { $0["type"] == "cat" } ?? d.all("cx:numDim").first { $0["type"] == "cat" }
+            let val = d.all("cx:numDim").first { $0["type"] == "val" }
+            data[d["id"] ?? ""] = (points(cat), points(val))
+        }
+        var categories: [String] = []
+        var series: [ChartSeries] = []
+        for (j, ser) in all.enumerated() {
+            guard let d = data[ser.first("cx:dataId")?["val"] ?? ""] else { return nil }
+            let values = d.vals.map { $0.flatMap { Double($0.trimmingWhitespace()) } }
+            if categories.isEmpty { categories = (0 ..< values.count).map { (d.cats[safe: $0] ?? nil) ?? String($0 + 1) } }
+            series.append(ChartSeries(name: ser.first("cx:tx")?.descendant("cx:v")?.text ?? "Series\(j + 1)", values: values))
+        }
+        // (No points cached is a chart still, its cells read live:
+        // chart-clusteredColumn's data is a name, _xlchart.v1.0, and no
+        // more.)
+        guard !categories.isEmpty || space.descendant("cx:f") != nil else { return nil }
+        var title: String? = nil
+        if let t = chart.first("cx:title") {
+            var runs: [String] = []
+            func collect(_ n: XNode) {
+                if n.name == "a:t" { runs.append(n.text) }
+                n.children.forEach(collect)
+            }
+            collect(t)
+            title = runs.joined()
+        }
+        var c = Chart(type: .column, title: title, categories: categories, series: series)
+        c.chartex = true
+        c.legend = chart.first("cx:legend") != nil
+        c.textSize = 9
+        c.titleSize = 14
+        c.dataLabels = all.contains { $0.first("cx:dataLabels")?.first("cx:visibility")?["value"] == "1" }
+        // (Its legend where it says, chart-clusteredColumn's at the top;
+        // its category labels at the plot's foot, below its columns under
+        // zero, as Excel prints a `cx:` chart's.)
+        if let pos = chart.first("cx:legend")?["pos"] { c.legendPosition = pos }
+        c.categoryLabelsLow = true
+        // (Excel's own frame: white, a light grey edge.)
+        c.areaNoFill = false; c.areaNoLine = false
+        if let gap = chart.first("cx:plotArea")?.all("cx:axis").compactMap({ $0.first("cx:catScaling")?["gapWidth"] }).first,
+           let g = Double(gap), g >= 0 { c.gapWidth = Int(g * 100) }
+        return c
+    }
+
     /// The `p` quartile of sorted `xs`: Excel's QUARTILE.EXC, a point
     /// p (n + 1) along, or with `inclusive` QUARTILE.INC's p (n - 1) + 1.
     static func quartile(_ xs: [Double], _ p: Double, inclusive: Bool) -> Double {
@@ -572,6 +654,7 @@ enum ChartXML {
         var secondAxis: XNode? = nil
         var main = kinds.first
         var merged: [XNode] = []
+        var columnsOnRight = false
         if kinds.count == 2, let bar = kinds.first(where: { $0.name == "c:barChart" }),
            let line = kinds.first(where: { $0.name == "c:lineChart" }) {
             let barAxes = Set(bar.all("c:axId").compactMap { $0["val"] })
@@ -587,6 +670,9 @@ enum ChartXML {
             }
             main = bar
             overlay = line
+            columnsOnRight = plot.all("c:valAx").contains { ax in
+                barAxes.contains(ax.first("c:axId")?["val"] ?? "") && (ax.first("c:axPos")?["val"] == "r" || ax.first("c:crosses")?["val"] == "max")
+            } && barAxes != lineAxes
         } else if kinds.count > 1, kinds.allSatisfy({ $0.name == "c:barChart" }),
                   Set(kinds.map { Set($0.all("c:axId").compactMap { $0["val"] }) }).count == 1,
                   Set(kinds.map { $0.first("c:barDir")?["val"] ?? "bar" }).count == 1,
@@ -594,6 +680,17 @@ enum ChartXML {
             // Column groups on one pair of axes, alike: one group of all
             // their series (chart-tdf100084's two, a series each).
             merged = Array(kinds.dropFirst())
+        } else if kinds.count == 2, kinds.allSatisfy({ $0.name == "c:lineChart" }) {
+            // Lines over lines, the second group on a value axis of its own
+            // at the right (chart-add_series_secondary_axis): drawn as a
+            // combination's lines are.
+            let firstAxes = Set(kinds[0].all("c:axId").compactMap { $0["val"] })
+            let secondAxes = Set(kinds[1].all("c:axId").compactMap { $0["val"] })
+            guard firstAxes != secondAxes,
+                  let own = plot.all("c:valAx").first(where: { secondAxes.contains($0.first("c:axId")?["val"] ?? "") && !firstAxes.contains($0.first("c:axId")?["val"] ?? "") })
+            else { return nil }
+            secondAxis = own
+            overlay = kinds[1]
         } else if kinds.count != 1 {
             return nil
         }
@@ -656,8 +753,10 @@ enum ChartXML {
             }
             // (A line hidden, and its marks: chartex's stock chart sets its
             // three series' lines to none, Close marked by 3pt dots.)
-            if type == .line, pr?.first("a:ln")?.has("a:noFill") == true {
-                s.lineHidden = true
+            // (A line shown, its marks too: chart-add_series_secondary_axis'
+            // circles on each point.)
+            if type == .line {
+                s.lineHidden = pr?.first("a:ln")?.has("a:noFill") == true
                 if let m = ser.first("c:marker") {
                     s.marker = m.first("c:symbol")?["val"]
                     s.markerSize = m.first("c:size")?["val"].flatMap(Double.init) ?? 5
@@ -1050,6 +1149,8 @@ enum ChartXML {
         }
         c.categoryAxisDeleted = ["1", "true"].contains(categoryAxis?.first("c:delete")?["val"] ?? "")
         c.categoryLine = categoryAxis?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
+        c.categoryLabelsLow = categoryAxis?.first("c:tickLblPos")?["val"] == "low"
+        c.columnsOnRight = columnsOnRight
         if let scaling = valueAxis?.first("c:scaling") {
             c.valueMin = scaling.first("c:min")?["val"].flatMap(Double.init)
             c.valueMax = scaling.first("c:max")?["val"].flatMap(Double.init)
@@ -1762,6 +1863,12 @@ enum ChartPainter {
             }
         }
         let sc = valueScale
+        // Category labels by an axis that crosses above the plot's foot.
+        // (Not where the columns stand on the other axis: chart-
+        // testCombinedChartAxis' go below their zero, and its labels stay
+        // at the foot of the lines' axis.)
+        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal && sc.lo < 0
+            && c.dataTable == nil && !c.columnsOnRight
         // The lines' own axis, scaled as the first is, by their values.
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
         if let second = c.secondValueAxis, !horizontal {
@@ -1925,7 +2032,8 @@ enum ChartPainter {
             // labels where ours are.)
             var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
-            let bottom = tallest + 7.6 * k + belowOut
+            // (Labels by an axis above the foot take no room below it.)
+            let bottom = atZero ? 4 * k : tallest + 7.6 * k + belowOut
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -2162,17 +2270,18 @@ enum ChartPainter {
                 canvas.drawLine(Offset(plot.left + box.dx, zero - box.dy), Offset(plot.right + box.dx, zero - box.dy), gridPaint)
             }
             let slot = plot.width / Double(n)
+            let foot = atZero ? zero : plot.bottom
             for (i, tp) in catLabels.enumerated() where table == nil {
                 let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
                 if aslant {
                     // Its end's middle at the tick, the rest down to the left.
                     canvas.save()
-                    canvas.translate(cx, plot.bottom + 7.6 * k + belowOut)
+                    canvas.translate(cx, foot + 7.6 * k + belowOut)
                     canvas.rotate(-slant)
                     tp.paint(canvas, Offset(-tp.width, -tp.height / 2))
                     canvas.restore()
                 } else {
-                    tp.paint(canvas, Offset(cx - tp.width / 2, plot.bottom + 7.6 * k + belowOut))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + 7.6 * k + belowOut))
                 }
             }
         }
@@ -2202,6 +2311,55 @@ enum ChartPainter {
         // the plot's edge.
         let clipped = c.valueMin != nil || c.valueMax != nil
         if clipped { canvas.save(); canvas.clipRect(plot) }
+        // A combination's lines, over its columns or its own lines: each
+        // through its categories' middles, with its marks, on the second
+        // value axis where it has one.
+        func paintOverlayLines() {
+            let slot = plot.width / Double(max(1, n))
+            for (j, l) in c.lineSeries.enumerated() {
+                let colour = l.color ?? c.color(series: c.series.count + j, accents: theme.accents)
+                func at(_ i: Int) -> Offset? {
+                    guard let v = l.values[safe: i] ?? nil else { return nil }
+                    return Offset(plot.left + (Double(i) + 0.5) * slot, vpos2(v))
+                }
+                if !l.lineHidden {
+                    let path = Path()
+                    var pen = false
+                    for i in 0 ..< n {
+                        guard let q = at(i) else { pen = false; continue }
+                        if pen { path.lineTo(q.dx, q.dy) } else { path.moveTo(q.dx, q.dy); pen = true }
+                    }
+                    let p = Paint()
+                    p.style = .stroke
+                    p.isAntiAlias = true
+                    p.strokeWidth = max(0.5, 2.25 * k)
+                    p.color = colour
+                    canvas.drawPath(path, p)
+                }
+                for i in 0 ..< n where !l.unmarked.contains(i) {
+                    guard let q = at(i) else { continue }
+                    Self._mark(l, at: q, k: k, colour: colour, canvas)
+                }
+                // Its values above its points, in its labels' look,
+                // single ones moved where the file moves them: each
+                // label's foot 6.5 pt over its point (zh-547fc43c's 10 pt
+                // rates in Word's print; centred 9 pt over, as a line
+                // chart's, they stood 4 pt low).
+                if l.valueLabels {
+                    for i in 0 ..< n {
+                        guard let q = at(i), let v = l.values[safe: i] ?? nil else { continue }
+                        let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
+                            color: l.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
+                            fontSize: max(3, (l.labelSize ?? c.baseTextSize) * k), fontWeight: l.labelBold ? .bold : .normal,
+                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
+                        tp.layout(minWidth: 0, maxWidth: .infinity)
+                        let nudge = l.labelNudges[i].map { Offset($0.dx * frame.width, $0.dy * frame.height) } ?? .zero
+                        tp.paint(canvas, Offset(q.dx - tp.width / 2 + nudge.dx, q.dy - 6.5 * k - tp.height + nudge.dy))
+                        tp.dispose()
+                    }
+                }
+            }
+        }
         switch c.type {
         case .column where c.boxes != nil:
             Self._boxes(c, canvas, plot, k: k, theme: theme, vpos: vpos)
@@ -2280,53 +2438,7 @@ enum ChartPainter {
                     if let t = c.series[j].cellLabels[i] { cellLabels.append((t, rect, c.series[j])) }
                 }
             }
-            // A combination's lines over the columns: each through its
-            // categories' middles, with its marks.
-            if !horizontal {
-                for (j, l) in c.lineSeries.enumerated() {
-                    let colour = l.color ?? c.color(series: c.series.count + j, accents: theme.accents)
-                    func at(_ i: Int) -> Offset? {
-                        guard let v = l.values[safe: i] ?? nil else { return nil }
-                        return Offset(plot.left + (Double(i) + 0.5) * slot, vpos2(v))
-                    }
-                    if !l.lineHidden {
-                        let path = Path()
-                        var pen = false
-                        for i in 0 ..< n {
-                            guard let q = at(i) else { pen = false; continue }
-                            if pen { path.lineTo(q.dx, q.dy) } else { path.moveTo(q.dx, q.dy); pen = true }
-                        }
-                        let p = Paint()
-                        p.style = .stroke
-                        p.isAntiAlias = true
-                        p.strokeWidth = max(0.5, 2.25 * k)
-                        p.color = colour
-                        canvas.drawPath(path, p)
-                    }
-                    for i in 0 ..< n where !l.unmarked.contains(i) {
-                        guard let q = at(i) else { continue }
-                        Self._mark(l, at: q, k: k, colour: colour, canvas)
-                    }
-                    // Its values above its points, in its labels' look,
-                    // single ones moved where the file moves them: each
-                    // label's foot 6.5 pt over its point (zh-547fc43c's 10 pt
-                    // rates in Word's print; centred 9 pt over, as a line
-                    // chart's, they stood 4 pt low).
-                    if l.valueLabels {
-                        for i in 0 ..< n {
-                            guard let q = at(i), let v = l.values[safe: i] ?? nil else { continue }
-                            let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
-                                color: l.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
-                                fontSize: max(3, (l.labelSize ?? c.baseTextSize) * k), fontWeight: l.labelBold ? .bold : .normal,
-                                fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)), textDirection: .ltr)
-                            tp.layout(minWidth: 0, maxWidth: .infinity)
-                            let nudge = l.labelNudges[i].map { Offset($0.dx * frame.width, $0.dy * frame.height) } ?? .zero
-                            tp.paint(canvas, Offset(q.dx - tp.width / 2 + nudge.dx, q.dy - 6.5 * k - tp.height + nudge.dy))
-                            tp.dispose()
-                        }
-                    }
-                }
-            }
+            if !horizontal { paintOverlayLines() }
         case .line, .area:
             // An area's points sit on the category edges, a line's mid-slot.
             let onEdges = c.type == .area && n > 1
@@ -2394,8 +2506,17 @@ enum ChartPainter {
                         if pen { path.lineTo(xAt(i), vpos(v)) } else { path.moveTo(xAt(i), vpos(v)); pen = true }
                     }
                     canvas.drawPath(path, p)
+                    // Its marks over its line, where it names them
+                    // (chart-add_series_secondary_axis' circles).
+                    if c.type == .line {
+                        for i in 0 ..< n where !c.series[j].unmarked.contains(i) {
+                            guard let v = tops[j][i] else { continue }
+                            Self._mark(c.series[j], at: Offset(xAt(i), vpos(v)), k: k, colour: color, canvas)
+                        }
+                    }
                 }
             }
+            if c.type == .line, !horizontal { paintOverlayLines() }
         case .scatter:
             for j in 0 ..< s {
                 fill.color = c.color(series: j, accents: theme.accents)

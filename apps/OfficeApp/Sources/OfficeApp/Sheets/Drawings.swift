@@ -142,11 +142,15 @@ enum SheetDrawingsXML {
                     let c = ["l", "t", "r", "b"].map { max(0, Double(src[$0] ?? "") ?? 0) / 100_000 }
                     if c.contains(where: { $0 > 0 }), c[0] + c[2] < 1, c[1] + c[3] < 1 { d.crop = c }
                 }
-            } else if let frame = el.child("graphicFrame"), let ref = _chartRef(frame), let path = rels[ref],
+            } else if let frame = el.child("graphicFrame") ?? el.child("AlternateContent")?.child("Choice")?.child("graphicFrame"),
+                      let ref = _chartRef(frame), let path = rels[ref],
                       let space = parts[path].flatMap({ XNode.parse($0) }),
-                      let chart = ChartXML.read(space, allowEmpty: true, color: { colors.color(in: $0) }) {
+                      // (An Excel 2016 chart, `cx:`, stands in mc:Choice with
+                      // its picture in mc:Fallback: chart-clusteredColumn's.)
+                      let chart = space.name.hasSuffix("chartSpace") && space.name.hasPrefix("cx:")
+                        ? ChartXML.readChartex(space) : ChartXML.read(space, allowEmpty: true, color: { colors.color(in: $0) }) {
                 d.name = frame.child("nvGraphicFramePr")?.child("cNvPr")?["name"] ?? "Chart"
-                var sc = SheetChart(chart: chart, refs: _refs(space), path: path)
+                var sc = SheetChart(chart: chart, refs: space.name.hasPrefix("cx:") ? _chartexRefs(space) : _refs(space), path: path)
                 let axis = space.descendant("c:catAx")?.first("c:numFmt") ?? space.descendant("c:dateAx")?.first("c:numFmt")
                 sc.pivot = space.descendant("c:pivotSource") != nil
                 sc.categoryFormat = axis.flatMap { ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }
@@ -186,6 +190,23 @@ enum SheetDrawingsXML {
     private static func _chartRef(_ frame: XNode) -> String? {
         guard let data = frame.child("graphic")?.child("graphicData") else { return nil }
         return data.child("chart")?["r:id"]
+    }
+
+    /// A `cx:` chart's series' formulas: each one's data's values and
+    /// categories (`cx:numDim`, `cx:strDim`), often a hidden defined name
+    /// (`_xlchart.v1.0`).
+    private static func _chartexRefs(_ space: XNode) -> [(name: String?, cat: String?, val: String?)] {
+        var data: [String: XNode] = [:]
+        for d in space.first("cx:chartData")?.all("cx:data") ?? [] { data[d["id"] ?? ""] = d }
+        let series = space.first("cx:chart")?.first("cx:plotArea")?.first("cx:plotAreaRegion")?.all("cx:series") ?? []
+        return series.map { ser in
+            let d = data[ser.first("cx:dataId")?["val"] ?? ""]
+            func f(_ dims: [XNode]?, _ type: String) -> String? {
+                dims?.first { $0["type"] == type }?.first("cx:f")?.text
+            }
+            let dims = (d?.all("cx:numDim") ?? []) + (d?.all("cx:strDim") ?? [])
+            return (ser.first("cx:tx")?.first("cx:txData")?.first("cx:f")?.text, f(dims, "cat"), f(dims, "val"))
+        }
     }
 
     private static func _refs(_ space: XNode) -> [(name: String?, cat: String?, val: String?)] {
@@ -248,6 +269,8 @@ extension SheetChart {
         var c = chart
         if pivot { return c }
         func resolve(_ formula: String) -> (sheet: Int, range: CellRange)? {
+            // (Or a defined name for one: a `cx:` chart's _xlchart.v1.0.)
+            let formula = book.names[formula.uppercased()] ?? formula
             guard let expr = try? Formula.parse("=" + formula), case .ref(let r) = expr, let name = r.sheet,
                   let si = book.sheet(named: name) else { return nil }
             guard r.range.rows * r.range.cols <= 10_000 else { return nil }
