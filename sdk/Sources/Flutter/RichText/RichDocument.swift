@@ -1051,6 +1051,10 @@ public struct TableStyle: Hashable, Sendable {
     /// text stands (its w:tblpY under w:vertAnchor="text"), in points:
     /// laid out in the flow, it starts that much lower.
     public var floatOffsetY: Double? = nil
+    /// A floating table's left (`w:tblpX`, points) and what it is from
+    /// (`w:horzAnchor`: "page", "margin" or "text").
+    public var floatX: Double? = nil
+    public var floatXAnchor: String? = nil
     /// A floating table placed against the page (`w:tblpPr w:vertAnchor="page"`):
     /// where it does not fit whole, Word sets its first row alone on its page
     /// and the rest on the next (zh-6cd1befe p51, zh-a4b0f6ea p20).

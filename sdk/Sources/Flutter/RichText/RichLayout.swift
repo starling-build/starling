@@ -1344,6 +1344,7 @@ public final class RichLayout {
                 s?.cellMarginBottom.map(_px) ?? end, s?.cellMarginRight.map(_px) ?? side)
     }
 
+    private var _tableFirstParagraph: [String: Int] = [:]
     private func _tableLeft(_ table: String, _ document: RichDocument) -> Double {
         let sum = (_columnWidths[table] ?? []).reduce(0, +)
         let width = _tableFlowWidth[table] ?? self.width
@@ -1366,6 +1367,23 @@ public final class RichLayout {
         // at the margin.)
         let left = old ? _px(_tableSpacedOutdent[table] ?? style?.textOutdent ?? 5.4) : 0
         let right = old ? _px(style?.textOutdentRight ?? 5.4) : 0
+        // A floating table placed across (`w:tblpX`): from the page's edge,
+        // the margin or the column, set out by its cell margin before 2013's
+        // layout as an indent is. zh-92373179's 507pt roster, tblpX 1129
+        // twips from the page, has its left rule at 50.6 in Word's print,
+        // where ours stood at the column's, 71.2, its right side 20pt
+        // further over the margin.
+        if theme.wordRules, let x = style?.floatX {
+            let first = _tableFirstParagraph[table] ?? 0
+            let setup = _setup(ofParagraph: first)
+            let from: Double
+            switch style?.floatXAnchor {
+            case "page": from = x - setup.marginLeft - setup.gutter
+            case "margin": from = x - setup.gutter
+            default: from = x
+            }
+            return _px(from) - left
+        }
         switch style?.alignment ?? .left {
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
@@ -1378,8 +1396,10 @@ public final class RichLayout {
     private func _updateTables(_ document: RichDocument) {
         var columns: [String: Int] = [:]
         _tableRows = [:]
-        for p in document.paragraphs {
+        _tableFirstParagraph = [:]
+        for (k, p) in document.paragraphs.enumerated() {
             if let c = p.cell {
+                if _tableFirstParagraph[c.table] == nil { _tableFirstParagraph[c.table] = k }
                 columns[c.table] = max(columns[c.table] ?? 1, c.column + c.span)
                 _tableRows[c.table] = max(_tableRows[c.table] ?? 0, c.row + c.rowSpan - 1)
             }

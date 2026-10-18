@@ -1119,6 +1119,10 @@ enum DocxFormat {
                         style.floatOffsetY = v / 20
                     }
                     if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
+                    if pos["w:tblpXSpec"] == nil, let v = Double(pos["w:tblpX"] ?? "") {
+                        style.floatX = v / 20
+                        style.floatXAnchor = pos["w:horzAnchor"] ?? "text"
+                    }
                 } else if case let frames = unwrapped(node, "w:tr").flatMap({ unwrapped($0, "w:tc") }).flatMap({ unwrapped($0, "w:p") })
                             .map({ $0.first("w:pPr")?.first("w:framePr") }),
                           !frames.isEmpty, let frame = frames[0], frame["w:vAnchor"] == "text", frame["w:wrap"] == "notBeside",

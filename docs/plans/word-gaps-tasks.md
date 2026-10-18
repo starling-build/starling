@@ -126,7 +126,7 @@ Twenty more (`random.seed(20261019)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 78.5%. Its low ones,
 unclaimed unless marked: zh-4adfcce2 0.0 (6 pages; Mac, measured, released — see below),
 zh-424775e4 7.6 (13; Mac 011uWpmC, 96.2 now — STXinwei's line, a footnote on its mark's page; released), zh-c2c92639 9.5 (54 pages, Word 57; Windows box, looking), zh-92373179
-41.6 (11; Mac, looking), zh-c399c91a 64.3 (7; Mac 011uWpmC, 100 now — LinTimes is Calibri; released), zh-7cf85f15 76.5 (3; Mac 011uWpmC, looking), zh-74ef1528 94.1,
+41.6 (11; T96 — Word's text layer is garbled on its table pages), zh-c399c91a 64.3 (7; Mac 011uWpmC, 100 now — LinTimes is Calibri; released), zh-7cf85f15 76.5 (3; Mac 011uWpmC, looking), zh-74ef1528 94.1,
 zh-5c6ff0d7 97.8 (2 pages, Word 3).
 
 ### Note from the Mac (2026-10-17, later): the zh corpus is 128 documents — a fourth sample
@@ -222,6 +222,22 @@ space with text after it goes to the next line ("陈述申辩人：（…）" st
 501.0), and Word squeezes a "：" before spaces on a full line (152.4 ->
 164.0, 11.6 where ours is 15.6). The space-only lines end at
 498.8-506.9, not on a multiple of 8.1 from the margin.
+
+### T96. A floating table's place across (`w:tblpX`) — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-92373179's 507pt roster floats, horzAnchor page, tblpX 1129 twips:
+Word's left rule stands at 50.6, the place less its cell margin (mode
+12); ours was at the column's (71.2), 20pt right. The left now comes
+from tblpX against the page, the margin or the column. Its rules are
+within 0.5pt of Word's now; no score moved — that document's table
+pages are garbled in Word's text layer, and the corpus's six others
+with tblpX did not move. (Text wrapped beside a narrow floating table
+is still not done.)
+
+Regression seen in the same sweep, not mine: zh-3c055c9b 76.7 -> 33.5
+since fdceb326 (a run's spacing from its style, then Normal's) together
+with T85 — a one-file A/B reverting fdceb326 alone gives 76.7 again.
+Reported to the Windows box and lenovo-3.
 
 ### T90. delins: whole paragraphs deleted, their balloon above the line they mark — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
