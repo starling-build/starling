@@ -9999,27 +9999,14 @@ public final class RichLayout {
         }
         if !shifts.isEmpty { canvas.restore() }
         let textAt = Offset(g.textLeft, g.inkTop + _baselineShift(i, document))
-        _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
-                      map: lines == nil ? _map(i) : nil, leading: true)
-        if let lines {
-            lines.painter.paint(canvas, textAt)
-        } else if !_paintScaled(i, g, canvas, document) {
-            if shifts.isEmpty { g.painter.paint(canvas, textAt) } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
-        }
-        _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
-                      map: lines == nil ? _map(i) : nil, leading: false)
-        _paintRuby(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
-                   map: lines == nil ? _map(i) : nil)
-        if i < _leaders.count, !_leaders[i].isEmpty {
-            // A leader fills its tab: the character over and over, up to
-            // the text the tab leads to.
+        func drawLeader(_ leader: (offset: Int, fill: String)) {
             let p = document.paragraphs[i]
             let named = _named(p, document)
             let map = _map(i)
-            for leader in _leaders[i] {
+            do {
                 guard let box = g.painter.getBoxesForSelection(
                     TextSelection(baseOffset: map.painter(leader.offset), extentOffset: map.painter(leader.offset) + 1), boxHeightStyle: .max).first,
-                      box.right - box.left > 1 else { continue }
+                      box.right - box.left > 1 else { return }
                 var at = 0
                 var run = p.runs[0].style
                 for r in p.runs { if leader.offset < at + r.length { run = r.style; break }; at += r.length }
@@ -10029,13 +10016,49 @@ public final class RichLayout {
                 one.layout(minWidth: 0, maxWidth: 10_000)
                 let n = Int(((box.right - box.left) / max(0.5, one.width)).rounded(.down))
                 one.dispose()
-                guard n > 0 else { continue }
+                guard n > 0 else { return }
                 let fill = TextPainter(text: TextSpan(text: String(repeating: leader.fill, count: n), style: style),
                                        textDirection: .ltr, strutStyle: g.painter.strutStyle)
                 fill.layout(minWidth: 0, maxWidth: 10_000_000)
                 fill.paint(canvas, Offset(g.textLeft + box.right - fill.width, g.inkTop + box.top))
                 fill.dispose()
             }
+        }
+        var leadersPainted = false
+        _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
+                      map: lines == nil ? _map(i) : nil, leading: true)
+        if let lines {
+            lines.painter.paint(canvas, textAt)
+        } else if !_paintScaled(i, g, canvas, document) {
+            if shifts.isEmpty, i < _leaders.count, _leaders[i].count == 1,
+               let box = g.painter.getBoxesForSelection(
+                    TextSelection(baseOffset: _map(i).painter(_leaders[i][0].offset), extentOffset: _map(i).painter(_leaders[i][0].offset) + 1),
+                    boxHeightStyle: .max).first, box.right - box.left > 1 {
+                // In reading order: what comes before the tab, its dots,
+                // then the rest, so the text a reader takes from the page
+                // runs as it reads rather than leaving the dots at the end.
+                let far = 1e7, top = textAt.dy + box.top, bottom = textAt.dy + box.bottom
+                for (k, clip) in [Rect.fromLTRB(-far, -far, far, top),
+                                  Rect.fromLTRB(-far, top, textAt.dx + box.left, bottom)].enumerated() {
+                    canvas.save(); canvas.clipRect(clip, clipOp: .intersect, doAntiAlias: false)
+                    g.painter.paint(canvas, textAt); canvas.restore()
+                    if k == 1 { drawLeader(_leaders[i][0]) }
+                }
+                for clip in [Rect.fromLTRB(textAt.dx + box.right, top, far, bottom), Rect.fromLTRB(-far, bottom, far, far)] {
+                    canvas.save(); canvas.clipRect(clip, clipOp: .intersect, doAntiAlias: false)
+                    g.painter.paint(canvas, textAt); canvas.restore()
+                }
+                leadersPainted = true
+            } else if shifts.isEmpty { g.painter.paint(canvas, textAt) } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
+        }
+        _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
+                      map: lines == nil ? _map(i) : nil, leading: false)
+        _paintRuby(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
+                   map: lines == nil ? _map(i) : nil)
+        if !leadersPainted, i < _leaders.count, !_leaders[i].isEmpty {
+            // A leader fills its tab: the character over and over, up to
+            // the text the tab leads to.
+            for leader in _leaders[i] { drawLeader(leader) }
         }
         if i < _inline.count, !_inline[i].isEmpty, let all = g.painter.inlinePlaceholderBoxes {
             let boxes = all.dropFirst(_lead(i))
