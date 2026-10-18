@@ -150,7 +150,7 @@ after, as ours — that rule holds.
 ### Note from the Mac (2026-10-17, late): the zh corpus is 186 documents — a seventh sample
 Eighteen more (`random.seed(20261021)`; two of the twenty Word would not
 print), checked in. It starts at 89.9%. Its low ones, unclaimed:
-zh-007ca091 35.4 (T109, 93.0 now, 11 pages), zh-0b87285b 77.9 (Mac 011uWpmC, 98.0 now — a page-placed table whole while it ends above the footer; released), zh-701eda18
+zh-007ca091 35.4 (T109, 93.0 now, 11 pages), zh-0b87285b 77.9 (Mac 011uWpmC, 98.0 now — a page-placed table whole while it ends above the footer; released), zh-701eda18 (Mac 011uWpmC, looking)
 83.0, zh-043aab43 84.4, zh-021b8feb 85.6 (18/19; Mac 011uWpmC, measured, released: p14's last paragraph is `w:br type=page` then an anchored wrap-none box "附表" (16.5pt down) in a 18pt bold paragraph mark; Word keeps the box at p14's foot (710) and opens p15 with a ~17pt line — the anchor run's 12pt, not the mark's 18pt — table title at 88; ours places the box on p15 and its line ~39pt, title 111, and the table runs onto a 19th page. Needs a lab: what sizes a line holding only a float's anchor after a break), zh-8f7aa519 87.7,
 zh-c8eb6e92 91.2.
 
