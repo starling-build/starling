@@ -3382,7 +3382,14 @@ left of the plot — where they were 6, 4, 6, 0 and 6.
 - **The size of smartart-rotation's arrows, accent-process' and
   vertical-box-list's boxes**: PowerPoint's are about 0.7 of ours,
   sized from a smaller font than the frame allows; the reason is still
-  not found (see accent-process above).
+  not found (see accent-process above). Measured exactly 2026-10-18 (the
+  arrows' paths, rotated, fitted to PowerPoint's bounding boxes): in a
+  480 × 320 pt frame its three arrow5 arrows are 159.8 pt — a third of
+  the frame's width — their ring 106.7 in radius, two thirds of an
+  arrow, centred 296.7 pt down (the top arrow's top on the frame's).
+  Neighbours stand 1.155 arrow-widths apart: the layout's `sibSp` of
+  −0.35 of a node (which ours follows, overlapping them, 205 pt each)
+  is not what PowerPoint did here.
 
 **The corpus in two groups, 2026-10-11.** `test/corpus/pptx/matched*.txt`
 lists the decks this app draws exactly as PowerPoint does (every page
