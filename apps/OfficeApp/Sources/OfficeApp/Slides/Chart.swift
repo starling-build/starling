@@ -279,6 +279,9 @@ struct Chart: Equatable {
     /// `c:spPr` has neither (a sheet's chart is then white with a light grey
     /// edge, Excel's look). Written back as read.
     var areaFill: Color? = nil
+    /// A gradient the chart area is filled with instead (drawn, not yet
+    /// written back: `areaFill` holds its first stop).
+    var areaGradient: SlideFill? = nil
     var areaNoFill = true
     var areaLine: Color? = nil
     var areaLineWidth: Double? = nil
@@ -958,6 +961,20 @@ enum ChartXML {
         c.areaNoFill = false; c.areaNoLine = false
         if let sp = space.first("c:spPr") {
             if let f = sp.first("a:solidFill") { c.areaFill = color(f) } else if sp.first("a:noFill") != nil { c.areaNoFill = true }
+            // (chart-tdf100084's white to 9999CC, across one chart and back
+            // across the other, as `a:lin`'s angle turns it.)
+            else if let g = sp.first("a:gradFill") {
+                let stops = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs -> SlideFill.GradientStop? in
+                    color(gs).map { SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: $0) }
+                }.sorted { $0.position < $1.position }
+                c.areaFill = stops.first?.color
+                if stops.count > 1 {
+                    var f = SlideFill(color: stops[0].color, stops: stops,
+                                      angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
+                    f.scaled = ["1", "true"].contains(g.first("a:lin")?["scaled"] ?? "")
+                    c.areaGradient = f
+                }
+            }
             if let ln = sp.first("a:ln") {
                 if let f = ln.first("a:solidFill") {
                     c.areaLine = color(f)

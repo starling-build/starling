@@ -607,7 +607,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             p.style = .fill
             if !chart.areaNoFill {
                 p.color = chart.areaFill ?? theme.background
+                if let g = chart.areaGradient, let shader = SlidePainter.gradientShader(g, r) { p.shader = shader }
                 canvas.drawRect(r, p)
+                p.shader = nil
             }
             if !chart.areaNoLine {
                 p.style = .stroke
