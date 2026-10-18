@@ -733,6 +733,10 @@ holding paragraph marks stands at the nearer of its line's top and
   likely suspect is the body's line grid (linePitch 437, 21.85pt), whose
   first line ours places from somewhere other than the margin when a
   header ends near it. Unchecked.)
+  (zh-5dc5ce34's extra line, read off its print: on every page a
+  TimesNewRomanPSMT 16.1pt blank at 101.1-118.9, under the 9pt header line
+  at 81.4. A real empty line in Normal's size, not the Arial Unicode
+  fallback some of its runs take in Word for Mac's prints.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
