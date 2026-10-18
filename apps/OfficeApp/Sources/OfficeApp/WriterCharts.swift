@@ -94,12 +94,12 @@ enum WriterCharts {
     /// and the metafile pictures of embedded objects (`WriterMetafiles`).
     static func installHooks() {
         if RichLayout.drawsObject == nil {
-            RichLayout.drawsObject = { WriterCharts.has($0) || WriterMetafiles.has($0) || WriterGroups.has($0) }
+            RichLayout.drawsObject = { WriterCharts.has($0) || WriterMetafiles.has($0) || WriterGroups.has($0) || WriterMath.has($0) }
         }
         if RichLayout.objectPainter == nil {
             RichLayout.objectPainter = { attachment, canvas, rect, pxPerPt in
                 WriterCharts.paint(attachment, canvas, rect, pxPerPt) || WriterMetafiles.paint(attachment, canvas, rect)
-                    || WriterGroups.paint(attachment, canvas, rect, pxPerPt)
+                    || WriterGroups.paint(attachment, canvas, rect, pxPerPt) || WriterMath.paint(attachment, canvas, rect, pxPerPt)
             }
         }
     }

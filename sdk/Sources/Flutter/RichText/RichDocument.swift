@@ -799,6 +799,9 @@ public struct ImageAttachment: Hashable, Sendable {
     /// How far an inline picture's drawn effects reach above and below its
     /// box (`wp:effectExtent`'s `t` and `b`, points): its line holds them.
     public var effectTop = 0.0
+    /// Where the object's own baseline stands, in points from its top,
+    /// where it has one (an equation's): set in a line, it stands there.
+    public var baseline: Double? = nil
     public var effectBottom = 0.0
     /// For an object anchored to its paragraph rather than standing in
     /// the line (Word's `wp:anchor`): where it floats. The text makes no

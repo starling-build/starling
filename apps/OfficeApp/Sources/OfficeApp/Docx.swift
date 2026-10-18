@@ -3386,6 +3386,20 @@ enum DocxFormat {
                     notes.fields.removeLast()
                 case "w:smartTag", "w:sdtContent", "w:sdt", "w:fldSimple", "w:customXml":
                     walkInline(child, link: link, revision: revision)
+                case "m:oMathPara", "m:oMath":
+                    // An equation: kept as the file wrote it, and drawn by
+                    // `WriterMath` at the size it lays out to.
+                    if let frag = _keptFragment(child, notes) {
+                        var att = ImageAttachment(data: Data(), width: 1, height: 1, name: child.name)
+                        att.sourceXML = frag.xml
+                        att.sourceRels = frag.rels
+                        if let m = WriterMath.register(child, for: att.id, size: 11) {
+                            att.width = m.width
+                            att.height = m.height
+                            att.baseline = m.baseline
+                        }
+                        addInline(att)
+                    }
                 case "w:commentRangeStart":
                     if notes.kept["word/comments.xml"] != nil, let id = child["w:id"] { notes.openComments.append(id); notes.seenComments.insert(id) }
                 case "w:commentRangeEnd":
@@ -3399,6 +3413,15 @@ enum DocxFormat {
             }
         }
         walkInline(p, link: nil)
+        // (A display equation stands centred — Word's `m:jc` centerGroup,
+        // its default — whatever its paragraph's own alignment.)
+        if let display = p.first("m:oMathPara") {
+            switch display.first("m:oMathParaPr")?.first("m:jc")?["m:val"] {
+            case "left": style.alignment = .left
+            case "right": style.alignment = .right
+            default: style.alignment = .center
+            }
+        }
         if leadingBreak {
             if built.isEmpty, text.isEmpty, inlineImages.isEmpty {
                 flush(pageBreakAfter: true)
@@ -4000,6 +4023,10 @@ enum DocxFormat {
             /// A picture or kept object as a run's content.
             func drawingXML(_ image: ImageAttachment) -> String {
                 let unresized = image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height)
+                // (An equation stands in the paragraph itself, not in a run.)
+                if let xml = image.sourceXML, image.name == "m:oMath" || image.name == "m:oMathPara" {
+                    return keptFragmentXML(xml, image.sourceRels)
+                }
                 if let xml = image.sourceXML, unresized {
                     // With the run's own properties: bug59058's thumbnails
                     // stand in a bordered 13pt run, a point taller each.

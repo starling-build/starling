@@ -6551,7 +6551,8 @@ public final class RichLayout {
                 }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
-                                                             baselineOffset: middle.map { size.height / 2 + _px($0) } ?? size.height)))
+                                                             baselineOffset: middle.map { size.height / 2 + _px($0) }
+                                                                ?? image.baseline.map { min(size.height, _px($0)) } ?? size.height)))
                 // (Before 2013's layout a space after a picture wider than
                 // the line goes to a line of its own: lab `ps` (Word 16, a
                 // cell of 74.35pt) sets the paragraph under a 76 or 80pt

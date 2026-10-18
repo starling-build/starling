@@ -681,6 +681,38 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(boxes.map(\.fitsOnce), [false, true])
     }
 
+    /// An equation is kept and drawn: zh-20ff844e's display formulas were
+    /// gone from the page and from a save. Read, it has a size and a
+    /// baseline, its paragraph is centred, and it is written back as the
+    /// paragraph's own child, not inside a run.
+    func testAnEquationIsReadDrawnAndWrittenBack() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><m:oMathPara \(m)><m:oMath><m:r><m:t>L=99−</m:t></m:r><m:nary><m:naryPr><m:chr m:val=\"∑\"/><m:limLoc m:val=\"undOvr\"/></m:naryPr>"
+            + "<m:sub><m:r><m:t>i=1</m:t></m:r></m:sub><m:sup><m:r><m:t>n</m:t></m:r></m:sup><m:e><m:sSub><m:e><m:r><m:t>B</m:t></m:r></m:e>"
+            + "<m:sub><m:r><m:t>i</m:t></m:r></m:sub></m:sSub></m:e></m:nary><m:f><m:num><m:r><m:t>a</m:t></m:r></m:num><m:den><m:r><m:t>b</m:t></m:r></m:den></m:f>"
+            + "</m:oMath></m:oMathPara></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let p = try XCTUnwrap(doc.paragraphs.first)
+        let eq = try XCTUnwrap(p.image ?? p.inlineImages.values.first)
+        XCTAssertEqual(eq.name, "m:oMathPara")
+        XCTAssertGreaterThan(eq.width, 30)
+        // (Taller than a line: the sum's limits stand over and under it.)
+        XCTAssertGreaterThan(eq.height, 20)
+        let baseline = try XCTUnwrap(eq.baseline)
+        XCTAssertTrue(baseline > 0 && baseline < eq.height)
+        XCTAssertEqual(p.style.alignment, .center)
+        let saved = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(doc, pageSetup: .a4)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(saved.contains("<m:oMathPara"), saved)
+        XCTAssertFalse(saved.contains("<w:r><m:oMathPara"), saved)
+        XCTAssertTrue(saved.contains("<m:t>L=99−</m:t>"), saved)
+    }
+
     /// zh-547fc43c p6: a 233.75pt chart and 1.75pt of effect extent on a
     /// 15.6pt grid take 16 pitches in Word's print, and stand centred in
     /// them — 7.05pt of the 14.1 spare over it.

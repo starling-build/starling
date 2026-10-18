@@ -2209,7 +2209,7 @@ T97 (Linux 017F2) landed it with the baseline too (46.1); this one dropped.
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-20ff844e (95.8%, 129 pages; 108 misses, 89 of them on p15-19).
 
-### T100. Word equations (OMML): read, kept, drawn — claimed
+### T100. Word equations (OMML): read, kept, drawn — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17 (Windows box agreed)
 Documents: zh-20ff844e (p15's two display formulas), zh-c2c92639 (14),
 zh-06c46ba9 (1).
@@ -2220,6 +2220,18 @@ Plan: an equation is a kept object (written back verbatim, outside any
 run), drawn by a small layout of its own — runs, sub/superscripts, n-ary
 operators with limits, fractions, delimiters, radicals, functions; the
 rest linear — display equations centred as Word's default.
+Built: `WriterMath` — an equation is a kept object (`m:oMath` in a line,
+`m:oMathPara` a display one, its paragraph centred unless its `m:jc`
+says otherwise), laid out as boxes (runs with letters italic and
+operators spaced; sub/superscripts; n-ary operators, limits over and
+under or beside; fractions on the axis; delimiters grown to their
+content; radicals; functions; accents; bars; limits; group characters;
+equation arrays; matrices), set in Cambria's stand-in with the math
+faces after it, and drawn through `RichLayout.objectPainter`; an inline
+one stands on its own baseline (`ImageAttachment.baseline`). Written back
+verbatim as the paragraph's child. Same-base sweep: zh-20ff844e 95.8 ->
+99.0, zh-06c46ba9 97.4 -> 97.5, nothing else moved. A display ∑ is 1.6
+times its text (1.9 put zh-20ff844e's p15 a few points long: 95.8).
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
