@@ -16,6 +16,8 @@ struct ZipEntry {
 
 enum ZipError: Error {
     case notAZip
+    /// An encrypted package whose password is not Excel's own.
+    case passwordRequired
     case corrupt(String)
     case unsupported(String)
     case zlib(Int32)
@@ -25,7 +27,16 @@ enum Zip {
     // MARK: Reading
 
     static func read(_ archive: Data) throws -> [ZipEntry] {
-        let bytes = [UInt8](archive)
+        var bytes = [UInt8](archive)
+        // An encrypted package: the zip inside, where the built-in password
+        // opens it (58616).
+        if OfficeCrypto.isCompoundFile(bytes) {
+            do { bytes = try OfficeCrypto.decrypt(bytes) } catch OfficeCrypto.Failure.wrongPassword {
+                throw ZipError.passwordRequired
+            } catch {
+                throw ZipError.notAZip
+            }
+        }
         guard bytes.count >= 22 else { throw ZipError.notAZip }
         // End of central directory: scan back over a possible comment.
         var eocd = -1
