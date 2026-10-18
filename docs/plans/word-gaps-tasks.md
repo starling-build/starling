@@ -110,6 +110,13 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
+### T126. zh-2f9463d6 (95.9% on Windows): a cell's text before a trailing U+3000 makes its row a line taller
+Owner: session 01QbbApP (Windows box), from 2026-10-18
+Documents: zh-2f9463d6 (p20-21, 28 of its 29 misses). Its table row
+"……　" (12pt, Times/仿宋, centred) is 26.6pt in Word's print and 39.7 in
+ours. Lab `el` (Word for Windows, its own rows): "AB　", "——　" alike;
+"……", "…" and a lone "　" are not.
+
 ### T125. zh-eb54d3b0 (95.4% on Windows, twelfth sample): line ends on p1 run a character short of Word's — DONE (2026-10-18)
 Owner: none (Windows 01QbbApP built it, released)
 Documents: zh-eb54d3b0. p1's "到2025年总体目标：一是产业规模升级，" takes "级，"
