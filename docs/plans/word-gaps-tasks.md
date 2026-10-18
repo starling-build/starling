@@ -196,12 +196,12 @@ Word takes "…同時訂定1976年至1985" on a 415.3pt line, 16.2pt over, about
 off each of its four marks; ours sends "1985" on), zh-5251dd23
 67.4 (Mac 01Xgpbk5, 89.2 now — a table side its own tblBorders leave out
 keeps its style's width (aa548444): Table Grid's 0.5pt insideH under a
-2.25pt frame; released), zh-5d635acc 76.6, zh-60173bb6 77.4 (16/15 pages;
+2.25pt frame; released), zh-5d635acc 76.6 (Mac 01Xgpbk5, 100 now — firstLineChars counted from the first run with text, not a drawing's anchor (b4380e86); released), zh-60173bb6 77.4 (16/15 pages;
 Mac 01Xgpbk5 looked, released: "附件1"'s table is placed on the page
 (tblpY 4970) above its own title paragraphs; Word sets its first row on
 p12 at 252, the title at p12's foot (626-685) below it, and the rest of the
 rows on p13; ours takes the title to p13 and the table to p14), zh-0978dee9 90.2
-(323/322 pages), zh-ad1e59ac 90.5, zh-38758b14 91.0 (23/22 pages).
+(323/322 pages; Mac 01Xgpbk5 looked: a 323-page table whose cells stand 1-2pt off Word's, the scorer grouping them apart; released), zh-ad1e59ac 90.5 (Mac 01Xgpbk5 looked: its misses are the reader's order within table cells, glyphs where Word's are; released), zh-38758b14 91.0 (23/22 pages; Mac 01Xgpbk5, 100 now — empty paragraphs after a floating table go beside it on its last page (b4380e86), zh-10eab555 75.6 -> 99.7 with it; released).
 
 ### Note from the Mac (2026-10-18, evening): the zh corpus is 286 documents — a twelfth sample
 Twenty more (`random.seed(20261026)`, all printed), checked in. It starts
