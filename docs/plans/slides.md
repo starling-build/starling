@@ -1328,7 +1328,11 @@ end of the file is still lost. 19 of PowerPoint's 23 slides come back
 (the others' names are scrambled — `ppp/slides/slide10.xml`). Shared:
 documents and workbooks salvage the same way. Left: 5611…'s diagram,
 whose frame lost its `a:ext` to the fuzzer and which PowerPoint still
-draws.
+draws. (2026-10-18: its drawing's five shapes have all lost their
+`a:xfrm` too — `a:xdrm` — and PowerPoint's 2×2 boxes match neither the
+drawing nor the frame's 640 pt width, so it laid the diagram out afresh
+at a size not recoverable from this file; reading a sizeless frame from
+its offset alone changed nothing, and was taken back.)
 
 **Tab stops, 2026-10-15** (sweep 75: 1.5945 → 1.5937%; eight decks
 closer — tdf120028 −0.13, n778859 −0.12, HowWeRefactor −0.05 — none
