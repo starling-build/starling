@@ -6038,6 +6038,18 @@ fitter dropped the paragraph's tail).
   parts such a word where it stands: testABodyWordWiderThanTheLineOpensALine,
   which 8498b68f broke and the follow-up restores). zh-ff93733d 22.8 ->
   96.2; nothing else moved.
+- **A geometric shape in a Times New Roman run keeps that face's line
+  (2026-10-18).** zh-cec9d337's drill table has 22pt "○" cells (line at
+  least 12, an 18pt grid, adjustLineHeightInTable). Word draws them in
+  Times New Roman, which has the shape, and its rows are two pitches,
+  36pt. The stand-in, Liberation Serif, has no "○", the platform's CJK
+  fallback set each line 37.8, and every row stood 1.8pt tall until the
+  table's last row went over the page. Such a shape (U+25A0–25FF) in a
+  run whose Latin face is Times New Roman now asks a line of an em at
+  most. Where Word's Latin face lacks the shape, Word too falls back to
+  YaHei (zh-454e2e29's "○" and "△"), so the rule is for Times New Roman
+  only. zh-cec9d337 71.8 -> 84.1; nothing else moved (s325 -> s326, one
+  base, the change alone).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

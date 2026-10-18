@@ -154,7 +154,7 @@ after, as ours — that rule holds.
 ### Note from the Mac (2026-10-18): the zh corpus is 206 documents — an eighth sample
 Twenty more (`random.seed(20261022)`, all twenty printed), checked in.
 It starts at 85.5% (median 98.0). Its low ones, unclaimed:
-zh-10e3a42be 2.1 (28/31 pages; Mac 01Xgpbk5, 96.4 now — w:position raised text, line multiples under single shared above and below, a Latin altName set in 宋体; the TOC lines are the page-number artefact; released), zh-ff93733d 22.8 (Mac 011uWpmC, 96.2 now — a long word after an ideograph opens a line; released), zh-cec9d337 71.8 (Mac 011uWpmC, looking),
+zh-10e3a42be 2.1 (28/31 pages; Mac 01Xgpbk5, 96.4 now — w:position raised text, line multiples under single shared above and below, a Latin altName set in 宋体; the TOC lines are the page-number artefact; released), zh-ff93733d 22.8 (Mac 011uWpmC, 96.2 now — a long word after an ideograph opens a line; released), zh-cec9d337 71.8 (Mac 011uWpmC, 84.1 now — Times' ○ keeps its line; left: p6's ˇ rows 8pt off, p19 4pt; released),
 zh-f2835e26 73.1 (CLAIMED Mac 01Xgpbk5), zh-f2441f00 73.5 (Mac 01Xgpbk5, measured, released: its 9-column 100% table of auto cells, outset 0.75 lines and no side margins is re-fitted by content in Word — columns 81.9/81.8/35.8/269.5/42.2 at p17, ours 81.4/81.3/35.6/268.1/44.5, the table 1.1pt further right — so the last column holds "ulture)使" in ours and not in Word, a row ends a line short and the next row's first line stays on p17; every page after misses from there. T1's open sharing question; the 。。。。 and 查查查查 misses are the reader's, not ours), zh-264d7516 93.6, zh-30d86fcf 94.7,
 zh-5ff074a9 94.9.
 

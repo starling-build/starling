@@ -6441,6 +6441,21 @@ public final class RichLayout {
                     // (A no-break space: the box is no place to part a line.)
                     spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + w * em - _glyphWidth(s, "\u{00A0}"))))
                     start = after
+                } else if theme.wordRules, !ea, let u = ch.unicodeScalars.first?.value, u >= 0x25A0, u <= 0x25FF,
+                          (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.lowercased() == "times new roman" {
+                    // (A geometric shape in a Times New Roman run is that
+                    // face's — Word's Times New Roman has "○", the stand-in
+                    // has not; where Word's Latin face lacks it, Word falls
+                    // back to YaHei as ours does, zh-454e2e29's "○" and "△",
+                    // and the platform's fallback, a CJK face, made the line
+                    // its own: zh-cec9d337's 22pt "○" cells on an 18pt grid
+                    // are two pitches in Word's print, 36pt, and ours 37.8
+                    // a row, the table's last row going over. Its line asks
+                    // an em at most.)
+                    flush(i)
+                    let s = style(kind)
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra, height: min(s.height ?? 1, 1.0))))
+                    start = after
                 } else if theme.wordRules, let u = ch.unicodeScalars.first?.value,
                           (u >= 0x1D400 && u <= 0x1D7FF) || (u > 0x7F && latinFace?.setsMath == true && !ea) {
                     // (A mathematical letter, which no shipped face has,
