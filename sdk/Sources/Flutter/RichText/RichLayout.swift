@@ -6006,7 +6006,10 @@ public final class RichLayout {
             // descent split the em otherwise than the CJK face's, and a
             // line with both grew 0.9pt at 12pt — zh-799c91cd's held
             // spaces, and every line with a break before a quote.)
-            func zeroWidth(_ kind: Int) -> TextStyle { style(kind < 0 ? 0 : kind) }
+            // (With none of the run's spacing: a run spaced 0.6pt gave
+            // each break it holds 0.6pt the fitter does not count, and
+            // zh-b00fef0d's "…改革决策部署" lost "署" to the next line.)
+            func zeroWidth(_ kind: Int) -> TextStyle { style(kind < 0 ? 0 : kind).copyWith(letterSpacing: 0) }
             var notoStyle: TextStyle? = nil
             var spans: [TextSpan] = []
             var start = text.startIndex
@@ -7477,7 +7480,11 @@ public final class RichLayout {
         // mode, alignment and setting of the compatibility switches
         // that sound like it, `w:doNotWrapTextWithPunct` among them.)
         let inCell = p.cell != nil
-        let hangs = fitted && !inCell && p.style.eastAsian["w:overflowPunct"] != "0"
+        // (Nor where the line-breaking rules are off, `w:kinsoku` 0: a
+        // mark that may start a line goes to the next one rather than
+        // hang — zh-b00fef0d's Normal turns them off, and Word's print
+        // opens a line with "、" after "…协同更高效", where ours hung it.)
+        let hangs = fitted && !inCell && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
         let squeezes = fitted && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
         // (From 2013's layout on a justified line's spaces give a quarter
         // of themselves for a word that is over: Cambria at 14pt takes

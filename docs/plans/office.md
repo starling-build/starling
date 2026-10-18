@@ -5560,6 +5560,15 @@ fitter dropped the paragraph's tail).
   zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
   lower in Word than the two-line cells beside them: the same rule);
   nothing else moved.
+- **Under kinsoku off no mark hangs, and the layout's breaks have no
+  spacing (2026-10-18).** zh-b00fef0d's Normal says w:kinsoku 0, and
+  Word's print opens lines with "、" after "…协同更高效" and "，" after
+  "…决策部署": a mark that may start a line goes to the next one rather
+  than hang. And the zero-width breaks the layout puts in (before a
+  closing mark under kinsoku off, at a quote) carried their run's
+  spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
+  went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
+  zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
 - **zh-e0ca7252: six small things, 42.0 -> 98.0 at Word's page count
   (2026-10-17).** (1) An EQ field that rings a number with no result
   written, `eq \o\ac(○,1)` (27 of them opening its insurance clauses), is
