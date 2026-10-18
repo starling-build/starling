@@ -6032,9 +6032,12 @@ fitter dropped the paragraph's tail).
   parted it right after "：", the page after ran a line early, and so on to
   the end. The wide-word rule had asked a space before the word, a
   document not set by the East Asian rules, and a narrow cell. Now a word
-  of twenty characters or more takes a line of its own after a space, an
+  of twenty characters or more takes a line of its own after an
   ideograph or a full-width mark, in the body or a cell of any width.
-  zh-ff93733d 22.8 -> 96.2; nothing else moved (s320 -> s321, one base).
+  After a space the rule is as it was (under East Asian layout Word
+  parts such a word where it stands: testABodyWordWiderThanTheLineOpensALine,
+  which 8498b68f broke and the follow-up restores). zh-ff93733d 22.8 ->
+  96.2; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

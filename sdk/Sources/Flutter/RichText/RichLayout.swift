@@ -8371,8 +8371,8 @@ public final class RichLayout {
         guard theme.wordRules, textWidth > 1, !p.runs.isEmpty else { return [] }
         let narrowCell = p.cell != nil && textWidth < _px(150)
         // (In East Asian text too, and in a cell of any width, for a word
-        // of twenty characters or more after a space, an ideograph or a
-        // full-width mark: zh-ff93733d's "3. 線上關懷平台：http://df.ffceap.
+        // of twenty characters or more after an ideograph or a full-width
+        // mark: zh-ff93733d's "3. 線上關懷平台：http://df.ffceap.
         // com.tw/taoyuantraining/", in a 210pt cell, has the address on a
         // line of its own in Word's print, parted at the margin — ours
         // parted it after "：", and every page after ran a line early.)
@@ -8390,8 +8390,13 @@ public final class RichLayout {
             let part = (k + 1 ..< end).first(where: { units[$0] == 0x2D && $0 + 1 < end }).map { $0 + 1 } ?? end
             // (Only after a space: a word that opens the paragraph is on a
             // line of its own already.)
-            let after = k > 0 && (units[k - 1] == 0x20 || units[k - 1] >= 0x2E80)
-            if after, part - k >= (narrowCell && units[k - 1] == 0x20 ? 3 : 20),
+            // (After a space, as before: in a narrow cell, or in a body
+            // not set by the East Asian rules — under them Word parts such
+            // a word where it stands. After an ideograph or a full-width
+            // mark, anywhere.)
+            let afterSpace = k > 0 && units[k - 1] == 0x20 && (narrowCell || p.cell == nil && !document.usesEastAsianLayout)
+            let afterIdeograph = k > 0 && units[k - 1] >= 0x2E80
+            if afterSpace || afterIdeograph, part - k >= (narrowCell && afterSpace ? 3 : 20),
                !(k ..< part).contains(where: { units[$0] >= 0x2E80 }) {
                 var at = 0
                 var run = p.runs[0].style
