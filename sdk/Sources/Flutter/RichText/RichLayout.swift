@@ -10115,7 +10115,10 @@ public final class RichLayout {
     private func _pageNumberFormat(_ p: Int, _ document: RichDocument) -> String? {
         let section = _headerFooterSection(p)
         if section.last || section.index >= _sectionSetups.count { return document.pageNumberFormat }
-        return _sectionSetups[section.index].pageNumberFormat
+        // (A section that names no format writes plain numbers, whatever
+        // the last says: zh-c8eb6e92's last section is "numberInDash", and
+        // Word's print numbers its earlier pages "1", "2" — ours "- 1 -".)
+        return _sectionSetups[section.index].pageNumberFormat ?? (theme.wordRules ? "decimal" : nil)
     }
 
     /// The section page `p` is of, as `RichHeaderFooter.section` counts

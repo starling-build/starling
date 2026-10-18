@@ -5953,6 +5953,12 @@ fitter dropped the paragraph's tail).
     less than the margin).
 
   zh-0b87285b 77.9 -> 98.0; nothing else moved.
+- **A section that names no page-number format writes plain numbers
+  (2026-10-17).** zh-c8eb6e92's last section says `w:pgNumType
+  w:fmt="numberInDash"` and its earlier ones say nothing. Word's print
+  numbers those pages "1", "2"…, but ours wrote "- 1 -" on every page,
+  taking the last section's format for theirs. zh-c8eb6e92 91.2 -> 97.5
+  (zh-8e8d4c40 98.9 -> 99.4 with it); nothing went down.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
