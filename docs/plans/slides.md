@@ -2460,6 +2460,20 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A column's value label past its end, as far off as it is large; a
+chart title four fifths of the chart wide, 2026-10-18** (sweeps 202–203:
+aascu 5864's chart pages 8 9.23 → 8.90, 16 8.96 → 8.92, 5 21.23 →
+21.17; nothing else moved, few slide charts label their columns).
+PowerPoint stands a column's label 0.79 of its size over a rising
+bar's top and 0.94 under a falling bar's foot (5864's 18 pt labels:
+14.3 and 16.9 pt); ours stood 8 pt over every bar, right for 10 pt
+labels only, so its 18 pt ones sat on their bars and its −1.4 and
+−2.1 on the axis line. And a chart's title wraps at four fifths of
+the chart's width: 5864's 20 pt title breaks before "at", its first
+line 535 pt of a 696 pt chart and "at" taking it past 557; ours used
+the whole width less the margins. Both for slides; Word's charts are
+as they were.
+
 **A line of so many points has its baseline at a fixed share,
 2026-10-18** (sweep 199: corpus mean 0.9658 → 0.9655; pptx2svg 3.69 →
 3.51, none other moved). PowerPoint sets pptx2svg's 30 pt Verdana

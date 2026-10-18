@@ -1678,7 +1678,10 @@ enum ChartPainter {
                 fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain,
                 fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)),
                 textAlign: .center, textDirection: .ltr)
-            tp.layout(minWidth: 0, maxWidth: max(1, area.width))
+            // No wider than four fifths of the chart: aascu 5864's 20 pt
+            // title breaks before "at" in PowerPoint's print, its first
+            // line 535 pt of a 696 pt chart, "at" taking it past 557.
+            tp.layout(minWidth: 0, maxWidth: max(1, c.onSlide ? min(area.width, 0.8 * r.width) : area.width))
             // (Two points higher than the area's edge: where PowerPoint's
             // sits. Or where the file places its box, 4.5 pt in and 1.5
             // down, over the plot: LIBRE_OFFICE-100610's bar charts'
@@ -2688,7 +2691,17 @@ enum ChartPainter {
                     } else {
                         let left = centre - group / 2 + Double(j) * step
                         rect = Rect.fromLTRB(left, min(p0, p1), left + bar, max(p0, p1))
-                        labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy : min(p0, p1) - 8 * k), j))
+                        // Past the bar's end, as far off as the label is
+                        // large: under a bar that runs down from the axis.
+                        // (aascu 5864's 18 pt labels stand 14.3 pt over a
+                        // bar's top and 16.9 under a falling one's foot in
+                        // PowerPoint's print, 0.79 and 0.94 of their size;
+                        // ours stood 8 over every bar, the −1.4 and −2.1
+                        // on the axis line.)
+                        let size = c.series[j].labelSize ?? c.baseTextSize
+                        let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : -8 * k
+                        labels.append((dataLabel(c, raw), Offset(rect.center.dx, c.stacked ? rect.center.dy
+                            : (off > 0 ? max(p0, p1) : min(p0, p1)) + off), j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
                     // depth, its own depth a 1 + gapDepth share of it.
