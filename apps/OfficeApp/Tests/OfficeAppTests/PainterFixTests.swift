@@ -669,7 +669,7 @@ final class MetafileTests: XCTestCase {
         file += record(14, [0, 0, 20])
         XCTAssertTrue(Metafile.isMetafile(Data(file)))
         let m = try XCTUnwrap(Metafile(Data(file), id: "e"))
-        XCTAssertEqual(m.bounds.width, 100, accuracy: 0.5, "the frame in device units")
+        XCTAssertEqual(m.bounds.width, 101, accuracy: 0.5, "the frame in device units, to and including its last")
         XCTAssertEqual(m.steps.count, 1, "filled, not stroked: \(m.steps)")
         guard case .fill(let path, let color) = m.steps[0] else { return XCTFail("a fill") }
         XCTAssertEqual(color, Color(0xFF0000FF))

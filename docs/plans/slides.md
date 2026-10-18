@@ -2301,6 +2301,18 @@ grey on all four sides, prints with its left and top rules only, the
 fill running to the edge. Ours drew all four rules inside the frame.
 A window thousands of units across moves by nothing to see.
 
+**An EMF's frame to and including its last unit, 2026-10-17** (sweep
+177: 1.0191 → 1.0145; lo-tdf143222 4.22 → 0.24, bug54570 2.62 → 2.30,
+ecodesign 3.19 → 2.99 — its page 23 7.52 → 1.11 —, four more a little;
+lo-tdf149206 1.41 → 3.39, tdf169694 +0.05). The other way about from a
+WMF: an EMF is drawn as if its frame were a unit wider and taller than
+the header says, so lo-tdf143222's pasted sheet, 1569 units across,
+prints 0.064% smaller than ours, every word drifting right and down
+by up to half a point. One unit narrower (as a WMF) made it 6.25.
+tdf149206 fits neither: its one bitmap prints 563.5 by 451 units for
+a frame of 562.95 by 450.35 (and a window mapped onto a viewport of
+its own), half a unit either side; left.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the

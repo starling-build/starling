@@ -772,7 +772,10 @@ private struct Player {
         if devW > 0, devH > 0, mmW > 0, mmH > 0 {
             let kx = devW / (mmW * 100), ky = devH / (mmH * 100)
             let f = Rect.fromLTRB(Double(i32(24)) * kx, Double(i32(28)) * ky, Double(i32(32)) * kx, Double(i32(36)) * ky)
-            bounds = f.width > 0 && f.height > 0 ? f : box
+            // A unit wider and taller, the frame counted to and including
+            // its last unit: lo-tdf143222's sheet, 1569 units across its
+            // frame, prints 1570 across, ecodesign's table 496 for 495.
+            bounds = f.width > 0 && f.height > 0 ? Rect.fromLTWH(f.left, f.top, f.width + 1, f.height + 1) : box
         } else {
             bounds = box
         }
