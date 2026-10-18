@@ -2460,6 +2460,14 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**Tried and dropped, 2026-10-18: table cell lines rounded a tenth of a
+point low.** Maloney's slide 8 cell has every fifth 16.8 pt line a
+point high (170.56 to PowerPoint's 171.6): our unsnapped line stands a
+little above PowerPoint's, and at that phase it rounds the other way.
+Rounding `cellLineShift` from 0.1 pt lower moved those (Maloney −0.03,
+LIBRE_OFFICE-100610 −0.13, customGeo −0.03) but bug68703 +0.46 and six
+others +0.02 to +0.07: 0.47 worse in sum. The nearest point stays.
+
 **A raised run's shadow goes with it, 2026-10-18** (sweep 205: no
 page moved past rounding; aascu 5864's title "21st"). A raised or
 lowered run is held unseen in its line and drawn again where it
