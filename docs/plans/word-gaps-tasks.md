@@ -110,6 +110,12 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
+### T125. zh-eb54d3b0 (95.4% on Windows, twelfth sample): line ends on p1 run a character short of Word's
+Owner: session 01QbbApP (Windows box), from 2026-10-18
+Documents: zh-eb54d3b0. p1's "到2025年总体目标：一是产业规模升级，" takes "级，"
+in Word's print and not in ours; every line after it runs one or two
+characters behind to p2's paragraph end.
+
 ### Regression (Mac 011uWpmC, 2026-10-17 night): fdceb326 takes zh-3c055c9b 76.7 -> 33.5 on the Mac — FIXED (645e5e65)
 Same-base sweep on the Mac (s299 -> s300, the tip with fdceb326 "a run's
 character spacing falls back to its style's, then Normal's"): zh-3c055c9b
