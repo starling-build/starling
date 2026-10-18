@@ -4610,7 +4610,10 @@ public final class RichLayout {
         // (Where the grid takes room away. Where it adds some, Word does
         // not round: zh-ac627439 (+0.3, 442.2pt, 40.9 cells of 10.8) sets
         // a 15pt line to 437.6.)
-        if theme.wordRules, p.cell == nil, _grid(i, document).pitch != nil, let add = _grid(i, document).chars, add < 0 {
+        // (And where it takes none: zh-18cb2079's grid of characters says
+        // no charSpace, and its justified 16pt lines end at 27 cells,
+        // 511.55, in a 442pt column — ours set 28 by squeezing marks.)
+        if theme.wordRules, p.cell == nil, _grid(i, document).pitch != nil, let add = _grid(i, document).chars, add < 0.0001 {
             let cell = _px((_normalChar(document)?.fontSize ?? theme.fontSize) + add)
             if cell > 0 { width = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell) }
         }

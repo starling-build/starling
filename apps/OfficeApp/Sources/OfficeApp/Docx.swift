@@ -1742,8 +1742,14 @@ enum DocxFormat {
                 if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
                     document.lineGridPitch = pitch / 20
                 }
-                if grid["w:type"] == "linesAndChars", let space = Double(grid["w:charSpace"] ?? ""), space != 0 {
-                    document.characterGridSpace = space / 4096
+                // (A grid of characters that adds nothing to them is a grid
+                // all the same: its lines hold whole characters — zh-18cb2079,
+                // linesAndChars with no charSpace, sets 27 of 16pt in a
+                // 442pt column in Word's print, where ours squeezed three
+                // marks for a 28th. A hair stands for none.)
+                if grid["w:type"] == "linesAndChars" {
+                    let space = Double(grid["w:charSpace"] ?? "") ?? 0
+                    document.characterGridSpace = space != 0 ? space / 4096 : 1e-6
                 }
             }
             document.sectionTypeXML = sect.first("w:type").map { PptxXML.serialize($0) }
@@ -2329,8 +2335,9 @@ enum DocxFormat {
             if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
                 setup.lineGridPitch = pitch / 20
             }
-            if grid["w:type"] == "linesAndChars", let space = Double(grid["w:charSpace"] ?? ""), space != 0 {
-                setup.characterGridSpace = space / 4096
+            if grid["w:type"] == "linesAndChars" {
+                let space = Double(grid["w:charSpace"] ?? "") ?? 0
+                setup.characterGridSpace = space != 0 ? space / 4096 : 1e-6
             }
         }
         return setup
