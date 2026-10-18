@@ -2593,6 +2593,14 @@ breaking counts the box a whole em (then 果 is 4.8 over) and only its drawing i
 the break (a whole em leaves it 7.75 over against "，"'s 6.5). Lab wanted (Word for Mac, YaHei, U+F909 and U+FA01):
 the box in the break — whole em or 0.697 — and whether it differs by character or position.
 
+### T120. zh-b4d36718: turned text in a merged cell that crosses a page sits off its part of the page — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-18
+Documents: zh-b4d36718 (93.7, tenth sample; p14-16 hold most of its 48 misses).
+Known: its catalogue table merges the "基本公共服务事项" and "公共文化类" columns (tbRlV, vAlign center) over rows
+that run on past p14's foot. Word centres each one's text in the part of the merge on the page (基…项 about -494,
+the page's rows -250..-735); ours sets it 80pt lower, and "公共文化类" runs off the page's foot. A merge wholly on
+one page ("医疗卫生类") is right in both.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
