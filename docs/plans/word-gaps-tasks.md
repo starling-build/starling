@@ -161,6 +161,14 @@ words after all — the test's case is "Note: " + 80 underscores. Needs a
 lab: a long URL/underscore run after a space, East Asian layout on, in
 Word 16. Unclaimed.
 
+### Note from the Mac (2026-10-18): zh-167ee06c (72.9) looked at, released
+p2's "七、經同意…為必要" (legacy mode, compressPunctuation, bold JhengHei
+UI Light 14pt): ours squeezes 、 and ， to take 要 (over 4.7 of 14), Word
+leaves 要 alone on the next line, marks unsqueezed at 14.32. Its bold
+title prints 421pt in a 415.3 column, so the emboldening is drawn, not
+fitted; fake bold for JhengHei UI (1/48) wraps the title and drops the
+file to 0.4 — don't. Sent to lenovo-2 as squeeze data.
+
 ### Note from the Mac (2026-10-18): the zh corpus is 206 documents — an eighth sample
 Twenty more (`random.seed(20261022)`, all twenty printed), checked in.
 It starts at 85.5% (median 98.0). Its low ones, unclaimed:
