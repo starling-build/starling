@@ -5538,6 +5538,30 @@ fitter dropped the paragraph's tail).
   zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
   lower in Word than the two-line cells beside them: the same rule);
   nothing else moved.
+- **A table set in a frame stands where the frame says (2026-10-17).**
+  zh-621d8756 p15: every paragraph of every cell of the form table carries
+  one `w:framePr` (vAnchor text, y 342, xAlign center, wrap notBeside),
+  which is how Word writes a table put in a frame. Word's print sets the
+  table 17.1pt under "需要补正内容如下：", the text under it; ours read the
+  frames in the cells as nothing and sat the table on that line's foot.
+  Such a table now reads as a floating table does: the frame's y below the
+  text's place (`floatOffsetY`), centred on the margin where it says
+  xAlign center. zh-621d8756 82.3 -> 83.9; nothing else moved.
+- **A Word paragraph's height and spacing keep their fractions too
+  (2026-10-17).** With Word's lines kept unrounded, three roundings were
+  left: the bridge reported each line rounded (its lines no longer added
+  up to the paragraph, and the layout parts a paragraph at those sums),
+  each paragraph's block was rounded up to a whole unit, and its space
+  before was rounded and the space shared with the paragraph above
+  rounded down. At a screen's 4/3px a point that set Word's 14pt web gap
+  at 14.75 here and 15.23 on the Mac (testWebSpacingPartsTwoLists); in a
+  conversion's twentieths of a point it is a hair a paragraph. All four
+  are exact under Word's rules now (engine cac609985ae for the lines).
+  With the exact spacing zh-d68ac84a's p36 table took a row more (0.53pt
+  left, mode 14), so the half-line reserve of T87 is for mode 12 only:
+  mode 14 asks the whole line, as 15 does. zh-799c91cd +1.2; the rest
+  moves 0.1pt or less (matcher noise, up to 4 points on zh-232090e0's
+  vertical cell text).
 - **Word's lines keep their fraction (2026-10-17).** skparagraph rounds
   each line's height to a whole layout unit; Word does not. A 12pt
   PMingLiU line is 1332/1024 em, 15.61pt: zh-de3410bd's page 1, forty

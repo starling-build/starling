@@ -2577,12 +2577,13 @@ public final class RichLayout {
             // asking its own top line's width, as before — zh-e061a08e's
             // page 4 parts a row under a thicker line at Word's line.)
             if c.ruleBelow > 0 && !parted { return 0 }
-            // (Before Word 2013's mode, the half of the line that hangs
+            // (In Word 2007's mode, the half of the line that hangs
             // under the row's edge: zh-1a3c7aa0, mode 12, sets page 13's
             // "5 O,O-二甲基…" row under a 0.5pt line with 0.22pt left,
-            // where bug65649's 0.75 line with 0.6 left, mode 15, did not.)
+            // where bug65649's 0.75 line with 0.6 left, mode 15, did not,
+            // nor zh-d68ac84a's p36 row with 0.53 left, mode 14.)
             if parted { return max(0, c.rules - c.ruleBelow) }
-            return max(0, c.ruleNext) / ((document.compatibilityMode ?? 12) >= 15 ? 1 : 2)
+            return max(0, c.ruleNext) / ((document.compatibilityMode ?? 12) >= 14 ? 1 : 2)
         }
         func cellCuts(_ k: Int) -> [Double] {
             let g = geometry(k)
@@ -4328,7 +4329,8 @@ public final class RichLayout {
         // off. bug59058's "Abstract", ruled under, had its 9 and the
         // body's 9 both, and page 24 lost its last line.)
         guard !style.pageBreakBefore else { return 0 }
-        return min(_spacing(above, document).after, _spacing(i, document).before).rounded(.down)
+        let shared = min(_spacing(above, document).after, _spacing(i, document).before)
+        return theme.wordRules ? shared : shared.rounded(.down)
     }
 
     /// `_sharedSpace` in a cell: how much of cell paragraph `k`'s space
@@ -5081,7 +5083,10 @@ public final class RichLayout {
         let bTop = _bordersJoin(i - 1, i, document) ? 0 : style.borders?.top.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0
         let bBottom = _bordersJoin(i, i + 1, document) ? 0 : style.borders?.bottom.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0
         let spacing = _spacing(i, document)
-        let before = (spacing.before + bTop).rounded()
+        // (Exact under Word's rules, whose lines keep their fractions
+        // too: 14pt is 18.67px on a screen, and a whole pixel more under
+        // every web-spaced paragraph stood Word's 14pt gap at 14.75.)
+        let before = theme.wordRules ? spacing.before + bTop : (spacing.before + bTop).rounded()
         let after = spacing.after + bBottom
         // Where the engine put the baseline (a strut's even leading) is
         // not where Word has it: the text is drawn from as much lower.
@@ -5476,7 +5481,11 @@ public final class RichLayout {
             let own = _markLineHeight(i, document)
             if last.height - own > 0.5 { bodyHeight -= last.height - own }
         }
-        _heights[i] = (before + push + bodyHeight + after).rounded(.up)
+        // (Its own fraction too where its lines keep theirs: Word adds
+        // its paragraphs' heights unrounded, and a page of one-line
+        // paragraphs each rounded up stood a unit a paragraph long.)
+        let total = before + push + bodyHeight + after
+        _heights[i] = painter.fractionalLineHeights ? total : total.rounded(.up)
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.
         if theme.wordRules, p.text.isEmpty, p.image == nil, style.sectionXML != nil, p.cell == nil { _heights[i] = 0 }
