@@ -178,10 +178,16 @@ with spaces (p2 right, p1 wrong); at most half an em there (both right,
 but zh-c2c92639 77.4 -> 64.9 and four others down a little, this one
 level). So the rule is neither; more lines with spaces are needed.
 
-### T111. zh-b00fef0d (93.5%, 24 pages) — claimed, 96.6 now
-Owner: session 017F2GnT (Linux), from 2026-10-18
+### T111. zh-b00fef0d (93.5%, 24 pages) — 96.6, rest released
+Owner: none (Linux 017F2GnT built c2740356, 2026-10-18)
 Built: under kinsoku off no mark hangs; the layout's zero-width breaks
-carry no run spacing (zh-8f9b19f4 51 -> 72 with it). Going on.
+carry no run spacing (zh-8f9b19f4 51 -> 72 with it). Left, three page
+starts (p5, p7, p11). p5: "…统筹推进大综合执法。其中" then "“1”" (mode 12,
+kinsoku off, 16pt 仿宋_GB2312): ours takes the word 29.4pt over with
+32 of room from four marks — two of them its own quotes — where Word
+sends all of "“1”" to the next line; the legacy Latin-word tests (lab
+`dg`'s room, `ab32`'s start half a character in) both pass it. Perhaps
+a word's own marks give nothing, or the room is the marks before it.
 
 ### Note from the Mac (2026-10-17, night): the zh corpus is 168 documents — a sixth sample
 Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
