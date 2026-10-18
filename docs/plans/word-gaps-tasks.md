@@ -2489,6 +2489,20 @@ cell one still does: zh-20ff844e's narrow cells take their "③", 99.0 ->
 98.4 with the rule everywhere). Same-base sweep: zh-30d86fcf 95.3 -> 99.4,
 nothing else moved.
 
+### T115. zh-8d6f702e p23: on its -0.21 grid comma-like marks give a quarter em, brackets nothing — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Windows box's lead, office.md)
+Documents: zh-8d6f702e.
+Known (Windows): mode 12, compressPunctuation, a -0.21 grid. "计面雨量达160—230毫米（不含），或全县…以上站点" — Word squeezes
+nothing, leaves "累"; ours gives "（", "）", "，" 2.63 each to take it. The next, "…150毫米，或全", Word gives "：" and "，" 3.94
+each (a quarter em) to take "全"; ours gives nothing.
+
+### T116. zh-621d8756: a colon squeezed so one more space fits; "号：" + spaces + "、" not ending a line — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Windows box's leads)
+Documents: zh-621d8756 (95.5).
+Known (Windows): wordWrap off, compressPunctuation + noPunctuationKerning: "答：", "执法人员：", "执法证号：" set the colon
+10.8-11.6 so one more space fits (ours 15.6). p19 (no wordWrap off, lines grid): "…执法证号：" + 6 spaces + "、" — Word
+ends the line at "…执法证" and starts the next with "号："; ours keeps "号：" and its spaces and hangs the "、".
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
