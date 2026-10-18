@@ -5604,7 +5604,8 @@ public final class RichLayout {
                 let a = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: at)
                 let b = p.text.utf16.index(a, offsetBy: run.length)
                 at += run.length
-                for ch in p.text[a ..< b] where Self.isEastAsian(ch, hinted: hinted) {
+                // (Not white space: a U+3000 sets no line — see `_strut`.)
+                for ch in p.text[a ..< b] where !Self._setsNoLine(ch) && Self.isEastAsian(ch, hinted: hinted) {
                     lead = (run.style, true)
                     break search
                 }
@@ -5621,6 +5622,10 @@ public final class RichLayout {
                         defer { start += run.length }
                         guard start < firstEnd else { break }
                         if run.style.inlineImage != nil || run.style.script != .normal { continue }
+                        // (Nor a run of white space alone: see `_strut`.)
+                        let from = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: min(start, p.text.utf16.count))
+                        let to = p.text.utf16.index(from, offsetBy: min(run.length, p.text.utf16.count - min(start, p.text.utf16.count)))
+                        if p.text[from ..< to].allSatisfy(Self._setsNoLine) { continue }
                         if let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch) {
                             target = max(target, b)
                         }
@@ -7237,6 +7242,12 @@ public final class RichLayout {
     /// which lines those are depends on which face the platform falls
     /// back to for a character. A strut of that height holds every line
     /// to it. (Stretches of different heights are left to the tallest.)
+    /// White space whose face and size set no line in Word's print, where
+    /// the line holds anything else: the space and U+3000 (lab `el`). Not
+    /// a no-break space, which stands in for a glyph no face has — the
+    /// Symbol box of form_footnotes' "D - ", whose line is Symbol's.
+    static func _setsNoLine(_ ch: Character) -> Bool { ch == " " || ch == "\u{3000}" }
+
     private func _strut(_ span: TextSpan, tallest: Bool = false) -> StrutStyle? {
         guard theme.wordRules else { return nil }
         var first: TextStyle? = nil
@@ -7248,9 +7259,17 @@ public final class RichLayout {
         // like any other, where the engine's own line — the run's ascent
         // and descent moved with it — had set the text lower, not higher.)
         var shiftedToo = false
+        // (Nor does white space, where there is anything else: its face
+        // and size set no line in Word. Lab `el` (Word for Windows,
+        // zh-2f9463d6's package, 12pt Times beside 微软雅黑): "AB　",
+        // "A　B", "　AB" and "AB" with a 20pt space, U+3000 or ASCII, are
+        // the lines "AB" is, on a line grid and off it; "AB测" is YaHei's.
+        // zh-2f9463d6's "……　" cells stood a pitch tall.)
+        var blanksToo = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
-            if t.text != nil, let style = t.style, style.baselineShift == nil || shiftedToo, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
+            if let text = t.text, blanksToo || text.contains(where: { !Self._setsNoLine($0) }),
+               let style = t.style, style.baselineShift == nil || shiftedToo, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
                 count += 1
                 if let f = first, let fs = f.fontSize, let fh = f.height {
                     if tallest {
@@ -7263,6 +7282,7 @@ public final class RichLayout {
             for c in t.children ?? [] { visit(c) }
         }
         visit(span)
+        if count == 0, uniform { blanksToo = true; visit(span) }
         if count == 0, uniform { shiftedToo = true; visit(span) }
         guard uniform, count > 0, let base = first, let size = base.fontSize, let h = base.height else { return nil }
         // (Even leading: the engine's proportional strut scales the

@@ -110,12 +110,17 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
-### T126. zh-2f9463d6 (95.9% on Windows): a cell's text before a trailing U+3000 makes its row a line taller
-Owner: session 01QbbApP (Windows box), from 2026-10-18
+### T126. zh-2f9463d6 (95.9% on Windows): a cell's text before a trailing U+3000 makes its row a line taller — DONE (2026-10-18)
+Owner: none (Windows 01QbbApP built it, released)
 Documents: zh-2f9463d6 (p20-21, 28 of its 29 misses). Its table row
 "……　" (12pt, Times/仿宋, centred) is 26.6pt in Word's print and 39.7 in
 ours. Lab `el` (Word for Windows, its own rows): "AB　", "——　" alike;
 "……", "…" and a lone "　" are not.
+95.9 -> 99.9, nothing else moved (306 zh, 110 POI): a space or U+3000
+sets no line where the line holds anything else (office.md "A space
+sets no line"). Also found (Mac 011uWpmC agrees): Word for Windows maps
+仿宋_GB2312 through fontTable w:altName (仿宋 -> FangSong, a 1.000-em
+Office cloud font); Word for Mac does not.
 
 ### T125. zh-eb54d3b0 (95.4% on Windows, twelfth sample): line ends on p1 run a character short of Word's — DONE (2026-10-18)
 Owner: none (Windows 01QbbApP built it, released)

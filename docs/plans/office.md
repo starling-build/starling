@@ -6443,6 +6443,20 @@ all 6,763 GB2312 hanzi and 99.98% of the corpus's 仿宋 text. Not built.
   then left "产" 7.81 over half of "茶" (7.897), which took it; Word's
   is 7.91 over and goes down — in Word for Windows too, on and off the
   grid (lab `og2`). zh-eb54d3b0 96.8 -> 98.0; nothing else moved.
+- **A space sets no line (2026-10-18; Windows).** Where a line holds
+  anything else, its spaces and U+3000s take no part in its height or
+  its baseline, whatever their face or size. Lab `el` (Word for
+  Windows, zh-2f9463d6's package, 12pt Times beside 微软雅黑, in
+  ~/starling-doc-check/lab/el): "AB　", "A　B", "　AB", and "AB" with
+  four 20pt spaces after it or before "CD", set the line "AB" does, on
+  a 15.6pt line grid (26.04) and off it (24.0); "AB测" sets YaHei's
+  (39.2, 27.9). Ours let a YaHei U+3000 make the line two pitches, and
+  zh-2f9463d6's table row "……　" stood 13pt taller than Word's, its
+  pages 20-21 with it. Not a no-break space: that is what a glyph no
+  face has is drawn as, and form_footnotes' "D - " + Symbol box line is
+  Symbol's in Word's print (lab `ws`, 12.24 at 10pt, where Times'
+  is 11.5) — its 11pt spaces had stood in for that.
+  zh-2f9463d6 95.9 -> 99.9; nothing else moved (306 zh, 110 POI).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
