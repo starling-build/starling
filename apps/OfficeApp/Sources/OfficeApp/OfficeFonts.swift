@@ -1218,8 +1218,8 @@ enum OfficeFonts {
             // the stand-in drew Liberation Sans's √ at 0.549, and the box
             // an em.)
             if ea.height == yaHei.height {
-                face.otherAdvances = [0x2026: 0.8135, 0xB7: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604]
-                face.boldOtherAdvances = [0x2026: 0.9629, 0xB7: 0.4395]
+                face.otherAdvances = [0x2026: 0.8135, 0xB7: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604].merging(circled(1.0)) { $1 }
+                face.boldOtherAdvances = [0x2026: 0.9629, 0xB7: 0.4395].merging(circled(1.0)) { $1 }
             }
             face.scaledHeight = ea.scaledHeight
             face.scaledBaseline = ea.scaledBaseline
@@ -1241,9 +1241,14 @@ enum OfficeFonts {
         face.symbolFamily = ea.symbols
         // (YaHei's middle dot, which its table of ASCII widths leaves to
         // the stand-in's: see the East Asian face above.)
+        // (And its circled numbers, an em: Word's print of zh-34a6519a sets
+        // "①".."⑤" in YaHei 12.0pt apart at 12pt and 10.5 at 10.5, where
+        // the stand-in, which has none, drew DejaVu's at 0.9 — "⑤有应急…"
+        // then took "承" on its first line by a squeeze Word's does not
+        // make, and every page from p11 ran early.)
         if ea.height == yaHei.height {
-            face.otherAdvances = [0xB7: 0.2407]
-            face.boldOtherAdvances = [0xB7: 0.4395]
+            face.otherAdvances = [0xB7: 0.2407].merging(circled(1.0)) { $1 }
+            face.boldOtherAdvances = [0xB7: 0.4395].merging(circled(1.0)) { $1 }
         }
         // A no-break space in a square face is an em, where its space is
         // half of one (lab `nb1`, Word 16, 2026-10-15: "甲" + ten U+00A0 +

@@ -5193,7 +5193,13 @@ public final class RichLayout {
                 // paragraphs under its articles in Word's print, the
                 // fourth's 36pt line 5pt over the margin and its 24 of
                 // text inside it.)
-                _overhang[i] = last.height * (1 - 1 / multiple)
+                // (Of the line's advance where the paragraph keeps its
+                // lines' fractions: on the Mac a 1.5-spaced YaHei line's
+                // ascent and descent are 644.8 of an advance of 617.4,
+                // and the larger third let zh-34a6519a's "（3）依法实施"
+                // onto page 5 with 0.5 to spare where Word's goes on.)
+                let height = painter.fractionalLineHeights ? painter.computeLineAdvances().last ?? last.height : last.height
+                _overhang[i] = height * (1 - 1 / multiple)
             }
         }
         _painters[i] = painter

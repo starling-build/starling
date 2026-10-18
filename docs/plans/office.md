@@ -5538,6 +5538,19 @@ fitter dropped the paragraph's tail).
   zh-a4b0f6ea 99.4 -> 100 (the roster's "出生年月" and "行政职务", 3.9pt
   lower in Word than the two-line cells beside them: the same rule);
   nothing else moved.
+- **YaHei's circled numbers are an em (2026-10-17).** zh-34a6519a p11:
+  Word's print sets "①".."⑤" in Microsoft YaHei (its 仿宋_GB2312), 12.0pt
+  apart at 12pt and 10.5 at 10.5. The YaHei stand-in has none, and the
+  fallback that drew them (DejaVu Sans) is 0.9 of an em: "⑤有应急抢险任务…"
+  then took "承" on its first line by squeezing its two "，" (5.5pt over,
+  under half an em) where Word's, 6.75 over, goes on — a line short there
+  and every page after early. They are an em in both of YaHei's faces now.
+  zh-34a6519a 28.1 -> 90.8 on Linux, Word's page count (the Mac, whose
+  fallback is em-wide, had 90 already); nothing else moved. With it, a
+  1.5-spaced paragraph's foot overhang (a multiple's extra under its last
+  line) takes the line's advance where the lines keep their fractions:
+  on the Mac YaHei's ascent and descent (644.8) outran the advance (617.4)
+  and its larger third let p5 take "（3）依法实施" with 0.5 to spare.
 - **A table set in a frame stands where the frame says (2026-10-17).**
   zh-621d8756 p15: every paragraph of every cell of the form table carries
   one `w:framePr` (vAnchor text, y 342, xAlign center, wrap notBeside),
