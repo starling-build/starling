@@ -662,6 +662,17 @@ holding paragraph marks stands at the nearer of its line's top and
   starts no higher than one ungridded Normal line under a header that
   ends above the margin. The earlier probes used a gridded line, 31.2pt
   in zh-1563bd74's grid, which by itself would push files Word leaves.)
+  (Built that way: per page, ungridded Normal line from the header's own
+  document, Normal's paragraph style. Lab `hl` then pushes exactly the
+  pages Word does, 2-5pt short. In the corpus it took zh-4adfcce2 0 ->
+  36.2 but cost zh-007ca091 93 -> 11.9, zh-e37f8d40 100 -> 27.9,
+  zh-799c91cd 99.2 -> 51.8 and zh-20c1d74a 86.5 -> 78.4 (s353 -> s354).
+  zh-007ca091 is the clean counter-case: one empty header paragraph,
+  Normal 16pt, the header ending above its 70.85 margin with room for a
+  Normal line to pass it, and Word does not push. So zh-4adfcce2's
+  package still holds the trigger. Its Normal names Liberation Serif, a
+  LibreOffice face Word for Mac lacks; its styles are LibreOffice's
+  "Standard". Next lab: swap that face for one Word has. Reverted.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
