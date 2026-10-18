@@ -2444,6 +2444,12 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A picture placeholder's text is body text, 2026-10-18** (sweep 196:
+pic-placeholder-with-text 0.61 → 0.23, slide-section-test −0.04; none
+worse). Text typed into a `ph type="pic"` took the master's other-text
+style (18 pt); PowerPoint sets it in the body style (28 pt). Table,
+chart, clip art, diagram and media placeholders read so too.
+
 **A table's row bands colour their text, 2026-10-18**
 (table-with-different-font-colors: all sixteen cells' colours now
 PowerPoint's, its worst page 1.61 → 1.59; the other table decks

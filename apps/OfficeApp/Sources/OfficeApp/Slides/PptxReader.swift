@@ -2792,6 +2792,11 @@ private struct SlideContext {
         // built-in bullet: outliner-list-style's unbulleted first level.)
         case "body", "subTitle": return styles?.first("p:bodyStyle") ?? Self.builtInBodyStyle
         case "obj": return styles?.first("p:bodyStyle") ?? Self.builtInContentStyle
+        // (Text typed into a picture placeholder is body text: 28 pt in
+        // pic-placeholder-with-text's print, where the other style's 18
+        // stood. Its kin — table, chart, clip art, diagram, media — read so
+        // too.)
+        case "pic", "tbl", "chart", "clipArt", "dgm", "media": return styles?.first("p:bodyStyle") ?? Self.builtInContentStyle
         default: return styles?.first("p:otherStyle")
         }
     }

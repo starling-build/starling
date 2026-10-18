@@ -163,7 +163,7 @@ lo-ooxtheme.pptx	summary pages=1 worst=0.57% mean=0.57%
 lo-open-as-read-only.pptx	summary pages=1 worst=1.02% mean=1.02%
 lo-page_transparent_bitmap.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-paraMarginAndIndentation.pptx	summary pages=1 worst=0.14% mean=0.14%
-lo-pic-placeholder-with-text.pptx	summary pages=1 worst=0.61% mean=0.61%
+lo-pic-placeholder-with-text.pptx	summary pages=1 worst=0.23% mean=0.23%
 lo-picture-placeholder-custom-prompt.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-picture-placeholder-one-layout.pptx	summary pages=1 worst=0.36% mean=0.36%
 lo-predefined-table-style.pptx	summary pages=1 worst=0.37% mean=0.37%
@@ -176,7 +176,7 @@ lo-shape-glow-effect.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-shape-soft-edges.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-shape-text-glow-effect.pptx	summary pages=1 worst=0.48% mean=0.48%
 lo-shape-text-rotate.pptx	summary pages=1 worst=0.01% mean=0.01%
-lo-slide-section-test.pptx	summary pages=13 worst=0.61% mean=0.06%
+lo-slide-section-test.pptx	summary pages=13 worst=0.06% mean=0.02%
 lo-slide-sections.pptx	summary pages=7 worst=1.11% mean=1.07%
 lo-slidenum_field.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-smartart-accent-process.pptx	summary pages=1 worst=1.52% mean=1.52%
@@ -540,7 +540,7 @@ scatter-chart.pptx	summary pages=1 worst=1.08% mean=1.08%
 shapes.pptx	summary pages=6 worst=1.43% mean=0.44%
 smartart-rotated-text.pptx	summary pages=1 worst=0.55% mean=0.55%
 smartart-simple.pptx	summary pages=1 worst=0.76% mean=0.76%
-table-with-different-font-colors.pptx	summary pages=2 worst=1.61% mean=1.31%
+table-with-different-font-colors.pptx	summary pages=2 worst=1.59% mean=1.31%
 table-with-no-theme.pptx	summary pages=1 worst=0.07% mean=0.07%
 table-with-theme.pptx	summary pages=1 worst=0.11% mean=0.11%
 table_test.pptx	summary pages=1 worst=0.25% mean=0.25%
