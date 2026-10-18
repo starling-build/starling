@@ -110,6 +110,14 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
+### Note from the Mac (2026-10-17, evening): the zh corpus is 148 documents — a fifth sample
+Twenty more (`random.seed(20261019)`, Word 16.113.3 prints), checked in;
+compare per document across it. It starts at 78.5%. Its low ones,
+unclaimed unless marked: zh-4adfcce2 0.0 (6 pages; Mac, looking),
+zh-424775e4 7.6 (13), zh-c2c92639 9.5 (54 pages, Word 57), zh-92373179
+41.6 (11), zh-c399c91a 64.3 (7), zh-7cf85f15 76.5 (3), zh-74ef1528 94.1,
+zh-5c6ff0d7 97.8 (2 pages, Word 3).
+
 ### Note from the Mac (2026-10-17, later): the zh corpus is 128 documents — a fourth sample
 Twenty more (`random.seed(20261018)`, the unprinted rest of 15-400 KB,
 Word 16.113.3 prints) are checked in; compare per document across it.
