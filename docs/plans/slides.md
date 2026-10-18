@@ -2354,6 +2354,16 @@ page held each line twice (68 for 35). Wants a way to draw a cell's
 lines alone, not the table under a clip. (A box's bands draw nothing
 twice: a line outside the band is left out whole.)
 
+**A table's lines on whole points after all, 2026-10-17** (sweep 183:
+0.9874 → 0.9847; 18 decks better, 5 worse; tableBorderLineStyle
+−0.64, bug68703 −0.27, table_test2 −0.27, the AES deck −0.17;
+tdf149785 +0.16). Done inside the layout this time
+(`RichTextTheme.cellLineShift`, nil for Word): where a cell's
+paragraph draws its text, each line is drawn in its band, moved to its
+point counted from the top of the cell's text, and the marker with the
+first line. The fills and the rules are drawn once, where they were,
+and the PDF holds each line once.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the

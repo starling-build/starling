@@ -192,6 +192,11 @@ public final class RichTextTheme {
     /// run's `kern` where it says one, and every pair where it says none.
     /// Off for Word, whose `wordRules` kern only where a run says so.
     public var kernsByRun = false
+    /// Slides: how far a table cell's line is moved from where it is set,
+    /// in points, by its baseline's depth below the top of its cell's
+    /// text, in points (PowerPoint sets each on a whole point from
+    /// there). nil — Word — leaves every line where it is set.
+    public var cellLineShift: ((Double) -> Double)? = nil
 
     /// Each face's own single line, even with `singleLineHeight` set: a
     /// PowerPoint diagram's text steps at its face's height (Calibri
@@ -8890,6 +8895,36 @@ public final class RichLayout {
 
     /// `theme.baselineShift` for paragraph `i`, in pixels of its first
     /// run's size.
+    /// How far each line of paragraph `i` is moved (`cellLineShift`), in
+    /// layout pixels; empty for a paragraph outside a table, a turned
+    /// cell's, or where the theme moves none.
+    private func _cellLineShifts(_ i: Int, _ g: ParagraphGeometry, _ document: RichDocument) -> [Double] {
+        guard let shift = theme.cellLineShift, i < _cells.count, let c = _cells[i], c.direction == .horizontal else { return [] }
+        var k = i
+        while k > 0, let d = _cells[k - 1], d.table == c.table, d.row == c.row, d.column == c.column { k -= 1 }
+        let top = geometry(k).textTop, at = g.inkTop + _baselineShift(i, document), pt = _px(1)
+        guard pt > 0 else { return [] }
+        return g.painter.computeLineMetrics().map { shift((at + $0.baseline - top) / pt) * pt }
+    }
+
+    /// `painter` drawn at `at` line by line, each moved by its shift and
+    /// cut to a band from a quarter of the way past the line above's
+    /// baseline to the same past its own (a line outside its band is
+    /// left out whole, not drawn under the cut).
+    private func _paintShiftedLines(_ painter: TextPainter, at: Offset, _ shifts: [Double], _ canvas: any Canvas) {
+        let lines = painter.computeLineMetrics()
+        for (k, m) in lines.enumerated() where k < shifts.count {
+            let y = at.dy + m.baseline
+            let above = k == 0 ? -1_000_000 : y - (m.baseline - lines[k - 1].baseline) * 3 / 4
+            let below = k == lines.count - 1 ? 1_000_000 : y + (lines[k + 1].baseline - m.baseline) / 4
+            canvas.save()
+            canvas.clipRect(Rect.fromLTRB(-1_000_000, above + shifts[k], 1_000_000, below + shifts[k]))
+            canvas.translate(0, shifts[k])
+            painter.paint(canvas, at)
+            canvas.restore()
+        }
+    }
+
     /// Where paragraph `i`'s painter is drawn from, down the layout: its
     /// ink top moved by its face's baseline share. (Slides set each line
     /// on PowerPoint's whole points from it.)
@@ -9273,6 +9308,9 @@ public final class RichLayout {
                 canvas.drawLine(Offset(x, y0), Offset(x, y1), stroke(l))
             }
         }
+        // (A cell's line moved, its marker with it.)
+        let shifts = lines == nil ? _cellLineShifts(i, g, document) : []
+        if let first = shifts.first { canvas.save(); canvas.translate(0, first) }
         if let label = listLabel(i, document), theme.marksEmptyListItems || !document.paragraphs[i].text.isEmpty {
             let p = document.paragraphs[i]
             if let wl = _wordList(p, document) {
@@ -9345,13 +9383,14 @@ public final class RichLayout {
             marker.dispose()
             }
         }
+        if !shifts.isEmpty { canvas.restore() }
         let textAt = Offset(g.textLeft, g.inkTop + _baselineShift(i, document))
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil, leading: true)
         if let lines {
             lines.painter.paint(canvas, textAt)
         } else if !_paintScaled(i, g, canvas, document) {
-            g.painter.paint(canvas, textAt)
+            if shifts.isEmpty { g.painter.paint(canvas, textAt) } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
         }
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil, leading: false)
