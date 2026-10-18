@@ -2348,7 +2348,13 @@ fitter dropped the paragraph's tail).
   Liberation Sans, Calibri's in Carlito), not Word's. Not chartex's `cx`
   charts (their years already stand where Word's do), not on a slide.
   zh-547fc43c 96.8 -> 98.2; the five other documents with charts
-  unchanged.
+  unchanged. Then only where the chart's text is marked Chinese,
+  Japanese or Korean (`lang` on its runs, `Chart.eastAsianText`):
+  chartex's own `c:` charts (no lang) had their category labels at
+  347.35 for Word's 347.76, and the raise took them to 345.1 — inside
+  the line match's 3 pt, so its score never showed it (the Windows
+  box's other session asked). zh-547fc43c's runs say zh-CN, and the
+  lab kept that lang when it swapped the faces.
 - **Word 2016's charts show as their pictures; a chart in a line is
   drawn (2026-10-14).** A `cx` chart (box and whisker, waterfall …)
   comes as `mc:AlternateContent` whose Fallback is a picture of it:

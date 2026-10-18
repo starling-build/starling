@@ -246,6 +246,10 @@ struct Chart: Equatable {
     /// Read from a chartex part (`cx:`), which Word lays out closer to its
     /// frame than a `c:` chart.
     var chartex = false
+    /// Its text marked Chinese, Japanese or Korean (`lang` on a run's
+    /// properties): Word sets such a chart's labels higher
+    /// (`_wordLabelRise`).
+    var eastAsianText = false
     var boxInclusive = false
     var boxMeans = true
     var boxOutliers = true
@@ -957,6 +961,12 @@ enum ChartXML {
         // (A theme slot, "+mn-lt", is the theme's face: none of its own.)
         func face(_ f: String?) -> String? { f.flatMap { $0.hasPrefix("+") || $0.isEmpty ? nil : $0 } }
         c.font = face(spaceRun?.first("a:latin")?["typeface"])
+        func eastAsian(_ n: XNode) -> Bool {
+            if n.name == "a:defRPr" || n.name == "a:rPr", let l = n["lang"]?.lowercased(),
+               l.hasPrefix("zh") || l.hasPrefix("ja") || l.hasPrefix("ko") { return true }
+            return n.children.contains { eastAsian($0) }
+        }
+        c.eastAsianText = eastAsian(space)
         c.titleFont = face(titleFace) ?? c.font
         c.legend = chart.first("c:legend") != nil
         // (Absent, the schema's default is the right.)
@@ -2614,16 +2624,17 @@ enum ChartPainter {
     }
 
     /// How much higher, in points, Word stands a `c:` chart's column value
-    /// labels and category labels than ours: zh-547fc43c's print them
-    /// 2.4 to 2.8 pt over ours at 10 pt Calibri and 3.2 over at 10.5 pt
-    /// 宋体. Word itself sets the two faces within a fifth of a point of
-    /// each other (the Windows box's lab, the chart's faces swapped — only
-    /// 微软雅黑's tall line moves them); the larger step for a square East
-    /// Asian face is ours, its digits drawn in Liberation Sans where
-    /// Calibri's are in Carlito. Not a chartex chart (whose own rules put
-    /// chartex's Calibri years where ours are), and not on a slide.
+    /// labels and category labels than ours when its text is marked
+    /// Chinese, Japanese or Korean (`eastAsianText`): zh-547fc43c's
+    /// (lang="zh-CN") print them 2.4 to 2.8 pt over ours at 10 pt Calibri
+    /// and 3.2 over at 10.5 pt 宋体, where chartex's (no lang) stand where
+    /// ours do. Word sets 宋体, 黑体 and Calibri there alike (the Windows
+    /// box's lab, the chart's faces swapped, its lang kept); the larger
+    /// step for a square East Asian face is ours, its digits drawn in
+    /// Liberation Sans where Calibri's are in Carlito. Not a chartex
+    /// chart, and not on a slide.
     static func _wordLabelRise(_ c: Chart, _ size: Double) -> Double {
-        guard !c.onSlide, !c.chartex else { return 0 }
+        guard !c.onSlide, !c.chartex, c.eastAsianText else { return 0 }
         let f = c.font?.trimmingWhitespace().lowercased() ?? ""
         let square = ["宋体", "simsun", "新宋体", "nsimsun", "黑体", "simhei", "楷体", "kaiti", "仿宋", "fangsong",
                       "細明體", "mingliu", "新細明體", "pmingliu"]
