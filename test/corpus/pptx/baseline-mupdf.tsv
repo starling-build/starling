@@ -17,7 +17,7 @@ EmbeddedVideo.pptx	summary pages=1 worst=0.00% mean=0.00%
 KEY02.pptx	summary pages=1 worst=1.97% mean=1.97%
 LIBRE_OFFICE-100610-0.pptx	summary pages=17 worst=4.91% mean=1.50%
 OverlappingRelations.pptx	summary pages=4 worst=0.51% mean=0.33%
-SampleShow.pptx	summary pages=2 worst=1.73% mean=1.27%
+SampleShow.pptx	summary pages=2 worst=1.75% mean=1.28%
 SmartArt.pptx	summary pages=1 worst=0.00% mean=0.00%
 WithMaster.pptx	summary pages=2 worst=0.90% mean=0.75%
 aascu.org_hbcu_leadershipsummit_cooper_.pptx	summary pages=16 worst=6.92% mean=3.67%
@@ -329,7 +329,7 @@ lo-tdf137675.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf138148.pptx	summary pages=1 worst=0.07% mean=0.07%
 lo-tdf140714.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf140852.pptx	summary pages=1 worst=1.85% mean=1.85%
-lo-tdf140865Wordart3D.pptx	summary pages=1 worst=9.37% mean=9.37%
+lo-tdf140865Wordart3D.pptx	summary pages=1 worst=10.48% mean=10.48%
 lo-tdf141058-1.pptx	summary pages=1 worst=1.09% mean=1.09%
 lo-tdf141704.pptx	summary pages=7 worst=1.05% mean=0.50%
 lo-tdf142590.pptx	summary pages=3 worst=0.04% mean=0.04%
@@ -503,8 +503,8 @@ oox-tdf125085_WordArtFontTheme.pptx	summary pages=1 worst=2.16% mean=2.16%
 oox-tdf125582_TextOnCircle.pptx	summary pages=1 worst=2.38% mean=2.38%
 oox-tdf131082.pptx	summary pages=1 worst=0.14% mean=0.14%
 oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=11.94% mean=11.94%
-oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=7.73% mean=7.73%
-oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=16.83% mean=16.83%
+oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=7.27% mean=7.27%
+oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=19.21% mean=19.21%
 oox-tdf141463_GroupTransform.pptx	summary pages=1 worst=0.68% mean=0.68%
 oox-tdf144742_funnel.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf144742_mathEqual_mathNotEqual.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -528,7 +528,7 @@ oox-theme.pptx	summary pages=1 worst=0.03% mean=0.03%
 oox-transparent-text.pptx	summary pages=1 worst=0.04% mean=0.04%
 picture-transparency.pptx	summary pages=4 worst=0.00% mean=0.00%
 pie-chart.pptx	summary pages=1 worst=1.44% mean=1.44%
-placeholder-layout-color.pptx	summary pages=1 worst=0.69% mean=0.69%
+placeholder-layout-color.pptx	summary pages=1 worst=0.53% mean=0.53%
 pptx2svg.pptx	summary pages=1 worst=3.69% mean=3.69%
 prProps.pptx	summary pages=1 worst=0.03% mean=0.03%
 present1.pptx	summary pages=1 worst=0.26% mean=0.26%
@@ -548,6 +548,6 @@ table_test2.pptx	summary pages=1 worst=1.36% mean=1.36%
 templatePPTWithOnlyOneText.pptx	summary pages=1 worst=0.21% mean=0.21%
 testPPT.pptx	summary pages=3 worst=1.77% mean=1.09%
 text-highlight.pptx	summary pages=1 worst=1.45% mean=1.45%
-themes.pptx	summary pages=10 worst=2.63% mean=1.33%
+themes.pptx	summary pages=10 worst=2.63% mean=1.31%
 tika-2605.pptx	summary pages=14 worst=0.00% mean=0.00%
 with_japanese.pptx	summary pages=1 worst=1.97% mean=1.97%

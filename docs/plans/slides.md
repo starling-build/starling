@@ -2444,6 +2444,17 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**Arial Black in Archivo Black, 2026-10-18** (ThemeColorTransparency
+7.73 → 7.27, placeholder-layout-color 0.69 → 0.53, themes −0.02;
+WordArtBitmapFill +2.38, Wordart3D +1.11: +2.86 in sum, kept). Arial
+Black was Liberation Sans Bold at Arial Black's widths, thin letters
+standing apart. Archivo Black (OFL, Google Fonts) has Arial Black's
+widths (H 0.833, a 0.667 em) and its weight, and is now bundled and
+used for it. The two decks that go up are WordArt we draw wrong anyway
+— Wordart3D without its depth and in the wrong place, BitmapFill's
+picture tiles misaligned — where heavier letters only cover more of
+what already disagrees.
+
 **A table cell's own line runs past its corners, 2026-10-18**
 (tableBorderLineStyle 1.77 → 1.01, tdt142291 0.27 → 0.08, three more
 −0.01; the other table decks unchanged). PowerPoint draws a cell's

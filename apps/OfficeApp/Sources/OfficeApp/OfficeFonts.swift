@@ -1464,6 +1464,7 @@ enum OfficeFonts {
             faces += [("WorkSans-\(weight).ttf", "Work Sans \(weight)"), ("WorkSans-\(weight)Italic.ttf", "Work Sans \(weight)")]
         }
         faces += [("LibreFranklin-Medium.ttf", "Libre Franklin Medium"), ("LibreFranklin-MediumItalic.ttf", "Libre Franklin Medium")]
+        faces += [("ArchivoBlack-Regular.ttf", "Archivo Black")]
         faces += [("SelawikDoc-Regular.ttf", "Selawik Doc"), ("SelawikDoc-Bold.ttf", "Selawik Doc"),
                   ("SelawikDoc-Light.ttf", "Selawik Doc Light"), ("SelawikDoc-Semilight.ttf", "Selawik Doc Semilight"),
                   ("SelawikDoc-Semibold.ttf", "Selawik Doc Semibold")]

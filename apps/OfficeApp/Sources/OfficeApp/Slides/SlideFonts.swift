@@ -29,6 +29,10 @@ enum SlideFonts {
         "courier new": "TeX Gyre Cursor", "courier": "TeX Gyre Cursor",
         "century gothic": "TeX Gyre Adventor",
         "palatino linotype": "TeX Gyre Pagella", "palatino": "TeX Gyre Pagella", "book antiqua": "TeX Gyre Pagella",
+        // (Arial Black in Archivo Black, its widths Arial Black's and its
+        // strokes as heavy, where Liberation Sans Bold's letters stood thin
+        // and apart at Arial Black's widths: ThemeColorTransparency.)
+        "arial black": "Archivo Black",
     ]
 
     static func resolve(_ family: String) -> String {

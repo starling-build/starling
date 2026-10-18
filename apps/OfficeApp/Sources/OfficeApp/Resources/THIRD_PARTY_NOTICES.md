@@ -48,6 +48,11 @@ Copyright 2015 The Libre Franklin Project Authors. SIL Open Font License 1.1.
 Slides' stand-in for Franklin Gothic (fixed weights cut from the variable font).
 Full text: fonts/LibreFranklin-LICENSE.txt.
 
+## Archivo Black
+Copyright 2017 The Archivo Black Project Authors (https://github.com/Omnibus-Type/ArchivoBlack). SIL Open Font License 1.1.
+Slides' stand-in for Arial Black.
+Full text: fonts/ArchivoBlack-LICENSE.txt.
+
 ## Selawik (document copy)
 Copyright (c) 2015 Microsoft Corporation. SIL Open Font License 1.1.
 Slides' stand-in for Segoe UI, loaded as "Selawik Doc".

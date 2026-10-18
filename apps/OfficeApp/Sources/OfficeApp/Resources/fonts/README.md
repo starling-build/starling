@@ -55,6 +55,7 @@ original's — `SlideFontWidths`):
 | Courier New, Courier | TeX Gyre Cursor (a Courier design, 0.6 em) | TeXGyre-LICENSE.txt (GUST Font License) |
 | Century Gothic | TeX Gyre Adventor | " |
 | Palatino Linotype, Book Antiqua | TeX Gyre Pagella | " |
+| Arial Black | Archivo Black (Google Fonts; Arial Black's widths) | ArchivoBlack-LICENSE.txt (OFL) |
 
 Sources: Poppins, Work Sans and Libre Franklin from github.com/google/fonts
 (`ofl/`; Work Sans and Libre Franklin as fixed weights cut from the
