@@ -151,6 +151,12 @@ Also T101 (one column where sections disagree) is in for zh-8f9b19f4,
 and labs `pa` (Word 16): its WPS styles with no pPrDefault do give 8pt
 after, as ours — that rule holds.
 
+### Test failure (Mac 011uWpmC, 2026-10-18): ChartTests.testEveryKindSurvivesItsOwnXML
+Fails on the tip from 5165c01a ("charts: Excel 2016 clustered columns…",
+session 01EUwing) on: the line chart's round trip through its own XML
+no longer compares equal (ChartTests.swift:23). It fails with or without
+the Mac's own changes. For whoever owns charts.
+
 ### Lead (Mac 011uWpmC, 2026-10-18): a long word after a space under East Asian layout
 8498b68f briefly let a word of 20+ characters after a SPACE open a line of
 its own under East Asian layout too (7184c8a6 took that back, as
