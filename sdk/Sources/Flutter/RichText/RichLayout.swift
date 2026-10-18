@@ -7985,7 +7985,13 @@ public final class RichLayout {
                 // zh-6c6adfde's that compress none, hang theirs in Word's
                 // print; a cell's last mark gives its half, lab `pe`.)
                 let centredFinal = !listed && !inCell && squeezes && p.style.alignment != .justify && document.marksCentred && Self._centredUnits.contains(units[tail])
-                let holdsFinal = (listed || centredFinal)
+                // (Only where it might have hung: under `w:overflowPunct`
+                // off it gives its half as a cell's does — zh-749cb15a's
+                // "…教育訓練活動。" (style k4a, overflowPunct 0, zh-TW
+                // list, mode 14) is 2.1pt over and one line in Word's
+                // print, its "。" set 12.3 of 14.4; ours sent "動。" down,
+                // and the page ran a line long.)
+                let holdsFinal = (listed || centredFinal) && p.style.eastAsian["w:overflowPunct"] != "0"
                     && (document.compatibilityMode ?? 12) < 15
                     && tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
                 // (From 2013's layout on a Latin comma hangs too, whole:

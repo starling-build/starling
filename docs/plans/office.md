@@ -6220,6 +6220,16 @@ fitter dropped the paragraph's tail).
   -> 15 pages shown by a base build from the same sources to be the
   sweep's base, not this change). Left on that page: a few turned
   labels, and some box labels drawn twice.
+- **Under `w:overflowPunct` off a paragraph's last mark gives its half
+  (2026-10-18).** The `hang1`–`hang6` rule says that under a `zh-TW`
+  `w:noLineBreaksBefore` list, before 2013's layout, a paragraph's final
+  mark neither hangs nor gives. It holds where the mark might have hung.
+  zh-749cb15a's style k4a turns hanging off, and its "(2)規劃…教育訓練
+  活動。", 2.1pt over at 14.4pt a character, is one line in Word's print,
+  the "。" set 12.3 wide. That is a cell's case (lab `pe`), where nothing
+  hangs either. Ours sent "動。" down, and five runs of pages drifted a
+  line. zh-749cb15a 87.2 -> 90.2; nothing else moved (s338 -> s339, one
+  base).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
