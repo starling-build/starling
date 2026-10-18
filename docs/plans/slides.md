@@ -2425,6 +2425,13 @@ at 8.7. From single, it comes off above as before: font-scale's 100%
 less 20% are PowerPoint's so, and a point low scaled (+3.18 tried);
 aptia and testPPT the same way.
 
+Tried and dropped: lo-3columns' lines on whole points from each
+column's top (through `cellLineShift`, with the page piece's place).
+Most land within 0.1 pt, but every fifth a point low: its first
+baseline here is 9.54 where PowerPoint's lies in 9.4–9.5, and rounding
+to the nearest point (which suits the decks at large) takes it up
+(5.17 → 5.19).
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the
