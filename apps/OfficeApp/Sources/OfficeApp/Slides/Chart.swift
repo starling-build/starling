@@ -1489,7 +1489,7 @@ enum ChartPainter {
             area = Rect.fromLTWH(r.left + l.left * r.width, r.top + l.top * r.height, l.width * r.width, l.height * r.height)
         }
         if c.type == .radar {
-            _radar(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? grid,
+            _radar(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? (c.onSlide && !c.styled2013 && c.officeStyled ? Color(0xFF868686) : grid),
                    text: { styled($0, $1, $2, bold: false, color: c.valueLabelColor) },
                    categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) })
         } else if pie, let tilt = c.pieTilt {

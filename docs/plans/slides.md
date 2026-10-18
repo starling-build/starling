@@ -2382,7 +2382,9 @@ gridlines a point off: a titled 2007-style plot starts a point lower
 on a slide (line- and scatter-chart's top gridline at 161.35 in the
 print, ours 160.43, now 161.43). Cooper's untitled charts stand 3.8 pt
 higher than ours, top and bottom, and their darker rules now cost a
-little; one deck, not followed. Slides only (`onSlide`).
+little; one deck, not followed. Slides only (`onSlide`). A 2007-style
+radar's rings and spokes are that grey too (radar-chart 1.58 → 1.24;
+its rings within 0.4 pt of the print's).
 
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
