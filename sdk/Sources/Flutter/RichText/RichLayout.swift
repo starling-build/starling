@@ -6822,7 +6822,7 @@ public final class RichLayout {
             // whole 14pt line was 0.45pt deeper, and every numbered
             // paragraph set what followed that much lower.)
             var rise: Double? = nil
-            if theme.wordRules, let size = _levelNumberSize(p, document) ?? (p.style.list != nil ? p.style.mark?.fontSize : nil),
+            if theme.wordRules, let size = _levelNumberSize(p, document) ?? (p.style.list != nil ? _markSize(p, document) : nil),
                size > (p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) + 0.01 {
                 leadChar.fontSize = size
                 // (On a line grid the whole line of that size, as before:
@@ -7700,6 +7700,24 @@ public final class RichLayout {
         return notoStyle.copyWith(fontSize: size, letterSpacing: 0, height: (ascent + descent) / size, leadingDistribution: .even)
     }
 
+    /// The paragraph mark's size: its own, else its paragraph style's —
+    /// not the first run's (`_marker`).
+    private func _markSize(_ p: RichParagraph, _ document: RichDocument) -> Double? {
+        p.style.mark?.fontSize ?? (p.style.mark == nil ? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize : nil)
+    }
+
+    /// The faces a list level names for its number (`w:rFonts` in its
+    /// `w:rPr`): the Latin one and the East Asian one.
+    private func _levelNumberFonts(_ p: RichParagraph, _ document: RichDocument) -> (latin: String?, eastAsian: String?) {
+        guard p.style.list != nil,
+              let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }) else { return (nil, nil) }
+        func attr(_ name: String) -> String? {
+            guard let r = xml.range(of: name + "=\"") else { return nil }
+            return String(xml[r.upperBound...].prefix { $0 != "\"" })
+        }
+        return (attr("w:ascii") ?? attr("w:hAnsi"), attr("w:eastAsia"))
+    }
+
     private func _levelNumberSize(_ p: RichParagraph, _ document: RichDocument) -> Double? {
         guard p.style.list != nil,
               let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
@@ -7717,7 +7735,20 @@ public final class RichLayout {
         // carries the underline their marks and text have — nor
         // zh-90e0cea8's "12.", its mark underlined.)
         if theme.wordRules, p.style.list != nil {
-            if let mark = p.style.mark { markerChar = mark }
+            // (A mark the file gives no formatting of its own is the
+            // paragraph style's, not the first run's: zh-117cf7c6's "※"
+            // over 12pt text is Normal's 14pt in Word's print, and its
+            // line 2.5pt taller than ours, every line after it lower.)
+            markerChar = p.style.mark ?? CharStyle()
+            // (In the faces its level names: zh-117cf7c6's "※" is the
+            // level's 標楷體 — YaHei to Word — over Normal's Times.)
+            // (Not a symbol face's: its bullets are drawn as their own.)
+            let fonts = _levelNumberFonts(p, document)
+            let symbolFaces: Set<String> = ["symbol", "wingdings", "wingdings 2", "wingdings 3", "webdings"]
+            if let f = fonts.latin, !symbolFaces.contains(f.lowercased()) {
+                markerChar.fontFamily = f
+                if let e = fonts.eastAsian { markerChar.eastAsiaFontFamily = e }
+            }
             let xml = p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML } ?? ""
             markerChar.underline = xml.containsSubstring("<w:u ") && !xml.containsSubstring("<w:u w:val=\"none\"")
         }

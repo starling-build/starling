@@ -1574,6 +1574,51 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(width("一°°°°一") - width("一一"), 4 * 10.5, accuracy: 4 * 0.7, "about an em each among ideographs")
     }
 
+    func testABareMarksNumberIsItsParagraphStylesSize() throws {
+        // zh-117cf7c6 p3: "※ 每人每月補助…", 12pt text under a "※" bullet
+        // whose paragraph mark says nothing, in Normal's 14pt — Word sets
+        // the bullet at 14pt in its level's 標楷體 and the line taller
+        // than the text's; ours took the first run's 12pt.
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/docs")
+        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-117cf7c6") })
+        let entries = try Zip.read(try Data(contentsOf: dir.appendingPathComponent(name)))
+        func height(bulleted: Bool) throws -> Double {
+            var parts = entries
+            if !bulleted {
+                // (The same paragraph with no number: its text where the
+                // number's tab put it.)
+                let di = try XCTUnwrap(parts.firstIndex { $0.name == "word/document.xml" })
+                var xml = String(decoding: parts[di].data, as: UTF8.self)
+                let at = try XCTUnwrap(xml.range(of: "每人每月補助"))
+                let p = try XCTUnwrap(xml.range(of: "<w:p ", options: .backwards, range: xml.startIndex ..< at.lowerBound))
+                let num = try XCTUnwrap(xml.range(of: "<w:numPr>", range: p.lowerBound ..< at.lowerBound))
+                let end = try XCTUnwrap(xml.range(of: "</w:numPr>", range: num.upperBound ..< at.lowerBound))
+                xml.replaceSubrange(num.lowerBound ..< end.upperBound, with: "<w:ind w:left=\"360\"/>")
+                parts[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            }
+            let opened = try DocxFormat.read(try Zip.write(parts))
+            let doc = opened.document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            let setup = opened.pageSetup ?? .a4
+            l.pageSetup = setup
+            l.width = setup.columnWidth * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("每人每月補助") })
+            return l.geometry(i).painter.height / l.theme.pixelsPerPoint
+        }
+        // (The number's box is a line of its own in the paragraph, as tall
+        // as the text's at the text's size — two of the plain paragraph's
+        // lines — and the taller for a number set larger.)
+        XCTAssertGreaterThan(try height(bulleted: true) - 2 * (try height(bulleted: false)), 0.4, "the bullet's 14pt makes its line taller")
+    }
+
     func testACellsParagraphsShareTheirSpacing() throws {
         // drawing.docx: two headings of 12pt before and 3pt after in one
         // cell are 12pt apart in Word's print, as in the body — the larger

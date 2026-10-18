@@ -2699,7 +2699,7 @@ Done as tried. Same-base sweep, 357 docs: zh-c2c92639 97.8 -> 97.9, nothing lowe
 move yet. With "°" an em the line's natural width is Word's, but Word still carries "土中。" though "土" fits
 (natural end 530.2 of 538.5): the paragraph-end case sent to the Mac's line-end lab with T119's two.
 
-### T122. Linux only: a symbol an East Asian family's Latin side lacks falls to DejaVu, not the CJK face — claimed
+### T122. A bare mark's number is its style's size, in its level's faces (zh-117cf7c6) — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
 Documents: zh-117cf7c6 (Linux 92.0, Mac 98.6: p3's list paragraph under a "※" bullet).
 Known: the level's "※" is in 標楷體 with no hint, so the layout takes the family's Latin side, whose stand-in has no
@@ -2707,6 +2707,12 @@ Known: the level's "※" is in 標楷體 with no hint, so the layout takes the f
 system finds PingFang. Word draws it in YaHei at 13.9, and its line is 2.5pt taller than ours; every line after on
 the page drifts 3-5pt. Fix to try: the Latin side of an East Asian face falls back to that family's own East Asian
 stand-in first.
+Done, and more than the glyph: the fallback alone moved nothing — the line's height came from the number's size.
+The mark says nothing, so Word sets the "※" at Normal's 14pt (ours took the first run's 12pt, and the box before
+the text raised no line), in the level's own 標楷體 (ours never applied a level's w:rFonts outside symbol faces).
+All three in: the number takes the paragraph style's size where the mark has none, and the level's text faces;
+an East Asian family's Latin side falls back to its CJK face before the symbol face. Same-base sweep, 377 docs:
+zh-117cf7c6 92.0 -> 100.0, nothing else moved.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

@@ -1399,6 +1399,12 @@ enum OfficeFonts {
         var face = RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
                                     boldSpread: ea.fakeBold ? ea.boldWiden ?? 1.0 / 48 : 0, classScales: ea.latinClasses, baseline: ea.baseline,
                                     isEastAsian: true)
+        // (What the Latin stand-in lacks, the face the name stands for
+        // draws: Word sets zh-117cf7c6's "※" bullet, 標楷體 with no hint,
+        // in YaHei, and its line is that face's height. Left to the glyph
+        // fallback, Linux drew it in DejaVu Sans and the line stood 2.5pt
+        // short; the Mac's system fallback found PingFang.)
+        if !own || embeddedFamily(family) == nil { face.fallback = [substitute(family)] + cjkFallback }
         face.scaledHeight = ea.scaledHeight
         face.scaledBaseline = ea.scaledBaseline
         face.boldHeight = ea.boldHeight
@@ -1432,6 +1438,11 @@ enum OfficeFonts {
         }
         return face
     }
+
+    /// The faces this platform draws Chinese in where the named one is
+    /// missing, after the symbol fallback (`RichTextTheme.glyphFallback`):
+    /// what the Latin side of an East Asian family falls back to first.
+    nonisolated(unsafe) static var cjkFallback: [String] = []
 
     /// Whether `wordSans` and `wordSerif` are registered.
     nonisolated(unsafe) static var _gapAboveLoaded = false
@@ -1580,7 +1591,8 @@ enum OfficeFonts {
         // run of a lone "〕" came out in Yu Gothic UI, whose brackets are
         // half an em — a line of zh-1a3c7aa0 then had room for a digit
         // Word's has not. YaHei is the face Word for Mac sets these in.
-        RichTextTheme.glyphFallback.append("Microsoft YaHei")
+        cjkFallback = ["Microsoft YaHei"]
+        RichTextTheme.glyphFallback += cjkFallback
         #elseif os(Linux)
         // Chinese text, named: the engine's Linux font manager reads
         // /usr/share/fonts but finds no face for a character itself, so
@@ -1588,7 +1600,8 @@ enum OfficeFonts {
         // Noto Sans CJK (Ubuntu's fonts-noto-cjk) is square like YaHei,
         // its brackets and marks a full em; the rest are what other
         // distributions carry.
-        RichTextTheme.glyphFallback += ["Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Droid Sans Fallback"]
+        cjkFallback = ["Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Droid Sans Fallback"]
+        RichTextTheme.glyphFallback += cjkFallback
         // (And math letters, the same way: Cambria Math's formulas are
         // runs of Mathematical Alphanumeric Symbols — 𝑆, 𝑧, 𝛼 — which
         // no face named above has, and bug57031's printed as boxes. Set
