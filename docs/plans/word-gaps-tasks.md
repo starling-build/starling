@@ -2353,6 +2353,14 @@ one stands on its own baseline (`ImageAttachment.baseline`). Written back
 verbatim as the paragraph's child. Same-base sweep: zh-20ff844e 95.8 ->
 99.0, zh-06c46ba9 97.4 -> 97.5, nothing else moved. A display ∑ is 1.6
 times its text (1.9 put zh-20ff844e's p15 a few points long: 95.8).
+Fixed after (2026-10-18, the Windows box's report: zh-c2c92639 91.3 ->
+77.4, a page longer): a fraction's parts are set inline (an n-ary's
+limits beside it, the sign unenlarged); scripts at Word's offsets (0.38
+em up, 0.18 down); an equation in a line counts no more of it than its
+text (0.85 em over, 0.22 under) and is not snapped to the grid as a
+picture (`ImageAttachment.baseline` set); fractions closer about their
+rule. zh-c2c92639 77.4 -> 91.9 (54 pages, Word's), zh-20ff844e 99.0,
+zh-06c46ba9 97.4.
 
 ### T104. zh-ea70c30e p2: a mode-15 squeeze Word does not make — measured, waiting on a lab
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17 (the Mac's lead, b14d1d47)

@@ -37,8 +37,19 @@ enum WriterMath {
     /// object attachment `id`, its text `size` points where its runs say
     /// none; its size and baseline (from its top), in points.
     static func register(_ node: XNode, for id: String, size: Double) -> (width: Double, height: Double, baseline: Double)? {
-        let box = Layout(display: node.name == "m:oMathPara").row(node, size: size, level: 0)
+        let display = node.name == "m:oMathPara"
+        var box = Layout(display: display).row(node, size: size, level: 0)
         guard box.width > 0 else { return nil }
+        // (An equation in a line takes no more of it than its text would:
+        // its scripts reach into the line's leading, as Word sets them —
+        // zh-c2c92639's "式中：C_dm ——…" lines are one 16.65pt pitch of its
+        // grid in Word's print, where the subscript's depth took ours two.
+        // It is drawn whole all the same.)
+        if !display {
+            let s = Layout(display: false).runSize(node, size)
+            box.ascent = min(box.ascent, s * 0.85)
+            box.descent = min(box.descent, s * 0.22)
+        }
         lock.lock()
         entries[id] = Entry(box: box)
         lock.unlock()
@@ -193,8 +204,11 @@ enum WriterMath {
             case "m:nary":
                 return nary(n, size: size, level: level)
             case "m:f":
-                let num = row(n.first("m:num"), size: size, level: level)
-                let den = row(n.first("m:den"), size: size, level: level)
+                // (Its parts in the inline style: zh-c2c92639's ∑ over A has
+                // its limits beside it in Word's print, the sign unenlarged.)
+                let inner = Layout(display: false)
+                let num = inner.row(n.first("m:num"), size: size, level: level)
+                let den = inner.row(n.first("m:den"), size: size, level: level)
                 let s = runSize(n.first("m:num"), size, level)
                 if n.first("m:fPr")?.first("m:type")?["m:val"] == "lin" {
                     return hbox([num, text("/", size: s, italic: false), den])
@@ -240,8 +254,15 @@ enum WriterMath {
 
         /// Sub- and superscripts beside a base, stacked.
         func stackScripts(sub: Box?, sup: Box?, size: Double, base: Box) -> Box {
-            let up = max(size * 0.4, base.ascent - (sup?.descent ?? 0) * 0.5 - size * 0.25)
-            let down = max(size * 0.2, base.descent + (sub?.ascent ?? 0) * 0.5 - size * 0.1)
+            // (A superscript's baseline 0.38 em up, a subscript's 0.18 down,
+            // a tenth more each where both stand; past a taller base than a
+            // letter's, that much further. zh-c2c92639's "C" over "dm" in
+            // Word's print reaches 3.9pt under the line at 10.5pt; set from
+            // the scripts' own heights, ours went 6.9 down and its line
+            // took a second grid pitch.)
+            let both = sub != nil && sup != nil ? size * 0.1 : 0
+            let up = max(size * 0.38, base.ascent - size * 0.95 + size * 0.38) + both
+            let down = max(size * 0.18, base.descent - size * 0.22 + size * 0.18) + both
             var parts: [Box] = []
             if let sup { parts.append(raised(sup, up)) }
             if let sub { parts.append(raised(sub, -down)) }
@@ -291,11 +312,12 @@ enum WriterMath {
             let pr = n.first("m:naryPr")
             let chr = pr?.first("m:chr")?["m:val"] ?? "\u{222B}"
             let integral = ["\u{222B}", "\u{222C}", "\u{222D}", "\u{222E}"].contains(chr)
-            let limits = pr?.first("m:limLoc")?["m:val"] ?? (integral ? "subSup" : "undOvr")
+            // (Inline, the limits stand beside the sign whatever it says.)
+            let limits = display ? pr?.first("m:limLoc")?["m:val"] ?? (integral ? "subSup" : "undOvr") : "subSup"
             let s = runSize(n.first("m:e") ?? n, size, level)
             // (A display equation's operator 1.6 times its
             // text, as Word draws ∑: zh-20ff844e's.)
-            let opSize = display && level == 0 ? s * 1.6 : s * 1.1
+            let opSize = display && level == 0 ? s * 1.6 : s
             let op = raised(text(chr, size: opSize, italic: false), -(opSize - s) * 0.35)
             let hidden = { (name: String) in pr?.first(name).map { ["1", "on", "true"].contains($0["m:val"] ?? "1") } ?? false }
             let sub = hidden("m:subHide") ? nil : n.first("m:sub").map { row($0, size: size, level: level + 1) }
@@ -312,7 +334,10 @@ enum WriterMath {
 
         /// A stacked fraction on the math axis.
         func fraction(_ num: Box, _ den: Box, size: Double) -> Box {
-            let axis = size * 0.27, rule = max(0.4, size * 0.05), gap = size * 0.12, pad = size * 0.08
+            // (Close about its rule: zh-c2c92639's "∑…/A", 10.5pt, stands
+            // 28pt from its numerator's top to its denominator's foot in
+            // Word's print.)
+            let axis = size * 0.27, rule = max(0.4, size * 0.05), gap = size * 0.06, pad = size * 0.08
             let w = max(num.width, den.width) + 2 * pad
             let ascent = axis + rule / 2 + gap + num.descent + num.ascent
             let descent = max(0, gap + rule / 2 - axis + den.ascent + den.descent)

@@ -5616,7 +5616,10 @@ public final class RichLayout {
         let combined = inline.contains { $0.image?.name == "combine" } && painter.computeLineMetrics().count == 1
         // (Not a table nested in a cell: a block, not a line.)
         let inLine = p.image.map { $0.float == nil && $0.textBox?.growsToFit != true }
-            ?? ((p.inlineImages.values.contains { $0.float == nil } || combined) && painter.computeLineMetrics().count == 1)
+            ?? ((p.inlineImages.values.contains { $0.float == nil && $0.baseline == nil } || combined) && painter.computeLineMetrics().count == 1)
+        // (An object with a baseline of its own — an equation — is set as
+        // text is, not snapped as a picture: zh-c2c92639's "式中：C_dm ——…"
+        // lines are one pitch of its grid in Word's print, ours two.)
         // (An "at least" height keeps to the grid as a picture's line
         // does, the picture being more than the least: zh-9c5d0c3f's
         // fifth column, a 58.5pt sign in a paragraph of at least 19.2pt
@@ -5651,7 +5654,7 @@ public final class RichLayout {
             // under it may hang past: zh-90e0cea8's last picture ends at
             // the foot of its page in Word's print, its line 2.6pt past.)
             if p.image != nil, i < _overhang.count { _overhang[i] = max(_overhang[i], descent) }
-        } else if theme.wordRules, p.image == nil, p.inlineImages.values.contains(where: { $0.float == nil }),
+        } else if theme.wordRules, p.image == nil, p.inlineImages.values.contains(where: { $0.float == nil && $0.baseline == nil }),
                   style.lineHeightPoints == nil, !_offGrid(i, document),
                   let pitch = _grid(i, document).pitch, pitch > 0,
                   case let lines = painter.computeLineMetrics(), lines.count > 1,
