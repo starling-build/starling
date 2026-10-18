@@ -5642,6 +5642,17 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **An exact last row's thin bottom line stays inside it (2026-10-18).**
+  A table's last row of exact height had its bottom line hung under the
+  height, from zh-ae655121's 0.75pt double line (2.2pt thick), which
+  Word's print sets that much higher than the text after. The Mac's lab
+  `rb` (Word 16, mode 14, zh-5c6ff0d7's package) has an exact 567-twip
+  last row ruled sz4 under at 28.32pt between its rules' centres, ours
+  28.84: a single thin line stays inside. Now only a line over 1pt
+  hangs. zh-5c6ff0d7 97.8 -> 100 and Word's 2 pages (its closing note
+  had lost the page by 3 twips); zh-06c46ba9 97.3 -> 97.0, whose text
+  under p70's table already stood 5pt higher than Word's and now 1pt
+  more — a gap of its own, open.
 - **Word's Thai faces on Linux (2026-10-18).** The Mac set Word's Thai
   faces to Cordia New's widths, their Thai drawn by the platform's
   fallback at a class scale (ea3ee2a9: 0.75 for Thonburi, 0.729 for

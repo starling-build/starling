@@ -2003,7 +2003,13 @@ public final class RichLayout {
                     // sets the text after the table the line's 2.2 lower.
                     // Ours had taken the line from the row's room, the text
                     // 1.1 high and the table that much short.)
-                    let hung = exact && lastRow ? (k0 ..< j).map { _cells[$0]!.ruleBelow }.max() ?? 0 : 0
+                    // (A heavy line only: a single 0.5pt one stays inside, as
+                    // the Mac's lab `rb` has it — an exact 567-twip last row
+                    // ruled sz4 under is 28.32 between its rules' centres in
+                    // Word's print, ours 28.84, and zh-5c6ff0d7's closing
+                    // note lost its page by 3 twips.)
+                    let below = (k0 ..< j).map { _cells[$0]!.ruleBelow }.max() ?? 0
+                    let hung = exact && lastRow && below > _px(1) ? below : 0
                     rowHeight = exact ? _px(least) + hung : max(rowHeight, _px(least) + around)
                 }
                 rowHeight += ruleAbove + ruleBelow
