@@ -453,6 +453,9 @@ struct Chart: Equatable {
     }
     /// The value axis draws its gridlines (`c:majorGridlines`).
     var valueGrid = true
+    /// A scatter chart's gridlines up from its X axis (`c:majorGridlines`
+    /// on the bottom or top `c:valAx`).
+    var scatterXGrid = true
     /// An axis the file deletes (`c:delete`): no labels, no room for them.
     var valueAxisDeleted = false
     /// The axes' tick marks stand outside them (`c:majorTickMark` "out" or
@@ -1323,6 +1326,7 @@ enum ChartXML {
         let categoryAxis = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }
             : axes.first { $0.name != "c:valAx" }
         c.categoryTicksOut = ["out", "cross"].contains(categoryAxis?.first("c:majorTickMark")?["val"] ?? "")
+        if type == .scatter, let categoryAxis { c.scatterXGrid = categoryAxis.first("c:majorGridlines") != nil }
         if let run = categoryAxis?.first("c:txPr")?.descendant("a:defRPr") {
             if let sz = run["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.categoryLabelSize = sz / 100 }
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
@@ -1669,7 +1673,7 @@ enum ChartXML {
             let unit = c.valueStep.map { "<c:majorUnit val=\"\($0)\"/>" } ?? ""
             let valAx = "<c:valAx><c:axId val=\"500000002\"/><c:scaling><c:orientation val=\"minMax\"/>\(bounds)</c:scaling><c:delete val=\"\(c.valueAxisDeleted ? 1 : 0)\"/><c:axPos val=\"\(valPos)\"/>\(c.valueGrid ? "<c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>" : "")\(valTitle)<c:numFmt formatCode=\"\(format)\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr><c:crossAx val=\"500000001\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"\(c.type == .scatter || c.type == .area ? "midCat" : "between")\"/>\(unit)</c:valAx>"
             if c.type == .scatter {
-                plot += "<c:valAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"b\"/><c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"midCat\"/></c:valAx>"
+                plot += "<c:valAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"b\"/>\(c.scatterXGrid ? "<c:majorGridlines><c:spPr>\(_gridLine)</c:spPr></c:majorGridlines>" : "")\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"midCat\"/></c:valAx>"
             } else {
                 plot += "<c:catAx><c:axId val=\"500000001\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"\(c.categoryAxisDeleted ? 1 : 0)\"/><c:axPos val=\"\(catPos)\"/>\(catTitle)<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>\(tail)<c:spPr><a:noFill/>\(_gridLine)</c:spPr><c:crossAx val=\"500000002\"/><c:crosses val=\"autoZero\"/><c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/><c:noMultiLvlLbl val=\"0\"/></c:catAx>"
             }
@@ -2642,7 +2646,8 @@ enum ChartPainter {
             let xTicks = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step))
             for (i, v) in xTicks.enumerated() {
                 let x = plot.left + (v - xs.lo) / (xs.hi - xs.lo) * plot.width
-                canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint)
+                // (Where the X axis has them: scatter-chart's has none.)
+                if c.scatterXGrid { canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint) }
                 // (A 2007-style one's 7.6 pt under, as a line chart's:
                 // scatter-chart's printed 3.5 pt lower than 4 put them.)
                 let under = (classic ? 7.6 : 4) * k

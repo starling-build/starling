@@ -2536,6 +2536,13 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A scatter chart's X gridlines only where its X axis has them,
+2026-10-18** (sweep 226: scatter-chart 1.08 → 0.69; nothing else
+moved). A scatter chart drew gridlines up from every X tick whatever
+the file said; scatter-chart's bottom `c:valAx` has no
+`c:majorGridlines`, and PowerPoint's print none. Read now
+(`Chart.scatterXGrid`), and written back so.
+
 **A diagram node's edge where its centre or far edge places it,
 2026-10-18** (sweep 225: corpus mean 0.9472 → 0.9450; smartart-cnt 1.28
 → 0.08; nothing else moved). Found on a contact sheet of mid-scoring
