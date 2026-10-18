@@ -1070,6 +1070,12 @@ enum OfficeFonts {
             // "Microsoft JhengHei UI Light", is drawn in that face in Word's
             // print, its 1.5-spaced 14pt lines 34.7pt apart where YaHei's
             // stood 36.3.)
+            // (An alternate that is a Latin face Word has draws the name's
+            // letters, and that face has no Chinese: Word falls back to
+            // 宋体 for it. zh-10e3a42be's headings are FZHei-B01, alternate
+            // Calibri, and Word's print sets "．应急保障" in SimSun on lines
+            // 3.7pt shorter than YaHei's.)
+            if ["calibri", "arial", "times new roman", "cambria"].contains(a) { return eastAsianFace("SimSun") }
             let usable = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "mingliu", "細明體", "jhenghei"]
             if usable.contains(where: { a.containsSubstring($0) }), !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { a.containsSubstring($0) }) {
                 return eastAsianFace(alt)
