@@ -488,7 +488,9 @@ final class WikiShellState: State<StatefulWidget> {
         let ink = OfficeAppearance.ink(fluent)
         let c = _controller
         func b(_ label: String, _ tip: String, _ action: @escaping () -> Void) -> Widget {
-            FlatButton(child: Text(label, style: fluent.typography.bodyStrong?.copyWith(color: ink)), tip: tip, width: nil, height: 28, action: action)
+            FlatButton(child: Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0),
+                                      child: Text(label, style: fluent.typography.bodyStrong?.copyWith(color: ink))),
+                       tip: tip, width: nil, height: 28, action: action)
         }
         return DecoratedBox(
             decoration: BoxDecoration(color: OfficeAppearance.surface(fluent), border: Border(bottom: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),

@@ -14,10 +14,13 @@ import Foundation
 extension Color: Codable {
     // ARGB32, the way the file formats carry a colour: every colour the
     // readers make is eight bits a channel, so this is lossless for them
-    // and compact for the wire. A wide-gamut colour would round.
+    // and compact for the wire. A wide-gamut colour would round. Through
+    // Int64, never Int: an opaque colour is above Int32.max, and Int is 32
+    // bits on wasm — `Int(UInt32)` trapped there on the first page with a
+    // colour (2026-10-19).
     public init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
-        self.init(Int(UInt32(truncatingIfNeeded: try c.decode(Int64.self))))
+        self.init(try c.decode(Int64.self))
     }
 
     public func encode(to encoder: Encoder) throws {

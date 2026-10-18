@@ -314,18 +314,43 @@ gated server-side, the browser gate written and awaiting its first green.**
   input in the browser** — still the blocker for a Chinese-speaking team.
 - W1: `wiki/` (Hummingbird 2.28, PostgresNIO 1.33): `wiki-server migrate |
   add-user | create-space | import | serve`; the API in
-  `WikiServer/App.swift`; `test/wiki-api.sh` — 33 checks green against a
+  `WikiServer/App.swift`; `test/wiki-api.sh` — 38 checks green against a
   throwaway database. The client: `apps/OfficeApp/Sources/OfficeApp/Wiki/`
   (`WikiTransport`, `WikiSession`, `WikiShell`), `--wiki <url>` natively,
   `/s/…` routes in a tab. `test/wiki-web.sh` drives the wasm build in
-  headless Chrome (sign in, open by URL, edit, save) — written, first run
-  pending the stage.
+  headless Chrome (sign in, open by URL, click Edit, type, click Save; the
+  API then shows the new version) and is green. The sidebar has a search
+  box over `GET /api/v1/search`. The dev server runs on the Mac at
+  http://127.0.0.1:8080/s/ENG (dev / devpass; wiki/README.md restarts it).
 - WikiModel (W5's core, built early because it is pure): `PageOp`,
   `Transform`, `PageSequencer`, `PendingOps`; 14 convergence tests.
 - Decided 2026-10-18 by the user: Hummingbird; server-ordered OT.
 
-**Trap paid for (2026-10-19): never drive the native app's GUI on the
-Mac with osascript/CGEvent while other sessions run there.** Keystrokes
+**Traps paid for (2026-10-19).**
+
+- **The OfficeApp wasm build had not linked for a week** when this work
+  reached it: a handful of commits had used `String.contains(String)`,
+  `range(of:)` on a Substring, `NSLock`, `JSONSerialization` and a
+  32-bit-overflowing literal, all of which resolve to the legacy
+  Foundation module the web build deliberately leaves off the link
+  (`docs/plans/wasm-size.md`). The quick tier's "web: size gate" builds
+  CounterApp, not Office, so nothing caught it. The spellings that work
+  are in `sdk/Sources/Flutter/Foundation/StringHelpers.swift`
+  (`containsSubstring`, `findRange`, `trimmingWhitespace`), `"x" as
+  Character` for one character, OfficeFonts' `_NoLock`, `Int64`/`Int32`
+  literals. wasm-ld names an OBJECT file; under whole-module optimisation
+  that is not the source file — `llvm-objdump -d -r x.o | awk '/^[0-9a-f]+ </
+  {fn=$0} /SYMBOL/ {print fn}' | swift demangle` names the real caller.
+  Worth a gate: `build/web-app.sh OfficeApp --package apps/OfficeApp`
+  on every change to the suite.
+- **Int is 32 bits on wasm, and a synthesised Decodable wants every
+  key.** `Int(UInt32)` of an opaque colour trapped (`RuntimeError:
+  unreachable`, no message) on the first real page; the codec now goes
+  through `Int64`. And the server cannot hand-write a document body:
+  defaulted properties are still required keys when decoding, so an
+  empty page is `{}` and the client reads that as a blank document.
+- **Never drive the native app's GUI on the Mac with osascript/CGEvent
+  while other sessions run there.** Keystrokes
 meant for the wiki's sign-in form landed first in another session's
 Slides window (undone with ⌘Z) and then in Word's Save dialog, raised by
 the .docx oracle gate another session was running (left as found). Verify

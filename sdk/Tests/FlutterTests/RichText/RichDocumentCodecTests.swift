@@ -61,6 +61,15 @@ final class RichDocumentCodecTests: XCTestCase {
         XCTAssertEqual(q.split(at: 1).id, 0)
     }
 
+    func testOpaqueColourSurvives() throws {
+        // Above Int32.max: the decoder must not go through Int (32 bits on wasm).
+        var p = RichParagraph(text: "x")
+        p.applyStyle(0 ..< 1) { $0.color = Color(0xFFFFFFFF) }
+        let doc = RichDocument(paragraphs: [p])
+        let back = try RichDocumentEnvelope.decode(try RichDocumentEnvelope.encode(doc))
+        XCTAssertEqual(back.paragraphs[0].runs[0].style.color?.toARGB32(), 0xFFFFFFFF)
+    }
+
     func testUnknownSchemaIsRefused() throws {
         let data = Data(#"{"schema":99,"document":{"paragraphs":[]}}"#.utf8)
         XCTAssertThrowsError(try RichDocumentEnvelope.decode(data))
