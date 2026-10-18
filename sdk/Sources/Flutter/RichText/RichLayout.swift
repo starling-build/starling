@@ -917,6 +917,7 @@ public final class RichLayout {
     /// layout — its first cell's whole text inset (`_tableLeft`).
     private var _tableSpacedOutdent: [String: Double] = [:]
     private var _tableRows: [String: Int] = [:]           // each table's last row
+    private var _tableMerged: [String: [Int]] = [:]       // each table's paragraphs in cells merged down
     public var cellPadding: Double = 4   // px, inside a cell
 
     private var _painters: [TextPainter?] = []
@@ -1406,12 +1407,14 @@ public final class RichLayout {
     private func _updateTables(_ document: RichDocument) {
         var columns: [String: Int] = [:]
         _tableRows = [:]
+        _tableMerged = [:]
         _tableFirstParagraph = [:]
         for (k, p) in document.paragraphs.enumerated() {
             if let c = p.cell {
                 if _tableFirstParagraph[c.table] == nil { _tableFirstParagraph[c.table] = k }
                 columns[c.table] = max(columns[c.table] ?? 1, c.column + c.span)
                 _tableRows[c.table] = max(_tableRows[c.table] ?? 0, c.row + c.rowSpan - 1)
+                if c.rowSpan > 1 { _tableMerged[c.table, default: []].append(k) }
             }
         }
         var widths: [String: [Double]] = [:]
@@ -4703,6 +4706,20 @@ public final class RichLayout {
                     while k >= 0, let d = document.paragraphs[k].cell, d.table == c.table, d.row + d.rowSpan - 1 >= c.row - 1 {
                         if d.row + d.rowSpan - 1 == c.row - 1 { top = max(top, rule(d, "bottom") - pad.top) }
                         k -= 1
+                    }
+                    // (A cell merged on through the line takes room for
+                    // the bottom its part above the line states, though
+                    // none is drawn inside the merge: zh-701eda18's form
+                    // merges "單位申請" over four exact rows, each part
+                    // stating a 3pt thickThinSmallGap bottom, and Word
+                    // centres every row's text under it 1.9pt lower —
+                    // lab `l701`, the line gone from the cell, puts it
+                    // back where ours stood.)
+                    for k in _tableMerged[c.table] ?? [] {
+                        guard let d = document.paragraphs[k].cell, d.row < c.row, d.row + d.rowSpan - 1 >= c.row else { continue }
+                        let part = c.row - 1 - d.row
+                        let xml = part == 0 ? d.bordersXML : part - 1 < d.continuationBordersXML.count ? d.continuationBordersXML[part - 1] : nil
+                        if let side = Self._cellSide(xml, "bottom") { top = max(top, _px(Self._ruleRoom(side.style, side.width)) - pad.top) }
                     }
                 }
                 // (Separated, the table's own top and bottom lines frame
