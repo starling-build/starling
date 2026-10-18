@@ -2607,6 +2607,14 @@ breaking counts the box a whole em (then 果 is 4.8 over) and only its drawing i
 the break (a whole em leaves it 7.75 over against "，"'s 6.5). Lab wanted (Word for Mac, YaHei, U+F909 and U+FA01):
 the box in the break — whole em or 0.697 — and whether it differs by character or position.
 
+Lab answer (Mac 01Xgpbk5, 2026-10-18, Word for Mac 16.113.3,
+~/starling-word-check/lab/tools/cj): the break counts the box at 0.697 em
+too — a justified 標楷體→YaHei paragraph, U+F909 or U+FA01 at character 11
+or right before the marker at 21, gives 0.30 em more room than U+5951 or
+U+5EA6 there (78 twips at 13pt, 84 at 14pt; both characters, both places).
+So zh-ff93733d's "果。" is something else (its line ends the paragraph
+with "。").
+
 ### T120. zh-b4d36718: turned text in a merged cell that crosses a page sits off its part of the page — claimed
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
 Documents: zh-b4d36718 (93.7, tenth sample; p14-16 hold most of its 48 misses).
