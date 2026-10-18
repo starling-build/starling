@@ -173,7 +173,7 @@ something else.
 
 ### Note from the Mac (2026-10-18, evening): the zh corpus is 286 documents — a twelfth sample
 Twenty more (`random.seed(20261026)`, all printed), checked in. It starts
-at 88.0% (median 97.9). Its low ones, unclaimed: zh-9db183d5 6.6 (12/11 pages; Mac 01Xgpbk5, 95.0 now, Word's 11 — a frame placed on the page stands there past the foot; released), zh-8186c98d 17.1 (Mac 01Xgpbk5, 100 now — an at-least line on the grid keeps the grid's overhang; released), zh-d746674a 81.1 (CLAIMED Mac 01Xgpbk5),
+at 88.0% (median 97.9). Its low ones, unclaimed: zh-9db183d5 6.6 (12/11 pages; Mac 01Xgpbk5, 95.0 now, Word's 11 — a frame placed on the page stands there past the foot; released), zh-8186c98d 17.1 (Mac 01Xgpbk5, 100 now — an at-least line on the grid keeps the grid's overhang; released), zh-d746674a 81.1 (Mac 01Xgpbk5, looked, released: style L3 (標楷體 for ascii too, 14pt, 1.5 lines) — Word draws its "(一)" brackets in the YaHei it sets 標楷體 in, ours in Liberation Sans 14.4, and the line of two faces stands 11pt lower in ours (pp12-17, 7 runs); the Latin face for an East Asian ascii name),
 zh-20c1d74a 86.5, zh-9e8c1a98 92.7.
 
 ### Note from the Mac (2026-10-18, later): the zh corpus is 266 documents — an eleventh sample
