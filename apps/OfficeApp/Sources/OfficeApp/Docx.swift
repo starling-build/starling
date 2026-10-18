@@ -1119,6 +1119,19 @@ enum DocxFormat {
                         style.floatOffsetY = v / 20
                     }
                     if pos["w:vertAnchor"] == "text", pos["w:tblpYSpec"] == nil { style.floatsOverText = true }
+                } else if case let frames = unwrapped(node, "w:tr").flatMap({ unwrapped($0, "w:tc") }).flatMap({ unwrapped($0, "w:p") })
+                            .map({ $0.first("w:pPr")?.first("w:framePr") }),
+                          !frames.isEmpty, let frame = frames[0], frame["w:vAnchor"] == "text", frame["w:wrap"] == "notBeside",
+                          Set(frames.map { $0.map { PptxXML.serialize($0) } ?? "" }).count == 1 {
+                    // A table set in a frame — Word writes one by giving
+                    // every paragraph of every cell the same w:framePr —
+                    // stands where the frame says, as a floating table
+                    // does: its y below the text's place, the text under
+                    // it, and centred on the margin where it says so.
+                    // zh-621d8756 p15's form (y 342) starts 17.1pt under
+                    // "需要补正内容如下：" in Word's print; ours sat on it.
+                    if frame["w:yAlign"] == nil, let v = Double(frame["w:y"] ?? ""), v > 0 { style.floatOffsetY = v / 20 }
+                    if frame["w:xAlign"] == "center", frame["w:x"] == nil { style.alignment = .center }
                 }
                 // A spacing of ZERO is still a statement: Word then rules each
                 // cell on its own rather than collapsing shared edges, and
