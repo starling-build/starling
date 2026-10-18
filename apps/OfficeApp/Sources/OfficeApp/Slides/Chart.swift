@@ -761,7 +761,10 @@ enum ChartXML {
             // circles on each point.)
             if type == .line {
                 s.lineHidden = pr?.first("a:ln")?.has("a:noFill") == true
-                if let m = ser.first("c:marker") {
+                // (A shown line's "none" is no marker at all, as it was
+                // before its marks were read: what this app writes for one,
+                // and what a round trip must give back.)
+                if let m = ser.first("c:marker"), s.lineHidden || m.first("c:symbol")?["val"] != "none" {
                     s.marker = m.first("c:symbol")?["val"]
                     s.markerSize = m.first("c:size")?["val"].flatMap(Double.init) ?? 5
                     if let f = m.first("c:spPr")?.first("a:solidFill") { s.markerFill = color(f) }
