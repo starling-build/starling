@@ -237,6 +237,12 @@ in Word's print; after "Note: " they part where they stand. Built that
 way; no document moved (s327 -> s328), and zh-76d361b2's own case is
 something else.
 
+### Note from the Mac (2026-10-19): the zh corpus is 386 documents — a seventeenth sample
+Twenty more (`random.seed(20261031)`, all printed), checked in. It starts
+at 94.0% (median 98.4). Its low ones, unclaimed: zh-875759ff 30.8 (58
+pages; CLAIMED Mac 01Xgpbk5), zh-8415d258 85.5, zh-81aa310b 93.9,
+zh-77079ee8 94.5, zh-6e7ff836 94.5 (979/1141 lines).
+
 ### Note from the Mac (2026-10-18, late): the zh corpus is 366 documents — a sixteenth sample
 Twenty more (`random.seed(20261030)`, all printed), checked in. It starts
 at 87.4% (median 96.3). Its low ones, unclaimed: zh-a78d52e7 6.1 (26
