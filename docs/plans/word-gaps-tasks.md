@@ -189,10 +189,29 @@ in Word's print; after "Note: " they part where they stand. Built that
 way; no document moved (s327 -> s328), and zh-76d361b2's own case is
 something else.
 
+### Note from the Mac (2026-10-18, late): Word for Mac's face for a missing 方正 name is not reproducible
+Thirteen of the corpus's prints draw some 方正小标宋 runs in **Arial Unicode
+MS** (line ~1.75 em, so an 18pt line takes three 15.6 pitches where YaHei
+takes two): zh-01071d55, 30d86fcf, 4a90bb2f, 51af781b, 5dc5ce34 (table
+headers only), 608e661b, 8186c98d, ab1ea005, c10532da, c25d08c5, c8eb6e92,
+dc25c47e and f2835e26. Nothing in the file decides it — not the name, its
+altName, panose, w:sig, w:family, the run's rFonts or the document's
+language: zh-1563bd74 has the same fontTable entry and title run and its
+checked-in print is YaHei. Reprinted on the Mac at ~12:00 (Word relaunched
+at 11:48 after a wedge): zh-1563bd74's title is now Arial Unicode, and
+**zh-1a3c7aa0 went from YaHei to Arial Unicode and from 90 pages to 92**;
+zh-c599aaa1 and zh-4c4b1af8 printed as before. So for these documents the
+reference print depends on Word's state when it was made. Don't model the
+choice from the docx, and treat a miss on a 方正 title's line pitch with
+suspicion until the print has been reproduced.
+
 ### Note from the Mac (2026-10-18, late): the zh corpus is 326 documents — a fourteenth sample
 Twenty more (`random.seed(20261028)`, all printed), checked in. It starts
 at 84.6% (median 98.3). Its low ones, unclaimed: zh-608e661b 7.3 (4/5
-pages; CLAIMED Mac 01Xgpbk5), zh-6043ad90 28.4 (8/9 pages), zh-0243e7fc
+pages; Mac 01Xgpbk5 looked, released: its 18pt 方正小标宋_GBK title is in
+Arial Unicode MS in Word's print, three 15.6 pitches a line where ours,
+in YaHei, takes two — and see the note below: which face Word takes is
+not the file's to say), zh-6043ad90 28.4 (8/9 pages), zh-0243e7fc
 58.4, zh-e1b09977 65.4, zh-f10c8f34 74.4, zh-65e6c317 77.0, zh-d0a207ac
 95.0.
 
