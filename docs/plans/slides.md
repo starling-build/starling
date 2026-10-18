@@ -2444,6 +2444,13 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**Turned text on whole points too, 2026-10-18** (eaVertAnchor 1.22 →
+0.46, vert_and_padding 0.38 → 0.15, customGeo −0.02; the six other
+decks with turned text unchanged). Vertical text and a turned
+diagram frame are laid out along their own lines and turned when
+drawn; the bands snap in that layout, so the rule holds along the
+turned text as it does upright.
+
 **A diagram's quarter-turned text frame keeps its own insets,
 2026-10-18** (tdf135953_SmartArt_textposition 2.65 → 1.39; the other 50
 diagram decks unchanged). "left shape" is read up the box's side in a

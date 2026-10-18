@@ -53,7 +53,7 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=2.48% mean=2.48%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=11.35% mean=3.58%
+customGeo.pptx	summary pages=48 worst=11.35% mean=3.56%
 ececapstonespring2012.pptx	summary pages=24 worst=2.66% mean=1.59%
 highlight-test-case.pptx	summary pages=1 worst=0.63% mean=0.63%
 layouts.pptx	summary pages=10 worst=1.30% mean=0.51%
@@ -512,9 +512,9 @@ oox-tdf147978_enhancedPath_subpath.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf149538_upright.pptx	summary pages=1 worst=0.86% mean=0.86%
 oox-tdf149551_TextRot.pptx	summary pages=1 worst=0.38% mean=0.38%
 oox-tdf149551_vert270AndTextRot.pptx	summary pages=1 worst=0.37% mean=0.37%
-oox-tdf149551_vert_and_padding.pptx	summary pages=1 worst=0.38% mean=0.38%
+oox-tdf149551_vert_and_padding.pptx	summary pages=1 worst=0.15% mean=0.15%
 oox-tdf149918_pie_textarea.pptx	summary pages=1 worst=0.45% mean=0.45%
-oox-tdf151008_eaVertAnchor.pptx	summary pages=1 worst=1.22% mean=1.22%
+oox-tdf151008_eaVertAnchor.pptx	summary pages=1 worst=0.46% mean=0.46%
 oox-tdf154074_freeConnector.pptx	summary pages=1 worst=0.01% mean=0.01%
 oox-tdf155327_WordArtDefaultColor.pptx	summary pages=1 worst=7.07% mean=7.07%
 oox-tdf155412_typeface.pptx	summary pages=1 worst=0.37% mean=0.37%

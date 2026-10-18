@@ -418,7 +418,9 @@ final class SlidePainter: CustomPainter {
     /// not the nearest of PowerPoint's points: ours stand a little high,
     /// and 3289 lines across the decks land within 0.15 pt 2807 times
     /// so, 2669 times by its points.)
-    /// Not for a box in columns, whose lines stand side by side.
+    /// Not for a box in columns, whose lines stand side by side. Turned
+    /// text (`vert`, a turned diagram frame) is snapped along its own
+    /// lines, as laid out (eaVertAnchor 1.22 → 0.46).
     static func paintOnWholePoints(_ layout: RichLayout, _ doc: RichDocument, _ canvas: any Canvas, pxPerPt px: Double,
                                    visible: Rect) {
         var baselines: [Double] = []
@@ -964,7 +966,7 @@ final class SlidePainter: CustomPainter {
                         draw()
                     }
                 }
-            } else if shape.kind != .table, shape.columns <= 1, shape.textSpin == 0, shape.textTurn == 0 {
+            } else if shape.kind != .table, shape.columns <= 1, shape.textSpin == 0 {
                 Self.paintOnWholePoints(layout, doc, canvas, pxPerPt: px, visible: visible)
             } else {
                 layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
