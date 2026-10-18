@@ -2382,6 +2382,10 @@ public final class RichLayout {
         // for that paragraph (see below).
         var textFloatTop: (table: String, page: Int, y: Double, down: Double, chained: Bool)? = nil
         var deferredTable: String? = nil
+        // A table placed against the page further down than the text has
+        // come: where the text stood, to go on from there round it.
+        var tableReturn: (table: String, y: Double, page: Int, top: Double)? = nil
+        var tableBands: [(top: Double, bottom: Double)] = []
         var reordered = false
         var i = 0
         // A page is as tall as its section's content: the section of the
@@ -2519,6 +2523,7 @@ public final class RichLayout {
         }
         func newPage() {
             bands.removeAll()
+            tableBands.removeAll()
             anchorRun.removeAll()
             markOnPage = false
             overfull = false
@@ -3206,6 +3211,18 @@ public final class RichLayout {
         while i < count {
             // (Under the table they were moved below, once it has ended.)
             if !deferredUnder.isEmpty, _cells[i]?.table != deferredTable { placeDeferred() }
+            // (After a table placed further down the page, the text goes on
+            // from where it stood, the table a band it keeps clear of:
+            // zh-10eab555's issuing line, a table 702.9pt down page 2, has
+            // the contents' title and lines over it in Word's print, down
+            // to 677; ours set them under it, on page 3.)
+            if let back = tableReturn, _cells[i]?.table != back.table {
+                tableReturn = nil
+                if back.page == page, y > back.top {
+                    tableBands.append((top: back.top, bottom: y))
+                    y = back.y
+                }
+            }
             // Converged: this paragraph starts on the same page at the same
             // y as before and nothing below has changed, so the old pieces
             // and pages from here on are still right.
@@ -3289,6 +3306,7 @@ public final class RichLayout {
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
                     let target = _px(off) - insetTop
                     if target > y + 0.01, target < contentH - 0.01 {
+                        tableReturn = (c.table, y, page, target)
                         y = target
                     } else if target >= 0, target < y - 0.01, deferredUnder.isEmpty {
                         var moved: [PagePiece] = []
@@ -3885,6 +3903,16 @@ public final class RichLayout {
                 }
                 var guardSteps = 0
                 while let below = noRoom(at: y, []), guardSteps < 20 { y = below; guardSteps += 1 }
+                // (A table placed down the page keeps the whole of a line
+                // off it, not only the line's top: zh-10eab555's contents
+                // line 17, which would reach into the issuing table, goes
+                // under it — and so to page 3 — in Word's print.)
+                if !tableBands.isEmpty {
+                    let line = Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? _heights[i]
+                    while let band = tableBands.first(where: { $0.top < y + line - 0.01 && $0.bottom > y + 0.01 }), guardSteps < 40 {
+                        y = band.bottom; guardSteps += 1
+                    }
+                }
                 if y > contentH - 0.01 { newPage() }
                 var mine = _wrapBoxes(i)
                 for box in mine { if let dy = _floatShiftY[box.id] { _floatShiftY[box.id] = nil; let r = box.rect; mine = mine.map { $0.id == box.id ? ($0.id, Rect.fromLTWH(r.left, r.top - dy, r.width, r.height), $0.above, $0.below) : $0 } } }
