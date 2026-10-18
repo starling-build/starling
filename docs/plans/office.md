@@ -6297,6 +6297,21 @@ fitter dropped the paragraph's tail).
   paragraph mark. The 1/48 of the faces already marked (FangSong's, set
   by zh-15428325) stays. zh-167ee06c 71.9 -> 87.2; nothing else moved
   (s343 -> s344, one base).
+- **Word's Thai faces at Browallia New's widths (2026-10-18).**
+  zh-6a4fc013 is a Chinese–Thai Q&A whose Thai sits in `<w:cs/>` runs
+  of "TH Sarabun New". Word for Mac draws that, digits included, in
+  Browallia New (embedded in its print, not on disk). Browallia's
+  advances are Cordia New's (DFonts cordia.ttc) to half a per cent.
+  Faces named for Word's Thai fonts now take Cordia's ASCII table. Their
+  Thai, drawn by the platform's fallback, takes a character class of
+  its own (4, `RichResolvedFace.characterClass`) scaled to Browallia's
+  widths: 0.75 against Thonburi on a Mac, 0.729 against Leelawadee UI on
+  Windows (Windows 01QbbApP). The fonts' own tables gave 0.549 on the
+  Mac, but Thonburi's hmtx counts its marks, and 0.549 set 541 lines.
+  Word's print gives 0.689 a glyph, which set 588; 0.75 sets Word's 614
+  lines on its 26 pages. zh-6a4fc013 38.3 -> 54.2 (it had run 693 lines
+  on 29 pages); nothing else moved (s346 -> s347; no other file names
+  these faces). Linux keeps its fallback unscaled for now.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

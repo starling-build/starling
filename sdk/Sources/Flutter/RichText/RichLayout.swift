@@ -660,6 +660,9 @@ public struct RichResolvedFace: Sendable {
 
     /// The index into `classScales` for a character.
     public static func characterClass(_ ch: Character) -> Int {
+        // (Thai — a cluster of its letter and marks — a class of its own:
+        // a face with four scales leaves it at its size.)
+        if let u = ch.unicodeScalars.first?.value, u >= 0x0E01, u <= 0x0E5B { return 4 }
         if ch.isNumber { return 0 }
         if ch.isUppercase { return 1 }
         if ch.isLowercase { return 2 }

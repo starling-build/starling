@@ -732,6 +732,29 @@ enum OfficeFonts {
     // tables (2026-10-12): what Word breaks a line by.
     /// Arial Black's widths for U+0020 to U+007E, in ems (Word's
     /// DFonts ariblk.ttf).
+    /// Faces Word sets Thai in, narrow ones all: see `cordiaNewAdvances`.
+    static let thaiWordFaces: Set<String> = ["th sarabun new", "th sarabunpsk", "browallia new", "browalliaupc", "cordia new", "cordiaupc",
+                                             "angsana new", "angsanaupc"]
+    /// Cordia New's widths for U+0020 to U+007E, in ems, and its bold's
+    /// (the face Word for Mac carries, DFonts cordia.ttc).
+    static let cordiaNewAdvances: [Double] = [
+        0.1821, 0.2183, 0.1821, 0.3645, 0.3645, 0.5825, 0.437, 0.1455, 0.2183, 0.2183, 0.2549, 0.4326, 0.1821, 0.2183, 0.1821,
+        0.1821, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.1821, 0.1821, 0.4326, 0.4326,
+        0.4326, 0.3276, 0.5239, 0.437, 0.437, 0.4731, 0.4731, 0.4001, 0.3645, 0.5095, 0.4731, 0.1821, 0.3276, 0.437, 0.3645,
+        0.5457, 0.4731, 0.5095, 0.4001, 0.5095, 0.437, 0.4001, 0.3645, 0.4731, 0.4001, 0.5825, 0.4001, 0.4001, 0.4001, 0.2183,
+        0.1821, 0.2183, 0.4326, 0.3276, 0.2183, 0.3645, 0.4001, 0.3645, 0.4001, 0.3645, 0.1821, 0.4001, 0.3645, 0.1455, 0.1455,
+        0.3276, 0.1455, 0.5457, 0.3645, 0.3645, 0.4001, 0.4001, 0.2183, 0.3276, 0.1821, 0.3645, 0.3276, 0.4731, 0.3276, 0.3276,
+        0.3276, 0.2183, 0.1455, 0.2183, 0.4326,
+    ]
+    static let cordiaNewBoldAdvances: [Double] = [
+        0.2241, 0.1821, 0.2327, 0.3645, 0.3645, 0.5825, 0.437, 0.125, 0.2183, 0.2183, 0.2549, 0.3826, 0.1821, 0.2183, 0.1821,
+        0.1821, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.1821, 0.1821, 0.3826, 0.3826,
+        0.3826, 0.3645, 0.665, 0.437, 0.437, 0.4731, 0.4731, 0.437, 0.4001, 0.5095, 0.4731, 0.1821, 0.3276, 0.437, 0.3645,
+        0.5457, 0.4731, 0.5095, 0.437, 0.5095, 0.4731, 0.437, 0.4001, 0.4731, 0.437, 0.6184, 0.437, 0.437, 0.4001, 0.1821,
+        0.1821, 0.1821, 0.3074, 0.3645, 0.2183, 0.3645, 0.3645, 0.3276, 0.3645, 0.3645, 0.1821, 0.3645, 0.3645, 0.1455, 0.1455,
+        0.3276, 0.1455, 0.5457, 0.3645, 0.3645, 0.3645, 0.3645, 0.2183, 0.3276, 0.1821, 0.3645, 0.3276, 0.4731, 0.3276, 0.3276,
+        0.3276, 0.2188, 0.1702, 0.2188, 0.3826,
+    ]
     static let arialBlackAdvances: [Double] = [
         0.3335, 0.333, 0.5, 0.6602, 0.667, 1, 0.8892, 0.2778, 0.3892, 0.3892, 0.5562, 0.6602, 0.333, 0.333, 0.333,
         0.2778, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.667, 0.333, 0.333, 0.6602, 0.6602,
@@ -1271,6 +1294,29 @@ enum OfficeFonts {
             if clone == serif {
                 face.otherAdvances?.merge(timesNumerals) { $1 }
                 face.boldOtherAdvances?.merge(timesBoldNumerals) { $1 }
+            }
+            // (Word's Thai faces set to Cordia New's widths: Word for Mac
+            // draws "TH Sarabun New" — which it has under no such name —
+            // in Browallia New, whose advances are Cordia's to half a per
+            // cent (digits 0.3645 em; Thai 0.303 on average over
+            // zh-6a4fc013's text, a 47-character line 255.9pt to the
+            // print's 257.1). Its digits and Latin take Cordia's table;
+            // its Thai, drawn by the platform's fallback, the class scale
+            // that brings that face to Browallia's. On a Mac the fallback is
+            // Thonburi: Word's print advances 6.17pt a Thai character at
+            // 16pt and ours 8.96 (0.689), and 0.75 sets zh-6a4fc013's 614
+            // lines on 26 pages as Word does (0.689 gives 588, and the
+            // fonts' tables, which count Thonburi's marks, 0.549 and 541).
+            // Ours set them unscaled: 693 lines on 29 pages. On Windows the
+            // fallback is Leelawadee UI, 0.729 (Windows 01QbbApP).)
+            if Self.thaiWordFaces.contains(family.trimmingWhitespace().lowercased()) {
+                face.advances = cordiaNewAdvances
+                face.boldAdvances = cordiaNewBoldAdvances
+                #if os(macOS)
+                face.classScales = [1, 1, 1, 1, 0.75]
+                #elseif os(Windows)
+                face.classScales = [1, 1, 1, 1, 0.729]
+                #endif
             }
             return face
         }
