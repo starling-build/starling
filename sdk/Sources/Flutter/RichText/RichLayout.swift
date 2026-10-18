@@ -9990,6 +9990,12 @@ public final class RichLayout {
     /// measured from the text's left, the margins `frameMargins` wide
     /// (points) on either side of it.
     public var floatsFrames = false
+    /// Where a header's or footer's own top stands below the paper's top
+    /// (pixels), set as it is painted: what its objects placed from the
+    /// page or its margins measure from (`_floatRect`).
+    public var regionTopOnPage: Double? = nil
+    /// … and the page's top margin there (pixels).
+    public var regionMarginTop: Double = 0
     public var frameMargins: (left: Double, right: Double) = (0, 0)
 
     private var _headerFooterCache: [String: _HeaderFooter] = [:]
@@ -10355,6 +10361,14 @@ public final class RichLayout {
             let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
             let onPage = _px(float.y) - (float.verticalFrom == "margin" ? 0 : insetTop)
             y = piece.flowTop + onPage - piece.pageY
+        }
+        // (In a header or footer, from the page itself: zh-7773163d's
+        // page numbers are text boxes 778pt down the page, and Word's
+        // print has them there; ours stood at the footer's top, 8.6pt
+        // lower.)
+        if theme.wordRules, floatsFrames, let region = regionTopOnPage, float.verticalAlign == nil,
+           float.verticalFrom == "page" || float.verticalFrom == "margin" {
+            y = _px(float.y) + (float.verticalFrom == "margin" ? regionMarginTop : 0) - region
         }
         let box = Rect.fromLTWH(x + (_floatShift[image.id] ?? 0), y + (_floatShiftY[image.id] ?? 0), w, h)
         // (Turned a quarter, about its centre: as tall as it is wide.
@@ -10743,6 +10757,8 @@ public final class RichLayout {
                 continue
             }
             let top = kind == .header ? rect.top + _px(setup.headerDistance) : rect.bottom - _px(setup.footerDistance) - hf.height
+            hf.layout.regionTopOnPage = top - rect.top
+            hf.layout.regionMarginTop = _px(setup.marginTop)
             canvas.save()
             canvas.translate(rect.left + _pxMarginLeft(p), top)
             hf.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: hf.document,

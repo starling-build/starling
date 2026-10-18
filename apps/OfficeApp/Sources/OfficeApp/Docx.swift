@@ -2407,6 +2407,8 @@ enum DocxFormat {
         /// line): each one's instruction, whether its result has begun,
         /// and its number in the document (`CharStyle.fieldResult`).
         var fields: [(instr: String, result: Bool, id: Int)] = []
+        /// The look of each field's code (its first instruction run), by id.
+        var fieldCodeStyle: [Int: CharStyle] = [:]
         var fieldCount = 0
         /// Whether the code of the field being read was reformatted under
         /// change tracking: its result's first run says so
@@ -3221,7 +3223,23 @@ enum DocxFormat {
                 cs.fieldResult = f.id
                 let instr = f.instr.trimmingWhitespace(newlines: true)
                 if instr.uppercased().hasPrefix("PAGEREF ") { cs.field = instr }
-                else if notes.inHeaderFooter, DocxFormat._isPageField(instr) { cs.field = instr; notes.fieldShown = true }
+                else if notes.inHeaderFooter, DocxFormat._isPageField(instr) {
+                    // (A page number Word works out again as it prints, in
+                    // its code's look unless the code keeps the result's
+                    // with \* MERGEFORMAT: zh-7773163d's folio, a PAGE field
+                    // whose code run is Times 12pt and whose result run says
+                    // nothing, prints at 12pt; ours took the result run's
+                    // default, 9.2pt and 8.5pt low.)
+                    if !instr.uppercased().containsSubstring("MERGEFORMAT"), let code = notes.fieldCodeStyle[f.id] {
+                        let id = cs.fieldResult, link = cs.link, revision = cs.revision, comments = cs.comments
+                        cs = code
+                        cs.fieldResult = id
+                        cs.link = link
+                        cs.revision = revision
+                        cs.comments = comments
+                    }
+                    cs.field = instr; notes.fieldShown = true
+                }
             }
             // (Its style reference would name an id the save may rename.)
             runPropertiesXML = r.first("w:rPr").flatMap { $0.first("w:rStyle") == nil && !$0.children.isEmpty ? PptxXML.serialize($0) : nil }
@@ -3296,7 +3314,10 @@ enum DocxFormat {
                         pendingCheckbox = on
                     }
                 case "w:instrText":
-                    if let f = notes.fields.last, !f.result { notes.fields[notes.fields.count - 1].instr += child.text }
+                    if let f = notes.fields.last, !f.result {
+                        notes.fields[notes.fields.count - 1].instr += child.text
+                        if notes.fieldCodeStyle[f.id] == nil, !child.text.trimmingWhitespace(newlines: true).isEmpty { notes.fieldCodeStyle[f.id] = cs }
+                    }
                     if cs.formatChange != nil { notes.fieldCodeChanged = true }
                     if let on = pendingCheckbox, child.text.uppercased().containsSubstring("FORMCHECKBOX") {
                         addText(on ? "\u{2612}" : "\u{2610}", cs)
