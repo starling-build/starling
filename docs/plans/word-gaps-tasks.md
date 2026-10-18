@@ -2869,6 +2869,27 @@ All three in: the number takes the paragraph style's size where the mark has non
 an East Asian family's Latin side falls back to its CJK face before the symbol face. Same-base sweep, 377 docs:
 zh-117cf7c6 92.0 -> 100.0, nothing else moved.
 
+### T127. A TOC page number at a right stop past the margin (zh-ab1ea005) — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Mac's measurements, 01Xgpbk5)
+Documents: zh-ab1ea005 (12%: its TOC runs a line behind and the body a page behind).
+Known (Mac, Word's print): toc 2, a dotted right stop at 8844 twips (519.2pt), compressPunctuation, mode 14, 方正楷体
+14pt. (a) "51.…解除劳动合同？<tab>20": Word keeps the commas whole and puts "20" 4.3pt past the margin (entry 55 the
+same with "23"); ours squeezes both commas to fit "20" (51), or sends "23" to its own line (55). (b) "54.…经济补偿？
+<tab>22": unsqueezed "？" would end past the stop; Word squeezes the one comma 14 -> 9.4, "…偿？" ends the line, and
+the tab with "22" goes to the next line; ours sends "偿？" down with the tab. Rule: a right-stop tab whose
+unsqueezed start is before its stop stays and what follows may overflow the margin, unsqueezed; one whose start is
+past it breaks before itself, the line before fitted as a line end (the engine allows no break before a tab).
+
+### T128. A Latin word at a line's end, by Word's start rule (zh-eb54d3b0, zh-499adba6) — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Windows box's labs lw*, the Mac's case)
+Documents: zh-eb54d3b0 p10, zh-499adba6 (9.5%).
+Known (Windows labs lw, lw2, lw14, lw3, lw4, modes 12 and 14 alike): a word of two or more Latin characters is
+taken at a line's end only once it starts at least half the character before it inside the margin ("、0.3" taken
+from 8pt in, refused at 1-7; its trailing automatic space not counted); a one-character word whenever it starts
+inside ("件1。", "、1万元" taken 1-6pt over). Replaces T106's pause-mark exception. zh-499adba6 (mode 14, Mac):
+"…同時訂定1976年至1985", "1985" starting 26.5pt inside, is taken by Word, four marks giving about 4pt each (16.2);
+ours wraps it, and every page after runs a line or more behind.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
