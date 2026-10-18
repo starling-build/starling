@@ -173,7 +173,7 @@ something else.
 
 ### Note from the Mac (2026-10-18, night): the zh corpus is 226 documents — a ninth sample
 Twenty more (`random.seed(20261023)`, all printed), checked in. It starts
-at 85.3% (median 96.1). Its low ones, unclaimed: zh-8699644f 9.5 (Mac 01Xgpbk5, 94.6 now — paragraphs fill a text-anchored floating table's offset; released), zh-c25d08c5 55.3 (CLAIMED Mac 01Xgpbk5), zh-15f60bac 64.6, zh-60c80728 65.9
+at 85.3% (median 96.1). Its low ones, unclaimed: zh-8699644f 9.5 (Mac 01Xgpbk5, 94.6 now — paragraphs fill a text-anchored floating table's offset; released), zh-c25d08c5 55.3 (Mac 01Xgpbk5, 99.1 now — a style's rPr snapToGrid 0 keeps runs off the character grid; released), zh-15f60bac 64.6, zh-60c80728 65.9
 (35/37 pages), zh-73534289 80.5, zh-b24b396a 82.0, zh-51af781b 83.3
 (65/70 pages), zh-749cb15a 87.2.
 
