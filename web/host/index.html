@@ -45,6 +45,8 @@
     app: 'app.wasm',
     // The app's command line (Office: ['--slides'] starts in Slides).
     args: [],
+    // The tab's URL path is the app's route (the wiki opens the page it names).
+    initialRoute: location.pathname + location.search + location.hash,
     skwasmBase: 'skwasm/',
     // Written by build/web-app.sh; the first face is also the fallback
     // for any family nobody loaded.

@@ -528,16 +528,31 @@ let initialKind: DocumentKind = CommandLine.arguments.contains("--slides") ? .pr
 ScriptedInput.startIfRequested()
 #endif
 
-runStarlingApp(title: initialKind.appName,
+// `--wiki <url>` opens the wiki at that server natively (docs/plans/wiki.md);
+// in a tab the server's shell page sets the route, `/s/<space>/p/<id>/…`.
+let wikiBase: String? = {
+    guard let i = CommandLine.arguments.firstIndex(of: "--wiki"), i + 1 < CommandLine.arguments.count else { return nil }
+    return CommandLine.arguments[i + 1]
+}()
+
+runStarlingApp(title: wikiBase != nil ? "Wiki" : initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),
                height: windowMetric("STARLING_WINDOW_H", 900)) {
     #if os(WASI)
     if WebPlatform.defaultRouteName.hasPrefix("/office-landing") {
         FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeLandingView(), title: "Starling Office")
+    } else if WebPlatform.defaultRouteName.hasPrefix("/s/") || WebPlatform.defaultRouteName.hasPrefix("/login") || CommandLine.arguments.contains("--wiki") {
+        WikiRoot(base: "", route: WebPlatform.defaultRouteName)
     } else {
         OfficeRoot(initialPath: initialPath, kind: initialKind)
     }
     #else
-    OfficeRoot(initialPath: initialPath, kind: initialKind)
+    if let wikiBase {
+        // The URL may name a page: the server part is the base, the rest the route.
+        WikiRoot(base: wikiBase.range(of: "/s/").map { String(wikiBase[..<$0.lowerBound]) } ?? wikiBase,
+                 route: wikiBase.range(of: "/s/").map { String(wikiBase[$0.lowerBound...]) } ?? "/")
+    } else {
+        OfficeRoot(initialPath: initialPath, kind: initialKind)
+    }
     #endif
 }
