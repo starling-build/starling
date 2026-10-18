@@ -551,6 +551,20 @@ holding paragraph marks stands at the nearer of its line's top and
   one paragraph and nothing else (WPS file, customXml item1). Next: where
   the second line comes from — a header part with no final empty
   paragraph after a bordered one? Released.)
+  (Mac 011uWpmC, 2026-10-18: lab `hd`'s four prints all fit "Word for Mac
+  reserves one empty Normal line under the header's last", and so does
+  zh-5dc5ce34. Built for every East Asian document (an empty Normal
+  paragraph's height added to the header's in `_bodyInsets`), it took
+  zh-5dc5ce34 19.5 -> 93.3 and broke about forty files to single figures,
+  zh-4adfcce2 unmoved. Our probe line was also 22.9pt where lab `hd` needs
+  15.5. The counter-case that decides it is zh-8e8d4c40, 100% as it
+  stands: one empty header paragraph in "header" style a5 (snapToGrid 0,
+  10pt, based on "Standard (user)"), 42.55 down with a 45.4 margin, its
+  body at 54.75 in Word's print with no line under it. a5 is zh-4adfcce2's
+  af3 almost to the attribute; af3's base sets an explicit pBdr of
+  "none" on every side, and zh-5dc5ce34's header paragraph sets its
+  bottom to "none". But hd5's print without that pBdr kept the line, so
+  borders are not the trigger either. Reverted; not found.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
