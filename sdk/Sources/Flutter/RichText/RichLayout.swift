@@ -7296,10 +7296,26 @@ public final class RichLayout {
         // (Every piece draws the paragraph again under its clip: a few
         // stretches, not a page of them.)
         guard !pieces.isEmpty, pieces.count <= 6 else { return false }
+        // (Each pass with the other pass's text clear, which the canvas
+        // drops: a clip hides what it cuts away and a PDF still holds
+        // it, so the text read from zh-701eda18's print had every
+        // squeezed character twice — "手語翻譯及手語翻譯".)
+        var squeezed: [Range<Int>] = []
+        var plain: [Range<Int>] = []
+        at = 0
+        for run in p.runs {
+            let from = at
+            at += run.length
+            guard run.length > 0 else { continue }
+            let range = map.painter(from)..<map.painter(at)
+            if abs(scale(of: run) - 1) > 0.001, run.style.inlineImage == nil { squeezed.append(range) } else { plain.append(range) }
+        }
+        let unsqueezed = _clearedPainter(g.painter, squeezed, key: 0)
+        let onlySqueezed = _clearedPainter(g.painter, plain, key: 1)
         let origin = Offset(g.textLeft, g.inkTop)
         canvas.save()
         for piece in pieces { canvas.clipRect(piece.rect.shift(origin), clipOp: .difference, doAntiAlias: false) }
-        g.painter.paint(canvas, origin)
+        (unsqueezed ?? g.painter).paint(canvas, origin)
         canvas.restore()
         for piece in pieces {
             canvas.save()
@@ -7307,11 +7323,63 @@ public final class RichLayout {
             canvas.scale(1, 1 / piece.k)
             canvas.translate(0, -(origin.dy + piece.baseline))
             canvas.clipRect(piece.rect.shift(origin), clipOp: .intersect, doAntiAlias: false)
-            g.painter.paint(canvas, origin)
+            (onlySqueezed ?? g.painter).paint(canvas, origin)
             canvas.restore()
         }
         return true
     }
+
+    /// `painter` again with the text in `ranges` (its own offsets)
+    /// clear — laid out as it is, drawn as nothing. nil where a line
+    /// would come out other than it did. Kept while the painter is.
+    private func _clearedPainter(_ painter: TextPainter, _ ranges: [Range<Int>], key: Int) -> TextPainter? {
+        let id = ObjectIdentifier(painter)
+        if let hit = _clearedPainters[id]?[key], hit.source === painter { return hit.cleared }
+        guard !ranges.isEmpty, let root = painter.text else { return nil }
+        if _clearedPainters.count > 256 {
+            for entries in _clearedPainters.values { for entry in entries.values { entry.cleared.dispose() } }
+            _clearedPainters = [:]
+        }
+        let clear = TextStyle(foreground: { let paint = Paint(); paint.color = Color(0x00000000); return paint }(), shadows: [])
+        var at = 0
+        func copy(_ span: InlineSpan) -> InlineSpan {
+            guard let t = span as? TextSpan else {
+                at += 1
+                return span
+            }
+            var parts: [InlineSpan] = []
+            if let text = t.text {
+                let units = Array(text.utf16)
+                var from = 0
+                while from < units.count {
+                    let here = at + from
+                    let inside = ranges.contains { $0.contains(here) }
+                    var to = from + 1
+                    while to < units.count, ranges.contains(where: { $0.contains(at + to) }) == inside { to += 1 }
+                    let piece = String(decoding: units[from..<to], as: UTF16.self)
+                    parts.append(TextSpan(text: piece, style: inside ? clear : nil))
+                    from = to
+                }
+                at += units.count
+            }
+            for child in t.children ?? [] { parts.append(copy(child)) }
+            return TextSpan(children: parts, style: t.style, locale: t.locale)
+        }
+        let cleared = TextPainter(text: copy(root), textAlign: painter.textAlign, textDirection: painter.textDirection ?? .ltr,
+                                  strutStyle: painter.strutStyle)
+        cleared.fractionalLineHeights = painter.fractionalLineHeights
+        if let dims = painter.placeholderDimensions { cleared.setPlaceholderDimensions(dims) }
+        cleared.layout(minWidth: painter.width, maxWidth: painter.width)
+        let lines = painter.computeLineMetrics(), again = cleared.computeLineMetrics()
+        guard lines.count == again.count,
+              !zip(lines, again).contains(where: { abs($0.width - $1.width) > 0.01 || abs($0.baseline - $1.baseline) > 0.01 }) else {
+            cleared.dispose()
+            return nil
+        }
+        _clearedPainters[id, default: [:]][key] = (painter, cleared)
+        return cleared
+    }
+    private var _clearedPainters: [ObjectIdentifier: [Int: (source: TextPainter, cleared: TextPainter)]] = [:]
 
     /// `painter`'s text at 1/k its size in a column 1/k its width: what
     /// a canvas k as wide draws as characters of that scale. Kept while

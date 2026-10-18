@@ -2541,13 +2541,16 @@ Known (Windows): wordWrap off, compressPunctuation + noPunctuationKerning: "答�
 10.8-11.6 so one more space fits (ours 15.6). p19 (no wordWrap off, lines grid): "…执法证号：" + 6 spaces + "、" — Word
 ends the line at "…执法证" and starts the next with "号："; ours keeps "号：" and its spaces and hangs the "、".
 
-### T117. Mixed character scales (w:w) print every squeezed character twice in the PDF's text — claimed
+### T117. Mixed character scales (w:w) print every squeezed character twice in the PDF's text — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
 Documents: zh-701eda18 p8 ("手語翻譯及聽打員本人簽名", 80% runs beside 100% ones), any paragraph of several scales.
 Known: a paragraph of several scales is painted twice — whole under a clip that cuts the squeezed pieces out, then
 each piece stretched under its own clip. The clip hides the first pass's squeezed glyphs but the PDF still holds
 them, so text read from the print has those characters twice ("手語翻譯及手語翻譯") and the line scorer misses the
-lines. Fix to try: the first pass paints the squeezed runs transparent, which the canvas drops.
+lines. Done: each pass paints a copy of the paragraph with the other pass's text clear, which the canvas drops
+(laid out identically, checked line by line, else the old drawing). Pixels unchanged on zh-701eda18; same-base sweep
+337 docs: zh-7dc3afad 99.6 -> 99.8, nothing lower. zh-701eda18 itself does not move: those lines also sit 2.5pt high
+— T118.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

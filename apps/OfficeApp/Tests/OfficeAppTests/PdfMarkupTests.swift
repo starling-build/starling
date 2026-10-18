@@ -207,4 +207,45 @@ final class PdfMarkupTests: XCTestCase {
         XCTAssertEqual(frame.pane.right, 594.5, accuracy: 1.5)
         XCTAssertEqual(frame.pane.top, 113.6, accuracy: 1.5)
     }
+    /// How much text a PDF's pages show: every `<…> Tj` string's bytes
+    /// (a glyph's code is one or two, by the face).
+    private func shownGlyphs(_ document: RichDocument) throws -> Int {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent("shown-\(UUID().uuidString).pdf").path
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        XCTAssertTrue(PdfExport.write(document, pageSetup: .a4, theme: theme, to: path, title: "t"))
+        let pdf = try Data(contentsOf: URL(fileURLWithPath: path))
+        var count = 0
+        var from = pdf.startIndex
+        while let start = pdf.range(of: Data("stream\n".utf8), in: from ..< pdf.endIndex),
+              let end = pdf.range(of: Data("endstream".utf8), in: start.upperBound ..< pdf.endIndex) {
+            from = end.upperBound
+            guard let body = try? Zip.inflate(Data(pdf[start.upperBound ..< end.lowerBound].dropFirst(2)), expected: 4096) else { continue }
+            let text = String(decoding: body, as: UTF8.self)
+            guard text.contains(" Tf") else { continue }
+            for piece in text.components(separatedBy: "> Tj").dropLast() {
+                guard let open = piece.lastIndex(of: "<") else { continue }
+                count += piece[piece.index(after: open)...].count / 2
+            }
+        }
+        return count
+    }
+
+    func testAStretchOfItsOwnScaleIsPrintedOnce() throws {
+        var squeezed = CharStyle()
+        squeezed.horizontalScale = 0.8
+        // (Mid-line, as zh-701eda18's "員" is between "聽打" and "本人":
+        // what is left of the line round it is no one rectangle.)
+        let mixed = RichDocument(paragraphs: [paragraph([run("BBBB"), run("AAAA", squeezed), run("CCCC")])])
+        let plain = RichDocument(paragraphs: [paragraph([run("BBBB"), run("AAAA"), run("CCCC")])])
+        let once = try shownGlyphs(plain)
+        XCTAssertGreaterThanOrEqual(once, 12)
+        // (Drawn twice, once under a clip that hides it: a PDF keeps
+        // what a clip hides, and its text read "BBBBAAAACCCCAAAA".)
+        XCTAssertEqual(try shownGlyphs(mixed), once)
+    }
 }
