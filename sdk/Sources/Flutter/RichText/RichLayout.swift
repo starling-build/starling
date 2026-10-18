@@ -4630,10 +4630,16 @@ public final class RichLayout {
             let band: (left: Double, width: Double) = frame.horizontalAnchor == "page"
                 ? (-marginLeft, width + marginLeft + marginRight) : (0, width)
             let own = frame.width.map(_px) ?? band.width
-            switch frame.horizontalAlign {
+            // ("Outside" the page's outer edge, as for a floating shape:
+            // zh-c2f6d17a's footer frame, aligned outside, has its page
+            // number left on the even pages in Word's print, with no
+            // even-and-odd headers set.)
+            let outside = leftHandPage ? "left" : "right", inside = leftHandPage ? "right" : "left"
+            let hAlign = frame.horizontalAlign == "outside" ? outside : frame.horizontalAlign == "inside" ? inside : frame.horizontalAlign
+            switch hAlign {
             case "center": frameLeft = band.left + (band.width - own) / 2
-            case "right", "outside": frameLeft = band.left + band.width - own
-            case "left", "inside": frameLeft = band.left
+            case "right": frameLeft = band.left + band.width - own
+            case "left": frameLeft = band.left
             default: frameLeft = band.left + _px(frame.x)
             }
             width = own
@@ -5175,8 +5181,8 @@ public final class RichLayout {
         // number, a frame aligned right in the margins, stood at their
         // left on every page.)
         if frameLeft != nil, let frame = style.frame, frame.width == nil {
-            switch frame.horizontalAlign {
-            case "right", "outside": align = .right
+            switch frame.horizontalAlign == "outside" ? (leftHandPage ? "left" : "right") : frame.horizontalAlign == "inside" ? (leftHandPage ? "right" : "left") : frame.horizontalAlign {
+            case "right": align = .right
             case "center": align = .center
             default: break
             }
