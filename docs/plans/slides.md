@@ -2444,6 +2444,15 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A table cell's own line runs past its corners, 2026-10-18**
+(tableBorderLineStyle 1.77 → 1.01, tdt142291 0.27 → 0.08, three more
+−0.01; the other table decks unchanged). PowerPoint draws a cell's
+`lnL`…`lnB` from half its width before the edge's start to half past
+its end, and counts its dashes from there: the "Dash" row's top rule
+runs 203.5 to 384.5 for a cell from 204 to 384, and every dash stood
+half a point late in ours. `RichTextTheme.cellLinesPastCorners`, on
+for slides only.
+
 **An outline's join, 2026-10-18** (sweeps 191–192: −0.06 in sum, 8
 decks better, one 0.01 worse). Ours mitred every outline; PowerPoint's
 prints join 223 thick strokes round against 301 mitred, the round ones

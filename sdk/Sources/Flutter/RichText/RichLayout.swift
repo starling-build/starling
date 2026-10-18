@@ -209,6 +209,11 @@ public final class RichTextTheme {
     /// text, in points (PowerPoint sets each on a whole point from
     /// there). nil — Word — leaves every line where it is set.
     public var cellLineShift: ((Double) -> Double)? = nil
+    /// Slides: a cell's own line runs half its width past each end of its
+    /// edge, and its dashes count from there, as PowerPoint draws them
+    /// (lo-tableBorderLineStyle's "Dash" rule starts at 203.5 for a
+    /// corner at 204). Off for Word.
+    public var cellLinesPastCorners = false
 
     /// Each face's own single line, even with `singleLineHeight` set: a
     /// PowerPoint diagram's text steps at its face's height (Calibri
@@ -9525,6 +9530,12 @@ public final class RichLayout {
                     p.color = color
                     canvas.save()
                     canvas.clipRect(Rect.fromLTRB(-1e6, rowTop, 1e6, rowBottom))
+                    var from = from, to = to
+                    if theme.cellLinesPastCorners, (to - from).distance > 0 {
+                        let along = (to - from) * (p.strokeWidth / 2 / (to - from).distance)
+                        from = from - along
+                        to = to + along
+                    }
                     if let dash = own.dash, dash.count >= 2 {
                         // Dashed along the edge, from its start.
                         let length = (to - from).distance
