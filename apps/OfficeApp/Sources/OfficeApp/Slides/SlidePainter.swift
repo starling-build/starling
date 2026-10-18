@@ -405,6 +405,43 @@ final class SlidePainter: CustomPainter {
     /// Draw `draw` (which paints within `box`) as far into entrance `r` as
     /// it has got: nothing at 0, all of it at 1. `slide` is the slide's
     /// rectangle in the same coordinates, which Fly In comes in from beyond.
+    /// The text of a box with each line's baseline on a whole point down
+    /// from the top of its text, as PowerPoint sets them: the AES deck's
+    /// 16.8 pt lines print 17, 17, 16, 17, 17 apart, never 16.8, the
+    /// pattern repeating every five. Each line is drawn in its own band
+    /// (from a quarter of the way past the line above's baseline to the
+    /// same past its own), moved to its point. (PowerPoint's points lie
+    /// 0.1 pt below whole ones from the text's top, and its print then
+    /// rounds each down to its 1/300 in raster, 0.12 pt on average: so a
+    /// line goes to the nearest of those points, drawn 0.02 pt above a
+    /// whole one. Four decks fitted, every line of their long boxes.)
+    /// Not for a box in columns, whose lines stand side by side.
+    static func paintOnWholePoints(_ layout: RichLayout, _ doc: RichDocument, _ canvas: any Canvas, pxPerPt px: Double,
+                                   visible: Rect) {
+        var baselines: [Double] = []
+        for i in 0 ..< min(layout.count, doc.paragraphs.count) {
+            let top = layout.drawnTextTop(i, doc)
+            for m in layout.geometry(i).painter.computeLineMetrics() { baselines.append(top + m.baseline) }
+        }
+        baselines.sort()
+        guard baselines.count > 1, px > 0 else {
+            layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
+            return
+        }
+        for (k, y) in baselines.enumerated() {
+            let pt = y / px
+            let dy = ((pt - 0.1).rounded() - 0.02 - pt) * px
+            let above = k == 0 ? -1_000_000 : baselines[k - 1] + (y - baselines[k - 1]) / 4
+            let below = k == baselines.count - 1 ? 1_000_000 : y + (baselines[k + 1] - y) / 4
+            canvas.save()
+            canvas.clipRect(Rect.fromLTRB(-1_000_000, above + dy, 1_000_000, below + dy))
+            canvas.translate(0, dy)
+            layout.paint(canvas, visible: Rect.fromLTRB(visible.left, above, visible.right, below), document: doc,
+                         selection: nil, caret: nil)
+            canvas.restore()
+        }
+    }
+
     static func reveal(_ r: ShapeReveal, _ box: Rect, slide: Rect, _ canvas: any Canvas, _ draw: () -> Void) {
         guard r.progress > 0 else { return }
         guard r.progress < 1 else { draw(); return }
@@ -924,6 +961,8 @@ final class SlidePainter: CustomPainter {
                         draw()
                     }
                 }
+            } else if shape.kind != .table, shape.columns <= 1, shape.textSpin == 0, shape.textTurn == 0 {
+                Self.paintOnWholePoints(layout, doc, canvas, pxPerPt: px, visible: visible)
             } else {
                 layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
             }

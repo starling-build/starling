@@ -2313,6 +2313,24 @@ tdf149206 fits neither: its one bitmap prints 563.5 by 451 units for
 a frame of 562.95 by 450.35 (and a window mapped onto a viewport of
 its own), half a unit either side; left.
 
+**Lines on whole points, 2026-10-17** (sweep 180: 1.0145 → 1.0016;
+55 decks better, 25 worse; smartart-simple 3.24 → 1.63, pptx2svg 5.00
+→ 3.69, tdf93868 1.25 → 0.62, 60810 −0.44, the AES deck −0.36, cooper
+−0.35, alterman −0.31; font-scale +0.58, tdf169524 +0.53, aptia +0.21).
+The wobble found earlier is a rounding: PowerPoint sets every line's
+baseline on a whole point from the top of its box's text, 0.1 pt
+down, and its print then rounds that down to the 1/300 in raster. The
+AES table's 16.8 pt lines (17, 17, 17, 16, 17 apart), alterman's,
+ececapstone's and aptia's every long box fit it exactly, all 21 lines
+of the AES page; the 0.1 is the same in all four, whatever the face,
+size or spacing. Each line of a box is now drawn in its own band and
+moved to the nearest such point (0.02 above a whole one, the
+raster's rounding allowed for). A line we set nearer half a point off
+goes to the wrong point, a whole point out — aptia's two, font-scale's
+one; the rest land within a tenth. Not yet: tables (whose points count
+from each cell's text), boxes in columns (lo-3columns went +1.72,
+their lines side by side in one band), turned text.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the

@@ -8773,6 +8773,13 @@ public final class RichLayout {
 
     /// `theme.baselineShift` for paragraph `i`, in pixels of its first
     /// run's size.
+    /// Where paragraph `i`'s painter is drawn from, down the layout: its
+    /// ink top moved by its face's baseline share. (Slides set each line
+    /// on PowerPoint's whole points from it.)
+    public func drawnTextTop(_ i: Int, _ document: RichDocument) -> Double {
+        geometry(i).inkTop + _baselineShift(i, document)
+    }
+
     private func _baselineShift(_ i: Int, _ document: RichDocument) -> Double {
         guard theme.singleLineHeight != nil else { return 0 }
         let p = document.paragraphs[i]
