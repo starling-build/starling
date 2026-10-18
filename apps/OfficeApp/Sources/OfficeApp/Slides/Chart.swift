@@ -532,6 +532,7 @@ enum ChartXML {
         var overlay: XNode? = nil
         var secondAxis: XNode? = nil
         var main = kinds.first
+        var merged: [XNode] = []
         if kinds.count == 2, let bar = kinds.first(where: { $0.name == "c:barChart" }),
            let line = kinds.first(where: { $0.name == "c:lineChart" }) {
             let barAxes = Set(bar.all("c:axId").compactMap { $0["val"] })
@@ -547,6 +548,13 @@ enum ChartXML {
             }
             main = bar
             overlay = line
+        } else if kinds.count > 1, kinds.allSatisfy({ $0.name == "c:barChart" }),
+                  Set(kinds.map { Set($0.all("c:axId").compactMap { $0["val"] }) }).count == 1,
+                  Set(kinds.map { $0.first("c:barDir")?["val"] ?? "bar" }).count == 1,
+                  Set(kinds.map { $0.first("c:grouping")?["val"] ?? "clustered" }).count == 1 {
+            // Column groups on one pair of axes, alike: one group of all
+            // their series (chart-tdf100084's two, a series each).
+            merged = Array(kinds.dropFirst())
         } else if kinds.count != 1 {
             return nil
         }
@@ -572,7 +580,7 @@ enum ChartXML {
         var series: [ChartSeries] = []
         var pointColors: [Int: Color] = [:]
         var named = false
-        for ser in el.all("c:ser") {
+        for ser in el.all("c:ser") + merged.flatMap({ $0.all("c:ser") }) {
             let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series \(series.count + 1)"
             if series.isEmpty { named = ser.first("c:tx") != nil }
             let cat = ser.first("c:cat") ?? ser.first("c:xVal")
