@@ -4958,6 +4958,18 @@ public final class RichLayout {
             // `wraps`: where the lines the column wraps the paragraph into
             // start (PowerPoint's, measured below); a tab on such a line
             // is measured from the line's own start, at the indent.
+            // (The engine moves a line on by half its first character's
+            // spacing — not a placeholder's: see `x` below.)
+            let origin: Double = {
+                func first(_ span: InlineSpan, _ spacing: Double?) -> Double? {
+                    guard let t = span as? TextSpan else { return nil }
+                    let own = t.style?.letterSpacing ?? spacing
+                    if let text = t.text, !text.isEmpty { return own ?? 0 }
+                    for c in t.children ?? [] { if let hit = first(c, own) { return hit } }
+                    return nil
+                }
+                return min(0, (first(probeSpan, nil) ?? 0) / 2)
+            }()
             func measure(_ wraps: [Int]) {
             tabs = [:]
             atMargin = []
@@ -4972,7 +4984,13 @@ public final class RichLayout {
                 lastTab = t
                 let at = edge(t), after = edge(t + 1)
                 // from the column's left
-                let x = base.map { ownLeft + at - $0 + shift } ?? ownLeft + at + shift
+                // (Less the engine's shift of the line by half its first
+                // character's spacing, where that is drawn back: the line
+                // is as wide as its advances, and zh-10e3a42b's "1．总则
+                // <tab>4", the "1" spaced -0.5, came out 0.25 past its stop
+                // — 0.05 past the column, the "4" on a line of its own. A
+                // spacing that pushes the line on keeps the stop drawn.)
+                let x = base.map { ownLeft + at - $0 + shift } ?? ownLeft + at - origin + shift
                 let own = after - at
                 var stop: (x: Double, alignment: TabStop.Alignment, leader: String?)? = nil
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 }) { stop = (_px(s.position), s.alignment, s.leader) }
@@ -10487,9 +10505,14 @@ public final class RichLayout {
         var drawn: Set<KeptHeaderFooter.Kind> = []
         for kind in [KeptHeaderFooter.Kind.header, .footer] {
             guard let hf = _headerFooter(kind, page: p, document) else {
-                // (A first or even page that names none shows none.)
+                // (A first or even page that names none shows none. Nor
+                // does a page of an earlier section that names none, with
+                // none before it to go on with: the editor's own line is
+                // the last section's — zh-10e3a42b's first page, whose
+                // section has a header only, printed the last section's
+                // "— 28 —" at its foot, where Word's print has nothing.)
                 if theme.wordRules, document.headerFooters.contains(where: { $0.kind == kind }),
-                   _titlePage(p, document) { drawn.insert(kind) }
+                   _titlePage(p, document) || !_headerFooterSection(p).last { drawn.insert(kind) }
                 continue
             }
             let top = kind == .header ? rect.top + _px(setup.headerDistance) : rect.bottom - _px(setup.footerDistance) - hf.height

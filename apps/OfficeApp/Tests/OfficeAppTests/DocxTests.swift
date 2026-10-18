@@ -1827,6 +1827,30 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try textStart(stop: false), 70.8, accuracy: 0.5, "the next default stop, with none of its own")
     }
 
+    func testARightStopAfterANegativelySpacedStartEndsAtTheStop() throws {
+        // zh-10e3a42b's first contents entry: "1．总则<tab>4", the "1"
+        // spaced -0.5pt, a dotted right stop 0.2pt inside the column. The
+        // engine moves a line by half its first character's spacing, and
+        // the tab took that quarter point again: the line ran past the
+        // column and the "4" went to a line of its own.
+        _ = OfficeFonts.register()
+        func width(_ spacing: Double) -> Double {
+            var spaced = CharStyle.plain; spaced.letterSpacing = spacing
+            var p = RichParagraph(text: "1 A\t4", runs: [Run(length: 3, style: spaced), Run(length: 2)])
+            var stop = TabStop(position: 200, alignment: .right); stop.leader = "dot"
+            p.style.tabStops = [stop]
+            let doc = RichDocument(paragraphs: [p])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif, fontSize: 12)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: 1)
+            layout.width = 200.2 * theme.pixelsPerPoint
+            layout.ensureLaidOut(doc)
+            return layout.geometry(0).painter.maxIntrinsicWidth / theme.pixelsPerPoint
+        }
+        XCTAssertLessThanOrEqual(width(-0.5), 200.01, "no wider than the stop")
+        XCTAssertEqual(width(0), 200, accuracy: 0.01, "unspaced, to the stop")
+    }
+
     func testABodyWordWiderThanTheLineOpensALine() throws {
         // bug65649: "Замечания: " and 142 underscores is the label alone
         // and two lines of underscores in Word's print; ours parted the

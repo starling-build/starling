@@ -5597,6 +5597,29 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **A right stop after a line that opens with negative spacing; an
+  earlier section with no footer (2026-10-18).** zh-10e3a42b's first
+  contents entry is "1．总则<tab>4", its "1" spaced -0.5pt, its dotted
+  right stop 0.2pt inside the column. The engine moves a line on by half
+  its first character's spacing (`TextLine`'s "fix for flutter"), so
+  every edge the tab measure read was 0.25pt short, the tab 0.25 too wide,
+  the line 0.05 past the column: the "4" took a line of its own and the
+  contents page ran 17pt long. The measure now takes that half back where
+  it pulls the line in (a push keeps the number drawn at its stop).
+  zh-10e3a42b 87.7 -> 90.9, nothing else moved. And its first page,
+  whose section names a header but no footer, printed the editor's
+  footer line — the last section's "— 28 —"; a page of an earlier
+  section that names none now shows none, as in Word's print (no line
+  moves).
+- **The line match reads raised text where it is drawn (2026-10-18).**
+  Word prints `w:position` text with a text rise, and PyMuPDF's box for
+  such a piece reaches down by the rise: zh-10e3a42b's clauses, 10.5pt
+  up in 30pt exact lines, read 10.5pt low on Linux, while PDFKit on the
+  Mac reads them as drawn (its 96.4 to Linux's 90.9). A piece set across
+  now reaches no lower than 0.35 of its size under its baseline. Same
+  sweep rescored: zh-10e3a42b 90.9 -> 99.8, zh-8f9b19f4 84.1 -> 88.5,
+  zh-f2835e26 +1.0, four others +0.2; nothing down (turned chart labels
+  and cells keep their boxes — capped, chartex lost 0.9).
 - **On a line with word spaces corner brackets give nothing (T110,
   2026-10-18).** From 2013's layout, a line holding a U+0020 goes by the
   per-mark fallback test. The Mac's lab `sq-sp` (Word 16, zh-ea70c30e's
