@@ -72,6 +72,9 @@ final class WikiShellState: State<StatefulWidget> {
     private var _newTitleOpen = false
     private let _newTitleField = TextEditingController()
     private var _loading = false
+    private var _historyOpen = false
+    private var _versions: [WikiVersion] = []
+    private var _confirmDelete = false
     private let _searchField = TextEditingController()
     private var _hits: [WikiHit]? = nil      // nil: not searching; []: nothing found
     private var _searchGeneration = 0
@@ -158,8 +161,10 @@ final class WikiShellState: State<StatefulWidget> {
                     self._loading = false
                     self._status = nil
                     self._otherLock = nil
+                    self._confirmDelete = false
                     self._titleField.text = page.title
                 }
+                if self._historyOpen { self._loadVersions() }
                 self._controller.load(doc)
                 self._controller.readOnly = true
                 #if os(WASI)
@@ -308,6 +313,44 @@ final class WikiShellState: State<StatefulWidget> {
         }
     }
 
+    private func _loadVersions() {
+        guard let page = _page else { return }
+        session.versions(page.id) { [weak self] r in
+            if case .success(let v) = r { self?.setState { self?._versions = v } }
+        }
+    }
+
+    /// An old version becomes the newest: its content saved again on top
+    /// of the tip, so nothing is lost and the history shows the restore.
+    private func _restore() {
+        guard let page = _page, page.version < page.tip else { return }
+        setState { _loading = true }
+        session.save(page.id, title: page.title, body: page.body, plainText: page.plainText, links: page.links,
+                     base: page.tip, lockToken: nil) { [weak self] r in
+            guard let self else { return }
+            switch r {
+            case .success(let saved):
+                self.setState { self._loading = false; self._status = "Restored as version \(saved.version)." }
+                self._loadPage(saved.id, push: false)
+            case .failure(let e): self.setState { self._loading = false }; self._report(e)
+            }
+        }
+    }
+
+    private func _deletePage() {
+        guard let page = _page, let space = _space else { return }
+        session.deletePage(page.id) { [weak self] r in
+            guard let self else { return }
+            switch r {
+            case .success:
+                self.setState { self._confirmDelete = false; self._status = "Deleted \(page.title)." }
+                self._refreshTree()
+                self._open(route: "/s/\(space.key)", push: true)
+            case .failure(let e): self._report(e)
+            }
+        }
+    }
+
     private func _login() {
         let login = _loginField.text.trimmingWhitespace(newlines: false)
         let password = _passwordField.text
@@ -343,10 +386,9 @@ final class WikiShellState: State<StatefulWidget> {
         column.append(Expanded(child: _editor(fluent)))
         column.append(_statusBar(fluent))
         let main = Column(crossAxisAlignment: .stretch, children: column)
-        return ColoredBox(color: fluent.scaffoldBackgroundColor, child: Row(crossAxisAlignment: .stretch, children: [
-            sidebar,
-            Expanded(child: main),
-        ]))
+        var row: [Widget] = [sidebar, Expanded(child: main)]
+        if _historyOpen, _page != nil { row.append(_historyPane(fluent)) }
+        return ColoredBox(color: fluent.scaffoldBackgroundColor, child: Row(crossAxisAlignment: .stretch, children: row))
     }
 
     private func _loginView(_ fluent: FluentThemeData) -> Widget {
@@ -464,14 +506,34 @@ final class WikiShellState: State<StatefulWidget> {
                 items.append(Button(onPressed: { [weak self] in self?._cancelEdit(reload: true) }, child: Text("Cancel")))
                 items.append(Chrome.gap(8))
                 items.append(FilledButton(onPressed: { [weak self] in self?._finishEdit() }, child: Text(_dirty ? "Save" : "Done")))
+            } else if page.version < page.tip {
+                items.append(Text("Viewing version \(page.version) of \(page.tip)", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))
+                items.append(Chrome.gap(12))
+                items.append(Button(onPressed: { [weak self] in self?._loadPage(page.id, push: false) }, child: Text("Back to latest")))
+                items.append(Chrome.gap(8))
+                items.append(FilledButton(onPressed: { [weak self] in self?._restore() }, child: Text("Restore this version")))
+            } else if _confirmDelete {
+                items.append(Text("Delete \"\(page.title)\"? Its children move up a level.", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))
+                items.append(Chrome.gap(12))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmDelete = false } }, child: Text("Keep")))
+                items.append(Chrome.gap(8))
+                items.append(FilledButton(onPressed: { [weak self] in self?._deletePage() }, child: Text("Delete")))
             } else {
                 if let other = _otherLock {
                     items.append(Row(children: [Icon(FluentSystemIcons.lock, size: 14, color: fluent.resources.textFillColorSecondary), Chrome.gap(4),
                                                 Text("\(other.userName) is editing", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary))]))
                     items.append(Chrome.gap(12))
                 }
-                items.append(Text("v\(page.version)", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))
-                items.append(Chrome.gap(12))
+                items.append(HyperlinkButton(onPressed: { [weak self] in
+                    guard let self else { return }
+                    self.setState { self._historyOpen.toggle() }
+                    if self._historyOpen { self._loadVersions() }
+                }, child: Text("v\(page.version)", style: fluent.typography.caption?.copyWith(color: _historyOpen ? ink : fluent.resources.textFillColorSecondary))))
+                items.append(Chrome.gap(8))
+                if page.id != _space?.homePage {
+                    items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmDelete = true } }, child: Text("Delete")))
+                    items.append(Chrome.gap(8))
+                }
                 items.append(Button(onPressed: { [weak self] in self?._exportDocx() }, child: Text("Export .docx")))
                 items.append(Chrome.gap(8))
                 items.append(Button(onPressed: { [weak self] in self?._importDocx() }, child: Text("Import…")))
@@ -482,6 +544,35 @@ final class WikiShellState: State<StatefulWidget> {
         return DecoratedBox(
             decoration: BoxDecoration(color: OfficeAppearance.surface(fluent), border: Border(bottom: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
             child: Padding(padding: EdgeInsets(left: 20, top: 10, right: 16, bottom: 10), child: Row(children: items)))
+    }
+
+    private func _historyPane(_ fluent: FluentThemeData) -> Widget {
+        let ink = OfficeAppearance.ink(fluent)
+        let current = _page?.version
+        let pageID = _page?.id
+        let list = ListView(key: ValueKey("versions-\(_versions.count)-\(current ?? 0)"), itemCount: _versions.count) { [weak self] _, i in
+            let v = self?._versions[i]
+            guard let v else { return SizedBox(width: 0, height: 0, child: nil) }
+            let when = v.createdAt.prefix(16).replacingAll("T", with: " ")
+            return Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0), child: FlyoutListTile(
+                onPressed: { if let pageID { self?._loadPage(pageID, version: v.version, push: false) } },
+                text: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
+                    Text("Version \(v.version)\(v.base.map { " (from \($0))" } ?? "")", style: v.version == current ? fluent.typography.bodyStrong : fluent.typography.body, softWrap: false),
+                    Text("\(v.author ?? "?") · \(when)", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary), softWrap: false),
+                ]),
+                margin: EdgeInsets(left: 0, top: 0, right: 0, bottom: 1),
+                selected: v.version == current))
+        }
+        return SizedBox(width: 240, height: nil, child: DecoratedBox(
+            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
+                                      border: Border(left: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
+            child: Column(crossAxisAlignment: .stretch, children: [
+                Padding(padding: EdgeInsets(left: 12, top: 12, right: 12, bottom: 6), child: Row(children: [
+                    Expanded(child: Text("History", style: fluent.typography.subtitle?.copyWith(color: ink))),
+                    HyperlinkButton(onPressed: { [weak self] in self?.setState { self?._historyOpen = false } }, child: Text("Close", style: fluent.typography.caption)),
+                ])),
+                Expanded(child: list),
+            ])))
     }
 
     private func _toolbar(_ fluent: FluentThemeData) -> Widget {
