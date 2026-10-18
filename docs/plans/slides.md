@@ -2532,6 +2532,19 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**Seven tenths of a spacing over single above the line, 2026-10-18**
+(sweep 212: corpus mean 0.9641 → 0.9636; clusterfuzz 4986 −0.10,
+n83889 −0.08, 60810 −0.07, outliner-list-style −0.04, tdf137367 −0.02;
+tdf51340 +0.03, ArtisticEffectSample +0.04). A corpus-wide survey of
+matched lines (ours against PowerPoint's, `~/tmp/linesurvey`) found
+clusterfuzz 4986's 200% Calibri lines a point low and tdf137367's 150%
+ones 1.9 low: PowerPoint puts 0.70 of the extra above the line (as
+measured on tdf137367 before, and left), the engine 0.78 for Carlito.
+A Slides theme's `extraAboveShare` (0.7; nil for Word) moves such
+paragraphs so. Not a face with a depth of its own (Courier New,
+Poppins): TextFittingStored's 150% Courier went +0.40 and
+master-slides' 110% Poppins +0.27 with it.
+
 **Measured and left, 2026-10-18: exact lines whose text nearly fills
 them.** customGeo's 32 pt text in 33 pt lines (slide 21) and 26 pt in
 27 (slide 19) stand a point low in ours, 80 lines across seven slides:

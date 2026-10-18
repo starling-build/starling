@@ -158,6 +158,16 @@ public final class RichTextTheme {
         // pt low.)
         let name = style.fontFamily ?? fontFamily
         let own = name.flatMap { ownDescentShare?($0) }
+        if multiple > 1, own == nil, let share = extraAboveShare {
+            // That share of the extra above the first baseline, the rest
+            // below, against the engine's share by the drawn face's ascent
+            // and descent. (Not a face with a depth of its own: Courier
+            // New's and Poppins' lines kept to it, TextFittingStored's
+            // 150% and master-slides' 110% went +0.40 and +0.27.)
+            let family = name.map { fontFamilyResolver?($0) ?? $0 }
+            let drawn = descentShare(family: family, bold: style.bold, italic: style.italic)
+            return single * (multiple - 1) * (share - (1 - drawn))
+        }
         guard multiple < 1 || own != nil else { return 0 }
         let family = name.map { fontFamilyResolver?($0) ?? $0 }
         let drawn = descentShare(family: family, bold: style.bold, italic: style.italic)
@@ -198,6 +208,12 @@ public final class RichTextTheme {
     /// line's baseline by the face it names: Verdana's at 0.83 of the
     /// line, where DejaVu Sans, drawing it, has 0.80.
     public var ownDescentShare: ((String) -> Double?)? = nil
+    /// Slides: the share of a spacing over single's extra that stands
+    /// above a paragraph's lines (`baselineShift`), whatever the face:
+    /// PowerPoint's 0.70 at 150% in tdf137367's 40 pt Calibri, where the
+    /// engine shares it by the drawn face, Carlito's 0.78. nil — Word —
+    /// leaves it to the engine.
+    public var extraAboveShare: Double? = nil
     /// Slides: the share of a line of so many points (`lineHeightPoints`,
     /// not a minimum) below its baseline, whatever its face. PowerPoint
     /// sets pptx2svg's 30 pt Verdana line where it sets Calibri's, the

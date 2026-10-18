@@ -7,10 +7,10 @@
 54542_cropped_bitmap.pptx	summary pages=1 worst=0.16% mean=0.16%
 56812.pptx	summary pages=1 worst=0.49% mean=0.49%
 60042.pptx	summary pages=2 worst=0.00% mean=0.00%
-60810.pptx	summary pages=25 worst=7.88% mean=4.26%
+60810.pptx	summary pages=25 worst=7.88% mean=4.19%
 61515.pptx	summary pages=1 worst=0.00% mean=0.00%
 63200.pptx	summary pages=1 worst=0.00% mean=0.00%
-ArtisticEffectSample.pptx	summary pages=2 worst=1.59% mean=1.06%
+ArtisticEffectSample.pptx	summary pages=2 worst=1.66% mean=1.10%
 Divino_Revelado.pptx	summary pages=12 worst=21.38% mean=14.37%
 EmbeddedAudio.pptx	summary pages=1 worst=0.00% mean=0.00%
 EmbeddedVideo.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -47,7 +47,7 @@ ca.ubc.cs.people_~emhill_presentations_HowWeRefactor.pptx	summary pages=28 worst
 chart-picture-bg.pptx	summary pages=1 worst=1.61% mean=1.61%
 chart-slide-bg.pptx	summary pages=1 worst=1.59% mean=1.59%
 chart-texture-bg.pptx	summary pages=1 worst=1.57% mean=1.57%
-clusterfuzz-testcase-minimized-POIXSLFFuzzer-4986044400861184.pptx	summary pages=23 worst=16.01% mean=2.82%
+clusterfuzz-testcase-minimized-POIXSLFFuzzer-4986044400861184.pptx	summary pages=23 worst=16.01% mean=2.72%
 clusterfuzz-testcase-minimized-POIXSLFFuzzer-5611274456596480.pptx	summary pages=1 worst=61.55% mean=61.55%
 clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages=1 worst=0.85% mean=0.85%
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
@@ -145,7 +145,7 @@ lo-n821567.pptx	summary pages=1 worst=3.38% mean=3.38%
 lo-n828390.pptx	summary pages=1 worst=0.10% mean=0.10%
 lo-n828390_2.pptx	summary pages=1 worst=0.28% mean=0.28%
 lo-n828390_3.pptx	summary pages=1 worst=0.49% mean=0.49%
-lo-n83889.pptx	summary pages=1 worst=0.42% mean=0.42%
+lo-n83889.pptx	summary pages=1 worst=0.34% mean=0.34%
 lo-n862510_1.pptx	summary pages=1 worst=0.13% mean=0.13%
 lo-n862510_2.pptx	summary pages=1 worst=1.21% mean=1.21%
 lo-n862510_4.pptx	summary pages=1 worst=0.42% mean=0.42%
@@ -324,7 +324,7 @@ lo-tdf135843_export.pptx	summary pages=1 worst=0.01% mean=0.01%
 lo-tdf135843_insideH.pptx	summary pages=1 worst=0.02% mean=0.02%
 lo-tdf135953_SmartArt_textposition.pptx	summary pages=1 worst=1.39% mean=1.39%
 lo-tdf136830.pptx	summary pages=1 worst=0.02% mean=0.02%
-lo-tdf137367.pptx	summary pages=1 worst=1.68% mean=1.68%
+lo-tdf137367.pptx	summary pages=1 worst=1.66% mean=1.66%
 lo-tdf137675.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf138148.pptx	summary pages=1 worst=0.07% mean=0.07%
 lo-tdf140714.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -429,7 +429,7 @@ lo-tdf173712-liststyle.pptx	summary pages=1 worst=1.07% mean=1.07%
 lo-tdf173712.pptx	summary pages=1 worst=1.95% mean=1.95%
 lo-tdf44223.pptx	summary pages=2 worst=0.51% mean=0.26%
 lo-tdf50499.pptx	summary pages=1 worst=0.20% mean=0.20%
-lo-tdf51340.pptx	summary pages=1 worst=1.01% mean=1.01%
+lo-tdf51340.pptx	summary pages=1 worst=1.04% mean=1.04%
 lo-tdf54037.pptx	summary pages=2 worst=0.64% mean=0.39%
 lo-tdf59323.pptx	summary pages=3 worst=0.05% mean=0.05%
 lo-tdf62255.pptx	summary pages=1 worst=0.11% mean=0.11%
@@ -490,7 +490,7 @@ oox-gradient-multistep-transparency.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-graphic-stroke.pptx	summary pages=1 worst=0.58% mean=0.58%
 oox-import-characters.pptx	summary pages=1 worst=0.05% mean=0.05%
 oox-import-mce.pptx	summary pages=1 worst=0.05% mean=0.05%
-oox-outliner-list-style.pptx	summary pages=1 worst=0.24% mean=0.24%
+oox-outliner-list-style.pptx	summary pages=1 worst=0.20% mean=0.20%
 oox-preset-adjust-value.pptx	summary pages=1 worst=0.02% mean=0.02%
 oox-refer-to-theme.pptx	summary pages=1 worst=0.09% mean=0.09%
 oox-shape-text-adjust-left.pptx	summary pages=1 worst=0.18% mean=0.18%

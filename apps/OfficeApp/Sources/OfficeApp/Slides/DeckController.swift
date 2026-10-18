@@ -1387,6 +1387,7 @@ final class DeckController: ChangeNotifier {
         theme.cellLineShift = { $0.rounded() - 0.02 - $0 }   // and sets a cell's lines on whole points from its text's top
         theme.cellLinesPastCorners = true   // and runs a cell's own lines half their width past its corners
         theme.exactLineDescentShare = 0.22  // and sets a line of so many points' baseline 0.78 down it, whatever the face
+        theme.extraAboveShare = 0.7         // and puts 0.7 of a spacing over single's extra above the line
         theme.marksEmptyListItems = false   // PowerPoint shows no bullet on an empty paragraph
         theme.markersAtHang = true          // and puts the bullet at marL + indent
         theme.singleLineHeight = 1.2        // spaces lines by the size, not the face
