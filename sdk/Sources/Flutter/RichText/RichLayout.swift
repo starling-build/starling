@@ -3668,6 +3668,31 @@ public final class RichLayout {
                contentH - y < _markLineHeight(i, document) - 0.01 {
                 newPage()
             }
+            // (A paragraph that is only the break, carried to a page of its
+            // own because no line of it fit at the foot under a table,
+            // stays on the page it ends where under half its line was left
+            // there — after text Word does give it the page, zh-a4b0f6ea and
+            // zh-c8eb6e92 have those blank pages, and so does zh-0aac9d1a's
+            // page 10 under a table that left 24.7pt of a 31.2pt line: Word leaves it there and opens the next page with
+            // what follows — zh-60c80728's page 25 ends in a table 2.9pt
+            // over the foot and an empty paragraph with the break, and
+            // Word's page 26 begins "7.2"; ours had the empty paragraph on
+            // a page 26 of its own, and "7.2" on 27.)
+            if theme.wordRules, _pageBreak[i], document.paragraphs[i].style.breakEndsPrevious, !document.paragraphs[i].style.pageBreakInline,
+               resumeCursor == nil, page > 0, i > 1, document.paragraphs[i - 1].text.isEmpty, document.paragraphs[i - 1].cell == nil,
+               document.paragraphs[i - 2].cell != nil,
+               _pages[page].count == 1, let was = _pages[page].first, was.paragraph == i - 1, was.pageY < 0.01,
+               prevContentH - prevY < was.height / 2,
+               let at = _allPieces.lastIndex(where: { $0.paragraph == i - 1 && $0.page == page }) {
+                var only = PagePiece(paragraph: was.paragraph, flowTop: was.flowTop, flowBottom: was.flowBottom, page: page - 1, pageY: contentH)
+                only.part = was.part
+                _pages[page].removeAll()
+                _pages[page - 1].append(only)
+                _allPieces[at] = only
+                y = 0
+                pageFresh = true
+                markOnPage = false
+            }
             if _pageBreak[i] && !breakIsTheSections && (y > 0 || !_pages[page].isEmpty || markOnPage) && resumeCursor == nil {
                 // (A page the line before hung past the foot of has no
                 // room for the break's own line: that line takes a page
@@ -7123,6 +7148,13 @@ public final class RichLayout {
             left += max(0, -firstLineIndent(p, document))
         }
         if let c = Double(p.style.eastAsian["w:rightChars"] ?? p.style.eastAsian["w:endChars"] ?? ""), c != 0 { right = (c * unit * 20).rounded() / 20 }
+        // (A left indent past the column leaves the text nowhere, and Word
+        // takes the hanging one for it, the first line at the margin:
+        // zh-60c80728's table note "注：1.…", w:left 31680 (22 inches, the
+        // most Word allows) with hangingChars 200 at 10.5pt, stands at the
+        // margin in Word's print and runs on 21pt in; ours had no room
+        // for it, and the notes after it went to a page of their own.)
+        if let index, _px(left) >= _flowWidth(index) { left = max(0, -firstLineIndent(p, document)) }
         return (left, right)
     }
 
