@@ -435,6 +435,16 @@ holding paragraph marks stands at the nearer of its line's top and
   body by its own height in Word's print, no line added; ThreeColHead,
   HeaderFooterUnicode, sample and 61991 end in a paragraph with 10pt
   after and would not be pushed either way.)
+  (Windows 01QbbApP, 2026-10-18: Word for **Windows** prints zh-4adfcce2
+  as ours does — the body at 87.6 on p2, no line under the header — so
+  this is Word for Mac's alone, as is zh-5dc5ce34's 21.6pt (a 16pt
+  Normal mark under its one-paragraph header, lab `c5e`). Of the 186 zh
+  prints only these two start their pages more than 8pt under ours (bar
+  zh-8f9b19f4's columns), so the trigger is rare. No settings, header
+  or Normal feature belongs to both and to no other of the 36 files
+  with headers. Both Mac marks stand at the left margin at Normal's
+  size: an empty Normal paragraph, in the header or at the body's top.
+  Needs a Word for Mac lab that cuts the two files down.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
