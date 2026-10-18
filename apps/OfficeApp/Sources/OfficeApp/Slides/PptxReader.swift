@@ -1334,7 +1334,10 @@ private struct SlideContext {
         } else if isTextBox {
             kind = .textBox
         } else if let prst {
-            kind = .geometry(ShapePreset(rawValue: prst))
+            // (A preset of no name DrawingML knows is a line across the
+            // frame, top left to bottom right, as PowerPoint draws it —
+            // a fuzzed deck's "roCndRect", its text and fill not shown.)
+            kind = .geometry(PresetGeometry.has(prst) ? ShapePreset(rawValue: prst) : .line)
         } else if let geom = spPr?.first("a:custGeom"),
                   let ext = xfrm?.first("a:ext"), let cx = ext["cx"].flatMap(Double.init), let cy = ext["cy"].flatMap(Double.init),
                   let freeform = FreeformGeometry.parse(geom, width: cx, height: cy) {
@@ -1472,6 +1475,7 @@ private struct SlideContext {
                             text: text.document, font: text.font, size: text.size, color: text.color,
                             listIndent: text.listIndent, phType: phRead?["type"], phIdx: phRead?["idx"],
                             fillScheme: fillScheme)
+        if let prst, ph == nil, !isTextBox, !PresetGeometry.has(prst) { st.text = nil; st.fill = nil }
         st.autofit = text.autofit
         st.fontScale = text.fontScale
         st.lineReduction = text.lineReduction

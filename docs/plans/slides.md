@@ -2532,6 +2532,18 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A preset of no known name is a line, 2026-10-18** (sweep 217:
+corpus mean 0.9536 → 0.9525; clusterfuzz 4986 2.72 → 2.12, its slide 6
+16.0 → 2.2; nothing else moved). The fuzzed deck's "roCndRect" (a
+corrupted "roundRect") prints in PowerPoint as a line across its frame,
+top left to bottom right, in the shape's line, with no fill and no
+text; ours drew a filled rectangle with its title. Every preset the
+other decks name is defined, so only a name DrawingML does not know
+falls back so. Also seen there and left: slide 5, whose every `cNvPr`
+has lost its `id` ("nd"), is blank in PowerPoint's print — the
+required id missing, the shapes dropped. One fuzzed slide, and dropping
+shapes on load is not this app's to do.
+
 **A newer chart's legend and right edge as PowerPoint prints them,
 2026-10-18** (sweep 215: corpus mean 0.9636 → 0.9536; tdf112089 −1.35,
 chart-slide-bg −1.28, chart-texture-bg −1.27, chart-picture-bg −1.24,
