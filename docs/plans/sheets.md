@@ -284,9 +284,11 @@ the same base; the commits give the numbers):
   at any scale. The POI fuzzer workbook prints on Letter in Excel though
   it asks for A4: Excel repaired it; not ours to follow.
 - *Packages* (2026-10-18). Zip64 sizes and offsets are read
-  (lo-tdf82984_zip64XLSXImport). Open: 58616 is an encrypted package
-  (OLE compound file: EncryptionInfo, EncryptedPackage) that Excel opens
-  with the default password "VelvetSweatshop"; we report "not a zip".
+  (lo-tdf82984_zip64XLSXImport). An encrypted package (OLE compound
+  file: EncryptionInfo, EncryptedPackage) opens where Excel's built-in
+  password "VelvetSweatshop" unlocks it, Standard or Agile (58616).
+  Open: asking for a password of the file's own (protected_passtika's
+  "tika"; ZipError.passwordRequired reaches the UI as a failed open).
   The zip64 book has no theme part, and Excel fits its Calibri 11 rows
   at 21 screen pixels (15.24 pt printed), not the usual 20 (14.52).
   A full sweep at the tip: 1.225% mean over 756 workbooks, every page
