@@ -5621,6 +5621,15 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **Where the East Asian line rules are off, a Latin ")" after an
+  ideograph may start a line (2026-10-18).** zh-51af781b's "Table Text"
+  style says `w:eastAsia` en-US, so its text has no East Asian line
+  rules, and Word's print (the Mac's note) ends a cell line "…得1 分"
+  with "；" whole and opens the next with ")" — the row 11pt taller.
+  Ours kept "分)" together and squeezed the "；" to fit it. Under rules
+  off a break already stood before a full-width closing mark; now
+  before ")", "]" or "}" after an East Asian character too.
+  zh-51af781b 85.5 -> 94.3; nothing else moved.
 - **From 2013's layout a half-hung mark gives its blank half too
   (2026-10-18).** Under `w:useAltKinsokuLineBreakRules` a closing mark
   hangs by half an em. From mode 15 on its other, blank half gives as

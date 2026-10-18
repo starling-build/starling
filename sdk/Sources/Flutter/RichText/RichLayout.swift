@@ -6297,7 +6297,7 @@ public final class RichLayout {
                     inserts.append(offset)
                     afterHeld = false
                 } else if breaksAtQuotes, let b = before,
-                          Self._breaksBetween(b, ch) || (lineRulesOff && Self._closingMarks.contains(ch))
+                          Self._breaksBetween(b, ch) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             // (In a line too narrow for one character
                             // every character is a line, the marks
                             // too: zh-830ef10d's 6pt cell sets
@@ -7756,7 +7756,7 @@ public final class RichLayout {
             // carries "（" over with what it opens — zh-c5b5087b, its
             // defaults' East Asian language en-US and kinsoku off, has
             // "…负责承储" / "（以下简称…" where ours ended the line on it.)
-            if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) { return true }
+            if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._latinCloser(Character(a), Character(b)) { return true }
             // (In a line too narrow for one character, at every one: see `_span`.)
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
             return Self._breaksBetween(Character(a), Character(b))
@@ -8571,6 +8571,14 @@ public final class RichLayout {
     #endif
     private static let _closingMarks: Set<Character> = ["，", "。", "、", "；", "：", "！", "）", "》", "」", "』", "】", "〕", "〉", "｝", "］", "．"]
     private static let _openingMarks: Set<Character> = ["（", "《", "「", "『", "【", "〔", "〈", "｛", "［"]
+    /// A Latin closing bracket after an East Asian character: where the
+    /// East Asian line rules are off it may start a line — zh-51af781b's
+    /// "Table Text" style says `w:eastAsia` en-US, and Word's print ends
+    /// a cell's line "…得1 分" and opens the next with ")", where ours
+    /// squeezed the line's "；" to keep "分)" together.
+    static func _latinCloser(_ before: Character, _ ch: Character) -> Bool {
+        ")]}".contains(ch) && (before.unicodeScalars.first?.value ?? 0) >= 0x2E80
+    }
 
     /// Whether `run`'s East Asian line-breaking rules hold: by its own
     /// `w:lang` East Asian language where it states one, else by the
