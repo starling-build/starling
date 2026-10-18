@@ -2536,6 +2536,18 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**Tried and dropped, 2026-10-18: Calibri Light in Lato Light.** 266
+decks name Calibri Light (newer themes' heading face), drawn in
+Carlito's regular, visibly heavier than PowerPoint's. Lato Light (the
+design Carlito was cut from) at 0.895 of the size (its capitals
+Calibri's height), 0.0216 em a letter wider and at Calibri's 0.22
+depth below the baseline set tdf142648's title where PowerPoint's
+stands to a tenth of a point — but its lower case is smaller (0.445 of
+the size to Calibri's 0.466) and its strokes lighter than Calibri
+Light's, and the corpus went 0.9519 → 0.9613, 32 decks worse to 3
+better. Carlito's regular, heavier but the right shapes, matches more
+pixels.
+
 **Helvetica's depth below the baseline, 2026-10-18** (sweep 218:
 slide-sections 1.07 → 0.80; nothing else moved). Its six 36 pt titles
 stood a point lower than PowerPoint's (whose print embeds the Mac's
