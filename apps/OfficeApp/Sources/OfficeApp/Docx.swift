@@ -731,6 +731,7 @@ enum DocxFormat {
                 }
                 kindByNum[id] = levels
                 listFormats[id] = formats
+                notes.listFormats[id] = formats
                 // Lists over one definition share its numbers; a list's
                 // startOverride restarts a level the first time it is used.
                 listCounterOf[id] = "abstract:" + aid
@@ -2325,6 +2326,8 @@ enum DocxFormat {
     /// the parts kept verbatim for objects the editor cannot show.
     final class _Shared {
         let footnotes: Bool, endnotes: Bool
+        /// The lists' levels as the file defines them, by `w:numId`.
+        var listFormats: [String: [Int: ListLevelFormat]] = [:]
         fileprivate var seenFootnotes = 0, seenEndnotes = 0
         /// The number each footnote's mark was given in the body, by id;
         /// and, while a note's own text is read, its number for its
@@ -2715,6 +2718,7 @@ enum DocxFormat {
                     // The list's own indent replaces the style's — unless
                     // the paragraph states a left of its own, which Word
                     // puts above the level's.
+                    let ownLeft = style.indentLeft - indent
                     style.indentLeft = indent
                     style.listIndentLeft = styleLeft
                     style.listFirstLine = styleFirst
@@ -2724,6 +2728,16 @@ enum DocxFormat {
                     if let ind = pPr.first("w:ind") {
                         if let v = Double(ind["w:hanging"] ?? "") { style.listFirstLine = -v / 20 }
                         else if let v = Double(ind["w:firstLine"] ?? "") { style.listFirstLine = v / 20 }
+                    }
+                    // (Neither the paragraph nor its level giving a left,
+                    // the item keeps its style's — Word takes each of the
+                    // indent's attributes from where it is given: zh-ea70c30e's
+                    // "(c)" items, Body Text Indent 2 at 1440 over a level
+                    // of firstLine 720 alone and a paragraph of hanging 720,
+                    // stand at 72pt with their labels at 36 in Word's print;
+                    // ours were at the margin.)
+                    if style.listIndentLeft == nil, notes.listFormats[numId]?[ilvl]?.indentLeft == nil, ownLeft != 0 {
+                        style.listIndentLeft = ownLeft
                     }
                 }
             }

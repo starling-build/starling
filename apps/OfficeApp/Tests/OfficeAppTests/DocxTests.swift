@@ -1164,6 +1164,44 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(cxml.contains("<w:pageBreakBefore/>"), cxml)
     }
 
+    /// zh-ea70c30e's "(c)" items: Body Text Indent 2 (left 1440) on a level
+    /// that states only firstLine 720, the paragraph only hanging 720 — the
+    /// item keeps its style's left, its label hanging half an inch.
+    func testAListItemWithNoLeftOfItsOwnKeepsItsStyles() throws {
+        var item = RichParagraph(text: "item")
+        item.style.list = .numbered; item.style.listId = "4"
+        var doc = RichDocument(paragraphs: [item])
+        doc.listFormats["4"] = [0: { var f = ListLevelFormat(text: "(%1)", format: .lowerLetter); f.hanging = -36; return f }()]
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        while let r = xml.range(of: "<w:ind [^>]*/>", options: .regularExpression) { xml.removeSubrange(r) }
+        xml = xml.replacingAll("<w:pStyle w:val=\"ListParagraph\"/>", with: "")
+        let pPr = try XCTUnwrap(xml.range(of: "<w:pPr>"))
+        xml.insert(contentsOf: "<w:pStyle w:val=\"BodyTextIndent2\"/>", at: pPr.upperBound)
+        let close = try XCTUnwrap(xml.range(of: "</w:pPr>"))
+        xml.insert(contentsOf: "<w:ind w:hanging=\"720\"/>", at: close.lowerBound)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        let end = try XCTUnwrap(styles.range(of: "</w:styles>"))
+        styles.insert(contentsOf: "<w:style w:type=\"paragraph\" w:styleId=\"BodyTextIndent2\"><w:name w:val=\"Body Text Indent 2\"/><w:pPr><w:ind w:left=\"1440\"/></w:pPr></w:style>",
+                      at: end.lowerBound)
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        // (The level says only its first line, as the file's does.)
+        let ni = try XCTUnwrap(entries.firstIndex { $0.name == "word/numbering.xml" })
+        var numbering = String(decoding: entries[ni].data, as: UTF8.self)
+        while let r = numbering.range(of: "<w:ind w:left=\"[0-9]+\" w:firstLine=\"720\"/>", options: .regularExpression) {
+            numbering.replaceSubrange(r, with: "<w:ind w:firstLine=\"720\"/>")
+        }
+        entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertNotNil(back.paragraphs[0].style.list)
+        XCTAssertNil(back.listFormats["4"]?[0]?.indentLeft ?? back.listFormats.values.first { $0[0]?.hanging == -36 }?[0]?.indentLeft)
+        XCTAssertEqual(back.paragraphs[0].style.listIndentLeft, 72)
+        XCTAssertEqual(back.paragraphs[0].style.listFirstLine, -36)
+    }
+
     func testListParagraphMarkAndFirstLineKept() throws {
         // bug65649: a centred numbered heading whose mark is bold 12pt
         // (Word sets the number in it) and which says firstLine 0 under a

@@ -2340,13 +2340,16 @@ over a level that states only firstLine 720, the paragraph only hanging
 replaces the style's left, though neither the level nor the paragraph
 gives one).
 
-### T108. A list item whose level and paragraph give no left keeps its style's — claimed
+### T108. A list item whose level and paragraph give no left keeps its style's — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-ea70c30e (p5-p8).
 Known: its "(c)".."(f)" items are Body Text Indent 2 (left 1440) on a
 level that states only firstLine 720, the paragraph only hanging 720.
 Word sets the text at 72pt and the label at 36 (each attribute from where
 it is given); ours drops the style's left and sets the text at the margin.
+Built: where neither the paragraph nor its level states a left, the item
+keeps its style's (`listIndentLeft`). Same-base sweep: zh-ea70c30e 60.1
+-> 98.3, nothing else moved.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
