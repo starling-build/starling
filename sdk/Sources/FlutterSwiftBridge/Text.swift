@@ -3353,6 +3353,12 @@ public protocol Paragraph: AnyObject {
   /// **Original:** `List<LineMetrics> computeLineMetrics();`
   func computeLineMetrics() -> [LineMetrics]
 
+  /// Starling: how far each line moves the next one down — its advance,
+  /// a strut's and a line spacing's room included, where a line metric's
+  /// `height` is its runs' ascent plus descent. The advances add up to
+  /// the paragraph's height. No Dart counterpart.
+  func computeLineAdvances() -> [Double]
+
   /// Returns the `LineMetrics` for the line at `lineNumber`, or nil if the
   /// given `lineNumber` is greater than or equal to `numberOfLines`.
   ///
@@ -3385,6 +3391,11 @@ public protocol Paragraph: AnyObject {
   /// **Dart Source:** `text.dart:3142`
   /// **Original:** `void dispose();`
   func dispose()
+}
+
+extension Paragraph {
+  /// (Where a paragraph knows no advances of its own: its lines' heights.)
+  public func computeLineAdvances() -> [Double] { computeLineMetrics().map { $0.height } }
 }
 
 // MARK: - Paragraph Protocol Extension (Default Implementations)
@@ -3916,6 +3927,16 @@ public class NativeParagraph: Paragraph {
   ///   return metrics;
   /// }
   /// ```
+  public func computeLineAdvances() -> [Double] {
+    let lineCount = bridge.ComputeLineMetricsCount()
+    guard lineCount > 0 else { return [] }
+    var data = [Double](repeating: 0, count: Int(lineCount))
+    let written = data.withUnsafeMutableBufferPointer { buffer in
+      bridge.ComputeLineAdvances(buffer.baseAddress, lineCount)
+    }
+    return Array(data.prefix(Int(written)))
+  }
+
   public func computeLineMetrics() -> [LineMetrics] {
     let lineCount = bridge.ComputeLineMetricsCount()
     guard lineCount > 0 else { return [] }

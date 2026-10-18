@@ -2200,6 +2200,14 @@ public final class RichLayout {
     /// (585, 560, 560 for three lines of 560): there every line ends
     /// as far below its baseline as the last does.
     static func _lineBottoms(_ painter: TextPainter) -> [Double] {
+        // (A paragraph whose lines keep their fractions is the sum of its
+        // lines' advances: on the Mac a 1.5-spaced line of YaHei reports
+        // an ascent and descent of 644.8 for an advance of 617.4, and
+        // zh-34a6519a's page 5 drew page 6's first line.)
+        if painter.fractionalLineHeights {
+            var sum = 0.0
+            return painter.computeLineAdvances().map { sum += $0; return sum }
+        }
         let lines = painter.computeLineMetrics()
         var out: [Double] = []
         var sum = 0.0

@@ -268,6 +268,17 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// Returns the number of lines (for pre-allocation).
   size_t ComputeLineMetricsCount() const;
 
+  /// Starling: each line's advance — how far it moves the next line down,
+  /// a strut's and a line spacing's room included, where ComputeLineMetrics'
+  /// height is the runs' ascent plus descent. The lines' advances add up
+  /// to the paragraph's height. Returns the number written.
+  size_t ComputeLineAdvances(double* out_data, size_t max_lines) const;
+
+  /// Starling: report each line's height with its fraction (ascent plus
+  /// descent, unrounded) — set by the builder for a paragraph whose style
+  /// keeps its lines' fractions, so its lines add up to its height.
+  void SetFractionalLineHeights(bool value);
+
   /// Returns the line metrics at the given line number.
   ///
   /// **Dart Source:** `text.dart:3346-3347`

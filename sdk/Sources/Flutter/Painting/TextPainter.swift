@@ -1540,6 +1540,13 @@ public final class TextPainter {
     /// Valid only after `layout` has been called.
     ///
     /// **Dart Source:** `text_painter.dart:1786-1800`
+    /// Starling: how far each line moves the next down, its advance
+    /// (`Paragraph.computeLineAdvances`); they add up to `height`.
+    public func computeLineAdvances() -> [Double] {
+        assert(_layoutCache != nil, "Text layout not available. Call layout() first.")
+        return _layoutCache!.paragraph.computeLineAdvances()
+    }
+
     public func computeLineMetrics() -> [LineMetrics] {
         assert(_layoutCache != nil, "Text layout not available. Call layout() first.")
         let layoutCache = _layoutCache!

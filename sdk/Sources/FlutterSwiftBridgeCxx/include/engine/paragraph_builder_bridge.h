@@ -73,6 +73,8 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT SWIFT_SHARED_REFERENCE(
   ///   - [4]: fontStyle index (if mask & (1<<4))
   ///   - [5]: maxLines (if mask & (1<<5))
   ///   - [6]: textHeightBehavior encoded (if mask & (1<<6))
+  ///   Starling: mask & (1<<13), with no element of its own, keeps each
+  ///   line's height with its fraction (fractional_line_heights)
   /// @param font_family Default font family for the paragraph
   /// @param font_size Default font size (0 if not set)
   /// @param height Default height multiplier (0 if not set)

@@ -325,6 +325,20 @@ extension flutter.swift_bridge {
             skHandle == 0 ? 0 : Int(paragraph_getLineCount(skHandle))
         }
 
+        /// Starling: each line's advance (the native bridge's
+        /// ComputeLineAdvances); here the line's height as skwasm has it.
+        public func ComputeLineAdvances(_ out_data: UnsafeMutablePointer<Double>?, _ max_lines: Int) -> Int {
+            guard skHandle != 0, let out_data else { return 0 }
+            let count = min(Int(paragraph_getLineCount(skHandle)), max_lines)
+            var written = 0
+            for index in 0..<max(count, 0) {
+                guard let line = line(UInt32(index)) else { break }
+                out_data[written] = line.height
+                written += 1
+            }
+            return written
+        }
+
         public func GetLineMetricsAt(
             _ line_number: Int32,
             _ out_hard_break: UnsafeMutablePointer<Bool>?,

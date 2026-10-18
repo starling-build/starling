@@ -155,7 +155,12 @@ again** for it. The half-line reserve is now mode 12 only (mode 14 asks
 the whole line: zh-d68ac84a p36). Engine 3e20c0daee6: a fractional paragraph's line
 height is the line's advance, not the runs' ascent + descent — on the
 Mac YaHei's 1.5-spaced lines reported 644.8 for an advance of 617.4, and
-zh-34a6519a's page 5 drew page 6's first line (fixed, the Mac confirms).
+zh-34a6519a's page 5 drew page 6's first line (fixed, the Mac confirms). That changed what a line's
+`height` meant under the layout's picture rules, so the advance is now a
+call of its own (`ComputeLineAdvances`, `TextPainter.computeLineAdvances`),
+used for a Word paragraph's line bottoms only, and `height` is ascent +
+descent again (engine after 3e20c0daee6; the sdk's vendored headers and
+the web bridge have it).
 
 ### T78. zh-fec5fa30: 56 pages where Word's are 55 — DONE (2026-10-17)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac), from 2026-10-17
