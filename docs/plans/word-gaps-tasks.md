@@ -171,6 +171,9 @@ with spaces (p2 right, p1 wrong); at most half an em there (both right,
 but zh-c2c92639 77.4 -> 64.9 and four others down a little, this one
 level). So the rule is neither; more lines with spaces are needed.
 
+### T111. zh-b00fef0d (93.5%, 24 pages) — claimed
+Owner: session 017F2GnT (Linux), from 2026-10-18
+
 ### Note from the Mac (2026-10-17, night): the zh corpus is 168 documents — a sixth sample
 Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 76.6%. Its low ones,
