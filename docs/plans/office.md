@@ -5820,6 +5820,16 @@ fitter dropped the paragraph's tail).
   page only if the line holding its mark fits there with it; otherwise it
   waits for the next page. A note whose mark's line went over anyway is
   carried with it. zh-424775e4 87.3 -> 96.2; nothing else moved.
+- **A Latin name Word has no face for goes by the file's font table
+  before its name's look (2026-10-17).** zh-c399c91a's table sets its
+  digits and "/" in "LinTimes": in the font table with the PANOSE of
+  Times New Roman, no alternate, charset 00. Word's print draws them in
+  Calibri, "/" 4.06pt at 10.5, as the table rule for such an entry has
+  it. Ours read "times" in the name and took Times, "/" 2.92pt, so
+  "1套/基层执法部门" kept "门" on its line where Word wraps it, and every
+  row after it on page 4 rose 18.5pt. Now the serif guesses by name
+  apply only to a name Word has, or one the table does not describe.
+  zh-c399c91a 64.3 -> 100; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

@@ -81,8 +81,14 @@ enum OfficeFonts {
                 || (n.containsSubstring("code") && !n.containsSubstring("unicode")) {
                 return mono
             }
-            if n.containsSubstring("serif") && !n.containsSubstring("sans") { return serif }
-            if n.containsSubstring("times") || n.containsSubstring("roman") || n.containsSubstring("garamond")
+            // (A name only: not one Word has no face for that the file's
+            // table describes, which goes by the table below —
+            // zh-c399c91a's "LinTimes", PANOSE Times's and no alternate,
+            // is Calibri in Word's print, its "/" 4.06pt at 10.5, where
+            // ours took Times and a cell's "门" stayed on the line.)
+            let byTable = !wordMacFamilies.contains(n) && !family.unicodeScalars.contains { $0.value >= 0x2E80 } && fontEntry(family) != nil
+            if !byTable, n.containsSubstring("serif") && !n.containsSubstring("sans") { return serif }
+            if !byTable, n.containsSubstring("times") || n.containsSubstring("roman") || n.containsSubstring("garamond")
                 || n.containsSubstring("baskerville") || n.containsSubstring("didot") {
                 return serif
             }
