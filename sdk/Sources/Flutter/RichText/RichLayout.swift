@@ -4306,8 +4306,19 @@ public final class RichLayout {
         // saved, and come back tight.
         let contextual = style.contextualSpacing
             || theme.wordRules && style.list != nil && style.named == nil && !document.readFromFile
-        let skipBefore = contextual && sameStyle(i - 1) || theme.omitsLeadingSpace && i == 0
-        let skipAfter = contextual && sameStyle(i + 1)
+        // (Across a cell's edge the space it counts in lines stays:
+        // zh-fec5fa30's header cells, contextual over half a line before
+        // and after, make a row of 51.2pt in Word's print — two 16pt
+        // lines and both halves of the 18pt pitch — where ours took the
+        // space away, 44.7. zh-1a3c7aa0's cells, contextual over web
+        // spacing in points, lose theirs as before: kept, it ran 93 pages
+        // to Word's 90.)
+        func keepsLines(_ j: Int, _ key: String) -> Bool {
+            guard theme.wordRules, j >= 0, j < document.paragraphs.count, let a = p.cell, let b = document.paragraphs[j].cell, a != b else { return false }
+            return Double(style.eastAsian[key] ?? "").map { $0 != 0 } ?? false
+        }
+        let skipBefore = contextual && sameStyle(i - 1) && !keepsLines(i - 1, "w:beforeLines") || theme.omitsLeadingSpace && i == 0
+        let skipAfter = contextual && sameStyle(i + 1) && !keepsLines(i + 1, "w:afterLines")
         // Automatic spacing is the web's, unless the document says its
         // own numbers stand: see `RichDocument.htmlAutoSpacing`.
         let web = !theme.wordRules || document.htmlAutoSpacing

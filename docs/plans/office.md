@@ -5856,6 +5856,16 @@ fitter dropped the paragraph's tail).
   with a closing mark, which no line may start with (zh-b13d0fb4's "度。"
   too); a quarter otherwise. zh-7cf85f15 76.5 -> 98.5; nothing else
   moved.
+- **Across a cell's edge, contextual spacing keeps what is counted in
+  lines (2026-10-17).** zh-fec5fa30's p47 header cells are contextual,
+  with `beforeLines`/`afterLines` 50 on an 18pt pitch. Word's row is
+  51.2pt: two 16pt lines and both 9pt halves. Ours took the spacing away
+  between neighbouring cells of one style, 44.7. Not across every cell's
+  edge: zh-1a3c7aa0's contextual cells over web spacing in points lose
+  it in Word (keeping it, 99.9 -> 28.6, 93 pages to 90). So only the
+  line-counted space stays, and only between two cells.
+  zh-fec5fa30 94.2 -> 96.6, zh-92373179 41.6 -> 47.3; nothing else
+  moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
