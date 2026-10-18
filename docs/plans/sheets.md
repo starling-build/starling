@@ -260,9 +260,20 @@ the same base; the commits give the numbers):
   title's own box fill. Two bar groups on one pair of axes are one
   group; two line groups on two axes are drawn; a gradient chart area;
   a varied single bar series' legend of its points; labels at zero over
-  negative values; "Series1"; an empty axis title's room. Open: series
-  colours by c:idx (2007-style line charts), a secondary axis' title.
-  A point's or series' gradFill is drawn in the gradient's mean colour.
+  negative values; "Series1"; an empty axis title's room. Open: a
+  secondary axis' title. A series that sets no colour takes the theme's
+  for its c:idx, not its place (47813's red and green). A point's or
+  series' gradFill is drawn in the gradient's mean colour. Categories in
+  slots thinner than their font stand upright, one to each font size of
+  room (47813's 720: 1, 17, 33…). A 2007-style chart that states no text
+  size prints at 10 pt, its title at 18 (ours were 7.5 and 14).
+  Open: chart-fdo78080's chart (LibreOffice's: no c:title, no
+  autoTitleDeleted, no varyColors) has no title in Excel's print and a
+  legend of its points; ours titles it "col1" as PowerPoint would. One
+  file, and chart-fdo54361-1 without varyColors keeps "Series1": not a
+  rule yet. chart-tdf140489 is not drawn: an area and a line on hidden
+  axes and a scatter series that only sizes the year axis, a combination
+  the reader turns down.
   Open: a 3-D chart's series one behind another (chart-tdf111824), and
   a 3-D line chart's axis (LIBRE_OFFICE-128382-0: 0 to 10,000 for data
   to 9,579.5, where the 2-D rule's headroom makes 12,000).
