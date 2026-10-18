@@ -170,6 +170,9 @@ enum SlideFonts {
         // sections' 36 pt titles stand a point higher in PowerPoint's
         // print than Liberation Sans's share set them.)
         if n == "helvetica" { return 471.0 / 2048 }
+        // (Consolas by its own, 1884 over and 514 under, where Liberation
+        // Mono's deeper share set clusterfuzz 4986's code 1 to 2 pt high.)
+        if n == "consolas" { return 514.0 / 2398 }
         // (Poppins by its ascent and descent, its line gap not counted —
         // the engine puts half of it under the baseline; Work Sans by its
         // Windows ascent and descent.)

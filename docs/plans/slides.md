@@ -2537,6 +2537,9 @@ slide-sections 1.07 → 0.80; nothing else moved). Its six 36 pt titles
 stood a point lower than PowerPoint's (whose print embeds the Mac's
 Helvetica): drawn in Liberation Sans, they took Arial's 0.19 share
 below the baseline. Helvetica's own is 471 of 2048 (`ownDescentShare`).
+Consolas the same way (sweep 219: clusterfuzz 4986 −0.04, nothing
+else): drawn in Liberation Mono (0.265 below), its 24 pt code stood 1
+to 2 pt high; its own is 514 of 2398.
 
 **A preset of no known name is a line, 2026-10-18** (sweep 217:
 corpus mean 0.9536 → 0.9525; clusterfuzz 4986 2.72 → 2.12, its slide 6
