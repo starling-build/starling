@@ -592,6 +592,13 @@ holding paragraph marks stands at the nearer of its line's top and
   paragraph of another size would tell them apart, and zh-021b8feb's
   header and first paragraph are the next thing to diff against
   zh-4adfcce2's.)
+  (Then lab `hl` N and O, same header, the body opening with a run of
+  its own size, 20pt or 8pt, Normal untouched: no push. Their second
+  lines stand 1.8pt from ours, as the unpushed variants do, where A's
+  stood 11.7 off. So the extra is neither Normal's line nor the first
+  line's height. It comes when the body's first paragraph's runs say no
+  size and take Normal's. Next: check zh-021b8feb's first body paragraph
+  for an explicit size.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
