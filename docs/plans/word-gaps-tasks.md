@@ -977,6 +977,15 @@ Then a top legend's place, a radar's circle and labels (e80a1e35,
 1148fce3) and box-and-whisker charts drawn from their chartex part:
 chartex 76.4%, pages 1 and 2 all but one line. Left on chartex: its
 sunburst (p3, 16 of 27 lines) is still its Fallback picture.
+(Mac 011uWpmC, 2026-10-18, looked, for this task: zh-d62da4dd p4, 55.7%,
+41 of its 45 misses on that page, is two 3-D pies (`c:pie3DChart`, rotX
+30, perspective 30) whose every data label has a `c:dLbl/c:layout/
+c:manualLayout` and `showLeaderLines` 1. Word's print sets each label
+outside its slice with a leader line, in a bordered chart area; ours
+sets them on and over the slices (PieLabels keeps a 3-D pie's best-fit
+labels inside, and the moves start from there), with no area border.
+The moves are fractions of the chart's frame from the default place, so
+that default (outside for these) decides every label.)
 
 ### T17. zh-9c5d0c3f: road-sign table rows — DONE (2026-10-16)
 Owner: session 011ZXp8eXomzYegGkuu7484P (Windows box), from 2026-10-14
