@@ -347,6 +347,7 @@ enum DocxFormat {
         // does not): a table that says nothing itself takes its style's word.
         var tableBorders: [String: _Borders] = [:]
         var tableEdges: [String: BorderEdges?] = [:]
+        var tableSides: [String: XNode] = [:]
         var defaultBorders: _Borders? = nil
         // A table style's conditional parts: the first row's fill and run
         // look, the body rows' bands.
@@ -420,6 +421,7 @@ enum DocxFormat {
                 tableRootBases[id] = rootPs
                 tableNodes[id] = style
                 tableEdges[id] = _edges(style.first("w:tblPr"), "w:tblBorders")
+                tableSides[id] = style.first("w:tblPr")?.first("w:tblBorders")
                 if style.first("w:tblPr")?.first("w:tblLayout")?["w:type"] == "fixed" {
                     fixedTableStyles.insert(id)
                     if style["w:default"] == "1" { defaultTableFixed = true }
@@ -1010,9 +1012,15 @@ enum DocxFormat {
                 // names outset on its tblBorders).
                 style.borderStyle = borders?.style ?? _borders(node.first("w:tblPr"), "w:tblBorders")?.style
                 // Sides whose line style or width differ from the table's.
+                // (A side the table's own borders leave out is its style's,
+                // width and all: zh-5251dd23's tables name a 2.25pt frame
+                // and leave the rows to Table Grid's 0.5pt insideH; ours
+                // drew them 2.25 and every row 1.8pt taller.)
+                let styledSides = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableSides[$0] }
                 if let tb = node.first("w:tblPr")?.first("w:tblBorders") {
                     for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
-                        guard let e = tb.first("w:" + side), !["nil", "none"].contains(e["w:val"] ?? "nil") else { continue }
+                        guard let e = tb.first("w:" + side) ?? styledSides?.first("w:" + side),
+                              !["nil", "none"].contains(e["w:val"] ?? "nil") else { continue }
                         if let v = e["w:val"], v != (style.borderStyle ?? "single") { style.edgeStyles[side] = v }
                         if let sz = Double(e["w:sz"] ?? ""), max(0.25, sz / 8) != (style.borderWidth ?? 0.5) { style.edgeWidths[side] = max(0.25, sz / 8) }
                     }
