@@ -2444,6 +2444,13 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A table's row bands colour their text, 2026-10-18**
+(table-with-different-font-colors: all sixteen cells' colours now
+PowerPoint's, its worst page 1.61 → 1.59; the other table decks
+unchanged). A band's `tcTxStyle` (`band1H`/`band2H`) was never read,
+only its fill: the third row's cyan (band2H) printed in the whole
+table's grey. Counted as the fills are, from the row after a header.
+
 **A diagram shape turned round keeps its text area turned, 2026-10-18**
 (missing-bullet 4.00 → 3.76, cycle-matrix 2.32 → 2.26, autofit-sync
 −0.04; the other diagram decks unchanged). A layout shape turned 180°

@@ -2074,8 +2074,16 @@ private struct SlideContext {
                 // table PowerPoint offers; a style the deck defines says
                 // exactly what (Light Style 2's header is dark text, no fill).
                 var look = base
-                if style != nil {
-                    for p in (bandColPart.map { [$0] } ?? []) + regional {
+                if let style {
+                    // A row band's text look (`band1H`/`band2H` `tcTxStyle`),
+                    // under the regional ones, its bands counted as their
+                    // fills are, from the row after a header:
+                    // table-with-different-font-colors' third row is band2H's
+                    // cyan text. (Only the bands' fills were read.)
+                    let k = r - (firstRow ? 1 : 0)
+                    let rowBandText: [TablePartStyle] = pr?["bandRow"] == "1" && k >= 0
+                        ? [_tablePart(style, k % 2 == 0 ? "a:band1H" : "a:band2H")].compactMap { $0 } : []
+                    for p in rowBandText + (bandColPart.map { [$0] } ?? []) + regional {
                         if let f = p.font { look.font = f }
                         if let b = p.bold { look.bold = b }
                         if let c = p.textColor { look.color = c }
