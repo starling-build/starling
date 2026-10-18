@@ -3209,6 +3209,7 @@ enum DocxFormat {
             runs.append(Run(length: s.utf16.count, style: cs))
         }
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
+        var pendingDropdown: String? = nil // a FORMDROPDOWN field's chosen entry, from its begin
         func walkRun(_ r: XNode, link: String?, revision: RevisionMark? = nil) {
             var cs = cellChar
             cs.link = link
@@ -3309,6 +3310,15 @@ enum DocxFormat {
                     }
                     // A form checkbox has no result text: it is the box
                     // itself, shown as a glyph (form_footnotes' 29 boxes).
+                    // A drop-down form field shows its chosen entry, and has
+                    // no result text of its own: zh-cd8987db's cover picks
+                    // "（征求意见稿）", the fourth of its list, which Word
+                    // prints and ours had left out.
+                    if child["w:fldCharType"] == "begin", let list = child.first("w:ffData")?.first("w:ddList") {
+                        let entries = list.all("w:listEntry").compactMap { $0["w:val"] }
+                        let chosen = Int(list.first("w:result")?["w:val"] ?? list.first("w:default")?["w:val"] ?? "0") ?? 0
+                        pendingDropdown = chosen >= 0 && chosen < entries.count ? entries[chosen] : nil
+                    }
                     if child["w:fldCharType"] == "begin", let box = child.first("w:ffData")?.first("w:checkBox") {
                         let on = box.first("w:checked").map { !_isOff($0) } ?? (box.first("w:default")?["w:val"] == "1")
                         pendingCheckbox = on
@@ -3322,6 +3332,10 @@ enum DocxFormat {
                     if let on = pendingCheckbox, child.text.uppercased().containsSubstring("FORMCHECKBOX") {
                         addText(on ? "\u{2612}" : "\u{2610}", cs)
                         pendingCheckbox = nil
+                    }
+                    if let entry = pendingDropdown, child.text.uppercased().containsSubstring("FORMDROPDOWN") {
+                        addText(entry, cs)
+                        pendingDropdown = nil
                     }
                 case "w:commentReference":
                     // A comment with no range (comment.docx's LibreOffice
