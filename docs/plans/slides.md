@@ -2334,6 +2334,18 @@ A box of one line goes on its point too (sweep 181: 1.0016 → 0.9956,
 51 better, 30 worse; smartart-simple 1.63 → 0.76, WithMaster 1.16 →
 0.75; bnc862510_6 +0.22, tdf129686 +0.21): it had been left as set.
 
+**Tried and dropped, 2026-10-17: a table's lines on whole points,**
+each cell's counted from its own text's top, each line drawn in a band
+the width of its cell's text, the rest of the table (fills, rules)
+drawn once outside every band. The 55 table decks went +0.71 in sum,
+20 worse and 12 better (tableBorderLineStyle −0.64, table_test2 −0.23,
+the AES deck only −0.17; bug68703 +0.98, its rows' white rules lying
+inside the text's line boxes and moved with them). And the pass for
+the rest kept every line's text in the PDF under its clip, so the
+page held each line twice (68 for 35). Wants a way to draw a cell's
+lines alone, not the table under a clip. (A box's bands draw nothing
+twice: a line outside the band is left out whole.)
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the
