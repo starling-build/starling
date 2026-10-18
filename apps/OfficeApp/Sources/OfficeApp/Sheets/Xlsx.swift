@@ -600,7 +600,7 @@ enum Xlsx {
 
     /// A <color> as 0xRRGGBB: rgb, a theme slot with its tint, or a
     /// legacy palette index; nil for "automatic".
-    /// `<dxf>`: font and fill, as far as they are set. A solid fill's
+    /// `<dxf>`: font, fill, borders and number format, as far as they are set. A solid fill's
     /// colour is its bgColor here, unlike a cell's.
     static func _dxf(_ d: XNode, theme: [UInt32]) -> DxfStyle {
         var x = DxfStyle()
@@ -613,6 +613,7 @@ enum Xlsx {
         if let p = d.child("fill")?.child("patternFill") {
             if let c = p.child("bgColor") ?? p.child("fgColor") { x.fill = _color(c, theme: theme) }
         }
+        x.numberFormat = d.child("numFmt")?["formatCode"]
         for side in ["left", "right", "top", "bottom", "horizontal", "vertical"] {
             guard let b = d.child("border")?.child(side), let style = b["style"], style != "none" else { continue }
             x.borders[side] = b.child("color").flatMap { _color($0, theme: theme) } ?? 0

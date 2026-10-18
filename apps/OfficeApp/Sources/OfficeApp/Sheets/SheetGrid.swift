@@ -2397,6 +2397,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             if let v = d.underline { st.underline = v }
             if let v = d.strike { st.strike = v }
             if let v = d.color { st.color = v }
+            // (And its number format: lo-new_cond_format_test's top three
+            // in 0.00, "2.00" where the rest show "2".)
+            if let v = d.numberFormat { st.numberFormat = v }
         }
         let ca = cols
         let left = r.left, right = r.right, top = r.top, bottom = r.bottom

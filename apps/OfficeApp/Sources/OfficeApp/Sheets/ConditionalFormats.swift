@@ -320,6 +320,7 @@ final class CFEvaluator {
                 if look.dxf.strike == nil { look.dxf.strike = x.strike }
                 if look.dxf.color == nil { look.dxf.color = x.color }
                 if look.dxf.fill == nil { look.dxf.fill = x.fill }
+                if look.dxf.numberFormat == nil { look.dxf.numberFormat = x.numberFormat }
             }
             any = true
             if rule.stopIfTrue { break }

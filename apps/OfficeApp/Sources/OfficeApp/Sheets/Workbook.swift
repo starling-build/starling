@@ -462,6 +462,8 @@ struct DxfStyle: Equatable, Sendable {
     var strike: Bool? = nil
     var color: UInt32? = nil
     var fill: UInt32? = nil
+    /// The number format the rule shows its cells in (`dxf/numFmt`).
+    var numberFormat: String? = nil
     /// Rules by side — left, right, top, bottom, and horizontal and
     /// vertical between the cells of what it formats — and their colour.
     var borders: [String: UInt32] = [:]
