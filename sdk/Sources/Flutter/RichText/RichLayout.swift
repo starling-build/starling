@@ -7913,9 +7913,15 @@ public final class RichLayout {
                             // is taken wherever they can give for it, as before —
                             // zh-54e91165's "…详见附件1。" sets "1" 5.6pt inside the
                             // margin with "。" and "、" giving 5.3 apiece in Word's
-                            // print, where the start rule left it a line down.)
-                            || (!wide && !inCell && !onCharacterGrid && x < width
-                                && (x + before / 2 <= width + edge || all.contains { Self._pauseMarks.contains(units[$0]) }))
+                            // print, where the start rule left it a line down.
+                            // On a character grid the start rule holds whatever the
+                            // marks, and the word is taken there too: zh-8d6f702e
+                            // (mode 12, a grid of -0.21) takes "150" starting 7.9pt
+                            // in, half "达", its "；" and four automatic spaces
+                            // giving, and leaves "60" starting 3.95 in with three
+                            // marks to give.)
+                            || (!wide && !inCell && x < width
+                                && (x + before / 2 <= width + edge || !onCharacterGrid && all.contains { Self._pauseMarks.contains(units[$0]) }))
                             // (After a space no half of what stands before
                             // limits it: it is taken wherever the marks can
                             // give what it needs — Taiwan's centred "，。、"
