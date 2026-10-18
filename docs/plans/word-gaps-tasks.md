@@ -110,11 +110,19 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
-### T125. zh-eb54d3b0 (95.4% on Windows, twelfth sample): line ends on p1 run a character short of Word's
-Owner: session 01QbbApP (Windows box), from 2026-10-18
+### T125. zh-eb54d3b0 (95.4% on Windows, twelfth sample): line ends on p1 run a character short of Word's — DONE (2026-10-18)
+Owner: none (Windows 01QbbApP built it, released)
 Documents: zh-eb54d3b0. p1's "到2025年总体目标：一是产业规模升级，" takes "级，"
 in Word's print and not in ours; every line after it runs one or two
 characters behind to p2's paragraph end.
+95.4 -> 98.0, Word's 16 pages, nothing else moved (306 zh): on a
+character grid the character taken is its cell (e8ac71eb), and a mark
+closed up there is half its cell (b9ed28f7, labs og2-og4). Left: p10's
+"…补助0.8万元、0.3" takes a Latin word Word leaves — labs lw-lw4 say a
+word of two or more characters needs T86's start rule whatever the
+marks; with lenovo-3 (01Ak4ibJ), after T119. And even pages' "- 2 -"
+footers: Word's text layer joins them to the empty footer paragraph
+beside them (the reader's, not layout).
 
 ### Regression (Mac 011uWpmC, 2026-10-17 night): fdceb326 takes zh-3c055c9b 76.7 -> 33.5 on the Mac — FIXED (645e5e65)
 Same-base sweep on the Mac (s299 -> s300, the tip with fdceb326 "a run's
