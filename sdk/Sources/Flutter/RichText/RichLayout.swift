@@ -5985,7 +5985,14 @@ public final class RichLayout {
             // widths in Word's print on a grid of -0.28 an em; ours set it
             // 1.3pt a character closer, and the box, sized so, lost its
             // closing dash.)
-            let runOffGrid = run.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false
+            // (A run off it by its style's characters is off it too, where
+            // the run says nothing: zh-c25d08c5's Normal sets the characters'
+            // `w:snapToGrid` 0 on a grid of -0.25pt, and Word's print has
+            // its 16pt ideographs 16 apart; ours set them 15.75 and took a
+            // character more a line.)
+            let ownGridSay = run.keptXML?.containsSubstring("<w:snapToGrid") ?? false
+            let runOffGrid = ownGridSay ? (run.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false)
+                : theme.wordRules && (named?.char.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false)
             let grid = theme.wordRules && !runOffGrid && p.style.eastAsian["w:snapToGrid"] != "0"
                 ? _grid(index, document).chars : nil
             // (Ideographs keep the grid's addition in a paragraph off the
