@@ -2281,9 +2281,25 @@ verbatim as the paragraph's child. Same-base sweep: zh-20ff844e 95.8 ->
 99.0, zh-06c46ba9 97.4 -> 97.5, nothing else moved. A display ∑ is 1.6
 times its text (1.9 put zh-20ff844e's p15 a few points long: 95.8).
 
-### T104. zh-ea70c30e p2: a mode-15 squeeze Word does not make — claimed
+### T104. zh-ea70c30e p2: a mode-15 squeeze Word does not make — measured, waiting on a lab
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17 (the Mac's lead, b14d1d47)
 Documents: zh-ea70c30e (59.1%, sixth sample).
+Known: its body lines hold real spaces ("達 10,000 名", "辦公室 – 投訴"),
+so the fitter takes them as `lineOther` and tests need per mark against
+what is left, never against stretching. Tried: also requiring that a
+squeeze ask less than stretching at the line's spaces would
+(need × (ems/64 + autospaces + spaces) ≤ room × slack). p2's "有" is
+then left, as in Word — but p3's "(k)「第一層級部門」…辦公室 – 投" leaves
+"訴", which Word takes, and the document fell 60.1 -> 59.4. The two sit
+on the same edge: p2 need 8.04, 3 marks (18.74), slack 4.46, ems 5.47,
+spaces 5.87 → 91.2 against 83.5 (1.092); p3 need 8.78, 4 marks (24.98),
+slack 3.72, ems 5.66, spaces 5.87 → 101.2 against 92.9 (1.089). Asked
+the Mac for Word's limits on both lines (the over varied). Its p5-p8
+misses are something else: list items in Body Text Indent 2 (left 1440)
+over a level that states only firstLine 720, the paragraph only hanging
+720 — Word sets them at 72pt, ours at the margin (the list's indent
+replaces the style's left, though neither the level nor the paragraph
+gives one).
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
