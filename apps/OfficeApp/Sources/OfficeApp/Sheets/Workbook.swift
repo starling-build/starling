@@ -237,6 +237,8 @@ final class Worksheet {
     var spilled: [CellAddress: CellValue] = [:]
     /// Excel tables on the sheet (their parts are kept; see Tables.swift).
     var tables: [SheetTable] = []
+    /// Pivot tables on the sheet, for their styles (the parts are kept).
+    var pivots: [SheetPivot] = []
     /// Tables deleted with all their rows or columns: their parts, their
     /// relationship and their `<tablePart>` go on save.
     var removedTables: [SheetTable] = []
@@ -307,6 +309,7 @@ final class Worksheet {
         s.rowSpanGaps = rowSpanGaps
         s.hiddenColRuns = hiddenColRuns
         s.tables = tables
+        s.pivots = pivots
         s.removedTables = removedTables
         s.notes = notes
         s.linkTargets = linkTargets

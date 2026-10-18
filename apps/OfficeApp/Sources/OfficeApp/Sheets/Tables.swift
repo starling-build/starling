@@ -139,6 +139,72 @@ enum TablesXML {
 
 // MARK: - Drawing
 
+/// A pivot table, as far as its style needs: where it stands, how many
+/// of its rows are headings, whether its last row is the grand total,
+/// and its style.
+struct SheetPivot: Equatable, Sendable {
+    var ref: CellRange
+    /// `firstDataRow`: the rows from the top that are headings.
+    var headerRows: Int
+    var grandTotalRow: Bool
+    var style: String?
+    /// Rows heading a group of an outer field's items, set on a line of
+    /// their own (outline and compact form).
+    var subheadingRows: Set<Int> = []
+}
+
+enum PivotsXML {
+    /// The pivot tables a sheet's relationships name.
+    static func read(sheetPath: String, parts: [String: Data]) -> [SheetPivot] {
+        SheetDrawingsXML._relTargets(parts, of: sheetPath).values.sorted().compactMap { path in
+            guard path.containsSubstring("pivotTables/"), let root = Xlsx._part(parts, path).flatMap({ XNode.parse($0) }),
+                  let loc = root.child("location"), let ref = loc["ref"].flatMap({ CellRange($0) }) else { return nil }
+            // (The grand total row is there unless turned off, where rows
+            // are grouped by a field at all.)
+            let fields = root.child("rowFields")?.kids("field").count ?? 0
+            var p = SheetPivot(ref: ref, headerRows: Int(loc["firstDataRow"] ?? "1") ?? 1,
+                               grandTotalRow: fields > 0 && root["rowGrandTotals"] != "0",
+                               style: root.child("pivotTableStyleInfo")?["name"])
+            // An item of the outermost of two or more row fields, alone on
+            // its row: `<i>` with no type, nothing repeated from the row
+            // above, and fewer items than fields (tabular form puts the
+            // first inner item beside it).
+            for (j, i) in (root.child("rowItems")?.kids("i") ?? []).enumerated()
+            where fields >= 2 && i["t"] == nil && (Int(i["r"] ?? "0") ?? 0) == 0 && i.kids("x").count < fields {
+                p.subheadingRows.insert(ref.top + p.headerRows + j)
+            }
+            return p
+        }
+    }
+}
+
+/// Excel's built-in pivot styles, so far the family most files use.
+enum PivotStyles {
+    static func look(_ p: SheetPivot, _ a: CellAddress, theme: [UInt32]) -> TableCellLook? {
+        guard p.ref.contains(a), let name = p.style, name.hasPrefix("PivotStyleLight"),
+              let n = Int(name.dropFirst("PivotStyleLight".count)), (15 ... 21).contains(n) else { return nil }
+        let k = (n - 1) % 7
+        let base: UInt32 = k == 0 ? (theme.count > 1 ? theme[1] : 0) : (theme.count > k + 3 ? theme[k + 3] : 0x4472C4)
+        // (Tinted in HSL, as Excel tints a theme colour: 4472C4 at 0.8 is
+        // its D9E1F2, where mixing toward white made DAE3F3.)
+        func tint(_ f: Double) -> UInt32 { Xlsx._tinted(base, f) }
+        // Light 15-21: the headings and the grand total filled at a fifth
+        // of the colour and bold, a rule at two fifths between them and
+        // the rows (lo-forum-mso-de-104083's Light 16 in Excel's print:
+        // DDEBF7 and 9BC2E6 over accent 5B9BD5).
+        var x = TableCellLook()
+        let header = a.row < p.ref.top + p.headerRows
+        let total = p.grandTotalRow && a.row == p.ref.bottom && !header
+        if header || total { x.fill = tint(0.8); x.bold = true }
+        if header && a.row == p.ref.top + p.headerRows - 1 { x.bottom = tint(0.4) }
+        if total { x.top = tint(0.4) }
+        // (Each heading of an outer group bold and ruled off from its
+        // items: lo-pivottable_outline_mode's "1" and "2".)
+        if p.subheadingRows.contains(a.row) { x.bold = true; x.bottom = tint(0.4) }
+        return x
+    }
+}
+
 /// How a table's built-in style dresses one cell.
 struct TableCellLook: Equatable {
     var fill: UInt32? = nil

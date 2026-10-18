@@ -2102,8 +2102,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         // Tables' built-in styles, under everything the cells set themselves.
         var tableLooks: [CellAddress: TableCellLook] = [:]
-        if !ws.tables.isEmpty, let r0 = rs.first, let r1 = rs.last, let c0 = cs.first, let c1 = cs.last {
+        if !ws.tables.isEmpty || !ws.pivots.isEmpty, let r0 = rs.first, let r1 = rs.last, let c0 = cs.first, let c1 = cs.last {
             let view = CellRange(top: min(r0, r1), left: min(c0, c1), bottom: max(r0, r1), right: max(c0, c1))
+            for pv in ws.pivots where pv.ref.intersects(view) {
+                for row in rs where row >= pv.ref.top && row <= pv.ref.bottom {
+                    for col in cs where col >= pv.ref.left && col <= pv.ref.right {
+                        let a = CellAddress(row: row, col: col)
+                        if let look = PivotStyles.look(pv, a, theme: book.themeColors) { tableLooks[a] = look }
+                    }
+                }
+            }
             for t in ws.tables where t.ref.intersects(view) {
                 for row in rs where row >= t.ref.top && row <= t.ref.bottom {
                     for col in cs where col >= t.ref.left && col <= t.ref.right {

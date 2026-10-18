@@ -135,6 +135,7 @@ enum Xlsx {
                     }
                 }
                 ws.tables = TablesXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
+                ws.pivots = PivotsXML.read(sheetPath: path, parts: parts)
                 // (Excel refills an empty header cell as it opens the file,
                 // and prints the name: lo-TableEmptyHeaders' "Column1",
                 // "Column2".)
