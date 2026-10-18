@@ -125,6 +125,22 @@ For session 01QbbApP (fdceb326's) or whoever holds T85.
 Owner: session 017F2GnT (Linux), from 2026-10-17
 Documents: zh-e0ca7252 (41.9%, sixth sample).
 
+### Note from the Mac (2026-10-17, night): the scorer measures lines from the page's top — rebuild your cached pdf-text
+Word's print through the dialog puts a page that is nearly a standard
+size on that paper: zh-8f9b19f4's 11860x16700-twip pages (835pt) come
+out on A4 (842), its content from the top as ours. The line matcher
+measured heights from the page's foot, so every line of such a page
+stood the difference (7pt, over its 3pt) off ours. pdf-text.swift and
+the matcher's PyMuPDF reader now give y up from the page's top
+(negative). Rescoring the same PDFs moves only zh-8f9b19f4 (14.1 ->
+47.4) and POI's 60329 (0.0 -> 12.6); every other score is the same.
+**sweep.sh caches the compiled reader as `$D/pdf-text` — delete it**
+(`rm ~/starling-doc-check-*/pdf-text`) so the next sweep compiles the new
+one, else the two sides of a comparison read differently.
+Also T101 (one column where sections disagree) is in for zh-8f9b19f4,
+and labs `pa` (Word 16): its WPS styles with no pPrDefault do give 8pt
+after, as ours — that rule holds.
+
 ### Note from the Mac (2026-10-17, night): the zh corpus is 168 documents — a sixth sample
 Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 76.6%. Its low ones,

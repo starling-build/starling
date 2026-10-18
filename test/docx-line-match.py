@@ -35,7 +35,8 @@ WORD = os.environ.get("DOCX_WORD_REFS") or os.path.join(HERE, "corpus", "docx", 
 
 def mupdf_text(pdf):
     """pdf-text.swift's rows from PyMuPDF: "p<page> <y> <x> <text>", y up
-    from the page's foot to the line's bottom, spaces dropped."""
+    from the page's top to the line's bottom (so negative), spaces dropped:
+    a print on paper of another height still lines up from the top."""
     import pymupdf
     out = []
     with pymupdf.open(pdf) as d:
@@ -51,7 +52,7 @@ def mupdf_text(pdf):
                     # names what a print set there, and ours sets some.)
                     t = "".join(c for s in l["spans"] for c in s["text"] if not c.isspace())
                     x0, _, _, y1 = l["bbox"]
-                    out.append(f"p{i + 1}	{round(h - y1)}	{round(x0)}	{t}")
+                    out.append(f"p{i + 1}	{round(-y1)}	{round(x0)}	{t}")
     return out
 
 
