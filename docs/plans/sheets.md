@@ -262,6 +262,16 @@ the same base; the commits give the numbers):
   a varied single bar series' legend of its points; labels at zero over
   negative values; "Series1"; an empty axis title's room. Open: series
   colours by c:idx (2007-style line charts), a secondary axis' title.
+  A point's or series' gradFill is drawn in the gradient's mean colour.
+  Open: a 3-D chart's series one behind another (chart-tdf111824), and
+  a 3-D line chart's axis (LIBRE_OFFICE-128382-0: 0 to 10,000 for data
+  to 9,579.5, where the 2-D rule's headroom makes 12,000).
+- *Fills and frames* (2026-10-18). A row's run of one fill is one rect,
+  as Excel's page has it: cell by cell left pale seams. A shape's
+  fillRef reaches the theme's fill style (a gradient of the accent). A
+  page printing gridlines or headings is framed, 0.96 pt inside its edge
+  at any scale. The POI fuzzer workbook prints on Letter in Excel though
+  it asks for A4: Excel repaired it; not ours to follow.
 
 (The commit "a row set to the sheet's default height keeps its set
 height" says lo-tdf113271 makes twelve pages: it still makes eleven. Its
