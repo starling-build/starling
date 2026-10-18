@@ -5585,6 +5585,17 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **On a line with word spaces corner brackets give nothing (T110,
+  2026-10-18).** From 2013's layout, a line holding a U+0020 goes by the
+  per-mark fallback test. The Mac's lab `sq-sp` (Word 16, zh-ea70c30e's
+  p2, PMingLiU 12.5pt) leaves "有" 8.3pt over "…達 10,000 名的說" with
+  three "「」" to give, and takes it once the spaces are gone. "No mark
+  gives there" is wrong: Word takes the next character with round
+  brackets giving on such lines — zh-5b7ae054's "（Big Data）…（Open
+  Data）加", zh-e0ca7252's "（由機關填寫）…完", zh-c2c92639's "…处置技
+  术" with "（）《" — and those three lost 0.1-5 points under it. So it
+  is only 「」『』 that give nothing there. zh-ea70c30e 98.3 -> 99.3;
+  nothing else moved.
 - **zh-e0ca7252: six small things, 42.0 -> 98.0 at Word's page count
   (2026-10-17).** (1) An EQ field that rings a number with no result
   written, `eq \o\ac(○,1)` (27 of them opening its insurance clauses), is

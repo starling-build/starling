@@ -8024,7 +8024,17 @@ public final class RichLayout {
                             // (To the limit with one mark — 8.0 over is
                             // taken — and short of it with more: three
                             // leave a character 12.0 over.)
-                            : need / Double(max(1, all.count)) <= width - x + (all.count > 1 ? -_px(0.02) : hair))
+                            // (From 2013's layout, on a line with word spaces,
+                            // corner brackets give nothing for an ideograph —
+                            // lab `sq-sp` (Word 16, zh-ea70c30e's p2, zh-TW
+                            // PMingLiU 12.5pt): "…達 10,000 名的說" leaves "有"
+                            // 8.3pt over with three "「」" to give, and takes it
+                            // as "…達10,000名…". The line's other marks still
+                            // give: zh-5b7ae054's "（Big Data）…（Open Data）加"
+                            // and zh-e0ca7252's "（由機關填寫）…完" are taken,
+                            // zh-c2c92639's "《》（）" too.)
+                            : { let giving = modern && lineOther && wide ? all.filter { !Self._cornerUnits.contains(units[$0]) } : all
+                                return (!giving.isEmpty || giving.count == all.count) && need / Double(max(1, giving.count)) <= width - x + (giving.count > 1 ? -_px(0.02) : hair) }())
                         // (… on a line with spaces in it — `ovc`'s had 41. On
                         // one without, a Latin word no more than half an em
                         // over, the automatic space after it aside: lab `sqc`
@@ -8312,6 +8322,9 @@ public final class RichLayout {
     /// The marks Taiwan's faces set in the middle of their em, with no
     /// blank half to give (`_fitEastAsianLines`).
     private static let _centredUnits = Set("，。、；：！？".utf16)
+    /// Corner brackets, which give nothing on a line with word spaces
+    /// from 2013's layout on (`_fitEastAsianLines`).
+    private static let _cornerUnits = Set("「」『』".utf16)
     private static let _openingUnits = Set(_openingMarks.flatMap { String($0).utf16 })
     /// The marks that may hang past the margin at a line's end.
     private static let _hangingUnits = _closingUnits.union("？”’％".utf16)
