@@ -154,7 +154,7 @@ after, as ours — that rule holds.
 ### Note from the Mac (2026-10-18): the zh corpus is 206 documents — an eighth sample
 Twenty more (`random.seed(20261022)`, all twenty printed), checked in.
 It starts at 85.5% (median 98.0). Its low ones, unclaimed:
-zh-10e3a42be 2.1 (28/31 pages; CLAIMED Mac 01Xgpbk5), zh-ff93733d 22.8 (Mac 011uWpmC, 96.2 now — a long word after an ideograph opens a line; released), zh-cec9d337 71.8,
+zh-10e3a42be 2.1 (28/31 pages; CLAIMED Mac 01Xgpbk5), zh-ff93733d 22.8 (Mac 011uWpmC, 96.2 now — a long word after an ideograph opens a line; released), zh-cec9d337 71.8 (Mac 011uWpmC, looking),
 zh-f2835e26 73.1, zh-f2441f00 73.5, zh-264d7516 93.6, zh-30d86fcf 94.7,
 zh-5ff074a9 94.9.
 
