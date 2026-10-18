@@ -234,6 +234,33 @@ Excel was found to do, each checked on its workbook and its neighbours:
   measured line and a margin (lo-pivottable_invalid_formats lost a row a
   page to 0.14 pt).
 
+**2026-10-17/18, Windows** (each checked on its files against a build of
+the same base; the commits give the numbers):
+
+- *Fitting.* A wrapped row is fitted in its column's width on the
+  screen (whole pixels at 192 dpi), narrower than on paper
+  (lo-tdf100034's two-line note). A printer's line between measured
+  font sizes is the next dot up (49609's Microsoft Sans Serif 8.25).
+- *Cells.* A General number on paper holds the column's characters less
+  its padding (lo-Sparklines' 3.337809). textRotation 90 and 180 are
+  drawn turned; a row of turned text keeps the file's fit. Text runs
+  over its neighbours as far as it reaches from its indent. A
+  conditional format's numFmt applies. A drawing with
+  fPrintsWithSheet="0" is left off the page.
+- *Headings* print at their cells' foot, the row-number strip three
+  digits and 0.42 of the default size wide.
+- *Pivot tables* in PivotStyleLight 15-21. A pivot written without its
+  cells (64450, from Google Sheets) is not drawn: Excel lays it out from
+  its cache.
+- *Charts.* Excel 2016 (`cx:`) clustered columns and box-and-whisker,
+  their data read live through hidden names (_xlchart.v1.*); waterfall,
+  funnel, histogram (binned clusteredColumn), pareto, treemap, sunburst
+  and maps are not drawn yet. Two bar groups on one pair of axes are one
+  group; two line groups on two axes are drawn; a gradient chart area;
+  a varied single bar series' legend of its points; labels at zero over
+  negative values; "Series1"; an empty axis title's room. Open: series
+  colours by c:idx (2007-style line charts), a secondary axis' title.
+
 (The commit "a row set to the sheet's default height keeps its set
 height" says lo-tdf113271 makes twelve pages: it still makes eleven. Its
 first page is Excel's now; its later pages hold a row more than Excel's,
