@@ -240,7 +240,7 @@ something else.
 ### Note from the Mac (2026-10-18, late): the zh corpus is 366 documents — a sixteenth sample
 Twenty more (`random.seed(20261030)`, all printed), checked in. It starts
 at 87.4% (median 96.3). Its low ones, unclaimed: zh-a78d52e7 6.1 (26
-pages; CLAIMED Mac 01Xgpbk5 — a page-anchored top-and-bottom text box (the red masthead) as a band on its page, the paragraphs before its anchor moved under it as for a page-placed table), zh-6e653ca0 53.6, zh-86547e97 54.3,
+pages; Mac 01Xgpbk5, 97.1 now — a page-anchored top-and-bottom float bands its page, and a VML box fitted to its text is its text's height; released), zh-6e653ca0 53.6, zh-86547e97 54.3,
 zh-ae79c618 88.4, zh-360c1df1 89.2, zh-ee9d81b3 89.6.
 
 ### Note from the Mac (2026-10-18, late): the zh corpus is 346 documents — a fifteenth sample
