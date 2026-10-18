@@ -7,7 +7,7 @@
 54542_cropped_bitmap.pptx	summary pages=1 worst=0.16% mean=0.16%
 56812.pptx	summary pages=1 worst=0.49% mean=0.49%
 60042.pptx	summary pages=2 worst=0.00% mean=0.00%
-60810.pptx	summary pages=25 worst=7.88% mean=4.19%
+60810.pptx	summary pages=25 worst=7.88% mean=4.12%
 61515.pptx	summary pages=1 worst=0.00% mean=0.00%
 63200.pptx	summary pages=1 worst=0.00% mean=0.00%
 ArtisticEffectSample.pptx	summary pages=2 worst=1.66% mean=1.10%
@@ -107,7 +107,7 @@ lo-content-placeholder-cases.pptx	summary pages=4 worst=0.23% mean=0.06%
 lo-control_background_color.pptx	summary pages=1 worst=1.59% mean=1.59%
 lo-crop-position.pptx	summary pages=1 worst=0.23% mean=0.23%
 lo-crop-to-shape.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-croppedTo0.pptx	summary pages=1 worst=2.00% mean=2.00%
+lo-croppedTo0.pptx	summary pages=1 worst=0.62% mean=0.62%
 lo-cshapes.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-custgeom-nofill-path.pptx	summary pages=1 worst=0.02% mean=0.02%
 lo-custgeom-overlapping-contours.pptx	summary pages=1 worst=0.05% mean=0.05%

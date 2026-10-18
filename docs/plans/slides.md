@@ -2536,6 +2536,15 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A picture's soft edge, 2026-10-18** (sweep 221: corpus mean 0.9519 →
+0.9493; croppedTo0 2.00 → 0.62, 60810 −0.07; nothing worse). A
+picture's `softEdge` was not read — only a shape's — so croppedTo0's
+rounded picture, faded 10 pt in PowerPoint's print, was drawn sharp.
+It is now, as a shape's edge is. Not on a picture in 3-D (`sp3d`, a
+bevel on it): tdf170095's 25 pt soft edge does not show in PowerPoint's
+print, the picture whole (its transparent parts black, not followed);
+fading it cost +0.88.
+
 **Tried and dropped, 2026-10-18: Calibri Light in Lato Light.** 266
 decks name Calibri Light (newer themes' heading face), drawn in
 Carlito's regular, visibly heavier than PowerPoint's. Lato Light (the

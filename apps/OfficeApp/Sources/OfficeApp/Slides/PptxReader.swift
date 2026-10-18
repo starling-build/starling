@@ -1929,6 +1929,13 @@ private struct SlideContext {
             }
         }
         s.shadow = _shapeShadow(el.first("p:spPr"), el.first("p:style"))
+        // (Its edge faded as a shape's is: croppedTo0's rounded picture,
+        // its 10 pt `softEdge` drawn sharp before. Not one in 3-D, a
+        // bevel on it: tdf170095's prints whole, unfaded.)
+        if el.first("p:spPr")?.first("a:sp3d") == nil,
+           let soft = el.first("p:spPr")?.first("a:effectLst")?.first("a:softEdge")?["rad"].flatMap(Double.init), soft > 0 {
+            s.softEdge = soft / Pptx.emu
+        }
         // A fill of its own, behind the picture (showing through its
         // transparent parts and around one padded by a negative crop).
         if let pr = el.first("p:spPr") {
