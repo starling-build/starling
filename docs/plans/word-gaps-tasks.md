@@ -284,7 +284,7 @@ zh-5c6ff0d7 97.8 (2 pages, Word 3; Mac 01Xgpbk5, measured, released: Word fits t
 Twenty more (`random.seed(20261018)`, the unprinted rest of 15-400 KB,
 Word 16.113.3 prints) are checked in; compare per document across it.
 It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (T86, 83.6 now),
-zh-5dc5ce34 20.3 (21; Windows: spacing from styles fdceb326, 22.7; the rest is a 16pt header line only Word for Mac sets, office.md — for the Mac, released), zh-167ee06c 55.4 (14; T88, 72.9 now), zh-21421b7d 69.2 (2; Mac 011uWpmC, 97.4 now — slash break, parted centred cell),
+zh-5dc5ce34 20.3 (21; Windows: spacing from styles fdceb326, 22.7; the rest is a 16pt header line only Word for Mac sets, office.md — for the Mac, released), zh-167ee06c 55.4 (14; T88, 72.9 now; 71.9 against a reprint, 2026-10-18 — the old print set hangingChars lines 21.55 in, a fresh one 28), zh-21421b7d 69.2 (2; Mac 011uWpmC, 97.4 now — slash break, parted centred cell),
 zh-70094a34 70.8 (19; Mac, looked: Word's text layer drops glyphs, the lines match), zh-621d8756 82.4 (52; Mac looked, released — see the wordWrap note below; Linux 017F2GnT: 99.5 now — a bracket after an ideographic space gives (55c54a9b); released), zh-34a6519a 84.0 (53; Mac, looked: the TOC matches — Word's page numbers are drawn but not in its text layer, so the matcher splits our lines),
 zh-830ef10d 89.2 (3; Mac 011uWpmC, 97.3 now — a line too narrow for a character), zh-fb482d33 89.7 (T89, 95.7 now, 6 pages), zh-ad224275 93.2 (Mac, looked: the lines match — the misses are text-layer, a Wingdings bullet and pdf-text grouping).
 
@@ -574,6 +574,20 @@ the file a page long (0.4%). zh-167ee06c 55.4 -> 72.9; nothing fell.
 Left there (hangingChars: Windows 01QbbApP, 2026-10-18, measured, released — Word for **Windows** sets these lines 28pt in, as ours, and "助。" under firstLineChars 250 at 35.1: on the Mac a character of this face (華康雅風體W3(P) → embedded JhengHei UI Light, 14pt bold) is 10.8pt, 0.771 em — 21.6 and 26.9 — on Windows the run's 14; not its xAvgCharWidth (2024/2048), not Normal's 12; needs a Mac lab): "hangingChars" 200 sets its lines 21.6pt in where ours
 stand 28 (two of the 14pt ems); its first line's "、" squeezed to take
 "系", which Word leaves.
+**Settled (Mac 011uWpmC, 2026-10-18): the 21.6 was the reference print's,
+not Word for Mac's.** Lab `lab_hc`: the paragraph alone, with Normal's size
+changed and with the face changed, sets its lines 28 in. 10pt runs set them
+20 in, so the count is of the run's size, as ours. The file's first five
+paragraphs set them 28 in, and so does a fresh print of the untouched file
+on the same Word (16.113.3). The print checked in at de552be5 (2026-10-17
+21:04Z) set them 21.55 in — Word carried something over from the batch.
+It is reprinted now. zh-167ee06c scores 72.9 -> 71.9 against it, from the
+same layout; the misses left are p2's squeeze (above) and the forms from p4
+on. The other 19 of that sample were reprinted too, and none moved by
+layout: zh-621d8756's p15-20 headings by 3pt, zh-5dc5ce34 by 1pt, and
+zh-32f4ad9f and zh-70094a34 only in text extraction (U+0000 for some
+glyphs). **A reference that disagrees with a lab is worth reprinting
+before it is believed.**
 
 ### Note (Mac 011uWpmC, 2026-10-17): `w:wordWrap` off wraps a paragraph's closing spaces
 zh-621d8756 pp 21-27 run a line or two short, every page after p21 late:
