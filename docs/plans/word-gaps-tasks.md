@@ -2635,6 +2635,14 @@ for a centred horizontal one, zh-6d1afa56); the text is turned about that part a
 the merge loses past the foot. Same-base sweep, 357 docs: zh-b4d36718 93.7 -> 96.6, zh-32f4ad9f 95.2 -> 98.8,
 zh-021b8feb 98.0 -> 99.1, nothing lower.
 
+### T121. zh-cd8987db p7: a hinted "°" in 宋体 is an em, as GB2312's Latin-1 symbols are — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-18
+Documents: zh-cd8987db (89.8 on Linux; p7 holds 20 of its 30 misses).
+Known: "5.5.1 坡度＜25°的古茶林地，…埋入土中。" — the run says w:hint eastAsia, so Word sets "°" in 宋体: 10.50 at
+10.5pt in Word's print, ours 4.20 (the stand-in's own), and our line took "土中。" Word's leaves. Word's prints set
+"°" and "×" an em in SimSun and SimHei (12 and 2 of them), "²"/"³" (outside GB2312) half. Fix to try: the square
+faces' East Asian side sets GB2312's Latin-1 symbols ¤ § ¨ ° ± × ÷ an em.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
