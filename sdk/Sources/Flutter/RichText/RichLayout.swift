@@ -3863,6 +3863,38 @@ public final class RichLayout {
                 }
                 newPage()
             }
+            // A float that bands its page (`ImageFloat.bandsPage`): the text
+            // keeps off it, and what of the page's text before its anchor
+            // reaches into it goes under it, as under a table placed on the
+            // page. (After the paragraph's own break: zh-fe536967's
+            // photo is anchored at a section's start.)
+            if theme.wordRules, resumeCursor == nil, _cells[i] == nil, deferredUnder.isEmpty {
+                let images = (i < _floatImages.count ? _floatImages[i].map { [$0] } ?? [] : []) + (i < _inline.count ? _inline[i] : [])
+                for image in images {
+                    guard let f = image.float, f.bandsPage else { continue }
+                    let physical = page / _columns
+                    let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
+                    let onPage = _px(f.y) - (f.verticalFrom == "margin" ? 0 : insetTop)
+                    let top = onPage - _px(f.distanceTop), bottom = onPage + _px(image.height + f.distanceBottom)
+                    guard bottom > 0.01, top < contentH - 0.01 else { continue }
+                    tableBands.append((top: top, bottom: bottom))
+                    var moved: [PagePiece] = []
+                    while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
+                          last.pageY + (last.flowBottom - last.flowTop) > top + 0.01 {
+                        moved.insert(_pages[page].removeLast(), at: 0)
+                        if let k = _allPieces.lastIndex(of: moved[0]) { _allPieces.remove(at: k) }
+                        if last.pageY <= top + 0.01 { break }
+                    }
+                    if !moved.isEmpty {
+                        reordered = true
+                        y = max(top, bottom)
+                        deferredUnder = moved
+                        placeDeferred()
+                    } else if y > top - 0.01, y < bottom {
+                        y = bottom
+                    }
+                }
+            }
             // Under odd and even headers, a section that numbers its pages
             // afresh opens on its first number's side: where that number
             // is odd as the page before's was (or even as it was), Word
@@ -7002,6 +7034,10 @@ public final class RichLayout {
                 // sets it; shrunk to the column when wider.
                 var w = _px(image.width), h = _px(image.height)
                 if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
+                // (A box in the line fitted to its text's height: that tall.)
+                if theme.wordRules, image.float == nil, let box = image.textBox, box.fitsHeight, let inside = _textBox(image, document) {
+                    h = inside.layout.totalHeight + _px(box.insetTop + box.insetBottom)
+                }
                 // (A floating object takes no room in the line.)
                 if theme.wordRules, let float = image.float, !float.takesRoom { w = 0; h = 0 }
                 // (With its character border and effects round it.)

@@ -284,6 +284,11 @@ public struct ImageFloat: Hashable, Sendable {
     public var horizontalAlign: String? = nil
     public var verticalAlign: String? = nil
     public var takesRoom = false
+    /// Placed against the page or its margin with the text above and
+    /// below it (`takesRoom` as the file has it): a band of its page the
+    /// text keeps off, wherever on the page its anchor is — laid out and
+    /// drawn as a free float, `takesRoom` false.
+    public var bandsPage = false
     /// Text wraps round it (Word's square, tight and through wrapping):
     /// the lines beside it are shorter, or start under it.
     public var wraps = false
@@ -311,6 +316,10 @@ public struct RichTextBox: Hashable, Sendable {
     /// or VML's `mso-wrap-style:none` with `mso-fit-shape-to-text`):
     /// Word shrinks it to the text before it places it.
     public var fitsText = false
+    /// The box takes its text's height (VML's `mso-fit-shape-to-text`
+    /// without `mso-wrap-style:none`): in the line, it is as tall as its
+    /// text and insets, whatever its own height says.
+    public var fitsHeight = false
     /// … and is sized once, on the first page its header or footer is on
     /// (DrawingML's, lab `ftD`); a VML box is fitted on every page.
     public var fitsOnce = false

@@ -2069,6 +2069,7 @@ enum DocxFormat {
             }
             f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
+            Self._bandPage(&f)
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
             if let t = Double(anchor["distT"] ?? "") { f.distanceTop = t / 12700 }
             if let b = Double(anchor["distB"] ?? "") { f.distanceBottom = b / 12700 }
@@ -2094,9 +2095,22 @@ enum DocxFormat {
             }
             f.takesRoom = shape.first("w10:wrap")?["type"] == "topAndBottom"
             f.wraps = ["square", "tight", "through"].contains(shape.first("w10:wrap")?["type"] ?? "")
+            Self._bandPage(&f)
             return f
         }
         return nil
+    }
+
+    /// A top-and-bottom float placed against the page or its margin
+    /// bands its page (`ImageFloat.bandsPage`): zh-a78d52e7's red
+    /// masthead, a text box 94pt down the page anchored in the second
+    /// paragraph, has the first ("嘉政发〔2019〕2号") under it in Word's
+    /// print; taken as a block in its anchor's line, ours stood the box
+    /// in the flow and the page ran 50pt long.
+    static func _bandPage(_ f: inout ImageFloat) {
+        guard f.takesRoom, f.verticalAlign == nil, f.verticalFrom == "page" || f.verticalFrom == "margin" else { return }
+        f.takesRoom = false
+        f.bandsPage = true
     }
 
     static let _eastAsianSwitches = ["w:suppressLineNumbers", "w:suppressAutoHyphens", "w:kinsoku", "w:wordWrap", "w:overflowPunct", "w:topLinePunct", "w:autoSpaceDE", "w:autoSpaceDN", "w:adjustRightInd", "w:snapToGrid", "w:mirrorIndents"]
@@ -3061,7 +3075,11 @@ enum DocxFormat {
                     }
                 }
                 notes.inTextBox = false
-                if inside.contains(where: { !$0.text.isEmpty }) || (holdsTable && parts.isEmpty) {
+                // (Or empty, where it is fitted to its text's height: as
+                // tall as its empty lines — see `RichTextBox.fitsHeight`.)
+                let fitsHeight = (node.descendant("v:textbox")?["style"] ?? "").containsSubstring("mso-fit-shape-to-text:t")
+                    && !(((node.name == "v:shape" ? node : node.descendant("v:shape"))?["style"] ?? "").containsSubstring("mso-wrap-style:none"))
+                if inside.contains(where: { !$0.text.isEmpty }) || (holdsTable && parts.isEmpty) || (fitsHeight && !inside.isEmpty && parts.isEmpty) {
                     var box = RichTextBox(paragraphs: inside)
                     if holdsTable, parts.isEmpty { notes.boxTables[att.id] = content }
                     box.parts = parts
@@ -3128,6 +3146,11 @@ enum DocxFormat {
                         if parts.count > 2, let v = parts[2] { box.insetRight = v }
                         if parts.count > 3, let v = parts[3] { box.insetBottom = v }
                     }
+                    // (A box fitted to its text's height: zh-a78d52e7's
+                    // second paragraph holds a 78.75pt one round an empty
+                    // paragraph, and Word's print gives the line a text
+                    // line's height.)
+                    if !box.fitsText, fitsHeight { box.fitsHeight = true }
                     att.textBox = box
                 }
             }
