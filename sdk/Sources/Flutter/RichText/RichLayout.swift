@@ -8551,6 +8551,11 @@ public final class RichLayout {
                     // before it its "109", 22.6 of 22.75 and starting 2pt in.)
                     let latinWord = modern && !wide && !inCell && !onCharacterGrid && !lineOther
                         && x + before / 2 <= width + edge && room > 0 && hang == 0 && need <= room + hair
+                    // (One letter or digit, and only that of what is taken
+                    // besides its marks: not "②", not a hyphen.)
+                    let oneLatin = (a ..< last).filter { !isSpace(units[$0]) && !Self._closingUnits.contains(units[$0]) && !Self._openingUnits.contains(units[$0]) }
+                        .map { Self._isLatinWordUnit(units[$0]) ? 1 : 2 } == [1]
+                    let latinBefore = a > 0 && Self._isLatinWordUnit(units[a - 1]) || a > 0 && units[a - 1] == 0x2D
                     let taken = modern
                         ? latinWord || (!lineOther && lineWide > 1 && room > 0 && hang == 0
                             // (A sixty-fourth of each gap's em: of the line's
@@ -8648,8 +8653,26 @@ public final class RichLayout {
                             // in, half "达", its "；" and four automatic spaces
                             // giving, and leaves "60" starting 3.95 in with three
                             // marks to give.)
-                            || (!wide && !inCell && x < width
-                                && (x + before / 2 <= width + edge || !onCharacterGrid && all.contains { Self._pauseMarks.contains(units[$0]) }))
+                            // (A word of one Latin character whenever it starts
+                            // inside the margin; a longer one only by the start
+                            // rule, whatever marks the line has to give — labs
+                            // `lw`, `lw2`, `lw3`, `lw4` (the Windows box, Word for
+                            // Windows, zh-eb54d3b0's package, modes 12 and 14,
+                            // 仿宋_GB2312 and Times 16pt justified): "、0.3万元" is
+                            // taken from 8pt inside and not at 1-7, with "、" or
+                            // "件" before it, mid-paragraph or ending it; "件1。"
+                            // and "、1万元" are taken 1-6pt over, "件13。" and
+                            // "、1.万元" not. In a cell the same, where the marks
+                            // can give what it needs: zh-499adba6's "…同時訂定
+                            // 1976年至1985" takes "1985" starting 7.8pt inside,
+                            // four marks giving 16.2; the cell lab `sqc`'s "11"
+                            // is taken 4.5 over and left at 6, half its "月".)
+                            // (After a Latin character — a word parted at its
+                            // hyphen — the marks give for it as before: zh-424775e4
+                            // ends "（US-led" 0.16pt inside in Word's print.)
+                            || (!wide && x < width && (!inCell || need <= room + hair)
+                                && (oneLatin && need <= room + hair || x + before / 2 <= width + edge
+                                    || !onCharacterGrid && !inCell && latinBefore && all.contains { Self._pauseMarks.contains(units[$0]) }))
                             // (After a space no half of what stands before
                             // limits it: it is taken wherever the marks can
                             // give what it needs — Taiwan's centred "，。、"

@@ -2948,7 +2948,7 @@ the tab with "22" goes to the next line; ours sends "偿？" down with the tab. 
 unsqueezed start is before its stop stays and what follows may overflow the margin, unsqueezed; one whose start is
 past it breaks before itself, the line before fitted as a line end (the engine allows no break before a tab).
 
-### T128. A Latin word at a line's end, by Word's start rule (zh-eb54d3b0, zh-499adba6) — claimed
+### T128. A Latin word at a line's end, by Word's start rule (zh-eb54d3b0, zh-499adba6) — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Windows box's labs lw*, the Mac's case)
 Documents: zh-eb54d3b0 p10, zh-499adba6 (9.5%).
 Known (Windows labs lw, lw2, lw14, lw3, lw4, modes 12 and 14 alike): a word of two or more Latin characters is
@@ -2957,6 +2957,16 @@ from 8pt in, refused at 1-7; its trailing automatic space not counted); a one-ch
 inside ("件1。", "、1万元" taken 1-6pt over). Replaces T106's pause-mark exception. zh-499adba6 (mode 14, Mac):
 "…同時訂定1976年至1985", "1985" starting 26.5pt inside, is taken by Word, four marks giving about 4pt each (16.2);
 ours wraps it, and every page after runs a line or more behind.
+
+Done before mode 15, in the body and (newly) in cells where the marks can give what it needs: a word of two or
+more Latin characters by the start rule, one letter or digit whenever it starts inside and the marks can give for
+it (not "②", not a hyphen: zh-20ff844e, zh-424775e4 fell on those when they counted). T106's pause-mark exception
+stays only for a word after a Latin character (zh-424775e4's "（US-led" hyphen break, 0.16pt inside in Word's print).
+zh-499adba6's "1985" is a cell's (inCell true in the trace), not the body's. Same-base sweep, 437 docs: zh-053f8706
+98.4 -> 99.2, zh-60173bb6 77.0 -> 78.3, zh-5ff074a9 +0.6, zh-0243e7fc +0.8, zh-eb54d3b0 +0.3, zh-23ee8575 99.7 -> 100,
+zh-16e0a12a, zh-749cb15a, zh-499adba6 +0.1-0.2, nothing lower. zh-499adba6 stays at 9.8: its page count (99/96)
+is something else. No unit test: a test process lays the corpus file out without the converter's ICU data and
+fonts, and its lines break elsewhere.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
