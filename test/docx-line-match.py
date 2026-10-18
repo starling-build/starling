@@ -52,14 +52,18 @@ def mupdf_text(pdf):
                     # names what a print set there, and ours sets some.)
                     t = "".join(c for s in l["spans"] for c in s["text"] if not c.isspace())
                     x0 = l["bbox"][0]
-                    # (No deeper than a little under each piece's baseline:
-                    # Word prints raised text (`w:position`) with a text rise,
-                    # and PyMuPDF's box for such a piece reaches down by the
-                    # rise — zh-10e3a42b's clauses, 10.5pt up, read 10.5pt
-                    # low, where PDFKit reads them where they are drawn.)
+                    # (By each piece's baseline, a fifth of its size under it,
+                    # not by its box: a box is the face's own — Word's fonts
+                    # report their descent, ours, drawn as Type 3 glyphs on
+                    # Linux, their ink — and the same line read 2-4pt apart,
+                    # zh-264d7516 84.6 here to the Mac's 95.0. And Word prints
+                    # raised text (`w:position`) with a text rise, whose box
+                    # PyMuPDF reaches down by the rise — zh-10e3a42b's
+                    # clauses, 10.5pt up, read 10.5pt low. By baselines the
+                    # corpus reads as PDFKit reads it on the Mac.)
                     # (Text set across only: a turned label's origin is no
                     # baseline under its box.)
-                    y1 = max(min(s["bbox"][3], s["origin"][1] + 0.35 * s["size"]) for s in l["spans"]) \
+                    y1 = max(s["origin"][1] + 0.2 * s["size"] for s in l["spans"]) \
                         if tuple(round(d, 3) for d in l["dir"]) == (1, 0) else l["bbox"][3]
                     out.append(f"p{i + 1}	{round(-y1)}	{round(x0)}	{t}")
     return out

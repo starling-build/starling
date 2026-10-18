@@ -5642,6 +5642,18 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **The line match reads lines by their baselines on Linux
+  (2026-10-18).** Off the Mac the line match reads PDFs with PyMuPDF,
+  whose line bottoms are the faces' boxes: Word's fonts report their
+  descent, ours (Type 3 glyphs on Linux) their ink, and the same line
+  read 2-4pt apart, past the match's 3pt — zh-264d7516 84.6 on Linux to
+  the Mac's 95.0, scattered over every page. A line is now read at its
+  pieces' baselines, a fifth of each size under (the raised-text cap of
+  earlier today folds into it). Same PDFs rescored: mean 94.4 -> 94.6;
+  zh-264d7516 96.2, zh-6a4fc013 94.1 (its Thai), zh-8f9b19f4 92.4 (the
+  Mac's 92.3), zh-340d52e9 75.3 (75.6), 60316 97.0 (the Mac's 97.0); down
+  only zh-0cd63a22 100 -> 97.8 (two "◎" lines). Linux scores before and
+  after this are not to be compared.
 - **Text set under a parted page-placed table stays on its page
   (2026-10-18).** Text before a table placed against the page that would
   run into it goes under it, at where the whole table would end (lab
