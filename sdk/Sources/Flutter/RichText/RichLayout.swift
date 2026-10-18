@@ -8430,7 +8430,15 @@ public final class RichLayout {
             // not set by the East Asian rules — under them Word parts such
             // a word where it stands. After an ideograph or a full-width
             // mark, anywhere.)
-            let afterSpace = k > 0 && units[k - 1] == 0x20 && (narrowCell || p.cell == nil && !document.usesEastAsianLayout)
+            // (… and under East Asian layout after spaces that follow an
+            // ideograph: lab `ww` (Word 16, zh-76d361b2's package) sets
+            // "测试文字测试文字 " and 80 underscores on two lines, the
+            // underscores alone, and "Note: " and the same where it stands.)
+            var before = k - 1
+            while before > 0, units[before] == 0x20 { before -= 1 }
+            let spaceAfterIdeograph = before >= 0 && units[before] >= 0x2E80
+            let afterSpace = k > 0 && units[k - 1] == 0x20
+                && (narrowCell || p.cell == nil && (!document.usesEastAsianLayout || spaceAfterIdeograph))
             let afterIdeograph = k > 0 && units[k - 1] >= 0x2E80
             if afterSpace || afterIdeograph, part - k >= (narrowCell && afterSpace ? 3 : 20),
                !(k ..< part).contains(where: { units[$0] >= 0x2E80 }) {

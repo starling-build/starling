@@ -159,7 +159,11 @@ it stands). With it, zh-76d361b2 missed 1 line where it misses 5, and
 zh-454e2e29 7 where 8; nothing else moved. So Word may move some such
 words after all — the test's case is "Note: " + 80 underscores. Needs a
 lab: a long URL/underscore run after a space, East Asian layout on, in
-Word 16. Unclaimed.
+Word 16. Done (Mac 011uWpmC, lab `ww`, zh-76d361b2's package): after a
+space that follows an ideograph, 80 underscores open a line of their own
+in Word's print; after "Note: " they part where they stand. Built that
+way; no document moved (s327 -> s328), and zh-76d361b2's own case is
+something else.
 
 ### Note from the Mac (2026-10-18): zh-167ee06c (72.9) looked at, released
 p2's "七、經同意…為必要" (legacy mode, compressPunctuation, bold JhengHei
