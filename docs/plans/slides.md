@@ -2372,6 +2372,18 @@ characters and the dash, quotes and ellipsis: 18 of our estimates
 from Arial's were out, "/" 0.32 em for 0.52, "?" 0.63 for 0.42, "J"
 0.48 for 0.31, "+" and "=" 0.67 for 0.80. Word's table is the same one.
 
+**A 2007-style chart's axes, and its plot a point lower, 2026-10-17**
+(sweep 184: 0.9847 → 0.9801; line-chart 1.78 → 0.84, scatter-chart
+1.79 → 1.16, bar-chart 1.31 → 0.81; cooper +0.07). Office 2007 draws
+an unstyled chart's gridlines, both axes' lines and their outward
+ticks (5.7 pt) all in 0.75 pt of #868686; ours had 15% grey gridlines
+and no axes or ticks. The grey was tried twice before and lost, the
+gridlines a point off: a titled 2007-style plot starts a point lower
+on a slide (line- and scatter-chart's top gridline at 161.35 in the
+print, ours 160.43, now 161.43). Cooper's untitled charts stand 3.8 pt
+higher than ours, top and bottom, and their darker rules now cost a
+little; one deck, not followed. Slides only (`onSlide`).
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the

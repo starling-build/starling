@@ -354,6 +354,11 @@ struct Chart: Equatable {
     var highLowLines: HighLowLines? = nil
     var categoryTicksOut = false
     var categoryAxisDeleted = false
+    /// The axes' own lines are drawn (no `a:ln/a:noFill` in their
+    /// `c:spPr`). Not the value axis' of a new chart, which is written
+    /// without one.
+    var valueLine = false
+    var categoryLine = true
 
     var gap: Double { Double(gapWidth ?? (stacked ? 150 : 219)) / 100 }
     var overlapFraction: Double { Double(overlap ?? (stacked ? 100 : -27)) / 100 }
@@ -1012,8 +1017,10 @@ enum ChartXML {
             c.valueGrid = valueAxis.first("c:majorGridlines") != nil
             c.valueAxisDeleted = ["1", "true"].contains(valueAxis.first("c:delete")?["val"] ?? "")
             c.valueTicksOut = ["out", "cross"].contains(valueAxis.first("c:majorTickMark")?["val"] ?? "")
+            c.valueLine = valueAxis.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
         }
         c.categoryAxisDeleted = ["1", "true"].contains(categoryAxis?.first("c:delete")?["val"] ?? "")
+        c.categoryLine = categoryAxis?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
         if let scaling = valueAxis?.first("c:scaling") {
             c.valueMin = scaling.first("c:min")?["val"].flatMap(Double.init)
             c.valueMax = scaling.first("c:max")?["val"].flatMap(Double.init)
@@ -1895,8 +1902,11 @@ enum ChartPainter {
             // (A 2013-style chart on a slide starts 1.5 pt lower:
             // chart-slide-bg's top gridline at 100.5 in PowerPoint's
             // print, where ours stood at 99; its three like charts and
-            // tdf149985's the same.)
-            let lower = c.styled2013 && c.onSlide ? 1.5 * k : 0
+            // tdf149985's the same. A titled 2007-style one, a point
+            // lower: line- and scatter-chart's top gridline at 161.35 in
+            // its print, ours at 160.43. Cooper's untitled ones stand
+            // 3.8 pt higher than ours instead, not followed: one deck.)
+            let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : 0) * k : 0
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the
@@ -1973,10 +1983,21 @@ enum ChartPainter {
             let t = (v - sc.lo) / (sc.hi - sc.lo)
             return horizontal ? plot.left + t * plot.width : plot.bottom - t * plot.height
         }
+        // A 2007-style chart on a slide, as Office 2007 draws one the file
+        // leaves unstyled: its gridlines, both axes' lines and their
+        // outward ticks, 5.7 pt long, all 0.75 pt of #868686 (line-chart's
+        // print), where a newer chart's gridlines are 15% grey and its axes
+        // bare.
+        let classic = c.onSlide && !c.styled2013 && c.officeStyled && box == .zero
         let gridPaint = Paint()
         gridPaint.style = .stroke
         gridPaint.strokeWidth = max(0.5, (c.gridWidth ?? 0.75) * k)
-        gridPaint.color = grid
+        gridPaint.color = classic && c.gridColor == nil ? Color(0xFF868686) : grid
+        let axisPaint = Paint()
+        axisPaint.style = .stroke
+        axisPaint.strokeWidth = max(0.5, 0.75 * k)
+        axisPaint.color = Color(0xFF868686)
+        let tick = 5.7 * k
         for (i, v) in ticks.enumerated() {
             let p = vpos(v)
             let tp = valueLabels[i]
@@ -2034,6 +2055,39 @@ enum ChartPainter {
         for t in secondLabels { t.dispose() }
         // The category axis line, at zero.
         let zero = vpos(max(sc.lo, min(sc.hi, 0)))
+        if classic {
+            // The category ticks: at a scatter's x steps, else between
+            // the categories and at both ends.
+            var cats: [Double] = []
+            if c.type == .scatter {
+                for v in stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step) {
+                    cats.append(plot.left + (v - xs.lo) / (xs.hi - xs.lo) * plot.width)
+                }
+            } else {
+                let m = Double(max(1, n))
+                for i in 0 ... max(1, n) {
+                    let t = Double(i) / m
+                    cats.append(horizontal ? plot.bottom - t * plot.height : plot.left + t * plot.width)
+                }
+            }
+            if horizontal {
+                if c.valueLine, !c.valueAxisDeleted {
+                    canvas.drawLine(Offset(plot.left, plot.bottom), Offset(plot.right, plot.bottom), axisPaint)
+                    if c.valueTicksOut { for v in ticks { canvas.drawLine(Offset(vpos(v), plot.bottom), Offset(vpos(v), plot.bottom + tick), axisPaint) } }
+                }
+                if c.categoryLine, !c.categoryAxisDeleted, c.categoryTicksOut {
+                    for y in cats { canvas.drawLine(Offset(zero - tick, y), Offset(zero, y), axisPaint) }
+                }
+            } else {
+                if c.valueLine, !c.valueAxisDeleted {
+                    canvas.drawLine(Offset(plot.left, plot.top), Offset(plot.left, plot.bottom), axisPaint)
+                    if c.valueTicksOut { for v in ticks { canvas.drawLine(Offset(plot.left - tick, vpos(v)), Offset(plot.left, vpos(v)), axisPaint) } }
+                }
+                if c.categoryLine, !c.categoryAxisDeleted, c.categoryTicksOut {
+                    for x in cats { canvas.drawLine(Offset(x, zero), Offset(x, zero + tick), axisPaint) }
+                }
+            }
+        }
         if c.type == .scatter {
             let xTicks = Array(stride(from: xs.lo, through: xs.hi + xs.step / 2, by: xs.step))
             for (i, v) in xTicks.enumerated() {
