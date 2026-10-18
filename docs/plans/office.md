@@ -6380,6 +6380,49 @@ fitter dropped the paragraph's tail).
   Ours set all three an em, 10.5pt more an article, and the first line
   of each lost a character. zh-f3802561 69.4 -> 99.8; nothing else moved
   (s347 -> s348).
+
+### Word is not one reference: the fonts a Chinese document gets (2026-10-18)
+
+What these files look like depends on which Word opens them, on which
+machine, and sometimes on the session. Measured on the Mac (Word 16.113.3)
+and the Windows box (Word for Windows, Windows 01QbbApP):
+
+- **The machines have few of the faces the documents name.** Government
+  documents are set in 仿宋_GB2312 (body), 方正小标宋 (title), 黑体 and
+  楷体_GB2312 (headings) — the national format, GB/T 9704 — and in Taiwan
+  in 新細明體 and 標楷體. Stock Windows has 宋体 and YaHei of these, and
+  the 明體 pair; FangSong, KaiTi and SimHei are Office *cloud* fonts, fetched
+  when a document asks for them; no `_GB2312` or 方正 face exists on either
+  machine. Word for Mac carries 宋体, 黑体, 楷体, 仿宋 and the 明體 pair.
+- **Each Word maps a missing name its own way.** For 仿宋_GB2312: where
+  the file embeds the face (`word/fonts/`), both Words draw the embedded
+  subset; where its font table gives `w:altName` 仿宋, Word for Windows
+  draws FangSong and Word for Mac draws Microsoft YaHei (32 of the corpus's
+  34 such files); with neither, both draw YaHei. Word for Mac does follow
+  some alternates — 楷体 for 楷体_GB2312 (`OfficeFonts.eastAsianFace`).
+- **The same face differs between them.** FangSong is a 1.000 em line in
+  Office's cloud build 5.02 (Windows) and 1.141 in the Mac's: a line of
+  仿宋 does not stand at the same height in the two Words.
+- **The same Word differs between sessions.** Word for Mac sets some
+  方正小标宋 runs in Arial Unicode MS (a 1.75 em line) in some sessions and
+  in YaHei in others: reprinted on 2026-10-18, zh-1a3c7aa0 went from 90 to
+  92 pages, zh-1563bd74's title from YaHei to Arial Unicode (starling-ios-5c);
+  after a relaunch zh-5450d509's body printed in YaHei where its checked-in
+  print has SimSun.
+  A reference print can be off for one document while the rest of its batch
+  holds — zh-167ee06c's was, and it was reprinted.
+- **Embedding is rare.** Of the 131 WPS-made files in the corpus, 125 name a
+  方正 or `_GB2312` face and 7 embed any font. WPS treats 方正小标宋 as a
+  members' cloud font; without it WPS draws another face too.
+
+So a Chinese .docx does not fix its own look; the fixed copy is the PDF or
+OFD it is published as. For this app that means two separate targets:
+**scoring** reproduces one Word's choices — Word for Mac 16.113.3, whose
+prints are `test/corpus/docx/word/`, under `OFFICE_WORD_FONTS=mac` — and
+**display** aims at the author's intent, the named face's own metrics. A
+bundled 仿宋 look-alike (朱雀仿宋, OFL, re-metricked to FangSong: Latin at
+0.5 em, curly quotes 1 em, a 1.0 em line) would serve display; it covers
+all 6,763 GB2312 hanzi and 99.98% of the corpus's 仿宋 text. Not built.
 - **On a character grid the character taken is its cell (2026-10-18;
   Windows).** Before 2013's layout the next character is taken where it
   ends no more than half the one before it past the margin; the test

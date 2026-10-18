@@ -16,40 +16,58 @@ They are in the repository because the second half cannot be downloaded:
 Word's PDFs took a Mac with Word and a run over every document, and a
 score only means something against the same references.
 
-## The results, in short (2026-10-18)
+## The results (2026-10-18)
 
-Two numbers are kept for every document. They measure different things,
-and **they move in opposite directions**:
+**The measure is the line match**: for every line of text in Word's
+print, does ours set that line on the same page, at the same height
+(within 3pt), starting with the same text? It asks whether we break
+lines and pages where Word does — layout fidelity. 100% means every line
+of the document is where Word has it; a document that slips one line on
+page 2 loses every line after, so a small layout fault shows as a large
+drop. Higher is better.
 
-| | **Line match** — is the layout Word's? | **Page difference** — do the pixels look like Word's? |
-|---|---|---|
-| What it counts | Word's lines that ours sets on the same page, at the same height (±3pt), starting with the same text | the share of a page's pixels that differ from Word's print |
-| Good is | **high** (100% = every line where Word has it) | **low** (0% = the page is pixel-identical) |
-| Chinese, 306 docs | **95.2%** mean, 98.4% median; 255 docs at ≥ 95%; 298 with Word's page count | 10.2% mean, 9.6% median; no page exact |
-| POI, 111 docs | **89.8%** mean, 100% median; 97 docs at ≥ 95%; all 111 with Word's page count | **1.7%** mean, 0.4% median; 4 docs exact |
-| Tool | `test/docx-line-match.py` (sweep s353) | `test/docx-app-render.sh` (sweep 8, `baseline.tsv`) |
+Sweep s355, `office` at d0dc0039, on the Mac (`OFFICE_WORD_FONTS=mac`,
+lines read by PDFKit):
 
-How to read them together:
+| | documents | mean | median | at 95% or more | at half or more | Word's page count |
+|---|---|---|---|---|---|---|
+| Chinese (`zh-*`) | 346 | **94.5%** | 98.4% | 287 | 337 | 340 |
+| POI | 111 | **89.8%** | 100% | 97 | 100 | 111 |
 
-- **The line match is the measure of fidelity.** It says whether we break
-  lines and pages where Word does. A document at 100% has every line in
-  Word's place; one that slips a line on page 2 loses every line after.
-- **The page difference cannot reach 0 for Chinese documents, by
-  design.** Word embeds the faces they name (方正, 仿宋_GB2312…); this app
-  draws stand-ins with the same widths. Every glyph then differs by some
-  pixels even when every line is in its place. So the Chinese 10% is
-  mostly faces, not layout. The POI documents use faces we match, and
-  there the page difference is a fair check of drawing (1.7%).
-- **The POI line match is pulled down by a few files, not by most:** its
-  median is 100%. The low ones are a crash file with no text, right-to-left
-  Arabic, charts and a hand-made content-control file (see the board).
-- **Compare a document with itself, not means across dates.** Thirteen
-  samples have been added to the Chinese set since 2026-10-12, so its mean
-  covers different documents at each sweep. Like for like, the first 68
-  Chinese documents: line match 66% at sweep 7 (2026-10-13, 49 with Word's
-  page count) and 98.6% now (median 99.0%, 65 at ≥ 95%, all 68 with
-  Word's page count); page difference 14.3% then, 9.4% now.
-- What is left, document by document, and why: `docs/plans/word-gaps-tasks.md`.
+    test/docx-line-match.py WORK             # every document: the share of Word's lines set in Word's place
+    test/docx-line-match.py WORK zh-3550     # one document: where it first parts from Word, and why
+
+Reading it:
+
+- **Compare a document with itself, not a mean across dates.** Fifteen
+  samples have been added to the Chinese set since 2026-10-12, so each
+  sweep's mean covers different documents. Like for like, the first 68
+  Chinese documents went from 66% (sweep 7, 2026-10-13; 49 with Word's
+  page count) to **98.6%** now (median 99.0%, 65 at 95% or more, all 68
+  with Word's page count).
+- **The POI mean is pulled down by a few files, not by most** — its median
+  is 100%. Nine have no text to match at all (a crash file, empty and
+  picture-only documents); the others are right-to-left Arabic, charts and
+  a hand-made content-control file.
+- **Some misses are the reader's, not the layout's.** Word's embedded font
+  subsets drop glyphs from its PDF's text layer, and PDFKit groups some
+  lines differently; such a line counts as missed though it is in place.
+  What is left, document by document, and why: `docs/plans/word-gaps-tasks.md`.
+- **Word itself is not one reference.** These are Word for Mac 16.113.3's
+  prints. Word for Windows sets some of the same files in other faces, and
+  Word for Mac itself picks another face for some documents from one session
+  to the next (`docs/plans/office.md`, "Word is not one reference"). A
+  score is fidelity to these prints, not to every Word.
+
+**The page difference is a secondary check.** It is the share of a page's
+pixels that differ from Word's print (lower is better), from
+`test/docx-app-render.sh` — useful for catching drawing regressions in
+documents whose faces we match, and not a measure of layout: it cannot
+reach 0 for Chinese documents, because Word draws faces this app does not
+have (方正, 仿宋_GB2312…) and ours are stand-ins of the same widths, so
+every glyph differs by some pixels with every line in its place. At sweep
+8 (2026-10-18, 417 documents): POI 1.7% (3.4% at sweep 7), Chinese 10.2%,
+the first 68 Chinese 9.4% (14.3%). Details below.
 
 ## Two measures, and they are not the same
 
@@ -94,11 +112,7 @@ second page on, so there is a second reading of the same sweep:
     test/docx-line-match.py WORK             # the share of Word's lines set in the same place
     test/docx-line-match.py WORK zh-3550     # where one document first parts from Word
 
-On 2026-10-18 (sweep s353, `office` at 66bd69c9) the 306 Chinese
-documents have a mean of 95.2% of Word's lines where Word has them
-(median 98.4%; 255 at 95% or more, 301 at half or more, 298 with Word's
-page count), and the 111 POI documents 89.8% (median 100%; 97 at 95% or
-more, all 111 with Word's page count). At sweep 7 it had been 67% for
+Today's figures are at the top ("The results"). At sweep 7 it had been 67% for
 POI and 66% for the 68 Chinese documents then in the set (49 of them
 with Word's page count); at sweep 1, 42% and 5%; at sweep 6, 62% and
 45%. A document's score falls at the first paragraph that
@@ -107,12 +121,6 @@ breaks differently, and that paragraph is what the second form prints.
 that gains or loses a page against Word's count has a page that is
 wholly different.)
 
-Means are not comparable across samples, since each of the thirteen
-samples added documents; compare a document with itself. What is left,
-document by document, is on the board, `docs/plans/word-gaps-tasks.md`.
-A good share of the remaining misses is the reader's, not the layout's:
-Word's embedded subsets drop glyphs from its text layer, and PDFKit groups
-some lines differently.
 
 **The Chinese documents are compared with Word on a Mac, which has few
 Chinese fonts.** That Word has 宋体, 黑体, 楷体, 仿宋 and the 明體 pair,
