@@ -2405,7 +2405,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let left = r.left, right = r.right, top = r.top, bottom = r.bottom
         let width = right - left
         guard width > 2 else { return }
-        let chars = max(1, Int(width / (7 * zoom)))
+        // How many characters the cell holds, which a General number is
+        // rounded to: its width in the default font's digits, less the
+        // column's padding — on paper the printer's digits (lo-Sparklines'
+        // 8.43-character columns print 3.337809 and -6.10523, eight
+        // characters, where the screen's 7 px a digit made room for nine).
+        let chars: Int
+        if printing {
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+            let padding = (2 * (m.screenDigit / 4).rounded(.up) + 1) / m.screenDigit
+            chars = max(1, Int(width / m.digit - padding + 1e-6))
+        } else {
+            chars = max(1, Int(width / (7 * zoom)))
+        }
         var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars, pads: true)
         if cell.value.isText { text = Self.shown(text) }
         let style = _textStyle(st, color: color, ink: ink)
