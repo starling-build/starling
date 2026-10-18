@@ -1556,7 +1556,12 @@ struct DiagramLayout {
         }
         var apart = (turn - textTurn).truncatingRemainder(dividingBy: 360)
         if apart < 0 { apart += 360 }
-        guard abs(apart) > 0.01, abs(apart - 360) > 0.01, geometry.name == "a:prstGeom" else {
+        // (A shape turned round, drawn mirrored both ways, keeps its text
+        // upright in its text area mirrored too: cycleMatrix's third
+        // quadrant set "C1" in the wedge's outer corner, PowerPoint near
+        // the circle's centre.)
+        let mirrored = flipH && flipV
+        guard (abs(apart) > 0.01 && abs(apart - 360) > 0.01) || mirrored, geometry.name == "a:prstGeom" else {
             sp.children.append(body)
             return [sp]
         }
@@ -1567,6 +1572,7 @@ struct DiagramLayout {
         if let prst = geometry["prst"], let g = PresetGeometry.geometry(prst, width: r.width * 12700, height: r.height * 12700,
                                                                          adjustments: PresetGeometry.adjustments(geometry)),
            let t = g.textRect { tr = t }
+        if mirrored { tr = Rect.fromLTRB(1 - tr.right, 1 - tr.bottom, 1 - tr.left, 1 - tr.top) }
         let a = turn * .pi / 180, c = r.center
         let lt = Offset(r.left + tr.left * r.width, r.top + tr.top * r.height)
         let rb = Offset(r.left + tr.right * r.width, r.top + tr.bottom * r.height)

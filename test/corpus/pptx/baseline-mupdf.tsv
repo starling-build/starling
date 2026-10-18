@@ -181,7 +181,7 @@ lo-slide-sections.pptx	summary pages=7 worst=1.11% mean=1.07%
 lo-slidenum_field.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-smartart-accent-process.pptx	summary pages=1 worst=1.52% mean=1.52%
 lo-smartart-autoTxRot.pptx	summary pages=3 worst=2.63% mean=2.61%
-lo-smartart-autofit-sync.pptx	summary pages=1 worst=1.13% mean=1.13%
+lo-smartart-autofit-sync.pptx	summary pages=1 worst=1.09% mean=1.09%
 lo-smartart-background-drawingml-fallback.pptx	summary pages=1 worst=0.46% mean=0.46%
 lo-smartart-background.pptx	summary pages=1 worst=0.47% mean=0.47%
 lo-smartart-bullet-list.pptx	summary pages=1 worst=0.54% mean=0.54%
@@ -191,7 +191,7 @@ lo-smartart-children.pptx	summary pages=1 worst=3.13% mean=3.13%
 lo-smartart-cnt.pptx	summary pages=1 worst=1.28% mean=1.28%
 lo-smartart-composite-infer-right.pptx	summary pages=1 worst=2.24% mean=2.24%
 lo-smartart-continuous-block-process.pptx	summary pages=1 worst=0.13% mean=0.13%
-lo-smartart-cycle-matrix.pptx	summary pages=1 worst=2.32% mean=2.32%
+lo-smartart-cycle-matrix.pptx	summary pages=1 worst=2.26% mean=2.26%
 lo-smartart-cycle.pptx	summary pages=1 worst=1.03% mean=1.03%
 lo-smartart-data-follow.pptx	summary pages=1 worst=0.69% mean=0.69%
 lo-smartart-dir.pptx	summary pages=1 worst=0.53% mean=0.53%
@@ -200,7 +200,7 @@ lo-smartart-interopgrabbag.pptx	summary pages=1 worst=0.18% mean=0.18%
 lo-smartart-linear-rule-vert.pptx	summary pages=1 worst=0.11% mean=0.11%
 lo-smartart-linear-rule.pptx	summary pages=1 worst=0.48% mean=0.48%
 lo-smartart-maxdepth.pptx	summary pages=1 worst=0.65% mean=0.65%
-lo-smartart-missing-bullet.pptx	summary pages=1 worst=4.00% mean=4.00%
+lo-smartart-missing-bullet.pptx	summary pages=1 worst=3.76% mean=3.76%
 lo-smartart-multidirectional.pptx	summary pages=1 worst=3.90% mean=3.90%
 lo-smartart-org-chart.pptx	summary pages=1 worst=1.57% mean=1.57%
 lo-smartart-org-chart2.pptx	summary pages=1 worst=1.09% mean=1.09%

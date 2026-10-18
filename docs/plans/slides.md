@@ -2444,6 +2444,15 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A diagram shape turned round keeps its text area turned, 2026-10-18**
+(missing-bullet 4.00 → 3.76, cycle-matrix 2.32 → 2.26, autofit-sync
+−0.04; the other diagram decks unchanged). A layout shape turned 180°
+is drawn mirrored both ways so its text stays upright; the text kept
+the unturned shape's text area, so cycleMatrix's third quadrant set
+"C1" in the wedge's outer corner (428.9, 385.1) where PowerPoint sets
+it near the circle's centre (389.8, 346.1). Its text now goes in its
+own box over the mirrored text area (388.3, 344.6).
+
 **Arial Black in Archivo Black, 2026-10-18** (ThemeColorTransparency
 7.73 → 7.27, placeholder-layout-color 0.69 → 0.53, themes −0.02;
 WordArtBitmapFill +2.38, Wordart3D +1.11: +2.86 in sum, kept). Arial
