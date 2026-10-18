@@ -4824,6 +4824,18 @@ fitter dropped the paragraph's tail).
   is not an opening mark: the line may part there, and the joiner goes
   on with the character. zh-5b7ae054 64.7 -> 98.0, zh-8e8d4c40 98.9 ->
   99.4; nothing fell of the 279 files holding any (one base).
+- **YaHei's em dash is 1.08 em (2026-10-18).** The faces Word on a Mac
+  sets in YaHei draw "—" at YaHei's own 1.0801 em, regular and bold
+  (msyh.ttc, msyhbd.ttc). The Latin stand-in's dash is an em. zh-8d6f702e's
+  "160—230" sets it 17.18pt at 16pt on its grid of -0.21 in Word's print,
+  ours 15.79, and the line then took "累", which Word wraps. It is now
+  in YaHei's table of widths beside its ellipsis. zh-5a9a85c6 98.7 ->
+  100, zh-8d6f702e 88.2 -> 88.4; nothing fell of the 186 (one base).
+  Left in zh-8d6f702e: on that line Word also squeezes nothing, while
+  ours took "（", "）" and "，" in by 2.63 apiece to fit "累". On
+  p23's "…150毫米，或全" it is the other way round: Word gives "：" and
+  "，" 3.94 apiece (a quarter em) to take "全", and ours squeezes
+  nothing. (Mode 12, compressPunctuation, a -0.21 grid.)
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints

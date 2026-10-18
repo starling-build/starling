@@ -1304,9 +1304,13 @@ enum OfficeFonts {
             // zh-6d1afa56's ticks, rules and boxes in Word's print — where
             // the stand-in drew Liberation Sans's √ at 0.549, and the box
             // an em.)
+            // (And its em dash, 1.0801 em regular and bold, where the
+            // stand-in's is an em: zh-8d6f702e's "160—230" sets "—"
+            // 17.18pt at 16pt on its grid of -0.21 in Word's print, ours
+            // 15.79, and the line then took "累", which Word wraps.)
             if ea.height == yaHei.height {
-                face.otherAdvances = [0x2026: 0.8135, 0xB7: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604].merging(circled(1.0)) { $1 }
-                face.boldOtherAdvances = [0x2026: 0.9629, 0xB7: 0.4395].merging(circled(1.0)) { $1 }
+                face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604].merging(circled(1.0)) { $1 }
+                face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395].merging(circled(1.0)) { $1 }
             }
             face.scaledHeight = ea.scaledHeight
             face.scaledBaseline = ea.scaledBaseline
