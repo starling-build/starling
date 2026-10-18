@@ -798,7 +798,7 @@ Snapped in the body as in cells (lab `pg`, entry in `office.md`).
 zh-90e0cea8 now runs a page long from drift earlier on its last page
 (ours 17.6pt below Word's there): open for anyone.
 
-### T7. zh-abe7e063, zh-25c4de17, zh-799c91cd, zh-190d730c
+### T7. zh-abe7e063, zh-25c4de17, zh-799c91cd, zh-190d730c — DONE (2026-10-18: 100 / 100 / 99.2 / 97.8 at s348, by the fixes since; released)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 - zh-abe7e063: done (symbols an em in square faces), 32.8 -> 91.7.
 - zh-799c91cd: page 1 drifts about 2.5pt low by its foot, so its last
@@ -935,7 +935,7 @@ above Word's for want of its top rule; with that, zh-89385c94 went
 yours, as is the rest of the document. The Mac session will stay off
 zh-89385c94 from here.
 
-### T14. zh-06c46ba9: body lines two characters short from page 5
+### T14. zh-06c46ba9: body lines two characters short from page 5 — DONE (2026-10-18: 97.1, Word's 72 pages, at s348, by the fixes since; released)
 Owner: session 011uWpmCQYr9neyJ1V1gzrrb (Mac, has Word), from 2026-10-14
 Documents: zh-06c46ba9 (47%, Word's 72 pages).
 Known: page 5's body lines end two characters before Word's.
