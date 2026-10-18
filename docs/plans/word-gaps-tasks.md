@@ -171,6 +171,13 @@ in Word's print; after "Note: " they part where they stand. Built that
 way; no document moved (s327 -> s328), and zh-76d361b2's own case is
 something else.
 
+### Note from the Mac (2026-10-18, night): the zh corpus is 306 documents — a thirteenth sample
+Twenty more (`random.seed(20261027)`, all printed), checked in. It starts
+at 84.0% (median 95.3). Its low ones, unclaimed: zh-ab1ea005 9.2 (68/67
+pages; CLAIMED Mac 01Xgpbk5), zh-499adba6 9.5 (96/99 pages), zh-5251dd23
+67.4, zh-5d635acc 76.6, zh-60173bb6 77.4 (16/15 pages), zh-0978dee9 90.2
+(323/322 pages), zh-ad1e59ac 90.5, zh-38758b14 91.0 (23/22 pages).
+
 ### Note from the Mac (2026-10-18, evening): the zh corpus is 286 documents — a twelfth sample
 Twenty more (`random.seed(20261026)`, all printed), checked in. It starts
 at 88.0% (median 97.9). Its low ones, unclaimed: zh-9db183d5 6.6 (12/11 pages; Mac 01Xgpbk5, 95.0 now, Word's 11 — a frame placed on the page stands there past the foot; released), zh-8186c98d 17.1 (Mac 01Xgpbk5, 100 now — an at-least line on the grid keeps the grid's overhang; released; Linux 017F2GnT measured 2026-10-18, released: 17.2 on Linux because p2's paragraph 11 ("本意见…2000万元…", 16pt 仿宋, at least 30pt on a 15.6 grid) sets its first line 33.27pt where the others are 31.2 — that line's "2000" is drawn by the square face's Latin stand-in (Liberation Mono at 0.833, 13.3pt), whose descent splits its line lower (desc 8.27 against 6.2), and the 2.07pt it adds pushes p2's last line ("货值…") 1.14pt past the foot. The forced strut (`_strut`, forceStrutHeight) should hold it and does not — perhaps `computeLineAdvances` reads the runs' metrics past the strut; the Mac's CJK fallback hides it), zh-d746674a 81.1 (Mac 01Xgpbk5, looked, released: style L3 (標楷體 for ascii too, 14pt, 1.5 lines) — Word draws its "(一)" brackets in the YaHei it sets 標楷體 in, ours in Liberation Sans 14.4, and the line of two faces stands 11pt lower in ours (pp12-17, 7 runs); the Latin face for an East Asian ascii name),
