@@ -768,6 +768,7 @@ final class SlidePainter: CustomPainter {
                     p.isAntiAlias = true
                     p.strokeWidth = max(0.5, shape.outlineWidth * px)
                     p.strokeJoin = Self.join(shape.outlineJoin)
+                    p.strokeCap = shape.outlineCap == "rnd" ? .round : shape.outlineCap == "sq" ? .square : .butt
                     p.color = line
                     canvas.drawPath(Self.dashed(path, shape.outlineDash, width: p.strokeWidth), p)
                     // A connector's arrowheads, at its path's two ends.
@@ -857,6 +858,7 @@ final class SlidePainter: CustomPainter {
             p.isAntiAlias = true
             p.strokeWidth = max(0.5, shape.outlineWidth * px)
             p.strokeJoin = Self.join(shape.outlineJoin)
+            p.strokeCap = shape.outlineCap == "rnd" ? .round : shape.outlineCap == "sq" ? .square : .butt
             p.color = line
             if let dash = shape.outlineDash {
                 // Dashed: the outline's path cut into the pattern's pieces.

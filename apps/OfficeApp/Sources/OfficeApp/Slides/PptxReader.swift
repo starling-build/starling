@@ -126,6 +126,8 @@ struct PptxTheme {
     var lineColorMods: [XNode?] = []
     /// And their joins (`PptxReader.join`).
     var lineJoins: [String?] = []
+    /// And their caps (`a:ln cap`).
+    var lineCaps: [String?] = []
 
     init(_ root: XNode?) {
         guard let root, let elements = root.descendant("a:themeElements") else {
@@ -146,6 +148,7 @@ struct PptxTheme {
             ($0["w"].flatMap(Double.init) ?? 9525) / 12700
         }
         lineJoins = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map { PptxReader.join($0) }
+        lineCaps = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map { $0["cap"] }
         lineColorMods = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map {
             $0.first("a:solidFill")?.first("a:schemeClr").flatMap { $0["val"] == "phClr" ? $0 : nil }
         }
@@ -1487,8 +1490,13 @@ private struct SlideContext {
         st.flipV = xfrm?["flipV"] == "1"
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.outlineDash = PptxReader.dash(spPr?.first("a:ln")) ?? inheritedDash
-        st.outlineJoin = PptxReader.join(spPr?.first("a:ln"))
-            ?? style?.first("a:lnRef")?["idx"].flatMap(Int.init).flatMap { theme.lineJoins.indices.contains($0 - 1) ? theme.lineJoins[$0 - 1] : nil }
+        // (Its join and ends, else its theme line style's.)
+        let lineStyle: Int? = style?.first("a:lnRef")?["idx"].flatMap(Int.init).map { $0 - 1 }
+        var styleJoin: String? = nil, styleCap: String? = nil
+        if let k = lineStyle, theme.lineJoins.indices.contains(k) { styleJoin = theme.lineJoins[k] }
+        if let k = lineStyle, theme.lineCaps.indices.contains(k) { styleCap = theme.lineCaps[k] }
+        st.outlineJoin = PptxReader.join(spPr?.first("a:ln")) ?? styleJoin
+        st.outlineCap = spPr?.first("a:ln")?["cap"] ?? styleCap
         st.headEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:headEnd"))
         if let c = spPr?.first("a:ln")?["cmpd"], c != "sng" { st.outlineCompound = c }
         st.tailEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:tailEnd"))

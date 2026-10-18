@@ -2449,7 +2449,8 @@ decks better, one 0.01 worse). Ours mitred every outline; PowerPoint's
 prints join 223 thick strokes round against 301 mitred, the round ones
 mostly in lines that name no join. A line's `a:round`, `a:bevel` or
 `a:miter` (or its theme line style's) is now read, and one that names
-none is joined round.
+none is joined round. Its ends too (`a:ln cap`, "rnd" or "sq", or its
+theme line style's; sweep 194: −0.01, none worse).
 
 **A grey picture's soft mask left sharp, 2026-10-18** (sweep 190 with
 the rule's first form: lo-narration-non-media-shape 1.75 → 0.00,

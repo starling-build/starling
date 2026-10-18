@@ -474,6 +474,8 @@ final class SlideShape {
     /// `a:ln`'s join (`a:round`, `a:bevel`, `a:miter`): "round", "bevel",
     /// or nil for a mitred one.
     var outlineJoin: String? = nil
+    /// `a:ln cap`: "rnd" or "sq", or nil for flat ends.
+    var outlineCap: String? = nil
     /// `a:ln/a:headEnd` and `a:tailEnd`: an arrowhead at the line's start
     /// and end.
     var headEnd: LineEnd? = nil
