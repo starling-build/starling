@@ -2437,23 +2437,6 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             lead = 0
             tp = texts.painter(text, style)
         }
-        // Text spills over empty neighbours.
-        var clipLeft = left, clipRight = right
-        if spill && cell.value.isText && tp.width > width - pad * 2 && !wraps {
-            if align == .left || align == .general {
-                var col = a.col + 1
-                while col < CellAddress.maxCols, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
-                      clipRight - left < tp.width + pad * 2, col <= a.col + (printing ? 255 : 30) {
-                    clipRight += ca.size(col); col += 1
-                }
-            } else if align == .right {
-                var col = a.col - 1
-                while col >= 0, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
-                      right - clipLeft < tp.width + pad * 2 {
-                    clipLeft -= ca.size(col); col -= 1
-                }
-            }
-        }
         // An indent: so many three-space steps of the workbook's default
         // font, in from the side the text is aligned to (a lab of indents 1-4
         // in Calibri 11, Arial 10 and Times 9: 7.56, 8.28 and 6.84 pt a step).
@@ -2461,6 +2444,25 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if st.indent > 0, st.hAlign == .left || st.hAlign == .right {
             let base = _textStyle(book.style(0), color: nil, ink: ink)
             inset = Double(st.indent) * max(0, texts.painter("X   X", base).width - texts.painter("XX", base).width)
+        }
+        // Text spills over empty neighbours, as far as it reaches from its
+        // indent (chart-tdf140489's "Deferred Tax", in two steps from A1's
+        // edge, was cut at the last column its width alone needed).
+        var clipLeft = left, clipRight = right
+        if spill && cell.value.isText && tp.width > width - pad * 2 && !wraps {
+            if align == .left || align == .general {
+                var col = a.col + 1
+                while col < CellAddress.maxCols, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
+                      clipRight - left < tp.width + pad * 2 + inset, col <= a.col + (printing ? 255 : 30) {
+                    clipRight += ca.size(col); col += 1
+                }
+            } else if align == .right {
+                var col = a.col - 1
+                while col >= 0, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
+                      right - clipLeft < tp.width + pad * 2 + inset {
+                    clipLeft -= ca.size(col); col -= 1
+                }
+            }
         }
         // On paper the text stands in from its side half a point and a
         // quarter of its font's digit (the gridline lab, Excel 16: five
@@ -2607,7 +2609,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         guard width > 0, !st.wrap, st.hAlign != .center, st.rotation != 90, st.rotation != 180, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
         if ws.merges.contains(where: { $0.contains(a) }) { return nil }
         let text = Self.shown(NumberFormat.display(cell.value, st.numberFormat, width: 255).text)
-        let need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
+        var need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
+        if st.indent > 0, st.hAlign == .left || st.hAlign == .right {
+            let base = _textStyle(book.style(0), color: nil, ink: Color(0xFF00_0000))
+            need += Double(st.indent) * max(0, texts.painter("X   X", base).width - texts.painter("XX", base).width)
+        }
         guard need > width else { return nil }
         var have = width, lo = a.col, hi = a.col
         if st.hAlign == .right {
