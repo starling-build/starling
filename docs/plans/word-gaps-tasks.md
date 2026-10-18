@@ -630,6 +630,16 @@ holding paragraph marks stands at the nearer of its line's top and
   line's height. It comes when the body's first paragraph's runs say no
   size and take Normal's. Next: check zh-021b8feb's first body paragraph
   for an explicit size.)
+  (Lab `hl` P/Q/R: the push is decided page by page, by the page's first
+  paragraph: a sizeless one is pushed, one opening with a 20pt run is not.
+  An explicit 12pt run (Normal's own size) IS pushed. So the trigger is a
+  first line in Normal's size, not a run with no size. G and H fit that
+  too (Normal 20 or 8 with the body at Normal's). zh-021b8feb's first
+  paragraph is 20pt against its Normal, and it is not pushed. Still to
+  try as a rule: when a page's first line is in Normal's size, the body
+  starts no higher than one ungridded Normal line under a header that
+  ends above the margin. The earlier probes used a gridded line, 31.2pt
+  in zh-1563bd74's grid, which by itself would push files Word leaves.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
