@@ -322,6 +322,9 @@ enum Xlsx {
                 }
                 var cell = Cell(input: "")
                 cell.style = styleIndex < book.styles.count ? styleIndex : 0
+                // (Turned text is fitted by its length, which only the file's
+                // fit has: lo-forum-mso-en4-134670's headings' 196.5 pt.)
+                if book.styles[cell.style].rotation != 0, !value.isEmpty { ws.scriptRows.insert(a.row) }
                 if c.attrs.count > 1 {
                     for (k, v) in c.attrs where k == "vm" || k == "cm" || k == "ph" { cell.keptAttrs[k] = v }
                 }
@@ -588,6 +591,7 @@ enum Xlsx {
                 }
                 s.wrap = al["wrapText"] == "1" || al["wrapText"] == "true"
                 s.indent = max(0, min(250, Int(al["indent"] ?? "") ?? 0))
+                s.rotation = Int(al["textRotation"] ?? "") ?? 0
             }
             out.append(s)
         }
@@ -1427,10 +1431,11 @@ enum Xlsx {
             switch st.vAlign { case .top: align += " vertical=\"top\""; case .center: align += " vertical=\"center\""; case .bottom: break }
             if st.wrap { align += " wrapText=\"1\"" }
             if st.indent > 0 { align += " indent=\"\(st.indent)\"" }
+            if st.rotation != 0 { align += " textRotation=\"\(st.rotation)\"" }
             // Alignment the change left alone keeps its indent, rotation…
             var alignment = align.isEmpty ? "" : "<alignment\(align)/>"
             if let base, st.hAlign == base.style.hAlign, st.vAlign == base.style.vAlign, st.wrap == base.style.wrap,
-               st.indent == base.style.indent {
+               st.indent == base.style.indent, st.rotation == base.style.rotation {
                 alignment = base.xf.alignment ?? ""
             }
             let inner = alignment + (base?.xf.protection ?? "")

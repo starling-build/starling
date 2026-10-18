@@ -2410,6 +2410,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             lead += texts.painter(String(x), style).width
             text = String(text.dropFirst(2))
         }
+        if st.rotation == 90 || st.rotation == 180 {
+            _paintTurned(canvas, text, style, st, up: st.rotation == 90, in: r, book: book)
+            return
+        }
         var align = st.hAlign
         if align == .general {
             switch cell.value {
@@ -2510,6 +2514,76 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         canvas.restore()
     }
 
+    /// Text turned a quarter: up (`textRotation` 90, read from the foot)
+    /// or down (180, from the head). It is laid out as level text in the
+    /// cell turned on its side: its lines run along the cell's height,
+    /// placed along it by the vertical alignment, and the horizontal
+    /// alignment stacks them across. lo-tdf119292's A1, left and wrapped,
+    /// goes up from the foot at the left; its C1, right and top, down from
+    /// the head at the right; both are cut at the far side, a line and a
+    /// half each. General text stands at its foot side (47737's headings,
+    /// at the right).
+    private func _paintTurned(_ canvas: any Canvas, _ text: String, _ style: GridTextStyle, _ st: CellStyle,
+                              up: Bool, in r: Rect, book: Workbook) {
+        guard !text.isEmpty else { return }
+        let pad = 2 * zoom
+        let long = r.height, across = r.width
+        let along: TextAlign
+        switch st.vAlign {
+        case .center: along = .center
+        case .bottom: along = up ? .left : .right
+        case .top: along = up ? .right : .left
+        }
+        // (Wrapped a little shorter than level text: LIBRE_OFFICE-128382-0's
+        // 72.6 pt merge wraps "and a vertical", 67.2 pt, and not
+        // "(B15:E19) and", 69.4.)
+        let broken = st.wrap ? texts._breakLines(NumberFormat.unpad(text), style, max(1, long - pad * 2 - 1.25 * scale)) : text
+        let lines = broken.split(separator: "\n", omittingEmptySubsequences: false).map { texts.painter(String($0), style) }
+        // Each line its font's fitted line on paper, as Excel spaces them
+        // (15.6 pt for 128382's Calibri Bold 12, where a layout's is 13).
+        let one = lines.first?.height ?? 0
+        let pitch: Double
+        if printing {
+            let book = controller.book
+            let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
+            pitch = max(one, m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold)) * scale)
+        } else {
+            pitch = one
+        }
+        let margin = printing
+            ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).digit / 4
+            : pad
+        // Across: the side the glyphs' tops face (the left going up, the
+        // right going down) is the turned cell's head.
+        let thick = Double(lines.count) * pitch
+        let y0: Double
+        switch st.hAlign {
+        case .center: y0 = (across - thick) / 2
+        case .left where up, .right where !up: y0 = 1
+        default: y0 = across - thick - 1
+        }
+        canvas.save()
+        canvas.clipRect(r)
+        if up {
+            canvas.translate(r.left, r.bottom)
+            canvas.rotate(-.pi / 2)
+        } else {
+            canvas.translate(r.right, r.top)
+            canvas.rotate(.pi / 2)
+        }
+        for (i, tp) in lines.enumerated() {
+            let x: Double
+            switch along {
+            case .center: x = (long - tp.width) / 2
+            case .right: x = long - margin - tp.width
+            default: x = margin
+            }
+            // (A line stands at the foot of its pitch.)
+            tp.paint(canvas, Offset(x, y0 + Double(i + 1) * pitch - tp.height))
+        }
+        canvas.restore()
+    }
+
     /// What a cell shows of its text: the first 1,024 characters, as
     /// Excel's grid does (the formula bar has the rest). lo-cell-value's
     /// 2,472 run over ten printed pages to the 1,024th and stop there.
@@ -2530,7 +2604,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the wrong bound — and let only text five times too long run over:
         // NumberFormatTests' "Improper Fractions" in column D printed no
         // column E, where Excel prints five pages of it.)
-        guard width > 0, !st.wrap, st.hAlign != .center, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
+        guard width > 0, !st.wrap, st.hAlign != .center, st.rotation != 90, st.rotation != 180, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
         if ws.merges.contains(where: { $0.contains(a) }) { return nil }
         let text = Self.shown(NumberFormat.display(cell.value, st.numberFormat, width: 255).text)
         let need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
@@ -2689,7 +2763,7 @@ final class _TextCache {
     /// the paragraph, a long word was cut wherever the line it met
     /// stopped — "are upd" / "ating" — and CVLKRA's narrow Remarks
     /// column wrapped to other lines and other heights than Excel's.
-    private func _breakLines(_ text: String, _ style: GridTextStyle, _ maxWidth: Double) -> String {
+    func _breakLines(_ text: String, _ style: GridTextStyle, _ maxWidth: Double) -> String {
         var out: [String] = []
         for paragraph in text.split(separator: "\n", omittingEmptySubsequences: false) {
             // The places a line may end: at a space, and after a hyphen

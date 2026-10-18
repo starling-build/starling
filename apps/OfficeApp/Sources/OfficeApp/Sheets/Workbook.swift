@@ -50,6 +50,10 @@ struct CellStyle: Hashable, Sendable {
     /// workbook's default font: left-aligned text in from the left, right-
     /// aligned in from the right.
     var indent = 0
+    /// `alignment@textRotation`: 1-90 degrees up, 91-180 down (90 + the
+    /// degrees), 255 stacked. Drawn so far are 90 and 180, text turned a
+    /// quarter; written back with the alignment it came in.
+    var rotation = 0
     var numberFormat = "General"
     var borders = Borders()
     /// The file's cell format this one is, or was derived from: whatever
@@ -208,6 +212,7 @@ final class Worksheet {
     /// Rows holding rich text with a superscript or subscript run, whose
     /// height Excel fits taller than their fonts' line: their fit, as the
     /// file has it, is kept (45544's "Number of Hires⁽¹⁾" header rows).
+    /// Rows of turned text (`CellStyle.rotation`) likewise.
     var scriptRows: Set<Int> = []
     /// A formatted row's span as the file gave it (`spans`): the columns
     /// in it the file has no cell for. Excel makes them cells in the row's
