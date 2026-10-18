@@ -3,7 +3,7 @@
 
 // A small zip reader/writer over zlib — enough for Office Open XML
 // packages (.docx/.xlsx/.pptx): stored and deflated entries, a central
-// directory, no zip64, no encryption. Foundation has no zip of its own on
+// directory, zip64 sizes when reading, no encryption. Foundation has no zip of its own on
 // Linux, and a document package is a handful of small XML parts.
 
 import CZlib
@@ -41,20 +41,49 @@ enum Zip {
         // No directory: a file cut short at its end. Salvage what the local
         // headers still describe, as PowerPoint and Word repair such files.
         guard eocd >= 0 else { return try _salvage(bytes) }
-        let entryCount = Int(u16(bytes, eocd + 10))
-        let cdOffset = Int(u32(bytes, eocd + 16))
+        var entryCount = Int(u16(bytes, eocd + 10))
+        var cdOffset = Int(u32(bytes, eocd + 16))
+        // A zip64 archive's own end record, which the locator just before
+        // this one points to, when these fields are full.
+        if entryCount == 0xFFFF || cdOffset == 0xFFFF_FFFF, eocd >= 20, u32(bytes, eocd - 20) == 0x07064B50 {
+            let at = Int(u64(bytes, eocd - 12))
+            if at >= 0, at + 56 <= bytes.count, u32(bytes, at) == 0x06064B50 {
+                entryCount = Int(u64(bytes, at + 32))
+                cdOffset = Int(u64(bytes, at + 48))
+            }
+        }
         var entries: [ZipEntry] = []
         var p = cdOffset
         for _ in 0 ..< entryCount {
             guard p + 46 <= bytes.count, u32(bytes, p) == 0x02014B50 else { throw ZipError.corrupt("central directory") }
             let method = u16(bytes, p + 10)
-            let csize = Int(u32(bytes, p + 20))
-            let usize = Int(u32(bytes, p + 24))
+            var csize = Int(u32(bytes, p + 20))
+            var usize = Int(u32(bytes, p + 24))
             let nameLen = Int(u16(bytes, p + 28))
             let extraLen = Int(u16(bytes, p + 30))
             let commentLen = Int(u16(bytes, p + 32))
-            let localOffset = Int(u32(bytes, p + 42))
+            var localOffset = Int(u32(bytes, p + 42))
+            guard p + 46 + nameLen + extraLen <= bytes.count else { throw ZipError.corrupt("central directory") }
             let name = String(decoding: bytes[(p + 46) ..< (p + 46 + nameLen)], as: UTF8.self)
+            // Zip64: the sizes and offset that do not fit, in its extra
+            // field, in that order (lo-tdf82984_zip64XLSXImport, written
+            // that way for parts of a few hundred bytes).
+            var e = p + 46 + nameLen
+            while e + 4 <= p + 46 + nameLen + extraLen {
+                let id = u16(bytes, e), len = Int(u16(bytes, e + 2))
+                if id == 0x0001 {
+                    var q = e + 4
+                    func next() -> Int? {
+                        guard q + 8 <= e + 4 + len else { return nil }
+                        defer { q += 8 }
+                        return Int(u64(bytes, q))
+                    }
+                    if usize == 0xFFFF_FFFF, let v = next() { usize = v }
+                    if csize == 0xFFFF_FFFF, let v = next() { csize = v }
+                    if localOffset == 0xFFFF_FFFF, let v = next() { localOffset = v }
+                }
+                e += 4 + len
+            }
             p += 46 + nameLen + extraLen + commentLen
             guard localOffset + 30 <= bytes.count, u32(bytes, localOffset) == 0x04034B50 else {
                 throw ZipError.corrupt("local header for \(name)")
@@ -257,6 +286,10 @@ enum Zip {
 
     private static func u16(_ b: [UInt8], _ i: Int) -> UInt16 {
         UInt16(b[i]) | (UInt16(b[i + 1]) << 8)
+    }
+
+    private static func u64(_ b: [UInt8], _ i: Int) -> UInt64 {
+        UInt64(u32(b, i)) | UInt64(u32(b, i + 4)) << 32
     }
 
     private static func u32(_ b: [UInt8], _ i: Int) -> UInt32 {
