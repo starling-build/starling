@@ -424,7 +424,7 @@ final class SlidePainter: CustomPainter {
             for m in layout.geometry(i).painter.computeLineMetrics() { baselines.append(top + m.baseline) }
         }
         baselines.sort()
-        guard baselines.count > 1, px > 0 else {
+        guard !baselines.isEmpty, px > 0 else {
             layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
             return
         }

@@ -2330,6 +2330,9 @@ goes to the wrong point, a whole point out — aptia's two, font-scale's
 one; the rest land within a tenth. Not yet: tables (whose points count
 from each cell's text), boxes in columns (lo-3columns went +1.72,
 their lines side by side in one band), turned text.
+A box of one line goes on its point too (sweep 181: 1.0016 → 0.9956,
+51 better, 30 worse; smartart-simple 1.63 → 0.76, WithMaster 1.16 →
+0.75; bnc862510_6 +0.22, tdf129686 +0.21): it had been left as set.
 
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
