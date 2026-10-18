@@ -1876,11 +1876,14 @@ enum ChartPainter {
         }
         let sc = valueScale
         // Category labels by an axis that crosses above the plot's foot.
+        // (Nor on an Office 2016 chart, whose labels stand at the foot:
+        // chartex.docx's box-and-whisker categories in Word's print, which
+        // this put through its boxes.)
         // (Not where the columns stand on the other axis: chart-
         // testCombinedChartAxis' go below their zero, and its labels stay
         // at the foot of the lines' axis.)
         let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal && sc.lo < 0
-            && c.dataTable == nil && !c.columnsOnRight
+            && c.dataTable == nil && !c.columnsOnRight && !c.chartex
         // The lines' own axis, scaled as the first is, by their values.
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
         if let second = c.secondValueAxis, !horizontal {
