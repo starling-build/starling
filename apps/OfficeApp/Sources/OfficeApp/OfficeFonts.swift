@@ -585,8 +585,10 @@ enum OfficeFonts {
         var latinKerns: [UInt32: Double]? = nil
         var latinBoldKerns: [UInt32: Double]? = nil
         /// Word emboldens a face that has no bold of its own, and sets
-        /// each character 1/57 em wider.
+        /// each character wider: by `boldWiden` of an em, 1/48 where
+        /// that is not said.
         var fakeBold: Bool
+        var boldWiden: Double? = nil
         /// The baseline below the top of a single line, in ems: the
         /// face's ascent and half of what Word adds to its height.
         var baseline: Double? = nil
@@ -1001,12 +1003,19 @@ enum OfficeFonts {
         if has("yahei", "微软雅黑") { return yaHei }
         // (JhengHei UI's line is its own: an ascent of 2080 and a descent of
         // 521 in 2048, Word's 1.3 of that — zh-167ee06c's Light, set from
-        // the face its print embeds. Not emboldened wider: as 1/57 em a
-        // character, the same file ran a page long.)
+        // the face its print embeds.)
+        // (Its Light has no bold, and Word emboldens it a fiftieth of an em
+        // wider a character — lab `bw` (Word 16.113.3, 8 to 32pt): 0.0200
+        // em at every size, where PMingLiU's and SimSun's are 0.0195.
+        // zh-167ee06c's 18.5pt title, 22 characters at 18.87, ends 0.16pt
+        // inside its margin; at 1/48 it wrapped, and at 1/57 the file ran a
+        // page long. Its bold 14pt line "七、經同意…為必要" then leaves "要"
+        // for the next line, as Word's print does: the line's two marks
+        // cannot give the 14pt it is over.)
         if has("jhenghei ui") {
             return EastAsianFace(height: 1.651, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
-                                 latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns, fakeBold: false,
-                                 baseline: 1.206)
+                                 latinAdvances: jhengHeiAdvances, latinBoldAdvances: jhengHeiBoldAdvances, latinKerns: jhengHeiKerns,
+                                 fakeBold: has("light"), boldWiden: 1.0 / 50, baseline: 1.206)
         }
         if has("jhenghei", "微軟正黑") {
             return EastAsianFace(height: 1.74, latin: sans, latinScale: 1.05, latinClasses: [0.991, 0.925, 1.031, 0.95],
@@ -1271,7 +1280,7 @@ enum OfficeFonts {
         if eastAsian {
             // (An embedded face draws its own characters; what its subset
             // lacks falls back as before.)
-            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? 1.0 / 48 : 0,
+            var face = RichResolvedFace(family: (own ? embeddedFamily(family) : nil) ?? substitute(family), naturalHeight: ea.height, boldSpread: ea.fakeBold ? ea.boldWiden ?? 1.0 / 48 : 0,
                                         baseline: ea.baseline)
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
@@ -1325,7 +1334,7 @@ enum OfficeFonts {
             return face
         }
         var face = RichResolvedFace(family: ea.latin, sizeScale: ea.latinScale, naturalHeight: ea.height,
-                                    boldSpread: ea.fakeBold ? 1.0 / 48 : 0, classScales: ea.latinClasses, baseline: ea.baseline,
+                                    boldSpread: ea.fakeBold ? ea.boldWiden ?? 1.0 / 48 : 0, classScales: ea.latinClasses, baseline: ea.baseline,
                                     isEastAsian: true)
         face.scaledHeight = ea.scaledHeight
         face.scaledBaseline = ea.scaledBaseline

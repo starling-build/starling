@@ -6262,6 +6262,21 @@ fitter dropped the paragraph's tail).
   `ideographGrid`. So `RichParagraphStyle.ownGridOff` marks the
   paragraph's own say. zh-c2f6d17a 54.9 -> 93.5, zh-8d6f702e 88.2 ->
   90.7; nothing else moved (s340 -> s342, one base).
+- **Word for Mac widens a synthetic bold by a fixed share of the em
+  (2026-10-18).** Lab `bw` (Word 16.113.3; regular and bold lines at 8
+  to 32pt in zh-167ee06c's package) sets each bold character 0.0195 em
+  wider in PMingLiU and SimSun and 0.0200 in JhengHei UI Light (the
+  face 華康雅風體W3(P) is drawn in), at every size. Lab `sqf` first:
+  zh-167ee06c's bold "七、經同意…為必要" leaves "要" for the next line in
+  PMingLiU and in the original face alike, and takes it in both when
+  set regular. So the face did not matter, and the bold did: at 14.28 a
+  character the line is about 14pt over, more than its two marks give.
+  JhengHei UI Light now emboldens at 1/50 (`boldWiden`). Its 18.5pt bold
+  title, 22 characters at 18.87, ends 0.16pt inside its margin; 1/48 had
+  wrapped it, and the title's "421pt" in the earlier note included its
+  paragraph mark. The 1/48 of the faces already marked (FangSong's, set
+  by zh-15428325) stays. zh-167ee06c 71.9 -> 87.2; nothing else moved
+  (s343 -> s344, one base).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
