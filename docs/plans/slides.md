@@ -2536,6 +2536,18 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A diagram node's edge where its centre or far edge places it,
+2026-10-18** (sweep 225: corpus mean 0.9472 → 0.9450; smartart-cnt 1.28
+→ 0.08; nothing else moved). Found on a contact sheet of mid-scoring
+pages: smartart-cnt's vProcess5 boxes carried no text. A node not yet
+laid out read its left (top) edge as its `l` (`t`) or 0 — so vProcess5's
+middle box, placed by `ctrX`, and its arrow, by `r`, stood at 0 to
+everything measuring from them: the second arrow at the first box's
+right edge, and the text boxes (right edge = the arrow's left, less
+0.57 of its width) collapsed, their "a", "b", "c" at the 5 pt floor.
+The near edge now follows from the centre or the far edge where only
+those are given.
+
 **A gradient line, 2026-10-18** (sweep 224: corpus mean 0.9479 →
 0.9472; backgrounds −0.41, tdf114848 −0.02; none worse). A shape's
 `a:ln/a:gradFill` was drawn in its first visible stop; the backgrounds

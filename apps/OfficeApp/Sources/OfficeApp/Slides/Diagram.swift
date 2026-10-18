@@ -199,8 +199,14 @@ final class DgmPresNode {
         // sits where it was put.
         case "w": v = laidOut ? rect.width : (vals["w"] ?? parent?.value("w"))
         case "h": v = laidOut ? rect.height : (vals["h"] ?? parent?.value("h"))
-        case "l": v = laidOut ? rect.left - px : (vals["l"] ?? 0)
-        case "t": v = laidOut ? rect.top - py : (vals["t"] ?? 0)
+        // (A node placed by its centre or its far edge has its near edge
+        // there too: vProcess5's middle box, set by `ctrX`, and its arrow,
+        // by `r`, read as at 0, and the text boxes measured from them
+        // collapsed to nothing — smartart-cnt's "a", "b", "c" at 5 pt.)
+        case "l": v = laidOut ? rect.left - px
+            : (vals["l"] ?? vals["ctrX"].map { $0 - (value("w") ?? 0) / 2 } ?? vals["r"].map { $0 - (value("w") ?? 0) } ?? 0)
+        case "t": v = laidOut ? rect.top - py
+            : (vals["t"] ?? vals["ctrY"].map { $0 - (value("h") ?? 0) / 2 } ?? vals["b"].map { $0 - (value("h") ?? 0) } ?? 0)
         case "r": v = laidOut ? rect.right - px : (vals["r"] ?? (value("l")! + (value("w") ?? 0)))
         case "b": v = laidOut ? rect.bottom - py : (vals["b"] ?? (value("t")! + (value("h") ?? 0)))
         case "ctrX": v = laidOut ? rect.center.dx - px : (vals["ctrX"] ?? (value("l")! + (value("w") ?? 0) / 2))
