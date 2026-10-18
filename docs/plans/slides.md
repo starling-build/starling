@@ -2532,6 +2532,12 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**Helvetica's depth below the baseline, 2026-10-18** (sweep 218:
+slide-sections 1.07 → 0.80; nothing else moved). Its six 36 pt titles
+stood a point lower than PowerPoint's (whose print embeds the Mac's
+Helvetica): drawn in Liberation Sans, they took Arial's 0.19 share
+below the baseline. Helvetica's own is 471 of 2048 (`ownDescentShare`).
+
 **A preset of no known name is a line, 2026-10-18** (sweep 217:
 corpus mean 0.9536 → 0.9525; clusterfuzz 4986 2.72 → 2.12, its slide 6
 16.0 → 2.2; nothing else moved). The fuzzed deck's "roCndRect" (a

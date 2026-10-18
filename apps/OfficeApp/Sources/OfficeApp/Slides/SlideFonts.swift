@@ -166,6 +166,10 @@ enum SlideFonts {
         if n.hasPrefix("segoe ui") { return 514.0 / 2724 }
         if n == "lucida sans unicode" { return 901.0 / 3147 }
         if n == "courier new" || n == "courier" { return 615.0 / 2320 }
+        // (Helvetica by the Mac's, 1577 over and 471 under of 2048: slide-
+        // sections' 36 pt titles stand a point higher in PowerPoint's
+        // print than Liberation Sans's share set them.)
+        if n == "helvetica" { return 471.0 / 2048 }
         // (Poppins by its ascent and descent, its line gap not counted —
         // the engine puts half of it under the baseline; Work Sans by its
         // Windows ascent and descent.)
