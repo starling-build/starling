@@ -174,7 +174,7 @@ something else.
 ### Note from the Mac (2026-10-18, later): the zh corpus is 266 documents — an eleventh sample
 Twenty more (`random.seed(20261025)`, all printed), checked in. It starts
 at 86.4% (median 98.0). Its low ones, unclaimed: zh-8d72961c 4.3 (1/2
-pages; Mac 01Xgpbk5, looked, released: not Chinese — a Greek/Turkish/Arabic notice in "Nunito Sans Light", which Word for Mac has (a cloud font; NunitoSans-Light embedded in its print, a 1.36 em line, 16pt pitch at 11pt x 1.07) and we do not (14.4pt pitch, other breaks); page 2's Arabic is a picture's text in Word's print), zh-10eab555 5.0 (136/135 pages), zh-f3802561 69.4, zh-7b5b3de2
+pages; Mac 01Xgpbk5, looked, released: not Chinese — a Greek/Turkish/Arabic notice in "Nunito Sans Light", which Word for Mac has (a cloud font; NunitoSans-Light embedded in its print, a 1.36 em line, 16pt pitch at 11pt x 1.07) and we do not (14.4pt pitch, other breaks); page 2's Arabic is a picture's text in Word's print), zh-10eab555 5.0 (136/135 pages; CLAIMED Mac 01Xgpbk5), zh-f3802561 69.4, zh-7b5b3de2
 84.5, zh-2e7ef069 87.5.
 
 ### Note from the Mac (2026-10-18, morning): the zh corpus is 246 documents — a tenth sample
