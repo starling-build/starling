@@ -3486,7 +3486,14 @@ public final class RichLayout {
                         // (The cells merged down from the first row go on
                         // from its foot, not from under that text.)
                         let foot = y
-                        y += parts.under
+                        // (No lower than lets it stand on this page: zh-60173bb6's
+                        // "附件1" title, three 28.8pt lines before a table placed
+                        // 248.5pt down whose whole would end past the foot, is at
+                        // that page's foot in Word's print, 626-685, the table's
+                        // first row above it and the rest on the next page; ours
+                        // set it under the whole and took it to a page of its own.)
+                        let held = deferredUnder.reduce(0.0) { $0 + $1.flowBottom - $1.flowTop }
+                        y += theme.wordRules && contentH - foot - held >= 0 ? min(parts.under, contentH - foot - held) : parts.under
                         placeDeferred()
                         y = foot
                         newPage()

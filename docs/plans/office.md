@@ -5642,6 +5642,16 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **Text set under a parted page-placed table stays on its page
+  (2026-10-18).** Text before a table placed against the page that would
+  run into it goes under it, at where the whole table would end (lab
+  `t44/A`, 442 of a 505 foot). Where that is past the foot, Word sets it
+  as low as still stands on the page: zh-60173bb6's "附件1" title, three
+  28.8pt lines before a table placed 248.5pt down whose whole would end
+  at 734, is at that page's foot in Word's print (626-685), the table's
+  first row above it and the rest on the next page; ours took it to a
+  page of its own and the table a page on. zh-60173bb6 77.0 -> 97.5 and
+  Word's 15 pages; nothing else moved.
 - **An exact last row's thin bottom line stays inside it (2026-10-18).**
   A table's last row of exact height had its bottom line hung under the
   height, from zh-ae655121's 0.75pt double line (2.2pt thick), which
