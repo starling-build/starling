@@ -147,7 +147,7 @@ compare per document across it. It starts at 76.6%. Its low ones,
 unclaimed unless marked: zh-8f9b19f4 0.0 (Word 14 pages, ours 7; Mac
 01Xgpbk5, looking), zh-117cf7c6 39.2 (3/4 pages; Mac 011uWpmC, 98.6 now — table text off the grid without adjustLineHeightInTable; released), zh-e0ca7252 41.9
 (52/51; Linux 017F2GnT, T102, claimed), zh-340d52e9 48.9 (T103, 75.6 now), zh-d62da4dd 55.7 (4/5; Mac 011uWpmC, looking), zh-ea70c30e 59.1 (Mac 01Xgpbk5, measured, released — squeeze ground: mode 15, compressPunctuation, zh-TW PMingLiU 12.5pt, justified; p2 "「多數說有限英語人士團體」或「團體」是指人數至少達 10,000 名的說" ends there in Word, unsqueezed at 12.51 a character, while ours squeezes "」", "「", "」" to 9.74 and the spaces round "10,000" (17.37 -> 15.44 incl. 達, 10.74 -> 8.81) to take "有"; every line after one character early),
-zh-5b7ae054 64.4 (44 pages), zh-82b166b4 72.8 (Mac 01Xgpbk5, looking), zh-54e91165 75.4,
+zh-5b7ae054 64.4 (44 pages), zh-82b166b4 72.8 (T105, 98.4 now), zh-54e91165 75.4,
 zh-8d6f702e 88.0.
 
 ### Note from the Mac (2026-10-17, evening): the zh corpus is 148 documents — a fifth sample
@@ -260,6 +260,17 @@ and its baseline that face's: the 1.5-spaced paragraphs from p3 are
 41.2pt a line as Word's, and stand where Word's do (to 0.1pt). 39.9 ->
 46.1, nothing else moved. Left: the matcher's — Word's text layer maps
 its 招 to U+0000, and nearly every line says 招标; the lines match.
+
+### T105. Autofit's narrowest piece parts a full-width mark from a Latin word — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-82b166b4's five-column autofit table (100%, its grid the page's
+width): Word keeps the grid (last column 51.1pt) and parts "（WebHR）"
+as "（W" / "ebHR）"; ours measured "（WebHR）" as one 50pt piece — the
+brackets glued to the word as the line fitting glues them — and widened
+the column to 61, every row of the table re-wrapping. To autofit a
+full-width opening or closing mark beside a Latin letter now starts a
+piece of its own (the line breaking is as it was). zh-82b166b4 72.8 ->
+98.4; nothing else moved.
 
 ### T103. A table row of exact height goes to the next page whole — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)

@@ -1699,6 +1699,13 @@ public final class RichLayout {
                     parts = !(j >= 0 && j < k - 1 && units[j] == 0xA0)
                 }
                 else if breakBefore.contains(k) { parts = true }
+                // (A full-width mark beside a Latin word is a piece of its
+                // own to autofit, whatever the line breaking keeps together:
+                // zh-82b166b4's "（WebHR）", 50pt glued, sits in its 51.1pt
+                // column in Word's print — the grid kept, the word parted
+                // "（W" / "ebHR）" — where ours widened the column to 61.)
+                else if theme.wordRules, (a >= 0x3000 && Self._isLatinWordUnit(b)) || (Self._isLatinWordUnit(a) && b >= 0x3000),
+                        Self._openingUnits.contains(a) || Self._closingUnits.contains(b) || Self._openingUnits.contains(b) || Self._closingUnits.contains(a) { parts = true }
                 else { parts = !Self._glued(a, b) }
                 if parts {
                     if start == 0 { first = piece(start, k) } else { m = max(m, piece(start, k)) }
@@ -8090,6 +8097,7 @@ public final class RichLayout {
         return false
     }
 
+    private static func _isLatinWordUnit(_ u: UInt16) -> Bool { (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) }
     private static let _noStart = _hangingUnits.subtracting("”’".utf16)
         .union(",.:;!?%)]}-/‰℃°…～·・ー々〃ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ".utf16)
     private static let _noEnd = _openingUnits.union("([{$#￥＄£".utf16)
