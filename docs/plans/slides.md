@@ -2460,6 +2460,21 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**Measured and left, 2026-10-18: a shrink-to-fit's first line when the
+spacing is inherited.** bug62513's fitted lists (slides 8, 9, 17) stand
+a whole point high, every line. A survey of the corpus's 36 boxes with
+an `lnSpcReduction` (first line, ours against PowerPoint's, both snapped
+to whole points; script in the session, `~/tmp/afsurvey`) bounds where
+PowerPoint's unsnapped first baseline lies below the text's top, as a
+share of the size. Spacing inherited (no `lnSpc` anywhere), less 20%:
+0.7167–0.7206 from eight boxes of 18 to 36 pt (ours, 1.2 × (0.78 −
+0.2), is 0.696 — five of them a point high); less 10%: 0.8125–0.8167
+from seven (ours 0.816, all right). Spacing said as 100%, less 20%:
+aptia bounds it under 0.6964 and lo-font-scale agrees — ours. So the
+gap is only where the spacing is inherited and the reduction 20%; two
+points do not make a rule. (60810's slide 17, 19 pt less 10%, is off
+too, and sits outside both: a different face.)
+
 **Tried and dropped, 2026-10-18: table cell lines rounded a tenth of a
 point low.** Maloney's slide 8 cell has every fifth 16.8 pt line a
 point high (170.56 to PowerPoint's 171.6): our unsnapped line stands a
