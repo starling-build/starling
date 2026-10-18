@@ -5642,6 +5642,20 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **A turned cell's line: no squeeze, a closing mark hangs, and it
+  starts short of its indent (2026-10-18).** The Mac's lab `tr` (Word
+  16, zh-cec9d337's package, tbRlV cells in a 138.9pt row, ind 113 a
+  side, 12pt): "宜蘭縣（震災，內政部）" is one column at a full 12pt a
+  character, its "）" 2.6pt past the row's foot, where eleven
+  ideographs make two columns; the line is the row less both indents,
+  and it starts 2.25pt short of its indent (3.4 under the top at ind
+  113, 17.7 at 400). Ours squeezed "（" and "，" to fit and started at
+  the indent. Now a turned cell's marks give nothing, its closing mark
+  hangs as in the body, and a line set from its start (not centred,
+  right or distributed: zh-701eda18's "個人申請" fell 0.4 under it)
+  starts 2.25pt up. zh-f2835e26 72.8 -> 76.1, zh-cec9d337 +0.3,
+  zh-51af781b +0.1; nothing else moved. (Lab `tr` with ind 0 starts
+  9.8pt down, not built.)
 - **A list number past its indent tabs to the paragraph's next stop
   (2026-10-18).** With a hanging indent, the text after a number goes to
   a stop of the paragraph's own before the indent, else the indent;

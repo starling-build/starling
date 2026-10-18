@@ -7834,8 +7834,15 @@ public final class RichLayout {
         // mark that may start a line goes to the next one rather than
         // hang — zh-b00fef0d's Normal turns them off, and Word's print
         // opens a line with "、" after "…协同更高效", where ours hung it.)
-        let hangs = fitted && !inCell && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
-        let squeezes = fitted && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
+        // (A turned cell's line is the other way about: no mark gives, and
+        // a closing one at its end hangs past it. The Mac's lab `tr` (Word
+        // 16, zh-cec9d337's package, tbRlV, a 138.9pt row, ind 113 a side):
+        // "宜蘭縣（震災，內政部）" is one column at 12pt a character, its
+        // "）" 2.6pt past the row's foot; eleven ideographs make two
+        // columns, ten and one. Ours squeezed "（" and "，" to fit.)
+        let turned = theme.wordRules && (_cells[i]?.vertical ?? false)
+        let hangs = fitted && (!inCell || turned) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
+        let squeezes = fitted && !turned && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
         // (From 2013's layout on a justified line's spaces give a quarter
         // of themselves for a word that is over: Cambria at 14pt takes
         // it 0.5pt over with one space and not 1.0, 1.5 with two and not
@@ -9793,8 +9800,15 @@ public final class RichLayout {
             // as its alignment shares it out.)
             let short = c.rowSpan > 1 ? c.rowHeight - height : 0
             let aligned = document.paragraphs[i].style.alignment
-            let along = c.alongStart + _px(document.paragraphs[i].style.indentLeft)
+            // (Its line starts 2.25pt short of its indent in Word's print —
+            // lab `tr`: 3.4 under the row's top at ind 113, 17.7 at 400.)
+            // (A line set from its start only: not one distributed down
+            // the cell — zh-701eda18's "個人申請" stands where it did.)
+            let indent = _px(document.paragraphs[i].style.indentLeft)
+            let fromStart = document.paragraphs[i].style.eastAsian["w:jc"] == nil && (aligned == .left || aligned == .justify)
+            let along = c.alongStart + indent
                 - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
+                - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 ? min(indent, _px(2.25)) : 0)
             let origin = Offset(along, c.across + _spaceBefore[i])
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
                _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute") {
