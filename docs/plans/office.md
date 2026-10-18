@@ -5642,6 +5642,12 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **A line fits to two thousandths of a point, not five (2026-10-18).**
+  The fitter took a stretch as fitting up to 0.005pt past the line.
+  zh-0978dee9's cell line "《中华人民共和国河道管理条例》（2018" is
+  120 + 8 + four Courier New digits (1229/2048 of 8pt) = 147.203pt of a
+  147.2 line, and Word wraps "（2018". At 0.002: zh-1b82f5d7 98.0 ->
+  100, zh-785d6dff 97.5 -> 99.5, zh-0978dee9 +0.1; nothing down.
 - **The line match reads lines by their baselines on Linux
   (2026-10-18).** Off the Mac the line match reads PDFs with PyMuPDF,
   whose line bottoms are the faces' boxes: Word's fonts report their

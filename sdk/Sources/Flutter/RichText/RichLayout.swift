@@ -8279,7 +8279,7 @@ public final class RichLayout {
                 (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0)) && !closesUp($0)
             }
             let em = a < ems.count ? ems[a] : 0
-            let hair = min(em * 0.01, _px(0.005))   // (a stand-in's half em is a hair over half)
+            let hair = min(em * 0.01, _px(0.002))   // (a stand-in's half em is a hair over half)
             // (The half em a line takes at most is Word's to a twentieth
             // of a point: 7.12pt over at 14pt is not taken. The widths
             // are the faces' own now, and the hair would take it.)
