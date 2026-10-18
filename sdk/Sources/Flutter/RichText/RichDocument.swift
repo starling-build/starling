@@ -140,6 +140,9 @@ public struct CharStyle: Hashable, Sendable {
     /// narrower or wider than drawn, their height as it was — a
     /// letterhead's name squeezed onto one line. 1 or nil for none.
     public var horizontalScale: Double? = nil
+    /// Word's raised or lowered text (`w:position`): the baseline this
+    /// many points up (negative: down), the line's height as it was.
+    public var raised: Double? = nil
     /// The faces a file names for complex-script (Arabic, Hebrew) and
     /// East Asian characters when it names them (Word's w:cs and
     /// w:eastAsia font slots); nil means `fontFamily` serves them too.

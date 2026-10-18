@@ -3734,6 +3734,7 @@ enum DocxFormat {
             case "w:rtl": cs.rightToLeft = !_isOff(child)
             case "w:kern": if let v = Double(child["w:val"] ?? "") { cs.kerningFrom = v / 2 }
             case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid", "w:eastAsianLayout":
+                if child.name == "w:position", let v = Double(child["w:val"] ?? "") { cs.raised = v / 2 }
                 // (The character scale, for the layout too.)
                 if child.name == "w:w", let v = Double((child["w:val"] ?? "").replacingAll("%", with: "")), v > 0 {
                     // (100 is a scale too: it undoes the style's. zh-90e0cea8's

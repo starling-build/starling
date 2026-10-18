@@ -473,7 +473,16 @@ public final class RichTextTheme {
             }(),
             // (Up by 0.355 of the size it was shrunk from, or down by a
             // fifth: `_paintScripts`' measures.)
-            baselineShift: shifted ? (style.script == .superscript ? -0.355 : 0.2) * px : nil,
+            // (And raised or lowered by its own position, Word's
+            // `w:position`: zh-10e3a42be sets its numbered clauses 10.5pt
+            // up in 30pt exact lines, and Word's print has them there, the
+            // lines' pitch unchanged.)
+            baselineShift: {
+                let script = shifted ? (style.script == .superscript ? -0.355 : 0.2) * px : 0
+                let raised = wordRules && NativeParagraphBuilder.supportsBaselineShift ? (style.raised ?? named?.char.raised ?? 0) : 0
+                let shift = script - raised * pixelsPerPoint * scale
+                return shift != 0 ? shift : nil
+            }(),
             // An exact line height is the same multiple of every run's own
             // size: points over size ("at least" that, or the multiple when
             // it is more). A multiple is of the face's natural line height
@@ -6476,7 +6485,7 @@ public final class RichLayout {
                         // out at the stand-in's 0.29 em with the em's
                         // spacing on them.)
                         spans.append(TextSpan(text: "\u{00A0}", style: s))
-                        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(kind).copyWith(letterSpacing: (zeroWidth(kind).letterSpacing ?? 0) + extra)))
+                        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(kind).copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
                         inserts.append(offset + 1)
                     } else {
                         spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra)))
@@ -6850,9 +6859,15 @@ public final class RichLayout {
         var first: TextStyle? = nil
         var uniform = true
         var count = 0
+        // (Text shifted off the baseline counts only where nothing else
+        // does: a paragraph raised whole by `w:position`, zh-10e3a42be's
+        // clauses 10.5pt up in 30pt exact lines, is held to its height
+        // like any other, where the engine's own line — the run's ascent
+        // and descent moved with it — had set the text lower, not higher.)
+        var shiftedToo = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
-            if t.text != nil, let style = t.style, style.baselineShift == nil, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
+            if t.text != nil, let style = t.style, style.baselineShift == nil || shiftedToo, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
                 count += 1
                 if let f = first, let fs = f.fontSize, let fh = f.height {
                     if tallest {
@@ -6865,6 +6880,7 @@ public final class RichLayout {
             for c in t.children ?? [] { visit(c) }
         }
         visit(span)
+        if count == 0, uniform { shiftedToo = true; visit(span) }
         guard uniform, count > 0, let base = first, let size = base.fontSize, let h = base.height else { return nil }
         // (Even leading: the engine's proportional strut scales the
         // face's ascent and descent by a height that counts its line gap
