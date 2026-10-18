@@ -150,7 +150,11 @@ so the two halves had disagreed; the old prints are in git history;
 `zh-167ee06c…` reprinted alone on 2026-10-18 as well — its batch print
 had set hangingChars lines 21.55pt in where Word sets 28, the other
 nineteen of its sample reprinting unchanged, so a reference that
-disagrees with a lab is worth reprinting before it is believed),
+disagrees with a lab is worth reprinting before it is believed; and
+`zh-5450d509…` the same night, after a fresh launch of Word — its batch
+print had set its embedded 仿宋_GB2312 body in SimSun, the fresh one in
+YaHei, 10 pages either way: which face Word for Mac takes for a name is
+not always the file's to say, see the board),
 through
 
     test/docx-word-render.sh IN_DIR OUT_DIR WORK [names…]
