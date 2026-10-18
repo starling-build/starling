@@ -110,7 +110,7 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
-### Regression (Mac 011uWpmC, 2026-10-17 night): fdceb326 takes zh-3c055c9b 76.7 -> 33.5 on the Mac
+### Regression (Mac 011uWpmC, 2026-10-17 night): fdceb326 takes zh-3c055c9b 76.7 -> 33.5 on the Mac — FIXED (645e5e65)
 Same-base sweep on the Mac (s299 -> s300, the tip with fdceb326 "a run's
 character spacing falls back to its style's, then Normal's"): zh-3c055c9b
 76.7 -> 33.5, every page; nothing else moved. With fdceb326's
@@ -120,6 +120,12 @@ a build before T85's grid squeeze, so the two disagree on the base.)
 zh-3c055c9b is mode 15 on a linesAndChars grid of 17.0pt at 16pt; its
 styles' spacing is probably double-counted with the grid's own addition.
 For session 01QbbApP (fdceb326's) or whoever holds T85.
+Fixed by 645e5e65 (Windows, 01QbbApP): the opposite of double-counting.
+Off the grid by its paragraph (表標題, `w:snapToGrid` 0) Word still gives
+ideographs the grid's addition, and ours left it out, so the style's
+spacing took them 1pt under Word's (lab `sp`; office.md "Ideographs off
+the grid keep its addition"). zh-3c055c9b 91.7; T85's p2 and p8 lines
+unchanged; of the 148 nothing fell.
 
 ### T102. zh-e0ca7252: 52 pages where Word's are 51 — claimed
 Owner: session 017F2GnT (Linux), from 2026-10-17
