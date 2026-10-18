@@ -340,7 +340,14 @@ gated server-side, the browser gate written and awaiting its first green.**
   the LAN at http://192.168.68.62:8080/s/ENG with `--dev-user dev`, so a
   phone needs no sign-in (dev / devpass otherwise; wiki/README.md restarts
   it). `test/wiki-web.sh` now also signs in by composed text, checks the
-  hidden field took focus, and checks `--dev-user`.
+  hidden field took focus, and checks `--dev-user`. On a phone the editing
+  toolbar's self-sized buttons each took a whole row and pushed the editor
+  off the screen (fixed widths now), and the page sizes its canvas to the
+  visual viewport so the editor lays out above the keyboard. Two bodies
+  the first hours' server wrote as a hand-made envelope (before `{}` was
+  the placeholder) did not decode — "This page's content cannot be read
+  by this build" — and were reset to `{}` in the dev database; nothing
+  else was ever written that way.
 - WikiModel (W5's core, built early because it is pure): `PageOp`,
   `Transform`, `PageSequencer`, `PendingOps`; 14 convergence tests.
 - Decided 2026-10-18 by the user: Hummingbird; server-ordered OT.

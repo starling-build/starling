@@ -578,6 +578,16 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // --- size, before the app mounts, so its first layout is the real one.
   const resize = () => {
     const ratio = window.devicePixelRatio || 1;
+    // A phone's keyboard shrinks the visual viewport, not the layout one:
+    // size the canvas to what is actually visible so the app lays out
+    // above the keyboard instead of under it.
+    const visual = window.visualViewport;
+    if (visual && visual.height < window.innerHeight - 1) {
+      canvas.style.height = `${visual.height}px`;
+      window.scrollTo(0, 0);
+    } else {
+      canvas.style.height = '';
+    }
     const { width, height } = canvas.getBoundingClientRect();
     canvas.width = Math.max(1, Math.round(width * ratio));
     canvas.height = Math.max(1, Math.round(height * ratio));
@@ -585,6 +595,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   };
   resize();
   new ResizeObserver(resize).observe(canvas);
+  window.visualViewport?.addEventListener('resize', resize);
 
   // --- the app's main. It mounts the widget tree and returns.
   onPhase?.('Drawing document…');
@@ -680,8 +691,9 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   ime.setAttribute('aria-hidden', 'true');
   ime.spellcheck = false;
   ime.tabIndex = -1;
-  // 16px: iOS zooms the page in to focus anything smaller.
-  ime.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0;margin:0;resize:none;overflow:hidden;';
+  // 16px: iOS zooms the page in to focus anything smaller. At the top,
+  // where iOS has no reason to scroll the page to reveal it.
+  ime.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0;margin:0;resize:none;overflow:hidden;';
   document.body.append(ime);
   let keyboardWanted = false;
   let composing = false;

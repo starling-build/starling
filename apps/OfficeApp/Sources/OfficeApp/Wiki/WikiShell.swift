@@ -633,10 +633,12 @@ final class WikiShellState: State<StatefulWidget> {
     private func _toolbar(_ fluent: FluentThemeData) -> Widget {
         let ink = WikiAppearance.ink
         let c = _controller
-        func b(_ label: String, _ tip: String, _ action: @escaping () -> Void) -> Widget {
-            FlatButton(child: Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0),
-                                      child: Text(label, style: fluent.typography.bodyStrong?.copyWith(color: ink))),
-                       tip: tip, width: nil, height: 28, action: action)
+        // A fixed width each: a button left to size itself inside the Wrap
+        // took the whole row on a phone, one per line down the screen, and
+        // the editor was pushed off the bottom.
+        func b(_ label: String, _ tip: String, width: Double = 32, _ action: @escaping () -> Void) -> Widget {
+            FlatButton(child: Center(child: Text(label, style: fluent.typography.bodyStrong?.copyWith(color: ink))),
+                       tip: tip, width: width, height: 28, action: action)
         }
         return DecoratedBox(
             decoration: BoxDecoration(color: WikiAppearance.white, border: Border(bottom: BorderSide(color: WikiAppearance.line, width: 1))),
@@ -644,12 +646,12 @@ final class WikiShellState: State<StatefulWidget> {
                 b("B", "Bold (⌘B)") { c.toggleBold() }, Chrome.gap(2),
                 b("I", "Italic (⌘I)") { c.toggleItalic() }, Chrome.gap(2),
                 b("U", "Underline (⌘U)") { c.toggleUnderline() }, Chrome.gap(12),
-                b("H1", "Heading 1") { c.setHeading(1) }, Chrome.gap(2),
-                b("H2", "Heading 2") { c.setHeading(2) }, Chrome.gap(2),
-                b("H3", "Heading 3") { c.setHeading(3) }, Chrome.gap(2),
+                b("H1", "Heading 1", width: 40) { c.setHeading(1) }, Chrome.gap(2),
+                b("H2", "Heading 2", width: 40) { c.setHeading(2) }, Chrome.gap(2),
+                b("H3", "Heading 3", width: 40) { c.setHeading(3) }, Chrome.gap(2),
                 b("¶", "Normal text") { c.setHeading(nil) }, Chrome.gap(12),
                 b("•", "Bulleted list") { c.toggleList(.bullet) }, Chrome.gap(2),
-                b("1.", "Numbered list") { c.toggleList(.numbered) }, Chrome.gap(12),
+                b("1.", "Numbered list", width: 36) { c.toggleList(.numbered) }, Chrome.gap(12),
                 b("↶", "Undo (⌘Z)") { c.undo() }, Chrome.gap(2),
                 b("↷", "Redo (⇧⌘Z)") { c.redo() },
             ])))
