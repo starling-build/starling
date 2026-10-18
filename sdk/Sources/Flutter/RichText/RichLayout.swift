@@ -4069,6 +4069,15 @@ public final class RichLayout {
                 // where Word starts page 3 with it.)
                 if theme.wordRules, y > 0.01, document.paragraphs[i].image != nil, cursor <= top + 0.01,
                    bottom - _spacing(i, document).after - cursor > available + slack + overhang { cut = nil }
+                // (So does a paragraph of floating objects alone: its
+                // painter's line is its anchors', under a point tall, where
+                // the paragraph stands an empty line — cut there, the
+                // sliver stayed at the foot as if the rest were its space
+                // after, and its objects, drawn only with it whole, were
+                // lost. zh-b24b396a's figure D2/D3, 36 groups anchored in
+                // one paragraph that Word starts page 13 with, drew none.)
+                if theme.wordRules, y > 0.01, cursor <= top + 0.01, _anchorsOnly(i, document),
+                   bottom - _spacing(i, document).after - cursor > available + slack + overhang { cut = nil }
                 // Word's rules for where a paragraph may part: not at all
                 // (`w:keepLines`), or — its widow and orphan control,
                 // which is on unless the paragraph says otherwise — with

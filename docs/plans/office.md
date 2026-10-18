@@ -6204,6 +6204,22 @@ fitter dropped the paragraph's tail).
   And p57's "…不小于5m²,得1 分)" keeps "；" whole and drops ")" 12pt
   where ours squeezes the "；" to keep it; that row stands 11pt taller in
   Word, and p58-64 drift from it.
+- **A paragraph of floating objects alone goes to the next page whole
+  (2026-10-18).** zh-b24b396a's figures D2 and D3 are 36 drawing groups
+  (dimension lines with arrowheads, turned text boxes) anchored in one
+  empty paragraph that Word starts page 13 with, after page 12's four
+  empty lines leave no room for its line. The painter's line of such a
+  paragraph is its anchors', 0.82pt tall, while the paragraph stands an
+  empty line, 14.64pt. The cut at 0.82pt fitted, and as a cut under the
+  last line it left the rest behind as if it were space after. Its
+  objects are drawn only with the paragraph's piece whole, so they were
+  all lost, and page 13 showed the text boxes of the paragraphs after it
+  and no lines. Now such a paragraph parts nowhere, as a picture's does.
+  zh-b24b396a 82.0 -> 86.0; nothing else moved by it (s336 -> s337, with
+  zh-5dc5ce34 20.3 -> 19.5, zh-701eda18 98.0 -> 98.4 and zh-8f9b19f4's 16
+  -> 15 pages shown by a base build from the same sources to be the
+  sweep's base, not this change). Left on that page: a few turned
+  labels, and some box labels drawn twice.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
