@@ -4855,6 +4855,7 @@ public final class RichLayout {
         // sets what follows about it. The engine gives a tab no width of
         // its own, so each is widened by what its stop needs.
         var tabs: [Int: Double] = [:]
+        var atMargin: Set<Int> = []
         _leaders[i] = []
         // (PowerPoint's the same way: its stops from the text's left, the
         // hanging indent first, then `defTabSz` apart — HowWeRefactor's
@@ -4885,6 +4886,7 @@ public final class RichLayout {
             // is measured from the line's own start, at the indent.
             func measure(_ wraps: [Int]) {
             tabs = [:]
+            atMargin = []
             _leaders[i] = []
             var shift = 0.0
             var lastTab = 0
@@ -4902,6 +4904,21 @@ public final class RichLayout {
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 }) { stop = (_px(s.position), s.alignment, s.leader) }
                 if lead < 0, ownLeft > x + 0.5, stop.map({ ownLeft < $0.x }) ?? true { stop = (ownLeft, .left, nil) }
                 if stop == nil, step > 0 { stop = (((x + 0.5) / step).rounded(.down) * step + step, .left, nil) }
+                // (A right or centred stop past the right indent sets what
+                // follows flush against it: zh-c2c92639's "toc 1" has its
+                // dotted right stop at 13948 twips, past the page, and Word
+                // ends every entry's page number at the margin. Lab `tb`,
+                // Word for Windows: stops at 9600, 9800, 11000 and 13948
+                // twips in a 9264-twip line all end "123" at the margin,
+                // centred ones too; ours ran the dots on to the stop and
+                // the number went to a line of its own.)
+                if theme.wordRules, var s = stop, s.alignment == .right || s.alignment == .center,
+                   s.x > ownLeft + textWidth + 0.5 {
+                    s.x = ownLeft + textWidth
+                    s.alignment = .right
+                    stop = s
+                    atMargin.insert(t)
+                }
                 guard let stop else { continue }
                 // What follows, up to the next tab or the line's end.
                 var end = t + 1
@@ -4976,7 +4993,12 @@ public final class RichLayout {
             tabs[0] = nil
             _leadWidth[i] = lead
         }
-        let tabsHeld: Set<Int> = theme.wordRules && style.alignment == .justify ? Set(tabs.keys) : []
+        // (Not one set at the margin: it ends its line, which is not
+        // justified after it, and a held space is a little wider than
+        // the tab it stands for — enough, at the margin, to send the
+        // page number to a line of its own. Lab `tb`'s justified "toc 1"
+        // entry did; set left, it did not.)
+        let tabsHeld: Set<Int> = theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: tabs, held: tabsHeld)
         _inserts[i] = inserts
         // A right-to-left paragraph runs from the right, and its "left"

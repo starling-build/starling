@@ -5876,6 +5876,22 @@ fitter dropped the paragraph's tail).
   file without it is off the line grid wherever the layout asks
   (`_offGrid`); the character grid is untouched. zh-117cf7c6 39.2 ->
   98.6, Word's 3 pages; nothing else moved.
+- **A right or centred tab stop past the right indent is set at it
+  (2026-10-17).** zh-c2c92639's "toc 1" puts its dotted right stop at
+  13948 twips, past the page's edge. Word ends every entry's page
+  number at the margin. Lab `tb` (Word for Windows, which prints this
+  file page for page as the Mac does) tried right stops at 9000, 9600,
+  9800, 11000 and 13948 twips in a 9264-twip line. Every one past the
+  margin ends "123" at the margin, and a centred stop does the same.
+  Ours ran the dots on to the stop and sent the number to a line of its
+  own, so each entry took two lines and the contents a page more.
+  Such a stop is now a right stop at the right indent, and in a
+  justified paragraph its tab is not held: a held space is a little
+  wider than the tab, enough to push the number over. zh-c2c92639
+  9.5 -> 91.3, with Word's 54 pages; nothing else in the 148 moved.
+  Still open: a *left* stop past the margin. Word gives the tab a line
+  of dots of its own and starts what follows on the next line. Ours
+  runs the dots past the margin and wraps once.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
