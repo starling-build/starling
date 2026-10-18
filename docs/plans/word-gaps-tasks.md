@@ -2444,7 +2444,7 @@ Built: where neither the paragraph nor its level states a left, the item
 keeps its style's (`listIndentLeft`). Same-base sweep: zh-ea70c30e 60.1
 -> 98.3, nothing else moved.
 
-### T113. zh-30d86fcf p2: no squeeze to take a circled number — claimed
+### T114. zh-30d86fcf p2: no squeeze to take a circled number (numbered T113 at first; the slides session's came first) — claimed
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Mac's lead)
 Documents: zh-30d86fcf (94.7).
 Known (Mac): the line ends "…条件：", ① (U+2460) next. Ours squeezes the
