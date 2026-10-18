@@ -3077,6 +3077,15 @@ enum DocxFormat {
                         // set in the body.)
                         let half = Self._halfOutline(node.descendant("wps:spPr"))
                         box.insetLeft += half; box.insetTop += half; box.insetRight += half; box.insetBottom += half
+                        // (Turned text: zh-b24b396a's drawing labels "20",
+                        // "36" and "297" are `vert270` boxes 10.5pt wide and
+                        // 21 tall, read upward in Word's print; across, "297"
+                        // wrapped in the 10.5pt.)
+                        switch body["vert"] {
+                        case "vert270": box.textDirection = .up
+                        case "vert": box.textDirection = .down
+                        default: break
+                        }
                         // (A shape that is not a rectangle sets its text in
                         // the preset's text rectangle, as Slides does: Word
                         // wraps shapes-with-text's "An ellipse with text

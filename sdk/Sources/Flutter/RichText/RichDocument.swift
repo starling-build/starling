@@ -336,6 +336,12 @@ public struct RichTextBox: Hashable, Sendable {
         }
     }
     public var parts: [Part] = []
+    /// Which way the box's text runs (`wps:bodyPr vert`): across, or
+    /// turned a quarter — `vert270` reads up from the box's foot, its
+    /// lines stacking rightwards from its left; `vert` reads down from
+    /// its top, stacking leftwards from its right. Turned, its lines are
+    /// as long as the box is tall.
+    public var textDirection: CellRef.CellTextDirection = .horizontal
     public init(paragraphs: [RichParagraph]) { self.paragraphs = paragraphs }
 }
 

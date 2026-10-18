@@ -9672,10 +9672,7 @@ public final class RichLayout {
                 _paintFrame(image, box, canvas)
             } else if let inside = _textBox(image, document), let text = image.textBox {
                 // A text box: its text, set inside it.
-                canvas.save()
-                canvas.translate(box.left + _px(text.insetLeft), box.top + _px(text.insetTop))
-                _paintBoxText(inside, canvas)
-                canvas.restore()
+                _paintTextBox(inside, text, box, canvas)
             } else if !drawn, !(theme.wordRules && image.float.map({ !$0.takesRoom }) == true) {
                 // (No stand-in for a floating object the editor cannot
                 // draw: it would lie over the text it floats beside.)
@@ -9905,10 +9902,7 @@ public final class RichLayout {
                     if _decoded[image.id] == nil {
                         _paintOutline(image, rect, canvas)
                         if let inside = _textBox(image, document), let text = image.textBox {
-                            canvas.save()
-                            canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
-                            self._paintBoxText(inside, canvas)
-                            canvas.restore()
+                            self._paintTextBox(inside, text, rect, canvas)
                         }
                         continue
                     }
@@ -9923,10 +9917,7 @@ public final class RichLayout {
                     _paintFrame(image, rect, canvas)
                 } else if let inside = _textBox(image, document), let text = image.textBox {
                     _ = _paintObject(image, rect, canvas)
-                    canvas.save()
-                    canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
-                    _paintBoxText(inside, canvas)
-                    canvas.restore()
+                    _paintTextBox(inside, text, rect, canvas)
                 } else if !_paintObject(image, rect, canvas) {
                     // (An object in the line that the app draws — chartex's
                     // line chart, a space after it — is drawn as one alone in
@@ -10041,6 +10032,26 @@ public final class RichLayout {
 
     /// A text box's text, at the canvas's origin: its flow, and any
     /// boxes of its group laid out beside it.
+    /// A text box's text in its box `rect`: from its insets, or turned a
+    /// quarter about the corner it reads from (`RichTextBox.textDirection`)
+    /// — reading up from the bottom-left inset corner, its lines stacking
+    /// rightwards; reading down from the top-right, stacking leftwards.
+    private func _paintTextBox(_ inside: _HeaderFooter, _ text: RichTextBox, _ rect: Rect, _ canvas: any Canvas) {
+        canvas.save()
+        switch text.textDirection {
+        case .horizontal:
+            canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
+        case .up:
+            canvas.translate(rect.left + _px(text.insetLeft), rect.bottom - _px(text.insetBottom))
+            canvas.rotate(-Double.pi / 2)
+        case .down:
+            canvas.translate(rect.right - _px(text.insetRight), rect.top + _px(text.insetTop))
+            canvas.rotate(Double.pi / 2)
+        }
+        _paintBoxText(inside, canvas)
+        canvas.restore()
+    }
+
     private func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas) {
         let all = Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000)
         inside.layout.paint(canvas, visible: all, document: inside.document, selection: nil, caret: nil)
@@ -10237,7 +10248,9 @@ public final class RichLayout {
         }
         var layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
-        layout.width = max(1, _px(image.width - box.insetLeft - box.insetRight))
+        // (Turned, its lines run along the box's height.)
+        layout.width = box.textDirection == .horizontal ? max(1, _px(image.width - box.insetLeft - box.insetRight))
+            : max(1, _px(image.height - box.insetTop - box.insetBottom))
         layout.ensureLaidOut(sub)
         // (The later boxes of a group, each from its own place in it:
         // its first paragraph set down to where the box stands, or to

@@ -4897,6 +4897,18 @@ fitter dropped the paragraph's tail).
   line held "标" that Word sends down. No fake-bold spread is in it.
   zh-6b4b9397 97.3 -> 100; nothing else of the 330 moved (zh-b24b396a's
   title is right now; the line match paired its lines before too).
+- **A text box's text can run turned a quarter (2026-10-18).** A box's
+  `wps:bodyPr vert="vert270"` reads its text up from the box's foot,
+  its lines stacking rightwards from its left; `vert` reads down from
+  its top. Either way the lines are as long as the box is tall.
+  zh-b24b396a's drawing labels "20", "36", "30" and "297" are
+  vert270 boxes 10.5pt wide and 21 tall. Ours laid them across, so
+  "297" wrapped in the 10.5pt and each stood about 14pt off. Now they
+  stand within 0.3pt of Word's print and read upward as Word's do.
+  zh-b24b396a 86.0 -> 91.3; nothing else of the 350 moved. Left there:
+  six 7.8pt-long vert270 boxes of "30" that Word wraps and shows as
+  "0" (ours fits both digits, 7.6pt), and a few 12pt "A"/"B"/"C"
+  labels ours draws that Word's print does not.
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints
