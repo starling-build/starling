@@ -2437,6 +2437,13 @@ Built: where neither the paragraph nor its level states a left, the item
 keeps its style's (`listIndentLeft`). Same-base sweep: zh-ea70c30e 60.1
 -> 98.3, nothing else moved.
 
+### T113. zh-30d86fcf p2: no squeeze to take a circled number — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Mac's lead)
+Documents: zh-30d86fcf (94.7).
+Known (Mac): the line ends "…条件：", ① (U+2460) next. Ours squeezes the
+"：" to 13.5 to take ① at the end; Word leaves the colon a full em and
+opens the next line with ①.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
