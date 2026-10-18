@@ -141,6 +141,10 @@ w:p in paragraph-less cells (v10), outset borders as single (v11). Not
 yet: the compat flags (doNotSnapToGridInCell, growAutofit,
 doNotUseEastAsianBreakRules…), the repeated header row (tblHeader), the
 exact 16pt cell lines, a fresh table built in this package.
+Then: the four compat flags off (v12) still moves row 120 whole. With the
+repeated header row off (v13) or every vMerge off (v14) the pages shift
+and row 120 no longer meets a page foot needing to part, so neither
+says anything yet; to test them, pad the text above until it does.
 
 ### T126. zh-2f9463d6 (95.9% on Windows): a cell's text before a trailing U+3000 makes its row a line taller — DONE (2026-10-18)
 Owner: none (Windows 01QbbApP built it, released)
