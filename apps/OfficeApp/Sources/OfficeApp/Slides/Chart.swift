@@ -2292,12 +2292,12 @@ enum ChartPainter {
                     // the rest down to the right (chart-chart-text-can-
                     // overlap's 45°).
                     canvas.save()
-                    canvas.translate(cx, foot + 7.6 * k + belowOut)
+                    canvas.translate(cx, foot + 7.6 * k + belowOut - Self._wordLabelRise(c, catSize) * k)
                     canvas.rotate(clockwise ? slant : -slant)
                     tp.paint(canvas, Offset(clockwise ? 0 : -tp.width, -tp.height / 2))
                     canvas.restore()
                 } else {
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + 7.6 * k + belowOut))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + 7.6 * k + belowOut - Self._wordLabelRise(c, catSize) * k))
                 }
             }
         }
@@ -2600,10 +2600,28 @@ enum ChartPainter {
                         return t
                     }()
                 let dx = horizontal && !c.stacked ? 0 : tp.width / 2
-                tp.paint(canvas, Offset(at.dx - dx, at.dy - tp.height / 2))
+                let rise = horizontal ? 0 : Self._wordLabelRise(c, ser.labelSize ?? c.baseTextSize) * k
+                tp.paint(canvas, Offset(at.dx - dx, at.dy - tp.height / 2 - rise))
                 tp.dispose()
             }
         }
+    }
+
+    /// How much higher, in points, Word stands a `c:` chart's column value
+    /// labels and category labels than ours: zh-547fc43c's print them
+    /// 2.4 to 2.8 pt over ours at 10 pt Calibri and 3.2 over at 10.5 pt
+    /// 宋体. Word itself sets the two faces within a fifth of a point of
+    /// each other (the Windows box's lab, the chart's faces swapped — only
+    /// 微软雅黑's tall line moves them); the larger step for a square East
+    /// Asian face is ours, its digits drawn in Liberation Sans where
+    /// Calibri's are in Carlito. Not a chartex chart (whose own rules put
+    /// chartex's Calibri years where ours are), and not on a slide.
+    static func _wordLabelRise(_ c: Chart, _ size: Double) -> Double {
+        guard !c.onSlide, !c.chartex else { return 0 }
+        let f = c.font?.trimmingWhitespace().lowercased() ?? ""
+        let square = ["宋体", "simsun", "新宋体", "nsimsun", "黑体", "simhei", "楷体", "kaiti", "仿宋", "fangsong",
+                      "細明體", "mingliu", "新細明體", "pmingliu"]
+        return (square.contains(f) ? 0.3 : 0.25) * size
     }
 
     private static func _pie(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme,

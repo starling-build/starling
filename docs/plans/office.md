@@ -2337,6 +2337,18 @@ fitter dropped the paragraph's tail).
   ThreeColHeadFoot, DiffFirstPageHeadFoot -> 100%, PageSpecificHeadFoot
   80 -> 90, bug57031 +4.1; zh-90e0cea8 67.1 -> 86.2; nothing down.
 
+- **A `c:` chart's column value labels and category labels stand higher
+  in Word (2026-10-18, T113).** zh-547fc43c's charts print them 2.4 to
+  2.8 pt over ours at 10 pt Calibri and 3.2 over at 10.5 pt 宋体; they
+  now stand a quarter of their size higher, 0.3 in a square East Asian
+  face (`Chart._wordLabelRise`). The Windows box's lab (the first chart
+  alone, its faces swapped) shows Word setting 宋体, 黑体 and Calibri
+  within a fifth of a point of one another — only 微软雅黑's tall line
+  moves them — so the larger step is our stand-ins' (宋体's digits in
+  Liberation Sans, Calibri's in Carlito), not Word's. Not chartex's `cx`
+  charts (their years already stand where Word's do), not on a slide.
+  zh-547fc43c 96.8 -> 98.2; the five other documents with charts
+  unchanged.
 - **Word 2016's charts show as their pictures; a chart in a line is
   drawn (2026-10-14).** A `cx` chart (box and whisker, waterfall …)
   comes as `mc:AlternateContent` whose Fallback is a picture of it:
