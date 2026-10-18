@@ -6011,8 +6011,10 @@ fitter dropped the paragraph's tail).
   turned (tbRlV) and a merged continuation. Word's print parts it at
   page 17's foot. Ours kept every row with a turned cell whole, took it
   to page 18, and the table ran onto a 19th. zh-021b8feb 93.8 -> 98.6
-  with Word's 18 pages, zh-701eda18 83.0 -> 98.0, zh-e0ca7252 41.9 ->
-  97.6 (Word's 51 pages); nothing went down.
+  with Word's 18 pages; nothing went down. (The same sweep showed
+  zh-701eda18 and zh-e0ca7252 rising too. That came from other sessions'
+  commits pulled in by the rebase between s318 and s319 — 7a767c5c among
+  them — not from this: with it alone reversed, both miss as many lines.)
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
