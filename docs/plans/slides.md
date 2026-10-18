@@ -2432,6 +2432,18 @@ baseline here is 9.54 where PowerPoint's lies in 9.4–9.5, and rounding
 to the nearest point (which suits the decks at large) takes it up
 (5.17 → 5.19).
 
+**Tried and dropped, 2026-10-18: a path gradient's tile
+(`a:tileRect`).** ImportWordArtGradient's third box runs its tile a
+whole box above and to the right, so in PowerPoint's print the letters
+are deep at the bottom left and clear toward the top right; ours, laid
+over the box, are clear at its middle. Laying the gradient over the
+tile (and, with it, reading a rectangle path's fill-to rectangle as
+fractions of the area, as every other reader of it does, where the
+rectangle painter took its right and bottom as insets — as
+`shadeToTitle` writes them) went +1.54 in sum: the target deck +0.11,
+minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
+colour, tdf114848 +0.74. The two conventions want reconciling first.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the
