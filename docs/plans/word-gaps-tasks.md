@@ -131,6 +131,16 @@ cell fourth; 78 the last of its merge too), are parted in the Web cell
 with 3 to 7 lines of room. Not found: what the parted rows have that 120
 lacks. Next to try: row 73's cells pasted into row 120's place, then
 halved until it stops parting.
+Done, and it changes the question: row 73 is "模性導入…" alone — the
+rows that looked parted (73, 78, 92, …) are rows of their own in the
+file, cut where its source's pages broke. Word parts NO row of this
+table anywhere: every page of Word's print opens at a row's start.
+Ours parts rows, so the question is what makes the whole table's rows
+unbreakable. Ruled out, table-wide: w:divId off every row (v9), an empty
+w:p in paragraph-less cells (v10), outset borders as single (v11). Not
+yet: the compat flags (doNotSnapToGridInCell, growAutofit,
+doNotUseEastAsianBreakRules…), the repeated header row (tblHeader), the
+exact 16pt cell lines, a fresh table built in this package.
 
 ### T126. zh-2f9463d6 (95.9% on Windows): a cell's text before a trailing U+3000 makes its row a line taller — DONE (2026-10-18)
 Owner: none (Windows 01QbbApP built it, released)
