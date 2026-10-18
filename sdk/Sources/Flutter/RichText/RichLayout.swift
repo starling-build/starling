@@ -5851,9 +5851,21 @@ public final class RichLayout {
             // widths in Word's print on a grid of -0.28 an em; ours set it
             // 1.3pt a character closer, and the box, sized so, lost its
             // closing dash.)
-            let grid = theme.wordRules && !(run.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false)
-                && p.style.eastAsian["w:snapToGrid"] != "0"
+            let runOffGrid = run.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false
+            let grid = theme.wordRules && !runOffGrid && p.style.eastAsian["w:snapToGrid"] != "0"
                 ? _grid(index, document).chars : nil
+            // (Ideographs keep the grid's addition in a paragraph off the
+            // grid — not in a run off it, which zh-457a8d62's "(附件一，1頁)"
+            // runs are, set at their face's widths in Word's print. Lab
+            // `sp`, Word for Windows, zh-3c055c9b's package: its "表標題"
+            // text, `w:snapToGrid` 0, at 12pt on a grid of +1pt is set 13
+            // apart spaced 0, 12 spaced -0.5 (its style's, counted twice),
+            // 10.6 spaced -1.2 — in the body and in a text box alike, and
+            // on a grid of -0.5pt 11.5. Ours left the grid out, and the
+            // style's spacing then set its 47.8pt header cell "支出傳票"
+            // where Word's print has "支出傳". Latin text keeps off it, as
+            // zh-268f8d15's footer above.)
+            let ideographGrid = grid ?? (theme.wordRules && !runOffGrid ? _grid(index, document).chars : nil)
             // (Where single and double byte widths are balanced, a
             // full-width character takes the run's spacing twice: 16pt
             // text spaced -0.3 is set 15.4 apart.)
@@ -5873,7 +5885,7 @@ public final class RichLayout {
                 var styled = run
                 if kind == -3, let (alt, _) = uncovered { styled.eastAsiaFontFamily = alt }
                 var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
-                                        characterClass: classed && kind >= 0 ? kind : nil, characterGrid: grid, scriptHidden: true)
+                                        characterClass: classed && kind >= 0 ? kind : nil, characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
                 if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
                 // (A space set in the ideographs' face keeps the stand-in's width.)
                 // (… and no line of its own: the face a space resolves to
@@ -5911,7 +5923,7 @@ public final class RichLayout {
                         sized.fontSize = lineSize.size
                         let r = theme.textStyle(for: sized, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                                 eastAsian: kind < 0, gridPitch: pitch, characterClass: classed && kind >= 0 ? kind : nil,
-                                                characterGrid: grid, scriptHidden: true)
+                                                characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
                         if let rs = r.fontSize, let rh = r.height, s.height != nil { s = s.copyWith(height: rs * rh / px) }
                         else if s.height == nil, r.height == nil {
                             // (Single lines in a face of its own metrics

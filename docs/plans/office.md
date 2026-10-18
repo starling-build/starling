@@ -5814,9 +5814,10 @@ fitter dropped the paragraph's tail).
   early. A run's spacing is now its own, else its character style's,
   else Normal's, both where the run is measured and where a full-width
   character doubles it. zh-5dc5ce34 20.3 -> 22.7, its lines now
-  breaking where Word's do. Of the 18 zh files whose styles set
-  spacing, nothing went down; zh-3c055c9b 44.9 -> 61.4 and zh-fe536967
-  94.7 -> 99.6 (against s124, an older build).
+  breaking where Word's do. Checked against an older build (s124) only,
+  which hid a fall: on one base zh-3c055c9b went 76.7 -> 33.5 (office1's
+  sweeps). That was the grid, not the spacing — see "Ideographs off the
+  grid keep its addition" below.
 
   What still holds zh-5dc5ce34 down is Word for Mac's alone. Its print
   sets every page of the first section 21.6pt lower. Above the body
@@ -5892,6 +5893,24 @@ fitter dropped the paragraph's tail).
   Still open: a *left* stop past the margin. Word gives the tab a line
   of dots of its own and starts what follows on the next line. Ours
   runs the dots past the margin and wraps once.
+- **Ideographs off the grid keep its addition (2026-10-17).**
+  `w:snapToGrid` 0 on a *paragraph* takes its Latin text off a
+  character grid (zh-268f8d15's footer), but not its ideographs. Lab
+  `sp` (Word for Windows) used zh-3c055c9b's package and its "表標題"
+  style, which is off the grid and spaced -0.5pt. At 12pt on its grid
+  of +1pt a character, ideographs are set:
+  - 13 apart spaced 0;
+  - 12 spaced -0.5, whether the style or the run says so (counted twice);
+  - 10.6 spaced -1.2, 15.4 spaced +1.2.
+
+  The body, a table cell and a text box give the same. On a grid of
+  -0.5pt, 0 is 11.5. Ours left the grid's addition out, so once the
+  style's spacing counted (above) its 47.8pt header cell held "支出傳票"
+  where Word's print has "支出傳". Off on a *run*, the addition does
+  go: zh-457a8d62's "(附件一，1頁)" runs say `w:snapToGrid` 0 and are
+  set at the face's widths. (The run's property is the one the spec
+  gives to characters; the paragraph's is for lines.) zh-3c055c9b
+  33.5 -> 91.7, zh-92373179 39.9 -> 53.2; nothing fell.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
