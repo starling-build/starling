@@ -2546,6 +2546,11 @@ entries and their feet half a point under the baseline — ours 7, 4,
 not. Both for a 2013-style chart on a slide, its legend in rows: a
 legend beside the plot (tdf149985's) keeps the old keys and margin,
 +0.25 and +0.11 with the new.
+A 2007-style chart's legend keys are the same (sweep 216: cooper's
+pages 6 and 5864's 16 a little better, nothing worse past rounding):
+cooper's 10 pt legend has keys 5.47 square, 2.4 before their names —
+6.57 and 2.92 at 12 — its entries 13.9 apart at 12 pt, and its keys
+where a centred one stands.
 
 **Seven tenths of a spacing over single above the line, 2026-10-18**
 (sweep 212: corpus mean 0.9641 → 0.9636; clusterfuzz 4986 −0.10,

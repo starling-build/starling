@@ -1759,11 +1759,14 @@ enum ChartPainter {
             // name, 11.2 between entries, the key's foot half a point
             // under the baseline — 1.3 lower than a key centred on the
             // line, as ours stood. Not a column beside the plot:
-            // tdf149985's went +0.25 so.)
-            let printed = c.onSlide && c.styled2013 && !beside
+            // tdf149985's went +0.25 so. A 2007-style chart's keys are the
+            // same, cooper's 10 pt legend's 5.47 square and 2.4 before
+            // their names, its entries 13.9 apart at 12 pt, the keys
+            // where a centred one stands.)
+            let printed = c.onSlide && !beside
             let key = (printed ? 6.57 : 7) * k * m, gap = (printed ? 2.92 : 4) * k * m
-            let spacing = (printed ? 11.2 : c.styled2013 ? 9.5 : 12) * k * m
-            let keyDrop = printed ? 1.3 * k * m : 0
+            let spacing = (printed ? (c.styled2013 ? 11.2 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m
+            let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
             // A line's key is a stroke 19.2 pt long whatever the text's
             // size, ending 2 pt before its name; in a row, 3.6 more before
             // it (chartex's line and radar charts in Word's print: their
