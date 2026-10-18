@@ -196,6 +196,12 @@ in Word's print; after "Note: " they part where they stand. Built that
 way; no document moved (s327 -> s328), and zh-76d361b2's own case is
 something else.
 
+### Note from the Mac (2026-10-18, late): the zh corpus is 346 documents — a fifteenth sample
+Twenty more (`random.seed(20261029)`, all printed), checked in. It starts
+at 82.4% (median 98.2). Its low ones, unclaimed: zh-e8d4c046 2.7 (1 page;
+CLAIMED Mac 01Xgpbk5), zh-5450d509 15.5, zh-27a874b7 37.4, zh-de073ee5
+55.2, zh-c2229d4a 75.1, zh-785e46f8 88.2, zh-7fd860f9 89.6.
+
 ### Note from the Mac (2026-10-18, late): Word for Mac's face for a missing 方正 name is not reproducible
 Thirteen of the corpus's prints draw some 方正小标宋 runs in **Arial Unicode
 MS** (line ~1.75 em, so an 18pt line takes three 15.6 pitches where YaHei
