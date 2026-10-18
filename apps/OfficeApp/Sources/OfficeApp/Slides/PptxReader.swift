@@ -2958,6 +2958,7 @@ private struct SlideContext {
         let bodies = [body?.first("a:bodyPr"),
                       inherited.layout?.first("p:txBody")?.first("a:bodyPr"),
                       inherited.master?.first("p:txBody")?.first("a:bodyPr")]
+        let noWrapBody = bodies.compactMap { $0?["wrap"] }.first == "none"
         func attr(_ name: String) -> String? { bodies.lazy.compactMap { $0?[name] }.first }
         let anchor: TextAnchor = {
             switch attr("anchor") {
@@ -3193,7 +3194,17 @@ private struct SlideContext {
             for child in p.children {
                 switch child.name {
                 case "a:r": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
-                case "a:br": add("\n", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
+                case "a:br":
+                    // In a box that does not wrap, a space just before the
+                    // break is part of its line as PowerPoint centres and
+                    // right-aligns it: cooper's "OVERVIEW OF THE ", 32 pt
+                    // and centred, stands half a space left of where the
+                    // engine, trimming it, put it. Kept as a no-break space,
+                    // as wide, which it keeps. A wrapping box hangs it past
+                    // the edge as at any wrap (cooper's slide 11 title, the
+                    // same XML in a wrapping box, stands where trimmed).
+                    if noWrapBody, text.hasSuffix(" ") { text = String(text.dropLast()) + "\u{00A0}" }
+                    add("\n", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
                 case "a:fld": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
                 default: continue
                 }

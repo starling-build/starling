@@ -2444,6 +2444,17 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A space before a line break counts in a box that does not wrap,
+2026-10-18** (sweep 198: corpus mean 0.9670 → 0.9658; cooper 3.67 →
+3.04, none worse). In a `wrap="none"` box PowerPoint centres and
+right-aligns a line ending in a space before `a:br` with the space:
+cooper's eleven such titles stand half a space left of the trimmed
+line, to a tenth of a point. In a wrapping box it hangs the space as
+at any wrap — cooper's slide 11, the same XML in a wrapping box, and
+clusterfuzz 4986's titles stand where trimmed — so only an unwrapped
+box keeps it (as a no-break space). Tried for every box first: cooper
+gained, those titles lost 5 pt.
+
 **A picture placeholder's text is body text, 2026-10-18** (sweep 196:
 pic-placeholder-with-text 0.61 → 0.23, slide-section-test −0.04; none
 worse). Text typed into a `ph type="pic"` took the master's other-text
