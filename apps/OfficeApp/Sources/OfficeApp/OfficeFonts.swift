@@ -404,11 +404,30 @@ enum OfficeFonts {
     /// changes what is drawn, not where.
     nonisolated(unsafe) private static var embeddedFaces: [String: String] = [:]
     nonisolated(unsafe) private static var loadedEmbedded: Set<String> = []
+    /// Each loaded embedded face's line (`lineMetrics`).
+    nonisolated(unsafe) private static var embeddedLines: [String: (ascent: Double, descent: Double)] = [:]
     /// The characters each loaded embedded face holds (its `cmap`).
     nonisolated(unsafe) private static var embeddedCoverage: [String: Set<UInt32>] = [:]
 
     /// The characters an sfnt's `cmap` maps (formats 4 and 12, Unicode
     /// subtables); nil where it has none this reads.
+    /// A face's hhea ascent and descent, in ems.
+    static func lineMetrics(_ data: Data) -> (ascent: Double, descent: Double)? {
+        let b = [UInt8](data)
+        func u16(_ o: Int) -> Int { o + 1 < b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+        func u32(_ o: Int) -> Int { u16(o) << 16 | u16(o + 2) }
+        func s16(_ o: Int) -> Int { let v = u16(o); return v >= 0x8000 ? v - 0x10000 : v }
+        guard b.count > 12 else { return nil }
+        var head = -1, hhea = -1
+        for t in 0 ..< u16(4) where 12 + 16 * t + 16 <= b.count {
+            let at = 12 + 16 * t
+            let tag = String(decoding: b[at ..< at + 4], as: UTF8.self)
+            if tag == "head" { head = u32(at + 8) } else if tag == "hhea" { hhea = u32(at + 8) }
+        }
+        guard head >= 0, hhea >= 0, head + 20 <= b.count, hhea + 8 <= b.count, case let em = u16(head + 18), em > 0 else { return nil }
+        return (Double(s16(hhea + 4)) / Double(em), Double(-s16(hhea + 6)) / Double(em))
+    }
+
     static func coverage(_ data: Data) -> Set<UInt32>? {
         let b = [UInt8](data)
         func u16(_ o: Int) -> Int { o + 1 < b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
@@ -501,6 +520,7 @@ enum OfficeFonts {
         declaredLock.lock()
         loadedEmbedded.insert(family)
         if let covered { embeddedCoverage[family] = covered }
+        if let line = lineMetrics(data) { embeddedLines[family] = line }
         declaredLock.unlock()
         return family
     }
@@ -1118,6 +1138,24 @@ enum OfficeFonts {
             var standIn = yaHei
             standIn.symbols = "SimSun"
             return standIn
+        }
+        // (An embedded face taller than its em is measured by its own
+        // line, Word's 1.3 of hhea's ascent and descent, as the faces
+        // above are: zh-e8d4c046's title is in the FZXiaoBiaoSong-B05S
+        // it carries, 0.867 + 0.297, and its 22pt lines stand 33.4pt
+        // apart in Word's print — ours, at the square 1.3, 29. A face of
+        // one em — SimSun's and FangSong's subsets — is the square.)
+        if !ignoringEmbedding, let registered = embeddedFamily(family) {
+            declaredLock.lock()
+            let line = embeddedLines[registered]
+            declaredLock.unlock()
+            if let line, line.ascent + line.descent > 1.01 {
+                var face = square
+                let h = line.ascent + line.descent
+                face.height = h * 1.3
+                face.baseline = line.ascent + h * 0.15
+                return face
+            }
         }
         return square
     }
