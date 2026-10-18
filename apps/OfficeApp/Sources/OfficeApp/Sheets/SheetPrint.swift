@@ -514,7 +514,9 @@ extension SheetGridState {
                     _paintRegion(canvas, rows: rs, cols: cs, clip: clip, ws: ws, book: book, merges: merges, covered: covered, colors: colors)
                     for (i, d) in ws.drawings.enumerated() {
                         let r = drawingRect(d.anchor)
-                        guard r.overlaps(clip), !d.hidden else { continue }
+                        // (Nor one set not to print: chart-tdf140489's "Tip"
+                        // callout, which the pages' extent already left out.)
+                        guard r.overlaps(clip), !d.hidden, !d.screenOnly else { continue }
                         _paintDrawing(canvas, d, chart: charts[i], in: r, theme: book.chartTheme)
                     }
                     _paintObjects(canvas, ws, clip: clip)
