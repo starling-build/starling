@@ -269,7 +269,7 @@ keeps its style's width (aa548444): Table Grid's 0.5pt insideH under a
 Linux 017F2GnT: 97.5 now, Word's 15 pages — text set under a parted page-placed table stays on its page (dbc3d86f); released; Mac 01Xgpbk5 looked, released: "附件1"'s table is placed on the page
 (tblpY 4970) above its own title paragraphs; Word sets its first row on
 p12 at 252, the title at p12's foot (626-685) below it, and the rest of the
-rows on p13; ours takes the title to p13 and the table to p14), zh-0978dee9 90.2
+rows on p13; ours takes the title to p13 and the table to p14), zh-0978dee9 90.2 (Linux 017F2GnT claimed 2026-10-18: p155's "（2018" in a 147.2pt cell, 0.8pt short of Word's wrap)
 (323/322 pages; Mac 01Xgpbk5 looked: a 323-page table whose cells stand 1-2pt off Word's, the scorer grouping them apart; released), zh-ad1e59ac 90.5 (Mac 01Xgpbk5 looked: its misses are the reader's order within table cells, glyphs where Word's are; released), zh-38758b14 91.0 (23/22 pages; Mac 01Xgpbk5, 100 now — empty paragraphs after a floating table go beside it on its last page (b4380e86), zh-10eab555 75.6 -> 99.7 with it; released).
 
 ### Note from the Mac (2026-10-18, evening): the zh corpus is 286 documents — a twelfth sample
