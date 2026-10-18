@@ -3638,50 +3638,14 @@ public final class RichLayout {
                     }
                     var column: [Int: (first: Int, last: Int)] = [:]
                     for k in i ..< j { let d = _cells[k]!; column[d.column] = (column[d.column]?.first ?? k, k) }
-                    // (Turned, its text is set along the rows that fit: Word
-                    // centres zh-b4d36718's "基本公共服务事项", merged over 35
-                    // rows of which 26 are on page 14, in those 26; ours
-                    // centred it over all 35, 80pt low, and "公共文化类" ran
-                    // off the page's foot.)
-                    for (_, g) in column {
-                        let d = _cells[g.first]!
-                        guard d.rowSpan > 1, d.vertical else { continue }
-                        var part = 0.0, r = c.row
-                        while r < c.row + d.rowSpan, case let h = heights[r] ?? 0,
-                              part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
-                        let turned = part > 0 && part < d.rowHeight - 0.01 ? part : nil
-                        for k in g.first ... g.last { _cells[k]?.turnedPart = turned }
-                    }
-                    for (_, g) in column {
-                        let d = _cells[g.first]!
-                        guard d.rowSpan > 1, !d.vertical, d.verticalAlign == "center" || d.verticalAlign == "bottom" else { continue }
-                        var part = 0.0, r = c.row
-                        // (A row fits with its rule under it, as the rows
-                        // are set below: zh-90e0cea8's "行政审批各阶段帮办服务
-                        // 内容" was centred over a thirteenth row that fits
-                        // page 8 only without its line, and goes over — half
-                        // a row, 8.6pt, under Word's.)
-                        // (A row with no cell of its own — every one merged
-                        // down into it — takes no room: zh-84702a67's row 6.)
-                        while r < c.row + d.rowSpan, !(partsAfterFirst && r > c.row), case let h = heights[r] ?? 0,
-                              part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
-                        // (… and the part of the next that parts at the
-                        // page's foot, to the last of its lines kept there:
-                        // zh-91e44bcb's "（五）不予处理" and "三、本年度办理结果"
-                        // stand midway down to the first line of "5.要求行
-                        // 政机关确认…", which goes on over the page, in Word's
-                        // print — ours stopped at the row above it, 20pt high;
-                        // zh-84702a67's "是否存在转包、挂靠行为" 80pt.)
-                        // (Not one whose stated height has no room there,
-                        // which goes over whole — see `splitRow`: zh-6cd1befe's
-                        // "事故灾难类" ends with "重污染天气事件", at least
-                        // 43.65pt with 33 left on page 48, and Word centres it
-                        // in the rows above that one.)
-                        if !partsAfterFirst, r < c.row + d.rowSpan,
-                           let first = (j ..< count).first(where: { _cells[$0]?.table == c.table && _cells[$0]?.row == r }),
+                    // What of row `r`, after `part` of a merge on this
+                    // page, stays on the page where the row parts at its
+                    // foot (0 where it goes over whole).
+                    func partingKept(_ r: Int, after part: Double) -> Double {
+                        guard let first = (j ..< count).first(where: { _cells[$0]?.table == c.table && _cells[$0]?.row == r }),
                            let e = _cells[first], document.tableStyles[c.table]?.rowsCantSplit.contains(r) != true,
                            !document.paragraphs[first].style.keepNext,
-                           _px(document.tableStyles[c.table]?.rowHeights[r] ?? 0) <= contentH - y - part - ruleUnder(e, parted: true) + 0.01 {
+                           _px(document.tableStyles[c.table]?.rowHeights[r] ?? 0) <= contentH - y - part - ruleUnder(e, parted: true) + 0.01 else { return 0 }
                             let limit = e.rowTop + (contentH - y - part) - ruleUnder(e, parted: true) + 0.01
                             // (Only where the row does part there: every cell
                             // of it keeps a line on the page, else it goes
@@ -3718,8 +3682,55 @@ public final class RichLayout {
                             let ts = document.tableStyles[c.table]
                             let stated = ts.flatMap { ts in ts.rowsExactHeight.contains(r) ? nil : ts.rowHeights[r] }
                                 .map { _px($0) + max(0, e.rules - e.ruleBelow) } ?? 0
-                            if kept > 0, columns.values.allSatisfy({ $0 }) { part += min(max(kept, stated), contentH - y - part) }
-                        }
+                            return kept > 0 && columns.values.allSatisfy({ $0 }) ? min(max(kept, stated), contentH - y - part) : 0
+                    }
+                    // (Turned, its text is set along the rows that fit: Word
+                    // centres zh-b4d36718's "基本公共服务事项", merged over 35
+                    // rows of which 26 are on page 14, in those 26; ours
+                    // centred it over all 35, 80pt low, and "公共文化类" ran
+                    // off the page's foot.)
+                    for (_, g) in column {
+                        let d = _cells[g.first]!
+                        guard d.rowSpan > 1, d.vertical else { continue }
+                        var part = 0.0, r = c.row
+                        while r < c.row + d.rowSpan, case let h = heights[r] ?? 0,
+                              part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
+                        // (… and down to the foot through a row that parts
+                        // there, as an upright merge is: zh-65e6c317's
+                        // "项目（课题）分解" spans a 50pt row and one its other
+                        // cell makes 432pt, which parts at page 6's foot; Word
+                        // centres it in the 286pt down to the foot, ours in
+                        // the first row's 50, its "项目" over the cell's top.)
+                        if theme.wordRules, part > 0, r < c.row + d.rowSpan { part += partingKept(r, after: part) }
+                        let turned = part > 0 && part < d.rowHeight - 0.01 ? part : nil
+                        for k in g.first ... g.last { _cells[k]?.turnedPart = turned }
+                    }
+                    for (_, g) in column {
+                        let d = _cells[g.first]!
+                        guard d.rowSpan > 1, !d.vertical, d.verticalAlign == "center" || d.verticalAlign == "bottom" else { continue }
+                        var part = 0.0, r = c.row
+                        // (A row fits with its rule under it, as the rows
+                        // are set below: zh-90e0cea8's "行政审批各阶段帮办服务
+                        // 内容" was centred over a thirteenth row that fits
+                        // page 8 only without its line, and goes over — half
+                        // a row, 8.6pt, under Word's.)
+                        // (A row with no cell of its own — every one merged
+                        // down into it — takes no room: zh-84702a67's row 6.)
+                        while r < c.row + d.rowSpan, !(partsAfterFirst && r > c.row), case let h = heights[r] ?? 0,
+                              part + h + ruleUnder(c) <= contentH - y + 0.01 { part += h; r += 1 }
+                        // (… and the part of the next that parts at the
+                        // page's foot, to the last of its lines kept there:
+                        // zh-91e44bcb's "（五）不予处理" and "三、本年度办理结果"
+                        // stand midway down to the first line of "5.要求行
+                        // 政机关确认…", which goes on over the page, in Word's
+                        // print — ours stopped at the row above it, 20pt high;
+                        // zh-84702a67's "是否存在转包、挂靠行为" 80pt.)
+                        // (Not one whose stated height has no room there,
+                        // which goes over whole — see `splitRow`: zh-6cd1befe's
+                        // "事故灾难类" ends with "重污染天气事件", at least
+                        // 43.65pt with 33 left on page 48, and Word centres it
+                        // in the rows above that one.)
+                        if !partsAfterFirst, r < c.row + d.rowSpan { part += partingKept(r, after: part) }
                         guard part > 0, part < d.rowHeight - 0.01 else { continue }
                         // (What it was given to spare over the whole span:
                         // above its text and below it, less its margins.)
