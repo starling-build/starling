@@ -6065,7 +6065,14 @@ public final class RichLayout {
             let ownGridSay = run.keptXML?.containsSubstring("<w:snapToGrid") ?? false
             let runOffGrid = ownGridSay ? (run.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false)
                 : theme.wordRules && (named?.char.keptXML?.containsSubstring("<w:snapToGrid w:val=\"0\"") ?? false)
-            let grid = theme.wordRules && !runOffGrid && p.style.eastAsian["w:snapToGrid"] != "0"
+            // (Latin text too, in a paragraph that takes itself off the
+            // grid — not one its style takes off, as zh-268f8d15's footer's
+            // and zh-3c055c9b's styles do: zh-c2f6d17a's paragraphs set
+            // `w:snapToGrid` 0 on a grid of -0.207pt, and Word's print has
+            // their Times digits 7.9 apart, half the grid's addition off
+            // 8.0, as on it — ours set them 8.0, and a line of "120" and
+            // "48" left a character Word takes.)
+            let grid = theme.wordRules && !runOffGrid && (p.style.eastAsian["w:snapToGrid"] != "0" || p.style.ownGridOff)
                 ? _grid(index, document).chars : nil
             // (Ideographs keep the grid's addition in a paragraph off the
             // grid — not in a run off it, which zh-457a8d62's "(附件一，1頁)"

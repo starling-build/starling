@@ -2726,6 +2726,7 @@ enum DocxFormat {
                 for key in ["w:leftChars", "w:startChars", "w:hangingChars", "w:firstLineChars"] { style.eastAsian[key] = nil }
             }
             _paragraphProps(pPr, into: &style)
+            if let g = pPr.first("w:snapToGrid") { style.ownGridOff = _isOff(g) }
             style.indentLeft += indent
             if let rPr = pPr.first("w:rPr"), let rev = rPr.first("w:del") ?? rPr.first("w:ins") {
                 style.markRevision = RevisionMark(kind: rev.name == "w:ins" ? .inserted : .deleted,

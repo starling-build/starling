@@ -488,6 +488,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// included; without the mark's flag the line stays, empty, with its
     /// rules (bug59058's "Bottom of Form" paragraphs).
     public var markHidden = false
+    /// The paragraph's own properties, not its style's, turn the
+    /// document grid off (`w:snapToGrid` 0 on its `w:pPr`): Word then
+    /// keeps its Latin text on the character grid all the same.
+    public var ownGridOff = false
     /// The HTML block this paragraph came from (Word's `w:divId`, an
     /// entry of the kept web settings part): Word spaces the paragraph by
     /// that block's margins, so the reference goes back with the part.

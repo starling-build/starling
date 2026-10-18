@@ -6248,6 +6248,20 @@ fitter dropped the paragraph's tail).
   hangs either. Ours sent "動。" down, and five runs of pages drifted a
   line. zh-749cb15a 87.2 -> 90.2; nothing else moved (s338 -> s339, one
   base).
+- **A paragraph that takes itself off the grid keeps its Latin text on
+  it (2026-10-18).** zh-c2f6d17a's body paragraphs say `w:snapToGrid` 0
+  in their own `w:pPr`, on a grid of `linesAndChars` charSpace -849
+  (-0.207pt at 16pt). Word's print sets their ideographs 15.8 apart, as
+  ours did, and their Times digits 7.9: half the grid's addition off
+  8.0, as on the grid. Ours set the digits at 8.0, so a justified line
+  holding "120" and "48" was 0.8pt longer. It then left a character
+  8.41 over that the line's "；" (7.9) plus that 0.8 let Word take, and
+  from p21 every page stood a line behind. Not where a STYLE turns the
+  grid off: tried for both, it cost zh-3c055c9b 91.7 -> 76.4 and
+  zh-268f8d15's footer 98.8 -> 93.0, as recorded under
+  `ideographGrid`. So `RichParagraphStyle.ownGridOff` marks the
+  paragraph's own say. zh-c2f6d17a 54.9 -> 93.5, zh-8d6f702e 88.2 ->
+  90.7; nothing else moved (s340 -> s342, one base).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
