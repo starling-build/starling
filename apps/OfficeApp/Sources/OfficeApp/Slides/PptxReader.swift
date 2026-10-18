@@ -1501,6 +1501,10 @@ private struct SlideContext {
         if let k = lineStyle, theme.lineCaps.indices.contains(k) { styleCap = theme.lineCaps[k] }
         st.outlineJoin = PptxReader.join(spPr?.first("a:ln")) ?? styleJoin
         st.outlineCap = spPr?.first("a:ln")?["cap"] ?? styleCap
+        // (Its colours across the box, where the line is a gradient: the
+        // backgrounds deck's orange-to-blue frame, drawn in its first.)
+        if let g = spPr?.first("a:ln")?.first("a:gradFill"), let fill = PptxReader.gradient(g, colors: colors),
+           fill.stops.count >= 2, outline != nil { st.outlineFill = fill }
         st.headEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:headEnd"))
         if let c = spPr?.first("a:ln")?["cmpd"], c != "sng" { st.outlineCompound = c }
         st.tailEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:tailEnd"))

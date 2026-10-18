@@ -885,6 +885,7 @@ final class SlidePainter: CustomPainter {
             p.strokeJoin = Self.join(shape.outlineJoin)
             p.strokeCap = shape.outlineCap == "rnd" ? .round : shape.outlineCap == "sq" ? .square : .butt
             p.color = line
+            if let g = shape.outlineFill, let shader = Self.gradientShader(g, r) { p.shader = shader }
             if let dash = shape.outlineDash {
                 // Dashed: the outline's path cut into the pattern's pieces.
                 let outline: Path

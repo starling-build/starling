@@ -61,6 +61,7 @@ struct ShapeState: Equatable {
     var outlineDash: String? = nil
     var outlineJoin: String? = nil
     var outlineCap: String? = nil
+    var outlineFill: SlideFill? = nil
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
     var outlineCompound: String? = nil
@@ -1155,6 +1156,7 @@ final class DeckController: ChangeNotifier {
         st.outlineDash = s.outlineDash
         st.outlineJoin = s.outlineJoin
         st.outlineCap = s.outlineCap
+        st.outlineFill = s.outlineFill
         st.headEnd = s.headEnd
         st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
@@ -1262,6 +1264,7 @@ final class DeckController: ChangeNotifier {
         shape.outlineDash = st.outlineDash
         shape.outlineJoin = st.outlineJoin
         shape.outlineCap = st.outlineCap
+        shape.outlineFill = st.outlineFill
         shape.headEnd = st.headEnd
         shape.outlineCompound = st.outlineCompound
         shape.tailEnd = st.tailEnd

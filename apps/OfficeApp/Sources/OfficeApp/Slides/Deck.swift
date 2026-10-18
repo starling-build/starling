@@ -476,6 +476,9 @@ final class SlideShape {
     var outlineJoin: String? = nil
     /// `a:ln cap`: "rnd" or "sq", or nil for flat ends.
     var outlineCap: String? = nil
+    /// A gradient line (`a:ln/a:gradFill`), drawn along the outline over
+    /// the shape's box; nil for a line of one colour (`outline`).
+    var outlineFill: SlideFill? = nil
     /// `a:ln/a:headEnd` and `a:tailEnd`: an arrowhead at the line's start
     /// and end.
     var headEnd: LineEnd? = nil

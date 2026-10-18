@@ -2536,6 +2536,17 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A gradient line, 2026-10-18** (sweep 224: corpus mean 0.9479 →
+0.9472; backgrounds −0.41, tdf114848 −0.02; none worse). A shape's
+`a:ln/a:gradFill` was drawn in its first visible stop; the backgrounds
+deck's frame runs orange to blue across its box in PowerPoint's print.
+The line is now stroked with the gradient over the shape's box
+(`SlideShape.outlineFill`), as a gradient fill is laid.
+
+Also seen, not ours: tdf140852's "Work Sans Medium" title prints in
+Work Sans Light in PowerPoint's PDF — that machine had no Medium — so
+ours, in the Medium it names, stands heavier.
+
 **A straight connector's width from the theme, 2026-10-18** (sweep
 222: corpus mean 0.9493 → 0.9482; lineStyle −0.26, tdf114845 −0.19,
 tdf149697 −0.06, tdf154363 −0.04, tdf89449 −0.03, tdf141058 −0.01; none
