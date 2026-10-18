@@ -5811,6 +5811,15 @@ fitter dropped the paragraph's tail).
   paragraph. Word for Windows prints the whole file without that second
   mark, its body at 127.3 to ours 127.7 (lab `c5e`). That needs a Word
   for Mac lab: the header alone, and with its `w:pBdr` removed.
+- **A footnote stands on the page of the line that marks it
+  (2026-10-17).** zh-424775e4's footnote 2 is marked in the fourth line
+  of a paragraph whose first three end page 9. Word sets those three on
+  page 9 and the note at page 10's foot. Ours reserved the paragraph's
+  notes when it began, so the note took page 9's room and three more
+  lines went to page 10. Now a body paragraph's note is reserved on a
+  page only if the line holding its mark fits there with it; otherwise it
+  waits for the next page. A note whose mark's line went over anyway is
+  carried with it. zh-424775e4 87.3 -> 96.2; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

@@ -2421,6 +2421,18 @@ public final class RichLayout {
             if notesOn {
                 let stays = _pages[page].contains { placingRange.contains($0.paragraph) && !$0.repeated }
                 carried = stays ? [] : placing.filter { pageNotes.contains($0) }
+                // (A paragraph parted here keeps on this page only the
+                // notes whose marks are in its lines here: zh-424775e4's
+                // footnote 2, marked in the fourth line of a paragraph
+                // that page 9 holds the first three of, stands at page
+                // 10's foot in Word's print; ours set it on page 9, and
+                // took three more lines over for it.)
+                if stays, theme.wordRules, placingRange.count == 1, _cells[placingRange.lowerBound] == nil,
+                   let here = _pages[page].last(where: { $0.paragraph == placingRange.lowerBound && !$0.repeated }) {
+                    carried = placing.filter { id in
+                        pageNotes.contains(id) && (_footnoteMarkTop(placingRange.lowerBound, id, document).map { $0 >= here.flowBottom - 0.01 } ?? false)
+                    }
+                }
                 _pageNotes[page] = pageNotes.filter { !carried.contains($0) }
                 pageNotes = []
                 // (The notes still waiting for an unkept paragraph go
@@ -3106,7 +3118,28 @@ public final class RichLayout {
                 if _cells[i] == nil, document.paragraphs[i].style.keepNext {
                     for id in placing where !pendingNotes.contains(id) && !pageNotes.contains(id) { pendingNotes.append(id) }
                 } else if pendingNotes.isEmpty {
-                    reserveNotes(placing)
+                    // (A body paragraph's note is set on this page only
+                    // with the line that marks it: one whose line goes over
+                    // goes with it — see `newPage`. zh-424775e4's page 9
+                    // keeps three lines of the paragraph whose fourth marks
+                    // footnote 2, which stands on page 10 in Word's print.)
+                    if theme.wordRules, _cells[i] == nil, placing.count > 0 {
+                        var here: [Int] = []
+                        var room = 0.0
+                        let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                        for id in placing where !pageNotes.contains(id) {
+                            guard let mark = _footnoteMarkLine(i, id, document), let note = _note(id, width: width, document) else { here.append(id); continue }
+                            room += note.height + (pageNotes.isEmpty && here.isEmpty ? _note(-1, width: width, document)?.height ?? 0 : 0)
+                            if y + (mark.bottom - _tops[i]) + room > contentH + 0.01 {
+                                for later in placing where !here.contains(later) && !pageNotes.contains(later) && !pendingNotes.contains(later) { pendingNotes.append(later) }
+                                break
+                            }
+                            here.append(id)
+                        }
+                        reserveNotes(here)
+                    } else {
+                        reserveNotes(placing)
+                    }
                 } else {
                     var ids = pendingNotes
                     pendingNotes = []
@@ -9393,6 +9426,34 @@ public final class RichLayout {
             if let n = run.style.note, n.kind == .footnote, document.footnotes[n.id] != nil, !out.contains(n.id) { out.append(n.id) }
         }
         return out
+    }
+
+    /// Where footnote `id`'s mark stands in paragraph `i`'s flow: the top
+    /// of the line that holds it, or nil.
+    private func _footnoteMarkTop(_ i: Int, _ id: Int, _ document: RichDocument) -> Double? {
+        _footnoteMarkLine(i, id, document)?.top
+    }
+
+    /// The line that holds footnote `id`'s mark in paragraph `i`, in flow
+    /// terms (its top and bottom), or nil.
+    private func _footnoteMarkLine(_ i: Int, _ id: Int, _ document: RichDocument) -> (top: Double, bottom: Double)? {
+        var at = 0
+        for run in document.paragraphs[i].runs {
+            if let n = run.style.note, n.kind == .footnote, n.id == id {
+                let g = geometry(i)
+                let m = _map(i).painter(at)
+                guard let box = g.painter.getBoxesForSelection(TextSelection(baseOffset: m, extentOffset: m + max(1, run.length))).first else { return nil }
+                let lines = g.painter.computeLineMetrics()
+                var bottom = box.bottom
+                for metrics in lines where metrics.lineNumber >= 0 {
+                    let top = metrics.baseline - metrics.ascent
+                    if box.top >= top - 0.5, box.top < top + metrics.height - 0.5 { bottom = max(bottom, top + metrics.height) }
+                }
+                return (g.textTop + box.top, g.textTop + bottom)
+            }
+            at += run.length
+        }
+        return nil
     }
 
     /// A text box's text, laid out at the box's width inside its insets.
