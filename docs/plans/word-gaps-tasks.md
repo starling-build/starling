@@ -171,6 +171,12 @@ in Word's print; after "Note: " they part where they stand. Built that
 way; no document moved (s327 -> s328), and zh-76d361b2's own case is
 something else.
 
+### Note from the Mac (2026-10-18, morning): the zh corpus is 246 documents — a tenth sample
+Twenty more (`random.seed(20261024)`, all printed), checked in. It starts
+at 87.0% (median 97.7). Its low ones, unclaimed: zh-18cb2079 20.0 (CLAIMED
+Mac 01Xgpbk5), zh-6a4fc013 38.3 (26/29 pages), zh-c2f6d17a 54.9,
+zh-12c4f07a 78.5, zh-7773163d 83.4, zh-cd8987db 86.6.
+
 ### Note from the Mac (2026-10-18, night): the zh corpus is 226 documents — a ninth sample
 Twenty more (`random.seed(20261023)`, all printed), checked in. It starts
 at 85.3% (median 96.1). Its low ones, unclaimed: zh-8699644f 9.5 (Mac 01Xgpbk5, 94.6 now — paragraphs fill a text-anchored floating table's offset; released), zh-c25d08c5 55.3 (Mac 01Xgpbk5, 99.1 now — a style's rPr snapToGrid 0 keeps runs off the character grid; released), zh-15f60bac 64.6 (Mac 01Xgpbk5, measured, released: reader, not layout — table cells' baselines match Word's to 0.1pt, but PDFKit reads Word's "6" and "呂家華", 13.7pt apart in one row, as one line (Word draws them in one text run) and ours as two; Type3 boxes widened to the face's line (tried as a skia patch) move nothing under PDFKit and +1.0 under PyMuPDF, withdrawn), zh-60c80728 65.9
