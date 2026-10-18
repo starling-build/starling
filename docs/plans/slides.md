@@ -2432,6 +2432,22 @@ baseline here is 9.54 where PowerPoint's lies in 9.4–9.5, and rounding
 to the nearest point (which suits the decks at large) takes it up
 (5.17 → 5.19).
 
+**Tried and dropped, 2026-10-18: blurred text shadows.** 45541's
+titles and bullets cast a black shadow 3 pt down and right, blurred
+3 pt; ours is a sharp copy at 45% (the engine's own text blur goes to
+PDF as a soft mask at the page's corner). Drawn instead as the text
+again in a blurred layer (colour filter srcIn, blur image filter, as
+picture-filled shapes cast theirs), it looks right on screen and in
+a close-up, but Skia rasterises such a layer at the PDF's raster DPI,
+72: one pixel a point, so the shadow came out in blocks and the three
+45541 decks went 5.99 → 7.21 (7.10 at half the blur). Raising
+`fRasterDPI` to 300 in the engine's PDF bridge (a controlled sweep,
+the same engine with and without it) made the corpus worse: 0.966 →
+1.035, 109 decks worse to 89 better, and a tiled picture fill in a
+rasterised layer drawn at the wrong scale (page_transparent_bitmap
++15). Wants a blur that is not rasterised at all, or a raster DPI
+for the shadow layer alone.
+
 **Tried and dropped, 2026-10-18: a path gradient's tile
 (`a:tileRect`).** ImportWordArtGradient's third box runs its tile a
 whole box above and to the right, so in PowerPoint's print the letters
