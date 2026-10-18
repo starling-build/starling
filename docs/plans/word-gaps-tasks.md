@@ -189,6 +189,11 @@ sends all of "“1”" to the next line; the legacy Latin-word tests (lab
 `dg`'s room, `ab32`'s start half a character in) both pass it. Perhaps
 a word's own marks give nothing, or the room is the marks before it.
 
+### T112. zh-5c6ff0d7: 2 pages where Word's are 3 — claimed
+Owner: session 017F2GnT (Linux), from 2026-10-18
+Documents: zh-5c6ff0d7 (97.8%; the Mac's measure in the fifth-sample note:
+a row parted from p1 stands 15.6pt lower in the flow than drawn).
+
 ### Note from the Mac (2026-10-17, night): the zh corpus is 168 documents — a sixth sample
 Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 76.6%. Its low ones,
