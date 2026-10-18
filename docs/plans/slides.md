@@ -2532,6 +2532,17 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**Measured and left, 2026-10-18: exact lines whose text nearly fills
+them.** customGeo's 32 pt text in 33 pt lines (slide 21) and 26 pt in
+27 (slide 19) stand a point low in ours, 80 lines across seven slides:
+PowerPoint's first baseline lies 0.742–0.773 and 0.722–0.759 of the
+line under the text's top, where the fixed 0.78 above gives 0.78. A
+fixed 0.75 fits those and pptx2svg's paragraph gap, but not pptx2svg's
+own 17 pt text in 20 pt lines (0.755–0.805): customGeo −0.10, pptx2svg
++2.74. A baseline at the line less a share of the size (0.26 of it,
+Calibri's depth) fits customGeo's two and pptx2svg's first box, not its
+Calibri-to-Verdana gap. Left at 0.78 until a third deck says which.
+
 **A space before a line break counts in a box that does not wrap,
 2026-10-18** (sweep 198: corpus mean 0.9670 → 0.9658; cooper 3.67 →
 3.04, none worse). In a `wrap="none"` box PowerPoint centres and
