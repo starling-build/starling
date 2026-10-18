@@ -330,6 +330,15 @@ two header rows are not: ours 29.85 apiece centre to centre, Word's
 in ours. And ours draws a top rule at p2's head (105.3) Word does not.
 A lab of those borders (which width a shared edge takes, and how much of
 it the atLeast height holds) would settle it.
+Lab `rb` (Mac 011uWpmC, 2026-10-18, mode 14, rule centres): rows 0-1 at
+least 567 step 29.76 and 29.52 in Word (the shared edge drawn 1.44, the
+sz12), ours 29.79 and 29.86; the last row, exact 567 with its own bottom
+sz4, 28.32 in Word, ours 28.84 — that 0.5 is the last row's hung bottom
+line (kept outside on purpose, zh-ae655121's double line); taking rules
+out of exact rows changes nothing (they have none). All sz4: Word 28.8,
+28.8, 28.32; ours 28.8, 28.85, 28.85. Left: row 1's extra 0.34 (its top
+sz12 meeting row 0's bottom sz8) and the hung line's width for a single
+rule.
 Documents: zh-5c6ff0d7 (97.8%; the Mac's measure in the fifth-sample note:
 a row parted from p1 stands 15.6pt lower in the flow than drawn).
 
