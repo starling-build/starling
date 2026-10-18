@@ -2419,6 +2419,7 @@ public final class RichLayout {
         // come: where the text stood, to go on from there round it.
         var tableReturn: (table: String, y: Double, page: Int, top: Double)? = nil
         var tableBands: [(top: Double, bottom: Double)] = []
+        var besideTable: (bottom: Double, page: Int)? = nil
         var reordered = false
         var i = 0
         // A page is as tall as its section's content: the section of the
@@ -3255,6 +3256,26 @@ public final class RichLayout {
                     tableBands.append((top: back.top, bottom: y))
                     y = back.y
                 }
+            }
+            // (Empty paragraphs after a floating table go down the room
+            // beside it, from the top of its part on the page: zh-38758b14's
+            // scoring table, tblpX 3756 twips on a landscape page and three
+            // pages long, has the fourteen empty paragraphs after it in the
+            // 100pt to its left on its last page in Word's print, and
+            // "附件2：" at the next page's top; ours set them under it, a
+            // page of their own. Text keeps under it.)
+            if let beside = besideTable {
+                let p = document.paragraphs[i]
+                if beside.page != page || y >= beside.bottom - 0.01 { besideTable = nil }
+                else if _cells[i] != nil || !p.text.isEmpty || p.image != nil { y = beside.bottom; besideTable = nil }
+            }
+            if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
+               document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil,
+               let ts = document.tableStyles[prev], ts.floatOffsetY != nil, !ts.pageAnchored, ts.floatX != nil,
+               _tableLeft(prev, document) - _px(9) >= _px(36),
+               let top = _pages[page].filter({ _cells[$0.paragraph]?.table == prev }).map(\.pageY).min(), top < y - 0.01 {
+                besideTable = (y, page)
+                y = top
             }
             // Converged: this paragraph starts on the same page at the same
             // y as before and nothing below has changed, so the old pieces
@@ -5028,7 +5049,10 @@ public final class RichLayout {
         // box alone on the first, so it stops an em short of the margin:
         // the character is on its line, if not as far over as Word's.)
         if theme.wordRules, lead > textWidth, !p.text.isEmpty {
-            let em = _px(p.runs.last?.style.fontSize ?? p.style.mark?.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
+            // (The first character's em: zh-70094a34's footer opens with
+            // a 16pt "山" after a drawing's anchor, over 14pt text, and an
+            // em of the text's left it no room — the line held nothing.)
+            let em = _px(_firstTextRun(p)?.style.fontSize ?? p.runs.last?.style.fontSize ?? p.style.mark?.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
             lead = max(0, textWidth - em)
         }
         // PowerPoint's bullet with no hanging indent (indent ≥ 0): the
@@ -7223,9 +7247,14 @@ public final class RichLayout {
         if let chars, chars != 0 {
             // (A character of the first run: its size, and its character
             // spacing with it.)
+            // (Not a run that only anchors a drawing: zh-5d635acc's footer
+            // line opens with one, and Word counts its 2000 characters
+            // at the "X" after it, 16pt — w:firstLine 6400 — where ours
+            // took the style's 9pt and the line held "X 济".)
             let named = _named(p, document)
-            let size: Double = p.runs.first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize
-            var spacing: Double = p.runs.first?.style.letterSpacing ?? named?.char.letterSpacing ?? 0
+            let first = _firstTextRun(p)
+            let size: Double = first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize
+            var spacing: Double = first?.style.letterSpacing ?? named?.char.letterSpacing ?? 0
             // (Twice where the document balances its widths: see `_span`.)
             if document.balancesSpaceWidth { spacing *= 2 }
             let grid: Double = _grid(index, document).chars ?? 0
@@ -7234,13 +7263,23 @@ public final class RichLayout {
             // firstLineChars, starts 63.4pt in in Word's print, two of
             // 22 × 1.35 + 2 — lab `b24`, and 48 at 100% — where ours
             // took 48 and set "标" on the first line.)
-            let wide: Double = p.runs.first?.style.horizontalScale ?? named?.char.horizontalScale ?? 1
+            let wide: Double = first?.style.horizontalScale ?? named?.char.horizontalScale ?? 1
             // (In whole twips, as Word keeps an indent: 2 characters of
             // 14.6465pt are 586 twips, 29.3pt — lab `hc` sets the line as
             // it does `w:firstLine="586"`, not as 29.293.)
             return (chars / 100 * (size * wide + spacing + grid) * 20).rounded() / 20 - _topLineSqueeze(p, document)
         }
         return p.style.firstLineIndent - _topLineSqueeze(p, document)
+    }
+
+    /// The paragraph's first run that is not only a drawing's anchor.
+    private func _firstTextRun(_ p: RichParagraph) -> Run? {
+        let units = Array(p.text.utf16)
+        var at = 0
+        return p.runs.first { r in
+            defer { at += r.length }
+            return !(at ..< min(units.count, at + r.length)).allSatisfy { units[$0] == 0xFFFC }
+        } ?? p.runs.first
     }
 
     /// What an opening mark at the paragraph's start gives up where the
