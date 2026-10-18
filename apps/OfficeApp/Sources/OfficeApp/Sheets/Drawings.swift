@@ -302,6 +302,38 @@ extension SheetChart {
             }
             return out
         }
+        // A box-and-whisker chart's boxes from its cells: each series'
+        // values grouped by the category beside each, the categories in
+        // the order they first come.
+        if c.boxes != nil {
+            var categories: [String] = []
+            var grouped: [[String: [Double]]] = []
+            for (i, ref) in refs.enumerated() where i < c.series.count {
+                var by: [String: [Double]] = [:]
+                if let f = ref.val, let cells = values(f) {
+                    let cats = ref.cat.flatMap { shownCells($0) } ?? []
+                    for (k, v) in cells.enumerated() {
+                        guard let n = v.number, n.isFinite else { continue }
+                        let name = cats[safe: k] ?? ""
+                        if !categories.contains(name) { categories.append(name) }
+                        by[name, default: []].append(n)
+                    }
+                }
+                if let f = ref.name, let cells = shownCells(f), let first = cells.first { c.series[i].name = first }
+                grouped.append(by)
+            }
+            if !categories.isEmpty {
+                c.categories = categories
+                c.boxes = grouped.map { by in categories.map { (by[$0] ?? []).sorted() } }
+                for (i, by) in grouped.enumerated() where i < c.series.count {
+                    c.series[i].values = categories.map { (by[$0] ?? []).isEmpty ? nil : ChartXML.quartile((by[$0] ?? []).sorted(), 0.5, inclusive: false) }
+                }
+            } else if c.categories.isEmpty {
+                // (Nothing cached and nothing read: no boxes to draw.)
+                c.series = []
+            }
+            return c
+        }
         for (i, ref) in refs.enumerated() where i < c.series.count {
             if let f = ref.val, let cells = values(f) { c.series[i].values = cells.map { $0.number } }
             if let f = ref.name, let cells = shownCells(f), let first = cells.first { c.series[i].name = first }

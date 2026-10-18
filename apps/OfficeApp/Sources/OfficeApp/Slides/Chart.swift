@@ -523,7 +523,9 @@ enum ChartXML {
             grouped.append(by)
             names.append(series.first("cx:tx")?.descendant("cx:v")?.text ?? "Series\(j + 1)")
         }
-        guard !categories.isEmpty else { return nil }
+        // (No points cached is a chart still where its data is a formula, a
+        // sheet's to fill: chart-boxWhisker's three names, _xlchart.v1.*.)
+        guard !categories.isEmpty || space.descendant("cx:f") != nil else { return nil }
         let boxes = grouped.map { by in categories.map { (by[$0] ?? []).sorted() } }
         // The series' values, for what reads them: each box's median.
         let series = zip(names, boxes).map { name, cats in
