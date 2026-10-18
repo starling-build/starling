@@ -3752,7 +3752,13 @@ public final class RichLayout {
             if theme.wordRules, resumeCursor == nil, _cells[i] == nil {
                 let column = _flowWidth(i)
                 let gap = _px(9)
-                let em = _px(document.paragraphs[i].runs.first?.style.fontSize ?? theme.fontSize)
+                // (An empty paragraph — or one of floating objects' places
+                // alone — asks half an em: zh-d62da4dd's empty paragraphs
+                // stand in the 10.95pt a tight-wrapped chart leaves at the
+                // column's left in Word's print (12pt); zh-37b6536f's under
+                // its row of photos, which leaves 5.0, go under it.)
+                let bare = document.paragraphs[i].text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
+                let em = _px(document.paragraphs[i].runs.first?.style.fontSize ?? theme.fontSize) * (bare ? 0.5 : 1)
                 // (Over any of the line, not only its top: an empty
                 // anchor's line that a photo starts 16pt down went under
                 // the photo in Word's print.)
@@ -5409,9 +5415,17 @@ public final class RichLayout {
                 case "left", "inside": x = 0
                 default: x = _px(float.x)
                 }
-                let gap = _px(9), em = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
-                let leftRoom = x - gap - firstLine, rightRoom = column - (x + w) - gap - max(0, lead) - right
-                if leftRoom < em, rightRoom < em { push = max(push, _px(float.y) + _px(image.height)) }
+                // (An empty paragraph's line asks no width: any room beside
+                // the float holds it. zh-d62da4dd's empty anchors of two
+                // charts wrapped tight: the first leaves none on either side
+                // and its line goes under it in Word's print; the second
+                // leaves 1.95pt on its right, and its line stays — ours sent
+                // both under, and page 4 ran onto a fifth.)
+                // (Empty but for its floating objects' places.)
+                let bare = p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
+                let gap = _px(9), em = theme.wordRules && bare ? 0.0 : _px(p.runs.first?.style.fontSize ?? theme.fontSize)
+                let leftRoom = x - gap - firstLine, rightRoom = column - (x + w) - gap - (em > 0 ? max(0, lead) : 0) - right
+                if em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0) { push = max(push, _px(float.y) + _px(image.height)) }
             }
         }
         if i < _floatPush.count { _floatPush[i] = push }
@@ -9822,6 +9836,13 @@ public final class RichLayout {
         // above the margin — ours stood 15.5pt lower, measured from the
         // text under that space.)
         if theme.wordRules, float.verticalAlign == nil, float.verticalFrom == "paragraph" { y = g.top + _px(float.y) }
+        // (… where the paragraph's own line went under a float of its that
+        // left it no room, one in front of the text goes with the line:
+        // zh-d62da4dd's empty paragraphs each hold a chart wrapped tight,
+        // 27.3pt down, and a "單位：張(人)數,%" box, 32.1pt down, which
+        // Word's print sets under the chart, at the line's new place —
+        // ours set it over the chart, and its page ran long.)
+        if theme.wordRules, !float.wraps, float.verticalAlign == nil, float.verticalFrom == "paragraph", pushed > 0 { y += pushed }
         // (From the page or its margin, a stated offset is on the page
         // the paragraph starts: zh-799c91cd's envelope addresses a box
         // 308.8pt under the margin, which ours stood at its paragraph,

@@ -5911,6 +5911,25 @@ fitter dropped the paragraph's tail).
   set at the face's widths. (The run's property is the one the spec
   gives to characters; the paragraph's is for lines.) zh-3c055c9b
   33.5 -> 91.7, zh-92373179 39.9 -> 53.2; nothing fell.
+- **An empty line beside a float wrapped round asks half an em
+  (2026-10-17).** zh-d62da4dd's page 4 has two charts wrapped tight,
+  each anchored in an empty paragraph that also holds a "單位" text box
+  (wrap none), with empty paragraphs after them. Word keeps everything on
+  page 4:
+  - the first chart leaves its anchor no room on either side, so the
+    anchor's line goes under it, and the "單位" box goes with that line;
+  - the second leaves 10.95pt at the column's left, and its anchor and
+    the empty paragraphs after it stand there.
+
+  Ours asked a whole em (12pt) of every line, so it sent them all under
+  their charts and the page ran onto a fifth. zh-37b6536f's empty
+  paragraphs under its row of photos, which leaves 5.0pt, go under in
+  Word: a fit from any room at all took that file 99.2 -> 95.4. Now an
+  empty paragraph (or one of float places alone) asks half an em, both
+  for its own float and for the ones above it, and a box in front of the
+  text keeps to its paragraph's line when a float of the paragraph
+  pushed that line. zh-d62da4dd now has Word's 4 pages; its score holds
+  at 55.7, the rest being its charts' labels. Nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
