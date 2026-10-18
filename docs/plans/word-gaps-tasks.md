@@ -514,7 +514,7 @@ is used now, and JhengHei UI has a line of its own: ascent 2080, descent
 521 in 2048 (from the embedded subset), 1.3 of it = 1.651 em, Word's
 34.67 / 21 to the point. Not emboldened wider: 1/57 em a character ran
 the file a page long (0.4%). zh-167ee06c 55.4 -> 72.9; nothing fell.
-Left there (hangingChars claimed, Windows 01QbbApP, 2026-10-18): "hangingChars" 200 sets its lines 21.6pt in where ours
+Left there (hangingChars: Windows 01QbbApP, 2026-10-18, measured, released — Word for **Windows** sets these lines 28pt in, as ours, and "助。" under firstLineChars 250 at 35.1: on the Mac a character of this face (華康雅風體W3(P) → embedded JhengHei UI Light, 14pt bold) is 10.8pt, 0.771 em — 21.6 and 26.9 — on Windows the run's 14; not its xAvgCharWidth (2024/2048), not Normal's 12; needs a Mac lab): "hangingChars" 200 sets its lines 21.6pt in where ours
 stand 28 (two of the 14pt ems); its first line's "、" squeezed to take
 "系", which Word leaves.
 
