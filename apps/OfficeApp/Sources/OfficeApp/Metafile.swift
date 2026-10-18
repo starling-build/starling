@@ -723,6 +723,12 @@ private struct Player {
         // The window is the picture; a file that sets none is its placeable
         // header's box.
         bounds = frame ?? placeable
+        // A window's last unit lands on the frame's edge, and what is drawn
+        // in it falls outside: a control's picture of 175 by 114 is drawn
+        // 174 by 113 across its frame, its right and bottom rules left out.
+        if let f = frame, f.width > 1, f.height > 1 {
+            bounds = Rect.fromLTWH(f.left, f.top, f.width - 1, f.height - 1)
+        }
     }
 
     // MARK: EMF

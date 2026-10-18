@@ -639,7 +639,7 @@ final class MetafileTests: XCTestCase {
         file += wmf(0x0000, [])
         XCTAssertTrue(Metafile.isMetafile(Data(file)))
         let m = try XCTUnwrap(Metafile(Data(file), id: "t"))
-        XCTAssertEqual(m.bounds, Rect.fromLTWH(0, 0, 200, 100), "the window is the picture")
+        XCTAssertEqual(m.bounds, Rect.fromLTWH(0, 0, 199, 99), "the window is the picture, its last unit on the edge")
         guard case .fill(let path, let color) = m.steps[0] else { return XCTFail("the rectangle's fill first: \(m.steps)") }
         XCTAssertEqual(color, Color(0xFF102030), "a COLORREF is red first")
         XCTAssertEqual(path.getBounds(), Rect.fromLTRB(10, 10, 190, 90))

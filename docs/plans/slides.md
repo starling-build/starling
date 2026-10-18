@@ -2290,6 +2290,17 @@ they are drawn from the plot's foot — where PowerPoint's stay at the
 frame's: 401.4 in its print, ours 397.8. They now stand 7.8 pt under
 the plot, as the plot was raised.
 
+**A metafile's last unit on its frame's edge, 2026-10-17** (sweep 175:
+1.0247 → 1.0191; lo-activex_picture 3.20 → 1.62, spinbutton 0.44 →
+0.05, control_background_color 1.90 → 1.59, commandbutton 0.64 → 0.43,
+tika-2605 0.14 → 0.00, eight more control decks; 45541's three +0.01).
+PowerPoint stretches a WMF's window so its last unit, not the unit
+after it, lands on the frame's right and bottom edges, and clips what
+is drawn in that unit: a control's picture of 175 by 114 units, ruled
+grey on all four sides, prints with its left and top rules only, the
+fill running to the edge. Ours drew all four rules inside the frame.
+A window thousands of units across moves by nothing to see.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the
