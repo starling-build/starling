@@ -185,6 +185,12 @@ public final class RichTextTheme {
     /// line's baseline by the face it names: Verdana's at 0.83 of the
     /// line, where DejaVu Sans, drawing it, has 0.80.
     public var ownDescentShare: ((String) -> Double?)? = nil
+    /// Slides: the share of a line of so many points (`lineHeightPoints`,
+    /// not a minimum) below its baseline, whatever its face. PowerPoint
+    /// sets pptx2svg's 30 pt Verdana line where it sets Calibri's, the
+    /// share Carlito's metrics give; the engine, by DejaVu Sans drawing
+    /// it, set it 0.5 pt lower. nil — Word — leaves it to the face.
+    public var exactLineDescentShare: Double? = nil
     /// Whether a run's characters are set at the widths its resolved
     /// face gives (`RichResolvedFace.advances`) outside Word's rules too:
     /// PowerPoint's Lucida Sans Unicode, drawn here in a narrower face.
@@ -9454,6 +9460,15 @@ public final class RichLayout {
         guard theme.singleLineHeight != nil else { return 0 }
         let p = document.paragraphs[i]
         guard let run = p.runs.first else { return 0 }
+        if let points = p.style.lineHeightPoints, !p.style.lineHeightIsMinimum, let share = theme.exactLineDescentShare {
+            // A line of so many points has its baseline a fixed share of
+            // it down, whatever the face: the engine's own sets it by the
+            // drawn face's share.
+            let name = run.style.fontFamily ?? theme.fontFamily
+            let family = name.map { theme.fontFamilyResolver?($0) ?? $0 }
+            let drawn = theme.descentShare(family: family, bold: run.style.bold, italic: run.style.italic)
+            return _px(points * (drawn - share))
+        }
         let k = theme.baselineShift(for: run.style, in: p.style)
         guard k != 0 else { return 0 }
         var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize

@@ -2444,6 +2444,20 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A line of so many points has its baseline at a fixed share,
+2026-10-18** (sweep 199: corpus mean 0.9658 → 0.9655; pptx2svg 3.69 →
+3.51, none other moved). PowerPoint sets pptx2svg's 30 pt Verdana
+line where it sets Calibri's: the paragraph before (Calibri) and this
+one stand 54 pt apart, as two Calibri ones do. The engine shares an
+exact line out by the drawn face's ascent and descent, so DejaVu Sans
+(drawing Verdana) stood its baseline 0.5 pt lower than Carlito, and
+the whole-point snap took it a full point low. Found by editing the
+deck: the line's sizes, its raised and lowered runs, the paragraph
+before's level and length moved nothing; dropping its face for
+Calibri put it right. Now a Slides theme's `exactLineDescentShare`
+(0.22, Carlito's) moves each such paragraph to that share; Word's is
+nil.
+
 **A space before a line break counts in a box that does not wrap,
 2026-10-18** (sweep 198: corpus mean 0.9670 → 0.9658; cooper 3.67 →
 3.04, none worse). In a `wrap="none"` box PowerPoint centres and

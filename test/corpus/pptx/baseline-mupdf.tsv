@@ -53,7 +53,7 @@ clusterfuzz-testcase-minimized-POIXSLFFuzzer-6254434927378432.pptx	summary pages
 copy-slide-demo.pptx	summary pages=1 worst=0.26% mean=0.26%
 crash-57308ca363f5b71763c489d1b432aff009d4bc4f.pptx	summary pages=1 worst=2.48% mean=2.48%
 crop-to-0.pptx	summary pages=3 worst=0.00% mean=0.00%
-customGeo.pptx	summary pages=48 worst=11.35% mean=3.56%
+customGeo.pptx	summary pages=48 worst=11.35% mean=3.55%
 ececapstonespring2012.pptx	summary pages=24 worst=2.66% mean=1.59%
 highlight-test-case.pptx	summary pages=1 worst=0.63% mean=0.63%
 layouts.pptx	summary pages=10 worst=1.30% mean=0.51%
@@ -529,7 +529,7 @@ oox-transparent-text.pptx	summary pages=1 worst=0.04% mean=0.04%
 picture-transparency.pptx	summary pages=4 worst=0.00% mean=0.00%
 pie-chart.pptx	summary pages=1 worst=1.44% mean=1.44%
 placeholder-layout-color.pptx	summary pages=1 worst=0.53% mean=0.53%
-pptx2svg.pptx	summary pages=1 worst=3.69% mean=3.69%
+pptx2svg.pptx	summary pages=1 worst=3.51% mean=3.51%
 prProps.pptx	summary pages=1 worst=0.03% mean=0.03%
 present1.pptx	summary pages=1 worst=0.26% mean=0.26%
 radar-chart.pptx	summary pages=1 worst=1.23% mean=1.23%
