@@ -2590,7 +2590,7 @@ between them, stand 1.75pt taller in Word's print for a 2.25pt line stated on th
 side is the wider of the table's line there and the cell's own. Same-base sweep, 337 docs: zh-701eda18 92.8 -> 96.0,
 nothing else moved.
 
-### T119. Legacy-mode line ends (zh-12c4f07a, zh-749cb15a): first, a compatibility ideograph YaHei lacks — claimed again
+### T119. Legacy-mode line ends (zh-12c4f07a, zh-749cb15a): first, a compatibility ideograph YaHei lacks — waiting on a lab
 Owner: session starling-office1-df (Linux dev box), again from 2026-10-18 after the Mac's lab
 Documents: zh-12c4f07a, zh-749cb15a; zh-5b7ae054, zh-8e8d4c40, zh-4adfcce2, zh-7dc3afad and others hold the same.
 Known: zh-12c4f07a p8's "於契約…本委" ends at 委 in Word because its "契" is U+F909, which Word for Mac draws in a
@@ -2615,6 +2615,14 @@ U+5EA6 there (78 twips at 13pt, 84 at 14pt; both characters, both places).
 So zh-ff93733d's "果。" is something else (its line ends the paragraph
 with "。").
 
+With the Mac's lab (the break counts the box at 0.697 too), the box rule is right and moves nearly every changed
+line of zh-749cb15a onto Word's (p49-52 and p75-78 runs fixed), but two legacy-mode line ends then go the other
+way, so it waits (patch kept by starling-office1-df): (1) zh-749cb15a p? "…功能性及專業性國際組織；" — mid-paragraph,
+overflowPunct 0: ours squeezes the line's last mark "；" (over 4.57 of its 7.3) to take "織；", Word carries both (its
+p91-93 and p104-113 then run a line apart); (2) zh-ff93733d p1 "…調查結果。" — the paragraph's end, overflowPunct
+on: "果" fits whole with the boxes at 0.697 (17.6pt spare) and ours hangs "。", Word carries both (and the rest of
+the document runs a line apart: 97.0 -> 6.5). Lab asked of the Mac: in legacy mode, does a line's last mark give
+anything to take it — squeezed with overflowPunct off, hung with it on — and does it matter that it ends the paragraph?
 ### T120. zh-b4d36718: turned text in a merged cell that crosses a page sits off its part of the page — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
 Documents: zh-b4d36718 (93.7, tenth sample; p14-16 hold most of its 48 misses).
