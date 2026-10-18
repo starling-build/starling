@@ -1750,7 +1750,20 @@ enum ChartPainter {
             var entries = names.enumerated().map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: c.legendBold, color: c.legendColor)) }
             // (9.5 between a row's entries on a newer chart: chart-slide-bg's
             // legend pitches 58.6 pt in PowerPoint's print, ours 60.9 at 12.)
-            let key = 7 * k * m, gap = 4 * k * m, spacing = (c.styled2013 ? 9.5 : 12) * k * m
+            // Beside the plot (`legendPos` r, l, tr): a column, an entry to
+            // a line, in the middle of the side; above or below: rows.
+            let box = c.legendBox.map { Rect.fromLTWH(r.left + $0.left * r.width, r.top + $0.top * r.height, $0.width * r.width, $0.height * r.height) }
+            let beside = box == nil && ["r", "l", "tr"].contains(c.legendPosition)
+            // (A newer chart's row on a slide as PowerPoint prints chart-
+            // slide-bg's 12 pt legend: a key 6.57 square, 2.92 before its
+            // name, 11.2 between entries, the key's foot half a point
+            // under the baseline — 1.3 lower than a key centred on the
+            // line, as ours stood. Not a column beside the plot:
+            // tdf149985's went +0.25 so.)
+            let printed = c.onSlide && c.styled2013 && !beside
+            let key = (printed ? 6.57 : 7) * k * m, gap = (printed ? 2.92 : 4) * k * m
+            let spacing = (printed ? 11.2 : c.styled2013 ? 9.5 : 12) * k * m
+            let keyDrop = printed ? 1.3 * k * m : 0
             // A line's key is a stroke 19.2 pt long whatever the text's
             // size, ending 2 pt before its name; in a row, 3.6 more before
             // it (chartex's line and radar charts in Word's print: their
@@ -1758,10 +1771,6 @@ enum ChartPainter {
             // its width, the line reaching out of it: line-chart's 18 pt
             // legend in PowerPoint's print, its plot where ours was.
             let lineKeys = c.type == .line || (c.type == .radar && !c.radarFilled)
-            // Beside the plot (`legendPos` r, l, tr): a column, an entry to
-            // a line, in the middle of the side; above or below: rows.
-            let box = c.legendBox.map { Rect.fromLTWH(r.left + $0.left * r.width, r.top + $0.top * r.height, $0.width * r.width, $0.height * r.height) }
-            let beside = box == nil && ["r", "l", "tr"].contains(c.legendPosition)
             // Room before an entry's name.
             let lead = lineKeys && !beside ? 24.8 * k : key + gap
             // A column beside stacked columns (or areas) reads as the stack
@@ -1855,7 +1864,7 @@ enum ChartPainter {
                     } else if c.type == .scatter {
                         canvas.drawCircle(Offset(x + key / 2, y + lineH / 2), 2.5 * k, p)
                     } else {
-                        canvas.drawRect(Rect.fromLTWH(x, y + (lineH - key) / 2, key, key), p)
+                        canvas.drawRect(Rect.fromLTWH(x, y + (lineH - key) / 2 + keyDrop, key, key), p)
                     }
                     e.tp.paint(canvas, Offset(x + lead, y + (lineH - e.tp.height) / 2))
                     x += lead + e.tp.width + spacing
@@ -2349,7 +2358,12 @@ enum ChartPainter {
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
-            var right = edges ? (catLabels.last?.width ?? 0) / 2 : 4 * k
+            // (2.1 on a newer chart on a slide: chart-slide-bg's plot ends
+            // 11.1 pt inside its frame in PowerPoint's print, its four
+            // categories 151.3 apart, ours 150.9. Not against a legend
+            // beside it: tdf149985's, +0.11 so.)
+            let legendBeside = c.legend && c.legendBox == nil && ["r", "l", "tr"].contains(c.legendPosition)
+            var right = edges ? (catLabels.last?.width ?? 0) / 2 : (c.onSlide && c.styled2013 && !legendBeside ? 2.1 : 4) * k
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)

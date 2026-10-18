@@ -2532,6 +2532,21 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A newer chart's legend and right edge as PowerPoint prints them,
+2026-10-18** (sweep 215: corpus mean 0.9636 → 0.9536; tdf112089 −1.35,
+chart-slide-bg −1.28, chart-texture-bg −1.27, chart-picture-bg −1.24,
+tdf114821 −0.40; none worse). A survey of matched lines across (ours
+against PowerPoint's) found chart-slide-bg's category labels and
+legend entries 1.2 to 1.7 pt left of PowerPoint's, more the further
+right. Its plot ends 11.1 pt inside the frame in PowerPoint's print,
+ours 13 (its four categories 151.3 apart to our 150.9), and its 12 pt
+legend's keys are 6.57 square, 2.92 before their names, 11.2 between
+entries and their feet half a point under the baseline — ours 7, 4,
+9.5, centred on the line, 1.3 higher; the pitch matched, the parts did
+not. Both for a 2013-style chart on a slide, its legend in rows: a
+legend beside the plot (tdf149985's) keeps the old keys and margin,
++0.25 and +0.11 with the new.
+
 **Seven tenths of a spacing over single above the line, 2026-10-18**
 (sweep 212: corpus mean 0.9641 → 0.9636; clusterfuzz 4986 −0.10,
 n83889 −0.08, 60810 −0.07, outliner-list-style −0.04, tdf137367 −0.02;
