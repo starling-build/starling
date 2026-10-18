@@ -4093,7 +4093,13 @@ public final class RichLayout {
                 let rest = bottom - cursor
                 // (The last line may reach past the foot by its grid's
                 // overhang.)
-                let overhang = theme.wordRules && i < _overhang.count ? _overhang[i] : 0
+                // (A frame placed on the page stands where it is placed,
+                // past the foot or not: zh-9db183d5's cover issuer, a 29.2pt
+                // frame 751pt under a margin of -338 twips, ends 6.6pt under
+                // the text's foot and stays on the cover in Word's print;
+                // ours took it, and a page of its own, to page 2.)
+                let placedFrame = theme.wordRules && ownFrame != nil && frameReturn?.page == page
+                let overhang = placedFrame ? .infinity : theme.wordRules && i < _overhang.count ? _overhang[i] : 0
                 // (Word sets a line only where it ends above the foot, not
                 // on it: lab `pf`, Word 16, 2026-10-16 — 33 lines of exactly
                 // 20.85pt fit a page with a twip to spare and not one with
