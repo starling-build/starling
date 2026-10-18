@@ -285,7 +285,7 @@ Twenty more (`random.seed(20261018)`, the unprinted rest of 15-400 KB,
 Word 16.113.3 prints) are checked in; compare per document across it.
 It starts at 82.5%. Its low ones, unclaimed: zh-32f4ad9f 10.3 (T86, 83.6 now),
 zh-5dc5ce34 20.3 (21; Windows: spacing from styles fdceb326, 22.7; the rest is a 16pt header line only Word for Mac sets, office.md — for the Mac, released), zh-167ee06c 55.4 (14; T88, 72.9 now), zh-21421b7d 69.2 (2; Mac 011uWpmC, 97.4 now — slash break, parted centred cell),
-zh-70094a34 70.8 (19; Mac, looked: Word's text layer drops glyphs, the lines match), zh-621d8756 82.4 (52; Mac looked, released — see the wordWrap note below; Linux 017F2GnT claimed 2026-10-18: p9/p17/p18, a line Word squeezes and ours does not), zh-34a6519a 84.0 (53; Mac, looked: the TOC matches — Word's page numbers are drawn but not in its text layer, so the matcher splits our lines),
+zh-70094a34 70.8 (19; Mac, looked: Word's text layer drops glyphs, the lines match), zh-621d8756 82.4 (52; Mac looked, released — see the wordWrap note below; Linux 017F2GnT: 99.5 now — a bracket after an ideographic space gives (55c54a9b); released), zh-34a6519a 84.0 (53; Mac, looked: the TOC matches — Word's page numbers are drawn but not in its text layer, so the matcher splits our lines),
 zh-830ef10d 89.2 (3; Mac 011uWpmC, 97.3 now — a line too narrow for a character), zh-fb482d33 89.7 (T89, 95.7 now, 6 pages), zh-ad224275 93.2 (Mac, looked: the lines match — the misses are text-layer, a Wingdings bullet and pdf-text grouping).
 
 ### Note from the Mac (2026-10-17): the zh corpus is 108 documents now — a third sample
