@@ -2552,13 +2552,17 @@ lines. Done: each pass paints a copy of the paragraph with the other pass's text
 337 docs: zh-7dc3afad 99.6 -> 99.8, nothing lower. zh-701eda18 itself does not move: those lines also sit 2.5pt high
 — T118.
 
-### T118. A cell's own line width stands in for a table side it never names — claimed
+### T118. A cell's own line width stands in for a table side it never names — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
 Documents: zh-701eda18 p4 (both platforms; the Mac confirmed its baselines 2.4pt high too).
 Known: the first form's last row is auto height; its tallest cell states only a right "double sz4", so the cell's
 width is 0.5, and the room under the row (`rule`/`sideLine` in RichLayout) took that 0.5 for the table's 3pt
 thickThinSmallGap bottom: 2.0 where Word's print gives 4.32-4.5. Everything after sits 2.5 high. Fix: a side the
 cell's tcBorders do not name takes the table's width for it.
+Done, but not as first tried: taking the table's width alone dropped zh-cec9d337 83.5 -> 49.0 — its rows, ruled 0.5pt
+between them, stand 1.75pt taller in Word's print for a 2.25pt line stated on their first cell's left. So an unnamed
+side is the wider of the table's line there and the cell's own. Same-base sweep, 337 docs: zh-701eda18 92.8 -> 96.0,
+nothing else moved.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

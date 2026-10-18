@@ -4696,6 +4696,19 @@ public final class RichLayout {
             if theme.wordRules {
                 let ts = document.tableStyles[c.table] ?? TableStyle()
                 let rows = _tableRows[c.table] ?? 0
+                // A side the cell's borders do not name is as wide as
+                // the table's line there or the cell's own, whichever is
+                // wider. zh-cec9d337's rows, ruled 0.5pt between them,
+                // stand 1.75pt taller in Word's print for a 2.25pt line
+                // on their first cell's left; zh-701eda18's form ends on
+                // a row whose tallest cell states a 0.5pt double on its
+                // right alone, and Word gives the table's 3pt
+                // thickThinSmallGap bottom its whole 4.3pt under it,
+                // where the cell's 0.5 left 2 and all after stood 2.5 high.
+                func sideWidth(_ d: CellRef, _ tableSide: String) -> Double {
+                    let table = ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
+                    return max(d.borderWidth ?? table, table)
+                }
                 func rule(_ d: CellRef, _ side: String) -> Double {
                     let said = Self._cellSide(d.bordersXML, side) ?? Self._cellSide(d.rowBordersXML, side)
                     let end = d.row + d.rowSpan - 1
@@ -4708,7 +4721,7 @@ public final class RichLayout {
                     guard (side == "top" ? d.edges?.top : d.edges?.bottom) ?? tables ?? (ts.borders && !ts.bordersFromCells) else { return 0 }
                     let tableSide = (side == "top" ? d.row > 0 : end < rows) ? "insideH" : side
                     let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
-                    let width = said?.width ?? d.borderWidth ?? ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
+                    let width = said?.width ?? sideWidth(d, tableSide)
                     return _px(Self._ruleRoom(style, width))
                 }
                 // The cell's left and right lines, resolved as its top and
@@ -4722,7 +4735,7 @@ public final class RichLayout {
                     guard (side == "left" ? d.edges?.left : d.edges?.right) ?? tables ?? (ts.borders && !ts.bordersFromCells) else { return 0 }
                     let tableSide = atEdge ? side : "insideV"
                     let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
-                    let width = said?.width ?? d.borderWidth ?? ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
+                    let width = said?.width ?? sideWidth(d, tableSide)
                     return _px(Self._ruleRoom(style, width))
                 }
                 var l = sideLine(c, "left"), r = sideLine(c, "right")

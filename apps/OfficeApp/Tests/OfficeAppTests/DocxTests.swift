@@ -1391,6 +1391,51 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(gap(doc) - gap(bare), 4.5, accuracy: 0.01, "its own block's margins, over and under")
     }
 
+    func testACellsOwnLineWidthIsNotTheTablesSideItDoesNotName() throws {
+        // zh-701eda18 p4: a form framed by a 3pt thickThinSmallGap ends
+        // on a row whose tallest cell states a 0.5pt double on its right
+        // alone. Word's print gives the frame's bottom its own room under
+        // that row; ours gave it the cell's 0.5pt, 2.5pt short, and all
+        // after it stood that much high.
+        func after(cellBorders: String, single: Bool = false) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            let frame = "<w:top w:val=\"thinThickSmallGap\" w:sz=\"24\" w:space=\"0\" w:color=\"auto\"/>"
+                + "<w:left w:val=\"thinThickSmallGap\" w:sz=\"24\" w:space=\"0\" w:color=\"auto\"/>"
+                + "<w:bottom w:val=\"thickThinSmallGap\" w:sz=\"24\" w:space=\"0\" w:color=\"auto\"/>"
+                + "<w:right w:val=\"thickThinSmallGap\" w:sz=\"24\" w:space=\"0\" w:color=\"auto\"/>"
+                + "<w:insideH w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"auto\"/>"
+                + "<w:insideV w:val=\"single\" w:sz=\"6\" w:space=\"0\" w:color=\"auto\"/>"
+            let plain = ["top", "left", "bottom", "right", "insideH", "insideV"]
+                .map { "<w:\($0) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>" }.joined()
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+                "<w:tbl><w:tblPr><w:tblW w:w=\"4000\" w:type=\"dxa\"/><w:tblBorders>\(single ? plain : frame)</w:tblBorders></w:tblPr>"
+                + "<w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr>"
+                + "<w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/>\(cellBorders)</w:tcPr><w:p><w:r><w:t>one</w:t></w:r></w:p><w:p><w:r><w:t>two</w:t></w:r></w:p></w:tc>"
+                + "<w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>x</w:t></w:r></w:p></w:tc>"
+                + "</w:tr></w:tbl><w:p><w:r><w:t>after</w:t></w:r></w:p>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let doc = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == "after" })
+            return l.geometry(i).top / l.theme.pixelsPerPoint
+        }
+        let bare = try after(cellBorders: "")
+        let right = try after(cellBorders: "<w:tcBorders><w:right w:val=\"double\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/></w:tcBorders>")
+        XCTAssertEqual(right, bare, accuracy: 0.05, "the frame's bottom takes its own room under the row")
+        // (And a cell's line wider than the table's takes its own: zh-cec9d337's
+        // rows ruled 0.5pt stand 1.75 taller for a 2.25pt line on their left.)
+        let thin = try after(cellBorders: "", single: true)
+        let thick = try after(cellBorders: "<w:tcBorders><w:left w:val=\"single\" w:sz=\"18\" w:space=\"0\" w:color=\"auto\"/></w:tcBorders>", single: true)
+        XCTAssertEqual(thick - thin, 3.5, accuracy: 0.3, "the cell's 2.25pt over and under its one row, not the table's 0.5")
+    }
+
     func testACellsParagraphsShareTheirSpacing() throws {
         // drawing.docx: two headings of 12pt before and 3pt after in one
         // cell are 12pt apart in Word's print, as in the body — the larger
