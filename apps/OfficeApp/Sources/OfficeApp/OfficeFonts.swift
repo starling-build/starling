@@ -1316,6 +1316,12 @@ enum OfficeFonts {
                 face.classScales = [1, 1, 1, 1, 0.75]
                 #elseif os(Windows)
                 face.classScales = [1, 1, 1, 1, 0.729]
+                #else
+                // (On Linux the fallback is Noto Sans Thai: shaped over
+                // zh-6a4fc013's Thai it is 1/0.70 of Cordia's widths, and
+                // 0.66 sets the document's 614 lines on 26 pages as Word
+                // does — 0.70 gives 627 on 27, unscaled 726 on 30.)
+                face.classScales = [1, 1, 1, 1, 0.66]
                 #endif
             }
             return face

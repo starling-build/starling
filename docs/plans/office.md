@@ -5642,6 +5642,17 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **Word's Thai faces on Linux (2026-10-18).** The Mac set Word's Thai
+  faces to Cordia New's widths, their Thai drawn by the platform's
+  fallback at a class scale (ea3ee2a9: 0.75 for Thonburi, 0.729 for
+  Leelawadee UI); Linux kept its fallback unscaled. That fallback is
+  Noto Sans Thai: shaped over zh-6a4fc013's Thai it sets Cordia's text
+  at 1/0.70 (regular; 0.73 bold), and 0.66 sets the document's 614
+  lines on 26 pages as Word's print — 0.70 gives 627 on 27, unscaled
+  726 on 30. zh-6a4fc013 26/30 -> 26/26 pages (81.3 -> 81.1: Word's
+  Thai has no text layer to match, its embedded Browallia no cmap);
+  nothing else moved. (Cordia's per-character Thai advances, from the
+  Mac, are in hand should a finer fit be wanted.)
 - **A turned cell's line: no squeeze, a closing mark hangs, and it
   starts short of its indent (2026-10-18).** The Mac's lab `tr` (Word
   16, zh-cec9d337's package, tbRlV cells in a 138.9pt row, ind 113 a
