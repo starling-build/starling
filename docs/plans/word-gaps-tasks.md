@@ -238,7 +238,7 @@ off each of its four marks; ours sends "1985" on), zh-5251dd23
 67.4 (Mac 01Xgpbk5, 89.2 now — a table side its own tblBorders leave out
 keeps its style's width (aa548444): Table Grid's 0.5pt insideH under a
 2.25pt frame; released), zh-5d635acc 76.6 (Mac 01Xgpbk5, 100 now — firstLineChars counted from the first run with text, not a drawing's anchor (b4380e86); released), zh-60173bb6 77.4 (16/15 pages;
-Linux 017F2GnT claimed 2026-10-18; Mac 01Xgpbk5 looked, released: "附件1"'s table is placed on the page
+Linux 017F2GnT: 97.5 now, Word's 15 pages — text set under a parted page-placed table stays on its page (dbc3d86f); released; Mac 01Xgpbk5 looked, released: "附件1"'s table is placed on the page
 (tblpY 4970) above its own title paragraphs; Word sets its first row on
 p12 at 252, the title at p12's foot (626-685) below it, and the rest of the
 rows on p13; ours takes the title to p13 and the table to p14), zh-0978dee9 90.2
