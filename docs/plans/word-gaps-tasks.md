@@ -673,6 +673,11 @@ holding paragraph marks stands at the nearer of its line's top and
   package still holds the trigger. Its Normal names Liberation Serif, a
   LibreOffice face Word for Mac lacks; its styles are LibreOffice's
   "Standard". Next lab: swap that face for one Word has. Reverted.)
+  (Lab `hl` S/T: with Liberation Serif, or every face of the styles,
+  swapped for Times New Roman and 宋体, the body is still pushed (81.7
+  and 80.7, against 73.9 unpushed). So the face is not it either. Left
+  for a fresh look: cut zh-007ca091's package to the lab's shape and see
+  which of its parts stops the push.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
