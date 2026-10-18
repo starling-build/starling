@@ -2347,6 +2347,13 @@ zh-547fc43c 96.6 -> 96.8, nothing else moved; Slides' 19 chart decks
 unchanged. Left: its pie's best-fit labels (five slices of 1-20 by one
 of 726), which Word sets elsewhere.
 
+### T113. Chart text in an East Asian face: its stand-ins and its lines (T82's lead) — claimed
+Owner: session starling-b2 (Slides, Linux dev box), from 2026-10-18
+Documents: zh-547fc43c (column charts), chartex (control: Calibri years).
+Known (T82): Word sets zh-547fc43c's chart text in 宋体, digits too, and
+its value and category labels about 3.2pt higher than ours; ours sets
+the digits in Liberation Sans and the ideographs in a CJK fallback.
+
 ### T95. zh-92373179: an embedded subset's missing characters are YaHei's, and so is the line — released (done as T97, 79646c80)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: zh-92373179 (39.9%, fifth sample).
