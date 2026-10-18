@@ -2938,6 +2938,10 @@ decks with either went +0.14 in sum (text-highlight +0.08, tdf149785
 not followed: HowWeRefactor's Courier at 60% spacing stands 0.1 em
 high — PowerPoint has its first baseline at 0.50 em where our rule for
 spacing under single gives 0.40; one deck, and the rule holds at 90%.
+(2026-10-18: Courier set by its stand-in's own descent share instead,
+which gives that 0.48, cost twelve Courier decks +3.92 in sum —
+eaVertAnchor +1.92, TextFittingStored +0.79 — for HowWeRefactor's
+−0.05. Courier New's own share stays.)
 
 **A cell's runs kerned, 2026-10-16** (55 table decks: cooper 4.73 →
 4.54, bnc910045 0.42 → 0.24, table_test2 −0.08, nine more −0.01 to
