@@ -121,6 +121,15 @@ zh-3c055c9b is mode 15 on a linesAndChars grid of 17.0pt at 16pt; its
 styles' spacing is probably double-counted with the grid's own addition.
 For session 01QbbApP (fdceb326's) or whoever holds T85.
 
+### Note from the Mac (2026-10-17, night): the zh corpus is 168 documents — a sixth sample
+Twenty more (`random.seed(20261020)`, Word 16.113.3 prints), checked in;
+compare per document across it. It starts at 76.6%. Its low ones,
+unclaimed unless marked: zh-8f9b19f4 0.0 (Word 14 pages, ours 7; Mac
+01Xgpbk5, looking), zh-117cf7c6 39.2 (3/4 pages), zh-e0ca7252 41.9
+(52/51), zh-340d52e9 48.9, zh-d62da4dd 55.7 (4/5), zh-ea70c30e 59.1,
+zh-5b7ae054 64.4 (44 pages), zh-82b166b4 72.8, zh-54e91165 75.4,
+zh-8d6f702e 88.0.
+
 ### Note from the Mac (2026-10-17, evening): the zh corpus is 148 documents — a fifth sample
 Twenty more (`random.seed(20261019)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 78.5%. Its low ones,
