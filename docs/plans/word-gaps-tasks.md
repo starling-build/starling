@@ -2054,6 +2054,14 @@ legend key is its mark); `c:hiLowLines` draw each category's high to
 low (`Chart.highLowLines`); Office's "dot" mark is a short dash. Same-base
 sweep: nothing moved; Slides' 19 chart decks unchanged.
 
+### T94. zh-37b6536f p3: a chart legend's Chinese entries, 16.8pt apart — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-17
+Documents: zh-37b6536f (96.9%).
+Known: a pie's legend at the right, six 9pt Chinese names: Word's rows
+16.8pt apart (Calibri's 9pt line and 6pt), ours 19.05 (the CJK fallback's
+taller line and 6). Its data labels "620", "631", "726" also stand
+elsewhere than Word's.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
