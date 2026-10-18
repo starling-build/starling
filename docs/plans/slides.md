@@ -2460,6 +2460,22 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A raised run's shadow goes with it, 2026-10-18** (sweep 205: no
+page moved past rounding; aascu 5864's title "21st"). A raised or
+lowered run is held unseen in its line and drawn again where it
+belongs; the unseen copy kept its shadow, which stood at the baseline
+under the raised "st" (black, 2 pt down), and the copy drawn raised
+had none. Now the held copy casts nothing and the raised one casts
+its run's shadow. (Word, which shifts such runs in the line, does not
+take this path.)
+
+Tried and dropped the same day: Lucida Sans Unicode's bold as the
+regular thickened (a Liberation Sans family loaded without its bold,
+so the engine emboldens). PowerPoint's bold Lucida, which has no bold
+face, is only a little heavier than its regular (5864's and GeomLec1's
+titles); Skia's emboldening came out nearly as heavy as Liberation
+Sans Bold, and goes to PDF as Type 3 glyphs. GeomLec1 +0.36.
+
 **A column's value label past its end, as far off as it is large; a
 chart title four fifths of the chart wide, 2026-10-18** (sweeps 202–203:
 aascu 5864's chart pages 8 9.23 → 8.90, 16 8.96 → 8.92, 5 21.23 →

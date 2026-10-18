@@ -548,7 +548,10 @@ public final class RichTextTheme {
             // 3 pt blur of a 2 pt stroke is 58% black at its darkest (45541,
             // where nine faint copies spread over the blur came out wider
             // and darker than its own).
-            shadows: px <= 0.01 ? nil : style.shadow.map { sh in
+            // (None on a raised or lowered run held unseen in its line:
+            // its shadow goes with the run where `_paintScripts` draws it,
+            // where it stood at the baseline under 5864's raised "st".)
+            shadows: scriptHidden && style.script != .normal && !shifted ? [] : px <= 0.01 ? nil : style.shadow.map { sh in
                 let k = pixelsPerPoint * scale
                 let a = Double(sh.color.alpha) / 255 * (sh.blur > 0 ? 0.45 : 1)
                 return [Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
@@ -9634,8 +9637,15 @@ public final class RichLayout {
                     let text = String(decoding: units[a ..< b], as: UTF16.self)
                     // At the face's own height, as the box it stood in unseen
                     // is: the two then share a baseline.
+                    // (Its shadow with it: the one held in the line casts none.)
+                    var shown = run.style
+                    shown.script = .normal
+                    let shadows = theme.textStyle(for: shown, in: p.style, named: named,
+                                                  normal: document.styles[RichNamedStyle.normalId]?.char,
+                                                  scale: scale, fontScale: fontScale).shadows
                     let plain = TextStyle(color: style.color, fontSize: style.fontSize, fontWeight: style.fontWeight,
                                           fontStyle: style.fontStyle, letterSpacing: style.letterSpacing,
+                                          shadows: shadows,
                                           fontFeatures: style.fontFeatures, decoration: style.decoration,
                                           decorationColor: style.decorationColor, fontFamily: style.fontFamily,
                                           fontFamilyFallback: style.fontFamilyFallback)
