@@ -2444,6 +2444,17 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A grey picture's soft mask left sharp, 2026-10-18** (sweep 190 with
+the rule's first form: lo-narration-non-media-shape 1.75 → 0.00,
+oox-graphic-stroke 1.69 → 0.58; nothing else moved but tdf93830, which
+the final form keeps at 0.86). PowerPoint marks an enlarged picture
+`/Interpolate true` but leaves its soft mask unmarked when the picture
+is grey (both decks' 64-pixel grey-and-alpha logos print crisp-edged,
+their shades smoothed), and marks a colour picture's mask too
+(tdf93830's RGBA icons). Our export marked every image, masks
+included; it now inflates each masked picture and leaves the mask of a
+grey one (every pixel's three values equal) unmarked.
+
 **Turned text on whole points too, 2026-10-18** (eaVertAnchor 1.22 →
 0.46, vert_and_padding 0.38 → 0.15, customGeo −0.02; the six other
 decks with turned text unchanged). Vertical text and a turned
