@@ -5621,6 +5621,16 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **From 2013's layout a half-hung mark gives its blank half too
+  (2026-10-18).** Under `w:useAltKinsokuLineBreakRules` a closing mark
+  hangs by half an em. From mode 15 on its other, blank half gives as
+  any mark's does: zh-c2c92639 ends "…保证车辆冲洗干净；" 16.75pt over, the
+  "；" 5.25 past the margin and two commas giving 11.0 — 0.47 short
+  without the "；"'s own half; ours sent "净；" down, and pages 20-22 ran
+  a line late. Not before 2013's layout: zh-1563bd74 (mode 14) leaves
+  "…民政部门，" 21.75 over with one comma to give, and the rule there
+  cost seven files (100 -> 58 the worst). zh-c2c92639 91.9 -> 97.8;
+  nothing else moved.
 - **A continuous last section of columns is a row too (2026-10-18).**
   A section of columns filled by column breaks, continuous after another
   on its page, is read as a borderless table row (T2); the reading

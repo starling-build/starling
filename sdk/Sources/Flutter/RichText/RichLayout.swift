@@ -8034,7 +8034,14 @@ public final class RichLayout {
                     // 3.1 and 3.0 narrower in Word's print. Alone — the
                     // labs' line with a "？", which gives nothing — it
                     // gives nothing either.)
-                    let kept = hang > 0 || (holdsFinal && (centredFinal || !(marks + own).contains { $0 != tail })) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
+                    // (From 2013's layout, under `w:useAltKinsokuLineBreakRules`,
+                    // a mark hangs by the half of it that is ink and its blank
+                    // half gives like any other's: zh-c2c92639 (mode 15) ends
+                    // "…保证车辆冲洗干净；" 16.75pt over, "；" 5.25 past the
+                    // margin and two commas giving 11.0, where ours sent
+                    // "净；" down. Not before it: zh-1563bd74 (mode 14) leaves
+                    // "…民政部门，" with one comma, 21.75 over.)
+                    let kept = (hang > 0 && !(document.hangsHalf && squeezes && (document.compatibilityMode ?? 12) >= 15 && !closesUp(tail))) || (holdsFinal && (centredFinal || !(marks + own).contains { $0 != tail })) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
                     let all = (marks + own).filter { !kept || $0 != tail }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
