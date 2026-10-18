@@ -16,6 +16,8 @@
 // no-op, which is the correct behaviour for a desktop rather than a special
 // case anyone has to write.
 
+import Foundation
+
 /// The on-screen keyboard, if the running host has one.
 public enum SoftKeyboard {
 
@@ -45,7 +47,27 @@ public enum SoftKeyboard {
 
     public static var isVisible: Bool { handler?.isVisible() ?? false }
 
-    public static func show() { handler?.show() }
+    public static func show() {
+        _generation &+= 1
+        handler?.show()
+    }
 
     public static func hide() { handler?.hide() }
+
+    /// Focus is moving. `FocusManager` calls this between telling the old
+    /// owner and the new one: a text field gaining focus asks to `show`,
+    /// which keeps the keyboard up with no gap; focus landing anywhere
+    /// else — a button, nothing — lets it go a beat later. Deferred rather
+    /// than immediate so that a form's blur-then-focus between two fields
+    /// never closes it.
+    public static func focusMoved() {
+        guard let handler, handler.isVisible() else { return }
+        _generation &+= 1
+        let generation = _generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(80)) {
+            if _generation == generation { handler.hide() }
+        }
+    }
+
+    private nonisolated(unsafe) static var _generation = 0
 }

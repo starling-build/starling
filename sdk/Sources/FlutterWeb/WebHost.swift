@@ -34,10 +34,27 @@ public final class WebHost {
 
     private var devicePixelRatio: Double = 1
     private var viewAdded = false
+    /// The page's hidden text field has focus (SoftKeyboard.isVisible).
+    private var softKeyboardShown = false
 
     private init() {
         WebExecutor.install()
         WebPlatform.scheduleFrame = { [unowned self] in self.scheduleFrame() }
+        // The page owns the on-screen keyboard: a phone shows one only for
+        // an editable element, so the page keeps a hidden one and focuses
+        // it when a text field here asks. Installed on every browser —
+        // on a desktop it costs nothing and carries the browser's own
+        // input method's text (starling_text) to the field.
+        SoftKeyboard.handler = SoftKeyboard.Handler(
+            show: { [unowned self] in
+                self.softKeyboardShown = true
+                starling_host_soft_keyboard(1)
+            },
+            hide: { [unowned self] in
+                self.softKeyboardShown = false
+                starling_host_soft_keyboard(0)
+            },
+            isVisible: { [unowned self] in self.softKeyboardShown })
     }
 
     public func mountWidget(_ builder: () -> Widget) {
@@ -198,6 +215,25 @@ public final class WebHost {
                 synthesized: false))
     }
 
+    /// Text the browser composed — a phone's keyboard, an input method, a
+    /// paste into the hidden field — delivered as typed characters: a
+    /// down/up pair each, with no physical key (none was pressed) and the
+    /// character's first scalar as the logical key, as the iOS host does.
+    func text(_ text: String, milliseconds: Double) {
+        for character in text {
+            let string = String(character)
+            let logical = Int64(string.unicodeScalars.first?.value ?? 0)
+            delegate.dispatchKeyData(
+                KeyData(
+                    timeStamp: milliseconds / 1000, type: .down,
+                    physical: 0, logical: logical, character: string, synthesized: false))
+            delegate.dispatchKeyData(
+                KeyData(
+                    timeStamp: milliseconds / 1000, type: .up,
+                    physical: 0, logical: logical, character: nil, synthesized: false))
+        }
+    }
+
     func scroll(
         device: Int32, x cssX: Double, y cssY: Double, deltaX: Double, deltaY: Double,
         milliseconds: Double
@@ -279,6 +315,16 @@ func starlingKey(
     }
     WebHost.shared.key(
         type: type, physical: physical, logical: logical, character: text,
+        milliseconds: milliseconds)
+}
+
+/// Composed text (UTF-8, in OUR memory) from the page's hidden text field.
+@_expose(wasm, "starling_text")
+@_cdecl("starling_text")
+func starlingText(_ bytes: UnsafePointer<UInt8>?, _ count: Int32, _ milliseconds: Double) {
+    guard let bytes, count > 0 else { return }
+    WebHost.shared.text(
+        String(decoding: UnsafeBufferPointer(start: bytes, count: Int(count)), as: UTF8.self),
         milliseconds: milliseconds)
 }
 

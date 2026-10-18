@@ -25,6 +25,9 @@ Then http://127.0.0.1:8080/s/ENG in a browser, or natively
 `apps/OfficeApp/.build/debug/OfficeApp --wiki http://127.0.0.1:8080/s/ENG`.
 `WIKI_DATABASE_URL` (default `postgres://localhost/starling_wiki`) or
 `--database` names the database; `LOG_LEVEL=debug` shows every request.
+For a phone on the LAN: `--host 0.0.0.0 --public-url http://<lan-ip>:8080`,
+and `--dev-user dev` makes every visitor without a session that user
+(development only: there is no sign-in at all).
 
 Import files from the command line:
 

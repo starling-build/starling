@@ -461,6 +461,11 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     socket.send(text ? textIn(pointer, length) : bytesIn(pointer, length));
   };
   host.socket_close = (id) => { sockets.get(id)?.close(); sockets.delete(id); };
+  // The on-screen keyboard's import must exist before the module is
+  // instantiated; the page's hidden text field, which it drives, is made
+  // once the app runs (below, with the input handlers).
+  let softKeyboard = () => {};
+  host.soft_keyboard = (show) => softKeyboard(show);
   host.push_route = (pointer, length, replace) => {
     const route = textIn(pointer, length);
     try {
@@ -657,7 +662,80 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   canvas.tabIndex = 0;
   canvas.addEventListener('keydown', key);
   canvas.addEventListener('keyup', key);
-  canvas.addEventListener('pointerdown', () => canvas.focus());
+
+  // The on-screen keyboard. A canvas cannot summon one: a phone shows its
+  // keyboard only for an editable element, so a hidden textarea stands in
+  // for the app's focused text field. The app asks for it (SoftKeyboard
+  // .show → host.soft_keyboard) when a field takes focus and lets it go
+  // when focus moves elsewhere. Hardware keys typed into it go down the
+  // key path above; what the browser composes — a phone's keyboard, an
+  // input method, a paste — arrives as text and is delivered as typed
+  // characters through starling_text. The field itself is kept empty: it
+  // is a conduit, not a copy of the document.
+  const ime = document.createElement('textarea');
+  ime.id = 'starling-ime';
+  ime.setAttribute('autocapitalize', 'off');
+  ime.setAttribute('autocomplete', 'off');
+  ime.setAttribute('autocorrect', 'off');
+  ime.setAttribute('aria-hidden', 'true');
+  ime.spellcheck = false;
+  ime.tabIndex = -1;
+  // 16px: iOS zooms the page in to focus anything smaller.
+  ime.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0;margin:0;resize:none;overflow:hidden;';
+  document.body.append(ime);
+  let keyboardWanted = false;
+  let composing = false;
+  const focusInput = () => (keyboardWanted ? ime : canvas).focus({ preventScroll: true });
+  softKeyboard = (show) => {
+    keyboardWanted = !!show;
+    if (!show) ime.blur();
+    focusInput();
+  };
+  // A named key, pressed and released, through the same path a real one takes.
+  const tap = (name) => {
+    for (const type of ['keydown', 'keyup']) {
+      key({ type, key: name, code: name, location: 0, timeStamp: performance.now(), preventDefault() {} });
+    }
+  };
+  const sendText = (text) => {
+    if (!text) return;
+    const lines = text.split(/\r\n|\r|\n/);
+    lines.forEach((line, i) => {
+      if (i) tap('Enter');
+      if (line) transfer(encoder.encode(line), (pointer, length) => swift.starling_text(pointer, length, performance.now()));
+    });
+  };
+  // A key the browser is composing with (keyCode 229, "Process",
+  // "Unidentified") is the input method's; its result arrives as text.
+  const imeOwns = (dom) => dom.isComposing || dom.keyCode === 229 || dom.key === 'Process' || dom.key === 'Unidentified';
+  ime.addEventListener('keydown', (dom) => { if (!imeOwns(dom)) key(dom); });
+  ime.addEventListener('keyup', (dom) => { if (!imeOwns(dom)) key(dom); });
+  ime.addEventListener('compositionstart', () => { composing = true; });
+  ime.addEventListener('compositionend', (dom) => {
+    composing = false;
+    sendText(dom.data ?? '');
+    ime.value = '';
+  });
+  ime.addEventListener('beforeinput', (dom) => {
+    if (dom.isComposing || composing) return;  // the input method's, until compositionend
+    switch (dom.inputType) {
+      case 'insertText': case 'insertReplacementText': case 'insertFromComposition':
+        sendText(dom.data ?? ''); break;
+      case 'insertFromPaste': case 'insertFromDrop':
+        sendText(dom.data ?? dom.dataTransfer?.getData('text/plain') ?? ''); break;
+      case 'insertLineBreak': case 'insertParagraph': tap('Enter'); break;
+      case 'deleteContentBackward': case 'deleteWordBackward': case 'deleteSoftLineBackward': tap('Backspace'); break;
+      case 'deleteContentForward': case 'deleteWordForward': case 'deleteSoftLineForward': tap('Delete'); break;
+      default: break;
+    }
+    dom.preventDefault();
+  });
+  ime.addEventListener('input', () => { if (!composing) ime.value = ''; });
+  // Focus follows the tap: a phone raises its keyboard only from a user
+  // gesture, so the field is focused here, inside the gesture, once the
+  // app has had the pointer event and asked.
+  canvas.addEventListener('pointerdown', focusInput);
+  canvas.addEventListener('pointerup', focusInput);
   canvas.focus();
   // Keys held while the tab loses focus never send an up; release them.
   window.addEventListener('blur', () => {

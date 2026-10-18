@@ -144,6 +144,14 @@ final class Store: Sendable {
         return nil
     }
 
+    func user(login: String) async throws -> User? {
+        let rows = try await client.query("SELECT id, login, name, is_admin FROM users WHERE login = \(login)", logger: logger)
+        for try await (id, login, name, admin) in rows.decode((UUID, String, String, Bool).self) {
+            return User(id: id, login: login, name: name, isAdmin: admin)
+        }
+        return nil
+    }
+
     func user(forSession token: String) async throws -> User? {
         let rows = try await client.query("SELECT u.id, u.login, u.name, u.is_admin FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = \(token) AND s.expires_at > now()", logger: logger)
         for try await (id, login, name, admin) in rows.decode((UUID, String, String, Bool).self) {

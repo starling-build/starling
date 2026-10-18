@@ -22,10 +22,16 @@ struct WikiContext: RequestContext {
 struct SessionMiddleware: RouterMiddleware {
     typealias Context = WikiContext
     let store: Store
+    /// Development only (`serve --dev-user`): a request with no session is
+    /// this user's, so a phone on the LAN needs no sign-in.
+    let devUser: String?
     func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
         var context = context
         if let cookie = request.cookies[App.sessionCookie] {
             context.user = try await store.user(forSession: cookie.value)
+        }
+        if context.user == nil, let devUser {
+            context.user = try await store.user(login: devUser)
         }
         return try await next(request, context)
     }
@@ -49,6 +55,7 @@ struct App {
     let webRoot: String
     let publicURL: String
     let logger: Logger
+    var devUser: String? = nil
 
     func readBody(_ request: Request, limit: Int = 64 << 20) async throws -> Data {
         let buffer = try await request.body.collect(upTo: limit)
@@ -88,7 +95,7 @@ struct App {
 
     func router() -> Router<WikiContext> {
         let router = Router(context: WikiContext.self)
-        router.add(middleware: SessionMiddleware(store: store))
+        router.add(middleware: SessionMiddleware(store: store, devUser: devUser))
         let api = router.group("api/v1")
 
         // --- session

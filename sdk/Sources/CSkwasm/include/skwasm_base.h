@@ -104,4 +104,10 @@ HOST(socket_close) void starling_host_socket_close(uint32_t id);
 // starling_route_changed(utf8, length).
 HOST(push_route) void starling_host_push_route(const void* utf8, uint32_t length, uint32_t replace);
 
+// The on-screen keyboard (SoftKeyboard): a phone shows one only for an
+// editable element, so the page keeps a hidden one and focuses it on show.
+// What is typed there comes back through our exported
+// starling_text(utf8, length, milliseconds) and starling_key.
+HOST(soft_keyboard) void starling_host_soft_keyboard(uint32_t show);
+
 #endif  // STARLING_SKWASM_BASE_H

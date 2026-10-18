@@ -106,6 +106,7 @@ struct Serve: AsyncParsableCommand {
     @Option(name: .long, help: "The app's web build (index.html, app.wasm, …)") var webRoot = "web/office"
     @Option(name: .long, help: "The headless OfficeApp binary, for import and export") var officeApp: String?
     @Option(name: .long, help: "The URL users reach the site at, for link previews") var publicURL: String?
+    @Option(name: .long, help: "DEVELOPMENT ONLY: every visitor without a session is this user; no sign-in") var devUser: String?
 
     func run() async throws {
         let client = try db.makeClient()
@@ -115,7 +116,8 @@ struct Serve: AsyncParsableCommand {
         let indexPath = (webRoot as NSString).appendingPathComponent("index.html")
         let template = (try? String(contentsOfFile: indexPath, encoding: .utf8)) ?? "<!doctype html><html><head><title>Wiki</title></head><body>no web build at \(indexPath)</body></html>"
         let app = App(store: store, converter: Converter(officeApp: officeApp), shell: Shell(template: template), webRoot: webRoot,
-                      publicURL: publicURL ?? "http://\(host):\(port)", logger: logger)
+                      publicURL: publicURL ?? "http://\(host):\(port)", logger: logger, devUser: devUser)
+        if let devUser { logger.warning("--dev-user \(devUser): every visitor is signed in as them; never serve this way beyond a LAN") }
         let application = Application(
             router: app.router(),
             configuration: .init(address: .hostname(host, port: port), serverName: "starling-wiki"),

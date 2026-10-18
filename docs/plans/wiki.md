@@ -310,8 +310,21 @@ gated server-side, the browser gate written and awaiting its first green.**
   reader itself, a pre-existing recursion). The web host has fetch,
   WebSocket and history (`starling_host_http_request` and friends,
   `WebHTTP`/`WebSocketClient`/`WebHistory` in FlutterWeb); `index.html`
-  passes the tab's path as the app's route. **Not done: composed text
-  input in the browser** — still the blocker for a Chinese-speaking team.
+  passes the tab's path as the app's route. **Browser text input, 2026-10-18
+  evening:** the page keeps a hidden `<textarea>` (`#starling-ime`) and
+  focuses it when a text field takes focus — `SoftKeyboard.show()` from
+  `RichEditable` and `TextBox`, carried by the new `starling_host_soft_
+  keyboard` import; `FocusManager` calls `SoftKeyboard.focusMoved()` so
+  focus landing on a non-field lets the keyboard go a beat later. Keys
+  typed into the field go down the key path; what the browser composes
+  (a phone's keyboard, an input method's committed text, a paste) comes
+  back as `beforeinput`/`compositionend` text and is delivered through
+  `starling_text` as down/up pairs, the iOS host's model. So an iPhone
+  can sign in and type, and a desktop IME's committed text lands. **Still
+  not done:** the `flutter/textinput` channel on web, so there is no
+  inline marked text while composing (the candidates show in the
+  browser's own popup, the text appears on commit) and no caret-anchored
+  candidate window. That is the remaining IME item.
 - W1: `wiki/` (Hummingbird 2.28, PostgresNIO 1.33): `wiki-server migrate |
   add-user | create-space | import | serve`; the API in
   `WikiServer/App.swift`; `test/wiki-api.sh` — 38 checks green against a
@@ -323,8 +336,11 @@ gated server-side, the browser gate written and awaiting its first green.**
   box over `GET /api/v1/search`; the version link opens a history pane,
   an old version shows "Back to latest" and "Restore this version" (its
   body saved again on top of the tip); Delete has a confirm row. All
-  three seen working in headless Chrome. The dev server runs on the Mac at
-  http://127.0.0.1:8080/s/ENG (dev / devpass; wiki/README.md restarts it).
+  three seen working in headless Chrome. The dev server runs on the Mac on
+  the LAN at http://192.168.68.62:8080/s/ENG with `--dev-user dev`, so a
+  phone needs no sign-in (dev / devpass otherwise; wiki/README.md restarts
+  it). `test/wiki-web.sh` now also signs in by composed text, checks the
+  hidden field took focus, and checks `--dev-user`.
 - WikiModel (W5's core, built early because it is pure): `PageOp`,
   `Transform`, `PageSequencer`, `PendingOps`; 14 convergence tests.
 - Decided 2026-10-18 by the user: Hummingbird; server-ordered OT.

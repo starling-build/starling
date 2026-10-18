@@ -83,6 +83,7 @@ public class FocusManager {
         let old = focusedNode
         focusedNode = node
         old?.onFocusChange?(false)
+        SoftKeyboard.focusMoved()
         node?.onFocusChange?(true)
     }
 
