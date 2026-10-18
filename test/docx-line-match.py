@@ -96,8 +96,12 @@ def same_start(a, b):
     if len(a) < 4 or len(b) < 4:
         return a[:4] == b[:4]
 
+    # (And U+0000 for anything: a glyph Word's print maps to no
+    # character at all — zh-92373179's embedded FangSong_GB2312 gives its
+    # 招 so, 213 times, and its 招标 lines read as other lines.)
     def alike(p, q):
-        return all(x == y or "\u2e80" <= x <= "\u2fdf" or "\u2e80" <= y <= "\u2fdf" for x, y in zip(p, q))
+        return all(x == y or "\u2e80" <= x <= "\u2fdf" or "\u2e80" <= y <= "\u2fdf" or x == "\x00" or y == "\x00"
+                   for x, y in zip(p, q))
     # (Or end with the same four: a glyph a print's font gives no
     # character for is missing from its text, and a line that lost its
     # first character is still the same line.)
