@@ -8354,20 +8354,28 @@ public final class RichLayout {
                                  named: RichNamedStyle?, pitch: Double?) -> Set<Int> {
         guard theme.wordRules, textWidth > 1, !p.runs.isEmpty else { return [] }
         let narrowCell = p.cell != nil && textWidth < _px(150)
-        guard narrowCell || p.cell == nil && !document.usesEastAsianLayout else { return [] }
+        // (In East Asian text too, and in a cell of any width, for a word
+        // of twenty characters or more after a space, an ideograph or a
+        // full-width mark: zh-ff93733d's "3. 線上關懷平台：http://df.ffceap.
+        // com.tw/taoyuantraining/", in a 210pt cell, has the address on a
+        // line of its own in Word's print, parted at the margin — ours
+        // parted it after "：", and every page after ran a line early.)
         let units = Array(p.text.utf16)
         var out: Set<Int> = []
         var k = 0
+        // (Ideographs and full-width marks part words.)
+        func parts(_ u: UInt16) -> Bool { u == 0x20 || u == 0x0A || u == 0x2028 || u >= 0x2E80 }
         while k < units.count {
-            guard units[k] != 0x20, units[k] != 0x0A, units[k] != 0x2028 else { k += 1; continue }
+            guard !parts(units[k]) else { k += 1; continue }
             var end = k
-            while end < units.count, units[end] != 0x20, units[end] != 0x0A, units[end] != 0x2028 { end += 1 }
+            while end < units.count, !parts(units[end]) { end += 1 }
             // (Up to its first hyphen, which a line may end with: Word
             // sets "Блок разветвительно-" / "изолирующий" in that cell.)
             let part = (k + 1 ..< end).first(where: { units[$0] == 0x2D && $0 + 1 < end }).map { $0 + 1 } ?? end
             // (Only after a space: a word that opens the paragraph is on a
             // line of its own already.)
-            if k > 0, units[k - 1] == 0x20, part - k >= (narrowCell ? 3 : 20),
+            let after = k > 0 && (units[k - 1] == 0x20 || units[k - 1] >= 0x2E80)
+            if after, part - k >= (narrowCell && units[k - 1] == 0x20 ? 3 : 20),
                !(k ..< part).contains(where: { units[$0] >= 0x2E80 }) {
                 var at = 0
                 var run = p.runs[0].style

@@ -6024,6 +6024,17 @@ fitter dropped the paragraph's tail).
   zh-701eda18 and zh-e0ca7252 rising too. That came from other sessions'
   commits pulled in by the rebase between s318 and s319 — 7a767c5c among
   them — not from this: with it alone reversed, both miss as many lines.)
+- **A word wider than the line opens a line of its own after an ideograph
+  too, in a cell of any width (2026-10-18).** zh-ff93733d's cell line
+  "3. 線上關懷平台：http://df.ffceap.com.tw/taoyuantraining/" (a 210pt cell,
+  the address a hyperlink) sets the address on a line of its own in
+  Word's print, parted at the margin ("…/taoyua" / "ntraining/"). Ours
+  parted it right after "：", the page after ran a line early, and so on to
+  the end. The wide-word rule had asked a space before the word, a
+  document not set by the East Asian rules, and a narrow cell. Now a word
+  of twenty characters or more takes a line of its own after a space, an
+  ideograph or a full-width mark, in the body or a cell of any width.
+  zh-ff93733d 22.8 -> 96.2; nothing else moved (s320 -> s321, one base).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
