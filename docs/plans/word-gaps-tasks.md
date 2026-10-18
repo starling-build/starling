@@ -113,7 +113,7 @@ start from there.
 ### Note from the Mac (2026-10-17, evening): the zh corpus is 148 documents — a fifth sample
 Twenty more (`random.seed(20261019)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 78.5%. Its low ones,
-unclaimed unless marked: zh-4adfcce2 0.0 (6 pages; Mac, looking),
+unclaimed unless marked: zh-4adfcce2 0.0 (6 pages; Mac, measured, released — see below),
 zh-424775e4 7.6 (13; Mac 011uWpmC, 87.3 now — STXinwei's line; next its p9 footnote, set a page before its reference), zh-c2c92639 9.5 (54 pages, Word 57), zh-92373179
 41.6 (11), zh-c399c91a 64.3 (7), zh-7cf85f15 76.5 (3), zh-74ef1528 94.1,
 zh-5c6ff0d7 97.8 (2 pages, Word 3).
@@ -224,6 +224,22 @@ at the anchor line's top once that is nearer (space after 0); the
 deleted paragraphs' size does not move it. Now a "Deleted:" balloon
 holding paragraph marks stands at the nearer of its line's top and
 6.27pt under the line before. delins 45.0 -> 76.7; nothing else moved.
+
+- zh-4adfcce2 (0.0%, fifth sample; Mac, measured, not built): every page's
+  body stands 10.5pt lower in Word's print than ours, the lines
+  otherwise alike. Its header is two empty 10pt paragraphs (style af3,
+  snapToGrid 0) 42.55pt down; the margin is 72. Labs `hd` (Word 16, its
+  package; ~/starling-word-check/lab/hd on the Mac): the header's lines
+  stand where ours do (an "X" in each: 52.08 and 64.32 in both), but the
+  body's first line on p2 is at 87.6 with one header paragraph (as ours),
+  98.16 with two, 110.4 with three, 87.6 with two at 5pt — Word starts
+  the body 15.5pt under the header's last line once that passes the
+  margin, where ours starts it at the header's foot. Built generally
+  (a line of Normal's under every header) it took zh-4adfcce2 to 98.9
+  and broke ~30 documents with ordinary headers (POI's header tests 100
+  -> 30): so something in this file sets that gap, not found — the
+  header part has nothing but the two paragraphs; the first body
+  paragraph holds a square-wrapped text box at the page top.
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
