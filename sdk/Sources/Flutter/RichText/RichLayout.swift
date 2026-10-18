@@ -459,8 +459,12 @@ public final class RichTextTheme {
                 // and each character set that much wider.)
                 // (And a grid of characters adds its own to every one.)
                 let spread = (bold ? (face?.boldSpread ?? 0) * size : 0) + (characterGrid ?? 0)
-                guard style.letterSpacing != nil || spread != 0 else { return nil }
-                return ((style.letterSpacing ?? 0) + spread) * pixelsPerPoint * scale
+                // (The run's spacing, else its style's, as its size is:
+                // zh-5dc5ce34's Normal says -0.3pt and its runs nothing,
+                // and Word sets its 16pt text 15.4 apart, ours 16.)
+                let own = style.letterSpacing ?? (wordRules ? named?.char.letterSpacing ?? normal?.letterSpacing : nil)
+                guard own != nil || spread != 0 else { return nil }
+                return ((own ?? 0) + spread) * pixelsPerPoint * scale
             }(),
             // (Up by 0.355 of the size it was shrunk from, or down by a
             // fifth: `_paintScripts`' measures.)
@@ -5693,7 +5697,8 @@ public final class RichLayout {
             // (Where single and double byte widths are balanced, a
             // full-width character takes the run's spacing twice: 16pt
             // text spaced -0.3 is set 15.4 apart.)
-            let spacing = (run.letterSpacing ?? 0) * theme.pixelsPerPoint * scale
+            let spacing = (run.letterSpacing ?? (theme.wordRules ? named?.char.letterSpacing ?? _normalChar(document)?.letterSpacing : nil) ?? 0)
+                * theme.pixelsPerPoint * scale
             let doubles = theme.wordRules && document.balancesSpaceWidth && spacing != 0
             func style(_ kind: Int) -> TextStyle {
                 if let s = styles[kind] { return s }

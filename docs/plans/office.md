@@ -5791,6 +5791,26 @@ fitter dropped the paragraph's tail).
   two pitches, so every page after it ran 15.6pt early. Now the name is
   East Asian and has its own line. zh-424775e4 7.6 -> 87.3; nothing else
   moved.
+- **A style's character spacing is the run's when the run says none
+  (2026-10-17).** zh-5dc5ce34's Normal sets `w:spacing w:val="-6"`
+  (-0.3pt), and its runs set nothing. Word sets its 16pt text 15.4pt
+  apart: the spacing is counted twice on a full-width character under
+  `w:balanceSingleByteDoubleByteWidth`. Ours read only the run's own
+  spacing, set the text 16pt apart and broke every line a character
+  early. A run's spacing is now its own, else its character style's,
+  else Normal's, both where the run is measured and where a full-width
+  character doubles it. zh-5dc5ce34 20.3 -> 22.7, its lines now
+  breaking where Word's do. Of the 18 zh files whose styles set
+  spacing, nothing went down; zh-3c055c9b 44.9 -> 61.4 and zh-fe536967
+  94.7 -> 99.6 (against s124, an older build).
+
+  What still holds zh-5dc5ce34 down is Word for Mac's alone. Its print
+  sets every page of the first section 21.6pt lower. Above the body
+  stand the header's 9pt mark (at 89.5) and a second, 16pt Normal mark
+  at the left margin (115.4), although `header1.xml` holds one
+  paragraph. Word for Windows prints the whole file without that second
+  mark, its body at 127.3 to ours 127.7 (lab `c5e`). That needs a Word
+  for Mac lab: the header alone, and with its `w:pBdr` removed.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
