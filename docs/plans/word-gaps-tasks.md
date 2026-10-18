@@ -531,6 +531,20 @@ holding paragraph marks stands at the nearer of its line's top and
   extra mark is not the header's. Next lab: cut the body (its first
   paragraphs, any frame/anchor at the page top) and the section's
   settings. Released.)
+  (Second lab, same package: section 1 given the body's docGrid (E),
+  its header distance 851 for 1587 (F), its footer reference dropped
+  (G), its header reference dropped (H). E, G and H print as before —
+  even with NO header reference, Word for Mac prints the centred 9pt
+  header line at 81.4 and the extra left-margin line at 101.8, and the
+  body at 133.0; so Word for Mac gives section 1 that header from
+  somewhere (header1.xml is the file's only header). F moves both lines
+  up (44.4, 64.4) and the body starts at the margin, 110.4: the body is
+  pushed only because the two lines end past the 104.9pt margin. So the
+  gap is: Word for Mac's header here is two lines (its 9pt paragraph and
+  a ~16pt empty Normal line under it), ours one. The header part holds
+  one paragraph and nothing else (WPS file, customXml item1). Next: where
+  the second line comes from — a header part with no final empty
+  paragraph after a bordered one? Released.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
