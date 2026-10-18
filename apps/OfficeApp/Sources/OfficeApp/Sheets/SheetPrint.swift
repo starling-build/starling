@@ -432,13 +432,17 @@ extension SheetGridState {
 
     /// The room printed headings take: a default row's height above the
     /// cells, and to their left the row numbers' digits (three at least)
-    /// and a cell's padding, in the default font's — Excel's own strip,
-    /// 23.4 pt wide in Verdana 10. Nothing when the sheet prints none.
+    /// and 0.42 of the default font's size, in the default font's — Excel's
+    /// own strip, 23.4 pt wide in Verdana 10, 16.7 in Arial 8
+    /// (lo-tdf131575), 17.1 in Microsoft Sans Serif 8.25 (49609), where
+    /// three digits and two thirds of one made 16.2 and 16.6. Nothing when
+    /// the sheet prints none.
     private func _headingSize(_ setup: SheetPrintSetup, lastRow: Int) -> Size {
         guard setup.headings else { return Size(0, 0) }
         let book = controller.book
-        let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
-        return Size((Double(max(3, String(lastRow + 1).count)) + 0.65) * m.digit, m.defaultRow)
+        let size = book.defaultFontSize ?? 11
+        let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: size, bold: book.defaultFontBold)
+        return Size(Double(max(3, String(lastRow + 1).count)) * m.digit + 0.42 * size, m.defaultRow)
     }
 
     /// The active sheet's pages, appended to `out`.
@@ -522,7 +526,9 @@ extension SheetGridState {
                 band(page.rows, page.cols, tx, ty)
                 if setup.headings {
                     // The strips: a ruled cell per column and per row, its
-                    // letter or number centred, in the default font.
+                    // letter or number centred across it and at its foot,
+                    // in the default font (NumberFormatTests' "2" at the
+                    // foot of its 26 pt row, where ours stood in the middle).
                     let rule = Paint()
                     rule.style = .stroke
                     rule.strokeWidth = 0.96   // eight printer dots, as Excel rules its headings
@@ -533,7 +539,7 @@ extension SheetGridState {
                         tp.layout(minWidth: 0, maxWidth: .infinity)
                         canvas.save()
                         canvas.clipRect(r)
-                        tp.paint(canvas, Offset(r.left + (r.width - tp.width) / 2, r.top + (r.height - tp.height) / 2))
+                        tp.paint(canvas, Offset(r.left + (r.width - tp.width) / 2, r.bottom - tp.height + 0.3))
                         canvas.restore()
                         tp.dispose()
                     }
