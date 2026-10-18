@@ -1404,12 +1404,23 @@ enum DocxFormat {
             var out: [RichParagraph] = []
             out.reserveCapacity(paragraphs.count + 8)
             var start = 0
+            // (The document's own last section too, where it follows others
+            // on their page: zh-8f9b19f4 ends in a continuous section of
+            // three columns, "填报人：" | "审核人：" | "负责人：", which Word
+            // prints as one line and ours as a page each.)
+            let finalSect = body.first("w:sectPr")
+            let finalColumns = finalSect.flatMap { sect -> String? in
+                guard sect.first("w:type")?["w:val"] == "continuous" else { return nil }
+                return PptxXML.serialize(sect)
+            }
+            let finalPage = finalSect.flatMap { _pageSetup($0) }
             for (i, para) in paragraphs.enumerated() {
                 out.append(para)
-                guard para.cell == nil, para.style.sectionXML != nil else { continue }
+                let final = para.style.sectionXML == nil && i == paragraphs.count - 1 && start > 0 && finalColumns != nil
+                guard para.cell == nil, para.style.sectionXML != nil || final else { continue }
                 defer { start = i + 1 }
-                guard para.style.sectionBreaksPage == false, let sx = para.style.sectionXML,
-                      let gaps = _sectionColumns(sx, para.style.sectionPage), gaps.count > 1,
+                guard para.style.sectionBreaksPage == false || final, let sx = para.style.sectionXML ?? finalColumns,
+                      let gaps = _sectionColumns(sx, final ? finalPage : para.style.sectionPage), gaps.count > 1,
                       paragraphs[start ... i].allSatisfy({ $0.cell == nil }) else { continue }
                 var columns: [[RichParagraph]] = [[]]
                 for k in start ... i {
@@ -1469,12 +1480,14 @@ enum DocxFormat {
                         widths.append(gaps[c].space)
                     }
                 }
-                var mark = RichParagraph(style: para.style)
-                mark.style.pageBreakBefore = false
-                mark.style.columnBreak = false
-                mark.style.breakEndsPrevious = false
-                mark.style.breakRunPropertiesXML = nil
-                out.append(mark)
+                if !final {
+                    var mark = RichParagraph(style: para.style)
+                    mark.style.pageBreakBefore = false
+                    mark.style.columnBreak = false
+                    mark.style.breakEndsPrevious = false
+                    mark.style.breakRunPropertiesXML = nil
+                    out.append(mark)
+                }
                 tableColumns[id] = widths
                 var ts = TableStyle()
                 ts.borders = false

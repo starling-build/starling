@@ -5612,6 +5612,17 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **A continuous last section of columns is a row too (2026-10-18).**
+  A section of columns filled by column breaks, continuous after another
+  on its page, is read as a borderless table row (T2); the reading
+  looked only at sections that end at a paragraph, and the document's
+  own last section ends at the body. zh-8f9b19f4 ends "填报人：" |
+  "审核人：" | "负责人：" in three columns of a continuous section — one
+  line in Word's print, and in ours a page each, the column breaks
+  page breaks under T101's one column: 16 pages -> 15 (Word's 14).
+  The line match does not see it (the names are not in Word's text
+  layer). A document of one section keeps its columns. Left: the row
+  parts over page 14's foot, which Word's holds.
 - **A bracket after an ideographic space is no line's opener
   (2026-10-18).** An opening mark a line starts with keeps its blank
   half (lab `ls`), and the test for "starts with" skipped every space

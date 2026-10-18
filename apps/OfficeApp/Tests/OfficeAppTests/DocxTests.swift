@@ -2411,6 +2411,35 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("w:type=\"column\"") && saved.contains("w:num=\"2\"") && saved.contains(">right<"), saved)
     }
 
+    /// The document's own last section the same, where it is continuous
+    /// after another: zh-8f9b19f4 ends "填报人：" | "审核人：" | "负责人："
+    /// in three columns, one line in Word's print and a page each in ours.
+    /// A document of one section of columns keeps them as columns.
+    func testAContinuousLastSectionOfColumnsIsARow() throws {
+        func read(_ body: String) throws -> RichDocument {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let a = xml.range(of: "<w:body>")!, b = xml.range(of: "</w:body>")!
+            xml.replaceSubrange(a.upperBound ..< b.lowerBound, with: body)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            return try DocxFormat.read(try Zip.write(entries)).document
+        }
+        let page = "<w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/>"
+        let columns = "<w:p><w:r><w:t>left</w:t></w:r></w:p><w:p><w:r><w:br w:type=\"column\"/></w:r></w:p><w:p><w:r><w:t>right</w:t></w:r></w:p>"
+        let last = "<w:sectPr><w:type w:val=\"continuous\"/>\(page)<w:cols w:num=\"2\" w:space=\"720\"/></w:sectPr>"
+        let back = try read("<w:p><w:r><w:t>before</w:t></w:r></w:p><w:p><w:pPr><w:sectPr>\(page)<w:cols w:space=\"720\"/></w:sectPr></w:pPr></w:p>" + columns + last)
+        let cells = back.paragraphs.filter { $0.cell != nil }
+        XCTAssertEqual(cells.first { $0.text == "left" }?.cell?.column, 0)
+        XCTAssertEqual(cells.first { $0.text == "right" }?.cell?.column, 2)
+        XCTAssertFalse(cells.contains { $0.style.columnBreak || $0.style.pageBreakBefore })
+        let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertFalse(saved.contains("<w:tbl"), saved)
+        XCTAssertTrue(saved.contains("w:type=\"column\"") && saved.contains(">right<"), saved)
+        let alone = try read(columns + last)
+        XCTAssertFalse(alone.paragraphs.contains { $0.cell != nil }, "one section: its own columns")
+    }
+
     /// A long one is flattened into its cell, kept verbatim for the save
     /// while its text stands as read.
     func testNestedTableKeptVerbatim() throws {
