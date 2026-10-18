@@ -2363,7 +2363,7 @@ public final class RichLayout {
         var deferredUnder: [PagePiece] = []
         // A floating table anchored to the text after it: where it began,
         // for that paragraph (see below).
-        var textFloatTop: (table: String, page: Int, y: Double, down: Double)? = nil
+        var textFloatTop: (table: String, page: Int, y: Double, down: Double, chained: Bool)? = nil
         var deferredTable: String? = nil
         var reordered = false
         var i = 0
@@ -3255,7 +3255,7 @@ public final class RichLayout {
                 // 4.35pt under the line before it in Word's print).
                 if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
                    let down = document.tableStyles[c.table]?.floatOffsetY {
-                    textFloatTop = (c.table, page, y, _px(down))
+                    textFloatTop = (c.table, page, y, _px(down), false)
                     y += _px(down)
                 }
                 // A floating table placed against the page stands at its
@@ -3956,13 +3956,19 @@ public final class RichLayout {
             // "Y" there stands at the table's place, the "X" after it under
             // the table — where ours set the anchor under the table too, and
             // the section's last lines went to a page of their own.
+            // (And the paragraphs after it, while they fit in what is left
+            // of the offset: zh-8699644f's targets table, tblpY 764 twips,
+            // has three empty 12pt lines in its 38.2pt over it in Word's
+            // print and "二、重点任务" under it, still on page 1; ours set
+            // the first two under the table, and the heading went over.)
             if let tf = textFloatTop {
-                if theme.wordRules, i > 0, _cells[i - 1]?.table == tf.table, _cells[i] == nil, tf.page == page,
+                textFloatTop = nil
+                if theme.wordRules, i > 0, tf.chained || _cells[i - 1]?.table == tf.table, _cells[i] == nil, tf.page == page,
                    frameReturn == nil, !_pageBreak[i], bottom - top <= tf.down + 0.01 {
                     frameReturn = (y, page)
                     y = tf.y
+                    textFloatTop = (tf.table, page, tf.y + (bottom - top), tf.down - (bottom - top), true)
                 }
-                textFloatTop = nil
             }
             defer {
                 if let back = frameReturn, !(i + 1 < count && ownFrame != nil && document.paragraphs[i + 1].style.frameXML == ownFrame) {
