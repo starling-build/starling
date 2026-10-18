@@ -7582,6 +7582,18 @@ public final class RichLayout {
             }
         }
         var adjust: [Int: Double] = [:]
+        // (A stretch no line of the cell can hold gives its closing marks'
+        // halves before the engine parts it: zh-007ca091's unit cells,
+        // "套（台）" in 23.6pt, are "套" / "（" / "台）" in Word's print — the
+        // "）" set half an em narrower — where ours parted "台" from "）"
+        // too, and every such row stood a line taller.)
+        if theme.wordRules, inCell {
+            for piece in pieces where piece.w > width + _px(0.01) {
+                for k in piece.a ..< piece.last where Self._closingUnits.contains(units[k]) && units[k] >= 0x3000 && k < ems.count {
+                    adjust[k, default: 0] -= ems[k] / 2
+                }
+            }
+        }
         var x = leadWidth
         var marks: [Int] = []   // this line's marks that still have their whole em
         var spaces: [Int] = []  // this line's characters with an automatic space after them

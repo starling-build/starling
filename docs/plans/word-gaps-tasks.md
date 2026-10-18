@@ -150,7 +150,7 @@ after, as ours — that rule holds.
 ### Note from the Mac (2026-10-17, late): the zh corpus is 186 documents — a seventh sample
 Eighteen more (`random.seed(20261021)`; two of the twenty Word would not
 print), checked in. It starts at 89.9%. Its low ones, unclaimed:
-zh-007ca091 35.4 (11 pages, ours 12; Mac 01Xgpbk5, looking), zh-0b87285b 77.9 (Mac 011uWpmC, looking), zh-701eda18
+zh-007ca091 35.4 (T109, 93.0 now, 11 pages), zh-0b87285b 77.9 (Mac 011uWpmC, looking), zh-701eda18
 83.0, zh-043aab43 84.4, zh-021b8feb 85.6 (18/19; Mac 011uWpmC, measured, released: p14's last paragraph is `w:br type=page` then an anchored wrap-none box "附表" (16.5pt down) in a 18pt bold paragraph mark; Word keeps the box at p14's foot (710) and opens p15 with a ~17pt line — the anchor run's 12pt, not the mark's 18pt — table title at 88; ours places the box on p15 and its line ~39pt, title 111, and the table runs onto a 19th page. Needs a lab: what sizes a line holding only a float's anchor after a break), zh-8f7aa519 87.7,
 zh-c8eb6e92 91.2.
 
@@ -272,6 +272,18 @@ and its baseline that face's: the 1.5-spaced paragraphs from p3 are
 41.2pt a line as Word's, and stand where Word's do (to 0.1pt). 39.9 ->
 46.1, nothing else moved. Left: the matcher's — Word's text layer maps
 its 招 to U+0000, and nearly every line says 招标; the lines match.
+
+### T109. A cell stretch no line can hold gives its closing marks' halves — DONE (2026-10-17)
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-007ca091's unit cells, "套（台）" in a column of 23.6pt for text: Word
+sets "套" / "（" / "台）", the "）" half an em narrower; ours took "（台）"
+as one stretch (nothing parts after "（" or before "）"), no line could
+hold it, and the engine parted it "（" / "台" / "）" — every such row a
+line taller, and the document a page longer. Now in a cell a stretch
+wider than the whole line gives its full-width closing marks' halves
+first, and the engine's parting lands as Word's. zh-007ca091 35.4 ->
+93.0 (11 pages, Word's), zh-8f7aa519 87.7 -> 96.3, zh-d62da4dd now at
+Word's 4 pages; nothing fell.
 
 ### T107. On a character grid a Latin word at a line's end is taken by T86's start rule — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
