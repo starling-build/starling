@@ -341,6 +341,9 @@ struct Chart: Equatable {
     /// Painted on a slide (set by the slide painter), where a few of
     /// PowerPoint's measures differ from Word's and Excel's.
     var onSlide = false
+    /// A stock chart's lines from each category's highest value to its
+    /// lowest (`c:hiLowLines`): their colour (nil, the text's) and width.
+    var highLowLines: HighLowLines? = nil
     var categoryTicksOut = false
     var categoryAxisDeleted = false
 
@@ -601,6 +604,17 @@ enum ChartXML {
                 let ln = pr?.first("a:ln")
                 s.joined = ln.map { $0.first("a:noFill") == nil } ?? (style != "marker" && style != "none")
             }
+            // (A line hidden, and its marks: chartex's stock chart sets its
+            // three series' lines to none, Close marked by 3pt dots.)
+            if type == .line, pr?.first("a:ln")?.has("a:noFill") == true {
+                s.lineHidden = true
+                if let m = ser.first("c:marker") {
+                    s.marker = m.first("c:symbol")?["val"]
+                    s.markerSize = m.first("c:size")?["val"].flatMap(Double.init) ?? 5
+                    if let f = m.first("c:spPr")?.first("a:solidFill") { s.markerFill = color(f) }
+                    if let f = m.first("c:spPr")?.first("a:ln")?.first("a:solidFill") { s.markerLine = color(f) }
+                }
+            }
             let fill = type == .line ? pr?.first("a:ln")?.first("a:solidFill")
                 : type == .scatter ? ser.first("c:marker")?.first("c:spPr")?.first("a:solidFill") ?? pr?.first("a:ln")?.first("a:solidFill") ?? pr?.first("a:solidFill")
                 : pr?.first("a:solidFill")
@@ -750,6 +764,13 @@ enum ChartXML {
             }
             second.step = axis.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
             c.secondValueAxis = second
+        }
+        if let h = el.first("c:hiLowLines") {
+            let ln = h.first("c:spPr")?.first("a:ln")
+            if ln?.has("a:noFill") != true {
+                c.highLowLines = HighLowLines(color: ln?.first("a:solidFill").flatMap(color),
+                                              width: ln?["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75)
+            }
         }
         if let d = plot.first("c:dTable") {
             func on(_ name: String) -> Bool { !["0", "false"].contains(d.first(name)?["val"] ?? "1") }
@@ -1398,7 +1419,10 @@ enum ChartPainter {
                         continue
                     }
                     p.color = pie ? c.pointColor(e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
-                    if lineKeys {
+                    if lineKeys, !pie, e.i < c.series.count, c.series[e.i].lineHidden {
+                        // (A series with no line: its mark alone, if any.)
+                        Self._mark(c.series[e.i], at: Offset(x + lead - 11.6 * k, y + lineH / 2), k: k, colour: p.color, canvas)
+                    } else if lineKeys {
                         p.style = .stroke
                         p.strokeWidth = 2.25 * k
                         canvas.drawLine(Offset(x + lead - 21.2 * k, y + lineH / 2), Offset(x + lead - 2 * k, y + lineH / 2), p)
@@ -2188,6 +2212,19 @@ enum ChartPainter {
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
                 tops.append(row)
             }
+            // A stock chart's high-low lines, under its series: each
+            // category's highest value to its lowest.
+            if let h = c.highLowLines, c.type == .line {
+                let p = Paint()
+                p.style = .stroke
+                p.strokeWidth = max(0.5, h.width * k)
+                p.color = h.color ?? theme.text
+                for i in 0 ..< n {
+                    let vs = (0 ..< s).compactMap { tops[$0][safe: i] ?? nil }
+                    guard let lo = vs.min(), let hi = vs.max(), hi > lo else { continue }
+                    canvas.drawLine(Offset(xAt(i), vpos(hi)), Offset(xAt(i), vpos(lo)), p)
+                }
+            }
             // In series order: the first drawn behind the rest; stacked,
             // each sits on the one before.
             for j in 0 ..< s {
@@ -2201,6 +2238,12 @@ enum ChartPainter {
                     path.close()
                     fill.color = color
                     canvas.drawPath(path, fill)
+                } else if c.series[j].lineHidden {
+                    // (Its line none: its marks alone, where it has any.)
+                    for i in 0 ..< n {
+                        guard let v = tops[j][i] else { continue }
+                        Self._mark(c.series[j], at: Offset(xAt(i), vpos(v)), k: k, colour: color, canvas)
+                    }
                 } else {
                     let p = Paint()
                     p.style = .stroke
@@ -2358,6 +2401,9 @@ extension ChartPainter {
         let shape = Path()
         switch symbol {
         case "square": shape.addRect(Rect.fromLTRB(q.dx - r, q.dy - r, q.dx + r, q.dy + r))
+        // (Office's "dot" is a short dash: chartex's Close marks, and its
+        // legend's key, in Word's print.)
+        case "dot": shape.addRect(Rect.fromLTRB(q.dx - r, q.dy - r / 4, q.dx + r, q.dy + r / 4))
         case "diamond":
             shape.moveTo(q.dx, q.dy - r); shape.lineTo(q.dx + r, q.dy); shape.lineTo(q.dx, q.dy + r); shape.lineTo(q.dx - r, q.dy); shape.close()
         case "triangle":
@@ -2784,6 +2830,12 @@ struct DataTable: Equatable {
 struct PlacedAxisTitle: Equatable {
     var at: Offset
     var size: Double? = nil
+}
+
+/// A stock chart's high-low lines (`Chart.highLowLines`).
+struct HighLowLines: Equatable {
+    var color: Color? = nil
+    var width = 0.75
 }
 
 struct SecondValueAxis: Equatable {

@@ -71,6 +71,30 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(try reread(c), c)
     }
 
+    /// chartex's stock chart: its series' lines none, Close marked by 3pt
+    /// dots, and high-low lines in the text's dark grey, 0.75pt.
+    func testAStockChartsHighLowLinesAndHiddenLinesAreRead() throws {
+        let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
+        func ser(_ i: Int, _ name: String, marker: String) -> String {
+            "<c:ser><c:idx val=\"\(i)\"/><c:order val=\"\(i)\"/><c:tx><c:v>\(name)</c:v></c:tx><c:spPr><a:ln w=\"19050\"><a:noFill/></a:ln></c:spPr>\(marker)"
+                + "<c:val><c:numRef><c:numCache><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>\(10 * (i + 1))</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser>"
+        }
+        let xml = """
+        <c:chartSpace \(ns)><c:chart><c:plotArea><c:stockChart>
+        \(ser(0, "High", marker: "<c:marker><c:symbol val=\"none\"/></c:marker>"))\(ser(1, "Low", marker: "<c:marker><c:symbol val=\"none\"/></c:marker>"))
+        \(ser(2, "Close", marker: "<c:marker><c:symbol val=\"dot\"/><c:size val=\"3\"/></c:marker>"))
+        <c:hiLowLines><c:spPr><a:ln w="9525"><a:solidFill><a:srgbClr val="404040"/></a:solidFill></a:ln></c:spPr></c:hiLowLines>
+        <c:axId val="1"/><c:axId val="2"/></c:stockChart><c:dateAx><c:axId val="1"/><c:axPos val="b"/></c:dateAx><c:valAx><c:axId val="2"/><c:axPos val="l"/></c:valAx>
+        </c:plotArea></c:chart></c:chartSpace>
+        """
+        let c = try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(xml.utf8))), color: { _ in Color(0xFF404040) }))
+        XCTAssertEqual(c.type, .line)
+        XCTAssertEqual(c.series.map(\.lineHidden), [true, true, true])
+        XCTAssertEqual(c.series.map(\.marker), ["none", "none", "dot"])
+        XCTAssertEqual(c.series[2].markerSize, 3)
+        XCTAssertEqual(c.highLowLines, HighLowLines(color: Color(0xFF404040), width: 0.75))
+    }
+
     /// zh-547fc43c's charts: the unit over the columns is the category
     /// axis's title, placed at the chart's top left and read across; the
     /// line of rates over them shows its values, one moved.

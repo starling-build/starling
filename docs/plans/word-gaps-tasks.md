@@ -2021,7 +2021,7 @@ since 15:5x): such a paragraph gets a break before every character, the
 fitter keeps them, and the engine lays the line out one em wide.
 89.2 -> 97.3; nothing else moved (s294).
 
-### T93. chartex's stock chart: high-low lines, series lines off, Close's dots — claimed
+### T93. chartex's stock chart: high-low lines, series lines off, Close's dots — DONE (2026-10-17)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-17
 Documents: chartex (p3).
 Known: its `c:stockChart` series set `a:ln/a:noFill`; High and Low no
@@ -2029,6 +2029,10 @@ marker, Close a 3pt dot; `c:hiLowLines` draws each date's high to low.
 Word's print: five grey bars with Close's dots, the legend's keys bare.
 Ours: three coloured lines (a main series' noFill and marker are not
 read). No line of text moves; this is the drawing.
+Built: a line series whose line is none draws its marks alone (and its
+legend key is its mark); `c:hiLowLines` draw each category's high to
+low (`Chart.highLowLines`); Office's "dot" mark is a short dash. Same-base
+sweep: nothing moved; Slides' 19 chart decks unchanged.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
