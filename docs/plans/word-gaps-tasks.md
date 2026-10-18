@@ -110,6 +110,13 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
+### T127. zh-73534289 p27: a table row Word moves whole to the next page
+Owner: session 01QbbApP (Windows box), from 2026-10-18 (from lenovo-2's list)
+Documents: zh-73534289 (about 44 misses a page over pp28-33). Row 91
+("強化資金規劃運用能力 | 其它 | 提供資金協助…") starts at 698 of 748 and Word
+sends it whole to p28 though it parts this table's other rows; labs
+to find what keeps it whole.
+
 ### T126. zh-2f9463d6 (95.9% on Windows): a cell's text before a trailing U+3000 makes its row a line taller — DONE (2026-10-18)
 Owner: none (Windows 01QbbApP built it, released)
 Documents: zh-2f9463d6 (p20-21, 28 of its 29 misses). Its table row
