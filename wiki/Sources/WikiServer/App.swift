@@ -71,7 +71,11 @@ struct App {
         case StoreError.conflict(let s): return HTTPError(.conflict, message: s)
         case StoreError.locked(let by): return HTTPError(.init(code: 423), message: "locked by \(by)")
         case StoreError.badRequest(let s): return HTTPError(.badRequest, message: s)
-        default: return error
+        default:
+            // Anything else is a bug or the database: say what, in the
+            // response and the log, rather than a bare 500.
+            logger.error("\(error)")
+            return HTTPError(.internalServerError, message: "\(error)")
         }
     }
 
@@ -151,6 +155,14 @@ struct App {
             do {
                 return try json(try await store.createPage(spaceID: space.id, spaceKey: space.key, parent: parent, title: title, body: body, plainText: BodyText.plainText(body), links: [], by: user), status: .created)
             } catch { throw map(error) }
+        }
+
+        // --- search: ?q=words[&space=KEY]
+        api.get("search") { request, context in
+            _ = try requireUser(context)
+            let q = request.uri.queryParameters["q"].map(String.init) ?? ""
+            let space = request.uri.queryParameters["space"].map(String.init)
+            do { return try json(try await store.search(q, space: space)) } catch { throw map(error) }
         }
 
         // --- pages

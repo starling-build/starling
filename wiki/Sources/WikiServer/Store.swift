@@ -302,6 +302,51 @@ final class Store: Sendable {
         try await audit(user, "page.delete", id.uuidString, "{}")
     }
 
+    // MARK: Search
+
+    struct Hit: Codable, Sendable {
+        var id: UUID
+        var space: String
+        var title: String
+        var slug: String
+        var snippet: String
+        var updatedAt: Date
+    }
+
+    /// Pages whose current version's title or text matches `query`: word
+    /// matches through the text-search index, and a plain substring
+    /// match for queries the tokeniser cannot split (CJK, code).
+    func search(_ query: String, space: String?, limit: Int = 50) async throws -> [Hit] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return [] }
+        let like = "%" + q.replacingOccurrences(of: "%", with: "\\%").replacingOccurrences(of: "_", with: "\\_") + "%"
+        let rows = try await client.query("""
+            SELECT p.id, s.key, p.title, p.slug, v.plain_text, p.updated_at
+            FROM pages p JOIN spaces s ON s.id = p.space_id
+            JOIN page_versions v ON v.page_id = p.id AND v.version = p.tip
+            WHERE p.deleted_at IS NULL
+              AND (\(space)::text IS NULL OR s.key = \(space)::text)
+              AND (to_tsvector('simple', v.title || ' ' || v.plain_text) @@ plainto_tsquery('simple', \(q))
+                   OR v.title ILIKE \(like) OR v.plain_text ILIKE \(like))
+            ORDER BY p.updated_at DESC
+            LIMIT \(limit)
+            """, logger: logger)
+        var out: [Hit] = []
+        for try await (id, key, title, slug, text, updated) in rows.decode((UUID, String, String, String, String, Date).self) {
+            out.append(Hit(id: id, space: key, title: title, slug: slug, snippet: Store.snippet(text, around: q), updatedAt: updated))
+        }
+        return out
+    }
+
+    /// Up to ~160 characters around the first match, or the text's start.
+    static func snippet(_ text: String, around q: String) -> String {
+        let flat = text.replacingOccurrences(of: "\n", with: " ")
+        guard let r = flat.range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) else { return String(flat.prefix(160)) }
+        let start = flat.index(r.lowerBound, offsetBy: -60, limitedBy: flat.startIndex) ?? flat.startIndex
+        let end = flat.index(r.upperBound, offsetBy: 100, limitedBy: flat.endIndex) ?? flat.endIndex
+        return (start > flat.startIndex ? "…" : "") + flat[start ..< end] + (end < flat.endIndex ? "…" : "")
+    }
+
     // MARK: Locks
 
     func lock(of id: UUID) async throws -> Lock? {

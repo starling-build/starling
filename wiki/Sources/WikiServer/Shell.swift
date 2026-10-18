@@ -38,6 +38,8 @@ struct Shell: Sendable {
         <meta name="starling-route" content="\(Shell.escape(route))">
         """
         var html = template
+        // The page is served at a deep route; its assets live at the root.
+        if let r = html.range(of: "<head>") { html.replaceSubrange(r, with: "<head>\n<base href=\"/\">") }
         if let r = html.range(of: "<title>") { html.replaceSubrange(r, with: meta + "<title>") }
         else if let r = html.range(of: "</head>") { html.replaceSubrange(r, with: meta + "</head>") }
         if let r = html.range(of: #"<title>[^<]*</title>"#, options: .regularExpression) {

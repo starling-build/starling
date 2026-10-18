@@ -87,5 +87,12 @@ enum Schema {
             detail      TEXT NOT NULL DEFAULT '{}'
         );
         """,
+        // 2: search over the tip version's title and text. `simple` makes no
+        // language assumptions (a Chinese tokeniser such as pg_jieba can
+        // replace it later); the trigram-free ILIKE fallback in the query
+        // covers scripts the tokeniser leaves whole.
+        """
+        CREATE INDEX page_versions_fts ON page_versions USING GIN (to_tsvector('simple', title || ' ' || plain_text));
+        """,
     ]
 }

@@ -96,6 +96,14 @@ else
     echo "  skip  no OfficeApp or corpus"
 fi
 
+echo "── search"
+check "a word in the body is found" "$(a "$URL/api/v1/search?q=first" | json '[0]["id"]')" "$PID1"
+check "a title word is found" "$(a "$URL/api/v1/search?q=hello" | json '[0]["title"]')" "Hello World"
+check "nothing matches nonsense" "$(a "$URL/api/v1/search?q=zzqqxx" | json '.__len__()')" 0
+check "scoped to another space finds nothing" "$(a "$URL/api/v1/search?q=first&space=NOPE" | json '.__len__()')" 0
+ZH="$(a -X POST -H 'content-type: application/json' -d "{\"title\":\"管理办法\",\"parent\":\"$HOME_ID\",\"body\":\"{}\",\"plainText\":\"第一条 为贯彻落实统筹整合使用财政涉农资金\"}" "$URL/api/v1/spaces/ENG/pages" | json '["id"]')"
+check "a Chinese substring is found" "$(a "$URL/api/v1/search?q=%E8%B4%A2%E6%94%BF%E6%B6%89%E5%86%9C" | json '[0]["id"]')" "$ZH"
+
 echo "── the shell"
 HTML="$(curl -s "$URL/s/ENG/p/$PID1/hello-world")"
 check "shell carries og:title" "$(echo "$HTML" | grep -o 'og:title" content="[^"]*"' | head -1)" 'og:title" content="Hello World"'
