@@ -6098,6 +6098,16 @@ fitter dropped the paragraph's tail).
   whole span: ours 157 to 257. zh-264d7516 93.6 -> 95.3; nothing else
   moved (s329 -> s330, one base, with starling-ios-5c's uncommitted
   skia-run-shift-once in the engine under both).
+- **A Latin word's own curly quotes give nothing for it, before 2013's
+  layout (2026-10-18).** zh-b00fef0d (mode 12, kinsoku off, 16pt
+  仿宋_GB2312) ends a line "…执法。其中" and sends all of "“1”" to the
+  next in Word's print. Ours took the word 29.4pt over, with 32 of room
+  from four marks, two of them its own quotes. Lab `sq-q` (relayed by
+  lenovo-2): with its quotes' room gone the word is not taken. Taking away
+  all of a word's own marks broke ten documents (zh-6b242483 99.2 ->
+  15.3), so only its curly quotes, only in the body, only before 2013's
+  layout. zh-b00fef0d 96.4 -> 97.2; nothing else moved (s331 -> s333,
+  one base).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

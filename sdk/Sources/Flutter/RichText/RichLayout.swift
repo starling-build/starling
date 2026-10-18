@@ -8120,7 +8120,18 @@ public final class RichLayout {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("    over \(over / pt) hang \(hang / pt) need \(need / pt) room \(room / pt) of \(all.count) marks, lead \(lead / pt) set \(set / pt) taken \(taken)\n".utf8))
                     }
-                    if room > 0, taken, need <= room + hair {
+                    // (A Latin word's own curly quotes give nothing for it
+                    // in the body: lab `sq-q` (zh-b00fef0d's package,
+                    // mode 12, kinsoku off, 16pt) sends all of "“1”" down
+                    // with 32pt of room from four marks, two of them its
+                    // own quotes, and takes "1" alone; zh-b00fef0d's p5 took
+                    // the word 29.4 over.)
+                    // (Its own curly quotes, before 2013's layout: other
+                    // marks of its own still give — zh-6b242483, zh-38d26944
+                    // and eight more fell when every one of them stopped.)
+                    let ownGive = !inCell && legacy && (a ..< last).contains { (units[$0] >= 0x30 && units[$0] <= 0x39) || (units[$0] >= 0x41 && units[$0] <= 0x7A) }
+                        ? own.filter { [0x201C, 0x201D, 0x2018, 0x2019].contains(units[$0]) }.reduce(0.0) { $0 + half($1) } : 0
+                    if room > 0, taken, need <= room - ownGive + hair {
                         let share = min(1, (need + 0.02) / room)
                         // (The marks give first, and the automatic spaces
                         // what is still needed: the colon of lab `ovc` is

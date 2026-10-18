@@ -238,8 +238,8 @@ with spaces (p2 right, p1 wrong); at most half an em there (both right,
 but zh-c2c92639 77.4 -> 64.9 and four others down a little, this one
 level). So the rule is neither; more lines with spaces are needed.
 
-### T111. zh-b00fef0d (93.5%, 24 pages) — 96.6, p5's "“1”" claimed
-Owner: Mac 011uWpmC (p5's Latin word with its own marks), from 2026-10-18; Linux 017F2GnT built c2740356
+### T111. zh-b00fef0d (93.5%, 24 pages) — 97.2, released
+Owner: none (Linux 017F2GnT built c2740356; Mac 011uWpmC built p5's "“1”": a Latin word's own curly quotes give nothing before 2013's layout)
 Built: under kinsoku off no mark hangs; the layout's zero-width breaks
 carry no run spacing (zh-8f9b19f4 51 -> 72 with it). Left, three page
 starts (p5, p7, p11). p5: "…统筹推进大综合执法。其中" then "“1”" (mode 12,
