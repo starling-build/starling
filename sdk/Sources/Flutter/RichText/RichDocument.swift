@@ -1156,6 +1156,9 @@ public struct TableStyle: Hashable, Sendable {
     /// form_footnotes rules twenty of its form rows this way, and without
     /// the last one's 2.25pt box that row fitted a page Word breaks before.
     public var rowExceptions: [Int: String] = [:]
+    /// Grid columns a row leaves empty before its first cell (Word's
+    /// `w:gridBefore`), by row index: its cells start that far in.
+    public var rowsGridBefore: [Int: Int] = [:]
     public var rowHeights: [Int: Double] = [:]
     /// Rows whose height is exact, not a minimum (Word's `w:hRule`
     /// "exact": the row clips what does not fit), by index.

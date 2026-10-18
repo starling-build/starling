@@ -1165,6 +1165,7 @@ enum DocxFormat {
                         if h["w:hRule"] == "exact" { style.rowsExactHeight.insert(r) }
                     }
                     if let c = tr.first("w:trPr")?.first("w:cantSplit"), !_isOff(c) { style.rowsCantSplit.insert(r) }
+                    if let v = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? ""), v > 0 { style.rowsGridBefore[r] = v }
                     // Its borders and its cell margins (the table's own
                     // and each cell's go back beside them).
                     if let ex = tr.first("w:tblPrEx") {
@@ -1185,7 +1186,13 @@ enum DocxFormat {
                 let rowCount = unwrapped(node, "w:tr").count
                 let gridCount = tableColumns[id]?.count ?? Int.max
                 for (r, tr) in unwrapped(node, "w:tr").enumerated() {
-                    var column = 0
+                    // (A row's cells start after the grid columns it leaves
+                    // empty: zh-51af781b's scoring table switches from a
+                    // first cell spanning 5 + 840 twips to gridBefore 1 and
+                    // an 840 cell at row 165, and ours set each number in
+                    // the 5-twip column a character a line and each
+                    // description in the number's — 70 pages to Word's 65.)
+                    var column = style.rowsGridBefore[r] ?? 0
                     for tc in unwrapped(tr, "w:tc") {
                         let tcPr = tc.first("w:tcPr")
                         let span = max(1, Int(tcPr?.first("w:gridSpan")?["w:val"] ?? "1") ?? 1)
@@ -4328,6 +4335,9 @@ enum DocxFormat {
             let refs = members.compactMap(\.cell)
             for r in 0 ..< rows {
                 var trPr = ""
+                // (Schema order: the columns left empty before the rest.)
+                let skipped = min(style.rowsGridBefore[r] ?? 0, cols)
+                if skipped > 0 { trPr += "<w:gridBefore w:val=\"\(skipped)\"/><w:wBefore w:w=\"\(twips[0 ..< skipped].reduce(0, +))\" w:type=\"dxa\"/>" }
                 if style.rowsCantSplit.contains(r) { trPr += "<w:cantSplit/>" }
                 if let h = style.rowHeights[r] { trPr += "<w:trHeight w:val=\"\(Int((h * 20).rounded()))\"\(style.rowsExactHeight.contains(r) ? " w:hRule=\"exact\"" : "")/>" }
                 if style.headerRow && r < style.headerRowCount { trPr += "<w:tblHeader/>" }
@@ -4337,7 +4347,7 @@ enum DocxFormat {
                 // and drawing's), and padding one with an empty cell adds a
                 // paragraph the file never had.
                 let rowEnd = refs.filter { $0.covers(row: r, column: $0.column) }.map { $0.column + $0.span }.max() ?? cols
-                var c = 0
+                var c = skipped
                 while c < rowEnd {
                     // A cell from a row above spanning into this row: a
                     // continuation cell, empty, marked vMerge.

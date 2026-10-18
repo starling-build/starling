@@ -6169,6 +6169,22 @@ fitter dropped the paragraph's tail).
   15.3), so only its curly quotes, only in the body, only before 2013's
   layout. zh-b00fef0d 96.4 -> 97.2; nothing else moved (s331 -> s333,
   one base).
+- **A row's `w:gridBefore` columns stand empty before its first cell
+  (2026-10-18).** zh-51af781b's scoring table (grid 5 | 840 | 7905 | …
+  twips) opens each of its first 165 rows with a cell spanning 5 + 840.
+  From row 165 on, its rows say `w:gridBefore 1` and start with an 840
+  cell. The reader started every row's cells at column 0, so from there
+  each number sat in the 5-twip column, one character a line, and each
+  description in the number's 42pt. The table ran 17 pages to Word's 12,
+  and the file 70 to 65. It is the corpus's only `w:gridBefore`, and the
+  save writes it back with its `w:wBefore`. zh-51af781b 83.3 -> 83.6,
+  pages 70 -> 65; nothing else moved (s335 -> s336). What is left of it
+  is the reference: Word lays sections 5 and 6 (16850 x 11910 twips with
+  no `w:orient`) out landscape and prints them on portrait paper, centred
+  and clipped at both sides, so their first column reads ".3" for "1.3".
+  And p57's "…不小于5m²,得1 分)" keeps "；" whole and drops ")" 12pt
+  where ours squeezes the "；" to keep it; that row stands 11pt taller in
+  Word, and p58-64 drift from it.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

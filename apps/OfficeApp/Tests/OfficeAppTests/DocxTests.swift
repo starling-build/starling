@@ -1950,6 +1950,24 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back?.rowExceptions, [1: ex])
     }
 
+    func testGridBeforeStartsTheRowsCellsLater() throws {
+        // zh-51af781b's scoring table: rows that leave the 5-twip first
+        // column empty (w:gridBefore 1) and start their number cell after it.
+        var a = RichParagraph(text: "1"), b = RichParagraph(text: "text"), c = RichParagraph(text: "2"), d = RichParagraph(text: "more")
+        a.cell = CellRef(table: "T", row: 0, column: 0, span: 2); b.cell = CellRef(table: "T", row: 0, column: 2)
+        c.cell = CellRef(table: "T", row: 1, column: 1); d.cell = CellRef(table: "T", row: 1, column: 2)
+        var doc = RichDocument(paragraphs: [a, b, c, d, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [0.25, 42, 395]
+        var ts = TableStyle(); ts.rowsGridBefore = [1: 1]; doc.tableStyles["T"] = ts
+        let xml = String(decoding: try Zip.read(try DocxFormat.write(doc, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:trPr><w:gridBefore w:val=\"1\"/><w:wBefore w:w=\"5\" w:type=\"dxa\"/></w:trPr>"), xml)
+        XCTAssertEqual(xml.components(separatedBy: "<w:tc>").count - 1, 4, "no empty cell in the skipped column: \(xml)")
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.tableStyles.values.first?.rowsGridBefore, [1: 1])
+        XCTAssertEqual(back.paragraphs.first { $0.text == "2" }?.cell?.column, 1)
+        XCTAssertEqual(back.paragraphs.first { $0.text == "more" }?.cell?.column, 2)
+    }
+
     func testSpaceBeforeZeroWrittenUnderAStyleThatHasSome() throws {
         // form_footnotes: a Heading 6 spacer paragraph that says before 0.
         var doc = RichDocument(paragraphs: [RichParagraph(text: "h"), RichParagraph(text: "plain")])
