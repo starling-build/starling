@@ -1707,10 +1707,15 @@ public final class RichLayout {
             if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
             probe.layout(minWidth: 0, maxWidth: 100_000)
             let map = _OffsetMap(lead: 0, inserts: inserts)
+            // (And where `w:wordWrap` off parts a Latin word: zh-f2441f00's
+            // 42.2pt column holds "平台(iC" / "ulture)" in Word's print,
+            // its grid kept; ours measured "(iCulture)" whole and widened
+            // the column to 44.5, narrowing the table's others.)
             let breakBefore = Set(inserts.filter { o in
                 guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
                 return Self._breaksBetween(Character(a), Character(b))
-            })
+            }).union(_looseWordOffsets(p, document, textWidth: 100_000, named: _named(p, document),
+                                       pitch: _offGrid(i, document) ? nil : _grid(i, document).pitch))
             func space(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
             func piece(_ a: Int, _ b: Int) -> Double {
                 var e = b

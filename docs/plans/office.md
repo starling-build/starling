@@ -4870,6 +4870,15 @@ fitter dropped the paragraph's tail).
   18 files with such paragraphs moved (one base). Left: Word also
   squeezes a "：" before the spaces to take one more on the line (11.6
   or 10.8 where it is 15.6), so its "答：" lines hold a space more.
+- **Autofit counts a Latin word as parted where `w:wordWrap` off parts it
+  (2026-10-18).** zh-f2441f00's HTML-style tables (100% wide, auto cells,
+  no side margins) keep their grid in Word's print: p17's columns are
+  its 1636/1635/715/5391/844 twips to the tenth. Ours widened the last
+  to 44.5pt, narrowing the rest, because its narrowest-content measure
+  took "(iCulture)" whole. Word sets that cell "平台(iC" / "ulture)".
+  The measure now parts a word wherever the line breaking does under
+  wordWrap off. zh-f2441f00 75.2 -> 99.5; nothing else of the 206 moved
+  (one base).
 - **A triangle or star in a face Word lacks is SimSun's, line and all
   (2026-10-16).** Word on a Mac sets a Chinese face it does not have
   (仿宋_GB2312, the 方正 faces, 標楷體) in Microsoft YaHei. Its prints
