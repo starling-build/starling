@@ -245,6 +245,28 @@ struct Chart: Equatable {
     /// An Excel 2016 histogram (clustered columns, binned): its one
     /// series' samples counted into bins, the bins its categories.
     var histogram: HistogramBins? = nil
+    /// A pareto (`layoutId="paretoLine"` over a histogram): its bins
+    /// largest first, and a line of their running share on a second axis,
+    /// 0% to 100%.
+    var pareto = false
+
+    /// Counts samples `xs` into the histogram's bins, and for a pareto
+    /// orders them and draws its line.
+    mutating func applyHistogram(_ xs: [Double]) {
+        guard let spec = histogram, !series.isEmpty else { return }
+        var b = spec.bins(xs)
+        if pareto {
+            let order = b.counts.indices.sorted { b.counts[$0] > b.counts[$1] || (b.counts[$0] == b.counts[$1] && $0 < $1) }
+            b = (order.map { b.labels[$0] }, order.map { b.counts[$0] })
+            let total = b.counts.reduce(0, +)
+            var run = 0.0
+            let shares: [Double?] = b.counts.map { run += $0; return total > 0 ? run / total : nil }
+            lineSeries = [ChartSeries(name: "", values: shares)]
+            secondValueAxis = SecondValueAxis(format: "0%", min: 0, max: 1, step: 0.1)
+        }
+        categories = b.labels
+        series[0].values = b.counts
+    }
 
     /// A histogram's binning (`cx:binning`): a bin's width (nil: Scott's
     /// rule, as Excel's automatic bins), and the edges below and above
@@ -642,21 +664,21 @@ enum ChartXML {
     /// its samples counted where they are cached, else when the sheet
     /// fills them (chart-SimpleHistogram's).
     static func readHistogram(_ space: XNode) -> Chart? {
-        let sers = space.first("cx:chart")?.first("cx:plotArea")?.first("cx:plotAreaRegion")?.all("cx:series") ?? []
+        let all = space.first("cx:chart")?.first("cx:plotArea")?.first("cx:plotAreaRegion")?.all("cx:series") ?? []
+        // (A pareto's line is a series of its own, of no data: its bars'.)
+        let pareto = all.count == 2 && all[1]["layoutId"] == "paretoLine"
+        let sers = pareto ? [all[0]] : all
         guard sers.count == 1, sers[0]["layoutId"] == "clusteredColumn",
               let binning = sers[0].first("cx:layoutPr")?.first("cx:binning"),
-              var c = readClusteredColumn(space, binned: true) else { return nil }
+              var c = readClusteredColumn(space, binned: true, only: pareto ? 1 : nil) else { return nil }
+        c.pareto = pareto
         var spec = Chart.HistogramBins()
         spec.size = binning.first("cx:binSize")?["val"].flatMap(Double.init)
         spec.underflow = binning["underflow"].flatMap(Double.init)
         spec.overflow = binning["overflow"].flatMap(Double.init)
         c.histogram = spec
-        if let xs = c.series.first?.values.compactMap({ $0 }), !xs.isEmpty {
-            let b = spec.bins(xs)
-            c.categories = b.labels
-            c.series[0].values = b.counts
-        }
-        c.legend = false
+        if let xs = c.series.first?.values.compactMap({ $0 }), !xs.isEmpty { c.applyHistogram(xs) }
+        c.legend = pareto && space.first("cx:chart")?.first("cx:legend") != nil
         return c
     }
 
@@ -728,10 +750,10 @@ enum ChartXML {
     /// no binning — a histogram's layout is the same name, binned: each
     /// series' values over its categories, as a `c:` column chart draws
     /// them, in a 2013-style chart's text (chart-clusteredColumn's).
-    static func readClusteredColumn(_ space: XNode, layout: String = "clusteredColumn", binned: Bool = false) -> Chart? {
+    static func readClusteredColumn(_ space: XNode, layout: String = "clusteredColumn", binned: Bool = false, only: Int? = nil) -> Chart? {
         guard let chart = space.first("cx:chart"),
               let region = chart.first("cx:plotArea")?.first("cx:plotAreaRegion") else { return nil }
-        let all = region.all("cx:series")
+        let all = Array(region.all("cx:series").prefix(only ?? Int.max))
         guard !all.isEmpty, all.allSatisfy({ $0["layoutId"] == layout && ($0.first("cx:layoutPr")?.first("cx:binning") == nil) != binned
             && $0.first("cx:layoutPr")?.first("cx:aggregation") == nil }) else { return nil }
         func points(_ dim: XNode?) -> [String?] {
