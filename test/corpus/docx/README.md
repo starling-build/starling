@@ -16,6 +16,41 @@ They are in the repository because the second half cannot be downloaded:
 Word's PDFs took a Mac with Word and a run over every document, and a
 score only means something against the same references.
 
+## The results, in short (2026-10-18)
+
+Two numbers are kept for every document. They measure different things,
+and **they move in opposite directions**:
+
+| | **Line match** — is the layout Word's? | **Page difference** — do the pixels look like Word's? |
+|---|---|---|
+| What it counts | Word's lines that ours sets on the same page, at the same height (±3pt), starting with the same text | the share of a page's pixels that differ from Word's print |
+| Good is | **high** (100% = every line where Word has it) | **low** (0% = the page is pixel-identical) |
+| Chinese, 306 docs | **95.2%** mean, 98.4% median; 255 docs at ≥ 95%; 298 with Word's page count | 10.2% mean, 9.6% median; no page exact |
+| POI, 111 docs | **89.8%** mean, 100% median; 97 docs at ≥ 95%; all 111 with Word's page count | **1.7%** mean, 0.4% median; 4 docs exact |
+| Tool | `test/docx-line-match.py` (sweep s353) | `test/docx-app-render.sh` (sweep 8, `baseline.tsv`) |
+
+How to read them together:
+
+- **The line match is the measure of fidelity.** It says whether we break
+  lines and pages where Word does. A document at 100% has every line in
+  Word's place; one that slips a line on page 2 loses every line after.
+- **The page difference cannot reach 0 for Chinese documents, by
+  design.** Word embeds the faces they name (方正, 仿宋_GB2312…); this app
+  draws stand-ins with the same widths. Every glyph then differs by some
+  pixels even when every line is in its place. So the Chinese 10% is
+  mostly faces, not layout. The POI documents use faces we match, and
+  there the page difference is a fair check of drawing (1.7%).
+- **The POI line match is pulled down by a few files, not by most:** its
+  median is 100%. The low ones are a crash file with no text, right-to-left
+  Arabic, charts and a hand-made content-control file (see the board).
+- **Compare a document with itself, not means across dates.** Thirteen
+  samples have been added to the Chinese set since 2026-10-12, so its mean
+  covers different documents at each sweep. Like for like, the first 68
+  Chinese documents: line match 66% at sweep 7 (2026-10-13, 49 with Word's
+  page count) and 98.6% now (median 99.0%, 65 at ≥ 95%, all 68 with
+  Word's page count); page difference 14.3% then, 9.4% now.
+- What is left, document by document, and why: `docs/plans/word-gaps-tasks.md`.
+
 ## Two measures, and they are not the same
 
 **The painter** — how this app draws a document, against how Word prints
