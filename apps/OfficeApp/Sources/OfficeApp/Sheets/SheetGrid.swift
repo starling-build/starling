@@ -2075,6 +2075,27 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
     }
 
+    /// Fills, in reading order, each run of one colour along a row drawn as
+    /// one rect: cell by cell, anti-aliasing leaves a pale seam at every
+    /// edge between two (lo-pivottable_invalid_formats' table header),
+    /// and Excel's page has a rect per run.
+    private func _fillRuns(_ canvas: any Canvas, _ p: Paint, _ fills: [(Rect, UInt32)]) {
+        var i = 0
+        while i < fills.count {
+            var r = fills[i].0
+            let f = fills[i].1
+            var j = i + 1
+            while j < fills.count, fills[j].1 == f, fills[j].0.top == r.top, fills[j].0.bottom == r.bottom,
+                  abs(fills[j].0.left - r.right) < 0.01 {
+                r = Rect.fromLTRB(r.left, r.top, fills[j].0.right, r.bottom)
+                j += 1
+            }
+            p.color = Color(Int64(0xFF00_0000) | Int64(f))
+            canvas.drawRect(r, p)
+            i = j
+        }
+    }
+
     struct _Colors {
         let ink: Color, paper: Color, grid: Color
         let showGrid: Bool
@@ -2127,18 +2148,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     }
                 }
             }
-            for (a, look) in tableLooks {
-                guard !mono, let f = look.fill else { continue }
-                p.color = Color(Int64(0xFF00_0000) | Int64(f))
-                canvas.drawRect(rect(a), p)
+            if !mono {
+                _fillRuns(canvas, p, rs.flatMap { row in cs.compactMap { col in
+                    let a = CellAddress(row: row, col: col)
+                    return tableLooks[a]?.fill.map { (rect(a), $0) }
+                } })
             }
         }
-        for (a, st) in styled where !covered.contains(a) && !mono {
-            if let f = st.fill {
-                p.color = Color(Int64(0xFF00_0000) | Int64(f))
-                let m = merges.first { $0.topLeft == a }
-                canvas.drawRect(m.map { rect($0) } ?? rect(a), p)
-            }
+        if !mono {
+            _fillRuns(canvas, p, styled.compactMap { a, st in
+                guard !covered.contains(a), let f = st.fill else { return nil }
+                return (merges.first { $0.topLeft == a }.map { rect($0) } ?? rect(a), f)
+            })
         }
         // Conditional formats: fills over the cells' own, bars and fonts below.
         var looks: [CellAddress: CFLook] = [:]
