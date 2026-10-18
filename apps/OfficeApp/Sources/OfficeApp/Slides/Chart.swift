@@ -230,6 +230,11 @@ struct Chart: Equatable {
     }
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
+    /// A bar chart of one series whose points each take a colour of
+    /// their own (`c:varyColors`): they cycle as a pie's slices do, and
+    /// the legend names the categories, as a pie's does
+    /// (chart-DataTable-MultipleLegendEntriesForOneDataSeries' twelve).
+    var variedPoints = false
     /// A box-and-whisker chart (Office 2016's `cx:` part, series laid out
     /// "boxWhisker"): each series' samples, category by category, drawn
     /// as boxes on a column chart's axes. nil for any other chart.
@@ -949,6 +954,8 @@ enum ChartXML {
             c.categoryLabelTurn = -rot / 60000
         }
         c.pointColors = pointColors
+        c.variedPoints = (type == .bar || type == .column) && c.series.count == 1 && c.lineSeries.isEmpty
+            && ["1", "true"].contains(el.first("c:varyColors")?["val"] ?? "")
         let styleNode = space.first("c:style") ?? space.first("mc:AlternateContent")?.first("mc:Fallback")?.first("c:style")
         // (Kept where it colours the chart its own way: a monochrome one.)
         c.style = styleNode?["val"].flatMap(Int.init)
@@ -1351,7 +1358,8 @@ enum ChartPainter {
         // The legend: one row of key + name, centred, wrapped when wide.
         let pie = c.type.isPie
         if c.legend {
-            let names = pie ? c.categories : c.series.map(\.name) + c.lineSeries.map(\.name)
+            let byPoint = pie || c.variedPoints
+            let names = byPoint ? c.categories : c.series.map(\.name) + c.lineSeries.map(\.name)
             // In the legend's own size, its keys and gaps in proportion.
             let size = c.legendSize ?? c.baseTextSize, m = size / 12
             var entries = names.enumerated().map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: c.legendBold, color: c.legendColor)) }
@@ -1432,7 +1440,7 @@ enum ChartPainter {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
-                    if !pie, e.i >= c.series.count {
+                    if !byPoint, e.i >= c.series.count {
                         // A combination's line: its mark, on its line unless
                         // that is hidden.
                         let l = c.lineSeries[e.i - c.series.count]
@@ -1449,7 +1457,7 @@ enum ChartPainter {
                         x += key + gap + e.tp.width + spacing
                         continue
                     }
-                    p.color = pie ? c.pointColor(e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
+                    p.color = byPoint ? c.pointColor(e.i, accents: theme.accents) : c.color(series: e.i, accents: theme.accents)
                     if lineKeys, !pie, e.i < c.series.count, c.series[e.i].lineHidden {
                         // (A series with no line: its mark alone, if any.)
                         Self._mark(c.series[e.i], at: Offset(x + lead - 11.6 * k, y + lineH / 2), k: k, colour: p.color, canvas)
@@ -2125,7 +2133,8 @@ enum ChartPainter {
                     }
                     // A bar of the first series in its own colour (`c:dPt`),
                     // as chart-DataTable-Multiple…'s six bars are.
-                    fill.color = (j == 0 ? c.pointColors[i] : nil) ?? c.color(series: j, accents: theme.accents)
+                    fill.color = c.variedPoints ? c.pointColor(i, accents: theme.accents)
+                        : (j == 0 ? c.pointColors[i] : nil) ?? c.color(series: j, accents: theme.accents)
                     let p0 = vpos(a), p1 = vpos(b)
                     var rect: Rect
                     if horizontal {
