@@ -557,6 +557,18 @@ extension SheetGridState {
                         y += ra.size(row)
                     }
                 }
+                if setup.headings || setup.gridlines {
+                    // A frame round all of it, eight printer dots inside its
+                    // edge at any scale (DateFormatTests' black right and
+                    // foot, where ours ended in a gridline; lo-tdf100034's
+                    // gridlines alone, lo-tdf167019's at 85%).
+                    let frame = Paint()
+                    frame.style = .stroke
+                    frame.strokeWidth = 0.96 / s
+                    frame.color = Color(0xFF000000)
+                    let h = frame.strokeWidth / 2
+                    canvas.drawRect(Rect.fromLTRB(h, h, bandW - h, bandH - h), frame)
+                }
                 canvas.restore()
                 fields.page = setup.firstPageNumber + out.count
                 _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size, scale: s)
