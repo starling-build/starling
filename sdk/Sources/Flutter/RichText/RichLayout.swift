@@ -10417,8 +10417,13 @@ public final class RichLayout {
         } else if box.fitsText {
             var natural = 0.0
             for k in 0 ..< sub.paragraphs.count {
-                let painter = layout.geometry(k).painter
-                for line in painter.computeLineMetrics() { natural = max(natural, line.width + (layout.geometry(k).textLeft)) }
+                let g = layout.geometry(k)
+                // (Its right indent too: zh-9e8c1a98's "— PAGE —" has a
+                // character and a half in from each side of a box fitted
+                // to it, and stands whole in Word's print; fitted to the
+                // text and the left indent alone, its closing dash wrapped.)
+                let right = k < layout._textWidth.count ? max(0, layout.width - g.textLeft - layout._textWidth[k]) : 0
+                for line in g.painter.computeLineMetrics() { natural = max(natural, line.width + g.textLeft + right) }
             }
             if natural > 0, natural < layout.width - 0.5 {
                 layout.width = natural.rounded(.up) + 1
