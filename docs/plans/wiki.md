@@ -320,7 +320,10 @@ gated server-side, the browser gate written and awaiting its first green.**
   `/s/…` routes in a tab. `test/wiki-web.sh` drives the wasm build in
   headless Chrome (sign in, open by URL, click Edit, type, click Save; the
   API then shows the new version) and is green. The sidebar has a search
-  box over `GET /api/v1/search`. The dev server runs on the Mac at
+  box over `GET /api/v1/search`; the version link opens a history pane,
+  an old version shows "Back to latest" and "Restore this version" (its
+  body saved again on top of the tip); Delete has a confirm row. All
+  three seen working in headless Chrome. The dev server runs on the Mac at
   http://127.0.0.1:8080/s/ENG (dev / devpass; wiki/README.md restarts it).
 - WikiModel (W5's core, built early because it is pure): `PageOp`,
   `Transform`, `PageSequencer`, `PendingOps`; 14 convergence tests.
@@ -349,6 +352,16 @@ gated server-side, the browser gate written and awaiting its first green.**
   through `Int64`. And the server cannot hand-write a document body:
   defaulted properties are still required keys when decoding, so an
   empty page is `{}` and the client reads that as a blank document.
+- **A dropped subtree was deactivated only at its root.** Clicking a
+  button whose handler rebuilt the header without it trapped the web
+  build: the button's HoverButton, dirtied by the click, stayed `.active`
+  under a deactivated parent and built against inherited widgets that
+  were gone (`FluentTheme.of` force-unwraps). Upstream deactivates
+  recursively (`_InactiveElements.add`); now so do we. To read a wasm
+  trap: `STARLING_WASM_NAMES=1 build/web-app.sh …`, then re-run its
+  `wasm-opt` line with `-g` into the stage (the plain `--debug` module is
+  too big for Chrome's parameter limit), and pass
+  `eval "Error.stackTraceLimit=80"` to `web-drive.mjs` before the click.
 - **Never drive the native app's GUI on the Mac with osascript/CGEvent
   while other sessions run there.** Keystrokes
 meant for the wiki's sign-in form landed first in another session's
