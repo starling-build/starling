@@ -25,8 +25,8 @@ final class WikiRoot: StatelessWidget {
         super.init()
     }
     override func build(_ context: any BuildContext) -> Widget {
-        FluentApp(theme: OfficeAppearance.theme(.light), darkTheme: OfficeAppearance.theme(.dark), themeMode: .light,
-                  home: WikiShell(session: WikiSession(base: base), route: route), title: "Wiki")
+        FluentApp(theme: WikiAppearance.theme, themeMode: .light,
+                  home: ButtonTheme(data: WikiAppearance.buttons, child: WikiShell(session: WikiSession(base: base), route: route)), title: "Starling Office — Wiki")
     }
 }
 
@@ -72,6 +72,9 @@ final class WikiShellState: State<StatefulWidget> {
     private var _newTitleOpen = false
     private let _newTitleField = TextEditingController()
     private var _loading = false
+    private var _previousMetrics: (() -> Void)?
+    private var _compact = false
+    private var _navigationOpen = false
     private var _historyOpen = false
     private var _versions: [WikiVersion] = []
     private var _confirmDelete = false
@@ -81,6 +84,14 @@ final class WikiShellState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        _previousMetrics = PlatformDispatcher.instance.onMetricsChanged
+        PlatformDispatcher.instance.onMetricsChanged = { [weak self] in
+            self?._previousMetrics?()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.mounted else { return }
+                self.setState {}
+            }
+        }
         _controller.readOnly = true
         _controller.addListener { [weak self] in
             guard let self, self._editing, !self._dirty else { return }
@@ -96,6 +107,11 @@ final class WikiShellState: State<StatefulWidget> {
             case .failure(let e): self.setState { self._needLogin = true; self._loginError = e.status == 401 ? nil : "\(e)" }
             }
         }
+    }
+
+    override func dispose() {
+        PlatformDispatcher.instance.onMetricsChanged = _previousMetrics
+        super.dispose()
     }
 
     // MARK: Navigation
@@ -158,6 +174,7 @@ final class WikiShellState: State<StatefulWidget> {
                 guard let doc = WikiSession.decodeBody(page.body) else { self.setState { self._loading = false; self._status = "This page's content cannot be read by this build." }; return }
                 self.setState {
                     self._page = page
+                    if self._compact { self._navigationOpen = false; self._historyOpen = false }
                     self._loading = false
                     self._status = nil
                     self._otherLock = nil
@@ -379,57 +396,95 @@ final class WikiShellState: State<StatefulWidget> {
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
-        if _needLogin { return _loginView(fluent) }
-        let sidebar = _sidebar(fluent)
-        var column: [Widget] = [_header(fluent)]
-        if _editing { column.append(_toolbar(fluent)) }
-        column.append(Expanded(child: _editor(fluent)))
-        column.append(_statusBar(fluent))
-        let main = Column(crossAxisAlignment: .stretch, children: column)
-        var row: [Widget] = [sidebar, Expanded(child: main)]
-        if _historyOpen, _page != nil { row.append(_historyPane(fluent)) }
-        return ColoredBox(color: fluent.scaffoldBackgroundColor, child: Row(crossAxisAlignment: .stretch, children: row))
+        if let view = PlatformDispatcher.instance.implicitView {
+            _compact = view.physicalSize.width / view.devicePixelRatio < 900
+        }
+        if self._needLogin { return self._loginView(fluent) }
+        var column: [Widget] = [self._header(fluent)]
+        if self._editing { column.append(self._toolbar(fluent)) }
+        column.append(Expanded(child: self._editor(fluent)))
+        column.append(self._statusBar(fluent))
+        let main = Padding(padding: EdgeInsets(all: self._compact ? 12 : 24), child: DecoratedBox(
+            decoration: BoxDecoration(color: WikiAppearance.white, border: Border.all(color: WikiAppearance.line),
+                                      borderRadius: BorderRadius.circular(10)),
+            child: Column(crossAxisAlignment: .stretch, children: column)))
+        let content: Widget
+        if self._compact && self._navigationOpen { content = self._sidebar(fluent) }
+        else if self._compact && self._historyOpen && self._page != nil { content = self._historyPane(fluent) }
+        else {
+            var row: [Widget] = []
+            if !self._compact { row.append(self._sidebar(fluent)) }
+            row.append(Expanded(child: main))
+            if !self._compact && self._historyOpen && self._page != nil { row.append(self._historyPane(fluent)) }
+            content = Row(crossAxisAlignment: .stretch, children: row)
+        }
+        return ColoredBox(color: WikiAppearance.paper, child: Column(crossAxisAlignment: .stretch, children: [
+            self._brandHeader(), Expanded(child: content),
+        ]))
+    }
+
+    private func _brandHeader() -> Widget {
+        var items: [Widget] = [
+            SizedBox(width: 30, height: 30, child: DecoratedBox(
+                decoration: BoxDecoration(color: WikiAppearance.blue, borderRadius: BorderRadius.circular(7)),
+                child: Center(child: SizedBox(width: 13, height: 18, child: ColoredBox(color: WikiAppearance.white))))),
+            Chrome.gap(10), Text("Starling", style: WikiAppearance.text(23, bold: true)), Chrome.gap(8),
+            Text("Office", style: WikiAppearance.text(20, color: WikiAppearance.muted)),
+            Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
+        ]
+        if !_needLogin && _compact {
+            items.append(Button(onPressed: { [weak self] in self?.setState { self?._navigationOpen.toggle(); self?._historyOpen = false } },
+                                child: Text(_navigationOpen ? "Close" : "Pages")))
+        } else {
+            items.append(Text(_user?.name ?? "TEAM KNOWLEDGE", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.muted)))
+        }
+        return SizedBox(height: 72, child: ColoredBox(color: WikiAppearance.white, child:
+            Padding(padding: EdgeInsets(horizontal: _compact ? 20 : 32), child: Row(children: items))))
     }
 
     private func _loginView(_ fluent: FluentThemeData) -> Widget {
-        let ink = OfficeAppearance.ink(fluent)
         var rows: [Widget] = [
-            Text("Sign in", style: fluent.typography.title?.copyWith(color: ink)),
-            Chrome.vgap(16),
-            SizedBox(width: 280, height: 32, child: FluentTextBox(controller: _loginField, placeholderText: "Login", onSubmitted: { [weak self] _ in self?._login() })),
-            Chrome.vgap(8),
-            SizedBox(width: 280, height: 32, child: PasswordBox(controller: _passwordField, placeholderText: "Password", onSubmitted: { [weak self] _ in self?._login() })),
-            Chrome.vgap(12),
-            FilledButton(onPressed: { [weak self] in self?._login() }, child: Text("Sign in")),
+            Text("YOUR TEAM / ONE PLACE", style: WikiAppearance.text(12, bold: true, color: WikiAppearance.blue)),
+            Chrome.vgap(16), Text("Your team's knowledge.", style: WikiAppearance.text(32, bold: true)),
+            Chrome.vgap(10), Text("Sign in to read, write, and share pages with your team.", style: WikiAppearance.text(17, color: WikiAppearance.muted)),
+            Chrome.vgap(28), WikiAppearance.field(_loginField, placeholder: "Login", onSubmitted: { [weak self] _ in self?._login() }),
+            Chrome.vgap(12), WikiAppearance.field(_passwordField, placeholder: "Password", obscure: true, onSubmitted: { [weak self] _ in self?._login() }),
+            Chrome.vgap(20), FilledButton(onPressed: { [weak self] in self?._login() }, child: Text("Sign in")),
         ]
-        if let e = _loginError { rows += [Chrome.vgap(12), Text(e, style: fluent.typography.caption?.copyWith(color: Color(0xFFC42B1C)))] }
-        return ColoredBox(color: OfficeAppearance.canvas(fluent), child: Center(child: DecoratedBox(
-            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent), border: Border.all(color: OfficeAppearance.border(fluent)),
-                                      borderRadius: BorderRadius.circular(8)),
-            child: Padding(padding: EdgeInsets(left: 32, top: 28, right: 32, bottom: 28),
-                           child: Column(mainAxisSize: .min, crossAxisAlignment: .center, children: rows)))))
+        if let e = _loginError { rows += [Chrome.vgap(14), Text(e, style: WikiAppearance.text(15, color: Color(0xFFC42B1C)))] }
+        return ColoredBox(color: WikiAppearance.paper, child: Column(crossAxisAlignment: .stretch, children: [
+            _brandHeader(), Expanded(child: Center(child: SingleChildScrollView(child: Padding(padding: EdgeInsets(all: 24), child:
+                Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: 480), child: DecoratedBox(
+                    decoration: BoxDecoration(color: WikiAppearance.white, border: Border.all(color: WikiAppearance.line), borderRadius: BorderRadius.circular(10)),
+                    child: Padding(padding: EdgeInsets(all: _compact ? 24 : 36), child:
+                        Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: rows))))))))),
+        ]))
     }
 
     private func _sidebar(_ fluent: FluentThemeData) -> Widget {
-        let ink = OfficeAppearance.ink(fluent)
+        let ink = WikiAppearance.ink
         var header: [Widget] = [
-            Padding(padding: EdgeInsets(left: 12, top: 12, right: 12, bottom: 4), child: Row(children: [
-                Expanded(child: Text(_space?.name ?? "Wiki", style: fluent.typography.subtitle?.copyWith(color: ink), softWrap: false)),
-                FlatButton(child: Icon(FluentSystemIcons.add, size: 16, color: ink), tip: "New page", width: 28, height: 28,
-                           action: { [weak self] in self?.setState { self?._newTitleOpen.toggle() } }),
-            ])),
+            Padding(padding: EdgeInsets(all: 20), child: DecoratedBox(
+                decoration: BoxDecoration(color: WikiAppearance.blue, borderRadius: BorderRadius.circular(9)),
+                child: Padding(padding: EdgeInsets(all: 20), child: Column(crossAxisAlignment: .start, children: [
+                    Text("YOUR TEAM / WIKI", style: WikiAppearance.text(12, bold: true, color: WikiAppearance.white)),
+                    Chrome.vgap(12), Text(_space?.name ?? "Knowledge", style: WikiAppearance.text(25, bold: true, color: WikiAppearance.white)),
+                ])))),
+            Padding(padding: EdgeInsets(horizontal: 20), child: FilledButton(
+                onPressed: { [weak self] in self?.setState { self?._newTitleOpen.toggle() } }, child: Text("New page +"))),
+            Chrome.vgap(16),
         ]
         if _newTitleOpen {
-            header.append(Padding(padding: EdgeInsets(left: 12, top: 4, right: 12, bottom: 8), child: SizedBox(width: nil, height: 30, child: FluentTextBox(
-                controller: _newTitleField, placeholderText: "New page title", onSubmitted: { [weak self] t in self?._createPage(t) }, autofocus: true))))
+            header.append(Padding(padding: EdgeInsets(left: 20, top: 0, right: 20, bottom: 12), child:
+                WikiAppearance.field(_newTitleField, placeholder: "New page title", autofocus: true, onSubmitted: { [weak self] t in self?._createPage(t) })))
         }
-        header.append(Padding(padding: EdgeInsets(left: 12, top: 2, right: 12, bottom: 8), child: SizedBox(width: nil, height: 30, child: FluentTextBox(
-            controller: _searchField, placeholderText: "Search pages", onChanged: { [weak self] t in self?._search(t) },
-            onSubmitted: { [weak self] t in self?._search(t) }))))
+        header.append(Padding(padding: EdgeInsets(left: 20, top: 0, right: 20, bottom: 16), child:
+            WikiAppearance.field(_searchField, placeholder: "Search pages", onChanged: { [weak self] t in self?._search(t) },
+                onSubmitted: { [weak self] t in self?._search(t) })))
         if _spaces.count > 1 {
             header.append(Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 6), child: Wrap(spacing: 6, children: _spaces.map { s in
                 HyperlinkButton(onPressed: { [weak self] in self?._open(route: "/s/\(s.key)", push: true) },
-                                child: Text(s.key, style: fluent.typography.caption?.copyWith(color: s.key == _space?.key ? ink : fluent.resources.textFillColorSecondary)))
+                                child: Text(s.key, style: fluent.typography.caption?.copyWith(color: s.key == _space?.key ? ink : WikiAppearance.muted)))
             })))
         }
         // The tree, flattened depth-first with its depth.
@@ -451,21 +506,21 @@ final class WikiShellState: State<StatefulWidget> {
         if let hits = _hits {
             // Search results stand in for the tree while a query is typed.
             let results: Widget = hits.isEmpty
-                ? Padding(padding: EdgeInsets(left: 12, top: 8, right: 12, bottom: 8), child: Text("Nothing found.", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))
+                ? Padding(padding: EdgeInsets(left: 12, top: 8, right: 12, bottom: 8), child: Text("Nothing found.", style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted)))
                 : ListView(key: ValueKey("hits-\(hits.map(\.id).joined())"), itemCount: hits.count) { [weak self] _, i in
                     let hit = hits[i]
                     return Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0), child: FlyoutListTile(
                         onPressed: { self?._open(route: "/s/\(hit.space)/p/\(hit.id)/\(hit.slug)", push: true) },
                         text: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
                             Text(hit.title, style: fluent.typography.bodyStrong, softWrap: false),
-                            Text(hit.snippet, style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary), maxLines: 2),
+                            Text(hit.snippet, style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted), maxLines: 2),
                         ]),
                         margin: EdgeInsets(left: 0, top: 0, right: 0, bottom: 1),
                         selected: hit.id == current))
                 }
-            return SizedBox(width: 260, height: nil, child: DecoratedBox(
-                decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
-                                          border: Border(right: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
+            return SizedBox(width: _compact ? nil : 288, height: nil, child: DecoratedBox(
+                decoration: BoxDecoration(color: WikiAppearance.white,
+                                          border: Border(right: BorderSide(color: WikiAppearance.line, width: 1))),
                 child: Column(crossAxisAlignment: .stretch, children: header + [Expanded(child: results)])))
         }
         let list = ListView(key: ValueKey("\(rows.count)-\(current ?? "")-\(_tree.map(\.title).joined())"), itemCount: rows.count) { [weak self] _, i in
@@ -473,62 +528,56 @@ final class WikiShellState: State<StatefulWidget> {
             return Padding(padding: EdgeInsets(left: 8 + Double(depth) * 14, top: 0, right: 8, bottom: 0),
                            child: FlyoutListTile(
                                onPressed: { self?._loadPage(node.id, push: true) },
-                               text: Text(node.title, style: node.id == current ? fluent.typography.bodyStrong : fluent.typography.body, softWrap: false),
+                               text: Text(node.title, style: (node.id == current ? fluent.typography.bodyStrong : fluent.typography.body)?.copyWith(color: node.id == current ? WikiAppearance.blue : ink), softWrap: false),
                                margin: EdgeInsets(left: 0, top: 0, right: 0, bottom: 1),
                                selected: node.id == current))
         }
         var footer: [Widget] = []
         if let u = _user {
             footer.append(Padding(padding: EdgeInsets(left: 12, top: 6, right: 12, bottom: 10), child: Row(children: [
-                Expanded(child: Text(u.name, style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary), softWrap: false)),
+                Expanded(child: Text(u.name, style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted), softWrap: false)),
                 HyperlinkButton(onPressed: { [weak self] in
                     self?.session.logout { self?.setState { self?._needLogin = true; self?._user = nil } }
                 }, child: Text("Sign out", style: fluent.typography.caption)),
             ])))
         }
-        return SizedBox(width: 260, height: nil, child: DecoratedBox(
-            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
-                                      border: Border(right: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
+        return SizedBox(width: _compact ? nil : 288, height: nil, child: DecoratedBox(
+            decoration: BoxDecoration(color: WikiAppearance.white,
+                                      border: Border(right: BorderSide(color: WikiAppearance.line, width: 1))),
             child: Column(crossAxisAlignment: .stretch, children: header + [Expanded(child: list)] + footer)))
     }
 
     private func _header(_ fluent: FluentThemeData) -> Widget {
-        let ink = OfficeAppearance.ink(fluent)
+        let ink = WikiAppearance.ink
         var items: [Widget] = []
-        if _editing {
-            items.append(Expanded(child: SizedBox(width: nil, height: 32, child: FluentTextBox(controller: _titleField, placeholderText: "Title"))))
-        } else {
-            items.append(Expanded(child: Text(_page?.title ?? (_loading ? "Loading…" : ""), style: fluent.typography.title?.copyWith(color: ink), softWrap: false)))
-        }
-        items.append(Chrome.gap(12))
         if let page = _page {
             if _editing {
                 items.append(Button(onPressed: { [weak self] in self?._cancelEdit(reload: true) }, child: Text("Cancel")))
                 items.append(Chrome.gap(8))
                 items.append(FilledButton(onPressed: { [weak self] in self?._finishEdit() }, child: Text(_dirty ? "Save" : "Done")))
             } else if page.version < page.tip {
-                items.append(Text("Viewing version \(page.version) of \(page.tip)", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))
+                items.append(Text("Viewing version \(page.version) of \(page.tip)", style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted)))
                 items.append(Chrome.gap(12))
                 items.append(Button(onPressed: { [weak self] in self?._loadPage(page.id, push: false) }, child: Text("Back to latest")))
                 items.append(Chrome.gap(8))
                 items.append(FilledButton(onPressed: { [weak self] in self?._restore() }, child: Text("Restore this version")))
             } else if _confirmDelete {
-                items.append(Text("Delete \"\(page.title)\"? Its children move up a level.", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))
+                items.append(Text("Delete \"\(page.title)\"? Its children move up a level.", style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted)))
                 items.append(Chrome.gap(12))
                 items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmDelete = false } }, child: Text("Keep")))
                 items.append(Chrome.gap(8))
                 items.append(FilledButton(onPressed: { [weak self] in self?._deletePage() }, child: Text("Delete")))
             } else {
                 if let other = _otherLock {
-                    items.append(Row(children: [Icon(FluentSystemIcons.lock, size: 14, color: fluent.resources.textFillColorSecondary), Chrome.gap(4),
-                                                Text("\(other.userName) is editing", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary))]))
+                    items.append(Row(children: [Icon(FluentSystemIcons.lock, size: 14, color: WikiAppearance.muted), Chrome.gap(4),
+                                                Text("\(other.userName) is editing", style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted))]))
                     items.append(Chrome.gap(12))
                 }
                 items.append(HyperlinkButton(onPressed: { [weak self] in
                     guard let self else { return }
                     self.setState { self._historyOpen.toggle() }
                     if self._historyOpen { self._loadVersions() }
-                }, child: Text("v\(page.version)", style: fluent.typography.caption?.copyWith(color: _historyOpen ? ink : fluent.resources.textFillColorSecondary))))
+                }, child: Text("History · v\(page.version)", style: fluent.typography.caption?.copyWith(color: _historyOpen ? ink : WikiAppearance.muted))))
                 items.append(Chrome.gap(8))
                 if page.id != _space?.homePage {
                     items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmDelete = true } }, child: Text("Delete")))
@@ -541,13 +590,19 @@ final class WikiShellState: State<StatefulWidget> {
                 items.append(FilledButton(onPressed: _otherLock == nil ? { [weak self] in self?._beginEdit() } : nil, child: Text("Edit")))
             }
         }
+        let title: Widget = _editing
+            ? WikiAppearance.field(_titleField, placeholder: "Title")
+            : Text(_page?.title ?? (_loading ? "Loading…" : "Choose a page"), style: WikiAppearance.text(_compact ? 25 : 32, bold: true))
         return DecoratedBox(
-            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent), border: Border(bottom: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
-            child: Padding(padding: EdgeInsets(left: 20, top: 10, right: 16, bottom: 10), child: Row(children: items)))
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: WikiAppearance.line, width: 1))),
+            child: Padding(padding: EdgeInsets(all: _compact ? 16 : 24), child: Column(crossAxisAlignment: .stretch, children: [
+                Text(_space?.name ?? "Wiki", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.blue)),
+                Chrome.vgap(8), title, Chrome.vgap(18), Wrap(spacing: 0, runSpacing: 8, children: items),
+            ])))
     }
 
     private func _historyPane(_ fluent: FluentThemeData) -> Widget {
-        let ink = OfficeAppearance.ink(fluent)
+        let ink = WikiAppearance.ink
         let current = _page?.version
         let pageID = _page?.id
         let list = ListView(key: ValueKey("versions-\(_versions.count)-\(current ?? 0)"), itemCount: _versions.count) { [weak self] _, i in
@@ -558,14 +613,14 @@ final class WikiShellState: State<StatefulWidget> {
                 onPressed: { if let pageID { self?._loadPage(pageID, version: v.version, push: false) } },
                 text: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
                     Text("Version \(v.version)\(v.base.map { " (from \($0))" } ?? "")", style: v.version == current ? fluent.typography.bodyStrong : fluent.typography.body, softWrap: false),
-                    Text("\(v.author ?? "?") · \(when)", style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary), softWrap: false),
+                    Text("\(v.author ?? "?") · \(when)", style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted), softWrap: false),
                 ]),
                 margin: EdgeInsets(left: 0, top: 0, right: 0, bottom: 1),
                 selected: v.version == current))
         }
-        return SizedBox(width: 240, height: nil, child: DecoratedBox(
-            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
-                                      border: Border(left: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
+        return SizedBox(width: _compact ? nil : 272, height: nil, child: DecoratedBox(
+            decoration: BoxDecoration(color: WikiAppearance.white,
+                                      border: Border(left: BorderSide(color: WikiAppearance.line, width: 1))),
             child: Column(crossAxisAlignment: .stretch, children: [
                 Padding(padding: EdgeInsets(left: 12, top: 12, right: 12, bottom: 6), child: Row(children: [
                     Expanded(child: Text("History", style: fluent.typography.subtitle?.copyWith(color: ink))),
@@ -576,7 +631,7 @@ final class WikiShellState: State<StatefulWidget> {
     }
 
     private func _toolbar(_ fluent: FluentThemeData) -> Widget {
-        let ink = OfficeAppearance.ink(fluent)
+        let ink = WikiAppearance.ink
         let c = _controller
         func b(_ label: String, _ tip: String, _ action: @escaping () -> Void) -> Widget {
             FlatButton(child: Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0),
@@ -584,8 +639,8 @@ final class WikiShellState: State<StatefulWidget> {
                        tip: tip, width: nil, height: 28, action: action)
         }
         return DecoratedBox(
-            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent), border: Border(bottom: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
-            child: Padding(padding: EdgeInsets(left: 12, top: 4, right: 12, bottom: 4), child: Row(children: [
+            decoration: BoxDecoration(color: WikiAppearance.white, border: Border(bottom: BorderSide(color: WikiAppearance.line, width: 1))),
+            child: Padding(padding: EdgeInsets(left: 12, top: 4, right: 12, bottom: 4), child: Wrap(spacing: 2, runSpacing: 8, children: [
                 b("B", "Bold (⌘B)") { c.toggleBold() }, Chrome.gap(2),
                 b("I", "Italic (⌘I)") { c.toggleItalic() }, Chrome.gap(2),
                 b("U", "Underline (⌘U)") { c.toggleUnderline() }, Chrome.gap(12),
@@ -605,10 +660,10 @@ final class WikiShellState: State<StatefulWidget> {
         let theme = _theme
         theme.textColor = Color(0xFF1B1B1B)
         theme.caretColor = theme.textColor
-        theme.selectionColor = fluent.accentColor.defaultBrushFor(.light).withOpacity(0.25)
+        theme.selectionColor = WikiAppearance.blue.withOpacity(0.20)
         return RichEditable(
             controller: _controller, theme: theme,
-            padding: EdgeInsets(left: 72, top: 28, right: 72, bottom: 120),
+            padding: EdgeInsets(left: _compact ? 20 : 40, top: 28, right: _compact ? 20 : 40, bottom: 120),
             focusNode: _editorFocus, autofocus: false,
             backgroundColor: page, zoom: 1.0,
             pageSetup: nil, pageColor: page,
@@ -634,8 +689,8 @@ final class WikiShellState: State<StatefulWidget> {
     private func _statusBar(_ fluent: FluentThemeData) -> Widget {
         let text = _status ?? (_editing ? (_dirty ? "Editing — unsaved changes" : "Editing") : (_page.map { "Last saved by \($0.author ?? "?")" } ?? ""))
         return DecoratedBox(
-            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent), border: Border(top: BorderSide(color: OfficeAppearance.border(fluent), width: 1))),
-            child: Padding(padding: EdgeInsets(left: 16, top: 4, right: 16, bottom: 4),
-                           child: Text(text, style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary), softWrap: false)))
+            decoration: BoxDecoration(color: WikiAppearance.white, border: Border(top: BorderSide(color: WikiAppearance.line, width: 1))),
+            child: Padding(padding: EdgeInsets(left: 20, top: 12, right: 20, bottom: 12),
+                           child: Text(text, style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted), softWrap: false)))
     }
 }

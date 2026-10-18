@@ -63,12 +63,12 @@ rm -rf "$CHROME_PROFILE"
 # types: as composed text into the page's hidden field, not as keys.
 COMPOSE="document.getElementById('starling-ime').dispatchEvent(new InputEvent('beforeinput', {inputType: 'insertText', data: 'pw1', cancelable: true, bubbles: true}))"
 URL="$URL$ROUTE" "${DRIVE[@]}" wait 9000 shot "$OUT/1-signin.png" \
-    click 700 430 wait 300 eval "document.activeElement.id" type alice \
-    click 700 470 wait 300 eval "$COMPOSE" wait 200 press Enter \
+    click 700 500 wait 300 eval "document.activeElement.id" type alice \
+    click 700 560 wait 300 eval "$COMPOSE" wait 200 press Enter \
     wait 4000 shot "$OUT/2-page.png" \
-    click 1361 28 wait 1500 shot "$OUT/3-editing.png" \
-    click 700 200 wait 300 type "Hello from the browser. " wait 500 \
-    click 1359 26 wait 3000 shot "$OUT/4-saved.png" \
+    click 750 220 wait 1500 shot "$OUT/3-editing.png" \
+    click 450 350 wait 300 type "Hello from the browser. " wait 500 \
+    click 455 228 wait 3000 shot "$OUT/4-saved.png" \
     > "$OUT/drive.log" 2>&1
 tail -3 "$OUT/drive.log" | sed 's/^/        /'
 [ -s "$OUT/2-page.png" ] && pass "screenshots taken ($OUT)" || fail "no screenshots — see $OUT/drive.log"

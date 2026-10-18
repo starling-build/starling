@@ -23,6 +23,10 @@ conversions shell out to the headless `OfficeApp` binary.
 
 Then http://127.0.0.1:8080/s/ENG in a browser, or natively
 `apps/OfficeApp/.build/debug/OfficeApp --wiki http://127.0.0.1:8080/s/ENG`.
+The Wiki shell uses the document-management UI's blue and white palette,
+Carlito typography, and spacious controls. Below 900 pixels wide, **Pages**
+opens navigation and history uses the full content area. Page bodies remain
+rendered by Writer; the shell's theme does not change document formatting.
 `WIKI_DATABASE_URL` (default `postgres://localhost/starling_wiki`) or
 `--database` names the database; `LOG_LEVEL=debug` shows every request.
 For a phone on the LAN: `--host 0.0.0.0 --public-url http://<lan-ip>:8080`,
