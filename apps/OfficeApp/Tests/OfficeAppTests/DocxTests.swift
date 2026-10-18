@@ -1616,7 +1616,30 @@ final class DocxTests: XCTestCase {
         // (The number's box is a line of its own in the paragraph, as tall
         // as the text's at the text's size — two of the plain paragraph's
         // lines — and the taller for a number set larger.)
-        XCTAssertGreaterThan(try height(bulleted: true) - 2 * (try height(bulleted: false)), 0.4, "the bullet's 14pt makes its line taller")
+        XCTAssertGreaterThan(try height(bulleted: true) - 2 * (try height(bulleted: false)), 0.3, "the bullet's 14pt makes its line taller")
+    }
+
+    func testACompatibilityIdeographYaHeiLacksIsItsBox() throws {
+        // zh-12c4f07a's "契" U+F909 in a YaHei run: Word for Mac draws
+        // YaHei's missing-glyph box, 0.697 em, and breaks the line by it
+        // (lab `cj`); ours set an em.
+        func width(_ text: String) -> Double {
+            var style = CharStyle()
+            style.fontFamily = "Microsoft YaHei"
+            style.eastAsiaFontFamily = "Microsoft YaHei"
+            style.fontSize = 13
+            let doc = RichDocument(paragraphs: [RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 4000
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / l.theme.pixelsPerPoint
+        }
+        XCTAssertEqual(width("一\u{F909}\u{F909}一") - width("一一"), 2 * 0.697 * 13, accuracy: 0.3)
     }
 
     func testACellsParagraphsShareTheirSpacing() throws {

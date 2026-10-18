@@ -6527,6 +6527,20 @@ public final class RichLayout {
                     extra += w * em - _glyphWidth(style(kind), ch)
                     if document.balancesSpaceWidth, let g = grid, g != 0 { extra -= _px(g) / 2 }
                 }
+                // (A CJK compatibility ideograph YaHei lacks and Word for
+                // Mac's Noto Sans SC does not give it is YaHei's own
+                // missing-glyph box, 0.697 em, in the line's breaking as
+                // in its drawing: zh-12c4f07a's "於契約…本委" ends at "委"
+                // in Word's print, its "契" U+F909 a box 9.06pt wide at
+                // 13pt, where ours set it an em and "委" went over. Lab
+                // `cj` (Word for Mac): U+F909 and U+FA01 give 0.30 em more
+                // room than U+5951 and U+5EA6, at 13 and 14pt, anywhere on
+                // the line.)
+                if ea, let u = ch.unicodeScalars.first?.value, u >= 0xF900, u <= 0xFAFF, !Self._notoCompatibility.contains(u),
+                   theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.lacksCompatibilityIdeographs == true {
+                    extra += 0.697 * em - _glyphWidth(style(kind), ch)
+                }
                 // A symbol an East Asian run sets in its own face (■□●○
                 // ◆△※, the circled numbers, arrows) is an em wide there, as
                 // every such face draws it; the face drawing it here may
@@ -8245,7 +8259,29 @@ public final class RichLayout {
                 // in Word's print, "件" squeezed in before it; ours sent
                 // "件)" to a line of its own and page 26 ran a line long.)
                 let latinComma = !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
-                let hang = hangs && !holdsFinal && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
+                // (Before Word 2013's layout, in a document that compresses
+                // punctuation, Taiwan's centred marks give nothing at a
+                // line's end to be taken, and the paragraph's own last one
+                // does not hang (see `kept`): lab `lp` (Word for Mac,
+                // zh-ff93733d's package, 標楷體→YaHei 14pt justified, 30
+                // ideographs and "乙" before the mark; no mode and mode 14
+                // alike): "乙；" mid-paragraph under overflowPunct 0 goes
+                // down a whole em sooner than an ideograph would (mode 15
+                // gives the "；" its half); "乙。" ending the paragraph goes
+                // down a whole em sooner, and under overflowPunct 0 half
+                // an em — there it gives its half, as zh-749cb15a's
+                // "…教育訓練活動。" does. zh-ff93733d's "…調查結果。" is
+                // carried whole in Word's print so. A bracket, with a blank
+                // half, still gives it (zh-fec5fa30's cells end "民政局
+                // （處）"); a document that compresses nothing, or the
+                // mainland's, hangs its final marks as any.)
+                // (In the body: a cell's last mark gives its half, lab `pe`,
+                // and zh-ff93733d's cells end "…計算諮詢次數。" so.)
+                let centredEnd = (document.compatibilityMode ?? 12) < 15 && squeezes && !inCell && document.marksCentred
+                    && Self._centredUnits.contains(units[tail])
+                let paragraphEnd = tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
+                let hang = hangs && !holdsFinal && !(centredEnd && paragraphEnd)
+                    && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf)
                     && !runRulesOff(tail)
                     ? min(ems[tail] * (closesUp(tail) || document.hangsHalf ? 0.5 : 1), boxes(tail, tail + 1)) : 0
                 // (No hair over the hang: lab `hc`, a two-character indent
@@ -8309,7 +8345,16 @@ public final class RichLayout {
                     // margin and two commas giving 11.0, where ours sent
                     // "净；" down. Not before it: zh-1563bd74 (mode 14) leaves
                     // "…民政部门，" with one comma, 21.75 over.)
-                    let kept = (hang > 0 && !(document.hangsHalf && squeezes && (document.compatibilityMode ?? 12) >= 15 && !closesUp(tail))) || (holdsFinal && (centredFinal || !(marks + own).contains { $0 != tail })) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
+                    // (At the paragraph's end only where it is the line's
+                    // only mark: with another on the line giving, it gives
+                    // its share — zh-64044a1d's "…措施事宜。" sets "，" and the
+                    // final "。" 3.1 and 3.0 narrower in Word's print. Inside
+                    // the paragraph it gives nothing whatever else does:
+                    // zh-749cb15a's "…人民利益攸關之功能性及專業性國際組織；"
+                    // and the Mac's "…等，" with two commas are carried.)
+                    let alone = !(marks + own).contains { $0 != tail }
+                    let centredKept = centredEnd && (paragraphEnd ? alone && p.style.eastAsian["w:overflowPunct"] != "0" : true)
+                    let kept = centredKept || (hang > 0 && !(document.hangsHalf && squeezes && (document.compatibilityMode ?? 12) >= 15 && !closesUp(tail))) || (holdsFinal && (centredFinal || !(marks + own).contains { $0 != tail })) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
                     let all = (marks + own).filter { !kept || $0 != tail }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width

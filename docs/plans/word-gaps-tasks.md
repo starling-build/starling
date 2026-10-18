@@ -2778,7 +2778,7 @@ between them, stand 1.75pt taller in Word's print for a 2.25pt line stated on th
 side is the wider of the table's line there and the cell's own. Same-base sweep, 337 docs: zh-701eda18 92.8 -> 96.0,
 nothing else moved.
 
-### T119. Legacy-mode line ends (zh-12c4f07a, zh-749cb15a): first, a compatibility ideograph YaHei lacks — waiting on a lab
+### T119. Legacy-mode line ends (zh-12c4f07a, zh-749cb15a): first, a compatibility ideograph YaHei lacks — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), again from 2026-10-18 after the Mac's lab
 Documents: zh-12c4f07a, zh-749cb15a; zh-5b7ae054, zh-8e8d4c40, zh-4adfcce2, zh-7dc3afad and others hold the same.
 Known: zh-12c4f07a p8's "於契約…本委" ends at 委 in Word because its "契" is U+F909, which Word for Mac draws in a
@@ -2820,6 +2820,16 @@ on) 679 — carried with it, no hang, no squeeze; "。" mid-paragraph (on)
 squeezed to take it; on, 958 — hangs. MODE 15: "。" ending the paragraph
 958 — hangs; "；" mid overflowPunct 0 819 — squeezed by half. So legacy
 mode squeezes no line-end mark and never hangs a paragraph's final one.
+
+Done with the Mac's labs `cj` and `lp` (Word for Mac; no mode and mode 14 alike, mode 15 not): the box is 0.697 em
+in the break too; and before mode 15, in a document that compresses punctuation, a line's last mark that is one of
+Taiwan's centred ones (document language zh-TW/HK/MO, "，。、；：！？"), in the body: mid-paragraph it gives nothing
+to be taken; ending the paragraph it does not hang, and gives nothing where it is the line's only mark — under
+overflowPunct 0 its half (lab pe_off; zh-749cb15a's "…活動。"), and with another mark on the line its share
+(zh-64044a1d's "…措施事宜。"). First built for every no-mode file it sank 18 documents: the mainland's and the
+uncompressed ones hang their final marks as any, and a cell's last bracket gives its half (zh-fec5fa30 "民政局
+（處）"). Same-base sweep, 397 docs: zh-749cb15a 90.3 -> 99.8, zh-d62da4dd 55.7 -> 57.7, zh-06c46ba9 97.3 -> 98.1,
+zh-12c4f07a 78.6 -> 79.3, zh-5b7ae054 and zh-e0ca7252 +0.1-0.2, nothing lower. zh-ff93733d stays 97.0.
 
 ### T120. zh-b4d36718: turned text in a merged cell that crosses a page sits off its part of the page — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18
