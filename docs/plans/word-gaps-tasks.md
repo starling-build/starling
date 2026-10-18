@@ -241,6 +241,16 @@ and its baseline that face's: the 1.5-spaced paragraphs from p3 are
 46.1, nothing else moved. Left: the matcher's — Word's text layer maps
 its 招 to U+0000, and nearly every line says 招标; the lines match.
 
+### T101. Sections that disagree on their columns are set in one — DONE (2026-10-17), zh-8f9b19f4 still open
+Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
+zh-8f9b19f4 (sixth sample, a PDF conversion): thirteen sections, all one
+column but for three of the last four; the layout has one column count
+for the whole document and took the last section's three — Word's 14
+pages came out as 7 of three columns each. Now, where the sections
+disagree, every section is set in one column (the multi-column ones
+then run long — still T2's open ground). zh-8f9b19f4 0.0 -> 14.1 (16
+pages to Word's 14); nothing else moved.
+
 ### T98. Before 2013's layout a cell's text keeps its margin whatever its side lines — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
 From the Mac's zh-e029cf49 note (its cell text 0.25pt right of Word's).

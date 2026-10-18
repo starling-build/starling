@@ -2135,7 +2135,13 @@ public final class RichLayout {
 
     // MARK: Pagination
 
-    private var _columns: Int { max(1, pageSetup?.columns ?? 1) }
+    private var _columns: Int { _oneColumn ? 1 : max(1, pageSetup?.columns ?? 1) }
+    /// The document's sections disagree on their columns: the layout has
+    /// one count for the whole document (slots are `page * columns`), so
+    /// one column — zh-8f9b19f4's thirteen sections are one column but
+    /// for three of its last four, and the last's three columns set all
+    /// fourteen of Word's pages in seven.
+    private var _oneColumn = false
     private func _pxColumnW(_ page: Int) -> Double { _px(pageSetup(forPage: page).columnWidth) }
     private func _pxColumnStride(_ page: Int) -> Double {
         let s = pageSetup(forPage: page)
@@ -2259,9 +2265,12 @@ public final class RichLayout {
         var setups: [PageSetup] = []
         var of = Array(repeating: 0, count: document.paragraphs.count)
         var start = 0
+        _oneColumn = last.columns > 1 && document.paragraphs.enumerated().contains { i, p in
+            p.cell == nil && i < document.paragraphs.count - 1 && p.style.sectionPage.map { max(1, $0.columns) != last.columns } == true
+        }
         for (i, p) in document.paragraphs.enumerated() where p.cell == nil {
             guard var setup = p.style.sectionPage, i < document.paragraphs.count - 1 else { continue }
-            setup.columns = last.columns
+            setup.columns = _oneColumn ? 1 : last.columns
             setup.columnGap = last.columnGap
             setup.gap = last.gap
             for k in start ... i { of[k] = setups.count }
@@ -2269,7 +2278,9 @@ public final class RichLayout {
             start = i + 1
         }
         if start < of.count { for k in start ..< of.count { of[k] = setups.count } }
-        setups.append(last)
+        var final = last
+        if _oneColumn { final.columns = 1 }
+        setups.append(final)
         let changed = setups != _sectionSetups || (setups.count > 1 && of != _sectionOf)
         _sectionSetups = setups
         _sectionOf = of
