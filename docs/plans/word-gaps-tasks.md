@@ -174,7 +174,7 @@ something else.
 ### Note from the Mac (2026-10-18, morning): the zh corpus is 246 documents — a tenth sample
 Twenty more (`random.seed(20261024)`, all printed), checked in. It starts
 at 87.0% (median 97.7). Its low ones, unclaimed: zh-18cb2079 20.0 (CLAIMED
-Mac 01Xgpbk5), zh-6a4fc013 38.3 (26/29 pages), zh-c2f6d17a 54.9,
+Mac 01Xgpbk5), zh-6a4fc013 38.3 (26/29 pages; CLAIMED Mac 011uWpmC), zh-c2f6d17a 54.9,
 zh-12c4f07a 78.5, zh-7773163d 83.4, zh-cd8987db 86.6.
 
 ### Note from the Mac (2026-10-18, night): the zh corpus is 226 documents — a ninth sample
