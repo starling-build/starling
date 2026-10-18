@@ -1358,8 +1358,13 @@ enum ChartPainter {
         // chart's, its plot's foot 4.4 nearer the frame: chartex's
         // box-and-whisker chart in Word's print, the title's baseline 18.7
         // under the frame's top where a `c:` chart's is about 21.)
+        // (A newer chart on a slide with no legend under it keeps 6.9 pt
+        // at its foot: tdf149985's and tdf114821's category labels print
+        // 2.1 pt lower than 9 put them; one with a legend there keeps 9,
+        // chart-slide-bg's labels where PowerPoint's are.)
+        let foot = c.onSlide && !(c.legend && c.legendPosition == "b") ? 6.9 : 9.0
         var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + (c.chartex ? 6.8 : 9) * k, r.right - 9 * k,
-                                 r.bottom - (old ? 6.5 : c.chartex ? 4.6 : 9) * k)
+                                 r.bottom - (old ? 6.5 : c.chartex ? 4.6 : foot) * k)
 
         let titled = !(c.title ?? "").isEmpty
         var placed: (TextPainter, Offset)? = nil
@@ -2126,7 +2131,10 @@ enum ChartPainter {
             for (i, v) in xTicks.enumerated() {
                 let x = plot.left + (v - xs.lo) / (xs.hi - xs.lo) * plot.width
                 canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint)
-                if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, plot.bottom + 4 * k + belowOut)) }
+                // (A 2007-style one's 7.6 pt under, as a line chart's:
+                // scatter-chart's printed 3.5 pt lower than 4 put them.)
+                let under = (classic ? 7.6 : 4) * k
+                if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, plot.bottom + under + belowOut)) }
             }
         } else if horizontal {
             // (Not where the file deletes the axis: LIBRE_OFFICE-100610's.)

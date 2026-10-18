@@ -2407,7 +2407,12 @@ gridlines' places (chart-slide-bg and its three like it −0.02 each;
 tdf114821 +0.02, tdf149985 +0.01): lowering its plot 1.5 pt took them
 down with it, and they print 1.1 to 1.5 above. tdf149985's and
 tdf114821's category labels and plot foot stand 2.1 pt high, the rest
-of the chart where PowerPoint's is; not yet looked into.
+of the chart where PowerPoint's is. That is the foot: a newer chart on
+a slide with no legend under it keeps 6.9 pt there, not 9 (tdf149985
+1.79 → 1.17, tdf114821 0.91 → 0.71); one with a legend there keeps 9
+(chart-slide-bg's labels already PowerPoint's). And a 2007-style
+scatter's x labels stand 7.6 pt under its plot, as a line chart's do,
+not 4 (scatter-chart 1.14 → 1.08; they printed 3.5 pt lower).
 
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
