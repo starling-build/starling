@@ -211,7 +211,11 @@ struct SheetPrintMetrics {
     static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8) -> SheetPrintMetrics {
         let plain = aliases[family.trimmingWhitespace().lowercased()] ?? family.trimmingWhitespace().lowercased()
         let f = (bold ? faces[plain + " bold"] : nil) ?? face(family)
-        let digit = at(f.digit, size).rounded(), row = at(f.row, size).rounded()
+        // (A printer's line between the sizes measured is the next whole
+        // dot up: 49609's Microsoft Sans Serif 8.25 is 87 of 84 and 93,
+        // its set 15 pt rows 124 dots in Excel's print where 86 made 122.)
+        let between = size > sizes[0] && size < sizes[sizes.count - 1]
+        let digit = at(f.digit, size).rounded(), row = at(f.row, size).rounded(between ? .up : .toNearestOrAwayFromZero)
         let screenRow = max(1, at(f.screenRow, size).rounded())
         // The default column, as that Excel's screen made it: the digit there
         // in whole pixels, its padding, and the sum up to a multiple of 8.
