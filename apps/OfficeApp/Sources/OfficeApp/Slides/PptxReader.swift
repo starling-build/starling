@@ -120,6 +120,10 @@ struct PptxTheme {
     /// Its line styles' widths (`a:lnStyleLst`, points): a shape whose
     /// style refers to one and whose own line names no width is that wide.
     var lineWidths: [Double] = []
+    /// And their colours' modifiers on the shape's own (`phClr`): the
+    /// Office 2007 theme's first line is its colour shaded to 95% and
+    /// saturated 105% — shapes' connector prints 4A7EBB for 4F81BD.
+    var lineColorMods: [XNode?] = []
 
     init(_ root: XNode?) {
         guard let root, let elements = root.descendant("a:themeElements") else {
@@ -138,6 +142,9 @@ struct PptxTheme {
         effectStyles = elements.first("a:fmtScheme")?.first("a:effectStyleLst")?.children ?? []
         lineWidths = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map {
             ($0["w"].flatMap(Double.init) ?? 9525) / 12700
+        }
+        lineColorMods = (elements.first("a:fmtScheme")?.first("a:lnStyleLst")?.children ?? []).map {
+            $0.first("a:solidFill")?.first("a:schemeClr").flatMap { $0["val"] == "phClr" ? $0 : nil }
         }
         if let scheme = elements.first("a:clrScheme") {
             for child in scheme.children {
@@ -182,6 +189,15 @@ struct ColorContext {
 
     /// The colour an element like `a:solidFill` holds, with its modifiers.
     func color(in fill: XNode) -> Color? { color(in: fill, duotone: false) }
+
+    /// A shape style's line colour (`a:lnRef`): its own, through the
+    /// modifiers the theme's line style puts on it.
+    func lineColor(in ref: XNode) -> Color? {
+        guard let base = color(in: ref) else { return nil }
+        guard let idx = ref["idx"].flatMap(Int.init), theme.lineColorMods.indices.contains(idx - 1),
+              let mods = theme.lineColorMods[idx - 1], !mods.children.isEmpty else { return base }
+        return Self.modify(base, mods)
+    }
 
     /// The same, for one of a picture's duotone pair.
     func color(in fill: XNode, duotone: Bool) -> Color? {
@@ -1390,7 +1406,7 @@ private struct SlideContext {
                 let stops = gs.compactMap { colors.color(in: $0) }
                 outline = stops.first { $0.alpha > 0 }
             }
-            else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" { outline = colors.color(in: ref) }
+            else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" { outline = colors.lineColor(in: ref) }
             // A line at alpha 0 is no line, and so is one of no width
             // (`w="0"`, as LibreOffice writes a hairline: PowerPoint shows
             // ThemeColorTransparency's red box and vert_and_padding's blue
@@ -1398,7 +1414,7 @@ private struct SlideContext {
             if let o = outline, o.alpha == 0 { outline = nil }
             if ln["w"] == "0" { outline = nil }
         } else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" {
-            outline = colors.color(in: ref)
+            outline = colors.lineColor(in: ref)
         }
 
         // A placeholder with no fill or line of its own takes its layout's,
@@ -1648,7 +1664,7 @@ private struct SlideContext {
                                            adjustments: PresetGeometry.adjustments(el.first("p:spPr")?.first("a:prstGeom"))) {
             let ln = el.first("p:spPr")?.first("a:ln")
             let color = ln?.has("a:noFill") == true ? nil : ln?.first("a:solidFill").flatMap(colors.color(in:))
-                ?? el.first("p:style")?.first("a:lnRef").flatMap(colors.color(in:)) ?? colors.scheme("tx1")
+                ?? el.first("p:style")?.first("a:lnRef").flatMap(colors.lineColor(in:)) ?? colors.scheme("tx1")
             var width = ln?["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
             if ln?["w"] == nil, let idx = el.first("p:style")?.first("a:lnRef")?["idx"].flatMap(Int.init),
                theme.lineWidths.indices.contains(idx - 1) { width = theme.lineWidths[idx - 1] }
@@ -1685,7 +1701,7 @@ private struct SlideContext {
         let frame = Rect.fromLTRB(a.dx, a.dy, b.dx, b.dy)
         let ln = el.first("p:spPr")?.first("a:ln")
         let color = ln?.first("a:solidFill").flatMap(colors.color(in:))
-            ?? el.first("p:style")?.first("a:lnRef").flatMap(colors.color(in:)) ?? colors.scheme("tx1")
+            ?? el.first("p:style")?.first("a:lnRef").flatMap(colors.lineColor(in:)) ?? colors.scheme("tx1")
         let width = ln?["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
         var st = ShapeState(id: id(), name: el.first("p:nvCxnSpPr")?.first("p:cNvPr")?["name"] ?? "Line",
                             kind: .geometry(.line), frame: frame, rotation: 0, fill: nil, outline: color,
@@ -1856,7 +1872,7 @@ private struct SlideContext {
         // would stand where the picture does not — Scene3d_pureImage.)
         if ln?.has("a:noFill") != true, el.first("p:spPr")?.first("a:scene3d") == nil {
             if let f = ln?.first("a:solidFill") { s.outline = colors.color(in: f) }
-            else if let ref = lnRef, ref["idx"] != "0" { s.outline = colors.color(in: ref) }
+            else if let ref = lnRef, ref["idx"] != "0" { s.outline = colors.lineColor(in: ref) }
             if s.outline != nil {
                 var w = 0.75
                 if let idx = lnRef?["idx"].flatMap(Int.init), theme.lineWidths.indices.contains(idx - 1) { w = theme.lineWidths[idx - 1] }

@@ -2391,6 +2391,13 @@ style's line, as Office 2007 draws a shape's outline): line-chart's
 scatter-chart's marks, their fills 4F81BD (radar −0.01, scatter
 −0.02).
 
+**A style's line through its theme line's colour, 2026-10-17** (sweep
+186: no deck moves past 0.01). A shape whose outline comes from its
+style (`a:lnRef idx`) takes the colour through the theme's line style's
+modifiers on `phClr`: the Office 2007 theme's first line is shaded to
+95% and saturated 105%, and shapes' connector prints 4A7EBB for
+4F81BD, as ours now does. Only the width was read before.
+
 **Tried and dropped, 2026-10-17:** a percentage before a paragraph
 taken of the line as spaced (times `lnSpc`), from alterman's 80% lines
 whose gaps looked a fifth short — sweep 173: alterman 4.84 → 6.31, the
