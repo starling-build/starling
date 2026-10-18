@@ -6692,7 +6692,14 @@ public final class RichLayout {
                         // left for the next. Where punctuation does not kern
                         // — `w:noPunctuationKerning`, zh-d68ac84a's "”（" —
                         // the quote keeps its em, as the marks do.)
-                        extra -= em / 2
+                        // (Half its cell, on a character grid: labs `og3`/`og4`
+                        // (Word for Windows, zh-eb54d3b0's package, 16pt)
+                        // set "》，" "）、" "，“" 7.9 apart on a grid of -0.21
+                        // and 8.5 on one of +1 — half the em and half the
+                        // addition. Ours kept the whole addition, and
+                        // zh-eb54d3b0's "…政策》，助推茶" took "产" 7.81 over
+                        // where Word's is 7.91 and goes down.)
+                        extra -= (em + _px((kind < 0 ? ideographGrid : grid) ?? 0)) / 2
                     }
                 }
                 if heldSpaces.contains(offset) {

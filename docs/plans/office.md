@@ -6368,6 +6368,16 @@ fitter dropped the paragraph's tail).
   and the "，" after giving their halves. Measured by its em it was 0.21
   over that, and every line to p2's paragraph end ran a character
   behind. zh-eb54d3b0 95.4 -> 96.8; nothing else moved.
+- **A mark closed up on a character grid is half its cell (2026-10-18;
+  Windows).** Where a closing mark meets the next mark ("》，", "）、",
+  "，“") it gives half of itself; ours took half its em and left it the
+  grid's whole addition. Labs `og3`/`og4` (Word for Windows,
+  zh-eb54d3b0's package, 16pt, in ~/starling-doc-check/lab/og) set
+  each pair 7.9 apart on the document's grid of -0.21 and 8.5 on one of
+  +1: half the em and half the addition. zh-eb54d3b0's "…扶持政策》，助推茶"
+  then left "产" 7.81 over half of "茶" (7.897), which took it; Word's
+  is 7.91 over and goes down — in Word for Windows too, on and off the
+  grid (lab `og2`). zh-eb54d3b0 96.8 -> 98.0; nothing else moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even
