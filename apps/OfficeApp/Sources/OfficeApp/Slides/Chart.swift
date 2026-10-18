@@ -242,6 +242,55 @@ struct Chart: Equatable {
     /// line from each column's end to the next one's start.
     var waterfallTotals: Set<Int>? = nil
     var waterfallConnectors = false
+    /// An Excel 2016 histogram (clustered columns, binned): its one
+    /// series' samples counted into bins, the bins its categories.
+    var histogram: HistogramBins? = nil
+
+    /// A histogram's binning (`cx:binning`): a bin's width (nil: Scott's
+    /// rule, as Excel's automatic bins), and the edges below and above
+    /// which the rest fall in one bin each.
+    struct HistogramBins: Equatable {
+        var size: Double? = nil
+        var underflow: Double? = nil
+        var overflow: Double? = nil
+
+        /// The bins of samples `xs`: their labels and counts, as Excel
+        /// prints them — "[10, 13.9]" first, "(13.9, 17.8]" after, "≤ 11"
+        /// and "> 14" for the ends (chart-SimpleHistogram, chart-tdf163727's).
+        func bins(_ xs: [Double]) -> (labels: [String], counts: [Double]) {
+            guard let lo0 = xs.min(), let hi0 = xs.max() else { return ([], []) }
+            func show(_ v: Double) -> String { ChartPainter.label(v, percent: false) }
+            let lo = underflow ?? lo0, hi = overflow ?? hi0
+            var width = size ?? 0
+            if width <= 0 {
+                // Scott's: 3.5 standard deviations over the cube root of the
+                // count, to two figures (3.937 is 3.9 in Excel's labels).
+                let n = Double(xs.count), mean = xs.reduce(0, +) / n
+                let sd = n > 1 ? (xs.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / (n - 1)).squareRoot() : 0
+                let raw = 3.5 * sd / pow(n, 1.0 / 3)
+                if raw > 0 {
+                    let mag = pow(10, floor(log10(raw)) - 1)
+                    width = (raw / mag).rounded() * mag
+                } else {
+                    width = 1
+                }
+            }
+            var labels: [String] = [], counts: [Double] = []
+            if let u = underflow { labels.append("≤ \(show(u))"); counts.append(Double(xs.filter { $0 <= u }.count)) }
+            var edge = lo
+            var first = underflow == nil
+            repeat {
+                let top = min(edge + width, hi)
+                labels.append((first ? "[" : "(") + "\(show(edge)), \(show(top))]")
+                counts.append(Double(xs.filter { (first ? $0 >= edge : $0 > edge) && $0 <= top }.count))
+                first = false
+                edge = top
+            } while edge < hi - 1e-9 && labels.count < 1000
+            if let o = overflow { labels.append("> \(show(o))"); counts.append(Double(xs.filter { $0 > o }.count)) }
+            return (labels, counts)
+        }
+    }
+
     /// An Excel 2016 funnel (`layoutId="funnel"`): its one series' values
     /// as bars centred across the plot, top first, with no value axis.
     var funnel = false
@@ -586,7 +635,29 @@ enum ChartXML {
     /// plain clustered columns. nil for the rest (histograms, waterfalls,
     /// funnels, maps…).
     static func readChartex(_ space: XNode) -> Chart? {
-        readBoxWhisker(space) ?? readClusteredColumn(space) ?? readWaterfall(space) ?? readFunnel(space)
+        readBoxWhisker(space) ?? readClusteredColumn(space) ?? readWaterfall(space) ?? readFunnel(space) ?? readHistogram(space)
+    }
+
+    /// Excel 2016's histogram: clustered columns binned (`cx:binning`),
+    /// its samples counted where they are cached, else when the sheet
+    /// fills them (chart-SimpleHistogram's).
+    static func readHistogram(_ space: XNode) -> Chart? {
+        let sers = space.first("cx:chart")?.first("cx:plotArea")?.first("cx:plotAreaRegion")?.all("cx:series") ?? []
+        guard sers.count == 1, sers[0]["layoutId"] == "clusteredColumn",
+              let binning = sers[0].first("cx:layoutPr")?.first("cx:binning"),
+              var c = readClusteredColumn(space, binned: true) else { return nil }
+        var spec = Chart.HistogramBins()
+        spec.size = binning.first("cx:binSize")?["val"].flatMap(Double.init)
+        spec.underflow = binning["underflow"].flatMap(Double.init)
+        spec.overflow = binning["overflow"].flatMap(Double.init)
+        c.histogram = spec
+        if let xs = c.series.first?.values.compactMap({ $0 }), !xs.isEmpty {
+            let b = spec.bins(xs)
+            c.categories = b.labels
+            c.series[0].values = b.counts
+        }
+        c.legend = false
+        return c
     }
 
     /// Excel 2016's funnel (`layoutId="funnel"`): its points the clustered
@@ -657,11 +728,11 @@ enum ChartXML {
     /// no binning — a histogram's layout is the same name, binned: each
     /// series' values over its categories, as a `c:` column chart draws
     /// them, in a 2013-style chart's text (chart-clusteredColumn's).
-    static func readClusteredColumn(_ space: XNode, layout: String = "clusteredColumn") -> Chart? {
+    static func readClusteredColumn(_ space: XNode, layout: String = "clusteredColumn", binned: Bool = false) -> Chart? {
         guard let chart = space.first("cx:chart"),
               let region = chart.first("cx:plotArea")?.first("cx:plotAreaRegion") else { return nil }
         let all = region.all("cx:series")
-        guard !all.isEmpty, all.allSatisfy({ $0["layoutId"] == layout && $0.first("cx:layoutPr")?.first("cx:binning") == nil
+        guard !all.isEmpty, all.allSatisfy({ $0["layoutId"] == layout && ($0.first("cx:layoutPr")?.first("cx:binning") == nil) != binned
             && $0.first("cx:layoutPr")?.first("cx:aggregation") == nil }) else { return nil }
         func points(_ dim: XNode?) -> [String?] {
             guard let lvl = dim?.first("cx:lvl") else { return [] }

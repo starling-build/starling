@@ -334,6 +334,15 @@ extension SheetChart {
             }
             return c
         }
+        // A histogram's samples counted into its bins.
+        if let spec = c.histogram {
+            if let f = refs.first?.val, let cells = values(f), !c.series.isEmpty {
+                let b = spec.bins(cells.compactMap { $0.number })
+                c.categories = b.labels
+                c.series[0].values = b.counts
+            }
+            return c
+        }
         for (i, ref) in refs.enumerated() where i < c.series.count {
             if let f = ref.val, let cells = values(f) { c.series[i].values = cells.map { $0.number } }
             if let f = ref.name, let cells = shownCells(f), let first = cells.first { c.series[i].name = first }
