@@ -2444,6 +2444,17 @@ rectangle painter took its right and bottom as insets — as
 minimal-gradient-fill-issue's radial box (no `a:fillToRect`) all one
 colour, tdf114848 +0.74. The two conventions want reconciling first.
 
+**A diagram's quarter-turned text frame keeps its own insets,
+2026-10-18** (tdf135953_SmartArt_textposition 2.65 → 1.39; the other 50
+diagram decks unchanged). "left shape" is read up the box's side in a
+`txXfrm` turned 270°, its `bodyPr` inset 10 pt at the frame's top. The
+insets were added to the page-side offsets of the turned room and then
+turned with them by the painter, so the inset landed along the line
+and the text stood 10.3 pt nearer the side than PowerPoint's. Now the
+frame is placed where the painter's turn about the shape's centre takes
+it, the insets go inside it along the text, and the result is handed
+over in the order the painter turns back (within 0.3 pt).
+
 **Tried and dropped, 2026-10-18: a shape's shadow at full strength to
 its moved outline**, fading outward over the blur's radius (the outline
 grown by half the radius, blurred by a quarter), from one edge of

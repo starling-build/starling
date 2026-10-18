@@ -1520,10 +1520,28 @@ private struct SlideContext {
             // the room the turned frame covers.
             let own = (sp.first("p:txXfrm")?["rot"].flatMap(Double.init) ?? 0) / 60000
             let ownQuarter = abs(abs(own.truncatingRemainder(dividingBy: 180)) - 90) < 0.01
+            var turnedInsets: EdgeInsets? = nil
             if ownQuarter, abs(st.rotation.truncatingRemainder(dividingBy: 360)) < 0.01, st.textTurn == 0 {
+                let unturned = tr
                 tr = Rect.fromCenter(center: tr.center, width: tr.height, height: tr.width)
                 let turn = ((own.truncatingRemainder(dividingBy: 360)) + 360).truncatingRemainder(dividingBy: 360)
                 st.textTurn = abs(turn - 90) < 0.01 ? 1 : -1
+                // Its insets are the text frame's own, along the turned
+                // text: the frame placed where the painter's turn about the
+                // shape's centre brings it, the file's insets inside it,
+                // and given in the order the painter turns them back.
+                // (Added to the page's offsets instead, "left shape" stood
+                // 10 pt nearer the box's side than PowerPoint's.)
+                let c = frame.center, th = -Double(st.textTurn) * .pi / 2
+                let q = unturned.center
+                let at = Offset(c.dx + cos(th) * (q.dx - c.dx) - sin(th) * (q.dy - c.dy),
+                                c.dy + sin(th) * (q.dx - c.dx) + cos(th) * (q.dy - c.dy))
+                let t = Rect.fromCenter(center: at, width: unturned.width, height: unturned.height)
+                let f = Rect.fromCenter(center: c, width: frame.height, height: frame.width)
+                let n = EdgeInsets(left: st.insets.left + t.left - f.left, top: st.insets.top + t.top - f.top,
+                                   right: st.insets.right + f.right - t.right, bottom: st.insets.bottom + f.bottom - t.bottom)
+                turnedInsets = st.textTurn > 0 ? EdgeInsets(left: n.bottom, top: n.left, right: n.top, bottom: n.right)
+                    : EdgeInsets(left: n.top, top: n.right, right: n.bottom, bottom: n.left)
             }
             // A quarter turn the text frame turns back (tdf145528's matrix:
             // "Writer" in a box turned 270° with its text at 90°): the text
@@ -1534,9 +1552,9 @@ private struct SlideContext {
                 st.uprightBox = tr
                 st.uprightInsets = st.insets
             }
-            st.insets = EdgeInsets(left: st.insets.left + (tr.left - frame.left), top: st.insets.top + (tr.top - frame.top),
-                                   right: st.insets.right + (frame.right - tr.right),
-                                   bottom: st.insets.bottom + (frame.bottom - tr.bottom))
+            st.insets = turnedInsets ?? EdgeInsets(left: st.insets.left + (tr.left - frame.left), top: st.insets.top + (tr.top - frame.top),
+                                                   right: st.insets.right + (frame.right - tr.right),
+                                                   bottom: st.insets.bottom + (frame.bottom - tr.bottom))
             // A shape turned half round whose text frame is turned back
             // (a callout header pointing down, tdf150789): the text stands
             // upright in its frame as placed. Half a turn is both mirrors,
