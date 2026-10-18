@@ -684,6 +684,12 @@ holding paragraph marks stands at the nearer of its line's top and
   sets V1 at 74.4 and V2 at 85.4: our empty header lines there are
   taller than Word's, a difference of its own. What makes zh-4adfcce2's
   two empty af3 lines push, and these not, is still open.)
+  (Correction to the above: our header there is right, 10.98pt a line
+  and 21.96 for two, so its foot (64.5) is inside the 70.85 margin.
+  What sets V2's body 13pt low in ours is not the header's height. The
+  likely suspect is the body's line grid (linePitch 437, 21.85pt), whose
+  first line ours places from somewhere other than the margin when a
+  header ends near it. Unchecked.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
