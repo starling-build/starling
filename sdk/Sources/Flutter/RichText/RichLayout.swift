@@ -8149,7 +8149,13 @@ public final class RichLayout {
                     // and eight more fell when every one of them stopped.)
                     let ownGive = !inCell && legacy && (a ..< last).contains { (units[$0] >= 0x30 && units[$0] <= 0x39) || (units[$0] >= 0x41 && units[$0] <= 0x7A) }
                         ? own.filter { [0x201C, 0x201D, 0x2018, 0x2019].contains(units[$0]) }.reduce(0.0) { $0 + half($1) } : 0
-                    if room > 0, taken, need <= room - ownGive + hair {
+                    // (No squeeze in the body takes a circled number:
+                    // zh-30d86fcf's line "…条件：" leaves its colon a full em
+                    // in Word's print and opens the next with "①", where ours
+                    // set the colon at 13.5 of 16 to take it. In a cell one
+                    // does: zh-20ff844e's narrow cells take their "③".)
+                    let circled = !inCell && a < units.count && (0x2460 ... 0x24FF).contains(units[a])
+                    if room > 0, taken, !circled, need <= room - ownGive + hair {
                         let share = min(1, (need + 0.02) / room)
                         // (The marks give first, and the automatic spaces
                         // what is still needed: the colon of lab `ovc` is

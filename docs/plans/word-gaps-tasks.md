@@ -2478,12 +2478,16 @@ Built: where neither the paragraph nor its level states a left, the item
 keeps its style's (`listIndentLeft`). Same-base sweep: zh-ea70c30e 60.1
 -> 98.3, nothing else moved.
 
-### T114. zh-30d86fcf p2: no squeeze to take a circled number (numbered T113 at first; the slides session's came first) — claimed
+### T114. zh-30d86fcf p2: no squeeze to take a circled number (numbered T113 at first; the slides session's came first) — DONE (2026-10-18)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Mac's lead)
 Documents: zh-30d86fcf (94.7).
 Known (Mac): the line ends "…条件：", ① (U+2460) next. Ours squeezes the
 "：" to 13.5 to take ① at the end; Word leaves the colon a full em and
 opens the next line with ①.
+Built: in the body no squeeze takes a character of U+2460-24FF (in a
+cell one still does: zh-20ff844e's narrow cells take their "③", 99.0 ->
+98.4 with the rule everywhere). Same-base sweep: zh-30d86fcf 95.3 -> 99.4,
+nothing else moved.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
