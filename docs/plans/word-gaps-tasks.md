@@ -250,9 +250,16 @@ zh-007ca091 35.4 (T109, 93.0 now, 11 pages), zh-0b87285b 77.9 (Mac 011uWpmC, 98.
 83.0, zh-043aab43 84.4 (Mac 011uWpmC, measured, released: p3's justified cell lines (mode 14, PMingLiU 12, wordWrap 0, the run hinted eastAsia) — Word sets "÷ " in "（歲入成長率÷ 歲出" with the space ~6pt (half an em, PMingLiU's) less justification's 1.01, ours 2.9 (the Latin space), and takes one character more on the line; lab `hs` (Word 16, 2026-10-17): the hint does nothing — Word sets PMingLiU's own Latin widths (space 0.2598 em, "÷" 0.5908, from the mingliu.ttc Word carries), ours the serif stand-in at 0.94 (space 2.82 at 12pt for 3.12). Taking PMingLiU's whole ASCII table broke zh-190d730c 97.8 -> 43.4, zh-ec01ed87 99.1 -> 77.4, zh-073c9234 97.7 -> 81.4 and zh-340d52e9: those files' widths are the stand-in's in Word's print, so which of PMingLiU's widths Word uses is still open — reverted), zh-021b8feb 85.6 (18/19; Mac 011uWpmC, 98.6 now, Word's 18 pages — a break followed by floats alone is a break (lab ab, 4aef5f9d), a row with a turned cell parts (a0fcb76c); released), zh-8f7aa519 87.7 (97.4 now on the Windows box — others' fixes; nothing large left, released),
 zh-c8eb6e92 91.2.
 
-### T124. zh-4ea36aa8 p14 — claimed
-Owner: Linux 017F2GnT (2026-10-18)
+### T124. zh-4ea36aa8 p13-14: the automatic space beside PMingLiU digits — measured, released
+Owner: none (Linux 017F2GnT measured it, 2026-10-18)
 Documents: zh-4ea36aa8 (19 of its misses on p14).
+A cell line (mode 15, doNotCompress, its run 新細明體 for every script,
+East Asian zh-TW over en-US defaults) ends "…國小部32班（含" in Word's
+print; ours leaves "（含" 9pt over. Word sets 1.5pt beside each digit
+("部" to "1" 13.5, "2" to "班" 7.1 with digits 5.6), ours 3.0 (a quarter
+of an em, `averageCharWidth` 0.5 for an East Asian face). Taking PMingLiU
+at an eighth of an em fixed it and broke 30 other zh-TW files (zh-ca3ab35c
+99.1 -> 49.3), so the eighth is this file's alone — what sets it is open.
 
 ### T123. zh-cb56e605 (93.1%, 7 pages): a form's label cells a few points off — measured, released
 Owner: none (Linux 017F2GnT measured it, 2026-10-18)
