@@ -73,6 +73,14 @@ struct SheetPrintMetrics {
         return px / screenDigit * digit
     }
 
+    /// The same column on that Excel's screen, in points: its whole pixels
+    /// at 192 dpi. What a row is fitted in — Excel fits on the screen.
+    func screenColumn(_ chars: Double) -> Double {
+        guard chars > 0 else { return 0 }
+        let px = ((256 * chars + (128 / screenDigit).rounded(.down)) / 256 * screenDigit).rounded(.down)
+        return px * 72 / 192
+    }
+
     private struct Face { var digit: [Double], row: [Double], screenRow: [Double], screenDigit: [Double] }
     private static let sizes: [Double] = [8, 9, 10, 10.5, 11, 12, 14, 16, 18]
     private static let faces: [String: Face] = [

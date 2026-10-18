@@ -369,8 +369,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 for (a, cell) in ws.cells where cell.style != 0 && refits(a.row) && cell.value.isText {
                     guard ws.fittedRows.contains(a.row) || ws.customDefaultRowHeight || ws.fittedRows.isEmpty else { continue }
                     let st = book.style(cell.style)
-                    guard st.wrap, !ws.merges.contains(where: { $0.contains(a) }) else { continue }
-                    let width = cols.size(a.col) - 4 * zoom
+                    guard st.wrap, !ws.merges.contains(where: { $0.contains(a) }), cols.size(a.col) > 0 else { continue }
+                    // (In the column as wide as it is on the screen, where
+                    // Excel fits it, narrower than on paper: lo-tdf100034's
+                    // note of 127 characters in a column of 106 is two lines
+                    // there, its row 30 pt, and one line on the page.)
+                    let chars = ws.colWidths[a.col].map { Xlsx._widthChars(ws, a.col, $0) } ?? ws.defaultColWidthChars ?? m.defaultChars
+                    let width = m.screenColumn(chars) * scale - 4 * zoom
                     guard width > 4 else { continue }
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
                     // (An empty string is its font's one line, given above:
