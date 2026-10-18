@@ -1373,6 +1373,17 @@ enum OfficeFonts {
                 face.otherAdvances = [0x2026: 0.8135, 0x2014: 1.0801, 0xB7: 0.2407, 0x221A: 0.7017, 0x2500: 0.7085, 0x25A0: 0.604].merging(circled(1.0)) { $1 }
                 face.boldOtherAdvances = [0x2026: 0.9629, 0x2014: 1.0801, 0xB7: 0.4395].merging(circled(1.0)) { $1 }
             }
+            // (The square faces set GB2312's Latin-1 symbols an em, as
+            // their ideographs: a "°" in a run Word sets in 宋体 — `w:hint`
+            // eastAsia — is 10.50 at 10.5pt in its print of zh-cd8987db,
+            // and "°" and "×" are an em in SimSun and SimHei wherever
+            // Word's prints have them; the stand-in drew its own 0.4 em
+            // "°", and "5.5.1 坡度＜25°…" took the "土中。" Word's leaves.)
+            if ea.latin == mono, face.otherAdvances == nil {
+                let gb: [UInt32: Double] = [0xA4: 1, 0xA7: 1, 0xA8: 1, 0xB0: 1, 0xB1: 1, 0xD7: 1, 0xF7: 1]
+                face.otherAdvances = gb
+                face.boldOtherAdvances = gb
+            }
             face.scaledHeight = ea.scaledHeight
             face.scaledBaseline = ea.scaledBaseline
             face.boldHeight = ea.boldHeight

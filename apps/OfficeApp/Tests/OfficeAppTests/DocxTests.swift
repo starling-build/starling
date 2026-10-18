@@ -1549,6 +1549,31 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThanOrEqual(turn, foot + 1, "turned about the part's foot, not the merge's")
     }
 
+    func testAHintedDegreeSignInSongTiIsAnEm() throws {
+        // zh-cd8987db p7: "坡度＜25°的…", a run of 宋体 that says w:hint
+        // eastAsia — Word sets its "°" in 宋体, 10.50 at 10.5pt; ours was the
+        // stand-in's own 0.4 em, and the line took "土中。" Word's leaves.
+        func width(_ text: String) -> Double {
+            var style = CharStyle()
+            style.fontFamily = "宋体"
+            style.eastAsiaFontFamily = "宋体"
+            style.fontHint = "eastAsia"
+            style.fontSize = 10.5
+            let doc = RichDocument(paragraphs: [RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 4000
+            l.ensureLaidOut(doc)
+            return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / l.theme.pixelsPerPoint
+        }
+        XCTAssertEqual(width("°"), 10.5, accuracy: 0.05, "an em")
+        XCTAssertEqual(width("一°°°°一") - width("一一"), 4 * 10.5, accuracy: 4 * 0.7, "about an em each among ideographs")
+    }
+
     func testACellsParagraphsShareTheirSpacing() throws {
         // drawing.docx: two headings of 12pt before and 3pt after in one
         // cell are 12pt apart in Word's print, as in the body — the larger
