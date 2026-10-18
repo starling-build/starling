@@ -114,7 +114,7 @@ start from there.
 Twenty more (`random.seed(20261019)`, Word 16.113.3 prints), checked in;
 compare per document across it. It starts at 78.5%. Its low ones,
 unclaimed unless marked: zh-4adfcce2 0.0 (6 pages; Mac, looking),
-zh-424775e4 7.6 (13; Mac 011uWpmC, looking), zh-c2c92639 9.5 (54 pages, Word 57), zh-92373179
+zh-424775e4 7.6 (13; Mac 011uWpmC, 87.3 now — STXinwei's line; next its p9 footnote, set a page before its reference), zh-c2c92639 9.5 (54 pages, Word 57), zh-92373179
 41.6 (11), zh-c399c91a 64.3 (7), zh-7cf85f15 76.5 (3), zh-74ef1528 94.1,
 zh-5c6ff0d7 97.8 (2 pages, Word 3).
 

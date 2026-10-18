@@ -5769,6 +5769,15 @@ fitter dropped the paragraph's tail).
   - the engine lays the line out one em wide.
 
   zh-830ef10d 89.2 -> 97.3; nothing else moved.
+- **华文新魏 (STXinwei) is Word's own face on the Mac (2026-10-17).**
+  Word 16 carries STXINWEI.ttf, with hhea 0.8 + 0.236 and no line gap.
+  At Word's 1.3 times that, a 24pt line is 32.3pt, which is three pitches
+  of a 15.6pt grid. zh-424775e4's title, centred in them, has its
+  baseline at 117.84 in Word's print (117.77 by that rule). Ours did not
+  know the name, measured it as a Latin face's square stand-in and gave it
+  two pitches, so every page after it ran 15.6pt early. Now the name is
+  East Asian and has its own line. zh-424775e4 7.6 -> 87.3; nothing else
+  moved.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

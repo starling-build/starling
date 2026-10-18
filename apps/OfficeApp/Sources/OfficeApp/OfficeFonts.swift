@@ -486,7 +486,7 @@ enum OfficeFonts {
         if family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return true }
         let n = family.trimmingWhitespace().lowercased()
         for key in ["simsun", "simhei", "kaiti", "fangsong", "yahei", "dengxian", "mingliu", "dfkai", "jhenghei",
-                    "stsong", "stkaiti", "stfangsong", "stzhongsong", "stxihei", "stheiti", "songti", "heiti",
+                    "stsong", "stkaiti", "stfangsong", "stzhongsong", "stxihei", "stxinwei", "stheiti", "songti", "heiti",
                     "pingfang", "hiragino", "mincho", "ms gothic", "yu gothic", "meiryo", "malgun", "batang", "gulim", "dotum",
                     "cjk", "source han", "noto sans sc", "noto serif sc", "wenquanyi", "arial unicode", "fzs", "fzf", "fzk", "fzh", "fzx"] where n.containsSubstring(key) {
             return true
@@ -952,6 +952,14 @@ enum OfficeFonts {
             // 61pt, and 90.2 at 34% of its width.)
             return EastAsianFace(height: 1.7225, latin: serif, latinScale: 1.16, fakeBold: true, baseline: 1.206,
                                  scaledHeight: 1.478, scaledBaseline: 1.083)
+        }
+        // (hhea 0.8 + 0.236, no gap — the STXINWEI.ttf Word carries: a 24pt
+        // line is 32.3pt, three pitches of a 15.6 grid, and zh-424775e4's
+        // title, centred in them, has its baseline at 117.84 in Word's
+        // print. Taken for YaHei's, ours was two pitches and every page
+        // after it ran 15.6pt early.)
+        if has("stxinwei", "华文新魏") {
+            return EastAsianFace(height: 1.036 * 1.3, latin: serif, latinScale: 1.0, fakeBold: true, baseline: 0.8 + (1.036 * 1.3 - 1.036) / 2)
         }
         if has("stfangsong", "华文仿宋") { return EastAsianFace(height: 1.71, latin: serif, latinScale: 1.0, fakeBold: false) }
         if has("stkaiti", "华文楷体") { return EastAsianFace(height: 1.7, latin: serif, latinScale: 1.04, fakeBold: true) }
