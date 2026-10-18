@@ -678,6 +678,12 @@ holding paragraph marks stands at the nearer of its line's top and
   and 80.7, against 73.9 unpushed). So the face is not it either. Left
   for a fresh look: cut zh-007ca091's package to the lab's shape and see
   which of its parts stops the push.)
+  (Lab `h7`, zh-007ca091's package with the lab's five-line Normal body:
+  with its one empty header paragraph (V1), and with that paragraph
+  doubled (V2), Word starts the body at 72.3 both times, unpushed. Ours
+  sets V1 at 74.4 and V2 at 85.4: our empty header lines there are
+  taller than Word's, a difference of its own. What makes zh-4adfcce2's
+  two empty af3 lines push, and these not, is still open.)
 
 ### T89. A table floating against the text: its anchor paragraph stands where the table began — DONE (2026-10-17)
 Owner: session 01Xgpbk5jLzrCcB28yZBzYHN (Mac, starling-ios worktree)
