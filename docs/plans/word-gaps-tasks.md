@@ -209,8 +209,8 @@ same batch printed zh-e8d4c046 just before it, whose "仿宋_GB2312" embed is
 really SimSun. REPRINTED after relaunching Word: the body is YaHei, as
 ours, and ours scores 94.8 against it (and again YaHei after a print of
 zh-e8d4c046, so it is not that file's face carried over by name). The
-fresh print replaces the reference), zh-27a874b7 37.4, zh-de073ee5
-55.2, zh-c2229d4a 75.1, zh-785e46f8 88.2, zh-7fd860f9 89.6.
+fresh print replaces the reference), zh-27a874b7 37.4 (Mac 01Xgpbk5 looked: p1 matches; p2 4pt and p3's chart labels (charts are lenovo-3's); released), zh-de073ee5
+55.2 (Mac 01Xgpbk5, 100 now — a wide word measured at its face's advances; released), zh-c2229d4a 75.1 (Mac 01Xgpbk5 looked: Word's text layer drops most glyphs of its embedded subset — the reader; released), zh-785e46f8 88.2, zh-7fd860f9 89.6.
 
 ### Note from the Mac (2026-10-18, late): Word for Mac's face for a missing 方正 name is not reproducible
 Thirteen of the corpus's prints draw some 方正小标宋 runs in **Arial Unicode
