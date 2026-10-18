@@ -2576,6 +2576,15 @@ between them, stand 1.75pt taller in Word's print for a 2.25pt line stated on th
 side is the wider of the table's line there and the cell's own. Same-base sweep, 337 docs: zh-701eda18 92.8 -> 96.0,
 nothing else moved.
 
+### T119. Legacy-mode line ends (zh-12c4f07a, zh-749cb15a): first, a compatibility ideograph YaHei lacks — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Mac's four legacy-mode cases, handed over)
+Documents: zh-12c4f07a, zh-749cb15a; zh-5b7ae054, zh-8e8d4c40, zh-4adfcce2, zh-7dc3afad and others hold the same.
+Known: zh-12c4f07a p8's "於契約…本委" ends at 委 in Word because its "契" is U+F909, which Word for Mac draws in a
+YaHei run as YaHei's missing-glyph box, 0.697 em (9.06 at 13pt, glyph 0 in the print) — not in Noto Sans SC as the
+`_notoCompatibility` ones are, nor in Heiti SC. Across Word's prints there are 54 such boxes, all 0.697 em, all
+YaHei, in the documents holding compatibility ideographs outside that set (counts match per document). Ours gives
+the character a whole em, and the line's last character goes over. Fix to try: such a character takes 0.697 em.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
