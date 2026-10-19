@@ -2547,6 +2547,28 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A chart's legend row stands right of the frame's middle,
+2026-10-18** (sweep 238: corpus mean 0.9403 → 0.9398; chart-slide-bg
+−0.08, chart-picture-bg, chart-texture-bg and tdf112089 −0.07,
+cooper's page 6 6.13 → 6.08; LIBRE_OFFICE-100610's page 8 +0.02). A survey of the legend keys in a row, ours against
+PowerPoint's, found every one in chart-slide-bg's legend 2.25 pt left
+of PowerPoint's and cooper's (10 pt, a 2007-style chart) 3.3 left: we
+centred the row on the plot's room, which for a 2007-style chart is
+not centred in the frame, and PowerPoint's rows stand 0.19 of the
+legend's size right of the frame's middle (2.37 at 12 pt, 1.76 and
+1.74 for cooper's two). A row on a slide is now centred there; the keys
+are within 0.03 pt of PowerPoint's in chart-slide-bg's family and 0.2
+in cooper's (whose names are Verdana, drawn in DejaVu Sans, wider).
+A legend beside the plot is not moved: tdf149985's column has
+PowerPoint's 6.57 keys too, but its names start 1.8 pt right of
+PowerPoint's for a margin, not a key, and is left.
+
+Seen on the way, not followed: lo-tdf149865 prints every "Work Sans"
+— regular, and bold "Delta" — in Work Sans Light, the one weight
+PowerPoint's machine had; and with_japanese's centred box stands 1.2
+pt low throughout (its line pitches match ours, so its box is 2.4 pt
+taller in PowerPoint's; which line makes it, not found).
+
 **A group's child turned on its side scales with the axes swapped,
 2026-10-18** (sweep 234: corpus mean 0.9437 → 0.9406;
 sample_pptx_grouping_issues −1.11, GroupTransform 0.68 → 0.18,

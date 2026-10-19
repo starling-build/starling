@@ -1943,7 +1943,12 @@ enum ChartPainter {
             }
             for line in lines {
                 let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
-                var x = beside ? columnX : (box?.center.dx ?? area.center.dx) - w / 2
+                // (A row on a slide stands 0.19 of its size right of the
+                // frame's middle: chart-slide-bg's 12 pt legend 2.37 pt in
+                // PowerPoint's print, cooper's 10 pt ones 1.76 and 1.74 —
+                // theirs a 2007-style chart's, whose area is not centred.)
+                let middle = printed ? r.center.dx + 2.28 * k * m : area.center.dx
+                var x = beside ? columnX : (box?.center.dx ?? middle) - w / 2
                 for e in line {
                     let p = Paint()
                     p.style = .fill
