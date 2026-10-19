@@ -6741,3 +6741,14 @@ taken whenever it starts inside the margin) took each digit as such a word. A pi
 that goes on from a Latin letter or digit is now a longer word's, held to the start
 rule. Sweep n373 against n372 on one base: zh-0a56c942 93.5 → 95.7, nothing else.
 
+### A list level with no indents numbers at the paragraph's own left (2026-10-19)
+
+zh-9ba2ead7's table cells number "1、" from a level that states no indents, no
+suffix, and paragraphs that state none either. Word's print sets the number at the
+cell's text edge with the text straight after it; ours, finding no left anywhere,
+gave the item the editor's own list slot, which hangs the number out of the text,
+23pt left of Word's, and every such cell's lines broke two characters late.
+`_wordList` now falls back to the paragraph's own left for any list the file
+defines (the first line its own, none here). Sweep n376 against n375 on one base:
+zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
+

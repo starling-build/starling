@@ -8199,7 +8199,12 @@ public final class RichLayout {
         // their first lines two characters, and Word sets the number
         // there with the text straight after it — in the editor's own
         // slot the number wrapped its "）" onto a line of its own.)
-        guard let left = p.style.listIndentLeft ?? f?.indentLeft ?? (f != nil && p.style.listFirstLine != nil ? p.style.indentLeft : nil)
+        // (Nor the paragraph a first line: the number at its left and the
+        // text straight after it all the same — zh-9ba2ead7's table cells
+        // number "1、" (suffix nothing, no indents anywhere) at the cell's
+        // text edge in Word's print, where the editor's slot hung the
+        // number 23pt out of it.)
+        guard let left = p.style.listIndentLeft ?? f?.indentLeft ?? (f != nil ? p.style.indentLeft : nil)
         else { return nil }
         return (left, p.style.listFirstLine ?? -(f?.hanging ?? 0), f)
     }
