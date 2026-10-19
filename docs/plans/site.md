@@ -1,6 +1,6 @@
 # A site from a repository
 
-Status: **MVP built 2026-10-18 (evening)** — see "Where it stands". A content
+Status: **MVP built 2026-10-18, made a document reader 2026-10-19** — see "Where it stands". A content
 site whose pages are Writer documents in a git repository, published as a
 static folder that GitHub Pages serves. No server, no sign-in: editing is
 local, in the native app on a clone, and Publish is a commit and a push.
@@ -210,6 +210,18 @@ those files instead of rendering in the tab — instant where the in-tab
 PDF of a 24-page document took 15 s. The manifest says `exports: true`;
 over a clone the buttons still render locally.
 
+**Where it stands, end of 2026-10-19:** the demo at
+https://starling-build.github.io/site-demo/ has the welcome pitch and
+three published documents; a visitor gets pages or flow, contents with
+page numbers, find, paragraph links that copy, static PDF and Word
+downloads, a History link into git, a hidden text layer with every page
+as a link, a sitemap; an author on a clone gets the whole Writer, Import
+.docx, New page, Rename, Delete, Move, Publish. Gates:
+`test/site-build.sh`, `test/site-web.sh`, `test/wiki-web.sh`,
+`test/wiki-codec.sh`, all green at commit 88cc0551.
+
 Not yet: a smaller stored form for table-heavy documents (above); the
-reader's controls for screen readers; a phone layout for the Writer's
-ribbon when editing (the reader is fine on a phone).
+reader's controls (buttons, tree) for screen readers — the text layer
+covers the document and the page links; a phone layout for the Writer's
+ribbon when editing (the reader is fine on a phone); a packaged macOS
+app for authors, who today build OfficeApp from the repository.
