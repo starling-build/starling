@@ -196,7 +196,6 @@ lo-tdf102261_testParaTabStopDefaultDistance.pptx
 lo-tdf103347.pptx
 lo-tdf103477.pptx
 lo-tdf103800.pptx
-lo-tdf104015.pptx
 lo-tdf104201.pptx
 lo-tdf104722.pptx
 lo-tdf104786.pptx

@@ -48,8 +48,8 @@ commit, with the sweep's number in the plan.
 PowerPoint's at the baseline — exact, not "small" — and `others.txt` the
 other decks that have a PowerPoint PDF (the eight without one are in
 neither). `matched-mupdf.txt` and `others-mupdf.txt` are the same split
-of `baseline-mupdf.tsv`: 103 matched and 450 others by MuPDF at sweep
-236, 48 and 505 by the Mac's baseline of sweep 27. The files are
+of `baseline-mupdf.tsv`: 104 matched and 449 others by MuPDF at sweep
+250, 48 and 505 by the Mac's baseline of sweep 27. The files are
 generated, never edited:
 
     python3 test/pptx-corpus-groups.py      # after writing a sweep over a baseline
