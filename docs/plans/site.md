@@ -225,7 +225,14 @@ site…" (pick the clone's site.json; the window becomes the reader, with
 "Close site" to return), so an author needs no terminal; and
 `build/macos-app.sh OfficeApp` puts the web build into the bundle's
 Resources/web, where `SiteBuilder.defaultWebStage` finds it, so Publish
-from the packaged Writer ships the app.
+from the packaged Writer ships the app. Built and checked: `.stage-macos/
+Starling-Office-0.1.0-macos-arm64.zip` (81 MB; verifies after a plain
+unzip), and its executable run from another folder with no web stage
+named builds a site with the app inside. Ad-hoc signed: a browser
+download of it is quarantined and Gatekeeper refuses it (right-click →
+Open, or a clone/scp/unzip from a terminal, launches it — see the
+macos-app-zip memory); a Developer ID is the step before handing it to
+anyone.
 
 Not yet: a smaller stored form for table-heavy documents (above); the
 reader's controls (buttons, tree) for screen readers — the text layer
