@@ -2548,6 +2548,20 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A legend beside the plot keys as a row does, 2026-10-19** (sweep 250:
+corpus mean 0.9217 → 0.9214; pie-chart −0.10, bar-chart, tdf149985 −0.03,
+aascu 5864, line-, radar-, scatter-chart −0.01; none worse). A column
+of legend entries beside the plot had 7 pt keys 4 pt before their names
+(at 12 pt), where a row on a slide has had PowerPoint's 6.57 and 2.92:
+the column's are the same — aascu 5864's 20 pt keys 10.98 square,
+tdf149985's 9 pt 4.94, pie- and bar-chart's 9.88 at 18 — and its names
+end 10 pt short of the frame (9.8, 10.2), a point further in than the
+plot's margin. The plot's right edge stays where the 7 pt keys put it:
+its gaps to the legend (12, and 17.3 for a 2007-style chart) were
+measured with them, against PowerPoint's plots; moved with the keys,
+line-, radar- and bar-chart went +0.2 to +0.4. (The earlier note on
+tdf149985 dropped these keys for that reason.)
+
 **A chart title's lines in their own sizes, its box its longest line,
 2026-10-19** (sweep 249: corpus mean 0.9219 → 0.9217; LIBRE_OFFICE-100610
 −0.05, aascu 5864 −0.03, none other moved). aascu 5864's slide 16 has

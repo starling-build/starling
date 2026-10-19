@@ -1919,7 +1919,9 @@ enum ChartPainter {
             // their names, its entries 13.9 apart at 12 pt, the keys
             // where a centred one stands.)
             let printed = c.onSlide && !beside
-            let key = (printed ? 6.57 : 7) * k * m, gap = (printed ? 2.92 : 4) * k * m
+            // (Beside the plot too: aascu 5864's 20 pt column's keys 10.98
+            // square, tdf149985's 9 pt 4.94, 2.92 at 12 before the names.)
+            let key = (c.onSlide ? 6.57 : 7) * k * m, gap = (c.onSlide ? 2.92 : 4) * k * m
             let spacing = (printed ? (c.styled2013 ? 11.2 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m
             let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
             // A line's key is a stroke 19.2 pt long whatever the text's
@@ -1965,12 +1967,19 @@ enum ChartPainter {
                     columnX = area.left
                     area = Rect.fromLTRB(area.left + columnW + 12 * k, area.top, area.right, area.bottom)
                 } else {
-                    columnX = area.right - columnW
+                    // (A point further in than the plot's margin on a slide:
+                    // the names end 9.8 and 10.2 pt short of the frame in
+                    // tdf149985's and aascu 5864's columns.)
+                    columnX = area.right - columnW - (c.onSlide ? 1 : 0) * k
                     // (17.3 to the legend's keys: the 2007-style line,
                     // scatter, radar and bar charts' plots end 5.3 pt
                     // short of where 12 left them, in PowerPoint's print.)
                     let apart = !pie && !c.styled2013 ? 17.3 : 12
-                    area = Rect.fromLTRB(area.left, area.top, columnX - apart * k, area.bottom)
+                    // (The plot ends where it did with the 7 pt keys and 4 pt
+                    // gap these gaps were measured with: its edge is
+                    // PowerPoint's, the column's keys moved within it.)
+                    let measured = (entries.map(\.tp.width).max() ?? 0) + 11 * k * m
+                    area = Rect.fromLTRB(area.left, area.top, area.right - measured - apart * k, area.bottom)
                 }
             } else if c.legendPosition == "t" {
                 // (Under a title, 4.3 further off it than a plot would
