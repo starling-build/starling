@@ -2547,6 +2547,20 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**An exact line keeps a quarter of its text's size under its
+baseline, 2026-10-18** (sweep 239: corpus mean 0.9398 → 0.9395;
+customGeo 3.48 → 3.30, none other moved). customGeo's 32 pt text in
+33 pt lines and its 40 pt title in 35 stood a point and two high in
+ours, where pptx2svg's 17 pt in 20 and 14 pt in 30 were exact: under
+PowerPoint's baseline is 0.22 of the line or 0.25 of the text's size,
+whichever is more (customGeo's 8.04 under 33 pt lines, 0.251 of 32;
+9.96 under its 35, 0.249 of 40; pptx2svg's lines, taller than their
+text, 0.22 of the line). The size is the first run's: pptx2svg's 28 pt
+line holding a 47 pt "fox" keeps 0.22 of its 30. The earlier note
+below ("Measured and left") had each rule fitting one deck; the
+larger of the two fits both. `RichTextTheme.exactLineDescentOfSize`
+(0.25, Slides; nil, so off, for Word).
+
 **A chart's legend row stands right of the frame's middle,
 2026-10-18** (sweep 238: corpus mean 0.9403 → 0.9398; chart-slide-bg
 −0.08, chart-picture-bg, chart-texture-bg and tdf112089 −0.07,
@@ -2730,7 +2744,8 @@ fixed 0.75 fits those and pptx2svg's paragraph gap, but not pptx2svg's
 own 17 pt text in 20 pt lines (0.755–0.805): customGeo −0.10, pptx2svg
 +2.74. A baseline at the line less a share of the size (0.26 of it,
 Calibri's depth) fits customGeo's two and pptx2svg's first box, not its
-Calibri-to-Verdana gap. Left at 0.78 until a third deck says which.
+Calibri-to-Verdana gap. Left at 0.78 until a third deck says which. (Settled the same day:
+the larger of the two — see "An exact line keeps a quarter".)
 
 **A space before a line break counts in a box that does not wrap,
 2026-10-18** (sweep 198: corpus mean 0.9670 → 0.9658; cooper 3.67 →

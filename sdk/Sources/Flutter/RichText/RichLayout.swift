@@ -220,6 +220,14 @@ public final class RichTextTheme {
     /// share Carlito's metrics give; the engine, by DejaVu Sans drawing
     /// it, set it 0.5 pt lower. nil — Word — leaves it to the face.
     public var exactLineDescentShare: Double? = nil
+    /// Slides: the least below such a line's baseline, as a share of its
+    /// text's size: a line hardly taller than its text keeps the text's
+    /// depth under it (customGeo's 32 pt text in 33 pt lines, its 40 pt
+    /// title in 35, both 0.25 of the size under their baselines in
+    /// PowerPoint's print). The size is the first run's: pptx2svg's line
+    /// of 28 pt text with a 47 pt word in 30 pt keeps 0.22 of the line.
+    /// nil leaves `exactLineDescentShare` alone.
+    public var exactLineDescentOfSize: Double? = nil
     /// Whether a run's characters are set at the widths its resolved
     /// face gives (`RichResolvedFace.advances`) outside Word's rules too:
     /// PowerPoint's Lucida Sans Unicode, drawn here in a narrower face.
@@ -10028,7 +10036,14 @@ public final class RichLayout {
             let name = run.style.fontFamily ?? theme.fontFamily
             let family = name.map { theme.fontFamilyResolver?($0) ?? $0 }
             let drawn = theme.descentShare(family: family, bold: run.style.bold, italic: run.style.italic)
-            return _px(points * (drawn - share))
+            var below = share
+            if let least = theme.exactLineDescentOfSize, points > 0 {
+                var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
+                    ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
+                if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
+                below = max(share, least * size / points)
+            }
+            return _px(points * (drawn - below))
         }
         let k = theme.baselineShift(for: run.style, in: p.style)
         guard k != 0 else { return 0 }
