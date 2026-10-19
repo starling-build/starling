@@ -167,22 +167,23 @@ final class Backstage: StatelessWidget {
                 trailing: Text(path.deletingLastPathComponent.displayPath,
                                style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary))))
         }
+        var templates: [Widget] = [
+            _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.replacing { session.onNewKind?(.document) } },
+            Chrome.gap(16),
+            _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.replacing { session.onNewKind?(.presentation) } },
+            Chrome.gap(16),
+            _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.replacing { session.onNewKind?(.workbook) } },
+            Chrome.gap(16),
+            _template("Open", FluentSystemIcons.folderOpen, fluent) { [self] in self._go(.open) },
+        ]
+        // A site is a folder on disk: natively only.
+        #if !os(WASI)
+        templates.append(Chrome.gap(16))
+        templates.append(_template("Open site…", FluentSystemIcons.folderOpen, fluent) { [self] in self._go(.openSite) })
+        #endif
         return Column(crossAxisAlignment: .start, children: [
             _heading("Good \(Self._daypart())", fluent),
-            Row(children: [
-                _template("Blank document", FluentSystemIcons.documentAdd, fluent) { [session] in session.replacing { session.onNewKind?(.document) } },
-                Chrome.gap(16),
-                _template("Blank presentation", FluentSystemIcons.desktop, fluent) { [session] in session.replacing { session.onNewKind?(.presentation) } },
-                Chrome.gap(16),
-                _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.replacing { session.onNewKind?(.workbook) } },
-                Chrome.gap(16),
-                _template("Open", FluentSystemIcons.folderOpen, fluent) { [self] in self._go(.open) },
-                // A site is a folder on disk: natively only.
-                #if !os(WASI)
-                Chrome.gap(16),
-                _template("Open site…", FluentSystemIcons.folderOpen, fluent) { [self] in self._go(.openSite) },
-                #endif
-            ]),
+            Row(children: templates),
             Chrome.vgap(28),
             Column(crossAxisAlignment: .start, children: recentRows),
         ])
