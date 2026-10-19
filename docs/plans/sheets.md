@@ -270,6 +270,12 @@ the same base; the commits give the numbers):
   Pie of pie and bar of pie draw their second plot (split by position,
   value, percent or list; the last third when unsaid); the gap between
   the two is fitted to two prints, not a rule.
+  A chart part in the default namespace (openpyxl's) is read with the
+  usual prefixes; a title that says nothing of its look is 18 pt, not
+  bold, axis titles too (chart-tdf119138, whose four charts were not
+  drawn). A title's own box (fill, line, dash) and a pie's series outline
+  are drawn. Open: a chart title 2.3 pt higher than Excel's
+  (chart-tdf135184); treemaps (hierarchical categories, squarified).
   Open: chart-fdo78080's chart (LibreOffice's: no c:title, no
   autoTitleDeleted, no varyColors) has no title in Excel's print and a
   legend of its points; ours titles it "col1" as PowerPoint would. One
