@@ -6820,6 +6820,19 @@ public final class RichLayout {
                 let blank = quote ? max(0, em - _glyphWidth(style(kind), ch)) : 0
                 let blankShown = blank > _px(0.01) ? blank : 0
                 var led = false
+                // (A word joiner before spaces that open the paragraph:
+                // the engine moves a line on by half its first character's
+                // letter spacing and, justifying, folds the spaces a line
+                // opens with — zh-b378d8c4's "    1.城市内涝…", four Times
+                // spaces widened to 7pt each, stand from the margin on
+                // every line in Word's print, where ours started its
+                // left-aligned lines 1.8pt in and set its justified ones'
+                // spaces as one, 5pt out of the margin.)
+                if theme.wordRules, offset == 0, ch == " " {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
                 // A zero-width space where Word may break the line and
                 // the engine would not: after spaces set as no-break
                 // ones (`heldSpaces`), and before an opening curly
