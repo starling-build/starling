@@ -816,6 +816,7 @@ enum DocxFormat {
             normalStyleId.flatMap { chainOver($0, cellBase, cellRootBase) } ?? cellBase
         }
 
+        var joinInto: Int? = nil
         func emit(_ p: RichParagraph) {
             var p = p
             if pendingPageBreak {
@@ -834,7 +835,23 @@ enum DocxFormat {
                 pendingBreakCharacter = false; pendingBreakRPr = nil; pendingBreakColumn = false
             }
             if p.cell == nil { p.cell = currentCell }
+            // (A paragraph whose mark is hidden runs on into the next, as
+            // Word shows it — a style separator (`w:vanish` and
+            // `w:specVanish` on the mark): zh-9f24d3eb's "(二)附件2" and
+            // "：切結書暨領據…" are one line in Word's print, the first's
+            // numbering and indents for both; ours set two, and page 2 ran
+            // a line long.)
+            if let i = joinInto, i == paragraphs.count - 1, paragraphs[i].cell == p.cell, p.image == nil, paragraphs[i].image == nil {
+                paragraphs[i].text += p.text
+                paragraphs[i].runs += p.runs
+                paragraphs[i].bookmarks += p.bookmarks
+                for (k, v) in p.inlineImages { paragraphs[i].inlineImages[k] = v }
+                if !p.style.markHidden { paragraphs[i].style.markHidden = false; paragraphs[i].style.mark = p.style.mark; joinInto = nil }
+                return
+            }
+            joinInto = nil
             paragraphs.append(p)
+            if p.style.markHidden, p.image == nil, p.runs.contains(where: { !$0.style.hidden && $0.length > 0 }) { joinInto = paragraphs.count - 1 }
         }
 
         // A row or cell may sit inside a content control (`w:sdt` >
