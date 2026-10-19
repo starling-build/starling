@@ -168,6 +168,15 @@ siblings (`--site-move <repo> <slug> up|down`). `test/site-web.sh`
 drives find, the double-click selection, a stubbed clipboard write and
 the touch drag; `test/site-build.sh` the import and the move.
 
+**Western demo documents (2026-10-19):** two NIST works, public domain
+(csrc.nist.gov, CMVP Module Processes): the FIPS 140-3 security policy
+template (81 headings, a table of contents) and the CMVP revalidation
+change document (778 table cells), imported with `--site-import` and
+credited in the demo's README. Sources tried and dropped: GOV.UK's
+Word attachments are forms, not manuals, and its one large report is a
+legacy .doc that textutil turns to garbage; the corpus's non-Chinese
+documents are bug-tracker attachments of unknown licence.
+
 Not yet: a smaller stored
 form for table-heavy documents (above); a text layer for screen readers
 (the noscript text is for crawlers only); a phone layout for the Writer's
