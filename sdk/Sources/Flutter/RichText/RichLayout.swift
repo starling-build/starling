@@ -4239,11 +4239,23 @@ public final class RichLayout {
                 // ours took it, and a page of its own, to page 2.)
                 let placedFrame = theme.wordRules && ownFrame != nil && frameReturn?.page == page
                 let overhang = placedFrame ? .infinity : theme.wordRules && i < _overhang.count ? _overhang[i] : 0
-                // (Word sets a line only where it ends above the foot, not
-                // on it: lab `pf`, Word 16, 2026-10-16 — 33 lines of exactly
-                // 20.85pt fit a page with a twip to spare and not one with
-                // none, where ours took the 33rd on the foot.)
-                let slack = theme.wordRules ? -_px(0.025) : 0.01
+                // (Word sets a line where it ends on the foot or above —
+                // in binary floating point: lab `ef`, Word 16, 2026-10-18,
+                // exact lines of 20 and 27pt fill a page whose text is
+                // 38 and 28 of them to the twip, and 20.85pt, which binary
+                // cannot hold, fits 36 with a twip to spare and 35 with
+                // none (lab `pf`: 33 of them likewise). So a tie goes to
+                // the line only where its exact height is whole quarter
+                // points (whole multiples of 5 twips). zh-289155d6's lines
+                // of 27 and 28pt end on page 1's foot and stay there in
+                // Word's print; ours took each page's last to the next.)
+                let tieFits: Bool = {
+                    let st = document.paragraphs[i].style
+                    guard let h = st.lineHeightPoints, !st.lineHeightIsMinimum else { return false }
+                    let quarters = h * 4
+                    return abs(quarters - quarters.rounded()) < 0.0001
+                }()
+                let slack = theme.wordRules && !tieFits ? -_px(0.025) : 0.01
                 if rest <= available + slack + overhang {
                     // (The line, not its space after: that may stand past the foot.)
                     if rest > available + 0.01, case let g = geometry(i), let line = Self._lineBottoms(g.painter).last,
