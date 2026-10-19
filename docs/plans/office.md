@@ -6581,3 +6581,15 @@ in such a box with no East Asian character in it is now as wide as its whole lin
 Sweep n363 vs n362, same base: zh-01071d556 98.2 → 100, zh-2e7ef069 87.5 → 89.0,
 zh-0a56c942 93.1 → 93.5, none down.
 
+### A floating table centred on its margin, and its offset on the next page (2026-10-18)
+
+zh-0243e7fc's page 11 form is a floating table, tblpXSpec center on the margin,
+tblpY 272 twips under text, 539pt wide in a 415pt column. Ours ignored the spec,
+so the form stood at the margin with its first column's text at 115pt, where Word's
+print has it at 54, standing out on both sides. And taken over from page 10, where
+its first row did not fit, it started at page 11's top, 13pt above Word's. Now a
+tblpXSpec of center or right against the margin or the column is the table's
+alignment (page-relative specs still unread), and a text-anchored floating table
+whose first row goes to the next page stands its tblpY down there too. Sweep n365
+against n364 on one base: zh-0243e7fc 81.6 → 98.9, nothing else moved.
+

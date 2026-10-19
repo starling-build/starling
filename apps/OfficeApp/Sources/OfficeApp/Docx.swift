@@ -1173,6 +1173,14 @@ enum DocxFormat {
                     if pos["w:tblpXSpec"] == nil, let v = Double(pos["w:tblpX"] ?? "") {
                         style.floatX = v / 20
                         style.floatXAnchor = pos["w:horzAnchor"] ?? "text"
+                    } else if let spec = pos["w:tblpXSpec"], (pos["w:horzAnchor"] ?? "text") != "page" {
+                        // Or aligned in its margin or column, a table wider
+                        // than it standing out on both sides: zh-0243e7fc
+                        // p11's 539pt form, centred on its 415pt margin, has
+                        // its first column's text at 54pt in Word's print,
+                        // where ours, at the margin, stood at 115.
+                        if spec == "center" { style.alignment = .center }
+                        if spec == "right" { style.alignment = .right }
                     }
                 } else if case let frames = unwrapped(node, "w:tr").flatMap({ unwrapped($0, "w:tc") }).flatMap({ unwrapped($0, "w:p") })
                             .map({ $0.first("w:pPr")?.first("w:framePr") }),

@@ -3552,6 +3552,14 @@ public final class RichLayout {
                     }
                 } else if !atTop, shown + ruleUnder(c) > contentH - y + 0.01, y > 0.01 {
                     newPage()
+                    // (A floating table's first row taken to the next page
+                    // stands its offset down that page too: zh-0243e7fc's
+                    // p11 form, tblpY 272 twips under text, has its first
+                    // line 13pt lower in Word's print than ours at the top.)
+                    if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
+                       let down = document.tableStyles[c.table]?.floatOffsetY, !(document.tableStyles[c.table]?.pageAnchored ?? false) {
+                        y += _px(down)
+                    }
                     goOn()
                     underPins(c.ownRowHeight)
                     shown = pageHeight()
