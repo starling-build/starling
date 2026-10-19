@@ -497,7 +497,14 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
       main.className = 'starling-sr';
       document.body.append(main);
     }
-    main.replaceChildren(...lines.filter(l => l.length).map((line) => {
+    // The article changes with the page; the site's links (nav) stay.
+    let article = document.getElementById('starling-article');
+    if (!article) {
+      article = document.createElement('article');
+      article.id = 'starling-article';
+      main.append(article);
+    }
+    article.replaceChildren(...lines.filter(l => l.length).map((line) => {
       const tab = line.indexOf('\t');
       const level = tab >= 0 ? +line.slice(0, tab) : 0;
       const el = document.createElement(level >= 1 && level <= 3 ? `h${level}` : 'p');

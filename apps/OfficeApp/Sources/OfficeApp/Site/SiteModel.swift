@@ -250,7 +250,8 @@ enum SiteBuilder {
             let html = SiteShellPage.render(template: template, base: manifest.base, route: manifest.route(node.slug),
                                             title: node.title, siteTitle: manifest.title,
                                             description: SiteFiles.summary(doc), text: text,
-                                            lines: SiteShellPage.lines(of: doc))
+                                            lines: SiteShellPage.lines(of: doc),
+                                            nav: manifest.flattened().map { (title: $0.node.title, route: manifest.route($0.node.slug), depth: $0.depth) })
             if node.slug == manifest.home {
                 try html.write(toFile: out + "/index.html", atomically: true, encoding: .utf8)
             }
@@ -324,7 +325,8 @@ enum SiteShellPage {
     static func lines(of doc: RichDocument) -> [(level: Int, text: String)] { SiteTextLayer.lines(of: doc) }
 
     static func render(template: String, base: String, route: String, title: String, siteTitle: String,
-                       description: String, text: String, lines: [(level: Int, text: String)] = []) -> String {
+                       description: String, text: String, lines: [(level: Int, text: String)] = [],
+                       nav: [(title: String, route: String, depth: Int)] = []) -> String {
         let desc = String(description.replacingOccurrences(of: "\n", with: " ").prefix(300))
         let full = title == siteTitle ? title : "\(title) — \(siteTitle)"
         let meta = """
@@ -359,7 +361,12 @@ enum SiteShellPage {
             }.joined(separator: "\n")
             let style = "<style>.starling-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}</style>\n"
                 + "<noscript><style>.starling-sr{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;padding:16px;font:16px system-ui,sans-serif;color:#eee}</style></noscript>\n"
-            html.replaceSubrange(r, with: "<body>\n" + style + "<main id=\"starling-text\" class=\"starling-sr\" aria-label=\"" + escape(title) + "\">\n" + elements + "\n</main>")
+            // The site's pages as real links, so a crawler reaches every
+            // page and a screen reader can move between them.
+            let links = nav.map { "<li>" + String(repeating: "&nbsp;&nbsp;", count: $0.depth) + "<a href=\"" + escape($0.route) + "\">" + escape($0.title) + "</a></li>" }.joined(separator: "\n")
+            let navHTML = nav.isEmpty ? "" : "<nav aria-label=\"Pages\"><ul>\n" + links + "\n</ul></nav>\n"
+            html.replaceSubrange(r, with: "<body>\n" + style + "<main id=\"starling-text\" class=\"starling-sr\" aria-label=\"" + escape(siteTitle) + "\">\n" + navHTML
+                + "<article id=\"starling-article\" aria-label=\"" + escape(title) + "\">\n" + elements + "\n</article>\n</main>")
         }
         return html
     }

@@ -48,8 +48,9 @@ check "a shell page summarises its page" "$(grep -c 'og:description" content="Pu
 check "a shell page's title carries the site's" "$(grep -o '<title>[^<]*</title>' "$DIST/publishing/index.html")" '<title>Publishing — Starling Site</title>'
 check "a shell page starts the app in site mode" "$(grep -c "args: \['--site', '/'\]" "$DIST/publishing/index.html")" 1
 check "a shell page resolves assets at the base" "$(grep -c '<base href="/">' "$DIST/about/index.html")" 1
-check "the page's text layer is hidden HTML with headings" "$(grep -c '<main id="starling-text" class="starling-sr" aria-label="About">' "$DIST/about/index.html")" 1
+check "the page's text layer is hidden HTML with headings" "$(grep -c '<article id="starling-article" aria-label="About">' "$DIST/about/index.html")" 1
 check "a heading is a heading there" "$(grep -c '^<h1>About</h1>$' "$DIST/about/index.html")" 1
+check "the site's pages are real links in it" "$(grep -c '<li>&nbsp;&nbsp;<a href="/publishing/">Publishing</a></li>' "$DIST/about/index.html")" 1
 check "a paragraph is a paragraph" "$(grep -c '^<p>Pages are stored as the document model' "$DIST/about/index.html")" 1
 check "the home shell page is the first page's" "$(grep -o 'og:title" content="[^"]*"' "$DIST/index.html")" 'og:title" content="Welcome"'
 check "404 loads the app" "$(grep -c "args: \['--site'" "$DIST/404.html")" 1
