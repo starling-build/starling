@@ -36,9 +36,12 @@ final class SiteRoot: StatelessWidget {
 final class SiteShell: StatefulWidget {
     let store: SiteStore
     let route: String
-    init(store: SiteStore, route: String) {
+    /// Set when Writer opened the site from Backstage: "Close site" returns there.
+    let onLeave: (() -> Void)?
+    init(store: SiteStore, route: String, onLeave: (() -> Void)? = nil) {
         self.store = store
         self.route = route
+        self.onLeave = onLeave
         super.init()
     }
     override func createState() -> State<StatefulWidget> { SiteShellState() }
@@ -529,6 +532,10 @@ final class SiteShellState: State<StatefulWidget> {
         if _compact {
             items.append(Button(onPressed: { [weak self] in self?.setState { self?._navigationOpen.toggle() } },
                                 child: Text(_navigationOpen ? "Close" : "Pages")))
+        } else if let leave = (widget as! SiteShell).onLeave {
+            items.append(Text("LOCAL COPY", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.muted)))
+            items.append(Chrome.gap(16))
+            items.append(Button(onPressed: { leave() }, child: Text("Close site")))
         } else {
             items.append(Text(store.canEdit ? "LOCAL COPY" : "PUBLISHED", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.muted)))
         }

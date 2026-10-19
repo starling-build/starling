@@ -220,6 +220,13 @@ as a link, a sitemap; an author on a clone gets the whole Writer, Import
 `test/site-build.sh`, `test/site-web.sh`, `test/wiki-web.sh`,
 `test/wiki-codec.sh`, all green at commit 88cc0551.
 
+**Authors (2026-10-19, late):** Writer's Backstage Home has "Open
+site…" (pick the clone's site.json; the window becomes the reader, with
+"Close site" to return), so an author needs no terminal; and
+`build/macos-app.sh OfficeApp` puts the web build into the bundle's
+Resources/web, where `SiteBuilder.defaultWebStage` finds it, so Publish
+from the packaged Writer ships the app.
+
 Not yet: a smaller stored form for table-heavy documents (above); the
 reader's controls (buttons, tree) for screen readers — the text layer
 covers the document and the page links; a phone layout for the Writer's

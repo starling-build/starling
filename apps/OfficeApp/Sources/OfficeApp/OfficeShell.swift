@@ -23,13 +23,17 @@ final class OfficeShell: StatefulWidget {
     /// A document owned by something other than a file (a wiki page):
     /// opened as given, saved back to its owner, closed to its owner.
     let hosted: HostedDocument?
+    /// Backstage's "Open site…" picked a site folder: the window becomes
+    /// its reader (OfficeRoot).
+    let onOpenSite: ((String) -> Void)?
 
     init(initialPath: String?, startBlank: Bool = false, hosted: HostedDocument? = nil,
-         onSwitch: ((DocumentKind, String?) -> Void)? = nil) {
+         onSwitch: ((DocumentKind, String?) -> Void)? = nil, onOpenSite: ((String) -> Void)? = nil) {
         self.initialPath = initialPath
         self.startBlank = startBlank
         self.hosted = hosted
         self.onSwitch = onSwitch
+        self.onOpenSite = onOpenSite
         super.init()
     }
 
@@ -969,7 +973,8 @@ final class OfficeShellState: State<StatefulWidget> {
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
                 onOpenPath: { [weak self] path in self?._open(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
-                onPicturePath: { [weak self] path in self?._insertPicture(path) })),
+                onPicturePath: { [weak self] path in self?._insertPicture(path) },
+                onOpenSite: { [weak self] dir in (self?.widget as? OfficeShell)?.onOpenSite?(dir) })),
         ])
     }
 

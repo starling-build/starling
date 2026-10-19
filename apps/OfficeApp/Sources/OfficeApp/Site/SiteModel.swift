@@ -214,7 +214,9 @@ enum SiteBuilder {
     /// stage build/web-app.sh leaves in the working directory.
     static func defaultWebStage() -> String? {
         let env = ProcessInfo.processInfo.environment
-        for candidate in [env["STARLING_WEB_STAGE"], FileManager.default.currentDirectoryPath + "/.stage-web-OfficeApp"] {
+        // A packaged app carries the web build in Resources/web (build/macos-app.sh).
+        for candidate in [env["STARLING_WEB_STAGE"], Bundle.main.resourcePath.map { $0 + "/web" },
+                          FileManager.default.currentDirectoryPath + "/.stage-web-OfficeApp"] {
             if let c = candidate, FileManager.default.fileExists(atPath: c + "/index.html") { return c }
         }
         return nil

@@ -14,6 +14,9 @@ enum BackstagePage: Int, CaseIterable {
     case home, new, open, info, save, saveAs, export, print, close
     /// Not in the rail: the picture picker Insert → Pictures opens.
     case insertPicture
+    /// Not in the rail: a site's folder, picked by its site.json (Home's
+    /// "Open site…"); the window becomes the site reader.
+    case openSite
 
     var title: String {
         switch self {
@@ -27,6 +30,7 @@ enum BackstagePage: Int, CaseIterable {
         case .print: return "Print"
         case .close: return "Close"
         case .insertPicture: return "Insert Picture"
+        case .openSite: return "Open Site"
         }
     }
 
@@ -42,6 +46,7 @@ enum BackstagePage: Int, CaseIterable {
         case .print: return FluentSystemIcons.print
         case .close: return FluentSystemIcons.chromeClose
         case .insertPicture: return FluentSystemIcons.image
+        case .openSite: return FluentSystemIcons.folderOpen
         }
     }
 }
@@ -58,12 +63,14 @@ final class Backstage: StatelessWidget {
     let onOpenPath: (String) -> Void
     let onSavePath: (String) -> Void
     let onPicturePath: (String) -> Void
+    let onOpenSite: (String) -> Void
 
     init(session: OfficeSession, page: BackstagePage, recent: [String], notice: String? = nil,
          onPage: @escaping (BackstagePage) -> Void, onClose: @escaping () -> Void,
          onOpenPath: @escaping (String) -> Void, onSavePath: @escaping (String) -> Void,
-         onPicturePath: @escaping (String) -> Void) {
+         onPicturePath: @escaping (String) -> Void, onOpenSite: @escaping (String) -> Void = { _ in }) {
         self.session = session
+        self.onOpenSite = onOpenSite
         self.page = page
         self.recent = recent
         self.notice = notice
@@ -99,7 +106,7 @@ final class Backstage: StatelessWidget {
                 Text(session.kind.appName, style: fluent.typography.bodyStrong?.copyWith(color: ink)),
             ])),
         ]
-        for p in BackstagePage.allCases where p != .insertPicture {
+        for p in BackstagePage.allCases where p != .insertPicture && p != .openSite {
             let selected = p == page
             items.append(GestureDetector(onTap: { [self] in self._go(p) }, child: DecoratedBox(
                 decoration: BoxDecoration(color: selected ? Color(0x33FFFFFF) : Color(0x00000000)),
@@ -132,6 +139,7 @@ final class Backstage: StatelessWidget {
                                     ? ("Print…", { [session] in session.onPrint?() })
                                     : ("Export PDF", { [session] in session.onExport?("pdf") }))
         case .insertPicture: return _picturePanel(fluent)
+        case .openSite: return _sitePanel(fluent)
         case .close:
             if let host = session.hostName, let back = session.onClose {
                 return _simple("Close", "Leave the document and go back to the \(host).", fluent, action: ("Back to \(host)", back))
@@ -169,6 +177,11 @@ final class Backstage: StatelessWidget {
                 _template("Blank workbook", FluentSystemIcons.table, fluent) { [session] in session.replacing { session.onNewKind?(.workbook) } },
                 Chrome.gap(16),
                 _template("Open", FluentSystemIcons.folderOpen, fluent) { [self] in self._go(.open) },
+                // A site is a folder on disk: natively only.
+                #if !os(WASI)
+                Chrome.gap(16),
+                _template("Open site…", FluentSystemIcons.folderOpen, fluent) { [self] in self._go(.openSite) },
+                #endif
             ]),
             Chrome.vgap(28),
             Column(crossAxisAlignment: .start, children: recentRows),
@@ -237,6 +250,22 @@ final class Backstage: StatelessWidget {
         #endif
         session.unsavedPrompt = nil
         onPage(p)
+    }
+
+    /// A site (docs/plans/site.md): its folder, picked by the site.json in it.
+    private func _sitePanel(_ fluent: FluentThemeData) -> Widget {
+        let start = FileManager.default.fileExists(atPath: homeDirectory() + "/Documents") ? homeDirectory() + "/Documents" : homeDirectory()
+        return Column(crossAxisAlignment: .stretch, children: [
+            _heading("Open a site", fluent),
+            Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12),
+                    child: Text("Pick the site.json of a cloned site. The window becomes the site's reader: Edit opens a page here in Writer, Publish builds, commits and pushes.", style: fluent.typography.body)),
+            Expanded(child: FluentFilePanel(
+                mode: .open, initialDirectory: start, extensions: ["json"],
+                onDone: { [onClose, onOpenSite] path in
+                    guard let path else { onClose(); return }
+                    onOpenSite(path.deletingLastPathComponent)
+                })),
+        ])
     }
 
     private func _panel(_ mode: FilePanelMode, _ fluent: FluentThemeData) -> Widget {

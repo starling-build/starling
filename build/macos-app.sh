@@ -137,6 +137,12 @@ ln -s ../Resources/data "$C/MacOS/data"
 cp -R "$ENGINE_OUT/FlutterMacOS.framework" "$C/Frameworks/FlutterMacOS.framework"
 cp "$ENGINE_OUT/libswift_bridge.dylib" "$C/Frameworks/libswift_bridge.dylib"
 ICON=""
+# Writer publishes sites (docs/plans/site.md): the web build rides in
+# Resources/web, where LocalSiteStore looks for it, when it has been made.
+if [ "$NAME" = OfficeApp ] && [ -d "$REPO/.stage-web-OfficeApp" ]; then
+    echo "==> web build into Resources/web (Publish ships it)"
+    cp -R "$REPO/.stage-web-OfficeApp" "$C/Resources/web"
+fi
 if [ -f "$REPO/build/macos/$NAME.icns" ]; then
     cp "$REPO/build/macos/$NAME.icns" "$C/Resources/$NAME.icns"
     ICON="$NAME"

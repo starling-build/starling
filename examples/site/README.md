@@ -7,7 +7,9 @@ pages are Writer documents.
     pages/<slug>.json  one page each, as the document model
     docs/              the build — what GitHub Pages serves (made by Publish)
 
-Edit it with Starling Office on the clone:
+Edit it with Starling Office on the clone: in Writer, File → Home →
+"Open site…" and pick the clone's `site.json` ("Close site" brings Writer
+back), or from a terminal:
 
     OfficeApp --site <clone>
 
