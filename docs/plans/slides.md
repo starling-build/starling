@@ -2436,7 +2436,8 @@ baseline here is 9.54 where PowerPoint's lies in 9.4–9.5, and rounding
 to the nearest point (which suits the decks at large) takes it up
 (5.17 → 5.19).
 
-**Tried and dropped, 2026-10-18: blurred text shadows.** 45541's
+**Tried and dropped, 2026-10-18: blurred text shadows** (since done
+another way — see "Blurred text shadows in the PDF"). 45541's
 titles and bullets cast a black shadow 3 pt down and right, blurred
 3 pt; ours is a sharp copy at 45% (the engine's own text blur goes to
 PDF as a soft mask at the page's corner). Drawn instead as the text
@@ -2546,6 +2547,27 @@ were built with weight, slant, underline, face, size, colour and
 spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
+
+**Blurred text shadows in the PDF, 2026-10-18** (sweep 242: corpus
+mean 0.9395 → 0.9370; 45541_Header −0.45, 45541_Footer and
+45545_Comment −0.44, tdf114848 −0.02, alterman −0.01; customGeo +0.01,
+its slide 41's 43% shadow on a pale ellipse a soft grey where
+PowerPoint's is fainter). Why the engine's text-shadow blur "went to the
+page's corner": it did not — the soft mask was where the text is, but
+11% at its darkest. The engine makes a text shadow's blur with
+`respectCTM` false, so its sigma is in device units, and the export
+draws twenty pixels a point into a PDF whose units are points: our
+sigma, in pixels, was twenty times too wide. With
+`RichTextTheme.shadowBlurDeviceScale` set (1/20, by the slides' PDF
+export alone; nil on screen and in Word, which keep the sharp 45% copy)
+a blurred run shadow is the engine's blur at 0.4 of the file's radius
+and 55% strength. Not the file's own measure: the PDF's mask is
+rasterised at 72 dpi and softens it again, where PowerPoint's print
+holds each word's shadow as a 300 dpi picture, black at its core. At
+0.5 and full strength the shadow spread wider and greyer than
+PowerPoint's (45541 +0.66); the strength mattered more than the width
+(45541 5.99 → 5.48 at 50%, alterman 4.34 → 4.28 at 100%); 0.4 and 55%
+is better than the sharp copy in both.
 
 **Tried and dropped, 2026-10-18: no whole points in a shrunk box.**
 bug62513's slide 2 (text at 55%, its 13 pt lines 15.6 apart) stands a

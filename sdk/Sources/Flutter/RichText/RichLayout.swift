@@ -228,6 +228,12 @@ public final class RichTextTheme {
     /// of 28 pt text with a 47 pt word in 30 pt keeps 0.22 of the line.
     /// nil leaves `exactLineDescentShare` alone.
     public var exactLineDescentOfSize: Double? = nil
+    /// Device units to a layout pixel while a document is drawn into a
+    /// PDF (1/20 for Slides' export, drawn twenty pixels a point): with
+    /// it, a run's blurred shadow is blurred (see `textStyle`); nil, as on
+    /// screen and in Word, draws it sharp and fainter. Set only around
+    /// such a drawing.
+    nonisolated(unsafe) public static var shadowBlurDeviceScale: Double? = nil
     /// Whether a run's characters are set at the widths its resolved
     /// face gives (`RichResolvedFace.advances`) outside Word's rules too:
     /// PowerPoint's Lucida Sans Unicode, drawn here in a narrower face.
@@ -579,20 +585,27 @@ public final class RichTextTheme {
                 return lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: gridPitch).height / (size * widen)
             }(),
             // (In points, as the file gives it, at the layout's scale.) A
-            // blurred shadow is drawn sharp at under half its strength: the
-            // engine's blur goes to PDF as a soft mask that Skia puts at the
-            // page's corner, so it was not there at all; and PowerPoint's
-            // 3 pt blur of a 2 pt stroke is 58% black at its darkest (45541,
-            // where nine faint copies spread over the blur came out wider
-            // and darker than its own).
+            // blurred shadow is drawn sharp at under half its strength
+            // unless `shadowBlurDeviceScale` says what the engine's blur is
+            // measured in: it takes its sigma in device units, whatever the
+            // canvas's scale, so drawn twenty pixels a point into a PDF
+            // (whose units are points) it spread twenty times too wide and
+            // faded to nothing. With the scale, the blur is the engine's at
+            // 0.4 of the file's radius and 55% strength: the PDF's mask is
+            // 72 dpi and softens it again, where PowerPoint's is 300 dpi
+            // and black at its core (45541's 3 pt blur; 0.5 and full
+            // strength spread it wider and darker than PowerPoint's).
             // (None on a raised or lowered run held unseen in its line:
             // its shadow goes with the run where `_paintScripts` draws it,
             // where it stood at the baseline under 5864's raised "st".)
             shadows: scriptHidden && style.script != .normal && !shifted ? [] : px <= 0.01 ? nil : style.shadow.map { sh in
                 let k = pixelsPerPoint * scale
-                let a = Double(sh.color.alpha) / 255 * (sh.blur > 0 ? 0.45 : 1)
+                let device = sh.blur > 0 ? Self.shadowBlurDeviceScale : nil
+                let a = Double(sh.color.alpha) / 255 * (sh.blur > 0 ? device == nil ? 0.45 : 0.55 : 1)
+                // (The engine's blur radius, from its sigma: r · 0.57735 + 0.5.)
+                let radius = device.map { max(0, (sh.blur * 0.4 * k * $0 - 0.5) / 0.57735) } ?? 0
                 return [Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
-                               offset: Offset(sh.dx * k, sh.dy * k))]
+                               offset: Offset(sh.dx * k, sh.dy * k), blurRadius: radius)]
             },
             fontFeatures: {
                 var features = disablesLigatures ? [FontFeature("liga", 0), FontFeature("clig", 0)] : []
