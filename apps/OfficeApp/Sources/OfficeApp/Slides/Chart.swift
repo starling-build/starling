@@ -105,6 +105,14 @@ struct Chart: Equatable {
     var titleSize: Double? = nil
     var titleBold = false
     var titleColor: Color? = nil
+    /// The title's own box (`c:title/c:spPr`): its fill, and its outline
+    /// and that line's width in points; nil is none.
+    var titleFill: Color? = nil
+    var titleLine: Color? = nil
+    var titleLineWidth = 0.75
+    /// Its dash (`a:prstDash`, nil solid) and round ends (`cap="rnd"`).
+    var titleLineDash: String? = nil
+    var titleLineRound = false
     /// The first column of the data: category names, or for a scatter
     /// chart the x values.
     var categories: [String]
@@ -444,6 +452,9 @@ struct Chart: Equatable {
         c.categoryLabelSize = categoryLabelSize.map { $0 * f }
         c.textSize = textSize.map { $0 * f }
         c.axisTitleSize = axisTitleSize.map { $0 * f }
+        // (And the title's box's line, which is as stated too:
+        // chart-tdf135184's 3 pt.)
+        c.titleLineWidth = titleLineWidth * f
         for i in c.series.indices { c.series[i].labelSize = series[i].labelSize.map { $0 * f } }
         if var l = pieLabels {
             l.sizes = l.sizes.mapValues { $0 * f }
@@ -1188,6 +1199,15 @@ enum ChartXML {
         c.titleAt = titleAt
         c.titleBold = titleBold
         c.titleColor = titleColor
+        if let sp = chart.first("c:title")?.first("c:spPr") {
+            c.titleFill = sp.first("a:solidFill").flatMap(color)
+            if let ln = sp.first("a:ln"), let f = ln.first("a:solidFill") {
+                c.titleLine = color(f)
+                c.titleLineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+                c.titleLineDash = PptxReader.dash(ln)
+                c.titleLineRound = ln["cap"] == "rnd"
+            }
+        }
         // (A theme slot, "+mn-lt", is the theme's face: none of its own.)
         func face(_ f: String?) -> String? { f.flatMap { $0.hasPrefix("+") || $0.isEmpty ? nil : $0 } }
         c.font = face(spaceRun?.first("a:latin")?["typeface"])
@@ -1802,10 +1822,15 @@ enum ChartPainter {
             // sits. Or where the file places its box, 4.5 pt in and 1.5
             // down, over the plot: LIBRE_OFFICE-100610's bar charts'
             // titles, across their bars.)
+            // Its box, where it has one: 3 pt beside the text and 1.5 over
+            // and under it (chart-tdf161607's black box ruled in red round
+            // its 40 pt title, in Excel's print).
             if let at = c.titleAt {
                 placed = (tp, Offset(r.left + at.dx * r.width + 4.5 * k, r.top + at.dy * r.height + 1.5 * k))
             } else {
-                tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.top - 2 * k))
+                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k)
+                Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
+                tp.paint(canvas, o)
             }
             // (Gaps from PowerPoint's own default chart, chart-slide-bg:
             // title to plot 3.6, plot to its category labels 7.6, labels to
@@ -1995,10 +2020,29 @@ enum ChartPainter {
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor) })
         }
         if let (tp, at) = placed {
+            Self._titleBox(c, canvas, around: Rect.fromLTWH(at.dx, at.dy, tp.width, tp.height), k: k)
             tp.paint(canvas, at)
             tp.dispose()
         }
         canvas.restore()
+    }
+
+    /// The title's box, where it has one: 3 pt beside the text and 1.5
+    /// over and under it (chart-tdf161607's black box ruled in red round
+    /// its 40 pt title, in Excel's print).
+    static func _titleBox(_ c: Chart, _ canvas: any Canvas, around text: Rect, k: Double) {
+        guard c.titleFill != nil || c.titleLine != nil else { return }
+        let b = Rect.fromLTRB(text.left - 4 * k, text.top - 2 * k, text.right + 4 * k, text.bottom + 2 * k)
+        let p = Paint()
+        p.isAntiAlias = true
+        if let f = c.titleFill { p.style = .fill; p.color = f; canvas.drawRect(b, p) }
+        if let l = c.titleLine {
+            p.style = .stroke; p.color = l; p.strokeWidth = max(0.25, c.titleLineWidth * k)
+            if c.titleLineRound { p.strokeCap = .round; p.strokeJoin = .round }
+            let path = Path()
+            path.addRect(b)
+            canvas.drawPath(SlidePainter.dashed(path, c.titleLineDash, width: p.strokeWidth, capped: c.titleLineRound), p)
+        }
     }
 
     private static func _mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
@@ -3084,6 +3128,12 @@ enum ChartPainter {
         // (No rims in a 2007-style chart on a slide: pie-chart's slices
         // meet edge to edge in PowerPoint's print, fills alone.)
         if c.onSlide, !c.styled2013, c.officeStyled { edge.color = Color(0x00000000) }
+        // The series' own outline round each slice where it gives one
+        // (chart-tdf161607's ring ruled 2.25 pt green).
+        if let line = c.series[0].outline {
+            edge.color = line
+            edge.strokeWidth = max(0.25, c.series[0].outlineWidth * k)
+        }
         var labels: [(String, Offset, Color)] = []
         var placed: [(index: Int, mid: Double, value: Double, color: Color)] = []
         // A doughnut's wedges are rings: the hole shows what is behind.
