@@ -10784,10 +10784,20 @@ public final class RichLayout {
             // zh-1563bd74, zh-9dd9ce6d and zh-1a3c7aa0, where the engine
             // parted it and the footer grew a line. The box is no
             // narrower than a paragraph's longest unbreakable piece.)
+            // (And a paragraph with no East Asian character in it is one
+            // piece, its spaces no place to part it: lab `ft` in
+            // zh-2e7ef069's package (Word 16, 2026-10-18), whose box is
+            // sized by numberInDash's "- 1 -", prints "- 10 -" whole on
+            // page 10, and so it does with the dashes and spaces typed
+            // round a plain PAGE field. The engine parted it between the
+            // digits, where the joiners `filled` sets do not reach, and
+            // its footer grew a line. `ftD`'s "— 10 —" parts before its
+            // em dash, a character both scripts claim.)
             var need = 0.0
             for k in 0 ..< sub.paragraphs.count {
                 let g = layout.geometry(k)
-                need = max(need, g.painter.minIntrinsicWidth + g.textLeft)
+                let whole = !sub.paragraphs[k].text.contains { Self.isEastAsian($0, hinted: true) }
+                need = max(need, (whole ? g.painter.maxIntrinsicWidth : g.painter.minIntrinsicWidth) + g.textLeft)
             }
             layout.width = max(1, w - _px(box.insetLeft + box.insetRight), need.rounded(.up) + (need > 0 ? 1 : 0))
             layout.ensureLaidOut(sub)

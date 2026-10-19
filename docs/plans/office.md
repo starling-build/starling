@@ -6551,3 +6551,18 @@ it now keeps the line the grid gives, and the one-em cap holds only off it.
 Together, sweep n361 against n360 on one base: zh-5251dd23 89.2 → 96.8,
 zh-e1b09977 65.4 → 81.4, zh-cec9d337 84.2 → 88.2, zh-20c1d74a 88.0 → 89.9,
 and no document lower. Either change alone drops zh-cec9d337.
+
+### A fitted box's Latin paragraph is one piece (2026-10-18)
+
+zh-2e7ef069's page number is a `wrap="none"` + `spAutoFit` box sized by its
+numberInDash result "- 1 -", 36pt wide, and on every two-digit page ours wrapped
+the closing dash under "- 10". Word's print has "- 10 -" whole, running out of the
+box. Lab `ft` (Word 16, the file's footer over 11 pages): whole on pages 10 and 11,
+and still whole with numberInDash removed and "- " and " -" typed round a plain PAGE
+field, so it is not the field result's joiners. The engine had also parted the
+number between its digits, which `filled`'s word joiners cannot stop. A paragraph
+in such a box with no East Asian character in it is now as wide as its whole line;
+`ftD`'s "— 10 —", which Word parts before its em dash, keeps the old measure.
+Sweep n363 vs n362, same base: zh-01071d556 98.2 → 100, zh-2e7ef069 87.5 → 89.0,
+zh-0a56c942 93.1 → 93.5, none down.
+
