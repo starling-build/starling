@@ -803,6 +803,18 @@ enum DocxFormat {
         }
         var cellBase = base   // the table style's spacing while inside one
         var cellRootBase = docBase
+        // (A cell's paragraph of no style of its own is Normal's, and
+        // Normal's own settings stand over the table style's, as a named
+        // style's chain does — Word applies the table style under the
+        // paragraph's style, not over it. zh-0b48a0db's Normal says 1.08
+        // lines (w:line 259) and its "TableGrid" single, no space after;
+        // Word's print sets the table's 14pt lines 25.9pt apart, 1.08 of
+        // YaHei's 24, with nothing after; ours took the table style's
+        // single line, 24.4, and the table ran a line short a page.)
+        let normalStyleId = paragraphStyles.first(where: { $0.value["w:default"] == "1" })?.key
+        func cellNormal() -> RichParagraphStyle {
+            normalStyleId.flatMap { chainOver($0, cellBase, cellRootBase) } ?? cellBase
+        }
 
         func emit(_ p: RichParagraph) {
             var p = p
@@ -873,7 +885,7 @@ enum DocxFormat {
             switch node.name {
             case "w:p":
                 let first = paragraphs.count
-                for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
+                for p in _paragraphs(node, currentCell != nil ? cellNormal() : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
                                      currentCell != nil ? { id in chainOver(id, cellBase, cellRootBase) } : nil) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true; pendingBreakCharacter = p.breakCharacter; pendingBreakRPr = p.breakRPr; pendingBreakColumn = p.breakColumn } else { emit(p.paragraph) }
                 }
