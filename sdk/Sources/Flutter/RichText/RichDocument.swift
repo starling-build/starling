@@ -91,6 +91,11 @@ public struct CharShadow: Hashable, Sendable {
     public var dx: Double
     public var dy: Double
     public var blur: Double
+    /// A shape's shadow scaled alike both ways (`sx` = `sy`), about the
+    /// point of the shape `anchor` names in fractions of its box (0, 0
+    /// its top left; PowerPoint's `algn`). 1 for none; text ignores it.
+    public var scale: Double = 1
+    public var anchor = Offset(0.5, 0.5)
     public init(color: Color, dx: Double, dy: Double, blur: Double) {
         self.color = color; self.dx = dx; self.dy = dy; self.blur = blur
     }

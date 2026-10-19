@@ -556,6 +556,13 @@ final class SlidePainter: CustomPainter {
             if sh.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, sh.blur * px / 2) }
             canvas.save()
             canvas.translate(dx, dy)
+            if sh.scale != 1 {
+                // Scaled about the point of the box its alignment names.
+                let at = Offset(r.left + r.width * sh.anchor.dx, r.top + r.height * sh.anchor.dy)
+                canvas.translate(at.dx, at.dy)
+                canvas.scale(sh.scale, sh.scale)
+                canvas.translate(-at.dx, -at.dy)
+            }
             canvas.drawPath(outline, p)
             canvas.restore()
         } else if let sh = shape.shadow, let style = shape.fillStyle, style.image != nil, shape.picture == nil {

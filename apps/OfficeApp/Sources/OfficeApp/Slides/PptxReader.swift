@@ -553,13 +553,21 @@ private struct LevelStyle {
     /// on the ground — scaled or skewed — is nil: drawn as a copy of the
     /// outline it would stand up.
     static func outerShadow(_ effects: XNode?, _ colors: ColorContext) -> CharShadow? {
+        // (Scaled alike both ways it is the outline larger or smaller —
+        // tdf104015's title's 101%, tdf130058's 1% — and drawn so.)
         guard let sh = effects?.first("a:outerShdw"), let c = colors.color(in: sh),
-              ["sx", "sy", "kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { k.hasPrefix("s") ? $0 == 100000 : $0 == 0 } ?? true })
+              ["kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { $0 == 0 } ?? true }),
+              (sh["sx"].flatMap(Double.init) ?? 100000) == (sh["sy"].flatMap(Double.init) ?? 100000)
         else { return nil }
         let dist = (sh["dist"].flatMap(Double.init) ?? 0) / Pptx.emu
         let dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
-        return CharShadow(color: c, dx: dist * cos(dir), dy: dist * sin(dir),
-                          blur: (sh["blurRad"].flatMap(Double.init) ?? 0) / Pptx.emu)
+        var shadow = CharShadow(color: c, dx: dist * cos(dir), dy: dist * sin(dir),
+                                blur: (sh["blurRad"].flatMap(Double.init) ?? 0) / Pptx.emu)
+        shadow.scale = (sh["sx"].flatMap(Double.init) ?? 100000) / 100000
+        let algn = sh["algn"] ?? "b"
+        shadow.anchor = Offset(algn.hasSuffix("l") ? 0 : algn.hasSuffix("r") ? 1 : 0.5,
+                               algn.hasPrefix("t") ? 0 : algn.hasPrefix("b") ? 1 : 0.5)
+        return shadow
     }
 }
 
@@ -1538,6 +1546,15 @@ private struct SlideContext {
         if let c = spPr?.first("a:ln")?["cmpd"], c != "sng" { st.outlineCompound = c }
         st.tailEnd = PptxReader.lineEnd(spPr?.first("a:ln")?.first("a:tailEnd"))
         st.shadow = _shapeShadow(spPr, style)
+        if ph != nil, spPr?.first("a:effectLst") == nil, spPr?.first("a:effectDag") == nil, style?.first("a:effectRef") == nil {
+            // A placeholder's shadow from its layout's or master's own
+            // (tdf104015's title, red and shadowed by its master).
+            for node in [inherited.layout, inherited.master] {
+                guard let effects = node?.first("p:spPr")?.first("a:effectLst") else { continue }
+                st.shadow = LevelStyle.outerShadow(effects, colors)
+                break
+            }
+        }
         st.innerShadow = _shapeInnerShadow(spPr, style)
         if let effects = spPr?.first("a:effectLst") {
             if let g = effects.first("a:glow"), let c = colors.color(in: g) {

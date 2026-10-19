@@ -2548,6 +2548,19 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A placeholder's shadow from its master, and a shadow scaled alike
+both ways, 2026-10-19** (sweep 247: corpus mean 0.9267 → 0.9250;
+tdf104015 0.92 → 0.00, none other moved). tdf104015's title is red and
+shadowed by its master's title (`a:effectLst` in the master's
+`p:spPr`); the red was inherited and the shadow not. A placeholder with
+no effects of its own (no `effectLst`, `effectDag` or `effectRef`) now
+takes its layout's or master's. And that shadow is scaled 101% both
+ways (`sx` = `sy`), which the reader had refused as a shadow cast on
+the ground: a uniform scale is the outline larger or smaller, now drawn
+so about the point its `algn` names (`CharShadow.scale`, `anchor`;
+tdf130058's 1% shadow, too small to see either way, now the size it
+says). Skewed or flattened shadows stay undrawn.
+
 **A diagram row holds what its children settle, 2026-10-19** (sweep
 246: corpus mean 0.9319 → 0.9267; smartart-children 3.13 → 0.23,
 none other moved). hierarchy-list "children": two parents side by
