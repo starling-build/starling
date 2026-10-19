@@ -2537,6 +2537,9 @@ public final class RichLayout {
         }
         let oldNotes = _pageNotes
         _pageNotes = _pageNotes.filter { $0.key < page }
+        let oldCuts = _noteCutOut, oldCarries = _noteCarryIn
+        _noteCutOut = _noteCutOut.filter { $0.key < page }
+        _noteCarryIn = _noteCarryIn.filter { $0.key < page }
         // (The pins of the pages set again are found again; those of the
         // pages kept stand, and so do their floats' shifts.)
         var shelvedPins: [String: (pin: (page: Int, top: Double, bottom: Double, left: Double, right: Double, anchorY: Double), shift: Double?)] = [:]
@@ -2604,6 +2607,8 @@ public final class RichLayout {
         // later page holds: reserved on that page as `splitRow` sets the
         // part — see where a row's notes are placed.)
         var rowPending: [Int] = []
+        // (The note this page parts, set at its foot to `keep`.)
+        var pageCut: (id: Int, keep: Double)? = nil
         func reserveNotes(_ ids: [Int], deferring: Bool = false) {
             guard notesOn else { return }
             let width = _px(pageSetup(forPage: page / _columns).contentWidth)
@@ -2611,7 +2616,7 @@ public final class RichLayout {
             for id in ids where !pageNotes.contains(id) {
                 if deferred { if !pendingNotes.contains(id) { pendingNotes.append(id) }; continue }
                 guard let note = _note(id, width: width, document) else { continue }
-                var room = note.height
+                var room = pageCut?.id == id ? pageCut!.keep : note.height
                 if pageNotes.isEmpty { room += _note(-1, width: width, document)?.height ?? 0 }
                 if deferring, room > contentH - y + 0.01 {
                     deferred = true
@@ -2629,6 +2634,7 @@ public final class RichLayout {
             markOnPage = false
             overfull = false
             var carried: [Int] = []
+            var goesOn: Double? = nil   // where the paragraph parted here goes on, in its flow
             if notesOn {
                 let stays = _pages[page].contains { placingRange.contains($0.paragraph) && !$0.repeated }
                 carried = stays ? [] : placing.filter { pageNotes.contains($0) }
@@ -2644,8 +2650,10 @@ public final class RichLayout {
                     carried = placing.filter { id in
                         pageNotes.contains(id) && (_footnoteMarkTop(placingRange.lowerBound, id, document).map { $0 >= here.flowBottom - 0.01 } ?? false)
                     }
+                    goesOn = here.flowBottom
                 }
                 _pageNotes[page] = pageNotes.filter { !carried.contains($0) }
+                if let cut = pageCut, _pageNotes[page]?.contains(cut.id) == true { _noteCutOut[page] = cut } else { pageCut = nil }
                 pageNotes = []
                 // (The notes still waiting for an unkept paragraph go
                 // over too, after those carried, in the file's order.)
@@ -2662,6 +2670,54 @@ public final class RichLayout {
             prevContentH = contentH
             openPage()
             loadPins()
+            // (The rest of a note the page before parted, first under the
+            // rule.)
+            if notesOn, let cut = pageCut {
+                pageCut = nil
+                let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                if let note = _note(cut.id, width: width, document) {
+                    contentH = max(1, contentH - (note.height - cut.keep) - (_note(-1, width: width, document)?.height ?? 0))
+                    pageNotes.append(cut.id)
+                    _noteCarryIn[page] = (cut.id, cut.keep)
+                }
+            }
+            // (A paragraph going on here takes on this page those of its
+            // notes whose marks stand in the lines this page will hold of
+            // it, as where it began — and parts the first that does not
+            // fit, a line of it or more fitting under its mark: zh-344a8d08's
+            // "(一)因應COVID-19疫情…", begun on page 3, marks footnotes 2
+            // and 3 on page 4, where Word's print sets 2 and two lines of
+            // 3. Ours reserved both whole at page 4's head, then took 3
+            // over with its mark's line and left page 4 its room empty.)
+            if notesOn, theme.wordRules, let flow = goesOn {
+                let i0 = placingRange.lowerBound
+                let mine = (carried + rowPending).filter { placing.contains($0) }.sorted()
+                carried.removeAll { mine.contains($0) }
+                rowPending = []
+                reserveNotes(carried)
+                let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                var here: [Int] = []
+                var room = 0.0
+                for (n, id) in mine.enumerated() {
+                    guard let mark = _footnoteMarkLine(i0, id, document), let note = _note(id, width: width, document) else { here.append(id); continue }
+                    room += note.height + (pageNotes.isEmpty && here.isEmpty ? _note(-1, width: width, document)?.height ?? 0 : 0)
+                    let at = y + (mark.bottom - flow)
+                    if at + room > contentH + 0.01 {
+                        let left = contentH - at - (room - note.height)
+                        if pageCut == nil, let keep = _noteCuts(id, width: width, document).last(where: { $0 <= left + 0.01 }) {
+                            pageCut = (id, keep)
+                            here.append(id)
+                            rowPending = Array(mine[(n + 1)...])
+                        } else {
+                            rowPending = Array(mine[n...])
+                        }
+                        break
+                    }
+                    here.append(id)
+                }
+                reserveNotes(here)
+                return
+            }
             reserveNotes(carried)
         }
         loadPins()
@@ -3403,6 +3459,9 @@ public final class RichLayout {
                 if notesOn {
                     pageNotes = oldNotes[page] ?? pageNotes
                     for (k, v) in oldNotes where k > page { _pageNotes[k] = v }
+                    for (k, v) in oldCuts where k >= page { _noteCutOut[k] = v }
+                    for (k, v) in oldCarries where k > page { _noteCarryIn[k] = v }
+                    pageCut = nil
                 }
                 break
             }
@@ -3430,6 +3489,19 @@ public final class RichLayout {
                             guard let mark = _footnoteMarkLine(i, id, document), let note = _note(id, width: width, document) else { here.append(id); continue }
                             room += note.height + (pageNotes.isEmpty && here.isEmpty ? _note(-1, width: width, document)?.height ?? 0 : 0)
                             if y + (mark.bottom - _tops[i]) + room > contentH + 0.01 {
+                                // (Unless what is left under the mark's line
+                                // holds a line of it or more: the note parts
+                                // there, the rest first at the next page's
+                                // foot. zh-344a8d08's footnote 3, three lines
+                                // marked in page 4's last, has two there in
+                                // Word's print and the third on page 5; ours
+                                // took the mark's line over with it, and the
+                                // line before, two lines short a page.)
+                                let left = contentH - (y + (mark.bottom - _tops[i])) - (room - note.height)
+                                if pageCut == nil, let keep = _noteCuts(id, width: width, document).last(where: { $0 <= left + 0.01 }) {
+                                    pageCut = (id, keep)
+                                    here.append(id)
+                                }
                                 for later in placing where !here.contains(later) && !pageNotes.contains(later) && !pendingNotes.contains(later) { pendingNotes.append(later) }
                                 break
                             }
@@ -10872,12 +10944,40 @@ public final class RichLayout {
     /// at the foot of each page, by physical page.
     private var _noteCache: [String: _HeaderFooter] = [:]
     private var _pageNotes: [Int: [Int]] = [:]
+    /// A note parted over two pages: the last at a page's foot shown to
+    /// `keep` of its height (pixels), and its rest the first at the next
+    /// page's — see where a body paragraph's notes are placed.
+    private var _noteCutOut: [Int: (id: Int, keep: Double)] = [:]
+    private var _noteCarryIn: [Int: (id: Int, from: Double)] = [:]
+
+    /// Where note `id` may part: the bottoms of its lines but the last,
+    /// pixels from its top.
+    private func _noteCuts(_ id: Int, width: Double, _ document: RichDocument) -> [Double] {
+        guard let note = _note(id, width: width, document) else { return [] }
+        var out: [Double] = []
+        for k in note.document.paragraphs.indices {
+            let g = note.layout.geometry(k)
+            for m in g.painter.computeLineMetrics() where m.lineNumber >= 0 { out.append(g.textTop + m.baseline - m.ascent + m.height) }
+        }
+        return out.sorted().filter { $0 > 0.5 && $0 < note.height - 0.5 }
+    }
 
     /// A sub-document of `paragraphs` that reads its settings from
     /// `document`, laid out `width` wide.
-    private func _subLayout(_ paragraphs: [RichParagraph], _ document: RichDocument, width: Double) -> _HeaderFooter {
+    private func _subLayout(_ paragraphs: [RichParagraph], _ document: RichDocument, width: Double, onGrid: Bool = false) -> _HeaderFooter {
         var sub = RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph()] : paragraphs)
         sub.styles = document.styles
+        // (Notes keep to the document's line grid, as a header does not;
+        // their separator does not. Lab `fn` (Word for Windows, from
+        // zh-344a8d08's package, linesAndChars at 22.85pt): its 10pt
+        // notes stand 22.8pt a line where their style drops snapToGrid 0
+        // and their face's 17.16 where it keeps it, and the separator,
+        // Normal's 16pt in an empty paragraph, is one natural line either
+        // way.)
+        if onGrid {
+            sub.lineGridPitch = document.lineGridPitch
+            sub.characterGridSpace = document.characterGridSpace
+        }
         sub.listFormats = document.listFormats
         sub.listCounterOf = document.listCounterOf
         sub.listRestarts = document.listRestarts
@@ -10905,7 +11005,7 @@ public final class RichLayout {
         if let hit = _noteCache[key] { return hit }
         let paragraphs: [RichParagraph]
         if id == -1 { paragraphs = document.footnoteSeparator } else if let p = document.footnotes[id] { paragraphs = p } else { return nil }
-        let made = _subLayout(paragraphs, document, width: width)
+        let made = _subLayout(paragraphs, document, width: width, onGrid: theme.wordRules && id != -1)
         if _noteCache.count > 512 { _noteCache.removeAll() }
         _noteCache[key] = made
         return made
@@ -10918,7 +11018,7 @@ public final class RichLayout {
         if let hit = _noteCache[key] { return hit }
         let paragraphs: [RichParagraph]
         if id == -1 { paragraphs = document.endnoteSeparator } else if let p = document.endnotes[id] { paragraphs = p } else { return nil }
-        let made = _subLayout(paragraphs, document, width: width)
+        let made = _subLayout(paragraphs, document, width: width, onGrid: theme.wordRules && id != -1)
         if _noteCache.count > 512 { _noteCache.removeAll() }
         _noteCache[key] = made
         return made
@@ -11672,12 +11772,19 @@ public final class RichLayout {
         guard theme.wordRules, let ids = _pageNotes[p], !ids.isEmpty, pageSetup != nil else { return }
         let setup = pageSetup(forPage: p)
         let width = _px(setup.contentWidth)
-        let notes = ids.compactMap { _note($0, width: width, document) }
+        // (Each from `from` to `to` of its height: a note parted over the
+        // page before or the next — `_noteCarryIn`, `_noteCutOut`.)
+        let notes: [(note: _HeaderFooter, from: Double, to: Double)] = ids.compactMap { id in
+            guard let note = _note(id, width: width, document) else { return nil }
+            let from = _noteCarryIn[p]?.id == id ? _noteCarryIn[p]!.from : 0
+            let to = _noteCutOut[p]?.id == id ? _noteCutOut[p]!.keep : note.height
+            return (note, from, max(from, to))
+        }
         guard !notes.isEmpty else { return }
         let rect = pageRect(p)
         let bottom = rect.bottom - _bodyInsets(page: p, document).bottom
         let separator = _note(-1, width: width, document)
-        var top = bottom - notes.reduce(0.0) { $0 + $1.height } - (separator?.height ?? 0)
+        var top = bottom - notes.reduce(0.0) { $0 + $1.to - $1.from } - (separator?.height ?? 0)
         let left = rect.left + _pxMarginLeft(p)
         if let separator {
             let line = Paint()
@@ -11685,13 +11792,14 @@ public final class RichLayout {
             canvas.drawRect(Rect.fromLTWH(left, top + separator.height / 2 - _px(0.36), _px(144), _px(0.72)), line)
             top += separator.height
         }
-        for note in notes {
+        for (note, from, to) in notes {
             canvas.save()
-            canvas.translate(left, top)
+            if from > 0 || to < note.height { canvas.clipRect(Rect.fromLTRB(rect.left, top, rect.right, top + to - from)) }
+            canvas.translate(left, top - from)
             note.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: note.document,
                               selection: nil, caret: nil)
             canvas.restore()
-            top += note.height
+            top += to - from
         }
     }
 

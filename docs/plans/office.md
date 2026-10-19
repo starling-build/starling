@@ -5684,6 +5684,25 @@ fitter dropped the paragraph's tail).
   holds each mark, as the row parts. zh-499adba6 9.8 -> 20.1 (its pages
   1-16 Word's now); nothing else moved. No unit test: the test process
   has no ICU to break the row's lines by.
+- **A footnote parts under its mark (2026-10-19).** Word keeps one line
+  of a note that does not fit under its mark and sets the rest first at
+  the next page's foot, under the rule (lab `fn` on Windows, from
+  zh-344a8d08's package: P13's three-line note, marked in the page's last
+  line, one line on p1 and two on p2). Ours never parted a note: its
+  mark's line went over with it, and the line before for company.
+  zh-344a8d08's "(一)因應COVID-19疫情…", begun on page 3, marks notes 2
+  and 3 on page 4, and Word sets 2 and two lines of 3 there. Two rules
+  now: a note that does not fit parts at its last line boundary that does
+  (a line at least), the rest carried to the next page's notes first; and
+  a paragraph going on over a page takes there only the notes whose
+  marks stand in the lines that page holds of it — it had reserved all
+  its waiting notes at the page's head, then taken note 3 over with its
+  mark and left page 4 its room empty. Notes keep to the document's line
+  grid where their style does not say snapToGrid 0 (22.8pt a line in
+  the lab), their separator does not. zh-344a8d08 19.9 -> 25.9; nothing
+  else moved. (Its page 4 still sets all of note 3, where Word's falls
+  0.8pt short of room for it.) No unit test: a mark's line is found by
+  its text box, and the test process has no ICU to give one.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's
