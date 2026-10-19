@@ -2178,6 +2178,14 @@ private struct SlideContext {
                             runs[runs.count - 1].style.kerningFrom = 0
                         } else { runs[runs.count - 1].style.kerningFrom = s.kern ?? unsaidKern }
                         Self.faceSpacing(&runs[runs.count - 1].style)
+                        // (And what a text box's run carries besides: highlight-
+                        // test-case's green and yellow in its table's first
+                        // cell, drawn plain.)
+                        runs[runs.count - 1].style.strikethrough = s.strike ?? false
+                        if let b = s.baseline { runs[runs.count - 1].style.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
+                        runs[runs.count - 1].style.highlight = s.highlight
+                        runs[runs.count - 1].style.shadow = s.shadow
+                        if s.caps == "all" { runs[runs.count - 1].style.caps = true } else if s.caps == "small" { runs[runs.count - 1].style.smallCaps = true }
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
                     switch level.algn { case "ctr": style.alignment = .center; case "r": style.alignment = .right; default: break }

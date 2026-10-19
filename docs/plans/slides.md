@@ -2536,6 +2536,13 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A table cell's runs carry what a text box's do, 2026-10-18** (sweep
+236: highlight-test-case −0.13, cooper −0.02; none worse). A cell's runs
+were built with weight, slant, underline, face, size, colour and
+spacing only: highlight-test-case's green and yellow highlights in its
+table's first cell were drawn plain. They take strike-through, raised
+and lowered text, highlight, shadow and capitals now, as a text box's.
+
 **A group's child turned on its side scales with the axes swapped,
 2026-10-18** (sweep 234: corpus mean 0.9437 → 0.9406;
 sample_pptx_grouping_issues −1.11, GroupTransform 0.68 → 0.18,
