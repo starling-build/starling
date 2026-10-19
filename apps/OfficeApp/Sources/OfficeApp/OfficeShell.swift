@@ -104,6 +104,7 @@ final class OfficeShellState: State<StatefulWidget> {
         let env = ProcessInfo.processInfo.environment
         if let hosted = (widget as! OfficeShell).hosted {
             controller.load(hosted.document)
+            if let setup = hosted.pageSetup { session.pageSetup = setup }
             session.titleOverride = hosted.title
             session.hostName = hosted.ownerName
             // The way back asks about unsaved changes first, as Close does.
@@ -492,7 +493,7 @@ final class OfficeShellState: State<StatefulWidget> {
             // The owner stores it (a wiki page: a new version). Export is
             // still the way to a .docx.
             let revision = controller.revision
-            hosted.save(controller.document) { [weak self] message in
+            hosted.save(controller.document, session.pageSetup) { [weak self] message in
                 guard let self else { return }
                 if let message { self._flash(message); return }
                 self._savedRevision = revision

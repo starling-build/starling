@@ -78,10 +78,15 @@ public struct RichDocumentEnvelope: Codable, Sendable {
 
     public var schema: Int
     public var document: RichDocument
+    /// The page the document was laid out for, when it came from a file
+    /// that had one; nil is "flow only" (an older envelope, or a page made
+    /// from text). A paged reader uses it; the decoder fills nil.
+    public var pageSetup: PageSetup? = nil
 
-    public init(document: RichDocument) {
+    public init(document: RichDocument, pageSetup: PageSetup? = nil) {
         self.schema = RichDocumentEnvelope.currentSchema
         self.document = document
+        self.pageSetup = pageSetup
     }
 
     public enum Failure: Error, CustomStringConvertible {
@@ -94,19 +99,24 @@ public struct RichDocumentEnvelope: Codable, Sendable {
     }
 
     /// JSON, keys sorted so two encodings of one document are one string.
-    public static func encode(_ document: RichDocument) throws -> Data {
+    public static func encode(_ document: RichDocument, pageSetup: PageSetup? = nil) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         // Floating-point edge values a layout can produce must survive.
         encoder.nonConformingFloatEncodingStrategy = .convertToString(positiveInfinity: "inf", negativeInfinity: "-inf", nan: "nan")
-        return try encoder.encode(RichDocumentEnvelope(document: document))
+        return try encoder.encode(RichDocumentEnvelope(document: document, pageSetup: pageSetup))
     }
 
     public static func decode(_ data: Data) throws -> RichDocument {
+        try decodeEnvelope(data).document
+    }
+
+    /// The whole stored form: the document and, when stored, its page setup.
+    public static func decodeEnvelope(_ data: Data) throws -> RichDocumentEnvelope {
         let decoder = JSONDecoder()
         decoder.nonConformingFloatDecodingStrategy = .convertFromString(positiveInfinity: "inf", negativeInfinity: "-inf", nan: "nan")
         let envelope = try decoder.decode(RichDocumentEnvelope.self, from: data)
         guard envelope.schema <= currentSchema else { throw Failure.unknownSchema(envelope.schema) }
-        return envelope.document
+        return envelope
     }
 }

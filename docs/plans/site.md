@@ -81,10 +81,57 @@ dev Mac: app.wasm downloads in 1.3 s, the app is running before 3 s, the
 tab is titled "Publishing — Starling Site demo", the page's text is
 drawn, and a tree click moves to /site-demo/about/.
 
+## The reader as a document reader (2026-10-19)
+
+The focus the user chose: not web pages but published documents — what
+HTML cannot do is the page. So a page that came from a paged file keeps
+its page setup in the stored form (`RichDocumentEnvelope.pageSetup`,
+written by `--page-json`, by Writer's Save over a hosted document, and
+read back by `--page-docx`), and the reader shows it as **pages** on a
+desktop (headers, footers, page numbers, "Page 8 of 24", a page wider
+than its room drawn smaller, whole) and as **flow** on a phone, with a
+Pages/Flow switch. **Contents** lists the headings with the page each
+starts on (`RichLayout.pageNumber(ofParagraph:)` over a layout of the
+page view's own making); a click scrolls there. **Link to paragraph**
+puts `#p=<paragraph id>` in the address bar, and opening such a link
+scrolls that paragraph to the top, selected (`SiteShellState._reveal`:
+the caret at the paragraph's START with `pendingReveal = .top`; a
+selection whose caret sits at the end is revealed by its end and lands
+at the foot of the view). **PDF** downloads the same painter's pages
+(24 pages with pictures take ~15 s in a tab). `starling.debug('view' |
+'pages' | 'toc' | 'caret' | 'status')` answer scripts; `test/site-web.sh`
+drives all of it on `sample-paper` (the BoringCrypto security policy from
+the fixtures, 24 pages, footnotes).
+
+**The stored form was 37 to 1 against gzip**, and seconds to decode: the
+synthesized coding wrote all 85 fields of the two style structs for every
+paragraph and run. `RichDocumentSparseCoding.swift` (generated from the
+declarations) writes only what differs from the default and reads a
+missing key as the default, so older pages still decode. A text page went
+from 13 KB to 3 KB, the security policy from 1.8 MB to 1.0 MB; the 327
+corpus documents still round-trip exactly. Still heavy: government
+documents whose tables carry kept OOXML per cell (`CellRef`:
+continuation paragraphs and XML, borders XML) — the 临沧 notice is 4.0 MB
+(134 KB gzipped), the 浙江 credit rules 7.1 MB (192 KB gzipped), and a
+same-as-previous-paragraph coding of `cell` would halve the latter. A
+model change, left for when the measured load in a tab says so.
+
+**Trap, paid for twice tonight:** a NEW file under `sdk/` is not noticed by
+an incremental `swift build` in either scratch (`apps/OfficeApp/.build`
+and `.build-web-OfficeApp`): the build "completes" in a second, the app
+keeps the synthesized coding, and the browser says "This page's content
+cannot be read by this build" against pages the native build wrote. Delete
+the scratch's `*.yaml` and `build.db` and build again (sdk/CLAUDE.md's
+recipe) — then watch for the file in the compile log.
+
 ## Where it stands
 
-**2026-10-18 evening:** builder, reader, both stores, both gates, and the
-demo live on GitHub Pages (above). Not yet: delete/rename/reorder of
-pages (edit `site.json` by hand for now); images in pages ride inside the
-page JSON, which is fine until a page carries many; a phone layout for
-the Writer's ribbon when editing (the reader is fine on a phone).
+**2026-10-19:** builder, reader (pages, contents with page numbers,
+paragraph links, PDF), both stores, both gates, the demo live on GitHub
+Pages with three published documents (an official notice in the
+government format, rules with long tables, a security policy with
+footnotes). Not yet: delete/rename/reorder of pages (edit `site.json` by
+hand); a smaller stored form for table-heavy documents (above); text
+that selects into the browser's clipboard, browser find, a text layer for
+screen readers (the noscript text is for crawlers only); a phone layout
+for the Writer's ribbon when editing (the reader is fine on a phone).

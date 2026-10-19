@@ -67,6 +67,35 @@ check "and opens that page" "${R[4]:-}" '"about"'
 check "a search hit opens its page" "${R[5]:-}" '"getting-started"'
 check "at its route" "${R[6]:-}" '"/getting-started/"'
 
+echo "── a paged page: pages on a desktop, flow on a phone, contents with page numbers, a link to a paragraph"
+# sample-paper came from a .docx and carries its page setup; 1403114754 is
+# the id of its "Cryptographic Module Specification" heading.
+URL="$URL/sample-paper/#p=1403114754" "${DRIVE[@]}" wait 12000 shot "$OUT/5-paged.png" \
+    eval "starling.debug('view')" eval "+starling.debug('pages') > 3" \
+    eval "starling.debug('toc').split('\n').filter(l => /^\d\t[1-9]\d*\t/.test(l)).length > 5" \
+    eval "starling.debug('toc').split('\n').find(l => l.includes('Cryptographic Module Specification'))" \
+    eval "starling.debug('caret')" \
+    > "$OUT/drive3.log" 2>&1
+P=(); while IFS= read -r l; do P+=("$l"); done < <(evals "$OUT/drive3.log")
+check "a page with a page setup opens as pages on a desktop" "${P[0]:-}" '"pages"'
+check "and has more than three of them" "${P[1]:-}" true
+check "the contents carry page numbers" "${P[2]:-}" true
+check "a heading's entry names its page" "$(printf '%s' "${P[3]:-}" | grep -c '^"1\\t[0-9]*\\tCryptographic Module Specification"$')" 1
+check "the route's #p= opened at that paragraph" "${P[4]:-}" '"1403114754"'
+W=800 H=900 URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "starling.debug('view')" > "$OUT/drive4.log" 2>&1
+check "the same page is flow on a narrow screen" "$(evals "$OUT/drive4.log" | head -1)" '"flow"'
+export W=1400 H=900
+# The PDF button, with the download landing in OUT; the Contents panel's
+# first entry, clicked, moves the caret to the first heading.
+rm -rf "$OUT/downloads"; mkdir -p "$OUT/downloads"
+URL="$URL/sample-paper/" "${DRIVE[@]}" downloads "$OUT/downloads" wait 12000 \
+    click 520 220 wait 1500 click 1250 300 wait 1500 eval "starling.debug('caret')" shot "$OUT/6-contents.png" \
+    click 780 220 wait 30000 eval "starling.debug('status')" > "$OUT/drive5.log" 2>&1
+C=(); while IFS= read -r l; do C+=("$l"); done < <(evals "$OUT/drive5.log")
+check "a contents entry moves the caret to its heading" "$(printf '%s' "${C[0]:-}" | grep -Ec '^"[1-9][0-9]*"$')" 1
+check "the PDF button says it exported" "${C[1]:-}" '"Exported sample-paper.pdf"'
+check "and the PDF is the same painter's pages" "$(ls "$OUT/downloads" 2>/dev/null | grep -c '^sample-paper.pdf$')" 1
+
 echo "── the same site under /demo/"
 URL="$URL/demo/about/" "${DRIVE[@]}" wait 9000 shot "$OUT/4-demo.png" \
     eval "starling.debug('slug')" click 100 339 wait 1500 eval "location.pathname" eval "starling.debug('slug')" \

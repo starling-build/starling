@@ -208,7 +208,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--page-json"), i + 2 < CommandL
     do {
         var opened = try OfficeFormats.read(CommandLine.arguments[i + 1])
         opened.document.assignParagraphIDs()
-        try RichDocumentEnvelope.encode(opened.document).write(to: URL(fileURLWithPath: CommandLine.arguments[i + 2]))
+        try RichDocumentEnvelope.encode(opened.document, pageSetup: opened.pageSetup).write(to: URL(fileURLWithPath: CommandLine.arguments[i + 2]))
         exit(0)
     } catch {
         FileHandle.standardError.write("page-json failed: \(error)\n".data(using: .utf8)!)
@@ -218,8 +218,9 @@ if let i = CommandLine.arguments.firstIndex(of: "--page-json"), i + 2 < CommandL
 if let i = CommandLine.arguments.firstIndex(of: "--page-docx"), i + 2 < CommandLine.arguments.count {
     initializeHeadlessText()
     do {
-        let doc = try RichDocumentEnvelope.decode(try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1])))
-        try OfficeFormats.write(doc, to: CommandLine.arguments[i + 2])
+        let envelope = try RichDocumentEnvelope.decodeEnvelope(try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1])))
+        if let setup = envelope.pageSetup { try OfficeFormats.write(envelope.document, to: CommandLine.arguments[i + 2], pageSetup: setup) }
+        else { try OfficeFormats.write(envelope.document, to: CommandLine.arguments[i + 2]) }
         exit(0)
     } catch {
         FileHandle.standardError.write("page-docx failed: \(error)\n".data(using: .utf8)!)

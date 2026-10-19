@@ -60,6 +60,13 @@ struct SiteManifest: Codable {
     }
 }
 
+/// A page as stored: the document and, when it came from a paged file,
+/// the page it is laid out for (the reader's page view; nil is flow only).
+struct SitePage {
+    var document: RichDocument
+    var pageSetup: PageSetup?
+}
+
 /// One line of `search.json`.
 struct SiteSearchEntry: Codable {
     var slug: String
@@ -133,10 +140,11 @@ enum SiteFiles {
     /// The server's and the build's "no content yet".
     static let emptyBody = "{}"
 
-    static func decodePage(_ data: Data) -> RichDocument? {
+    static func decodePage(_ data: Data) -> SitePage? {
         let text = String(decoding: data, as: UTF8.self)
-        if text.trimmingWhitespace() == emptyBody { return RichDocument() }
-        return try? RichDocumentEnvelope.decode(data)
+        if text.trimmingWhitespace() == emptyBody { return SitePage(document: RichDocument(), pageSetup: nil) }
+        guard let envelope = try? RichDocumentEnvelope.decodeEnvelope(data) else { return nil }
+        return SitePage(document: envelope.document, pageSetup: envelope.pageSetup)
     }
 }
 
@@ -216,7 +224,7 @@ enum SiteBuilder {
         for (node, _) in manifest.flattened() {
             let src = repo + "/" + SiteFiles.pagePath(node.slug)
             let data = fm.contents(atPath: src) ?? Data(SiteFiles.emptyBody.utf8)
-            guard let doc = SiteFiles.decodePage(data) else { throw Failure("\(src): not a page this build can read") }
+            guard let doc = SiteFiles.decodePage(data)?.document else { throw Failure("\(src): not a page this build can read") }
             try data.write(to: URL(fileURLWithPath: out + "/" + SiteFiles.pagePath(node.slug)), options: .atomic)
             let text = SiteFiles.plainText(doc)
             entries.append(SiteSearchEntry(slug: node.slug, title: node.title, text: text))

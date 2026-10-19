@@ -217,7 +217,7 @@ final class WikiShellState: State<StatefulWidget> {
                 if page.body.trimmingWhitespace() == "{}" { doc.styles = OfficeStyles.sheet }
                 let writer = OfficeShell(initialPath: nil, hosted: HostedDocument(
                     title: page.title, document: doc, ownerName: "wiki",
-                    save: { [weak self] doc, done in self?._saveHosted(doc, done) },
+                    save: { [weak self] doc, _, done in self?._saveHosted(doc, done) },
                     close: { [weak self] in self?._cancelEdit(reload: true) }))
                 self.setState { self._lock = lock; self._editing = true; self._dirty = false; self._otherLock = nil; self._writer = writer }
                 self._scheduleHeartbeat()

@@ -4168,6 +4168,15 @@ public final class RichLayout {
     }
 
     public var isPaged: Bool { pageSetup != nil }
+
+    /// The page, counted from 1, a paragraph starts on — for a table of
+    /// contents with page numbers. Nil unpaged, or before `ensureLaidOut`.
+    public func pageNumber(ofParagraph i: Int) -> Int? {
+        guard isPaged, i >= 0, i < count, _pieceStart.count == count + 1 else { return nil }
+        let pieces = _allPieces[_pieceStart[i] ..< _pieceStart[i + 1]]
+        guard let piece = pieces.first(where: { $0.part != .rules && !$0.repeated }) ?? pieces.first else { return nil }
+        return piece.page / _columns + 1
+    }
     /// `_pages` holds one entry per column slot; a page has `columns` of them.
     public var pageCount: Int { isPaged ? max(1, (_pages.count + _columns - 1) / _columns) : 1 }
     /// Per column slot (page × columns + column), in flow order.

@@ -21,10 +21,10 @@ protocol SiteStore: AnyObject {
     var base: String { get }
     var canEdit: Bool { get }
     func manifest(_ done: @escaping (Result<SiteManifest, SiteError>) -> Void)
-    func page(_ slug: String, _ done: @escaping (Result<RichDocument, SiteError>) -> Void)
+    func page(_ slug: String, _ done: @escaping (Result<SitePage, SiteError>) -> Void)
     func search(_ done: @escaping (Result<[SiteSearchEntry], SiteError>) -> Void)
     /// Store the page; answers with nil, or the message to show.
-    func save(_ slug: String, _ doc: RichDocument, _ done: @escaping (String?) -> Void)
+    func save(_ slug: String, _ page: SitePage, _ done: @escaping (String?) -> Void)
     /// A new page under `parent` (nil: top level); answers with its slug.
     func createPage(title: String, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void)
     /// Build the site and push it; answers with nil, or what went wrong.
@@ -32,7 +32,7 @@ protocol SiteStore: AnyObject {
 }
 
 extension SiteStore {
-    func save(_ slug: String, _ doc: RichDocument, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
+    func save(_ slug: String, _ page: SitePage, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
     func createPage(title: String, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) { done(.failure(SiteError("This site is read-only here."))) }
     func publish(message: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
 }
@@ -69,7 +69,7 @@ final class StaticSiteStore: SiteStore {
         }
     }
 
-    func page(_ slug: String, _ done: @escaping (Result<RichDocument, SiteError>) -> Void) {
+    func page(_ slug: String, _ done: @escaping (Result<SitePage, SiteError>) -> Void) {
         fetch(SiteFiles.pagePath(slug)) { r in
             done(r.flatMap { data in
                 SiteFiles.decodePage(data).map { .success($0) } ?? .failure(SiteError("This page's content cannot be read by this build."))
@@ -110,7 +110,7 @@ final class LocalSiteStore: SiteStore {
         catch { done(.failure(SiteError("\(error)"))) }
     }
 
-    func page(_ slug: String, _ done: @escaping (Result<RichDocument, SiteError>) -> Void) {
+    func page(_ slug: String, _ done: @escaping (Result<SitePage, SiteError>) -> Void) {
         let path = repo + "/" + SiteFiles.pagePath(slug)
         let data = FileManager.default.contents(atPath: path) ?? Data(SiteFiles.emptyBody.utf8)
         done(SiteFiles.decodePage(data).map { .success($0) } ?? .failure(SiteError("\(path): not a page this build can read.")))
@@ -122,18 +122,18 @@ final class LocalSiteStore: SiteStore {
             var entries: [SiteSearchEntry] = []
             for (node, _) in SiteBuilder.manifest(from: config).flattened() {
                 let data = FileManager.default.contents(atPath: repo + "/" + SiteFiles.pagePath(node.slug)) ?? Data(SiteFiles.emptyBody.utf8)
-                let text = SiteFiles.decodePage(data).map(SiteFiles.plainText) ?? ""
+                let text = SiteFiles.decodePage(data).map { SiteFiles.plainText($0.document) } ?? ""
                 entries.append(SiteSearchEntry(slug: node.slug, title: node.title, text: text))
             }
             done(.success(entries))
         } catch { done(.failure(SiteError("\(error)"))) }
     }
 
-    func save(_ slug: String, _ doc: RichDocument, _ done: @escaping (String?) -> Void) {
+    func save(_ slug: String, _ page: SitePage, _ done: @escaping (String?) -> Void) {
         do {
             let path = repo + "/" + SiteFiles.pagePath(slug)
             try FileManager.default.createDirectory(atPath: repo + "/" + SiteFiles.pagesDir, withIntermediateDirectories: true)
-            try RichDocumentEnvelope.encode(doc).write(to: URL(fileURLWithPath: path), options: .atomic)
+            try RichDocumentEnvelope.encode(page.document, pageSetup: page.pageSetup).write(to: URL(fileURLWithPath: path), options: .atomic)
             done(nil)
         } catch { done("Could not write the page: \(error)") }
     }
