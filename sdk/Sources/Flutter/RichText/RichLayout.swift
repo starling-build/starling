@@ -10846,9 +10846,6 @@ public final class RichLayout {
         // line — zh-1a3c7aa0's footer page number, in a 144pt box set
         // to fit its text and centred, stands at the page's middle in
         // Word's print, where the whole box centred put it 65pt left.)
-        // (A VML box is fitted again on each page: zh-5a9a85c6's "— PAGE —",
-        // VML alone, is never wrapped in Word's print, "— 15 —" whole in
-        // a box first drawn round "— 1 —".)
         if box.fitsText, box.fitsOnce, let w = inheritedFitWidths[image.id] {
             // (A header's or footer's box as wide as on the first page it
             // is on — lab `ftD`, Word 16, 2026-10-15: zh-a4b0f6ea's
@@ -10863,24 +10860,58 @@ public final class RichLayout {
             // zh-1563bd74, zh-9dd9ce6d and zh-1a3c7aa0, where the engine
             // parted it and the footer grew a line. The box is no
             // narrower than a paragraph's longest unbreakable piece.)
-            // (And a paragraph with no East Asian character in it is one
-            // piece, its spaces no place to part it: lab `ft` in
-            // zh-2e7ef069's package (Word 16, 2026-10-18), whose box is
-            // sized by numberInDash's "- 1 -", prints "- 10 -" whole on
-            // page 10, and so it does with the dashes and spaces typed
-            // round a plain PAGE field. The engine parted it between the
-            // digits, where the joiners `filled` sets do not reach, and
-            // its footer grew a line. `ftD`'s "— 10 —" parts before its
-            // em dash, a character both scripts claim.)
-            var need = 0.0
+            // (Set in Latin faces alone, a paragraph is one piece and
+            // runs out of the box whole: zh-01071d55's Times "- 10 -", 7pt
+            // over, is drawn whole in Word's print, clipped at the box.
+            // With a character in an East Asian face its spaces give half
+            // their width before it parts — lab `vf` (Word 16,
+            // 2026-10-18): zh-2e7ef069's 宋体 numberInDash box, sized by
+            // "- 9 -", holds "- 10 -" to "- 99 -" whole, 7 over and its
+            // two 7pt spaces halved, and parts "- 100 -", 14 over, at its
+            // space; zh-5a9a85c6's VML "— 11 —" stands in the 49pt
+            // "— 1 —" set, its 宋体 spaces halved, where zh-875759ff's,
+            // its em dashes in YaHei and its spaces Times' 3.5pt, parts
+            // before the closing dash. Not a closing space, which hangs,
+            // and not one beside a character set as East Asian, which
+            // gives nothing: zh-a4b0f6ea's "— 10 —", its dashes hinted
+            // East Asian, parts, and so does zh-9bcea239's VML "—10—",
+            // spaceless. Laid out whole, the line runs past the box, which
+            // stands as wide as on its first page.)
+            let room = w - _px(box.insetLeft + box.insetRight)
+            var need = 0.0, whole = 0.0
             for k in 0 ..< sub.paragraphs.count {
                 let g = layout.geometry(k)
-                let whole = !sub.paragraphs[k].text.contains { Self.isEastAsian($0, hinted: true) }
-                need = max(need, (whole ? g.painter.maxIntrinsicWidth : g.painter.minIntrinsicWidth) + g.textLeft)
+                let para = sub.paragraphs[k]
+                let named = layout._named(para, sub)
+                let line = g.painter.maxIntrinsicWidth + g.textLeft
+                let units = Array(para.text.utf16)
+                var hintedAt = Set<Int>(), eastAsianFace = false, at = 0
+                for run in para.runs {
+                    if run.style.fontHint == "eastAsia" { hintedAt.formUnion(at ..< at + run.length) }
+                    let latin = run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
+                    if theme.faceResolver?(latin, false)?.isEastAsian == true { eastAsianFace = true }
+                    at += run.length
+                }
+                func setEastAsian(_ i: Int) -> Bool {
+                    guard i >= 0, i < units.count, let scalar = Unicode.Scalar(units[i]) else { return false }
+                    return Self.isEastAsian(Character(scalar), hinted: hintedAt.contains(i))
+                }
+                let anyEastAsian = eastAsianFace || units.indices.contains { setEastAsian($0) || units[$0] == 0x2014 }
+                var spaces = 0.0
+                if anyEastAsian, line > room + 0.5 {
+                    let map = layout._map(k)
+                    let end = units.lastIndex { $0 != 0x20 } ?? 0
+                    for (off, u) in units.enumerated() where u == 0x20 && off < end && !setEastAsian(off - 1) && !setEastAsian(off + 1) {
+                        let a = map.painter(off)
+                        for b in g.painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: a + 1)) { spaces += b.right - b.left }
+                    }
+                }
+                if !anyEastAsian || line - spaces / 2 <= room + 0.5 { whole = max(whole, line) }
+                else { need = max(need, g.painter.minIntrinsicWidth + g.textLeft) }
             }
-            layout.width = max(1, w - _px(box.insetLeft + box.insetRight), need.rounded(.up) + (need > 0 ? 1 : 0))
+            layout.width = max(1, room, need.rounded(.up) + (need > 0 ? 1 : 0), whole.rounded(.up) + (whole > room + 0.5 ? 1 : 0))
             layout.ensureLaidOut(sub)
-            _fitWidths["\(image.id)|\(box.hashValue)"] = layout.width + _px(box.insetLeft + box.insetRight)
+            _fitWidths["\(image.id)|\(box.hashValue)"] = max(room, need.rounded(.up) + (need > 0 ? 1 : 0)) + _px(box.insetLeft + box.insetRight)
         } else if box.fitsText {
             var natural = 0.0
             for k in 0 ..< sub.paragraphs.count {

@@ -6615,3 +6615,23 @@ alignment (page-relative specs still unread), and a text-anchored floating table
 whose first row goes to the next page stands its tblpY down there too. Sweep n365
 against n364 on one base: zh-0243e7fc 81.6 → 98.9, nothing else moved.
 
+### …in Latin faces; with an East Asian one its spaces give half (2026-10-18, Mac)
+
+Narrows the rule above. Lab `vf` (Word 16): zh-2e7ef069's footer over one section
+numbered from 9, so its 宋体 box is sized by "- 9 -" (36pt), holds "- 10 -" to
+"- 99 -" whole — 7pt over, its two 7pt spaces halved — and parts "- 100 -" at its
+space, 14 over, the closing dash on a line under it. So "one piece" holds only for
+a paragraph set in Latin faces alone (zh-01071d55's Times "- 10 -", 7 over, is
+drawn whole and clipped at the box in Word's print). With any character in an East
+Asian face — 宋体 runs, an em dash (Word sets zh-875759ff's in YaHei), a hinted
+run — the paragraph stays whole only where its line, less half its inner spaces,
+fits: zh-5a9a85c6's "— 11 —" (宋体 spaces) stands, zh-875759ff's "— 10 —" (Times
+spaces, 3.5 to give against 7) parts before its closing dash. A closing space
+hangs and gives nothing; a space beside a character set as East Asian gives
+nothing (zh-a4b0f6ea's hinted "— 10 —" parts). The lab also finds VML boxes
+(`mso-wrap-style:none` + `mso-fit-shape-to-text`) sized once, as DrawingML's: the
+old "VML is fitted on every page" came from zh-5a9a85c6, whose odd-page numbers
+stand at 481–530 for "— 1 —" and "— 11 —" alike — the squeeze, not a refit;
+zh-9bcea239's VML "—10—" wraps its dash on every two-digit page with its fonts,
+rPr or compatibility mode (11, 12, 15) changed. Ours lays a paragraph that stays
+whole out past the box, the box as wide as on its first page.

@@ -3190,6 +3190,7 @@ enum DocxFormat {
                         let shapeStyle = (node.name == "v:shape" ? node : node.descendant("v:shape"))?["style"] ?? ""
                         box.fitsText = shapeStyle.containsSubstring("mso-wrap-style:none")
                             && (textbox["style"] ?? "").containsSubstring("mso-fit-shape-to-text:t")
+                        box.fitsOnce = box.fitsText   // (lab `vf`: sized once, as DrawingML's)
                         let parts = inset.split(separator: ",", omittingEmptySubsequences: false).map { _length(String($0).trimmingWhitespace()) }
                         if parts.count > 0, let v = parts[0] { box.insetLeft = v }
                         if parts.count > 1, let v = parts[1] { box.insetTop = v }

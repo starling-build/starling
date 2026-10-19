@@ -654,10 +654,11 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(pageOfFourth { 4 * $0 - $0 / 2 }, 1, "its text is over too")
     }
 
-    /// A fit-to-text box Word sizes once is DrawingML's (lab `ftD`); a VML
-    /// one is fitted on each page — zh-5a9a85c6's "— 15 —" whole in Word's
-    /// print, where a box sized by "— 1 —" wrapped its closing dash.
-    func testOnlyADrawingMLBoxIsFittedOnce() throws {
+    /// Word sizes a fit-to-text box once, DrawingML's (lab `ftD`) and
+    /// VML's alike (lab `vf`): zh-9bcea239's VML "—10—" wraps its closing
+    /// dash in the box "—1—" set, and zh-5a9a85c6's "— 15 —" stands whole
+    /// in "— 1 —"'s only by halving its spaces.
+    func testEitherFitToTextBoxIsFittedOnce() throws {
         var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
         var xml = String(decoding: entries[di].data, as: UTF8.self)
@@ -678,7 +679,7 @@ final class DocxTests: XCTestCase {
         let doc = try DocxFormat.read(try Zip.write(entries)).document
         let boxes = doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.textBox }
         XCTAssertEqual(boxes.map(\.fitsText), [true, true])
-        XCTAssertEqual(boxes.map(\.fitsOnce), [false, true])
+        XCTAssertEqual(boxes.map(\.fitsOnce), [true, true])
     }
 
     /// An equation is kept and drawn: zh-20ff844e's display formulas were

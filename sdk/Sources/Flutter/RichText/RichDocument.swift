@@ -321,7 +321,7 @@ public struct RichTextBox: Hashable, Sendable {
     /// text and insets, whatever its own height says.
     public var fitsHeight = false
     /// … and is sized once, on the first page its header or footer is on
-    /// (DrawingML's, lab `ftD`); a VML box is fitted on every page.
+    /// (lab `ftD`, DrawingML; lab `vf`, VML alike).
     public var fitsOnce = false
     /// The tables among `paragraphs` (their cells' `CellRef.table`), with
     /// their looks and grids: a table nested in a cell is read as a box
