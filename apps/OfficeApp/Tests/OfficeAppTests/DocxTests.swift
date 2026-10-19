@@ -1698,7 +1698,8 @@ final class DocxTests: XCTestCase {
 
     /// The first line's width, in points, of `text` in 12pt 宋体 laid out
     /// `width` points wide, mode 14, compressing punctuation, set left.
-    private func firstLineWidth(_ text: String, width: Double, language: String? = nil, hangs: Bool = true) throws -> Double {
+    private func firstLineWidth(_ text: String, width: Double, language: String? = nil, hangs: Bool = true,
+                                mode: Int = 14, letterSpacing: Double? = nil) throws -> Double {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -1714,6 +1715,7 @@ final class DocxTests: XCTestCase {
         style.fontFamily = "宋体"
         style.eastAsiaFontFamily = "宋体"
         style.fontSize = 12
+        style.letterSpacing = letterSpacing
         if let language { style.keptXML = "<w:lang w:eastAsia=\"\(language)\"/>" }
         var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
         // (Set left, as every paragraph is fitted before mode 15, so the
@@ -1721,7 +1723,7 @@ final class DocxTests: XCTestCase {
         p.style.alignment = .left
         if !hangs { p.style.eastAsian["w:overflowPunct"] = "0" }
         var doc = RichDocument(paragraphs: [p])
-        doc.compatibilityMode = 14
+        doc.compatibilityMode = mode
         doc.characterSpacingControl = "compressPunctuation"
         doc.usesEastAsianLayout = true
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -1760,6 +1762,22 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThan(try firstLineWidth(text, width: 359, hangs: false), 355, "\"度，\" goes down: two commas cannot give 13")
         // (Where all three marks follow the tab, they give it: 18 of room.)
         XCTAssertGreaterThan(try firstLineWidth("一二三\t（六）" + String(repeating: "一", count: 7) + "，" + twelve + "度，擴大", width: 359, hangs: false), 358)
+    }
+
+    func testASpacedIdeographIsOverTheMarginByItsEmAndHalfItsSpacing() throws {
+        // zh-01bbcd4d (mode 12, 16pt spaced to 17) takes "理。" with "理"
+        // starting 8.2pt short of the margin: over by its em and half its
+        // spacing, 8.3, inside half of "办" as spaced, 8.5. As spaced, 8.8,
+        // it was not. (zh-749cb15a's "期", 7.55 so against 7.3, is left.)
+        try requireFitterWidths()
+        // (12pt set 13 apart, as the reader spaces a `w:spacing` of 10.)
+        XCTAssertEqual(try firstLineWidth("一一", width: 300, mode: 12, letterSpacing: 1), 26, accuracy: 0.05)
+        // "一，二，" and 18 ideographs, 13 apart: "办" at 286, "理" at 299.
+        let text = "一，二，" + String(repeating: "三", count: 18) + "办理。四五"
+        XCTAssertGreaterThan(try firstLineWidth(text, width: 305.2, mode: 12, letterSpacing: 1), 303,
+                             "\"理\" 6.3 over by its em and half its spacing, within half of \"办\"'s 13")
+        XCTAssertLessThan(try firstLineWidth(text, width: 304.6, mode: 12, letterSpacing: 1), 300,
+                          "6.9 over so is past it")
     }
 
     func testAMarkInTextOfNoEastAsianLanguageGivesNothing() throws {

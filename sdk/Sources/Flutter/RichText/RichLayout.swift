@@ -8930,8 +8930,15 @@ public final class RichLayout {
                     // compatibility mode, 16pt on a grid of -0.21) takes
                     // "级，" where "级" ends half "升"'s cell past the
                     // margin to the twip, 0.21 short of its em.)
+                    // (An ideograph off the grid is its em and half the spacing
+                    // that widens it — the half after it is not over the
+                    // margin. zh-01bbcd4d's 16pt, spaced to 17, takes "理。" with
+                    // "理" 8.3pt past the margin so, inside half "办"'s 17 (8.8
+                    // as spaced); zh-749cb15a's 14pt, spaced to 14.6, leaves
+                    // "期" 7.55 past so, over half "長"'s 14.6.)
+                    let plain = theme.wordRules && units[a] >= 0x3400 && !Self._closingUnits.contains(units[a]) && !Self._openingUnits.contains(units[a])
                     let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
-                        ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em : onCharacterGrid ? boxes(a, a + 1) - (gaps[a] ?? 0) : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
+                        ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em : onCharacterGrid ? boxes(a, a + 1) - (gaps[a] ?? 0) : plain ? em + max(0, boxes(a, a + 1) - (gaps[a] ?? 0) - em) / 2 : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
                     // (And where the character before it is over the margin
                     // itself, the paragraph's last mark gives nothing toward
                     // taking the two: the line's other marks must. zh-cfb32050
