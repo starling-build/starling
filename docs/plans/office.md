@@ -5661,6 +5661,18 @@ fitter dropped the paragraph's tail).
   ours ran two pages short from there. The paragraph is marked
   `pageBreakTwice` and the layout turns the page twice for it.
   zh-e74dd0a1 52.6 -> 99.4, 134 pages as Word's; nothing else moved.
+- **A Wingdings bullet is Wingdings' width (2026-10-19).** The reader
+  draws Word's private-use Wingdings bullets with stand-ins ("➢" for
+  "Ø"), and the marker was measured at the stand-in's width, and in the
+  text face's scaled size besides (16.05pt for 15pt 仿宋_GB2312).
+  zh-3fe252ff's 15pt arrowhead is 0.794 em in Word's print (the width its
+  embedded subset carries) and ends at 41.9pt from a 30pt first-line
+  indent, short of the 42pt default stop where Word starts the text; ours
+  ran past it to 63, every bullet's line held two characters fewer, and
+  from p23 on its pages ran a line late. The marker now takes Wingdings'
+  advance at the file's size, for the three bullets Word's prints give
+  widths for ("Ø" 0.794, "§" 0.458, "l" 0.747). zh-3fe252ff 27.5 ->
+  98.6, 94 pages as Word's; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

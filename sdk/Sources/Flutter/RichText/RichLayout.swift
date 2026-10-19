@@ -8027,6 +8027,12 @@ public final class RichLayout {
         return Double(xml[r.upperBound...].prefix { $0 != "\"" }).map { $0 / 2 }
     }
 
+    /// Wingdings' advances, in ems, for the bullets the reader draws with
+    /// stand-ins (`Docx`'s bullet map), as Word's prints embed them: "Ø"
+    /// (zh-3fe252ff, zh-0d036e4e), "§" (Numbering), "l" (bug69628,
+    /// zh-15428325).
+    static let _wingdingsAdvances: [UInt32: Double] = [0xF0D8: 0.794, 0xF0A7: 0.458, 0xF06C: 0.747]
+
     /// A list paragraph's marker, laid out at its own width.
     private func _marker(_ i: Int, _ p: RichParagraph, _ document: RichDocument, label: String, strut: StrutStyle?) -> TextPainter {
         var markerChar = p.runs[0].style
@@ -8065,7 +8071,23 @@ public final class RichLayout {
         let named = _named(p, document)
         // East Asian numbers in the run's East Asian face, as the text.
         let ea = theme.wordRules && label.contains(where: { Self.isEastAsian($0, hinted: true) })
-        let markerStyle = theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: ea, gridPitch: pitch)
+        var markerStyle = theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: ea, gridPitch: pitch)
+        // A Wingdings bullet, drawn by a stand-in glyph, takes Wingdings'
+        // own advance: its "Ø" arrowhead is 0.794 of an em in Word's
+        // prints (their embedded subsets' widths), and zh-3fe252ff's
+        // 15pt one ends at 41.9pt from a 30pt first-line indent, short of
+        // the 42pt default stop where Word starts the text; the "➢" drawn
+        // for it ran past, and the text went on to 63 — every bullet's
+        // line held two characters fewer, and from p23 on its pages ran a
+        // line late.
+        if theme.wordRules, label.count == 1, let ch = label.first, _levelNumberFonts(p, document).latin?.lowercased() == "wingdings",
+           let raw = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.rawText })?.unicodeScalars.first?.value,
+           let em = Self._wingdingsAdvances[raw] {
+            // (Of the size the file gives, not the stand-in face's scaled
+            // one: the text's 仿宋_GB2312 sets the marker at 16.05pt here.)
+            let size = _px(markerChar.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
+            markerStyle = markerStyle.copyWith(letterSpacing: (markerStyle.letterSpacing ?? 0) + em * size - _glyphWidth(markerStyle, ch))
+        }
         // Its Latin characters in the Latin face all the same — the
         // number's own (its level's `w:rFonts`, else the paragraph
         // mark's), whatever the hint: the "1" of zh-06c46ba9's "（1）" is

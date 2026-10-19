@@ -791,6 +791,39 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(cell[0].style.pageBreakBefore)
     }
 
+    /// A Wingdings bullet is as wide as Wingdings makes it, whatever the
+    /// glyph drawn for it: zh-3fe252ff's 15pt "Ø" (0.794 em) ends short
+    /// of the 42pt default stop from a 30pt first-line indent, and Word
+    /// starts the text there.
+    func testAWingdingsBulletTakesWingdingsWidth() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!, si = entries.firstIndex { $0.name == "word/settings.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let run = "<w:rPr><w:sz w:val=\"30\"/></w:rPr>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"1\"/></w:numPr><w:ind w:left=\"0\" w:firstLine=\"600\"/>\(run)</w:pPr><w:r>\(run)<w:t>text</w:t></w:r></w:p>"
+            + "<w:p><w:pPr>\(run)</w:pPr><w:r>\(run)<w:t>text</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let settings = String(decoding: entries[si].data, as: UTF8.self).replacingAll("<w:defaultTabStop w:val=\"720\"/>", with: "<w:defaultTabStop w:val=\"420\"/>")
+        XCTAssertTrue(settings.contains("w:val=\"420\""))
+        entries[si] = ZipEntry(name: "word/settings.xml", data: Data(settings.utf8))
+        let numbering = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:abstractNum w:abstractNumId=\"0\"><w:lvl w:ilvl=\"0\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\u{F0D8}\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"1020\" w:hanging=\"420\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"Wingdings\" w:hAnsi=\"Wingdings\"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId=\"1\"><w:abstractNumId w:val=\"0\"/></w:num></w:numbering>"
+        let ni = try XCTUnwrap(entries.firstIndex { $0.name == "word/numbering.xml" })
+        entries[ni] = ZipEntry(name: "word/numbering.xml", data: Data(numbering.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = .letter
+        layout.width = 612 * 96.0 / 72.0
+        layout.ensureLaidOut(doc)
+        // (By the painters' widths, the same text in each: the test
+        // process has no ICU to place a caret by.)
+        func width(_ i: Int) -> Double { layout.geometry(i).painter.maxIntrinsicWidth / theme.pixelsPerPoint }
+        XCTAssertEqual(width(0) - width(1), 42, accuracy: 0.05, "\(width(0)) \(width(1))")
+    }
+
     /// A paragraph of a page break alone, then one that opens with its
     /// own: Word's print has a blank page between (lab `bb`, Word 16 for
     /// Mac: "甲" / break / "[break]乙" is three pages; zh-e74dd0a1's
