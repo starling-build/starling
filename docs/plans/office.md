@@ -5714,6 +5714,19 @@ fitter dropped the paragraph's tail).
   above, and Word's rows there are 22.7 — a stated nil stays none.
   zh-db07d44e 33.9 -> 36.8, zh-d8247da5 93.3 -> 97.8, zh-33d025f6 +0.2;
   nothing lower.
+- **An empty line keeps its paragraph's strut (2026-10-19).** A paragraph
+  of stretches of several heights is held to its tallest where every
+  line holds some of it; an empty line — a break after a break — holds
+  no text to find, and cost the paragraph its strut. zh-0978dee9's cells
+  of 10pt 仿宋 put "\n\n" between items, and one "•" set in the serif at
+  a shorter line made the paragraph not uniform, so the tallest strut was
+  its only hold; without it the engine shared the Latin stand-in's 13pt
+  out by Liberation Mono's own depth, and every line with a digit stood
+  13.86pt for Word's 12.96. An empty line whose own height is the
+  tallest stretch's already now counts as held. zh-0978dee9 90.0 ->
+  90.6 (its pp220-222 Word's); nothing else moved. No unit test: it
+  needs the Office faces' stand-ins, which the test process lays out
+  without.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

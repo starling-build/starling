@@ -7752,6 +7752,15 @@ public final class RichLayout {
                 }
             }
         }
+        // (An empty line — a break after a break — holds no text to find,
+        // and is held where its own height is the stretch's already: the
+        // break's run is that stretch's. zh-0978dee9's cells of 仿宋 with
+        // "\n\n" between items lost their strut to their empty lines, and
+        // every line with a digit, Liberation Mono for 仿宋's own half-width
+        // Latin, stood 13.86pt for Word's 12.96.)
+        for (k, m) in metrics.enumerated() where !held.contains(k) && m.width < 0.5 && abs(m.height - size * h) < max(0.5, size * h * 0.01) {
+            held.insert(k)
+        }
         return held.count == lines
     }
 
