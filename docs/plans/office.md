@@ -5642,6 +5642,15 @@ fitter dropped the paragraph's tail).
   spacing, 0.6pt each in a run spaced 12, uncounted by the fitter — "署"
   went down a line. zh-8f9b19f4 51.0 -> 72.0, zh-b00fef0d 93.5 -> 96.6,
   zh-76d361b2 +1.3, zh-361f01dd +0.3; zh-d68ac84a -0.1.
+- **A quote that is its em to a hair keeps its squeeze (2026-10-18).**
+  A full-width curly quote is padded to its em by a blank, an opening
+  one's set as a word joiner that cannot be narrower than nothing. With
+  Starling FangSong (f32d5151) on Linux the quote glyph is 15.99997 of a
+  16pt em, the blank 0.00003, and the squeeze the line fitting asked of
+  the quote went into that joiner and was clamped away: zh-8186c98d's
+  "…中的标准计" lost its "计" (100 -> 31.8), zh-11701b00 and zh-15f67ef1
+  fell too. A blank under 0.01pt is none now, and what a joiner cannot
+  give the quote gives. All three back to 100; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

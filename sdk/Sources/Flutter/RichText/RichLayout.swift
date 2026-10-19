@@ -6548,7 +6548,13 @@ public final class RichLayout {
                     inserts.append(offset)
                 }
                 let quote = ea && fullQuotes && (ch == "\u{201C}" || ch == "\u{2018}" || ch == "\u{201D}" || ch == "\u{2019}")
+                // (None where the face's own quote is the em to a hair: Starling
+                // FangSong's is 15.99997 of 16, and a blank of that hair sent
+                // the squeeze the line fitting asked of an opening quote into a
+                // joiner that cannot be narrower than nothing — zh-8186c98d's
+                // "…中的标准计" lost its "计" on Linux.)
                 let blank = quote ? max(0, em - _glyphWidth(style(kind), ch)) : 0
+                let blankShown = blank > _px(0.01) ? blank : 0
                 var led = false
                 // A zero-width space where Word may break the line and
                 // the engine would not: after spaces set as no-break
@@ -6583,9 +6589,9 @@ public final class RichLayout {
                 // line's start the blank leads the mark, as in Word,
                 // and none is left at the end of the line before. What
                 // the line fitting takes off the quote comes off it.)
-                if quote, blank > 0, ch == "\u{201C}" || ch == "\u{2018}" {
+                if quote, blankShown > 0, ch == "\u{201C}" || ch == "\u{2018}" {
                     flush(i)
-                    spans.append(TextSpan(text: "\u{2060}", style: style(kind).copyWith(letterSpacing: max(0, blank + (adjust[offset] ?? 0)))))
+                    spans.append(TextSpan(text: "\u{2060}", style: style(kind).copyWith(letterSpacing: max(0, blankShown + (adjust[offset] ?? 0)))))
                     inserts.append(offset)
                     led = true
                 }
@@ -6600,8 +6606,9 @@ public final class RichLayout {
                 // otherwise); the half em it takes off the first of two
                 // punctuation marks that stand together; and what the
                 // line fitting asked of this one.
-                var extra = led ? 0 : adjust[offset] ?? 0
-                if quote, !led { extra += blank }
+                // (What the joiner could not give, the quote gives.)
+                var extra = led ? min(0, blankShown + (adjust[offset] ?? 0)) : adjust[offset] ?? 0
+                if quote, !led { extra += blankShown }
                 // (Balanced, a half-width character takes half of the
                 // grid's addition, whatever follows it: on a grid of
                 // 1.008pt Word sets a digit 0.504 wider than its face
