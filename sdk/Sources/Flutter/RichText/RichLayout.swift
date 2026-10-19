@@ -3151,9 +3151,16 @@ public final class RichLayout {
                         // goes over is centred in the part over the page, as the
                         // flow has it — zh-e37f8d40's "乡镇社会事务办公室核查意见"
                         // at page 12's head, its row begun on page 11.)
+                        // (Or one that opens it and is taller than it all the
+                        // same, which parts wherever it begins: zh-0978dee9's
+                        // row 79 opens page 280, its four long cells centred
+                        // in a row of two pages, and Word's print sets their
+                        // text from the row's top there; centred in the whole
+                        // row, ours stood 3 to 48pt down the page.)
                         let start = max(c.rowTop, blockTop - d0.pad.top)
                         let limit = start + avail - ruleUnder(c, parted: true) + 0.01
-                        if room < -0.01, !fresh, y > 0.01, columns[n].cuts.contains(where: { $0 > start + 0.01 && $0 <= limit }) {
+                        let partsAnyway = fresh && c.ownRowHeight + ruleUnder(c) > avail + 0.01
+                        if room < -0.01, (!fresh && y > 0.01) || partsAnyway, columns[n].cuts.contains(where: { $0 > start + 0.01 && $0 <= limit }) {
                             columns[n].cut = start
                         }
                     }

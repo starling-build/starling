@@ -5727,6 +5727,17 @@ fitter dropped the paragraph's tail).
   90.6 (its pp220-222 Word's); nothing else moved. No unit test: it
   needs the Office faces' stand-ins, which the test process lays out
   without.
+- **A row taller than its page sets its long centred cells from the top
+  (2026-10-19).** A centred cell whose text does not fit the part of a
+  parting row on the page is set from its text's top, at the part's top
+  — only for a row begun under other text, since a row that opens a page
+  keeps its centring (zh-e37f8d40). Not a row that opens the page and is
+  taller than it all the same: zh-0978dee9's rows of a 610pt list open
+  their pages, their four long cells centred, and Word's print sets those
+  cells' text from the row's top; centred in the whole two-page row,
+  ours stood 3 to 48pt down every such page, and the document ran a page
+  long. zh-0978dee9 90.6 -> 97.2, 322 pages as Word's; nothing else moved
+  (zh-e37f8d40 among them).
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's
