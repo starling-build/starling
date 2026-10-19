@@ -1870,7 +1870,14 @@ enum DocxFormat {
             for font in table.all("w:font") {
                 guard let name = font["w:name"], name.unicodeScalars.contains(where: { $0.value >= 0x2E80 }),
                       let charset = font.first("w:charset")?["w:val"] else { continue }
-                charsets[name] = charset
+                // (Where the table repeats a name, its East Asian entry over
+                // a charset-00 one, whichever comes first: zh-01bbcd4d lists
+                // 方正仿宋简体 as GB2312, then as charset 00 with no PANOSE,
+                // and Word sets its digits in YaHei, an East Asian face's
+                // stand-in — ours took the second for a Latin face's;
+                // zh-3f871b7d lists 仿宋_GB2312 as 00, then 86, and Word's
+                // print is the East Asian face's.)
+                if charsets[name] == nil || charsets[name] == "00" { charsets[name] = charset }
             }
             if !charsets.isEmpty { OfficeFonts.noteFontTable(charsets) }
             OfficeFonts.noteEmbedded(table.all("w:font").compactMap { font in
@@ -1898,8 +1905,14 @@ enum DocxFormat {
             OfficeFonts.noteEmbeddedFaces(faces)
             var alts: [String: String] = [:]
             var entries: [String: OfficeFonts.FontEntry] = [:]
+            var entryCharsets: [String: String] = [:]
             for font in table.all("w:font") {
                 guard let name = font["w:name"] else { continue }
+                // (An East Asian entry over a charset-00 one for a repeated
+                // name: see the charsets above.)
+                let charset = font.first("w:charset")?["w:val"] ?? ""
+                if entries[name] != nil, charset == "00" || entryCharsets[name] != "00" { continue }
+                entryCharsets[name] = charset
                 let alt = font.first("w:altName")?["w:val"]
                 if let alt, !alt.isEmpty { alts[name] = alt }
                 let panose = font.first("w:panose1")?["w:val"] ?? ""
