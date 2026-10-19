@@ -289,7 +289,7 @@ something else.
 Twenty more (`random.seed(20261104)` among the 180 unprinted, 15 to 400 KB, all
 printed), checked in. It starts at 71.5% (median 91.4). Its low ones, unclaimed:
 zh-d97c5474 2.2 (Mac 01Xgpbk5 looked, released: zh-8d72961c's kind — a Greek/Italian/… notice in Nunito Sans, Word for Mac's cloud font (embedded in its print, lines 16.3pt apart at 12pt), which we lack (Carlito, 14.6)), zh-9932bd83 20.0 (99/96 pages; Linux 017F2GnT: the same book as zh-499adba6, word for word — its text, 14 tables and 11 footnotes; it goes with zh-499adba6, whose next is p17's line end, handed to lenovo-3; released), zh-0513f641 31.6 (CLAIMED Linux office1 01Ak4ibJ 2026-10-19, with zh-499adba6's p17 — both first lines of a number and a tab; Linux 017F2GnT measured, handed to lenovo-3: T131's family again, mid-line — zh-TW 標楷體 14pt, mode 14, compressPunctuation, jc both, numbered (ind 1134/567): p5's "(一)<tab>對地方政府之撥付：本計畫主要補助項目為人事費及基本" ends at "本" in Word's print with "：" its full em (261.5 -> 275.8, every character 14.35 apart, the line stretched), where ours squeezes "：" to 8.3 and takes "維"; every page from p2 is off by such lines, 22/23; released; 22/23
-pages), zh-01bbcd4d 33.2 (CLAIMED Mac 01Xgpbk5), zh-db07d44e 33.8 (70 pages), zh-b378d8c4 36.7,
+pages), zh-01bbcd4d 33.2 (CLAIMED Mac 01Xgpbk5), zh-db07d44e 33.8 (70 pages; CLAIMED Linux 017F2GnT 2026-10-19), zh-b378d8c4 36.7,
 zh-e2dc2598 53.6, zh-9ba2ead7 73.0, zh-e49d7943 78.4, zh-5be7e156 89.1.
 
 ### Note from the Mac (2026-10-19): the zh corpus is 446 documents — a twentieth sample
