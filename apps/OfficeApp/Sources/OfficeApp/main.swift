@@ -163,6 +163,46 @@ if let i = CommandLine.arguments.firstIndex(of: "--layout"), i + 1 < CommandLine
 //   --page-roundtrip <in.docx|rtf|md>         read, encode, decode, compare;
 //                                             prints OK or the first difference
 // Paragraphs get ids on the way in (Word's own where the file had them).
+// A site from a repository (docs/plans/site.md): the folder GitHub Pages
+// serves, made from site.json, pages/*.json and the web build.
+//   --site-build <repo> [--out <dir>] [--web <stage>] [--base /path/]
+//   out defaults to <repo>/docs; web to STARLING_WEB_STAGE or the stage in
+//   the working directory; base to site.json's, else "/".
+if let i = CommandLine.arguments.firstIndex(of: "--site-build"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    func option(_ name: String) -> String? {
+        guard let j = CommandLine.arguments.firstIndex(of: name), j + 1 < CommandLine.arguments.count else { return nil }
+        return CommandLine.arguments[j + 1]
+    }
+    let repo = CommandLine.arguments[i + 1]
+    do {
+        let summary = try SiteBuilder.build(repo: repo, out: option("--out") ?? repo + "/docs",
+                                            web: option("--web") ?? SiteBuilder.defaultWebStage(), base: option("--base"))
+        print("site-build: \(summary.pages) pages into \(summary.out) (base \(summary.base))")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-build failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+//   --site-publish <repo> [--out <dir>] [--web <stage>] [-m <message>]
+//   what the reader's Publish button runs: build into <repo>/<out> (docs),
+//   git add -A, commit, push.
+if let i = CommandLine.arguments.firstIndex(of: "--site-publish"), i + 1 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    func option(_ name: String) -> String? {
+        guard let j = CommandLine.arguments.firstIndex(of: name), j + 1 < CommandLine.arguments.count else { return nil }
+        return CommandLine.arguments[j + 1]
+    }
+    let r = LocalSiteStore.publishNow(repo: CommandLine.arguments[i + 1], out: option("--out") ?? "docs",
+                                      web: option("--web") ?? SiteBuilder.defaultWebStage(), message: option("-m") ?? "")
+    if let failure = r.failure {
+        FileHandle.standardError.write("site-publish failed: \(failure)\n".data(using: .utf8)!)
+        exit(1)
+    }
+    print("site-publish: \(r.summary)")
+    exit(0)
+}
 if let i = CommandLine.arguments.firstIndex(of: "--page-json"), i + 2 < CommandLine.arguments.count {
     initializeHeadlessText()
     do {
@@ -535,19 +575,35 @@ let wikiBase: String? = {
     return CommandLine.arguments[i + 1]
 }()
 
-runStarlingApp(title: wikiBase != nil ? "Wiki" : initialKind.appName,
+// `--site <dir>` opens a cloned site repository to read, edit and publish
+// (docs/plans/site.md); `--site <url>` reads a published one. In a tab the
+// built site's shell page passes `--site <base>`.
+let siteArg: String? = {
+    guard let i = CommandLine.arguments.firstIndex(of: "--site"), i + 1 < CommandLine.arguments.count else { return nil }
+    return CommandLine.arguments[i + 1]
+}()
+
+runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),
                height: windowMetric("STARLING_WINDOW_H", 900)) {
     #if os(WASI)
     if WebPlatform.defaultRouteName.hasPrefix("/office-landing") {
         FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeLandingView(), title: "Starling Office")
+    } else if let siteArg {
+        SiteRoot(store: StaticSiteStore(base: siteArg), route: WebPlatform.defaultRouteName)
     } else if WebPlatform.defaultRouteName.hasPrefix("/s/") || WebPlatform.defaultRouteName.hasPrefix("/login") || CommandLine.arguments.contains("--wiki") {
         WikiRoot(base: "", route: WebPlatform.defaultRouteName)
     } else {
         OfficeRoot(initialPath: initialPath, kind: initialKind)
     }
     #else
-    if let wikiBase {
+    if let siteArg {
+        if siteArg.hasPrefix("http://") || siteArg.hasPrefix("https://") {
+            SiteRoot(store: StaticSiteStore(base: siteArg), route: "/")
+        } else {
+            SiteRoot(store: LocalSiteStore(repo: siteArg), route: "/")
+        }
+    } else if let wikiBase {
         // The URL may name a page: the server part is the base, the rest the route.
         WikiRoot(base: wikiBase.findRange(of: "/s/").map { String(wikiBase[..<$0.lowerBound]) } ?? wikiBase,
                  route: wikiBase.findRange(of: "/s/").map { String(wikiBase[$0.lowerBound...]) } ?? "/")

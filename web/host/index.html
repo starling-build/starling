@@ -68,7 +68,9 @@
     },
   }).then((starling) => {
     window.starling = starling;
-    document.title = 'Starling — running';
+    // A shell page made for a route (the wiki's server, a site build)
+    // already carries the page's title; keep it.
+    if (!document.querySelector('meta[name="starling-route"]')) document.title = 'Starling — running';
     const loading = document.getElementById('loading');
     // The first frame is on screen a beat after start returns.
     requestAnimationFrame(() => requestAnimationFrame(() => {

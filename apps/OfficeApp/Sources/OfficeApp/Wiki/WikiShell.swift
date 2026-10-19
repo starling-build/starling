@@ -186,6 +186,7 @@ final class WikiShellState: State<StatefulWidget> {
                 if self._historyOpen { self._loadVersions() }
                 self._controller.load(doc)
                 self._controller.readOnly = true
+                hostSetWindowTitle?("\(page.title) — \(self._space?.name ?? "Wiki")")
                 #if os(WASI)
                 if push { WebHistory.push(self.session.pageRoute(space: page.space, id: page.id, slug: page.slug)) }
                 #endif
