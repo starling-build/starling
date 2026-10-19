@@ -41,6 +41,8 @@ check "the manifest's home is the first page" "$(json '["home"]' < "$DIST/manife
 check "the search index has the pages' text" "$(json '[2]["text"][:10]' < "$DIST/search.json")" "Publishing"
 check "a page from a .docx keeps its page setup" "$(json '["pageSetup"]["width"]' < "$DIST/pages/sample-paper.json")" 612
 check "a page from text has none" "$(grep -c '"pageSetup"' "$DIST/pages/index.json")" 0
+check "a site with no Chinese text ships no Chinese font" "$(ls "$DIST/fonts" | grep -c NotoSansSC)" 0
+check "nor lists it" "$(grep -c NotoSansSC "$DIST/fonts/manifest.json")" 0
 check "a shell page names its page" "$(grep -o 'og:title" content="[^"]*"' "$DIST/publishing/index.html")" 'og:title" content="Publishing"'
 check "a shell page summarises its page" "$(grep -c 'og:description" content="Publishing Publish builds the site' "$DIST/publishing/index.html")" 1
 check "a shell page's title carries the site's" "$(grep -o '<title>[^<]*</title>' "$DIST/publishing/index.html")" '<title>Publishing — Starling Site</title>'

@@ -221,12 +221,14 @@ enum SiteBuilder {
 
         var entries: [SiteSearchEntry] = []
         var count = 0
+        var hasCJK = false
         for (node, _) in manifest.flattened() {
             let src = repo + "/" + SiteFiles.pagePath(node.slug)
             let data = fm.contents(atPath: src) ?? Data(SiteFiles.emptyBody.utf8)
             guard let doc = SiteFiles.decodePage(data)?.document else { throw Failure("\(src): not a page this build can read") }
             try data.write(to: URL(fileURLWithPath: out + "/" + SiteFiles.pagePath(node.slug)), options: .atomic)
             let text = SiteFiles.plainText(doc)
+            if !hasCJK, text.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { hasCJK = true }
             entries.append(SiteSearchEntry(slug: node.slug, title: node.title, text: text))
             let html = SiteShellPage.render(template: template, base: manifest.base, route: manifest.route(node.slug),
                                             title: node.title, siteTitle: manifest.title,
@@ -248,8 +250,29 @@ enum SiteBuilder {
         try encoder.encode(entries).write(to: URL(fileURLWithPath: out + "/" + SiteFiles.search), options: .atomic)
         // Pages would otherwise run the folder through Jekyll.
         fm.createFile(atPath: out + "/.nojekyll", contents: Data())
+        // The Chinese face (18 MB) ships only with a site that has Chinese
+        // text somewhere; a site without any gets neither the file nor its
+        // manifest entry.
+        if !hasCJK { try pruneFonts(in: out, matching: "NotoSansSC") }
         return Summary(pages: count, out: out, base: manifest.base)
     }
+
+    /// Drop the font files whose name contains `needle` from the build and
+    /// from fonts/manifest.json.
+    static func pruneFonts(in out: String, matching needle: String) throws {
+        let fm = FileManager.default
+        let dir = out + "/fonts"
+        for item in (try? fm.contentsOfDirectory(atPath: dir)) ?? [] where item.contains(needle) {
+            try fm.removeItem(atPath: dir + "/" + item)
+        }
+        let manifestPath = dir + "/manifest.json"
+        guard let data = fm.contents(atPath: manifestPath),
+              let entries = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+        let kept = entries.filter { !(($0["url"] as? String) ?? "").contains(needle) }
+        try JSONSerialization.data(withJSONObject: kept, options: [.prettyPrinted])
+            .write(to: URL(fileURLWithPath: manifestPath), options: .atomic)
+    }
+
 }
 
 /// The shell page: the app's index.html with the route, the base, and the

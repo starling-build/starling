@@ -145,9 +145,13 @@ recipe) — then watch for the file in the compile log.
 
 **2026-10-19:** builder, reader (pages, contents with page numbers,
 paragraph links, PDF), both stores, both gates, the demo live on GitHub
-Pages with three published documents (an official notice in the
-government format, rules with long tables, a security policy with
-footnotes). Not yet: delete/rename/reorder of pages (edit `site.json` by
+Pages with one published document (the BoringCrypto security policy, 24
+pages with footnotes). **The user's direction, 2026-10-19: Western
+customers** — the two Chinese demo documents were removed from the demo
+(they proved the format work; `test/corpus/docx` still holds them), and
+the build ships the Chinese font only with a site that has Chinese text
+(`SiteBuilder.pruneFonts`), so a Western site's `docs/` never carries the
+18 MB. Not yet: delete/rename/reorder of pages (edit `site.json` by
 hand); a smaller stored form for table-heavy documents (above); text
 that selects into the browser's clipboard, browser find, a text layer for
 screen readers (the noscript text is for crawlers only); a phone layout
