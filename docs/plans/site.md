@@ -210,6 +210,15 @@ those files instead of rendering in the tab — instant where the in-tab
 PDF of a 24-page document took 15 s. The manifest says `exports: true`;
 over a clone the buttons still render locally.
 
+**Links in a page (2026-10-19, late):** a read-only document follows a
+plain click on a link (editing keeps Word's ⌘-click); one of the site's
+own routes opens in place, anything else in a new tab (`hostOpenURL`,
+which on the web is `window.open` — before, a cross-origin link went to
+`pushState` and only warned). A `#p=` link's reveal is asked again 150 ms
+after the page loads: the editable lays the new document out on its next
+frame, and a reveal before that has no layout to measure against and was
+lost (the paragraph selected but not scrolled to).
+
 **Where it stands, end of 2026-10-19:** the demo at
 https://starling-build.github.io/site-demo/ has the welcome pitch and
 three published documents; a visitor gets pages or flow, contents with

@@ -81,7 +81,7 @@ URL="$URL/sample-paper/#p=1403114754" "${DRIVE[@]}" wait 12000 shot "$OUT/5-page
     eval "starling.debug('view')" eval "+starling.debug('pages') > 3" \
     eval "starling.debug('toc').split('\n').filter(l => /^\d\t[1-9]\d*\t/.test(l)).length > 5" \
     eval "starling.debug('toc').split('\n').find(l => l.includes('Cryptographic Module Specification'))" \
-    eval "starling.debug('caret')" \
+    eval "starling.debug('caret')" eval "starling.debug('page')" \
     > "$OUT/drive3.log" 2>&1
 P=(); while IFS= read -r l; do P+=("$l"); done < <(evals "$OUT/drive3.log")
 check "a page with a page setup opens as pages on a desktop" "${P[0]:-}" '"pages"'
@@ -89,6 +89,12 @@ check "and has more than three of them" "${P[1]:-}" true
 check "the contents carry page numbers" "${P[2]:-}" true
 check "a heading's entry names its page" "$(printf '%s' "${P[3]:-}" | grep -c '^"1\\t[0-9]*\\tCryptographic Module Specification"$')" 1
 check "the route's #p= opened at that paragraph" "${P[4]:-}" '"1403114754"'
+check "scrolled to its page" "${P[5]:-}" '"8"'
+# An external link in a page opens outside (window.open, stubbed); this
+# paragraph, revealed at the top, has its link on its second line.
+URL="$URL/sample-paper/#p=70426741" "${DRIVE[@]}" wait 12000 eval "window.open = (u) => { window.__opened = u; return null; }; 'stubbed'" \
+    click 680 301 wait 800 eval "window.__opened" > "$OUT/drive9.log" 2>&1
+check "a link in the page opens outside" "$(evals "$OUT/drive9.log" | tail -1)" '"https://csrc.nist.gov/groups/STM/cmvp/index.html"'
 W=800 H=900 URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "starling.debug('view')" > "$OUT/drive4.log" 2>&1
 check "the same page is flow on a narrow screen" "$(evals "$OUT/drive4.log" | head -1)" '"flow"'
 export W=1400 H=900

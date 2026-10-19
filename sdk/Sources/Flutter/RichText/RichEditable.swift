@@ -694,7 +694,9 @@ public final class RichEditableState: State<StatefulWidget> {
             _w.onContextMenu?(event.position)
             return
         }
-        if _chords.primary, let link = _link(at: event.localPosition) {
+        // ⌘-click follows a link while editing, as Word does; reading, a
+        // plain click does, as a page does.
+        if _chords.primary || _controller.readOnly, let link = _link(at: event.localPosition) {
             if let activate = _w.onLinkActivate { activate(link) } else { hostOpenURL?(link) }
             return
         }

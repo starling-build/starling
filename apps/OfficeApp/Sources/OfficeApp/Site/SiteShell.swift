@@ -244,9 +244,23 @@ final class SiteShellState: State<StatefulWidget> {
         // Selected with the caret at its START, and that start scrolled to
         // the top: a selection whose caret sat at the end would be revealed
         // by its end, and the paragraph would land at the foot of the view.
-        _controller.pendingReveal = .top
-        _controller.selection = RichSelection(anchor: RichPosition(paragraph: i, offset: doc.paragraphs[i].length),
-                                              focus: RichPosition(paragraph: i, offset: 0))
+        let slug = _slug
+        let apply = { [weak self] in
+            guard let self else { return }
+            self._controller.pendingReveal = .top
+            self._controller.selection = RichSelection(anchor: RichPosition(paragraph: i, offset: doc.paragraphs[i].length),
+                                                       focus: RichPosition(paragraph: i, offset: 0))
+        }
+        apply()
+        // The editable lays the new document out on its next frame; until
+        // then a reveal has no layout to measure against and is lost. Asked
+        // again once it has one (a collapsed caret first, so the second set
+        // is a change the editable hears).
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
+            guard let self, self._slug == slug, self._controller.document.paragraphs.indices.contains(i) else { return }
+            self._controller.selection = RichSelection(anchor: RichPosition(paragraph: i, offset: 0), focus: RichPosition(paragraph: i, offset: 0))
+            apply()
+        }
     }
 
     /// The address bar becomes a link to the paragraph the caret is in.
@@ -751,7 +765,7 @@ final class SiteShellState: State<StatefulWidget> {
     }
 
     /// A link inside a page: one of this site's routes opens in place;
-    /// anything else is the browser's.
+    /// anything else opens outside — a new tab, or the system's browser.
     private func _followLink(_ link: String) {
         if let m = _manifest, link.hasPrefix("/") || link.hasPrefix(m.base) {
             let slug = SiteFiles.slug(ofRoute: link, base: m.base)
@@ -761,11 +775,7 @@ final class SiteShellState: State<StatefulWidget> {
                 return
             }
         }
-        #if os(WASI)
-        WebHistory.push(link)
-        #else
-        setState { _status = link }
-        #endif
+        if let open = hostOpenURL { open(link) } else { setState { _status = link } }
     }
 
     private func _statusBar(_ fluent: FluentThemeData) -> Widget {
