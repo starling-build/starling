@@ -2547,6 +2547,21 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**Tried and dropped, 2026-10-18: no whole points in a shrunk box.**
+bug62513's slide 2 (text at 55%, its 13 pt lines 15.6 apart) stands a
+point low from its "Jurisdictional Reps" on, where ours rounds a
+line set at x.5 the other way; PowerPoint's 13 pt lines there wobble
+15.12 to 16.08 apart, not on whole points from the text's top. Drawing
+a shrunk box's lines unsnapped (sweep 240) made 0.9395 → 0.9432:
+pptx2svg +1.26, bug62513 itself +0.41 — PowerPoint does snap them,
+by a rule not found. Two more, not followed: PowerPoint draws a
+chart's 18.62 pt title in 19 pt letters set at 18.62's advances (its
+PDF's `Tm` is 79.17/300 in), and 11.97 in 12, where whole-point sizes
+everywhere (advances too) made chart-slide-bg 0.23 → 0.43; and
+tdf173712's 8 pt heading in Aptos stands a point high, a rounding
+that its first baseline, 7.58 by the tuned 0.21 share, takes up to 8
+where PowerPoint's lies under 7.5.
+
 **An exact line keeps a quarter of its text's size under its
 baseline, 2026-10-18** (sweep 239: corpus mean 0.9398 → 0.9395;
 customGeo 3.48 → 3.30, none other moved). customGeo's 32 pt text in
