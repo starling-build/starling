@@ -263,6 +263,29 @@ final class SiteShellState: State<StatefulWidget> {
         #endif
     }
 
+    /// The page as a .docx: a download in a tab, a file in Documents natively.
+    private func _exportDocx() {
+        guard let slug = _slug else { return }
+        do {
+            let data = try OfficeFormats.encode(_controller.document, as: "docx", pageSetup: _pageSetup ?? .letter)
+            #if os(WASI)
+            WebFiles.download(data, as: slug + ".docx")
+            setState { _status = "Exported \(slug).docx" }
+            #else
+            let target = homeDirectory() + "/Documents/" + slug + ".docx"
+            try data.write(to: URL(fileURLWithPath: target), options: .atomic)
+            setState { _status = "Exported \(target)" }
+            #endif
+        } catch { setState { _status = "Could not export: \(error)" } }
+    }
+
+    /// The page's history: its commits on GitHub, when the site names its repository.
+    private func _openHistory() {
+        guard let repo = _manifest?.repository, let slug = _slug else { return }
+        let base = repo.hasSuffix("/") ? String(repo.dropLast()) : repo
+        hostOpenURL?(base + "/commits/main/" + SiteFiles.pagePath(slug))
+    }
+
     private func _exportPDF() {
         guard let m = _manifest, let slug = _slug else { return }
         let title = m.node(slug)?.title ?? slug
@@ -581,7 +604,13 @@ final class SiteShellState: State<StatefulWidget> {
             items.append(Button(onPressed: { [weak self] in self?._linkToParagraph() }, child: Text("Link to paragraph")))
             items.append(Chrome.gap(8))
             items.append(Button(onPressed: { [weak self] in self?._exportPDF() }, child: Text("PDF")))
+            items.append(Chrome.gap(4))
+            items.append(Button(onPressed: { [weak self] in self?._exportDocx() }, child: Text("Word")))
             items.append(Chrome.gap(8))
+            if _manifest?.repository != nil {
+                items.append(Button(onPressed: { [weak self] in self?._openHistory() }, child: Text("History")))
+                items.append(Chrome.gap(8))
+            }
             if _findOpen {
                 items.append(SizedBox(width: _compact ? 180 : 240, height: 46, child:
                     WikiAppearance.field(_findField, placeholder: "Find in page", autofocus: true,

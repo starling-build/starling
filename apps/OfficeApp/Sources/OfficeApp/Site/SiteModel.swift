@@ -30,6 +30,9 @@ struct SiteConfig: Codable {
     /// The site's address, for sitemap.xml ("https://user.github.io/repo");
     /// without it the build writes no sitemap.
     var url: String? = nil
+    /// The repository's address on GitHub ("https://github.com/user/repo"):
+    /// the reader's History link opens a page's commits there.
+    var repository: String? = nil
     var pages: [SiteNode]
 }
 
@@ -39,6 +42,7 @@ struct SiteManifest: Codable {
     var base: String
     var home: String
     var pages: [SiteNode]
+    var repository: String? = nil
 
     /// The tree, depth first, with each node's depth.
     func flattened() -> [(node: SiteNode, depth: Int)] {
@@ -195,7 +199,8 @@ enum SiteBuilder {
 
     static func manifest(from config: SiteConfig, base: String? = nil) -> SiteManifest {
         SiteManifest(title: config.title, base: SiteFiles.normalizedBase(base ?? config.base),
-                     home: config.pages.first?.slug ?? "index", pages: config.pages)
+                     home: config.pages.first?.slug ?? "index", pages: config.pages,
+                     repository: config.repository?.trimmingWhitespace().isEmpty == false ? config.repository : nil)
     }
 
     /// The web build to ship: `--web`, else `STARLING_WEB_STAGE`, else the

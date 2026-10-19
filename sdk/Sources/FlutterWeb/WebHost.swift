@@ -46,6 +46,10 @@ public final class WebHost {
         // on a desktop it costs nothing and carries the browser's own
         // input method's text (starling_text) to the field.
         Clipboard.provider = WebClipboard.shared
+        hostOpenURL = { url in
+            var url = url
+            url.withUTF8 { starling_host_open_url($0.baseAddress, UInt32($0.count)) }
+        }
         SoftKeyboard.handler = SoftKeyboard.Handler(
             show: { [unowned self] in
                 self.softKeyboardShown = true

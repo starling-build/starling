@@ -65,9 +65,10 @@ check "a build refuses a folder that is not a site build" "$?" 1
 echo "── a sitemap, when the site knows its address"
 python3 - "$SITE/site.json" <<'PYX'
 import json,sys
-p=sys.argv[1]; d=json.load(open(p)); d['url']='https://example.github.io'; json.dump(d, open(p,'w'), indent=2)
+p=sys.argv[1]; d=json.load(open(p)); d['url']='https://example.github.io'; d['repository']='https://github.com/example/site'; json.dump(d, open(p,'w'), indent=2)
 PYX
 "$APP" --site-build "$SITE" --web "$STAGE" > "$OUT/build-sitemap.log" 2>&1
+check "the manifest names the repository for the History link" "$(json '["repository"]' < "$DIST/manifest.json")" https://github.com/example/site
 check "sitemap.xml lists the pages" "$(grep -c '<loc>https://example.github.io/publishing/</loc>' "$DIST/sitemap.xml")" 1
 check "the home page is the root" "$(grep -c '<loc>https://example.github.io/</loc>' "$DIST/sitemap.xml")" 1
 check "robots.txt points at it" "$(grep -c 'Sitemap: https://example.github.io/sitemap.xml' "$DIST/robots.txt")" 1

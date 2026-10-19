@@ -191,6 +191,14 @@ are still only on the canvas, which is the next accessibility step.
 `sitemap.xml` (every route) and `robots.txt`; the demo has
 `https://starling-build.github.io/site-demo`.
 
+**Word and History (2026-10-19):** the reader's Word button downloads the
+page as .docx (the source document, for a reader who wants Word); with
+`"repository"` in `site.json` a History button opens the page's commits
+on GitHub in a new tab (`hostOpenURL` reaches the page through the new
+`starling_host_open_url` import — before it, a cross-origin link went to
+`pushState`, which only warned). The text layer opens with every page as
+a real link, so crawlers reach the whole site from any page.
+
 Not yet: a smaller stored form for table-heavy documents (above); the
 reader's controls for screen readers; a phone layout for the Writer's
 ribbon when editing (the reader is fine on a phone).

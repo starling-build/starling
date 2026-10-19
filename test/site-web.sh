@@ -28,6 +28,11 @@ command -v node >/dev/null || { echo "no node" >&2; exit 2; }
 
 rm -rf "$OUT"; mkdir -p "$OUT"
 cp -R "$REPO/examples/site" "$OUT/repo"
+# The site names its repository, so the reader shows History.
+python3 - "$OUT/repo/site.json" <<'PYX'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['repository']='https://github.com/example/site'; json.dump(d, open(p,'w'), indent=2)
+PYX
 # A user site at the root, and the same site as a project site under /demo/.
 "$APP" --site-build "$OUT/repo" --out "$OUT/www" --web "$STAGE" > "$OUT/build.log" 2>&1 || { cat "$OUT/build.log"; exit 2; }
 "$APP" --site-build "$OUT/repo" --out "$OUT/www/demo" --web "$STAGE" --base /demo/ > "$OUT/build2.log" 2>&1 || { cat "$OUT/build2.log"; exit 2; }
@@ -98,15 +103,24 @@ check "a finger drag scrolls the document" "${T[1]:-}" true
 # Find: the Find button opens a field after PDF; typing selects the first
 # match. Copy: a double-click selects a word, Ctrl+C puts it on the system
 # clipboard (stubbed here: the page's writeText records what it was given).
-STUB="navigator.clipboard.writeText = (t) => { window.__copied = t; return Promise.resolve(); }; 'stubbed'"
-URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "$STUB" \
+# The header, left to right: Pages, Flow, Contents, Link to paragraph, PDF,
+# Word (x≈814), History (x≈893, since the site names its repository), Find
+# (x≈969). History opens a new tab (stubbed: window.open records the URL).
+STUB="navigator.clipboard.writeText = (t) => { window.__copied = t; return Promise.resolve(); }; window.open = (u) => { window.__opened = u; return null; }; 'stubbed'"
+rm -rf "$OUT/downloads2"; mkdir -p "$OUT/downloads2"
+URL="$URL/sample-paper/" "${DRIVE[@]}" downloads "$OUT/downloads2" wait 12000 eval "$STUB" \
     dblclick 843 597 wait 500 eval "starling.debug('selection')" chord ctrl c wait 500 eval "window.__copied" \
-    click 812 220 wait 500 type "Cryptographic Boundary" wait 800 eval "starling.debug('selection')" \
+    click 893 220 wait 500 eval "window.__opened" \
+    click 814 220 wait 4000 eval "starling.debug('status')" \
+    click 969 220 wait 500 type "Cryptographic Boundary" wait 800 eval "starling.debug('selection')" \
     > "$OUT/drive7.log" 2>&1
 F=(); while IFS= read -r l; do F+=("$l"); done < <(evals "$OUT/drive7.log")
 check "a double-click selects a word" "${F[1]:-}" '"BoringCrypto"'
 check "Ctrl+C puts the selection on the clipboard" "${F[2]:-}" '"BoringCrypto"'
-check "find selects the first match of what is typed, case aside" "${F[3]:-}" '"cryptographic boundary"'
+check "History opens the page's commits on GitHub" "${F[3]:-}" '"https://github.com/example/site/commits/main/pages/sample-paper.json"'
+check "Word says it exported" "${F[4]:-}" '"Exported sample-paper.docx"'
+check "and the .docx landed" "$(ls "$OUT/downloads2" 2>/dev/null | grep -c '^sample-paper.docx$')" 1
+check "find selects the first match of what is typed, case aside" "${F[5]:-}" '"cryptographic boundary"'
 # The PDF button, with the download landing in OUT; the Contents panel's
 # first entry, clicked, moves the caret to the first heading.
 rm -rf "$OUT/downloads"; mkdir -p "$OUT/downloads"

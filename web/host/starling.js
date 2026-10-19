@@ -512,6 +512,12 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
       return el;
     }));
   };
+  // A link out of the app, in a new tab (a same-origin route goes
+  // through push_route instead).
+  host.open_url = (pointer, length) => {
+    const url = textIn(pointer, length);
+    try { window.open(url, '_blank', 'noopener'); } catch (error) { console.warn(`starling: open ${url}: ${error}`); }
+  };
   host.clipboard_read = (id) => {
     const answer = (text) => transfer(encoder.encode(text), (pointer, length) => swift.starling_clipboard_text(id, pointer, length));
     const read = navigator.clipboard?.readText ? navigator.clipboard.readText() : Promise.reject(new Error('no clipboard'));

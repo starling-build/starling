@@ -123,4 +123,7 @@ HOST(clipboard_read) void starling_host_clipboard_read(uint32_t id);
 // which the page keeps as hidden HTML beside the canvas.
 HOST(set_document_text) void starling_host_set_document_text(const void* utf8, uint32_t length);
 
+// A link out of the app (hostOpenURL): the browser opens it in a new tab.
+HOST(open_url) void starling_host_open_url(const void* utf8, uint32_t length);
+
 #endif  // STARLING_SKWASM_BASE_H
