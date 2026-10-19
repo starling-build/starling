@@ -5053,7 +5053,12 @@ public final class RichLayout {
                 // 10 twips each — and 20.4 there where every cell rules its
                 // own top. table-indent's cells rule their bottoms alone,
                 // and its rows stood 0.5pt apart too far.)
-                if c.row > 0 {
+                // (Not in a table of separated borders, where the row above
+                // keeps its line in its own box: zh-147bdae0's commitment
+                // tables (cell spacing 0, each cell's top nil, its bottom
+                // 1pt, no margin above) step 23.8pt a one-line row in
+                // Word's print, ours 24.8, the line taken twice.)
+                if c.row > 0, !(theme.wordRules && ts.cellSpacing != nil) {
                     var k = i - 1
                     while k >= 0, let d = document.paragraphs[k].cell, d.table == c.table, d.row + d.rowSpan - 1 >= c.row - 1 {
                         if d.row + d.rowSpan - 1 == c.row - 1 { top = max(top, rule(d, "bottom") - pad.top) }
