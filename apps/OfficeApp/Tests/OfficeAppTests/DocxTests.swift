@@ -1671,6 +1671,27 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(width("一\u{F909}\u{F909}一") - width("一一"), 2 * 0.697 * 13, accuracy: 0.3)
     }
 
+    func testOneClosingSpaceAfterAHangingMarkIsSetAsACharacterUnderWordWrapOff() throws {
+        // zh-c9f4d690: under wordWrap 0 "…报民航行业主管等部门。 " hangs its
+        // "。" past the margin in Word's print and sets its one closing
+        // space on a line of its own: it has nowhere to hang. Ours hung
+        // both. The space is set as a no-break one, which takes room.
+        func text(_ s: String, wordWrap: Bool) -> String {
+            var p = RichParagraph(text: s)
+            if !wordWrap { p.style.eastAsian["w:wordWrap"] = "0" }
+            let doc = RichDocument(paragraphs: [p])
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            return l.geometry(0).painter.text?.toPlainText() ?? ""
+        }
+        XCTAssertTrue(text("主管等部门。 ", wordWrap: false).hasSuffix("\u{00A0}"))
+        XCTAssertFalse(text("主管等部门。 ", wordWrap: true).contains("\u{00A0}"), "only under wordWrap off")
+        XCTAssertFalse(text("主管等部门。  ", wordWrap: false).contains("\u{00A0}"), "two spaces wrap as before")
+    }
+
     func testACellsParagraphsShareTheirSpacing() throws {
         // drawing.docx: two headings of 12pt before and 3pt after in one
         // cell are 12pt apart in Word's print, as in the body — the larger

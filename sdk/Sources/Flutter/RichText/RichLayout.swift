@@ -6166,7 +6166,7 @@ public final class RichLayout {
         // The spaces to set as no-break ones (`held`, by the layout: see
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
-        let heldSpaces = held
+        let heldSpaces = held.union(_closingSpaceHeld(p).map { [$0] } ?? [])
         var afterHeld = false
         var heldKind: Int? = nil   // the held spaces' style kind, for the break after them
         // (A run of plain and no-break spaces together is half an em from
@@ -9176,6 +9176,21 @@ public final class RichLayout {
         return out
     }
 
+    /// Under `w:wordWrap` off, the one space a paragraph ends in right
+    /// after a mark that may hang: it has nowhere to hang where that mark
+    /// already does, and goes to a line of its own — zh-c9f4d690's "（五）
+    /// 调查新增…报民航行业主管等部门。 " hangs its "。" past the margin in
+    /// Word's print and sets the space on the next line, where ours hung
+    /// both and every page from p14 ran a line early. Set as a no-break
+    /// space (it takes room) with a break before it; nil elsewhere.
+    private func _closingSpaceHeld(_ p: RichParagraph) -> Int? {
+        guard theme.wordRules, p.style.eastAsian["w:wordWrap"] == "0", p.style.alignment != .right, p.style.alignment != .center else { return nil }
+        let units = Array(p.text.utf16)
+        guard units.count >= 2, units[units.count - 1] == 0x20, units[units.count - 2] != 0x20,
+              Self._hangingUnits.contains(units[units.count - 2]) else { return nil }
+        return units.count - 1
+    }
+
     private func _looseWordOffsets(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
                                    named: RichNamedStyle?, pitch: Double?) -> Set<Int> {
         guard theme.wordRules else { return [] }
@@ -9213,6 +9228,9 @@ public final class RichLayout {
             if s > 0, units.count - s > 1, p.style.alignment != .right, p.style.alignment != .center {
                 for k in s + 1 ..< units.count { out.insert(k) }
             }
+            // (One closing space after a mark that may hang parts from it
+            // too, and is set as a character — `_closingSpaceHeld`.)
+            if let k = _closingSpaceHeld(p) { out.insert(k) }
             return out
         }
         guard textWidth > 1, textWidth < 50_000, units.count >= 20 else { return [] }

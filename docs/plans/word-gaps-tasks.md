@@ -3011,12 +3011,16 @@ vs n360: zh-e1b09977 65.4 -> 81.4, zh-cec9d337 84.2 -> 88.2, zh-5251dd23 89.2 ->
 in zh-e1b09977: p14's split row ends a line later in ours. Lab `hdr` (its first rows whole) ends where Word's
 does; only the text inside rows sits ~2pt higher than Word's, which decides that cut.
 
-### T130. zh-c9f4d690: under wordWrap 0, one closing space after a hanging mark takes a line of its own — claimed
+### T130. zh-c9f4d690: under wordWrap 0, one closing space after a hanging mark takes a line of its own — DONE (2026-10-19)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-19 (the Mac's measurement, 01Xgpbk5)
 Documents: zh-c9f4d690 (62.8).
 Known (Mac): a paragraph under wordWrap 0 ending "…报民航行业主管等部门。 " — its "。" hanging past the margin (511.4) —
 puts its one closing space on a line of its own in Word's print (470.4); `_looseWordOffsets` wraps closing spaces
 only from two, so p14 on runs a line early. To try: a closing space after a hanging mark has nowhere to hang.
+
+Done as tried: such a space is set as a no-break space (it takes room) with a break before it, so it stays on its
+line where there is room and goes to the next where the mark hangs. Same-base sweep, 517 docs: zh-c9f4d690
+62.8 -> 100.0, nothing else moved.
 
 ### T131. zh-cfb32050, zh-e64d4997: zh-TW mid-line marks give nothing to take a character and hang the last — claimed
 Owner: session starling-office1-df (Linux dev box), from 2026-10-19 (the Mac's measurements, 01Xgpbk5)
