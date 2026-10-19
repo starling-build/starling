@@ -437,6 +437,9 @@ struct Chart: Equatable {
         var leaderWidth = 0.75
     }
     var pieLabels: PieLabels? = nil
+    /// A pie's labels stand round it (shown, at a best fit, the outer end
+    /// or where nothing says: Excel's default): the room they take.
+    var pieLabelsAround = false
 
     /// The chart with every text size the file states times `f`, those it
     /// leaves to the default as they are. A sheet's chart is painted at
@@ -1259,6 +1262,9 @@ enum ChartXML {
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
             func on(_ n: XNode?, _ name: String) -> Bool { ["1", "true"].contains(n?.first(name)?["val"] ?? "") }
+            c.pieLabelsAround = type == .pie && d.first("c:delete")?["val"] != "1"
+                && ["c:showVal", "c:showPercent", "c:showCatName", "c:showSerName"].contains { on(d, $0) }
+                && !["ctr", "inEnd", "inBase"].contains(d.first("c:dLblPos")?["val"] ?? "bestFit")
             var l = Chart.PieLabels()
             l.series = on(d, "c:showSerName"); l.category = on(d, "c:showCatName")
             l.value = on(d, "c:showVal"); l.percent = on(d, "c:showPercent")
@@ -3125,7 +3131,16 @@ enum ChartPainter {
         // (0.97 of the room: pie-chart's, under a title beside a legend,
         // is 131 pt in PowerPoint's print, and chart_pt_color_bg1's bare
         // ring 159 — both that share of the frame inside its margin.)
-        let radius = min(area.width, area.height) / 2 * 0.97
+        var radius = min(area.width, area.height) / 2 * 0.97
+        // On a sheet, a line of the labels' less each side where they
+        // stand round the pie: Excel's prints of five labelled pies are
+        // 8.5 to 17 pt smaller a side than ours were, the unlabelled
+        // ones as ours (chart-tdf133376, -tdf134978, -tdfPieNumFormat).
+        // (Not where the file places the plot itself: the pie fills
+        // that, chart-incorrect_label_position's and -piechart_outside's.)
+        if c.onSheet, c.pieLabelsAround, c.plotLayout == nil {
+            radius = max(radius / 2, radius - 1.25 * (c.series[0].labelSize ?? c.baseTextSize) * k)
+        }
         let centre = area.center
         let oval = Rect.fromCircle(center: centre, radius: radius)
         var angle = -Double.pi / 2
