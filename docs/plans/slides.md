@@ -2536,6 +2536,15 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A diagram's author-sized text keeps its size when laid out here,
+2026-10-18** (sweep 227: autofit-sync's third column now PowerPoint's
+16 and 14 pt at its place to a tenth of a point; no score moved past
+rounding — white text on a dark box is few pixels). Laid out here (no
+drawing), a node whose points are all `custT` and whose runs all carry
+an `sz` joined its siblings' shared fit and was scaled with them: the
+third column's 16 pt "C" by the others' 8/65, to 2 pt. Such text now
+keeps its sizes, outside the shared fit, as the drawing path keeps it.
+
 **A scatter chart's X gridlines only where its X axis has them,
 2026-10-18** (sweep 226: scatter-chart 1.08 → 0.69; nothing else
 moved). A scatter chart drew gridlines up from every X tick whatever

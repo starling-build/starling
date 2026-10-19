@@ -1727,8 +1727,17 @@ struct DiagramLayout {
         let bodyPr = XNode(name: "a:bodyPr", attrs: ["anchor": anchor, "wrap": "square", "starling:insScale": "1",
                                                      "lIns": margin("lMarg"), "tIns": margin("tMarg"),
                                                      "rIns": margin("rMarg"), "bIns": margin("bMarg")])
-        if let g = n.sizeGroup { bodyPr.attrs["starling:sizeGroup"] = g }
-        bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])]
+        // (Text the author sized — every point it shows `custT`, every run
+        // its own `sz` — keeps that size, out of the shared fit: autofit-
+        // sync's third column, 16 and 14 pt in PowerPoint, was taken down
+        // with the other two's fit to 2.)
+        let authored = !fileRuns.isEmpty && ownSizes.count == fileRuns.count
+        if authored, points.allSatisfy({ $0.prSet?["custT"] == "1" }) {
+            bodyPr.children = []
+        } else {
+            if let g = n.sizeGroup { bodyPr.attrs["starling:sizeGroup"] = g }
+            bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])]
+        }
         body.children = [bodyPr, XNode(name: "a:lstStyle", attrs: [:])] + paragraphs
         return body
     }
