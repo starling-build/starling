@@ -1044,6 +1044,19 @@ struct PptxReader {
 
 /// Everything one slide's shapes resolve against.
 private struct SlideContext {
+    /// An indent past the margin (a first-line indent, the paragraph's own)
+    /// under a bullet, read as a hang of that much: PowerPoint keeps the
+    /// bullet at the margin and starts the text at the indent, as with the
+    /// margin that far in and the indent hanging back to it — bullet-
+    /// indent's 25.5 pt first line, its bullet at the box's edge, where
+    /// ours stood both 25.5 further in.
+    static func hangPositiveIndent(_ style: inout RichParagraphStyle, own: Double?, indent: Double?, marL: Double?,
+                                   shapeIndent: Double, level: Int) {
+        guard let own, own > 0, let indent, indent > 0 else { return }
+        style.indentLeft = (marL ?? 0) + indent - shapeIndent * Double(level + 1)
+        style.firstLineIndent = -indent + shapeIndent
+    }
+
     let package: PptxPackage
     let part: String
     let slide: XNode
@@ -3133,6 +3146,8 @@ private struct SlideContext {
                     style.indentLeft = 36 * Double(lvl) - shapeIndent * Double(lvl + 1)
                     style.firstLineIndent = shapeIndent
                 }
+                SlideContext.hangPositiveIndent(&style, own: pPr?["indent"].flatMap(Double.init), indent: level.indent,
+                                                marL: level.marL, shapeIndent: shapeIndent, level: lvl)
             default:
                 style.indentLeft = level.marL ?? 0
                 style.firstLineIndent = level.indent ?? 0
