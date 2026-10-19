@@ -69,14 +69,22 @@ child's route does not include its parent's).
    `/docs`. For a project site (`https://<user>.github.io/<repo>/`) set
    `"base": "/<repo>/"` in `site.json` first.
 
-The build is ~60 MB (the app, fonts, skwasm); Pages serves it gzipped.
-First load on a cold cache is seconds. Measure on the demo before pitching
-this as a public site builder.
+The build is ~60 MB on disk (the app, fonts, skwasm); Pages serves it
+gzipped: app.wasm is 7.8 MB over the wire, skwasm.wasm 1.6 MB.
+
+**The demo: https://starling-build.github.io/site-demo/** (repository
+starling-build/site-demo, made 2026-10-18 from examples/site with
+`"base": "/site-demo/"`, published with `--site-publish`, Pages set to
+main `/docs` through the API; the first deploy took 32 s and the site
+answered 45 s after the push). Measured from a cold headless Chrome on the
+dev Mac: app.wasm downloads in 1.3 s, the app is running before 3 s, the
+tab is titled "Publishing — Starling Site demo", the page's text is
+drawn, and a tree click moves to /site-demo/about/.
 
 ## Where it stands
 
-**2026-10-18 evening:** builder, reader, both stores, both gates. Not yet:
-a demo deployed to a real Pages URL (needs a repository under the user's
-account); delete/rename/reorder of pages (edit `site.json` by hand for
-now); images in pages ride inside the page JSON, which is fine until a
-page carries many; the browser's ~60 MB first load is unmeasured on Pages.
+**2026-10-18 evening:** builder, reader, both stores, both gates, and the
+demo live on GitHub Pages (above). Not yet: delete/rename/reorder of
+pages (edit `site.json` by hand for now); images in pages ride inside the
+page JSON, which is fine until a page carries many; a phone layout for
+the Writer's ribbon when editing (the reader is fine on a phone).
