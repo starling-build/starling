@@ -2548,6 +2548,26 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A diagram row holds what its children settle, 2026-10-19** (sweep
+246: corpus mean 0.9319 → 0.9267; smartart-children 3.13 → 0.23,
+none other moved). hierarchy-list "children": two parents side by
+side, each two children under it. Every parent and child is as wide as
+the diagram by its constraint, the space between parents 0.168 of that
+and between children half the parents'. PowerPoint lays the whole out
+at those sizes and scales it once: its print has each child 110.6 pt,
+the inner space 9.3 (0.084) and the outer 18.6 (0.168), to a tenth.
+We measured a parent at its own constraint, one diagram wide, so the
+top row shrank by 2.17 and the parent's own row again by 2.08 — the
+outer space came out 37 pt. A row or column of no shape of its own now
+measures at least what its children hold — their sum along it, the
+widest across — when every child's size there is settled by a
+constraint (`settledContent`). Not when any child only fills what it
+is offered (continuous-block-process, table-list, autofit-sync went
++8 to +36 so), nor when one is sized below nothing: linear-rule's arrow
+drawn back under its row is `w` = −1 × the row's, an overlap. Reading
+a child's constraints early to settle it moved linear-rule too
+(+2.9); it reads those already applied.
+
 **A metafile's one-bit pattern brush in its own colours, 2026-10-19**
 (sweep 244: corpus mean 0.9369 → 0.9319; lo-activex_scrollbar 1.84 →
 0.31, lo-activex_togglebutton −1.18, tdf126324 −0.01; none worse). A

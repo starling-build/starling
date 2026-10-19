@@ -677,7 +677,16 @@ struct DiagramLayout {
     /// fills what it is offered.
     private func measure(_ c: DgmPresNode, _ dim: String, avail: Double) -> Double {
         applyConstraints(c, selfOnly: true)
-        if let v = c.vals[dim], v.isFinite { return min(v, c.caps[dim] ?? .infinity) }
+        if let v = c.vals[dim], v.isFinite {
+            // (A row or column of no shape of its own is at least what its
+            // children add up to along it, or the widest across: smartart-children's each parent as wide
+            // as the frame by its constraint, holding two children as wide
+            // and a space — PowerPoint scales the whole, nested, at once,
+            // its outer space 0.168 of a child, the inner half that; held
+            // to the frame, the parent's row was squeezed twice over.)
+            if let content = settledContent(c, dim) { return min(max(v, content), c.caps[dim] ?? .infinity) }
+            return min(v, c.caps[dim] ?? .infinity)
+        }
         if c.isSpace || c.isConnector { return 0 }
         // (A container with nothing in it — hierarchy4's row of children
         // under a node that has none — takes no room: counted as the whole
@@ -692,6 +701,32 @@ struct DiagramLayout {
             total = along ? total + m : max(total, m)
         }
         return min(total, c.caps[dim] ?? .infinity)
+    }
+
+    /// What a row or column of no shape of its own holds along `dim`
+    /// when every child's size there is settled by a constraint (or is a
+    /// space with none): the sum along it, the widest across. Nil when
+    /// any child only fills what it is offered, or is sized below nothing.
+    private func settledContent(_ c: DgmPresNode, _ dim: String) -> Double? {
+        guard c.algType == "lin", c.shapeType == nil, !c.children.isEmpty else { return nil }
+        let dir = c.params["linDir"] ?? "fromL"
+        let along = (dim == "w") == (dir == "fromL" || dir == "fromR")
+        var sizes: [Double] = []
+        for k in c.children {
+            if let v = k.vals[dim], v.isFinite {
+                sizes.append(max(v, settledContent(k, dim) ?? 0))
+            } else if k.isSpace || k.isConnector {
+                sizes.append(0)
+            } else if let inner = settledContent(k, dim) {
+                sizes.append(inner)
+            } else {
+                return nil
+            }
+        }
+        // (A negative size is an overlap — linear-rule's arrow drawn back
+        // under its row, `w` = −1 × the row's — not room the row holds.)
+        guard sizes.allSatisfy({ $0 >= 0 }) else { return nil }
+        return along ? sizes.reduce(0, +) : sizes.max()
     }
 
     private func set(_ t: DgmPresNode, _ type: String, _ v: Double, _ op: String) {
