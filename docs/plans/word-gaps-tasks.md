@@ -2987,7 +2987,7 @@ zh-16e0a12a, zh-749cb15a, zh-499adba6 +0.1-0.2, nothing lower. zh-499adba6 stays
 is something else. No unit test: a test process lays the corpus file out without the converter's ICU data and
 fonts, and its lines break elsewhere.
 
-### T129. A side a cell does not name: the table's line for a row its text sets, the cell's for one its height sets — claimed
+### T129. A side a cell does not name: the table's line for a row its text sets, the cell's for one its height sets — done (eff30b7f)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Mac's counter-case to T118)
 Documents: zh-e1b09977 (65.4), zh-cec9d337 (keep), zh-701eda18 (keep).
 Known: zh-e1b09977's calendar is ruled 0.5 all round, its first column's cells state only a 2.25pt left line and
@@ -2996,6 +2996,13 @@ two exact 17pt lines, and stand 34.5 between rules in Word's print — the 0.5 l
 the cell's and the table's) 36.25. zh-cec9d337's rows are set by their stated heights, their text shorter, and
 stand 1.75 taller in Word's print — the 2.25. To try: a row's text takes the table's line for a side its cell does
 not name; a row its stated height sets adds the widest line its cells name.
+Done by Mac 011uWpmC, eff30b7f (2026-10-18), not as proposed. Lab `cal` (Word 16, zh-5251dd23's table
+whole): rows 34.8 with the 2.25pt line on either side, the cell the tallest or not, 34.56 with no stated
+height, so a top or bottom side a cell does not name is the table's line, always. zh-cec9d337's taller rows
+were its 22pt "○" lines held to an em after the grid snapped them (lab `g44`: two 18pt pitches in Word). n361
+vs n360: zh-e1b09977 65.4 -> 81.4, zh-cec9d337 84.2 -> 88.2, zh-5251dd23 89.2 -> 96.8, none down. What is left
+in zh-e1b09977: p14's split row ends a line later in ours. Lab `hdr` (its first rows whole) ends where Word's
+does; only the text inside rows sits ~2pt higher than Word's, which decides that cut.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
