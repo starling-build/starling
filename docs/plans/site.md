@@ -197,7 +197,9 @@ page as .docx (the source document, for a reader who wants Word); with
 on GitHub in a new tab (`hostOpenURL` reaches the page through the new
 `starling_host_open_url` import — before it, a cross-origin link went to
 `pushState`, which only warned). The text layer opens with every page as
-a real link, so crawlers reach the whole site from any page.
+a real link, so crawlers reach the whole site from any page. Link to
+paragraph now copies the whole address (`starling_host_copy_location`,
+the tab's `location.href`) as well as putting `#p=<id>` in the bar.
 
 Not yet: a smaller stored form for table-heavy documents (above); the
 reader's controls for screen readers; a phone layout for the Writer's

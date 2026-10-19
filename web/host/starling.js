@@ -518,6 +518,9 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     const url = textIn(pointer, length);
     try { window.open(url, '_blank', 'noopener'); } catch (error) { console.warn(`starling: open ${url}: ${error}`); }
   };
+  host.copy_location = () => {
+    navigator.clipboard?.writeText(location.href).catch((error) => console.warn(`starling: clipboard: ${error}`));
+  };
   host.clipboard_read = (id) => {
     const answer = (text) => transfer(encoder.encode(text), (pointer, length) => swift.starling_clipboard_text(id, pointer, length));
     const read = navigator.clipboard?.readText ? navigator.clipboard.readText() : Promise.reject(new Error('no clipboard'));

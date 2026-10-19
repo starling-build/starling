@@ -121,6 +121,14 @@ check "History opens the page's commits on GitHub" "${F[3]:-}" '"https://github.
 check "Word says it exported" "${F[4]:-}" '"Exported sample-paper.docx"'
 check "and the .docx landed" "$(ls "$OUT/downloads2" 2>/dev/null | grep -c '^sample-paper.docx$')" 1
 check "find selects the first match of what is typed, case aside" "${F[5]:-}" '"cryptographic boundary"'
+# Link to paragraph: a click into the page, then the button; the address
+# bar gets #p=<id> and the clipboard the whole address.
+URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "$STUB" click 843 597 wait 300 \
+    click 643 220 wait 500 eval "location.hash" eval "window.__copied === location.href && /#p=\d+$/.test(window.__copied)" \
+    > "$OUT/drive8.log" 2>&1
+L=(); while IFS= read -r l; do L+=("$l"); done < <(evals "$OUT/drive8.log")
+check "Link to paragraph puts #p=<id> in the address bar" "$(printf '%s' "${L[1]:-}" | grep -Ec '^"#p=[0-9]+"$')" 1
+check "and the whole address on the clipboard" "${L[2]:-}" true
 # The PDF button, with the download landing in OUT; the Contents panel's
 # first entry, clicked, moves the caret to the first heading.
 rm -rf "$OUT/downloads"; mkdir -p "$OUT/downloads"

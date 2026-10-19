@@ -141,6 +141,10 @@ public final class WebClipboard: ClipboardProvider {
     func deliver(_ id: UInt32, _ text: String?) {
         pending.removeValue(forKey: id)?(text)
     }
+
+    /// The tab's own address (what the address bar shows now) onto the
+    /// clipboard: a link to the open page, fragment and all.
+    public static func copyLocation() { starling_host_copy_location() }
 }
 
 @_expose(wasm, "starling_clipboard_text")

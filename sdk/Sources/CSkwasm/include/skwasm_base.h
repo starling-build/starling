@@ -125,5 +125,7 @@ HOST(set_document_text) void starling_host_set_document_text(const void* utf8, u
 
 // A link out of the app (hostOpenURL): the browser opens it in a new tab.
 HOST(open_url) void starling_host_open_url(const void* utf8, uint32_t length);
+// The tab's own address onto the clipboard (a link to what is open).
+HOST(copy_location) void starling_host_copy_location(void);
 
 #endif  // STARLING_SKWASM_BASE_H

@@ -257,7 +257,8 @@ final class SiteShellState: State<StatefulWidget> {
         let link = m.route(slug) + "#p=\(doc.paragraphs[i].id)"
         #if os(WASI)
         WebHistory.push(link, replace: true)
-        setState { _status = "The address bar now links to this paragraph — copy it from there." }
+        WebClipboard.copyLocation()
+        setState { _status = "Link to this paragraph copied; the address bar has it too." }
         #else
         setState { _status = "Link to this paragraph: \(store.base.hasPrefix("http") ? store.base.dropLast() + link : link)" }
         #endif
