@@ -395,13 +395,21 @@ at 86.4% (median 98.0). Its low ones, unclaimed: zh-8d72961c 4.3 (1/2
 pages; Mac 01Xgpbk5, looked, released: not Chinese — a Greek/Turkish/Arabic notice in "Nunito Sans Light", which Word for Mac has (a cloud font; NunitoSans-Light embedded in its print, a 1.36 em line, 16pt pitch at 11pt x 1.07) and we do not (14.4pt pitch, other breaks); page 2's Arabic is a picture's text in Word's print), zh-10eab555 5.0 (136/135 pages; Mac 01Xgpbk5, 75.6 now, Word's 135 pages — text after a table placed down the page flows round it; left: p100's org chart (VML boxes match Word's to the point) leaves the paragraph after it 104pt low, its anchored "北岙街道各行政村、单位" box with it, and pp100-110 run late; released), zh-f3802561 69.4 (Mac 011uWpmC, 99.8 now — a no-break space after an ordinary one is the space's half em; released), zh-7b5b3de2
 84.5 (Mac 01Xgpbk5, looked, released: the tables lay out as Word's — the same column edges to 0.4pt, the same lines — and Word's text layer drops characters in them, "序号", "项目名称"'s 目名, "面积"'s 积), zh-2e7ef069 87.5 (Mac 01Xgpbk5, looked, released: its footer box (wrap none, spAutoFit, sized by "- 1 -", the dashes inside the PAGE \\* MERGEFORMAT result) prints "-10-" whole in Word, where ours wraps the closing dash on every two-digit page — sent to Mac 011uWpmC beside lab ftD — Mac 011uWpmC, 89.0 now: lab `ft` (the file's footer over 11 pages, and with the dashes typed round a plain PAGE) prints "- 10 -" whole either way, so a fitted box's paragraph with no East Asian character is one piece; the rest is form cells' "（签章）"/"年月日" a few points off).
 
-### T133. Shapes anchored in a table cell (zh-291fcea7 p5's flowchart) — claimed
+### T133. Shapes anchored in a table cell (zh-291fcea7 p5's flowchart) — measured, released
 Owner: Mac 011uWpmC (session starling-bd), from 2026-10-19
 Documents: zh-291fcea7 (30.9; p5 holds 18 of 23 lines missed there).
 Known: the flowchart is wps shapes (a hexagon, rounded boxes) anchored to paragraphs inside a one-column
 table's cell, layoutInCell 1, positionH relativeFrom column, positionV paragraph. Word sets them side by side
 across the cell (the hexagon's "1.人事人員審核教師" at x 242); ours drops the hexagon's text and stacks the
 other boxes down the page at the cell's left.
+Measured (Mac 011uWpmC, lab `cellfloat`: the flowchart table copied whole, and its first row alone): the
+anchored shapes are fine — the hexagon's text stands at x 242 as Word's with the first row alone. Two things
+are not: (1) the boxes "2.初任教師…", "2.教師取得較高學歷…", "2.代理教師敘薪" are floating tables NESTED in the cell
+(tblpPr horzAnchor page, tblpX 585, vertAnchor text, tblpY 515), which Word places from the cell (text at 96,
+not 29pt from the page) side by side; ours reads them as nested blocks in the flow and stacks them. Only
+zh-291fcea7 (4) and zh-ad224275 (1) in the corpus have such tables. (2) With the whole table, the hexagon's
+fill is drawn and its text is not; with its row alone both are. Released: (1) needs a nested table read as a
+floating box (ImageFloat, x/y from tblpPr against the cell, the box growing to fit), (2) a paint-order look.
 
 ### Note from the Mac (011uWpmC, 2026-10-18): zh-0243e7fc's p11 floating form — done (98.9)
 
