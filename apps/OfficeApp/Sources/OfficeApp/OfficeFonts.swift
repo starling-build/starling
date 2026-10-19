@@ -1156,8 +1156,19 @@ enum OfficeFonts {
             standIn.symbols = "SimSun"
             return standIn
         }
+        // (方正小标宋 by its ASCII name is SimSun's, not YaHei's:
+        // zh-202582e2's title, FZXiaoBiaoSong-B05S with no entry in its
+        // font table, is drawn in SimSun in Word's print, its 21.6pt line
+        // 5pt shorter than YaHei's. Not every "FZ…" name: zh-f6686f89's
+        // FZShuTi, no entry either, is YaHei in its print.)
+        if wordOnMac, ignoringEmbedding || !isEmbedded(family), n.hasPrefix("fzxiaobiaosong"), n.unicodeScalars.allSatisfy({ $0.isASCII }) {
+            return eastAsianFace("SimSun")
+        }
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
-                           "幼圆", "全真楷書") || has("仿宋_gb2312", "楷体_gb2312", "kaiti_gb2312", "方正", "小标宋", "標楷") {
+                           "幼圆", "全真楷書") || has("仿宋_gb2312", "fangsong_gb2312", "楷体_gb2312", "kaiti_gb2312", "方正", "小标宋", "標楷") {
+            // (The English name too: zh-202582e2's body is
+            // "FangSong_GB2312", and its 15.5pt lines at 1.32 stand 35pt
+            // apart in Word's print, YaHei's 1.72 em; ours took FangSong.)
             var standIn = yaHei
             standIn.symbols = "SimSun"
             return standIn
@@ -1404,7 +1415,12 @@ enum OfficeFonts {
         }
         // (A name the table declares Latin still sets East Asian text
         // as the face it names.)
-        let ea = own || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) ? eastAsianFace(family) : square
+        // (An East Asian face by its ASCII name as well: zh-202582e2's
+        // "FangSong_GB2312" is YaHei to Word on a Mac, its quotes an em
+        // as the stand-in's symbols set them; taken for the square face,
+        // ours drew YaHei's own 0.38 em quotes and its lines took a
+        // character more than Word's.)
+        let ea = own || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) || Self.isEastAsianFace(family) ? eastAsianFace(family) : square
         if eastAsian {
             // (An embedded face draws its own characters; what its subset
             // lacks falls back as before.)

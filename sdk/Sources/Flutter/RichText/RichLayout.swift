@@ -6251,7 +6251,11 @@ public final class RichLayout {
         // carries it over: zh-799c91cd's "各執1份為憑" and the "。" alone
         // under it, whose page 2 then ran a line long.)
         let kinsokuOff = theme.wordRules && p.style.eastAsian["w:kinsoku"] == "0"
-        let fullQuotes = theme.wordRules && document.usesEastAsianLayout
+        // (Not only under `w:useFELayout`: zh-202582e2's settings lack it,
+        // and its “综合验一次” in YaHei for FangSong_GB2312 is an em a
+        // quote in Word's print, where ours set YaHei's own 0.38 em and its
+        // lines took a character more than Word's.)
+        let fullQuotes = theme.wordRules
         let loose = _looseWordOffsets(p, document, textWidth: textWidth, named: named, pitch: pitch)
         let wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
         // The spaces Word sets half an em wide (UTF-16 offsets): every

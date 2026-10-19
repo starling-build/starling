@@ -261,7 +261,7 @@ something else.
 ### Note from the Mac (2026-10-19): the zh corpus is 446 documents — a twentieth sample
 Twenty more (`random.seed(20261103)` among the 200 unprinted, 15 to 400 KB, all
 printed), checked in. It starts at 74.1% (median 95.5). Its low ones, unclaimed:
-zh-202582e2 8.6 (15/14 pages; CLAIMED Mac 01Xgpbk5), zh-344a8d08 19.8 (CLAIMED Linux 017F2GnT 2026-10-19), zh-12f87285 27.4 (CLAIMED Linux office1 01Ak4ibJ 2026-10-19), zh-291fcea7
+zh-202582e2 8.6 (15/14 pages; DONE Mac 01Xgpbk5 → 97.8: FangSong_GB2312 by its English name is YaHei to Word on a Mac, an ASCII FZXiaoBiaoSong SimSun, and curly quotes in an East Asian face an em without useFELayout), zh-344a8d08 19.8 (CLAIMED Linux 017F2GnT 2026-10-19), zh-12f87285 27.4 (CLAIMED Linux office1 01Ak4ibJ 2026-10-19), zh-291fcea7
 30.9, zh-b3e887f7 47.2, zh-9f24d3eb 53.8, zh-447f1d5c 61.8 (98 pages),
 zh-f43c9edf 70.8, zh-5c7787f5 79.5, zh-e4ef4c4d 93.3. (A sampling note: the
 corpus names a document by its docxcorp id, the cache's file name — not by a
