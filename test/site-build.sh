@@ -61,6 +61,18 @@ mkdir -p "$OUT/stranger" && echo x > "$OUT/stranger/notes.txt"
 "$APP" --site-build "$SITE" --out "$OUT/stranger" --web "$STAGE" > "$OUT/build3.log" 2>&1
 check "a build refuses a folder that is not a site build" "$?" 1
 
+echo "── a sitemap, when the site knows its address"
+python3 - "$SITE/site.json" <<'PYX'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['url']='https://example.github.io'; json.dump(d, open(p,'w'), indent=2)
+PYX
+"$APP" --site-build "$SITE" --web "$STAGE" > "$OUT/build-sitemap.log" 2>&1
+check "sitemap.xml lists the pages" "$(grep -c '<loc>https://example.github.io/publishing/</loc>' "$DIST/sitemap.xml")" 1
+check "the home page is the root" "$(grep -c '<loc>https://example.github.io/</loc>' "$DIST/sitemap.xml")" 1
+check "robots.txt points at it" "$(grep -c 'Sitemap: https://example.github.io/sitemap.xml' "$DIST/robots.txt")" 1
+"$APP" --site-build "$SITE" --out "$OUT/project2/demo" --web "$STAGE" --base /demo/ > "$OUT/build-sitemap2.log" 2>&1
+check "a project site's sitemap keeps the base once" "$(grep -c '<loc>https://example.github.io/demo/about/</loc>' "$OUT/project2/demo/sitemap.xml")" 1
+
 echo "── a project site under /demo/"
 "$APP" --site-build "$SITE" --out "$OUT/project/demo" --web "$STAGE" --base /demo/ > "$OUT/build4.log" 2>&1
 check "build with --base exits 0" "$?" 0

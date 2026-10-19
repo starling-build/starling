@@ -187,6 +187,10 @@ between pages (`WebAccessibility.setDocumentText` →
 order, not its layout; the reader's own controls (the tree, the buttons)
 are still only on the canvas, which is the next accessibility step.
 
+**Crawlers (2026-10-19):** with `"url"` in `site.json` the build writes
+`sitemap.xml` (every route) and `robots.txt`; the demo has
+`https://starling-build.github.io/site-demo`.
+
 Not yet: a smaller stored form for table-heavy documents (above); the
 reader's controls for screen readers; a phone layout for the Writer's
 ribbon when editing (the reader is fine on a phone).

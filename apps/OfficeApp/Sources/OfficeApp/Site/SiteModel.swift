@@ -27,6 +27,9 @@ struct SiteConfig: Codable {
     /// Where the site is served: "/" for a user site, "/repo/" for a
     /// project site. The build's `--base` overrides it.
     var base: String? = nil
+    /// The site's address, for sitemap.xml ("https://user.github.io/repo");
+    /// without it the build writes no sitemap.
+    var url: String? = nil
     var pages: [SiteNode]
 }
 
@@ -265,6 +268,15 @@ enum SiteBuilder {
         try encoder.encode(entries).write(to: URL(fileURLWithPath: out + "/" + SiteFiles.search), options: .atomic)
         // Pages would otherwise run the folder through Jekyll.
         fm.createFile(atPath: out + "/.nojekyll", contents: Data())
+        // A sitemap and a robots.txt for crawlers, when the site knows its address.
+        if let url = config.url?.trimmingWhitespace(), !url.isEmpty {
+            let origin = url.hasSuffix("/") ? String(url.dropLast()) : url
+            let host = origin.hasSuffix(manifest.base.dropLast()) && manifest.base != "/" ? String(origin.dropLast(manifest.base.count - 1)) : origin
+            let locs = manifest.flattened().map { "  <url><loc>\(SiteShellPage.escape(host + manifest.route($0.node.slug)))</loc></url>" }
+            let sitemap = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n" + locs.joined(separator: "\n") + "\n</urlset>\n"
+            try sitemap.write(toFile: out + "/sitemap.xml", atomically: true, encoding: .utf8)
+            try "User-agent: *\nAllow: /\nSitemap: \(host)\(manifest.base)sitemap.xml\n".write(toFile: out + "/robots.txt", atomically: true, encoding: .utf8)
+        }
         // The Chinese face (18 MB) ships only with a site that has Chinese
         // text somewhere; a site without any gets neither the file nor its
         // manifest entry.
