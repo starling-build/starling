@@ -3042,12 +3042,20 @@ Done as tried: such a space is set as a no-break space (it takes room) with a br
 line where there is room and goes to the next where the mark hangs. Same-base sweep, 517 docs: zh-c9f4d690
 62.8 -> 100.0, nothing else moved.
 
-### T131. zh-cfb32050, zh-e64d4997: zh-TW mid-line marks give nothing to take a character and hang the last — claimed
+### T131. zh-cfb32050, zh-e64d4997: zh-TW mid-line marks give nothing to take a character and hang the last — DONE for zh-cfb32050 (2026-10-19)
 Owner: session starling-office1-df (Linux dev box), from 2026-10-19 (the Mac's measurements, 01Xgpbk5)
 Documents: zh-cfb32050 (73.7), zh-e64d4997 (84.2).
 Known (Mac): zh-TW 標楷體, mode 14, compressPunctuation: p3's "…彈性調整得獎名" ends at "名" in Word's print with "、" and "，"
 at their full 16.4, where ours squeezes both to 8.3 to take "額" and hang "。". zh-e64d4997's zh-TW cell lines run a
 character long the same way ("…歲出成").
+
+Done for zh-cfb32050, not as first framed: its "。" ends the paragraph and cannot hang (T119), and the question is
+whether it gives toward taking "額", which is itself 7.05pt over. Before mode 15, in a compressing zh-TW document
+without Taiwan's noLineBreaksBefore list, such a final mark gives nothing where the character before it is over the
+margin — the line's other marks must cover it (16 of 23.05 here, so refused). Tried and dropped on the way: a mode
+14/11 split (the Mac's lab pe2c: modes 14 and 11 alike), and the final never giving beside others (zh-64044a1d's
+"…措施事宜。" gives, its "宜" inside). Listed documents keep their own rules (zh-ae3d78ee 100 -> 25.3 without the
+!listed). Same-base sweep, 537 docs: zh-cfb32050 73.6 -> 76.4, nothing lower. zh-e64d4997 (cells) unmoved — open.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)

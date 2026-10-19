@@ -8622,6 +8622,17 @@ public final class RichLayout {
                     // margin to the twip, 0.21 short of its em.)
                     let lead = Self._closingUnits.contains(units[a]) || Self._openingUnits.contains(units[a]) || units[a] >= 0x2E80 || wideQuote(a)
                         ? (closesUp(a) ? em * 0.5 : wideQuote(a) ? em : onCharacterGrid ? boxes(a, a + 1) - (gaps[a] ?? 0) : max(em, boxes(a, a + 1) - (gaps[a] ?? 0))) : Self._quotes.contains(units[a]) ? boxes(a, a + 1) : w - after
+                    // (And where the character before it is over the margin
+                    // itself, the paragraph's last mark gives nothing toward
+                    // taking the two: the line's other marks must. zh-cfb32050
+                    // (mode 14, zh-TW, no list of its own) leaves "額。" after
+                    // "…彈性調整得獎名", "額" 7.05pt over, its "、" and "，" able to
+                    // give 16 of the 23.05 needed, at their whole 16.4 in Word's
+                    // print; ours took it, all three squeezed. Not under
+                    // Taiwan's list — `listed`, its rules above: zh-ae3d78ee's
+                    // "…你花最多的。" is taken over the margin with a comma giving.)
+                    let finalGive = centredEnd && paragraphEnd && !listed && p.style.eastAsian["w:overflowPunct"] != "0"
+                        && x + min(lead, w) > width + hair ? half(tail) : 0
                     // (Half of a mark as it is set — on a character
                     // grid half of its em and of the grid's addition:
                     // two marks on a grid of 1.008 gave 8.5pt each, a
@@ -8870,7 +8881,7 @@ public final class RichLayout {
                     // set the colon at 13.5 of 16 to take it. In a cell one
                     // does: zh-20ff844e's narrow cells take their "③".)
                     let circled = !inCell && a < units.count && (0x2460 ... 0x24FF).contains(units[a])
-                    if room > 0, taken, !circled, need <= room - ownGive + hair {
+                    if room > 0, taken, !circled, need <= room - ownGive - finalGive + hair {
                         let share = min(1, (need + 0.02) / room)
                         // (The marks give first, and the automatic spaces
                         // what is still needed: the colon of lab `ovc` is
