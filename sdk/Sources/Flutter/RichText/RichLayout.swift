@@ -11992,9 +11992,20 @@ public final class RichLayout {
                         let floats = theme.wordRules && !shading && whole && piece.part == .all
                             && ((i < _floatImages.count && _floatImages[i] != nil)
                                 || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
+                        // (The first piece of a paragraph that parts, its
+                        // floats above it: nothing of the paragraph stands
+                        // over its first line but them. zh-e49d7943's
+                        // "附件2" box, 30.65pt over a title whose 660pt
+                        // picture goes to the next page, was drawn nowhere.)
+                        let opensWithFloats = theme.wordRules && !shading && !whole && piece.part == .all
+                            && piece.flowTop <= _tops[i] + 0.5 && lines == nil
+                            && ((i < _floatImages.count && _floatImages[i] != nil)
+                                || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
                         if lines != nil || floats {
                             // Its own lines and no others: nothing to cut off above or below.
                             canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + 1_000_000))
+                        } else if opensWithFloats {
+                            canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + _baselineShift(i, document)))
                         } else {
                             // The window moves with the text: a paragraph drawn
                             // above its line box (`baselineShift`) would
