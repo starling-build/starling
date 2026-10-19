@@ -146,6 +146,13 @@ repeated header row off (v13) or every vMerge off (v14) the pages shift
 and row 120 no longer meets a page foot needing to part, so neither
 says anything yet; to test them, pad the text above until it does.
 
+Tried, reverted (patch kept by starling-office1-df): in the fitter, a piece right after a tab, in a paragraph with a
+right stop, over the margin with the tab starting inside, got its last advance shortened by the overrun (as a
+hanging mark's is) and nothing squeezed. The engine then breaks before "20" all the same — the shortened advance of
+a Latin digit at a line's end does not hold the line as a mark's does — and the file went 12.0 -> 7.9, two lines
+more. Needs: a way to let a Latin run overflow (or the tab to give its width first), and for case (b) a break
+opportunity before a tab, which UAX14 (BA) forbids. Also seen: our TOC page starts 33pt lower than Word's.
+
 ### T126. zh-2f9463d6 (95.9% on Windows): a cell's text before a trailing U+3000 makes its row a line taller — DONE (2026-10-18)
 Owner: none (Windows 01QbbApP built it, released)
 Documents: zh-2f9463d6 (p20-21, 28 of its 29 misses). Its table row
@@ -2949,8 +2956,8 @@ All three in: the number takes the paragraph style's size where the mark has non
 an East Asian family's Latin side falls back to its CJK face before the symbol face. Same-base sweep, 377 docs:
 zh-117cf7c6 92.0 -> 100.0, nothing else moved.
 
-### T127. A TOC page number at a right stop past the margin (zh-ab1ea005) — claimed
-Owner: session starling-office1-df (Linux dev box), from 2026-10-18 (the Mac's measurements, 01Xgpbk5)
+### T127. A TOC page number at a right stop past the margin (zh-ab1ea005) — tried, released
+Owner: — (released by starling-office1-df, 2026-10-18; the Mac's measurements, 01Xgpbk5)
 Documents: zh-ab1ea005 (12%: its TOC runs a line behind and the body a page behind).
 Known (Mac, Word's print): toc 2, a dotted right stop at 8844 twips (519.2pt), compressPunctuation, mode 14, 方正楷体
 14pt. (a) "51.…解除劳动合同？<tab>20": Word keeps the commas whole and puts "20" 4.3pt past the margin (entry 55 the
