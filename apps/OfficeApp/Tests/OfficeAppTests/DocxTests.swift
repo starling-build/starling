@@ -10,6 +10,13 @@ import FlutterSwiftBridge
 @testable import OfficeApp
 
 final class DocxTests: XCTestCase {
+    // (ICU's data before this class lays any text out: a run filtered to
+    // it has no `AAATextSetupTests` ahead of it.)
+    override class func setUp() {
+        super.setUp()
+        _ = TestText.icuLoaded
+    }
+
     private func sample() -> RichDocument {
         var paragraphs: [RichParagraph] = []
         paragraphs.append(RichParagraph(text: "Title — with an em dash", style: RichParagraphStyle(heading: 1)))
@@ -1695,10 +1702,7 @@ final class DocxTests: XCTestCase {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
-        let icu = ProcessInfo.processInfo.environment["STARLING_ICU"]
-            ?? ProcessInfo.processInfo.environment["FLUTTER_SWIFT_ENGINE_OUT"].map { $0 + "/icudtl.dat" }
-        guard let icu, FileManager.default.fileExists(atPath: icu) else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
-        _ = flutter.swift_bridge.InitializeICU(icu)
+        guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
         _ = OfficeFonts.register()
         // (No other file's font table: a document read before this one
         // leaves its names' alternates and entries noted.)
@@ -1732,10 +1736,10 @@ final class DocxTests: XCTestCase {
     }
 
     /// Whether the fitter can measure here: ICU's data must reach the bridge
-    /// before any paragraph is laid out in the process, and in a run of the
-    /// whole suite another test has laid one out first — every character
-    /// then measures zero wide and nothing is ever over. (Run these alone:
-    /// `--filter 'testAMarkBeforeATab|testAMarkInTextOfNo'`.)
+    /// before any paragraph is laid out in the process, or every character
+    /// measures zero wide and nothing is ever over. `TestText` loads it
+    /// before the first test of the suite (and of `DocxTests`); this says so
+    /// if a run ever lays text out ahead of it.
     private func requireFitterWidths() throws {
         let twelve = String(repeating: "一", count: 12)
         guard try firstLineWidth(twelve + "，" + twelve + "二三", width: 307, hangs: false) > 302 else {
@@ -1832,12 +1836,13 @@ final class DocxTests: XCTestCase {
             l.width = setup.columnWidth * theme.pixelsPerPoint
             l.ensureLaidOut(doc)
             let i = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text.hasPrefix("每人每月補助") })
-            return l.geometry(i).painter.height / l.theme.pixelsPerPoint
+            return (l.geometry(i).painter.computeLineMetrics().first?.height ?? 0) / l.theme.pixelsPerPoint
         }
-        // (The number's box is a line of its own in the paragraph, as tall
-        // as the text's at the text's size — two of the plain paragraph's
-        // lines — and the taller for a number set larger.)
-        XCTAssertGreaterThan(try height(bulleted: true) - 2 * (try height(bulleted: false)), 0.3, "the bullet's 14pt makes its line taller")
+        // (The number's box is a line of its own in the paragraph, the
+        // first, as tall as a line of the text at the text's size — and the
+        // taller for a number set larger. Its first line against the plain
+        // paragraph's first: however the text wraps.)
+        XCTAssertGreaterThan(try height(bulleted: true) - (try height(bulleted: false)), 0.3, "the bullet's 14pt makes its line taller")
     }
 
     func testACompatibilityIdeographYaHeiLacksIsItsBox() throws {
