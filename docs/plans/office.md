@@ -6492,6 +6492,21 @@ the 26 FangSong-heavy documents 7.32% -> 6.54%, line match unchanged.
   Symbol's in Word's print (lab `ws`, 12.24 at 10pt, where Times'
   is 11.5) — its 11pt spaces had stood in for that.
   zh-2f9463d6 95.9 -> 99.9; nothing else moved (306 zh, 110 POI).
+- **Over single spacing a bold run sets the line its regular text does
+  (2026-10-18; Windows).** zh-86547e97 opens "第一条 为加强…" with a
+  Strong run, YaHei bold for 仿宋_GB2312, 16pt at 1.5 lines: bold's line
+  is 1.73 ems to the regular's 1.715, 41.5 to 41.16pt. Word's print
+  sets the paragraph's lines 41.0-41.3 apart, the first with them. The
+  paragraph also holds a 15pt run, so ours held it by its tallest
+  stretch, the bold, which stands on line 1 alone; no strut, the
+  engine's own proportional line, no baseline correction, and line 1
+  13pt low. Stretches of one size within 1.5% of each other now count as
+  one, held at the height most of the text has, where the paragraph is
+  spaced over 1.2 lines. Not at single: bug59058's Times paragraphs with
+  bold labels keep each line's tallest, as Word's print does (100 ->
+  88.2 when the rule ran at every spacing).
+  zh-86547e97 75.9 -> 99.5, zh-d746674a 81.9 -> 91.9; nothing else moved
+  (366 zh, 110 POI).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

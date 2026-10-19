@@ -5421,12 +5421,19 @@ public final class RichLayout {
             guard let image = entry.image else { return false }
             return image.name != "hr" && !(theme.wordRules && image.float.map { !$0.takesRoom } == true)
         }
+        // (A bold run beside its regular text sets the line Word gives the
+        // regular where the paragraph is spaced well over single (1.5 lines
+        // in zh-86547e97 and zh-d746674a) — see `_strut`.
+        // At single spacing each line keeps its tallest: bug59058's Times
+        // paragraphs, bold labels in their lines, stand a hair apart line by
+        // line in Word's print as in the engine's.)
+        let spacedOver = theme.wordRules && style.lineHeightPoints == nil && style.lineSpacing > 1.2
         func laidOut(_ span: TextSpan) -> TextPainter {
             let painter = TextPainter(
                 text: span,
                 textAlign: align,
                 textDirection: style.rightToLeft ? .rtl : .ltr,
-                strutStyle: picturesInLine || Self._risesForNumber(inline) ? nil : _strut(span)
+                strutStyle: picturesInLine || Self._risesForNumber(inline) ? nil : _strut(span, near: spacedOver)
             )
             // (Word's lines keep the fraction of their height: a 12pt
             // PMingLiU line is 15.61pt, 1332/1024 em, and zh-de3410bd's
@@ -5486,8 +5493,8 @@ public final class RichLayout {
             // one. A line without that stretch is its own height — the
             // footer of zh-1563bd74, an "X" in 16pt over a 14pt line.)
             if painter.strutStyle == nil, theme.wordRules, !picturesInLine, !Self._risesForNumber(inline),
-               let strut = _strut(span, tallest: true),
-               lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines) {
+               let strut = _strut(span, tallest: true, near: spacedOver),
+               lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 held.fractionalLineHeights = painter.fractionalLineHeights
                 if !inline.isEmpty { held.setPlaceholderDimensions(inline.map { $0.dimensions }) }
@@ -7335,7 +7342,13 @@ public final class RichLayout {
     /// Symbol box of form_footnotes' "D - ", whose line is Symbol's.
     static func _setsNoLine(_ ch: Character) -> Bool { ch == " " || ch == "\u{3000}" }
 
-    private func _strut(_ span: TextSpan, tallest: Bool = false) -> StrutStyle? {
+    /// Whether two stretches set the same line: the same size, and heights
+    /// within 1.5% (a face's bold beside its regular — see `_strut`).
+    static func _sameLine(_ s1: Double, _ h1: Double, _ s2: Double, _ h2: Double) -> Bool {
+        abs(s1 * h1 - s2 * h2) < 0.01 || (abs(s1 - s2) < 0.01 && abs(s1 * h1 - s2 * h2) <= 0.015 * max(s1 * h1, s2 * h2))
+    }
+
+    private func _strut(_ span: TextSpan, tallest: Bool = false, near nearCounts: Bool = false) -> StrutStyle? {
         guard theme.wordRules else { return nil }
         var first: TextStyle? = nil
         var uniform = true
@@ -7353,15 +7366,27 @@ public final class RichLayout {
         // the lines "AB" is, on a line grid and off it; "AB测" is YaHei's.
         // zh-2f9463d6's "……　" cells stood a pitch tall.)
         var blanksToo = false
+        // (Nor a bold run beside its regular face at the same size, whose
+        // line is a hair taller: zh-86547e97's "第一条" (Strong, YaHei bold
+        // for 仿宋_GB2312, 16pt at 1.5 lines) opens a paragraph whose lines
+        // stand 41.0-41.3pt apart in Word's print, the first with them —
+        // regular YaHei's 41.16, not bold's 41.5. Without a strut the
+        // engine stacked the two faces' boxes and the line was 54. Such a
+        // line is held at the height most of its text has.)
+        var share: [Double: (TextStyle, Int)] = [:]
+        var near = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
             if let text = t.text, blanksToo || text.contains(where: { !Self._setsNoLine($0) }),
                let style = t.style, style.baselineShift == nil || shiftedToo, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
                 count += 1
+                share[size * h, default: (style, 0)].1 += text.count
                 if let f = first, let fs = f.fontSize, let fh = f.height {
                     if tallest {
                         if size * h > fs * fh + 0.01 { first = style }
-                    } else if abs(fs * fh - size * h) > 0.01 { uniform = false }
+                    } else if abs(fs * fh - size * h) > 0.01 {
+                        if nearCounts && Self._sameLine(size, h, fs, fh) { near = true } else { uniform = false }
+                    }
                 } else {
                     first = style
                 }
@@ -7371,7 +7396,17 @@ public final class RichLayout {
         visit(span)
         if count == 0, uniform { blanksToo = true; visit(span) }
         if count == 0, uniform { shiftedToo = true; visit(span) }
-        guard uniform, count > 0, let base = first, let size = base.fontSize, let h = base.height else { return nil }
+        // (The tallest stretch too, where others are within a hair of it:
+        // the one most of the text has. zh-86547e97's paragraph also holds
+        // a 15pt run, so it is held by its tallest, and that was the bold
+        // "第一条" on its first line alone — no strut, and the line 13pt
+        // low.)
+        var held = first
+        if let top = first, let ts = top.fontSize, let th = top.height, near || (tallest && nearCounts) {
+            let alike = share.filter { Self._sameLine($0.value.0.fontSize ?? 0, $0.key / max(0.01, $0.value.0.fontSize ?? 1), ts, th) }
+            if alike.count > 1 { held = alike.values.max { $0.1 < $1.1 }?.0 ?? top }
+        }
+        guard uniform, count > 0, let base = held, let size = base.fontSize, let h = base.height else { return nil }
         // (Even leading: the engine's proportional strut scales the
         // face's ascent and descent by a height that counts its line gap
         // too, and comes out that much short — 15.15 for 15.6 in
@@ -7383,7 +7418,7 @@ public final class RichLayout {
 
     /// Whether each of `painter`'s lines holds some text of the span's
     /// tallest stretch (the height `strut` was made from).
-    private static func _tallestOnEveryLine(_ span: TextSpan, _ strut: StrutStyle, _ painter: TextPainter, lines: Int) -> Bool {
+    private static func _tallestOnEveryLine(_ span: TextSpan, _ strut: StrutStyle, _ painter: TextPainter, lines: Int, near: Bool = false) -> Bool {
         guard let size = strut.fontSize, let h = strut.height else { return false }
         var ranges: [Range<Int>] = []
         var at = 0
@@ -7391,7 +7426,7 @@ public final class RichLayout {
             guard let t = s as? TextSpan else { at += 1; return }
             if let text = t.text {
                 let n = text.utf16.count
-                if let style = t.style, let fs = style.fontSize, let fh = style.height, abs(fs * fh - size * h) < 0.01,
+                if let style = t.style, let fs = style.fontSize, let fh = style.height, near ? Self._sameLine(fs, fh, size, h) : abs(fs * fh - size * h) < 0.01,
                    text.unicodeScalars.contains(where: { !$0.properties.isWhitespace }) {
                     ranges.append(at ..< at + n)
                 }
