@@ -3145,7 +3145,7 @@ logical in ours). Wants a face whose joined forms map back (or ActualText spans)
 Times New Roman, which has Arabic — not tried there.
 
 ### T138. zh-db07d44e p30: a cell line's "，" and "。" squeezed to 0.75 em (mode 15, zh-TW, compressPunctuation)
-Owner: — (released by starling-b2, 2026-10-19, measured; for starling-office1-df, who knows the fitter)
+Owner: session starling-office1-df (Linux office1 01Ak4ibJ), from 2026-10-19 (released by starling-b2, measured), with zh-344a8d08's footnote 2 — both a mode-15 final mark
 Documents: zh-db07d44e (33.8 → 36.8). 標楷體 12pt, jc both, cell 3545 twips: "範圍內每增(減)10%，加(減)1 分。" is one line
 in Word's print with "，" and "。" each 9pt, the ideographs 12 apart; ours keeps both at 12 and sends "分。" on. Many of
 its cells' lines are the same, and its rows part differently from p22 on.
