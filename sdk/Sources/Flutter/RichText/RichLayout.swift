@@ -1808,6 +1808,13 @@ public final class RichLayout {
                     parts = !(j >= 0 && j < k - 1 && units[j] == 0xA0)
                 }
                 else if breakBefore.contains(k) { parts = true }
+                // (After a hyphen before a digit in a time of day, where a
+                // word wider than its cell must part: zh-b3e887f7's schedule keeps its
+                // grid's 49.4pt time columns in Word's print, "9:00-" /
+                // "9:10" in each, where ours took "9:00-9:10" for one piece
+                // and widened them to 78.)
+                else if theme.wordRules, a == 0x2D, b >= 0x30, b <= 0x39, k > 1, Self._isLatinWordUnit(units[k - 2]),
+                        units[k...].prefix(while: { !space($0) && $0 < 0x2E80 }).contains(0x3A) || units[..<k].reversed().prefix(while: { !space($0) && $0 < 0x2E80 }).contains(0x3A) { parts = true }
                 // (A full-width mark beside a Latin word is a piece of its
                 // own to autofit, whatever the line breaking keeps together:
                 // zh-82b166b4's "（WebHR）", 50pt glued, sits in its 51.1pt
@@ -6276,6 +6283,7 @@ public final class RichLayout {
         // lines took a character more than Word's.)
         let fullQuotes = theme.wordRules
         let loose = _looseWordOffsets(p, document, textWidth: textWidth, named: named, pitch: pitch)
+            .union(_wideWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
         let wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
         // The spaces Word sets half an em wide (UTF-16 offsets): every
         // run of them but one between two Latin characters — see
@@ -9283,6 +9291,46 @@ public final class RichLayout {
     /// lines by.
     public func wideWordStarts(_ p: RichParagraph, _ document: RichDocument, textWidth: Double) -> Set<Int> {
         _wideWordStarts(p, document, textWidth: textWidth, named: _named(p, document), pitch: nil)
+    }
+
+    /// Where a Latin word wider than the line may part after a hyphen
+    /// before a digit: Word parts it there rather than at the last
+    /// character that fits. zh-b3e887f7's 49.4pt time cells hold
+    /// "9:00-" / "9:10" in Word's print, where the engine, keeping a
+    /// number whole with its sign, parted "9:00-9" / ":10". (A word
+    /// that fits keeps its hyphen: zh-64044a1d's "0932-757839", lab
+    /// `hy3`.)
+    private func _wideWordHyphens(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
+                                  named: RichNamedStyle?, pitch: Double?) -> Set<Int> {
+        guard theme.wordRules, textWidth > 1, !p.runs.isEmpty, p.text.utf16.contains(0x2D) else { return [] }
+        let units = Array(p.text.utf16)
+        func parts(_ u: UInt16) -> Bool { u == 0x20 || u == 0x0A || u == 0x2028 || u >= 0x2E80 }
+        var out: Set<Int> = []
+        var k = 0
+        while k < units.count {
+            guard !parts(units[k]) else { k += 1; continue }
+            var end = k
+            while end < units.count, !parts(units[end]) { end += 1 }
+            // (Times of day only — "9:00-9:10", a colon in it: zh-64044a1d's
+            // phone numbers, "0932-757839" in words wider than their cells,
+            // keep their hyphens in Word's print.)
+            let cuts = !units[k ..< end].contains(0x3A) ? [] : (k + 1 ..< end).filter { o in
+                units[o - 1] == 0x2D && units[o] >= 0x30 && units[o] <= 0x39 && o >= 2 && Self._isLatinWordUnit(units[o - 2])
+            }
+            if !cuts.isEmpty {
+                var at = 0
+                var run = p.runs[0].style
+                for r in p.runs { if k < at + r.length { run = r.style; break }; at += r.length }
+                let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let word = String(decoding: units[k ..< end], as: UTF16.self)
+                let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
+                painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                if painter.width > textWidth { out.formUnion(cuts) }
+                painter.dispose()
+            }
+            k = end
+        }
+        return out
     }
 
     private func _wideWordStarts(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
