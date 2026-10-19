@@ -4255,7 +4255,13 @@ public final class RichLayout {
                     let quarters = h * 4
                     return abs(quarters - quarters.rounded()) < 0.0001
                 }()
-                let slack = theme.wordRules && !tieFits ? -_px(0.025) : 0.01
+                // (On a line grid the reach past the foot is Word's own sum,
+                // and a twip over it still fits: zh-7b125a21's "B. 只能依照…",
+                // 10.5pt 宋体 on a 15.6pt grid, reaches 0.005pt past what
+                // its 1.3 em leaves and is page 1's last line in Word's
+                // print; ours took it, and a line a page after it, over.)
+                let slack = theme.wordRules && overhang > 0 && overhang.isFinite ? _px(0.05)
+                    : theme.wordRules && !tieFits ? -_px(0.025) : 0.01
                 if rest <= available + slack + overhang {
                     // (The line, not its space after: that may stand past the foot.)
                     if rest > available + 0.01, case let g = geometry(i), let line = Self._lineBottoms(g.painter).last,
