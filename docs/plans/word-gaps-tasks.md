@@ -3004,6 +3004,20 @@ vs n360: zh-e1b09977 65.4 -> 81.4, zh-cec9d337 84.2 -> 88.2, zh-5251dd23 89.2 ->
 in zh-e1b09977: p14's split row ends a line later in ours. Lab `hdr` (its first rows whole) ends where Word's
 does; only the text inside rows sits ~2pt higher than Word's, which decides that cut.
 
+### T130. zh-c9f4d690: under wordWrap 0, one closing space after a hanging mark takes a line of its own — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-19 (the Mac's measurement, 01Xgpbk5)
+Documents: zh-c9f4d690 (62.8).
+Known (Mac): a paragraph under wordWrap 0 ending "…报民航行业主管等部门。 " — its "。" hanging past the margin (511.4) —
+puts its one closing space on a line of its own in Word's print (470.4); `_looseWordOffsets` wraps closing spaces
+only from two, so p14 on runs a line early. To try: a closing space after a hanging mark has nowhere to hang.
+
+### T131. zh-cfb32050, zh-e64d4997: zh-TW mid-line marks give nothing to take a character and hang the last — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-19 (the Mac's measurements, 01Xgpbk5)
+Documents: zh-cfb32050 (73.7), zh-e64d4997 (84.2).
+Known (Mac): zh-TW 標楷體, mode 14, compressPunctuation: p3's "…彈性調整得獎名" ends at "名" in Word's print with "、" and "，"
+at their full 16.4, where ours squeezes both to 8.3 to take "額" and hang "。". zh-e64d4997's zh-TW cell lines run a
+character long the same way ("…歲出成").
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
