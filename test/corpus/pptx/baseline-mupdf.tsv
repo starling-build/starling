@@ -73,10 +73,10 @@ lo-activex_label.pptx	summary pages=1 worst=0.50% mean=0.50%
 lo-activex_listbox.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-activex_optionbutton.pptx	summary pages=1 worst=0.27% mean=0.27%
 lo-activex_picture.pptx	summary pages=1 worst=1.62% mean=1.62%
-lo-activex_scrollbar.pptx	summary pages=1 worst=1.84% mean=1.84%
+lo-activex_scrollbar.pptx	summary pages=1 worst=0.31% mean=0.31%
 lo-activex_spinbutton.pptx	summary pages=1 worst=0.05% mean=0.05%
 lo-activex_textbox.pptx	summary pages=1 worst=0.28% mean=0.28%
-lo-activex_togglebutton.pptx	summary pages=1 worst=1.52% mean=1.52%
+lo-activex_togglebutton.pptx	summary pages=1 worst=0.34% mean=0.34%
 lo-altdescription.pptx	summary pages=1 worst=0.33% mean=0.33%
 lo-animation-sound-embedded.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-animation-sound-external.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -155,7 +155,7 @@ lo-n90223RT.pptx	summary pages=1 worst=0.15% mean=0.15%
 lo-n90255.pptx	summary pages=1 worst=0.16% mean=0.16%
 lo-narration-non-media-shape.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-narration.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-numfmt.pptx	summary pages=9 worst=0.12% mean=0.05%
+lo-numfmt.pptx	summary pages=9 worst=0.14% mean=0.05%
 lo-ole-emf_min.pptx	summary pages=1 worst=0.23% mean=0.23%
 lo-ole.pptx	summary pages=1 worst=0.07% mean=0.07%
 lo-onemaster-twolayouts.pptx	summary pages=2 worst=0.00% mean=0.00%
@@ -292,7 +292,7 @@ lo-tdf125551.pptx	summary pages=1 worst=1.67% mean=1.67%
 lo-tdf125554.pptx	summary pages=1 worst=0.06% mean=0.06%
 lo-tdf125573_FontWorkScaleX.pptx	summary pages=2 worst=3.32% mean=3.07%
 lo-tdf126234.pptx	summary pages=1 worst=0.77% mean=0.77%
-lo-tdf126324.pptx	summary pages=1 worst=0.04% mean=0.04%
+lo-tdf126324.pptx	summary pages=1 worst=0.03% mean=0.03%
 lo-tdf126741.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf127129.pptx	summary pages=1 worst=0.10% mean=0.10%
 lo-tdf127237.pptx	summary pages=1 worst=0.32% mean=0.32%

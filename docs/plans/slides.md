@@ -2548,6 +2548,18 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A metafile's one-bit pattern brush in its own colours, 2026-10-19**
+(sweep 244: corpus mean 0.9369 → 0.9319; lo-activex_scrollbar 1.84 →
+0.31, lo-activex_togglebutton −1.18, tdf126324 −0.01; none worse). A
+WMF `DibCreatePatternBrush` was a middle grey whatever its pattern: the
+ActiveX controls' pictures fill their scrollbar troughs and pressed
+buttons with an 8×8 checker of the text colour and white (light grey,
+pale cyan in PowerPoint's print). A one-bit pattern (BS_PATTERN) paints
+its clear bits in the text colour and its set ones in the background's,
+so it is now the two mixed by their share of the pattern. (EMF's
+pattern brushes, records 93 and 94, are still grey: no deck to check
+them against. Shared with Word's metafiles.)
+
 **A 2007-style chart's legend below its plot, 2026-10-19** (sweep 243:
 corpus mean 0.9370 → 0.9369; cooper 3.02 → 2.91; lo-numfmt +0.01, a
 deck with no chart: rounding). cooper's two census charts (style 12,

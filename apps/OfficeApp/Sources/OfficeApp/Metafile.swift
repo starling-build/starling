@@ -636,7 +636,33 @@ private struct Player {
                 let face = ansi(nameAt, n)
                 if !face.isEmpty { f.face = face }
                 addObject(.font(f))
-            case 0x0142, 0x01F9:   // DibCreatePatternBrush, CreatePatternBrush: the pattern's middle grey
+            case 0x0142:   // DibCreatePatternBrush: style, usage, bitmap
+                // A one-bit pattern (style BS_PATTERN) paints its clear bits
+                // in the text colour and its set ones in the background's:
+                // drawn as the two mixed by their share of the pattern
+                // (lo-activex_scrollbar's troughs, a checker of their
+                // colour and white, light grey and pale cyan in
+                // PowerPoint's print). Others, a middle grey.
+                let header = a + 4
+                let width = u32(header + 4), height = abs(Int(Int32(truncatingIfNeeded: u32(header + 8))))
+                let bits = u16(header + 14), headerSize = u32(header)
+                if bits == 1, width > 0, height > 0, width <= 64, height <= 64, headerSize >= 40 {
+                    let stride = (width + 31) / 32 * 4
+                    let data = header + headerSize + 8   // past the two-colour table
+                    var set = 0
+                    if data + stride * height <= p + size {
+                        for row in 0 ..< height {
+                            for x in 0 ..< width where bytes[data + row * stride + x / 8] & (0x80 >> (x % 8)) != 0 { set += 1 }
+                        }
+                        let t = Double(set) / Double(width * height)
+                        func mix(_ fg: Int, _ bg: Int) -> Int { Int((Double(fg) * (1 - t) + Double(bg) * t).rounded()) }
+                        let f = dc.textColor, b = dc.bkColor
+                        addObject(.brush(Player.Brush(color: Color(rgbo: mix(f.red, b.red), mix(f.green, b.green), mix(f.blue, b.blue), 1), null: false)))
+                        break
+                    }
+                }
+                addObject(.brush(Player.Brush(color: Color(0xFFC0C0C0), null: false)))
+            case 0x01F9:   // CreatePatternBrush: the pattern's middle grey
                 addObject(.brush(Player.Brush(color: Color(0xFFC0C0C0), null: false)))
             case 0x00F7, 0x06FF, 0x02FD, 0x06FE: addObject(.other)   // palette, region, bitmap
             case 0x012D: select(objects[u16(a)])
