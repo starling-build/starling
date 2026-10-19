@@ -478,6 +478,9 @@ struct Chart: Equatable {
     /// Painted on a slide (set by the slide painter), where a few of
     /// PowerPoint's measures differ from Word's and Excel's.
     var onSlide = false
+    /// Printed on a sheet (set by the sheet's painter), where Excel's
+    /// measures are its own.
+    var onSheet = false
     /// A stock chart's lines from each category's highest value to its
     /// lowest (`c:hiLowLines`): their colour (nil, the text's) and width.
     var highLowLines: HighLowLines? = nil
@@ -1828,6 +1831,10 @@ enum ChartPainter {
             if let at = c.titleAt {
                 placed = (tp, Offset(r.left + at.dx * r.width + 4.5 * k, r.top + at.dy * r.height + 1.5 * k))
             } else {
+                // (On a sheet 2.5 pt lower, and the plot under it with it:
+                // Excel's prints of eight titled charts, 13 to 40 pt, stand
+                // 2.2 to 3.0 lower than ours did, their plots' tops 3 to 4.)
+                if c.onSheet { area = Rect.fromLTRB(area.left, area.top + 3.4 * k, area.right, area.bottom) }
                 let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k)
                 Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
                 tp.paint(canvas, o)
