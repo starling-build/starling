@@ -110,6 +110,14 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
+### T129. Windows rules: an uninstalled face is its fontTable altName, as Word for Windows draws it
+Owner: session 01QbbApP (Windows box), from 2026-10-19 (from Mac 011uWpmC)
+Word for Windows follows w:altName for a face it lacks (仿宋_GB2312 -> 仿宋 -> FangSong;
+方正小标宋_GBK -> 微软雅黑): zh-f59a76e9's empty 方正小标宋_GBK line and
+zh-6cd1befe's p50 title are YaHei in its prints, ours `square` under the
+Windows rules. Gated off under OFFICE_WORD_FONTS=mac (Word for Mac ignores
+altName). Checked against Word for Windows prints (~/starling-doc-check/lab/fsw).
+
 ### T127. zh-73534289 p27: a table row Word moves whole to the next page — measured, released
 Owner: none (Windows 01QbbApP measured it, 2026-10-18)
 Documents: zh-73534289 (about 44 misses a page over pp28-33). Row 91
