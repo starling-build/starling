@@ -2572,6 +2572,10 @@ public final class RichLayout {
         // 3.8's first line; ours had sent 3.7 over). Parting a note
         // over two pages is not done: it goes over whole.
         var pendingNotes: [Int] = []
+        // (The notes of a table row whose marks stand in a part of it a
+        // later page holds: reserved on that page as `splitRow` sets the
+        // part — see where a row's notes are placed.)
+        var rowPending: [Int] = []
         func reserveNotes(_ ids: [Int], deferring: Bool = false) {
             guard notesOn else { return }
             let width = _px(pageSetup(forPage: page / _columns).contentWidth)
@@ -2600,6 +2604,7 @@ public final class RichLayout {
             if notesOn {
                 let stays = _pages[page].contains { placingRange.contains($0.paragraph) && !$0.repeated }
                 carried = stays ? [] : placing.filter { pageNotes.contains($0) }
+                if !stays { carried += rowPending; rowPending = [] }
                 // (A paragraph parted here keeps on this page only the
                 // notes whose marks are in its lines here: zh-424775e4's
                 // footnote 2, marked in the fourth line of a paragraph
@@ -3257,6 +3262,22 @@ public final class RichLayout {
                 // text stands below that rule as the row's did: zh-89385c94's
                 // second page, 0.4pt higher than Word's without it.)
                 if theme.wordRules { y += ruleUnder(c, parted: true) }
+                // (The notes marked in what this page will hold of the row.)
+                if theme.wordRules, !rowPending.isEmpty {
+                    let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                    var here: [Int] = []
+                    var room = 0.0
+                    for id in rowPending {
+                        guard let k = (i ..< j).first(where: { _footnotes(in: $0, document).contains(id) }),
+                              let n = columns.firstIndex(where: { $0.members.contains(k) }),
+                              let mark = _footnoteMarkLine(k, id, document), let note = _note(id, width: width, document) else { here.append(id); continue }
+                        room += note.height + (pageNotes.isEmpty && here.isEmpty ? _note(-1, width: width, document)?.height ?? 0 : 0)
+                        if y + (mark.bottom - columns[n].cut) + room > contentH + 0.01 { break }
+                        here.append(id)
+                    }
+                    rowPending.removeAll { here.contains($0) }
+                    reserveNotes(here)
+                }
             }
             // (In paragraph order, the rules after their paragraph's text.)
             for k in i ..< j {
@@ -3337,6 +3358,7 @@ public final class RichLayout {
                 var end = i + 1
                 if let c = _cells[i] { while end < count, let d = _cells[end], d.table == c.table, d.row == c.row { end += 1 } }
                 if placingRange != i ..< end {
+                    if !rowPending.isEmpty { reserveNotes(rowPending); rowPending = [] }
                     placingRange = i ..< end
                     placing = placingRange.flatMap { _footnotes(in: $0, document) }
                 }
@@ -3359,6 +3381,29 @@ public final class RichLayout {
                                 for later in placing where !here.contains(later) && !pageNotes.contains(later) && !pendingNotes.contains(later) { pendingNotes.append(later) }
                                 break
                             }
+                            here.append(id)
+                        }
+                        reserveNotes(here)
+                    } else if theme.wordRules, let c0 = _cells[i], placing.count > 0 {
+                        // (A row's notes likewise: on this page those marked
+                        // in lines of the row this page holds, the rest with
+                        // the parts of it that hold their marks — zh-499adba6
+                        // is a book set in a one-column table, a chapter a
+                        // row, and Word sets its footnotes 1-8, marked on
+                        // page 5, at page 5's foot; ours reserved the room
+                        // for them at page 3's, where the row began, and the
+                        // pages after ran six lines early.)
+                        var here: [Int] = []
+                        var room = 0.0
+                        let width = _px(pageSetup(forPage: page / _columns).contentWidth)
+                        for id in placing where !pageNotes.contains(id) {
+                            guard rowPending.isEmpty, let k = placingRange.first(where: { _footnotes(in: $0, document).contains(id) }),
+                                  let mark = _footnoteMarkLine(k, id, document), let note = _note(id, width: width, document) else {
+                                if rowPending.isEmpty { here.append(id) } else { rowPending.append(id) }
+                                continue
+                            }
+                            room += note.height + (pageNotes.isEmpty && here.isEmpty ? _note(-1, width: width, document)?.height ?? 0 : 0)
+                            if y + (mark.bottom - c0.rowTop) + room > contentH + 0.01 { rowPending.append(id); continue }
                             here.append(id)
                         }
                         reserveNotes(here)
@@ -4374,6 +4419,7 @@ public final class RichLayout {
             // (Notes still waiting at the end — every paragraph kept to
             // the last — stand at the last page's foot.)
             if !pendingNotes.isEmpty { reserveNotes(pendingNotes); pendingNotes = [] }
+            if !rowPending.isEmpty { reserveNotes(rowPending); rowPending = [] }
             _pageNotes[page] = pageNotes
         }
         if _pages.count > 1 && _pages[_pages.count - 1].isEmpty { _pages.removeLast() }

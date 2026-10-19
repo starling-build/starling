@@ -5673,6 +5673,17 @@ fitter dropped the paragraph's tail).
   advance at the file's size, for the three bullets Word's prints give
   widths for ("Ø" 0.794, "§" 0.458, "l" 0.747). zh-3fe252ff 27.5 ->
   98.6, 94 pages as Word's; nothing else moved.
+- **A row's footnotes go with the parts of it that mark them
+  (2026-10-19).** zh-499adba6 is a book set in a one-column table without
+  lines, a chapter a row; its first chapter's row runs from page 3 to 5
+  and marks footnotes 1-8 on page 5, at whose foot Word's print sets
+  them. Ours reserved a row's notes where the row began, and page 3 lost
+  six lines to notes it does not hold. A row's notes are now set as a
+  body paragraph's are: on the page where the row begins those marked in
+  the lines that page holds, and the rest with the part of the row that
+  holds each mark, as the row parts. zh-499adba6 9.8 -> 20.1 (its pages
+  1-16 Word's now); nothing else moved. No unit test: the test process
+  has no ICU to break the row's lines by.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's
