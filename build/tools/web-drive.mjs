@@ -6,6 +6,7 @@
 //
 //   click X Y            press and release the left button at CSS X,Y
 //   move X Y             move the pointer
+//   touchdrag X Y DX DY  one finger: down at X,Y, dragged by DX,DY, lifted
 //   type TEXT            each character as a key down (with text) and up
 //   press KEY            one key by name: Enter, Backspace, Tab, ArrowDown…
 //   chord ctrl|meta KEY  the key with Control or Meta held (chord ctrl s)
@@ -108,6 +109,16 @@ try {
       await mouse('mouseReleased', x, y); await sleep(300);
     } else if (op === 'move') {
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: +args.shift(), y: +args.shift(), buttons: 0 });
+    } else if (op === 'touchdrag') {
+      const x = +args.shift(), y = +args.shift(), dx = +args.shift(), dy = +args.shift();
+      await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+      const steps = 8;
+      for (let i = 1; i <= steps; i++) {
+        await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + dx * i / steps, y: y + dy * i / steps }] });
+        await sleep(16);
+      }
+      await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await sleep(400);
     } else if (op === 'type') {
       for (const ch of args.shift()) {
         const code = /[a-z]/i.test(ch) ? 'Key' + ch.toUpperCase() : /[0-9]/.test(ch) ? 'Digit' + ch : ch === ' ' ? 'Space' : 'Unidentified';

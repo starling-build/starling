@@ -85,6 +85,14 @@ check "the route's #p= opened at that paragraph" "${P[4]:-}" '"1403114754"'
 W=800 H=900 URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "starling.debug('view')" > "$OUT/drive4.log" 2>&1
 check "the same page is flow on a narrow screen" "$(evals "$OUT/drive4.log" | head -1)" '"flow"'
 export W=1400 H=900
+# A finger on the document scrolls it (a phone): three drags up, and the
+# status bar's page has moved on.
+URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "starling.debug('page')" \
+    touchdrag 700 750 0 -500 touchdrag 700 750 0 -500 touchdrag 700 750 0 -500 wait 1500 \
+    eval "+starling.debug('page') >= 2" > "$OUT/drive6.log" 2>&1
+T=(); while IFS= read -r l; do T+=("$l"); done < <(evals "$OUT/drive6.log")
+check "a page opens at its first page" "${T[0]:-}" '"1"'
+check "a finger drag scrolls the document" "${T[1]:-}" true
 # The PDF button, with the download landing in OUT; the Contents panel's
 # first entry, clicked, moves the caret to the first heading.
 rm -rf "$OUT/downloads"; mkdir -p "$OUT/downloads"

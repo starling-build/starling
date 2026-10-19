@@ -135,6 +135,7 @@ final class SiteShellState: State<StatefulWidget> {
             case "view": return self.showPages ? "pages" : "flow"
             case "status": return self._status ?? ""
             case "pages": return "\(self._pageInfo.count)"
+            case "page": return "\(self._pageInfo.page)"
             case "toc": return self._toc.map { "\($0.level)\t\($0.page ?? 0)\t\($0.text)" }.joined(separator: "\n")
             case "caret":
                 let i = self._controller.caret.paragraph
