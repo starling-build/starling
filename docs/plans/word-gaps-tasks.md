@@ -3060,13 +3060,21 @@ its long cell line is "（歲入成長率÷ 歲出", the same PMingLiU "÷ " wid
 PMingLiU's own ASCII table fixes it and breaks four documents); its compat also says doNotUseEastAsianBreakRules
 and doNotWrapTextWithPunct. Released.
 
-### T132. rtl.docx: Arabic in the run's complex-script face — Times New Roman where Word lacks it — claimed
-Owner: session starling-office1-df (Linux dev box), from 2026-10-19 (the Windows box's measurement, 01QbbApP)
+### T132. rtl.docx: Arabic in the run's complex-script face — Times New Roman where Word lacks it — tried, released
+Owner: — (released by starling-office1-df, 2026-10-19; the Windows box's measurement, 01QbbApP)
 Documents: rtl.docx (POI, 0%: 7 Word lines, ours 9).
 Known (Windows): runs say ascii/hAnsi Liberation Serif, cs "Noto Sans Arabic UI"; neither Word has that face and both
 draw the Arabic in Times New Roman (588 characters, 12pt). Ours never reads `complexFontFamily` for drawing: the
 Arabic goes to Liberation Serif (none) and then DejaVu Sans, wider. Linux: Word's Times Arabic is 0.953 of FreeSerif's
 (562 characters measured from Word's print); Noto Naskh Arabic is wider still.
+
+Tried, reverted (patch kept by starling-office1-df): a character kind of its own for Arabic/Hebrew, drawn in a
+platform face (Linux: FreeSerif at 0.953, at the run's line height) as one span per stretch, so it shapes. rtl.docx
+went from 9 lines to 8 (Word's 7) — but FreeSerif's joined forms (GSUB glyphs with no cmap entry) come out of our
+PDF's text layer as stray CJK code points ("㒘"), where DejaVu's presentation forms read back as Arabic: a real text
+regression for a document the line match scores 0 either way (its Arabic is read in visual order in Word's print,
+logical in ours). Wants a face whose joined forms map back (or ActualText spans), and on the Mac and Windows simply
+Times New Roman, which has Arabic — not tried there.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
