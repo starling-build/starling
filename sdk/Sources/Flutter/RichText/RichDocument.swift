@@ -2062,6 +2062,9 @@ public struct RichDocument: Hashable, Sendable {
     /// where `characterSpacingControl` compresses it, and two marks that
     /// stand together close up where the text kerns.
     public var usesEastAsianLayout = false
+    /// The settings' `w:doNotUseIndentAsNumberingTabStop`: a list
+    /// label's tab goes to the next tab stop, not to the hanging indent.
+    public var indentNotNumberingTabStop = false
     /// Whether punctuation kerns (the settings lack
     /// `w:noPunctuationKerning`): two marks that stand together close up
     /// only where it does.

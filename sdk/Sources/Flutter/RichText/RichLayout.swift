@@ -5331,8 +5331,21 @@ public final class RichLayout {
                 let ownStop = theme.wordRules
                     ? style.tabStops.filter { $0.rawKind != "bar" && $0.rawKind != "clear" }.map { _px($0.position) }.sorted()
                         .first(where: { $0 > ownLeft + end + 0.01 && ($0 < ownLeft - 0.01 || wl.first >= 0 || end > 0.01) }) : nil
+                // (Where the settings say `w:doNotUseIndentAsNumberingTabStop`,
+                // the default stops before the hanging indent count too:
+                // the text goes to the first of the next one and the
+                // indent. zh-447f1d5c's Wingdings bullets end at 120.5pt over
+                // an indent at 128.75, and Word starts their text at the
+                // default stop at 121.4 (840 twips); ours, at the indent,
+                // held three characters fewer a line. zh-fec5fa30's "1."
+                // ends at 115.6 with its indent at 124.9 before the stop
+                // at 126, and its text starts at the indent.)
                 if let stop = ownStop {
                     end = stop - ownLeft
+                } else if wl.first < 0, end <= 0.01, theme.wordRules, document.indentNotNumberingTabStop,
+                          case let tab = _px(document.defaultTabStop ?? 36), tab > 0.01 {
+                    let from = ownLeft + end
+                    end = min(0, ((from / tab + 0.001).rounded(.down) + 1) * tab - ownLeft)
                 } else if wl.first < 0, end <= 0.01 {
                     end = 0
                 } else if theme.wordRules, wl.first < 0, p.cell != nil {
@@ -10869,6 +10882,7 @@ public final class RichLayout {
         sub.listCounterOf = document.listCounterOf
         sub.listRestarts = document.listRestarts
         sub.usesEastAsianLayout = document.usesEastAsianLayout
+        sub.indentNotNumberingTabStop = document.indentNotNumberingTabStop
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
         sub.balancesSpaceWidth = document.balancesSpaceWidth
@@ -10986,6 +11000,7 @@ public final class RichLayout {
         sub.listCounterOf = document.listCounterOf
         sub.listRestarts = document.listRestarts
         sub.usesEastAsianLayout = document.usesEastAsianLayout
+        sub.indentNotNumberingTabStop = document.indentNotNumberingTabStop
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
         sub.balancesSpaceWidth = document.balancesSpaceWidth
@@ -11531,6 +11546,7 @@ public final class RichLayout {
         sub.lineGridPitch = nil
         sub.characterGridSpace = section.last ? document.characterGridSpace : setup.characterGridSpace
         sub.usesEastAsianLayout = document.usesEastAsianLayout
+        sub.indentNotNumberingTabStop = document.indentNotNumberingTabStop
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
         sub.balancesSpaceWidth = document.balancesSpaceWidth
