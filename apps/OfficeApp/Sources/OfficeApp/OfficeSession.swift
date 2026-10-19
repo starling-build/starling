@@ -126,9 +126,15 @@ final class OfficeSession {
 
     var path: String? = nil
     var dirty = false
+    /// A hosted document's name (HostedDocument), in place of a file's.
+    var titleOverride: String? = nil
     var title: String {
-        path.map { $0.lastPathComponent } ?? kind.untitled
+        titleOverride ?? path.map { $0.lastPathComponent } ?? kind.untitled
     }
+    /// Set for a hosted document: the owner to go back to, by name, and
+    /// the way back. The title bar shows "Back to <owner>" when set.
+    var hostName: String? = nil
+    var onClose: (() -> Void)?
 
     // Set by the shell.
     var onZoom: ((Double) -> Void)?

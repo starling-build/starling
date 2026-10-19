@@ -20,10 +20,15 @@ final class OfficeShell: StatefulWidget {
     /// Start on a blank document, not on the welcome page or a recovery
     /// copy: the window came here from Slides' "Blank document".
     let startBlank: Bool
+    /// A document owned by something other than a file (a wiki page):
+    /// opened as given, saved back to its owner, closed to its owner.
+    let hosted: HostedDocument?
 
-    init(initialPath: String?, startBlank: Bool = false, onSwitch: ((DocumentKind, String?) -> Void)? = nil) {
+    init(initialPath: String?, startBlank: Bool = false, hosted: HostedDocument? = nil,
+         onSwitch: ((DocumentKind, String?) -> Void)? = nil) {
         self.initialPath = initialPath
         self.startBlank = startBlank
+        self.hosted = hosted
         self.onSwitch = onSwitch
         super.init()
     }
@@ -97,7 +102,13 @@ final class OfficeShellState: State<StatefulWidget> {
             return OfficeLayoutDump.text(self.controller.document, pageSetup: self.session.pageSetup)
         }
         let env = ProcessInfo.processInfo.environment
-        if let pages = env["OFFICE_DEMO_PAGES"].flatMap(Int.init), pages > 0 {
+        if let hosted = (widget as! OfficeShell).hosted {
+            controller.load(hosted.document)
+            session.titleOverride = hosted.title
+            session.hostName = hosted.ownerName
+            // The way back asks about unsaved changes first, as Close does.
+            session.onClose = { [weak self] in self?.session.replacing { hosted.close() } }
+        } else if let pages = env["OFFICE_DEMO_PAGES"].flatMap(Int.init), pages > 0 {
             controller.load(DemoDocument.make(pages: pages))
         } else if let path = (widget as! OfficeShell).initialPath {
             // Bytes from the browser's picker that crossed a kind switch
@@ -345,6 +356,9 @@ final class OfficeShellState: State<StatefulWidget> {
         // the page until the user downloads it. No recovery copy either.
         return
         #else
+        // A hosted document has no file and wants no recovery copy of its
+        // own: its owner holds it.
+        guard (widget as! OfficeShell).hosted == nil else { return }
         _autosaveGeneration += 1
         let gen = _autosaveGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
@@ -474,6 +488,22 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _save() {
+        if let hosted = (widget as! OfficeShell).hosted {
+            // The owner stores it (a wiki page: a new version). Export is
+            // still the way to a .docx.
+            let revision = controller.revision
+            hosted.save(controller.document) { [weak self] message in
+                guard let self else { return }
+                if let message { self._flash(message); return }
+                self._savedRevision = revision
+                self.setState {
+                    self.session.dirty = self.controller.revision != revision
+                    self._backstage = nil
+                }
+                self._flash("Saved to the \(hosted.ownerName)")
+            }
+            return
+        }
         #if os(WASI)
         // A download, named after the document; the browser decides where
         // it goes, and asks the user if it is set to.

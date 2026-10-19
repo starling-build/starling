@@ -132,7 +132,11 @@ final class Backstage: StatelessWidget {
                                     ? ("Print…", { [session] in session.onPrint?() })
                                     : ("Export PDF", { [session] in session.onExport?("pdf") }))
         case .insertPicture: return _picturePanel(fluent)
-        case .close: return _simple("Close", "Close the document and start a blank one.", fluent, action: ("Close document", { [session] in session.replacing { session.onNew?() } }))
+        case .close:
+            if let host = session.hostName, let back = session.onClose {
+                return _simple("Close", "Leave the document and go back to the \(host).", fluent, action: ("Back to \(host)", back))
+            }
+            return _simple("Close", "Close the document and start a blank one.", fluent, action: ("Close document", { [session] in session.replacing { session.onNew?() } }))
         }
     }
 

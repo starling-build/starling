@@ -61,6 +61,8 @@ final class WikiShellState: State<StatefulWidget> {
     private let _editorFocus = FocusNode()
     private let _theme: RichTextTheme = OfficeSession(kind: .document).theme
     private var _editing = false
+    /// The whole Writer, on the page, while editing (HostedDocument).
+    private var _writer: OfficeShell?
     private var _lock: WikiLock?
     private var _heartbeat = 0          // generation token for the lock renewal
     private var _dirty = false
@@ -208,9 +210,15 @@ final class WikiShellState: State<StatefulWidget> {
             guard let self else { return }
             switch r {
             case .success(let lock):
-                self.setState { self._lock = lock; self._editing = true; self._dirty = false; self._otherLock = nil }
-                self._controller.readOnly = false
-                self._editorFocus.requestFocus()
+                // Editing is the whole Writer on the page's document: ribbon,
+                // styles, find, export — not a toolbar over the reader.
+                var doc = self._controller.document
+                if page.body.trimmingWhitespace() == "{}" { doc.styles = OfficeStyles.sheet }
+                let writer = OfficeShell(initialPath: nil, hosted: HostedDocument(
+                    title: page.title, document: doc, ownerName: "wiki",
+                    save: { [weak self] doc, done in self?._saveHosted(doc, done) },
+                    close: { [weak self] in self?._cancelEdit(reload: true) }))
+                self.setState { self._lock = lock; self._editing = true; self._dirty = false; self._otherLock = nil; self._writer = writer }
                 self._scheduleHeartbeat()
             case .failure(let e): self._report(e)
             }
@@ -230,37 +238,31 @@ final class WikiShellState: State<StatefulWidget> {
         }
     }
 
-    private func _save() {
-        guard let page = _page, _editing else { return }
-        let doc = _controller.document
-        guard let body = WikiSession.encodeBody(doc) else { setState { _status = "Could not encode the page." }; return }
-        let title = _titleField.text.trimmingWhitespace(newlines: false)
-        setState { _loading = true }
-        session.save(page.id, title: title.isEmpty ? page.title : title, body: body, plainText: WikiSession.plainText(doc),
+    /// Writer's Save: the document becomes the page's next version.
+    private func _saveHosted(_ doc: RichDocument, _ done: @escaping (String?) -> Void) {
+        guard let page = _page, _editing else { done("Not editing a page."); return }
+        guard let body = WikiSession.encodeBody(doc) else { done("Could not encode the page."); return }
+        session.save(page.id, title: page.title, body: body, plainText: WikiSession.plainText(doc),
                      links: WikiSession.linkedPages(doc), base: page.version, lockToken: _lock?.token) { [weak self] r in
             guard let self else { return }
             switch r {
             case .success(let saved):
-                self.setState { self._page = saved; self._dirty = false; self._loading = false; self._status = "Saved version \(saved.version)." }
+                self._page = saved
+                self._controller.load(doc)
                 self._refreshTree()
+                done(nil)
             case .failure(let e):
-                self.setState { self._loading = false }
-                if e.status == 409 { self.setState { self._status = "Someone saved this page while you edited. Copy your changes, then Cancel and Edit again." } }
-                else { self._report(e) }
+                if e.status == 401 { self._report(e) }
+                done(e.status == 409 ? "Someone saved this page while you edited. Export your changes, then go back and Edit again."
+                                     : "Could not save: \(e)")
             }
         }
-    }
-
-    private func _finishEdit() {
-        guard _editing else { return }
-        if _dirty { _save() }
-        _cancelEdit(reload: !_dirty)
     }
 
     private func _cancelEdit(reload: Bool) {
         _heartbeat += 1
         if let page = _page, let lock = _lock { session.unlock(page.id, token: lock.token) {} }
-        setState { _editing = false; _lock = nil; _dirty = false }
+        setState { _editing = false; _lock = nil; _dirty = false; _writer = nil }
         _controller.readOnly = true
         if reload, let page = _page { _loadPage(page.id, push: false) }
     }
@@ -386,7 +388,6 @@ final class WikiShellState: State<StatefulWidget> {
     private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         guard mods.contains(.primary), let letter = KeyChordTracker.letter(key.logical) else { return false }
         switch letter {
-        case "s": if _editing { _save() }; return true
         case "e": if !_editing { _beginEdit() }; return true
         default: return false
         }
@@ -400,8 +401,9 @@ final class WikiShellState: State<StatefulWidget> {
             _compact = view.physicalSize.width / view.devicePixelRatio < 900
         }
         if self._needLogin { return self._loginView(fluent) }
+        // Editing: the whole Writer, nothing of the wiki's chrome around it.
+        if self._editing, let writer = self._writer { return writer }
         var column: [Widget] = [self._header(fluent)]
-        if self._editing { column.append(self._toolbar(fluent)) }
         column.append(Expanded(child: self._editor(fluent)))
         column.append(self._statusBar(fluent))
         let main = Padding(padding: EdgeInsets(all: self._compact ? 12 : 24), child: DecoratedBox(
@@ -551,11 +553,7 @@ final class WikiShellState: State<StatefulWidget> {
         let ink = WikiAppearance.ink
         var items: [Widget] = []
         if let page = _page {
-            if _editing {
-                items.append(Button(onPressed: { [weak self] in self?._cancelEdit(reload: true) }, child: Text("Cancel")))
-                items.append(Chrome.gap(8))
-                items.append(FilledButton(onPressed: { [weak self] in self?._finishEdit() }, child: Text(_dirty ? "Save" : "Done")))
-            } else if page.version < page.tip {
+            if page.version < page.tip {
                 items.append(Text("Viewing version \(page.version) of \(page.tip)", style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted)))
                 items.append(Chrome.gap(12))
                 items.append(Button(onPressed: { [weak self] in self?._loadPage(page.id, push: false) }, child: Text("Back to latest")))
@@ -590,9 +588,7 @@ final class WikiShellState: State<StatefulWidget> {
                 items.append(FilledButton(onPressed: _otherLock == nil ? { [weak self] in self?._beginEdit() } : nil, child: Text("Edit")))
             }
         }
-        let title: Widget = _editing
-            ? WikiAppearance.field(_titleField, placeholder: "Title")
-            : Text(_page?.title ?? (_loading ? "Loading…" : "Choose a page"), style: WikiAppearance.text(_compact ? 25 : 32, bold: true))
+        let title: Widget = Text(_page?.title ?? (_loading ? "Loading…" : "Choose a page"), style: WikiAppearance.text(_compact ? 25 : 32, bold: true))
         return DecoratedBox(
             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: WikiAppearance.line, width: 1))),
             child: Padding(padding: EdgeInsets(all: _compact ? 16 : 24), child: Column(crossAxisAlignment: .stretch, children: [
@@ -627,33 +623,6 @@ final class WikiShellState: State<StatefulWidget> {
                     HyperlinkButton(onPressed: { [weak self] in self?.setState { self?._historyOpen = false } }, child: Text("Close", style: fluent.typography.caption)),
                 ])),
                 Expanded(child: list),
-            ])))
-    }
-
-    private func _toolbar(_ fluent: FluentThemeData) -> Widget {
-        let ink = WikiAppearance.ink
-        let c = _controller
-        // A fixed width each: a button left to size itself inside the Wrap
-        // took the whole row on a phone, one per line down the screen, and
-        // the editor was pushed off the bottom.
-        func b(_ label: String, _ tip: String, width: Double = 32, _ action: @escaping () -> Void) -> Widget {
-            FlatButton(child: Center(child: Text(label, style: fluent.typography.bodyStrong?.copyWith(color: ink))),
-                       tip: tip, width: width, height: 28, action: action)
-        }
-        return DecoratedBox(
-            decoration: BoxDecoration(color: WikiAppearance.white, border: Border(bottom: BorderSide(color: WikiAppearance.line, width: 1))),
-            child: Padding(padding: EdgeInsets(left: 12, top: 4, right: 12, bottom: 4), child: Wrap(spacing: 2, runSpacing: 8, children: [
-                b("B", "Bold (⌘B)") { c.toggleBold() }, Chrome.gap(2),
-                b("I", "Italic (⌘I)") { c.toggleItalic() }, Chrome.gap(2),
-                b("U", "Underline (⌘U)") { c.toggleUnderline() }, Chrome.gap(12),
-                b("H1", "Heading 1", width: 40) { c.setHeading(1) }, Chrome.gap(2),
-                b("H2", "Heading 2", width: 40) { c.setHeading(2) }, Chrome.gap(2),
-                b("H3", "Heading 3", width: 40) { c.setHeading(3) }, Chrome.gap(2),
-                b("¶", "Normal text") { c.setHeading(nil) }, Chrome.gap(12),
-                b("•", "Bulleted list") { c.toggleList(.bullet) }, Chrome.gap(2),
-                b("1.", "Numbered list", width: 36) { c.toggleList(.numbered) }, Chrome.gap(12),
-                b("↶", "Undo (⌘Z)") { c.undo() }, Chrome.gap(2),
-                b("↷", "Redo (⇧⌘Z)") { c.redo() },
             ])))
     }
 

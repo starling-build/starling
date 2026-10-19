@@ -37,9 +37,23 @@ final class TitleRow: StatelessWidget {
                        tip: tip, enabled: enabled, width: 32, height: 32,
                        onAccent: true, action: action)
         }
+        var leading: [Widget] = []
+        if let host = session.hostName, session.onClose != nil {
+            // A hosted document (a wiki page): the way back, first.
+            leading = [
+                FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 10, bottom: 0),
+                    child: Row(mainAxisSize: .min, children: [
+                        Icon(FluentSystemIcons.back, size: 16, color: white), Chrome.gap(6),
+                        Text("Back to \(host)", style: captionStyle, softWrap: false),
+                    ])),
+                    tip: "Back to the \(host)", width: nil, height: 32, onAccent: true,
+                    action: { [session] in session.onClose?() }),
+                Chrome.gap(12),
+            ]
+        }
         return ColoredBox(color: OfficeAppearance.titleBar,
             child: Padding(padding: EdgeInsets(left: 16, top: 10, right: 16, bottom: 10), child: Row(
-                crossAxisAlignment: .center, children: [
+                crossAxisAlignment: .center, children: leading + [
                     // The app's own icon (OfficeLogo.swift), where a lettered
                     // tile stood: "W", and "S" for Sheets and Slides alike.
                     SizedBox(width: 32, height: 32, child: CustomPaint(

@@ -340,10 +340,17 @@ gated server-side, the browser gate written and awaiting its first green.**
   the LAN at http://192.168.68.62:8080/s/ENG with `--dev-user dev`, so a
   phone needs no sign-in (dev / devpass otherwise; wiki/README.md restarts
   it). `test/wiki-web.sh` now also signs in by composed text, checks the
-  hidden field took focus, and checks `--dev-user`. On a phone the editing
-  toolbar's self-sized buttons each took a whole row and pushed the editor
-  off the screen (fixed widths now), and the page sizes its canvas to the
-  visual viewport so the editor lays out above the keyboard. Two bodies
+  hidden field took focus, and checks `--dev-user`. **Edit opens the whole
+  Writer** (user's requirement, 2026-10-18 evening: "when edit a page/doc,
+  we should bring the whole writer app"): `OfficeShell(hosted:
+  HostedDocument)` loads the page's document with ribbon, styles, find
+  and export; its Save hands the document back (`HostedDocument.save` →
+  the wiki's save, a new version, "Saved to the wiki"); the title bar
+  gets "Back to wiki" (and Backstage's Close becomes that), through the
+  unsaved-changes question; no recovery copies for a hosted document.
+  The wiki's own toolbar-over-the-reader is gone. The page sizes its
+  canvas to the visual viewport so the app lays out above a phone's
+  keyboard. Two bodies
   the first hours' server wrote as a hand-made envelope (before `{}` was
   the placeholder) did not decode — "This page's content cannot be read
   by this build" — and were reset to `{}` in the dev database; nothing

@@ -58,7 +58,9 @@ DRIVE=(node "$REPO/build/tools/web-drive.mjs")
 export PORT="${DEVTOOLS:-9345}" CHROME_PROFILE="$OUT/chrome-profile" W=1400 H=900
 rm -rf "$CHROME_PROFILE"
 # The sign-in card is centred: login field, password field, button; then
-# the Edit button, the page body, and the Save button, by position.
+# the Edit button, which opens the whole Writer on the page (title bar,
+# ribbon, document); a click into the document, Ctrl+S (Writer's Save,
+# which the wiki stores as a version), and "Back to wiki" in the title bar.
 # The password is typed the way a phone's keyboard or an input method
 # types: as composed text into the page's hidden field, not as keys.
 COMPOSE="document.getElementById('starling-ime').dispatchEvent(new InputEvent('beforeinput', {inputType: 'insertText', data: 'pw1', cancelable: true, bubbles: true}))"
@@ -66,9 +68,10 @@ URL="$URL$ROUTE" "${DRIVE[@]}" wait 9000 shot "$OUT/1-signin.png" \
     click 700 500 wait 300 eval "document.activeElement.id" type alice \
     click 700 560 wait 300 eval "$COMPOSE" wait 200 press Enter \
     wait 4000 shot "$OUT/2-page.png" \
-    click 750 220 wait 1500 shot "$OUT/3-editing.png" \
-    click 450 350 wait 300 type "Hello from the browser. " wait 500 \
-    click 455 228 wait 3000 shot "$OUT/4-saved.png" \
+    click 750 220 wait 3000 shot "$OUT/3-writer.png" \
+    click 700 450 wait 300 type "Hello from the browser. " wait 500 \
+    chord ctrl s wait 3000 shot "$OUT/4-saved.png" \
+    click 64 26 wait 2500 shot "$OUT/5-back.png" \
     > "$OUT/drive.log" 2>&1
 tail -3 "$OUT/drive.log" | sed 's/^/        /'
 [ -s "$OUT/2-page.png" ] && pass "screenshots taken ($OUT)" || fail "no screenshots — see $OUT/drive.log"
@@ -77,7 +80,7 @@ check "a focused field focuses the page's hidden text field (a phone's keyboard)
 AFTER="$(curl -s -b "$JAR" "$URL/api/v1/pages/$PID1")"
 check "the browser's save made version 2" "$(echo "$AFTER" | json '["version"]')" 2 || echo "        page: $(echo "$AFTER" | /usr/bin/cut -c1-200)"
 check "the typed text reached the server" "$(echo "$AFTER" | json '["plainText"]' | grep -c 'Hello from the browser')" 1
-check "the lock was released on save" "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$URL/api/v1/pages/$PID1/lock")" 404
+check "the lock was released on Back to wiki" "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$URL/api/v1/pages/$PID1/lock")" 404
 
 echo "── serve --dev-user"
 kill "$PID" 2>/dev/null; wait "$PID" 2>/dev/null
