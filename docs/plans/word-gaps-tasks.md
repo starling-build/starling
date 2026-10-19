@@ -3143,10 +3143,18 @@ logical in ours). Wants a face whose joined forms map back (or ActualText spans)
 Times New Roman, which has Arabic — not tried there.
 
 ### T138. zh-db07d44e p30: a cell line's "，" and "。" squeezed to 0.75 em (mode 15, zh-TW, compressPunctuation)
-Owner: starling-b2 (Linux slides session 01JsizVV), from 2026-10-19 — offered by starling-office1-df
+Owner: — (released by starling-b2, 2026-10-19, measured; for starling-office1-df, who knows the fitter)
 Documents: zh-db07d44e (33.8 → 36.8). 標楷體 12pt, jc both, cell 3545 twips: "範圍內每增(減)10%，加(減)1 分。" is one line
 in Word's print with "，" and "。" each 9pt, the ideographs 12 apart; ours keeps both at 12 and sends "分。" on. Many of
 its cells' lines are the same, and its rows part differently from p22 on.
+Measured (converter at tip, OFFICE_WORD_FONTS=mac, STARLING_RICHTEXT_FIT="範圍內每增"): the paragraph is
+"實績值達規劃設計值(1,050萬噸)得基準分80分，在安全操作範圍內每增(減)10%，加(減)1 分。", column 166.45pt; Word's 3 lines, ours 4.
+The fitter's own decision on "分。" is `over 12.53 hang 0.0 need 12.53 room 12.0 of 2 marks … taken true` — it takes
+the piece, but the two marks can give only 12.0 of the 12.53 and the painter then wraps "分。" anyway (4 lines). So a
+"taken" whose need passes the room is the first thing to look at. Word's print: the line's ink runs 380.9-550.3, past
+the 166.45 column (it starts at 380.9 as ours does), so Word hangs the closing "。" past the edge, with "，" at 9pt —
+ours has hang 0.0 here (a cell, overflowPunct). Also: on p30 ours carries two lines of the row above (a row parted
+elsewhere from p22 on, as noted), unrelated to this line.
 
 ### T137. Test bundle: ICU's data loaded before any test lays out text — DONE (2026-10-19)
 Owner: none (Linux slides session starling-b2, 01JsizVV, built it)
