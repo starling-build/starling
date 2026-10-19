@@ -985,6 +985,9 @@ public final class RichLayout {
         var across: Double = 0
         /// The cell's margins, px: its own, or the table's.
         var pad = EdgeInsets.zero
+        /// The bottom margin the file states for the cell, without the
+        /// rule room `pad` takes in with it.
+        var margin: Double = 0
         /// How much of `pad`, top and bottom together, is the row's
         /// rules: a row is that much taller than the height the file
         /// gave it.
@@ -3182,7 +3185,12 @@ public final class RichLayout {
                             // (All that is left of this cell is on this page.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
-                        } else if let cut = column.cuts.last(where: { $0 > column.cut + 0.01 && $0 <= limit }) {
+                        } else if let cut = column.cuts.last(where: { $0 > column.cut + 0.01 && $0 <= limit - (theme.wordRules ? d0.margin : 0) }) {
+                            // (Under the cut, the cell's bottom margin, as
+                            // the part is closed with it: zh-12f87285's
+                            // cells state 1.2pt, and Word leaves a line
+                            // 0.9pt clear of the foot, less that, for the
+                            // next page — p6, p16, p26, p28.)
                             next[n] = cut
                             moved = true
                         } else {
@@ -5330,6 +5338,7 @@ public final class RichLayout {
                                  colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan, edges: c.edges,
                                  verticalAlign: c.verticalAlign, direction: c.textDirection, pad: pad, rules: rules, ruleBelow: ruleBelow, borders: c.borders)
             _cells[i]!.ruleNext = ruleNext
+            _cells[i]!.margin = c.padding.map { _px($0.bottom) } ?? 0
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
             if c.textDirection != .horizontal {

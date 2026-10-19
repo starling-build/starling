@@ -1612,6 +1612,42 @@ final class DocxTests: XCTestCase {
         XCTAssertLessThanOrEqual(turn, foot + 1, "turned about the part's foot, not the merge's")
     }
 
+    func testARowPartedAtTheFootKeepsRoomForItsCellsBottomMargin() throws {
+        // zh-12f87285 p6: a cell stating 1.2pt bottom margins (tcMar 24)
+        // keeps three 31.3pt lines on the page in Word's print, the fourth
+        // ending 0.9 clear of the foot going over — the part is closed
+        // with its margin under it. Ours kept the fourth, and every page
+        // after ran a line early.
+        // Here: 697.9pt of page, a 17pt line, then a cell of 20pt lines —
+        // the 34th would end 0.9pt over the foot.
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), end = try XCTUnwrap(xml.range(of: "</w:body>"))
+        func line(_ text: String, _ twips: Int) -> String {
+            "<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"\(twips)\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p>"
+        }
+        let cell = (0 ..< 40).map { line("cell \($0)", 400) }.joined()
+        xml.replaceSubrange(body.upperBound ..< end.lowerBound, with: line("lead", 340)
+            + "<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+            + "<w:tblGrid><w:gridCol w:w=\"5000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"5000\" w:type=\"dxa\"/>"
+            + "<w:tcMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"24\" w:type=\"dxa\"/></w:tcMar></w:tcPr>\(cell)</w:tc></w:tr></w:tbl>"
+            + "<w:p/><w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"0\" w:footer=\"0\" w:gutter=\"0\"/></w:sectPr>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let doc = opened.document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        XCTAssertGreaterThan(l.pageCount, 1, "the row parts over the page")
+        let kept = Set(l.pieces[0].map(\.paragraph)).filter { doc.paragraphs[$0].text.hasPrefix("cell") }.count
+        XCTAssertEqual(kept, 33, "the 34th line goes over: under it, no room for the cell's 1.2pt margin")
+    }
+
     func testAHintedDegreeSignInSongTiIsAnEm() throws {
         // zh-cd8987db p7: "坡度＜25°的…", a run of 宋体 that says w:hint
         // eastAsia — Word sets its "°" in 宋体, 10.50 at 10.5pt; ours was the
