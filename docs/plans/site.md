@@ -177,7 +177,16 @@ Word attachments are forms, not manuals, and its one large report is a
 legacy .doc that textutil turns to garbage; the corpus's non-Chinese
 documents are bug-tracker attachments of unknown licence.
 
-Not yet: a smaller stored
-form for table-heavy documents (above); a text layer for screen readers
-(the noscript text is for crawlers only); a phone layout for the Writer's
+**A text layer for screen readers (2026-10-19):** the canvas is a picture
+to a screen reader and a crawler alike, so the shell page carries the
+document's paragraphs and headings as hidden HTML (`<main
+id="starling-text" class="starling-sr">`, h1–h3 and p, clipped to a pixel;
+shown plainly with scripts off), and the reader replaces it as it moves
+between pages (`WebAccessibility.setDocumentText` →
+`starling_host_set_document_text`). It is the document's text in reading
+order, not its layout; the reader's own controls (the tree, the buttons)
+are still only on the canvas, which is the next accessibility step.
+
+Not yet: a smaller stored form for table-heavy documents (above); the
+reader's controls for screen readers; a phone layout for the Writer's
 ribbon when editing (the reader is fine on a phone).

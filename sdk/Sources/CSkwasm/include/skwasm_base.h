@@ -118,4 +118,9 @@ HOST(clipboard_write)
 void starling_host_clipboard_write(const void* utf8, uint32_t length, const void* html, uint32_t htmlLength);
 HOST(clipboard_read) void starling_host_clipboard_read(uint32_t id);
 
+// The document's text for screen readers and crawlers: one line per
+// paragraph as "<level>\t<text>" (level 0 a paragraph, 1-3 a heading),
+// which the page keeps as hidden HTML beside the canvas.
+HOST(set_document_text) void starling_host_set_document_text(const void* utf8, uint32_t length);
+
 #endif  // STARLING_SKWASM_BASE_H

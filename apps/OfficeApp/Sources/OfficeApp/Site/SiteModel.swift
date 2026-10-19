@@ -148,6 +148,20 @@ enum SiteFiles {
     }
 }
 
+/// The document's paragraphs with their heading level (0 none, 1-3), for
+/// the text layer the page keeps for screen readers: written by the build
+/// into the shell page, replaced by the reader as it moves between pages.
+enum SiteTextLayer {
+    static func lines(of doc: RichDocument) -> [(level: Int, text: String)] {
+        doc.paragraphs.compactMap { p in
+            let text = p.text.trimmingWhitespace()
+            guard !text.isEmpty else { return nil }
+            let level = p.style.named == "Title" ? 1 : (p.style.heading.map { min(3, max(1, $0)) } ?? 0)
+            return (level: level, text: text)
+        }
+    }
+}
+
 #if !os(WASI)
 /// `OfficeApp --site-build`: the repository folder into the folder Pages
 /// serves. Native only — it reads and writes files and copies the web build.
@@ -232,7 +246,8 @@ enum SiteBuilder {
             entries.append(SiteSearchEntry(slug: node.slug, title: node.title, text: text))
             let html = SiteShellPage.render(template: template, base: manifest.base, route: manifest.route(node.slug),
                                             title: node.title, siteTitle: manifest.title,
-                                            description: SiteFiles.summary(doc), text: text)
+                                            description: SiteFiles.summary(doc), text: text,
+                                            lines: SiteShellPage.lines(of: doc))
             if node.slug == manifest.home {
                 try html.write(toFile: out + "/index.html", atomically: true, encoding: .utf8)
             }
@@ -294,8 +309,10 @@ enum SiteShellPage {
         return out
     }
 
+    static func lines(of doc: RichDocument) -> [(level: Int, text: String)] { SiteTextLayer.lines(of: doc) }
+
     static func render(template: String, base: String, route: String, title: String, siteTitle: String,
-                       description: String, text: String) -> String {
+                       description: String, text: String, lines: [(level: Int, text: String)] = []) -> String {
         let desc = String(description.replacingOccurrences(of: "\n", with: " ").prefix(300))
         let full = title == siteTitle ? title : "\(title) — \(siteTitle)"
         let meta = """
@@ -318,9 +335,19 @@ enum SiteShellPage {
         if let r = html.range(of: "args: [],") {
             html.replaceSubrange(r, with: "args: ['--site', '\(escape(base))'],")
         }
+        // The text layer: the page's paragraphs and headings as hidden
+        // HTML for screen readers and crawlers (the canvas is a picture to
+        // both), shown plainly when scripts are off. The app replaces it
+        // as the reader moves between pages.
         if !text.isEmpty, let r = html.range(of: "<body>") {
-            let paragraphs = text.split(separator: "\n").map { "<p>\(escape(String($0)))</p>" }.joined(separator: "\n")
-            html.replaceSubrange(r, with: "<body>\n<noscript><main><h1>\(escape(title))</h1>\n\(paragraphs)\n</main></noscript>")
+            let all = lines.isEmpty ? text.split(separator: "\n").map { (level: 0, text: String($0)) } : lines
+            let elements = all.map { line -> String in
+                let tag = (1 ... 3).contains(line.level) ? "h\(line.level)" : "p"
+                return "<\(tag)>\(escape(line.text))</\(tag)>"
+            }.joined(separator: "\n")
+            let style = "<style>.starling-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}</style>\n"
+                + "<noscript><style>.starling-sr{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;padding:16px;font:16px system-ui,sans-serif;color:#eee}</style></noscript>\n"
+            html.replaceSubrange(r, with: "<body>\n" + style + "<main id=\"starling-text\" class=\"starling-sr\" aria-label=\"" + escape(title) + "\">\n" + elements + "\n</main>")
         }
         return html
     }

@@ -54,6 +54,7 @@ URL="$URL/publishing/" "${DRIVE[@]}" wait 9000 shot "$OUT/1-publishing.png" \
     eval "document.title" eval "starling.debug('slug')" eval "starling.debug('text').slice(0, 40)" \
     click 100 366 wait 1500 shot "$OUT/2-about.png" \
     eval "location.pathname" eval "starling.debug('slug')" \
+    eval "document.querySelector('#starling-text h1')?.textContent" \
     click 140 233 wait 300 type "slug" wait 1200 shot "$OUT/3-search.png" \
     click 100 295 wait 1500 eval "starling.debug('slug')" eval "location.pathname" \
     > "$OUT/drive.log" 2>&1
@@ -63,9 +64,10 @@ check "the tab is titled after the page and site" "${R[0]:-}" '"Publishing — S
 check "the app opened the page the URL names" "${R[1]:-}" '"publishing"'
 check "the page's text is drawn" "${R[2]:-}" '"Publishing\nPublish builds the site into "'
 check "a tree click moves the address bar" "${R[3]:-}" '"/about/"'
+check "and the text layer for screen readers follows" "$(grep -c 'eval: "About"' "$OUT/drive.log")" 1
 check "and opens that page" "${R[4]:-}" '"about"'
-check "a search hit opens its page" "${R[5]:-}" '"getting-started"'
-check "at its route" "${R[6]:-}" '"/getting-started/"'
+check "a search hit opens its page" "${R[6]:-}" '"getting-started"'
+check "at its route" "${R[7]:-}" '"/getting-started/"'
 
 echo "── a paged page: pages on a desktop, flow on a phone, contents with page numbers, a link to a paragraph"
 # sample-paper came from a .docx and carries its page setup; 1403114754 is

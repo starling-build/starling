@@ -202,6 +202,8 @@ final class SiteShellState: State<StatefulWidget> {
                 hostSetWindowTitle?(title == m.title ? title : "\(title) — \(m.title)")
                 #if os(WASI)
                 if push { WebHistory.push(m.route(slug)) }
+                // The text layer for screen readers follows the page.
+                WebAccessibility.setDocumentText(SiteTextLayer.lines(of: page.document))
                 #endif
                 if let id = self._pendingParagraph { self._pendingParagraph = nil; self._reveal(paragraphID: id) }
             case .failure(let e):

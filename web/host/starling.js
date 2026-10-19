@@ -484,6 +484,27 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
       }
     } catch (error) { fail(error); }
   };
+  // The open document's text as hidden HTML (#starling-text) for screen
+  // readers and crawlers: the canvas is a picture to them. A site build
+  // writes the first page's into the shell; the app replaces it as the
+  // reader moves between pages.
+  host.set_document_text = (pointer, length) => {
+    const lines = textIn(pointer, length).split('\n');
+    let main = document.getElementById('starling-text');
+    if (!main) {
+      main = document.createElement('main');
+      main.id = 'starling-text';
+      main.className = 'starling-sr';
+      document.body.append(main);
+    }
+    main.replaceChildren(...lines.filter(l => l.length).map((line) => {
+      const tab = line.indexOf('\t');
+      const level = tab >= 0 ? +line.slice(0, tab) : 0;
+      const el = document.createElement(level >= 1 && level <= 3 ? `h${level}` : 'p');
+      el.textContent = tab >= 0 ? line.slice(tab + 1) : line;
+      return el;
+    }));
+  };
   host.clipboard_read = (id) => {
     const answer = (text) => transfer(encoder.encode(text), (pointer, length) => swift.starling_clipboard_text(id, pointer, length));
     const read = navigator.clipboard?.readText ? navigator.clipboard.readText() : Promise.reject(new Error('no clipboard'));

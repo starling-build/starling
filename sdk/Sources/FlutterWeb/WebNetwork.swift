@@ -153,6 +153,16 @@ func starlingClipboardText(_ id: UInt32, _ bytes: UnsafePointer<UInt8>?, _ count
     WebClipboard.shared.deliver(id, text)
 }
 
+/// What the page keeps beside the canvas for screen readers and crawlers.
+public enum WebAccessibility {
+    /// The open document's text: each line a paragraph, with its heading
+    /// level (0 for none, 1-3). Replaces what the shell page carried.
+    public static func setDocumentText(_ lines: [(level: Int, text: String)]) {
+        var joined = lines.map { "\($0.level)\t\($0.text)" }.joined(separator: "\n")
+        joined.withUTF8 { starling_host_set_document_text($0.baseAddress, UInt32($0.count)) }
+    }
+}
+
 /// The tab's URL, as a route the app owns.
 public enum WebHistory {
     /// Called with the new route when the user goes back or forward.
