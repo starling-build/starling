@@ -2536,6 +2536,22 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**Open, 2026-10-18: a bulleted paragraph's positive indent, and a
+build that changes with code that does not run.** bullet-indent's
+first paragraph (`indent="324000"`, a first-line indent, under a
+bullet) prints in PowerPoint with the bullet at the margin and the text
+at the indent — as a hanging indent of that size would; ours puts the
+bullet at margin + indent and the text after it. Read in `_shape`'s
+paragraph loop as a hang (margin + indent, the indent hanging back),
+it lands to the tenth of a point (bullet-indent 1.08 → 0.74). But a
+build with that block made 70 other decks worse (+50.8 in sum) — 45541's
+bullets 27 pt right — though logging shows the block never runs for
+them, only for bullet-indent's paragraph; without it the same source
+renders as before, deterministically. Something in the build (that
+function is very large; release, whole-module) changes with the block
+present. Not committed; to be looked at with the block moved into a
+small function of its own, and the output compared.
+
 **A diagram's author-sized text keeps its size when laid out here,
 2026-10-18** (sweep 227: autofit-sync's third column now PowerPoint's
 16 and 14 pt at its place to a tenth of a point; no score moved past
