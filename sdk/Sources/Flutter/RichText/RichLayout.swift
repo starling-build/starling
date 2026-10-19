@@ -6704,6 +6704,17 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(heldKind ?? current ?? kind)))
                     inserts.append(offset)
                     afterHeld = false
+                } else if theme.wordRules, !lineRulesOff, before == " ",
+                          ch == "%" || ch == "‰" || ch == "℃" || Self._closingMarks.contains(ch) {
+                    // (Nor after spaces before a mark no line may start
+                    // with: Word goes back to the break before them.
+                    // zh-f43c9edf's "提取    %作为…" — a blank to fill in —
+                    // ends a line "提" and starts the next "取    %" in
+                    // Word's print; the engine parted it at the spaces and
+                    // opened the line with "%".)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
                           Self._breaksBetween(b, ch) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             // (In a line too narrow for one character
