@@ -811,6 +811,14 @@ enum DocxFormat {
                 if pendingBreakCharacter, !p.style.pageBreakInline {
                     p.style.breakEndsPrevious = true; p.style.breakRunPropertiesXML = pendingBreakRPr; p.style.columnBreak = pendingBreakColumn
                 }
+                // (A paragraph of a page break alone, then one opening with
+                // its own: Word's page between is blank but for the second
+                // paragraph's start — zh-e74dd0a1's page 63, its folio
+                // alone, before "衢州市政府信息公开工作社会评议办法" on 64;
+                // ours merged the two breaks, and ran two pages short.)
+                else if pendingBreakCharacter, p.style.pageBreakInline, !pendingBreakColumn, !p.style.columnBreak {
+                    p.style.pageBreakTwice = true
+                }
                 pendingBreakCharacter = false; pendingBreakRPr = nil; pendingBreakColumn = false
             }
             if p.cell == nil { p.cell = currentCell }

@@ -5651,6 +5651,16 @@ fitter dropped the paragraph's tail).
   "…中的标准计" lost its "计" (100 -> 31.8), zh-11701b00 and zh-15f67ef1
   fell too. A blank under 0.01pt is none now, and what a joiner cannot
   give the quote gives. All three back to 100; nothing else moved.
+- **Two page breaks in a row leave a blank page (2026-10-19).** A
+  paragraph of a page break alone, then one that opens with its own:
+  the reader carried the first break onto the second paragraph, where it
+  merged with that paragraph's own, and one page turned. Word turns two —
+  lab `bb` (the Mac, Word 16): "甲" / break / "[break]乙" prints three
+  pages, and either break alone two. zh-e74dd0a1's page 63 is that blank
+  page, its folio alone, before "衢州市政府信息公开工作社会评议办法";
+  ours ran two pages short from there. The paragraph is marked
+  `pageBreakTwice` and the layout turns the page twice for it.
+  zh-e74dd0a1 52.6 -> 99.4, 134 pages as Word's; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

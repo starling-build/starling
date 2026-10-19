@@ -563,6 +563,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// there — Word drops the space before a paragraph that follows a
     /// break character, and keeps it under "page break before".
     public var breakEndsPrevious = false
+    /// The paragraph opens with its own page break right after a
+    /// paragraph that ended with one: two breaks, and the page between
+    /// them stands blank (its start before the break is all it holds).
+    public var pageBreakTwice = false
     /// Word's pagination hints, kept through a save (the layout paginates
     /// its own way): keep with next, keep lines together, widow control.
     public var keepNext = false

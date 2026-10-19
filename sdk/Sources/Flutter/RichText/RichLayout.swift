@@ -3862,6 +3862,7 @@ public final class RichLayout {
                     newPage()
                 }
                 newPage()
+                if theme.wordRules, document.paragraphs[i].style.pageBreakTwice { newPage() }
             }
             // A float that bands its page (`ImageFloat.bandsPage`): the text
             // keeps off it, and what of the page's text before its anchor

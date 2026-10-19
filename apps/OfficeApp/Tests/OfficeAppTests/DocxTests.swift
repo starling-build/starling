@@ -790,6 +790,34 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(cell[0].style.pageBreakBefore)
     }
 
+    /// A paragraph of a page break alone, then one that opens with its
+    /// own: Word's print has a blank page between (lab `bb`, Word 16 for
+    /// Mac: "甲" / break / "[break]乙" is three pages; zh-e74dd0a1's
+    /// page 63). Either break alone is one page turned.
+    func testABreakOnlyParagraphThenALeadingBreakLeavesABlankPage() throws {
+        func pages(_ inner: String) throws -> Int {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with: "<w:p><w:r><w:t>甲</w:t></w:r></w:p>" + inner)
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let doc = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = 612 * 96.0 / 72.0
+            layout.ensureLaidOut(doc)
+            return layout.pageCount
+        }
+        let breakOnly = "<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>"
+        let leading = "<w:p><w:r><w:br w:type=\"page\"/></w:r><w:r><w:t>乙</w:t></w:r></w:p>"
+        XCTAssertEqual(try pages(breakOnly + leading), 3)
+        XCTAssertEqual(try pages(breakOnly + "<w:p><w:r><w:t>乙</w:t></w:r></w:p>"), 2)
+        XCTAssertEqual(try pages(leading), 2)
+    }
+
     /// Word leaves a paragraph's space before behind where the paragraph
     /// heads a page after a break that ended the paragraph above; it
     /// keeps it where the paragraph itself begins with the break, and —
