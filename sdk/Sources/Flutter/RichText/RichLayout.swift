@@ -5559,6 +5559,17 @@ public final class RichLayout {
                 if textWidth < em { lineWidth = max(lineWidth, em) }
             }
             painter.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
+            // (A paragraph of spaces alone is one line, its spaces hung
+            // past the edge as a line's last ones are: zh-cfb32050's form
+            // opens with a 14pt cell holding fifteen spaces under a
+            // 31-character first-line indent, and its row is as tall as
+            // the text beside it in Word's print, 189pt; ours set the
+            // spaces a line each and the row stood 216.)
+            if theme.wordRules, !p.text.isEmpty, p.text.unicodeScalars.allSatisfy({ $0.value == 0x20 }),
+               painter.computeLineMetrics().count > 1 {
+                let whole = painter.maxIntrinsicWidth.rounded(.up) + 1
+                if whole > lineWidth { painter.layout(minWidth: whole, maxWidth: whole) }
+            }
             if let key = Self.debugFit, !key.isEmpty, p.text.containsSubstring(key) {
                 let line = "width \(i): column \(textWidth / _px(1))pt, text \(painter.maxIntrinsicWidth / _px(1))pt, \(painter.computeLineMetrics().count) lines\n"
                 FileHandle.standardError.write(Data(line.utf8))

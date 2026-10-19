@@ -6673,3 +6673,13 @@ sections use), so a save still has it. Only one corpus file qualifies: drawing.d
 unbordered wrappers hold no qualifying shape and did not move. Sweep n367 against
 n366 on one base: zh-e9616b2b 63.1 → 93.8 (pages 6/6), nothing else moved.
 
+### A paragraph of spaces alone is one line (2026-10-18)
+
+zh-cfb32050's scoring form opens with a row whose first cell is 14pt wide and holds
+fifteen spaces under a 31-character first-line indent. A line narrower than an em is
+laid out a character a line (see `_span`), so the spaces took six lines and the row
+stood 216pt; Word's print has it as tall as the text cell beside it, 189pt, and the
+form ran 27pt low on every page after. A paragraph of nothing but spaces is now laid
+out as wide as its spaces, one line: they hang past the edge as a line's last spaces
+do. Sweep n370 against n369 on one base: zh-cfb32050 76.5 → 98.1, nothing else moved.
+
