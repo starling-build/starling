@@ -2548,6 +2548,16 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A cycle's arrows on their chords, 2026-10-19** (sweep 248: corpus
+mean 0.9250 → 0.9219; smartart-multidirectional −0.98, smartart-cycle
+1.03 → 0.27, none other moved). Every arrow of smartart-cycle stood
+16.3 pt above PowerPoint's, whatever its direction — half its own
+height. The cycle sets each connector's slot centred on the chord
+between its neighbours; the node's own caps then shrank the slot from
+its top left corner, so the arrow, turned about its new middle, rose by
+half what was cut. A turned node is now shrunk about its middle. (What
+multidirectional's note took for the ring sitting off was this.)
+
 **A placeholder's shadow from its master, and a shadow scaled alike
 both ways, 2026-10-19** (sweep 247: corpus mean 0.9267 → 0.9250;
 tdf104015 0.92 → 0.00, none other moved). tdf104015's title is red and

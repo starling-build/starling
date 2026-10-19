@@ -763,7 +763,11 @@ struct DiagramLayout {
             if node.selfSet.contains("w"), let v = node.vals["w"], v > 1.5 { w = min(w, v) }
             if node.selfSet.contains("h"), let v = node.vals["h"], v > 1.5, (node.vals["w"] ?? 2) > 1.5 { h = min(h, v) }
             if w < node.rect.width - 0.01 || h < node.rect.height - 0.01 {
-                node.rect = Rect.fromLTWH(node.rect.left, node.rect.top, w, h)
+                // (A turned one about its middle, where it was placed: a
+                // cycle's arrows, set on the chord between their nodes and
+                // capped after, stood half their height above it.)
+                node.rect = node.rotation != 0 ? Rect.fromCenter(center: node.rect.center, width: w, height: h)
+                    : Rect.fromLTWH(node.rect.left, node.rect.top, w, h)
             }
         }
         if let ar = node.params["ar"].flatMap(Double.init), ar > 0, node.rect.width > 0, node.rect.height > 0 {
