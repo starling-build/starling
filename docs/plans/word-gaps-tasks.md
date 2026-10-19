@@ -247,8 +247,8 @@ something else.
 ### Note from the Mac (2026-10-19): the zh corpus is 406 documents — an eighteenth sample
 Twenty more (`random.seed(20261101)`, all printed), checked in. It starts
 at 90.0% (median 98.1). Its low ones, unclaimed: zh-884c6e3e 47.2 (5
-pages; CLAIMED Mac 01Xgpbk5), zh-e74dd0a1 52.1 (134/132 pages),
-zh-c9f4d690 62.8, zh-cfb32050 73.7, zh-e64d4997 84.2.
+pages; Mac 01Xgpbk5 measured, released to lenovo-3: p2's "2.商业用房…按被" — ours squeezes "。" and "，" 2.1pt each to take "征", Word sends it on, though lab `lq3` in its own package takes the next ideograph up to half an em with "，，", "。，", and a leading "2." alike — so the line differs in its natural width somewhere, not the rule), zh-e74dd0a1 52.1 (134/132 pages),
+zh-c9f4d690 62.8 (Mac 01Xgpbk5 measured, handed to lenovo-3: under wordWrap 0 a paragraph ending "…等部门。 " — the "。" hanging past the margin — puts its ONE closing space on a line of its own in Word's print; `_looseWordOffsets` wraps closing spaces only from two, so p14 on runs a line early), zh-cfb32050 73.7, zh-e64d4997 84.2.
 
 ### Note from the Mac (2026-10-19): the zh corpus is 386 documents — a seventeenth sample
 Twenty more (`random.seed(20261031)`, all printed), checked in. It starts
