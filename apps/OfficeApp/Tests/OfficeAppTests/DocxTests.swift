@@ -1429,11 +1429,12 @@ final class DocxTests: XCTestCase {
         let bare = try after(cellBorders: "")
         let right = try after(cellBorders: "<w:tcBorders><w:right w:val=\"double\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/></w:tcBorders>")
         XCTAssertEqual(right, bare, accuracy: 0.05, "the frame's bottom takes its own room under the row")
-        // (And a cell's line wider than the table's takes its own: zh-cec9d337's
-        // rows ruled 0.5pt stand 1.75 taller for a 2.25pt line on their left.)
+        // (But a cell's thick side line is no room over or under its row: lab
+        // `cal` in zh-5251dd23's package, Word 16 — rows ruled 0.5pt with a
+        // 2.25pt line on a cell's left stand as tall as without it.)
         let thin = try after(cellBorders: "", single: true)
         let thick = try after(cellBorders: "<w:tcBorders><w:left w:val=\"single\" w:sz=\"18\" w:space=\"0\" w:color=\"auto\"/></w:tcBorders>", single: true)
-        XCTAssertEqual(thick - thin, 3.5, accuracy: 0.3, "the cell's 2.25pt over and under its one row, not the table's 0.5")
+        XCTAssertEqual(thick, thin, accuracy: 0.05, "a side line takes no room over and under the row")
     }
 
     func testACentredNumberedLineIsSetAcrossItsHang() throws {

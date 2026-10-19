@@ -4929,15 +4929,21 @@ public final class RichLayout {
             if theme.wordRules {
                 let ts = document.tableStyles[c.table] ?? TableStyle()
                 let rows = _tableRows[c.table] ?? 0
-                // A side the cell's borders do not name is as wide as
-                // the table's line there or the cell's own, whichever is
-                // wider. zh-cec9d337's rows, ruled 0.5pt between them,
-                // stand 1.75pt taller in Word's print for a 2.25pt line
-                // on their first cell's left; zh-701eda18's form ends on
-                // a row whose tallest cell states a 0.5pt double on its
-                // right alone, and Word gives the table's 3pt
-                // thickThinSmallGap bottom its whole 4.3pt under it,
-                // where the cell's 0.5 left 2 and all after stood 2.5 high.
+                // A left or right side the cell's borders do not name is
+                // as wide as the table's line there or the cell's own,
+                // whichever is wider; a top or bottom one is the table's.
+                // zh-701eda18's form ends on a row whose tallest cell
+                // states a 0.5pt double on its right alone, and Word gives
+                // the table's 3pt thickThinSmallGap bottom its whole 4.3pt
+                // under it, where the cell's 0.5 left 2 and all after stood
+                // 2.5 high. (A cell's thick side line is no room above or
+                // below it: lab `cal` in zh-5251dd23's package (Word 16,
+                // 2026-10-18), its calendar's rows of two 17pt lines, a
+                // 2.25pt line on the first cell's left and the last one's
+                // right, are 34.8pt — and 34.56 with no stated height,
+                // the line on either side, the cell the tallest or not —
+                // where ours stood 36.6. zh-cec9d337's rows, which this
+                // once explained, were its "○" lines short of the grid.)
                 func sideWidth(_ d: CellRef, _ tableSide: String) -> Double {
                     let table = ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5
                     return max(d.borderWidth ?? table, table)
@@ -4954,7 +4960,7 @@ public final class RichLayout {
                     guard (side == "top" ? d.edges?.top : d.edges?.bottom) ?? tables ?? (ts.borders && !ts.bordersFromCells) else { return 0 }
                     let tableSide = (side == "top" ? d.row > 0 : end < rows) ? "insideH" : side
                     let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
-                    let width = said?.width ?? sideWidth(d, tableSide)
+                    let width = said?.width ?? (ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5)
                     return _px(Self._ruleRoom(style, width))
                 }
                 // The cell's left and right lines, resolved as its top and
@@ -6873,10 +6879,16 @@ public final class RichLayout {
                     // its own: zh-cec9d337's 22pt "○" cells on an 18pt grid
                     // are two pitches in Word's print, 36pt, and ours 37.8
                     // a row, the table's last row going over. Its line asks
-                    // an em at most.)
+                    // an em at most — off the grid. On it, the line is the
+                    // Times line the grid snapped: lab `g44` in zh-cec9d337's
+                    // package (Word 16, 2026-10-18), a row of these at 14pt
+                    // is its 28.3pt "at least", at 18 and 22pt two pitches,
+                    // 36.5, where ours, held to the em after the grid had
+                    // snapped it, stood 28.25 at every size.)
                     flush(i)
                     let s = style(kind)
-                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra, height: min(s.height ?? 1, 1.0))))
+                    let height = pitch != nil && s.height != nil ? s.height : min(s.height ?? 1, 1.0)
+                    spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra, height: height)))
                     start = after
                 } else if theme.wordRules, let u = ch.unicodeScalars.first?.value,
                           (u >= 0x1D400 && u <= 0x1D7FF) || (u > 0x7F && latinFace?.setsMath == true && !ea) {

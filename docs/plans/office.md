@@ -6516,3 +6516,28 @@ Normal's. A deletion inside `w:moveTo` still leaves its place marked
 insertion inside `w:moveFrom` (typed, then moved away) prints nothing
 but its formatting change. Both are kept on the run as
 `RevisionMark.nested`.
+
+### A cell's side line is no room over its row; "○" on the grid (2026-10-18)
+
+zh-5251dd23's calendar rows, two exact 17pt lines under a 34.35pt "at least",
+stood 36.6pt in ours and 34.8 in Word's print, and p17 and p19 missed most of
+their lines. The difference was the 2.25pt line on the first cell's left and
+the last one's right: ours gave a top or bottom side the cell does not name the
+wider of the cell's own line and the table's, so 2.25pt went over the row. Lab
+`cal` (Word 16, the file's own table copied whole): every row is 34.8 with the
+line on the left or the right, inside or at the table's edge, the lined cell the
+tallest or not, and 34.56 with no stated height at all. A top or bottom side the
+cell leaves unnamed is now the table's line there; left and right keep the
+wider of the two.
+
+That rule had come from zh-cec9d337, whose rows stand taller in Word's print,
+and taking it away dropped that document to 51%. Its rows are tall for another
+reason: their tallest cells hold a 22pt Times "○" (atLeast 12pt) on an 18pt line
+grid, which Word sets in two pitches. Lab `g44`: a row of them is its 28.3pt
+"at least" at 14pt and 36.5 at 18 and 22pt. Ours kept the geometric shape's line to an
+em after the grid had snapped it, so the line was 22pt at every size. On the grid
+it now keeps the line the grid gives, and the one-em cap holds only off it.
+
+Together, sweep n361 against n360 on one base: zh-5251dd23 89.2 → 96.8,
+zh-e1b09977 65.4 → 81.4, zh-cec9d337 84.2 → 88.2, zh-20c1d74a 88.0 → 89.9,
+and no document lower. Either change alone drops zh-cec9d337.
