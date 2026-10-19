@@ -248,7 +248,7 @@ something else.
 Twenty more (`random.seed(20261102)`, all printed), checked in. It starts
 at 83.0% (median 98.1). Its low ones, unclaimed: zh-3fe252ff 15.0 (94/95
 pages), zh-7b125a21 21.3 (105 pages), zh-289155d6 46.1, zh-0b48a0db 50.7,
-zh-e9616b2b 63.1 (6/10 pages; CLAIMED Mac 01Xgpbk5), zh-147bdae0 89.3,
+zh-e9616b2b 63.1 (6/10 pages; Mac 01Xgpbk5 measured, released: the whole document is in a 1-column, 2-row table with no visible borders (tblBorders insideV only), its three tables nested in the cell; pp1-4 match Word's, then the nested 35-row checklist (exact 17pt rows, can't split) is flattened as nested tables are (Docx.swift ~943) and runs four pages where Word's fits one. Reading such an invisible one-column wrapper as body would fix it but loses the wrapper on save; the real fix is laying out nested tables), zh-147bdae0 89.3,
 zh-9bcea239 93.2.
 
 ### Note from the Mac (2026-10-19): the zh corpus is 406 documents — an eighteenth sample
