@@ -6507,6 +6507,17 @@ the 26 FangSong-heavy documents 7.32% -> 6.54%, line match unchanged.
   88.2 when the rule ran at every spacing).
   zh-86547e97 75.9 -> 99.5, zh-d746674a 81.9 -> 91.9; nothing else moved
   (366 zh, 110 POI).
+- **The 方正 Song titles keep their own line (2026-10-19; Windows).**
+  Outside `OFFICE_WORD_FONTS=mac` a name no machine has is taken for the
+  square face its author had (1.3 ems); 方正小标宋 and 方正大标宋 are
+  taller — FZXiaoBiaoSong's hhea 0.867 + 0.297 by Word's 1.3, as
+  zh-e8d4c046 embeds it, 1.51 ems — and a 22pt title is three 15.6
+  pitches, not two. zh-f59a76e9's empty 方正小标宋_GBK line under its p2
+  title stood a pitch short and pp2-12 ran a line high: 76.4 -> 99.6
+  against Word for Windows' print (lab `fsw`, ~/starling-doc-check/lab/fsw);
+  zh-dc9cfa34 41.1 -> 51.6, zh-ec1b6f63 10.4 -> 13.2; the other ten of
+  the thirteen as before. The Mac's rules set these names in YaHei and
+  do not move (identical output).
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

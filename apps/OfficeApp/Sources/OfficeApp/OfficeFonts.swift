@@ -1157,6 +1157,15 @@ enum OfficeFonts {
                 return face
             }
         }
+        // (The 方正 Song titles as their author had them: FZXiaoBiaoSong's
+        // line, 0.867 + 0.297 ems by Word's 1.3, as zh-e8d4c046 embeds it —
+        // a 22pt title three 15.6 pitches, where the square face is two.)
+        if has("小标宋", "大标宋", "xiaobiaosong", "dabiaosong") {
+            var face = square
+            face.height = 1.164 * 1.3
+            face.baseline = 0.867 + 1.164 * 0.15
+            return face
+        }
         return square
     }
 
