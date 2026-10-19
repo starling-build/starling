@@ -118,6 +118,12 @@ Windows' altName fallbacks are a mode of their own, OFFICE_WORD_FONTS=windows,
 for comparing with its prints: 13 of them, 64.5% -> 84.8 (zh-6cd1befe 100,
 zh-dc9cfa34 98.4, zh-ec1b6f63 99.7, zh-34a6519a 86.5). Mac output identical.
 Left under `windows`: zh-875759ff 31.6, zh-e7bdb543 4.9 (楷体_GB2312 -> KaiTi).
+Looked (Windows 01QbbApP, 2026-10-19): zh-875759ff under `windows` matches Word for
+Windows' print to its p8; its first miss is a p9 line end — Word keeps "的70%" on
+"…人均生活消费支出的70%", ours wraps "70%" (a Latin word at a line's end, the
+fitter's, not KaiTi's; Word's print names that body face TimesNewRoman, linked).
+zh-e7bdb543's KaiTi form lines differ by 楷体 glyphs drawn in YaHei bold (no KaiTi
+bundled). Comparison-mode only; released.
 Word for Windows follows w:altName for a face it lacks (仿宋_GB2312 -> 仿宋 -> FangSong;
 方正小标宋_GBK -> 微软雅黑): zh-f59a76e9's empty 方正小标宋_GBK line and
 zh-6cd1befe's p50 title are YaHei in its prints, ours `square` under the
