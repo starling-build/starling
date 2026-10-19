@@ -8951,8 +8951,14 @@ public final class RichLayout {
                         && x + before / 2 <= width + edge && room > 0 && hang == 0 && need <= room + hair
                     // (One letter or digit, and only that of what is taken
                     // besides its marks: not "②", not a hyphen.)
+                    // (A word's own: not a piece of a longer one that a
+                    // paragraph without word wrap parts anywhere. zh-0a56c942's
+                    // "…目录（2012年）" (wordWrap 0, mode 14, Times 16pt) ends
+                    // "（20" in Word's print with "《" and "（" to give 16;
+                    // ours took the "1" 7.8 over as a word of its own.)
                     let oneLatin = (a ..< last).filter { !isSpace(units[$0]) && !Self._closingUnits.contains(units[$0]) && !Self._openingUnits.contains(units[$0]) }
                         .map { Self._isLatinWordUnit(units[$0]) ? 1 : 2 } == [1]
+                        && !(a > 0 && Self._isLatinWordUnit(units[a - 1]))
                     let latinBefore = a > 0 && Self._isLatinWordUnit(units[a - 1]) || a > 0 && units[a - 1] == 0x2D
                     let taken = modern
                         ? latinWord || (!lineOther && lineWide > 1 && room > 0 && hang == 0

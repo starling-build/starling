@@ -6720,3 +6720,13 @@ form ran 27pt low on every page after. A paragraph of nothing but spaces is now 
 out as wide as its spaces, one line: they hang past the edge as a line's last spaces
 do. Sweep n370 against n369 on one base: zh-cfb32050 76.5 → 98.1, nothing else moved.
 
+### A digit inside a number is not a word of its own (2026-10-19)
+
+zh-0a56c942's "…本科专业目录（2012年）" (wordWrap 0, mode 14, Times 16pt, justified)
+ends "（20" in Word's print; ours took the "1" too, 7.8pt over, its "《" and "（"
+giving 16. Without word wrap the fitter weighs the number a digit at a time, and
+the one-Latin-character rule (labs `lw`–`lw4`: a word of one letter or digit is
+taken whenever it starts inside the margin) took each digit as such a word. A piece
+that goes on from a Latin letter or digit is now a longer word's, held to the start
+rule. Sweep n373 against n372 on one base: zh-0a56c942 93.5 → 95.7, nothing else.
+
