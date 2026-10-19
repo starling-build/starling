@@ -6424,6 +6424,10 @@ public final class RichLayout {
         var inserts: [Int] = []
         var before: Character? = nil
         var beforeBefore: Character? = nil
+        // (Whether the run of ASCII letters, digits and hyphens the
+        // character at hand ends has a letter in it: see the hyphen before
+        // a digit, below.)
+        var wordHasLetter = false
         // (Whether the last character that was not a space was an
         // ideograph, and where the paragraph's trailing spaces start: see
         // the spaces that end a paragraph after one, below.)
@@ -6888,6 +6892,24 @@ public final class RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, before == "-", ch.isASCII, ch.isNumber,
+                          (wordHasLetter && beforeBefore.map { $0.isASCII && ($0.isLetter || $0.isNumber) } == true)
+                            || beforeBefore.map { !$0.isASCII && Self.isEastAsian($0, hinted: false) } == true {
+                    // (A line may break after a hyphen before a digit, as
+                    // after one before a letter: zh-15f60bac's "…公布之
+                    // CNS11643-2(中文字基礎部件…" ends a line "CNS11643-" in
+                    // Word's print and starts the next "2(中文字"; the
+                    // engine, by Unicode's rules, keeps a hyphen with the
+                    // number after it, and took "CNS11643-2" down whole.
+                    // Not in a number alone: zh-64044a1d's narrow cells set
+                    // "0932-757839" as "0932-75783" and "9", a telephone
+                    // number parted where it fills the line, not at its
+                    // hyphen; nor zh-dd4c6e05's "（110-116", a span of years,
+                    // which Word keeps whole — while its "（110 年-114 年）"
+                    // ends a line "年-": a hyphen after an ideograph.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, !lineRulesOff, before == " ",
                           ch == "%" || ch == "‰" || ch == "℃" || Self._closingMarks.contains(ch) {
                     // (Nor after spaces before a mark no line may start
@@ -6925,6 +6947,7 @@ public final class RichLayout {
                 }
                 beforeBefore = before
                 before = ch
+                wordHasLetter = ch.isASCII && (ch.isLetter || ch.isNumber || ch == "-") ? wordHasLetter || ch.isLetter : false
                 if let c = current, c != kind { flush(i) }
                 current = kind
                 // What this character is set wider or narrower by: Word's

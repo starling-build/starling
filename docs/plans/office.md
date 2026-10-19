@@ -5738,6 +5738,16 @@ fitter dropped the paragraph's tail).
   ours stood 3 to 48pt down every such page, and the document ran a page
   long. zh-0978dee9 90.6 -> 97.2, 322 pages as Word's; nothing else moved
   (zh-e37f8d40 among them).
+- **A line may break after a hyphen before a digit (2026-10-19).**
+  Unicode's rules keep a hyphen with the number after it; Word parts
+  them where the word before has a letter in it, or the hyphen follows an
+  ideograph. zh-15f60bac's "…公布之CNS11643-2(中文字…" ends a line
+  "CNS11643-" in Word's print; ours took "CNS11643-2" down whole, and its
+  tables ran a line long from page 16. Not inside a number alone: built
+  for any hyphen before a digit, zh-64044a1d's telephone cells ("0932-
+  757839", set "0932-75783" / "9" in Word's narrow cells) fell 99.3 ->
+  93.8. zh-15f60bac 67.5 -> 97.8, zh-81aa310b +1.0, zh-5251dd23 +0.5;
+  nothing lower.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's
