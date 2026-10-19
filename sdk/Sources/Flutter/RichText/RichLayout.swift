@@ -6162,18 +6162,34 @@ public final class RichLayout {
         let heldSpaces = held
         var afterHeld = false
         var heldKind: Int? = nil   // the held spaces' style kind, for the break after them
+        // (A run of plain and no-break spaces together is half an em from
+        // its first plain space on, the no-break ones after it too, and
+        // between Latin letters as well; no-break ones alone stay as they
+        // are. Lab `nb` (Word 16.113.3, zh-8415d258's package, 15pt
+        // 仿宋_GB2312): "甲" and ten no-break-and-plain pairs step 4.4 and
+        // then 7.5 each; twenty no-break spaces 4.4 each; twenty plain
+        // ones 7.5. zh-8415d258's signature opens with 155 of them
+        // alternating, over two lines and a part in Word's print; ours
+        // set them at the stand-in's 4.3 and the name rose a line.)
         if theme.wordRules, document.balancesSpaceWidth || document.usesEastAsianLayout, p.text.utf16.contains(0x20) {
             var at = 0
             var run: [Int] = []
+            var nbsp: Set<Int> = []
             var left: Character? = nil
             func close(_ right: Character?) {
-                defer { run = [] }
-                guard !run.isEmpty else { return }
+                defer { run = []; nbsp = [] }
+                guard !run.isEmpty, document.balancesSpaceWidth else { return }
                 func latin(_ c: Character?) -> Bool { c.map { !Self.isEastAsian($0, hinted: false) } ?? false }
-                if document.balancesSpaceWidth, !(latin(left) && latin(right)) { wideSpaces.formUnion(run) }
+                if nbsp.isEmpty {
+                    if !(latin(left) && latin(right)) { wideSpaces.formUnion(run) }
+                } else if let first = run.first(where: { !nbsp.contains($0) }) {
+                    wideSpaces.formUnion(run.filter { $0 >= first })
+                }
             }
             for ch in p.text {
-                if ch == " " { run.append(at) } else { close(ch); left = ch }
+                if ch == " " { run.append(at) }
+                else if ch == "\u{00A0}" { run.append(at); nbsp.insert(at) }
+                else { close(ch); left = ch }
                 at += ch.utf16.count
             }
             close(nil)
