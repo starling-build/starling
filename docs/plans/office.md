@@ -6600,6 +6600,17 @@ the 26 FangSong-heavy documents 7.32% -> 6.54%, line match unchanged.
   but repeated header rows counts as at the page's top.
   zh-73534289 82.7 -> 99.6; the corpus's five other sized, raised
   footer frames as before.
+- **A row's part that goes over draws its top line at the page's head
+  (2026-10-19; Windows).** Where a row parts over a page, its part on
+  the next page is ruled across its top again, on the line a row opening
+  that page would have; ours drew it a line's width lower, under the
+  room it leaves for that line. Lab `sr` (Word for Windows,
+  zh-291fcea7's package): a one-row table parted at page 1's foot draws
+  its page-2 top rule at 56.88, as a table opening the page does (56.88);
+  ours 57.45, now 56.95. zh-f43c9edf 71.0 -> 100; nothing else moved
+  (446 zh, 110 POI). zh-291fcea7 itself stays: in that package our cell
+  text stands 0.65pt lower under its row's top line than Word's, in
+  every row (labs T1/T2), and its p3 table ends 0.85 low.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

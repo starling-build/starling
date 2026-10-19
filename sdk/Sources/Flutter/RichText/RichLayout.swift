@@ -3060,6 +3060,7 @@ public final class RichLayout {
             let repeats = c.row > 0 && headerRows(c.table) > 0
             var pieces: [Int: [PagePiece]] = [:]
             var rules: [PagePiece] = []
+            var lift = 0.0   // the line a part that went over opens with
             var first = true
             while true {
                 var avail = contentH - y
@@ -3344,7 +3345,13 @@ public final class RichLayout {
                 let shown = fits ? rest : partHeight ?? avail
                 let from = first && !(fits && rest > c.ownRowHeight + 0.01) ? c.rowTop
                     : fits ? rowBottom - rest : max(c.rowTop + 1, min(rowBottom - rest, rowBottom - avail - 1))
-                var rule = PagePiece(paragraph: i, flowTop: from, flowBottom: min(rowBottom, from + shown), page: page, pageY: y)
+                // (A part that goes over has its top line where a row's own
+                // would be, on the page's head, its text a line's width under
+                // it: lab `sr` (Word for Windows, zh-291fcea7's package), a
+                // row parted at page 1's foot draws its top rule on page 2
+                // at 56.88, as a table opening the page does; ours 0.7pt
+                // lower, the text's offset and the rule's both.)
+                var rule = PagePiece(paragraph: i, flowTop: from - lift, flowBottom: min(rowBottom, from + shown), page: page, pageY: y - lift)
                 rule.part = .rules
                 rules.append(rule)
                 _pages[page].append(rule)
@@ -3391,7 +3398,7 @@ public final class RichLayout {
                 // (What goes over is ruled across its top again, and its
                 // text stands below that rule as the row's did: zh-89385c94's
                 // second page, 0.4pt higher than Word's without it.)
-                if theme.wordRules { y += ruleUnder(c, parted: true) }
+                if theme.wordRules { lift = ruleUnder(c, parted: true); y += lift }
                 // (The notes marked in what this page will hold of the row.)
                 if theme.wordRules, !rowPending.isEmpty {
                     let width = _px(pageSetup(forPage: page / _columns).contentWidth)
