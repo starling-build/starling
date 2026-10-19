@@ -163,11 +163,12 @@ touch path, confirmed on the user's iPhone); the read-only status page
 follows the view. Over a clone: Import .docx… (the file panel; the
 document becomes a page under the open one, ids assigned, page setup
 kept — `--site-import <repo> <file> [--title] [--under]` from a
-terminal), Rename, Delete (children move up). `test/site-web.sh` drives
-find, the double-click selection, a stubbed clipboard write and the
-touch drag; `test/site-build.sh` the import.
+terminal), Rename, Delete (children move up), Move up/down among
+siblings (`--site-move <repo> <slug> up|down`). `test/site-web.sh`
+drives find, the double-click selection, a stubbed clipboard write and
+the touch drag; `test/site-build.sh` the import and the move.
 
-Not yet: reorder of pages (edit `site.json` by hand); a smaller stored
+Not yet: a smaller stored
 form for table-heavy documents (above); a text layer for screen readers
 (the noscript text is for crawlers only); a phone layout for the Writer's
 ribbon when editing (the reader is fine on a phone).

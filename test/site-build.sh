@@ -81,6 +81,12 @@ check "and it sits under its parent in site.json" "$(json '["pages"][1]["childre
 SLUG2="$("$APP" --site-import "$SITE" "$REPO/apps/OfficeApp/Tests/OfficeAppTests/Fixtures/word-boringcrypto.docx" --title "Imported policy" 2>/dev/null)"
 check "a second page of the same title gets its own slug" "$SLUG2" imported-policy-2
 
+echo "── move: a page one place among its siblings (the Move up/down buttons)"
+check "move down" "$("$APP" --site-move "$SITE" index down 2>/dev/null)" moved
+check "and the order follows" "$(json '["pages"][1]["slug"]' < "$SITE/site.json")" index
+check "a page at the end stays" "$("$APP" --site-move "$SITE" imported-policy-2 down 2>/dev/null)" "already at the end"
+"$APP" --site-move "$SITE" index up >/dev/null 2>&1
+
 echo "── publish: build, commit, push to a bare remote (what the Publish button runs)"
 PUB="$OUT/pub"; REMOTE="$OUT/remote.git"
 cp -R "$REPO/examples/site" "$PUB"

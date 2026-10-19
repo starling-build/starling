@@ -211,6 +211,18 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-import"), i + 2 < Comman
         exit(1)
     }
 }
+//   --site-move <repo> <slug> up|down   one place among its siblings
+if let i = CommandLine.arguments.firstIndex(of: "--site-move"), i + 3 < CommandLine.arguments.count {
+    do {
+        let moved = try LocalSiteStore.movePage(repo: CommandLine.arguments[i + 1], slug: CommandLine.arguments[i + 2],
+                                                by: CommandLine.arguments[i + 3] == "up" ? -1 : 1)
+        print(moved ? "moved" : "already at the end")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-move failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
 if let i = CommandLine.arguments.firstIndex(of: "--site-publish"), i + 1 < CommandLine.arguments.count {
     initializeHeadlessText()
     func option(_ name: String) -> String? {

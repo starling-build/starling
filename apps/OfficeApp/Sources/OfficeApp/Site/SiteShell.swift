@@ -350,6 +350,15 @@ final class SiteShellState: State<StatefulWidget> {
         }
     }
 
+    private func _movePage(by: Int) {
+        guard let slug = _slug else { return }
+        store.move(slug, by: by) { [weak self] message in
+            guard let self else { return }
+            if let message { self.setState { self._status = message }; return }
+            self._refreshManifest()
+        }
+    }
+
     private func _deletePage() {
         guard let slug = _slug, let m = _manifest else { return }
         store.delete(slug) { [weak self] message in
@@ -623,6 +632,10 @@ final class SiteShellState: State<StatefulWidget> {
                 }, child: Text("Rename")))
                 items.append(Chrome.gap(8))
                 items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmDelete = true } }, child: Text("Delete")))
+                items.append(Chrome.gap(8))
+                items.append(Button(onPressed: { [weak self] in self?._movePage(by: -1) }, child: Text("Move up")))
+                items.append(Chrome.gap(4))
+                items.append(Button(onPressed: { [weak self] in self?._movePage(by: 1) }, child: Text("Move down")))
                 items.append(Chrome.gap(8))
                 items.append(Button(onPressed: { [weak self] in self?.setState { self?._publishOpen = true } }, child: Text("Publish…")))
                 items.append(Chrome.gap(8))

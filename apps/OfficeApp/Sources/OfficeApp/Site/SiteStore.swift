@@ -34,6 +34,8 @@ protocol SiteStore: AnyObject {
     func rename(_ slug: String, to title: String, _ done: @escaping (String?) -> Void)
     /// Remove a page; its children move up to its parent.
     func delete(_ slug: String, _ done: @escaping (String?) -> Void)
+    /// Move a page one place among its siblings (`by` -1 up, +1 down).
+    func move(_ slug: String, by: Int, _ done: @escaping (String?) -> Void)
 }
 
 extension SiteStore {
@@ -43,6 +45,7 @@ extension SiteStore {
     func importPage(title: String, page: SitePage, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) { done(.failure(SiteError("This site is read-only here."))) }
     func rename(_ slug: String, to title: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
     func delete(_ slug: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
+    func move(_ slug: String, by: Int, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
 }
 
 /// The built site, by URL: `base` + manifest.json, pages/<slug>.json,
@@ -197,6 +200,37 @@ final class LocalSiteStore: SiteStore {
             try SiteBuilder.writeConfig(config, to: repo)
             done(nil)
         } catch { done("\(error)") }
+    }
+
+    func move(_ slug: String, by: Int, _ done: @escaping (String?) -> Void) {
+        do {
+            let r = try Self.movePage(repo: repo, slug: slug, by: by)
+            done(r ? nil : "\(slug) is already at that end.")
+        } catch { done("\(error)") }
+    }
+
+    /// Synchronous, for the command line too. False when the page is at
+    /// the end it would move past.
+    static func movePage(repo: String, slug: String, by: Int) throws -> Bool {
+        var config = try SiteBuilder.readConfig(repo)
+        var moved = false
+        func visit(_ nodes: inout [SiteNode]) -> Bool {
+            if let i = nodes.firstIndex(where: { $0.slug == slug }) {
+                let j = i + by
+                guard nodes.indices.contains(j) else { return true }
+                nodes.swapAt(i, j)
+                moved = true
+                return true
+            }
+            for k in nodes.indices {
+                var kids = nodes[k].children ?? []
+                if visit(&kids) { nodes[k].children = kids; return true }
+            }
+            return false
+        }
+        guard visit(&config.pages) else { throw SiteError("No page \(slug).") }
+        if moved { try SiteBuilder.writeConfig(config, to: repo) }
+        return moved
     }
 
     func delete(_ slug: String, _ done: @escaping (String?) -> Void) {
