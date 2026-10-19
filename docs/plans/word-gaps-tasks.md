@@ -3142,6 +3142,13 @@ regression for a document the line match scores 0 either way (its Arabic is read
 logical in ours). Wants a face whose joined forms map back (or ActualText spans), and on the Mac and Windows simply
 Times New Roman, which has Arabic — not tried there.
 
+### T137. Test bundle: ICU's data loaded before any test lays out text
+Owner: starling-b2 (Linux slides session 01JsizVV), from 2026-10-19
+In the OfficeApp test process ICU's data is never loaded, so the line fitter measures every character at zero
+width; loading it late does nothing, since the engine sets up its text state on the first layout. The two fitter
+tests of T135/T136 load it themselves and skip when another test laid text out first. Load it once for the whole
+test bundle, before any test runs, so they and any later fitter test are real in the full suite.
+
 ### T134. zh-12f87285: a row parted at the foot keeps room for its cell's bottom margin — DONE (2026-10-19)
 Owner: none (Linux office1 01Ak4ibJ built it)
 Documents: zh-12f87285 (27.4%, twentieth sample).
