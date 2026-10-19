@@ -2548,6 +2548,17 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A 2007-style chart's legend below its plot, 2026-10-19** (sweep 243:
+corpus mean 0.9370 → 0.9369; cooper 3.02 → 2.91; lo-numfmt +0.01, a
+deck with no chart: rounding). cooper's two census charts (style 12,
+their 10 pt legends below) stood their legends 1.7 pt and their plots
+2.9 pt low of PowerPoint's print, their category names 3.1. A
+2007-style chart sits 6.5 pt in from its frame's foot (line-, bar- and
+scatter-chart's, legends beside); with its legend below it is 8.2, and
+the plot stands 9.55 above the legend's line where a newer chart's
+stands 8.4. Every line of the two now within 0.3 pt. Slides only; one
+deck says it.
+
 **Blurred text shadows in the PDF, 2026-10-18** (sweep 242: corpus
 mean 0.9395 → 0.9370; 45541_Header −0.45, 45541_Footer and
 45545_Comment −0.44, tdf114848 −0.02, alterman −0.01; customGeo +0.01,

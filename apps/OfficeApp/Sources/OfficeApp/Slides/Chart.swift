@@ -1799,7 +1799,8 @@ enum ChartPainter {
         canvas.clipRect(r)
         // (A 2007-style chart sits 6.5 pt in at the left and bottom, where
         // a newer one keeps 9: line-, bar- and scatter-chart's labels stand
-        // 2.5 pt further out in PowerPoint's print.)
+        // 2.5 pt further out in PowerPoint's print. With its legend below,
+        // 8.2: see the legend.)
         let old = c.plainText && !c.styled2013 && c.officeStyled
         // (A chartex chart's title stands 2.2 pt higher than a `c:`
         // chart's, its plot's foot 4.4 nearer the frame: chartex's
@@ -1811,7 +1812,7 @@ enum ChartPainter {
         // chart-slide-bg's labels where PowerPoint's are.)
         let foot = c.onSlide && !(c.legend && c.legendPosition == "b") ? 6.9 : 9.0
         var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + (c.chartex ? 6.8 : 9) * k, r.right - 9 * k,
-                                 r.bottom - (old ? 6.5 : c.chartex ? 4.6 : foot) * k)
+                                 r.bottom - (old ? (c.onSlide && c.legend && c.legendPosition == "b" ? 8.2 : 6.5) : c.chartex ? 4.6 : foot) * k)
 
         let titled = !(c.title ?? "").isEmpty
         var placed: (TextPainter, Offset)? = nil
@@ -1944,8 +1945,12 @@ enum ChartPainter {
                 y = area.top + (titled ? 4.3 * k : 0)
                 area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k, area.right, area.bottom)
             } else {
+                // (A 2007-style chart's on a slide 8.2 pt off the frame's
+                // foot, not 6.5, and its plot 9.55 above it: cooper's two
+                // 10 pt legends 1.7 pt higher in PowerPoint's print, their
+                // plots 2.9.)
                 y = area.bottom - 1.2 * k - lineH * Double(lines.count)
-                area = Rect.fromLTRB(area.left, area.top, area.right, y - 8.4 * k)
+                area = Rect.fromLTRB(area.left, area.top, area.right, y - (printed && old ? 9.55 : 8.4) * k)
             }
             for line in lines {
                 let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
