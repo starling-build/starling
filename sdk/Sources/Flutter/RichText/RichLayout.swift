@@ -2940,6 +2940,30 @@ public final class RichLayout {
             // or last one does, or the second cell's first. form_footnotes'
             // "INSTRUCTIONS" box opens with a Heading 5.)
             if theme.wordRules, document.paragraphs[i].style.keepNext { return false }
+            // (Nor where the page's footer holds a sized, raised frame and
+            // reaches above its bottom margin:
+            // there Word parts no row at the page's foot, but sends it to the
+            // next page whole, and parts it there only if it is taller than a
+            // page. zh-73534289's footer — a framed page number and an empty
+            // 12pt paragraph 720 twips up — stands 0.4pt over its 851-twip
+            // margin, and no row of its 118-row table is parted in Word's
+            // print; ours parted them and pp28-33 ran out of step. Labs
+            // `rw`/`rw2` (Word for Windows, its package): a fresh one-row
+            // table of a page and a half goes whole to the next page and
+            // parts from there; with the footer 200 twips up, or the margin
+            // 1100, it parts at the foot of the first; at 980 it does not;
+            // with the frame taken out of the footer it parts. Only a frame
+            // of a stated width raised over its anchor (w:y below 0): the same
+            // frame auto-sized, or at y 1, parts the row; one 3000 twips wide
+            // at y -2 does not. Most page numbers are auto-sized frames at
+            // y 1, centred on the margin, and their rows part: taken for any
+            // frame the rule cost some forty documents.)
+            // (A row under nothing but repeated header rows is at the page's top.)
+            if theme.wordRules, !atTop, !_pages[page].allSatisfy({ $0.repeated }), let footer = _headerFooter(.footer, page: page, document, pageCount: 1),
+               footer.document.paragraphs.contains(where: { p in p.cell == nil && p.style.frame.map { $0.width != nil && $0.y < 0 } == true }),
+               _bodyInsets(page: page, document).bottom > _px(pageSetup(forPage: page).marginBottom) + 0.01 {
+                return false
+            }
             // (A turned cell does not keep its row whole: zh-021b8feb's
             // "職場人力協助" row, its first cell turned (tbRlV), parts at
             // page 17's foot in Word's print, where ours took it whole to

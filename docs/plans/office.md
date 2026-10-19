@@ -6552,6 +6552,24 @@ the 26 FangSong-heavy documents 7.32% -> 6.54%, line match unchanged.
   zh-dc9cfa34 41.1 -> 51.6, zh-ec1b6f63 10.4 -> 13.2; the other ten of
   the thirteen as before. The Mac's rules set these names in YaHei and
   do not move (identical output).
+- **A sized footer frame over the margin parts no row (2026-10-19;
+  Windows).** Where the page's footer holds a frame of a stated width
+  raised over its anchor (`w:w`, `w:y` below 0) and reaches above the
+  bottom margin, Word parts no table row at that page's foot: the row
+  goes to the next page whole and parts there only if it is taller
+  than a page. zh-73534289's footer is such a page number (11907
+  twips wide, y -2, 720 twips up over an 851 margin), and no row of its
+  118-row table is parted in Word's print; ours parted them and pp28-33
+  ran out of step. Labs `rw`/`rw2` (Word for Windows, its package): a
+  fresh one-row table a page and a half tall skips page 1's 33 free
+  lines; it parts on page 1 with the frame removed, auto-sized, at y 1,
+  the footer 200 twips up or the margin at 1100 — not at 980, nor with
+  the frame 3000 wide at y -2. The usual page number, an auto-sized
+  frame at y 1 centred on the margin, parts its rows: taken for any
+  footer frame the rule cost some forty documents. A row under nothing
+  but repeated header rows counts as at the page's top.
+  zh-73534289 82.7 -> 99.6; the corpus's five other sized, raised
+  footer frames as before.
 
 Measured, and built on 2026-10-14 (above): **`w:mirrorIndents`** (3 of the 679, two in
 the sample — one of them 687 paragraphs of zh-06c46ba9). On an even

@@ -124,7 +124,7 @@ zh-6cd1befe's p50 title are YaHei in its prints, ours `square` under the
 Windows rules. Gated off under OFFICE_WORD_FONTS=mac (Word for Mac ignores
 altName). Checked against Word for Windows prints (~/starling-doc-check/lab/fsw).
 
-### T127. zh-73534289 p27: a table row Word moves whole to the next page — measured, released
+### T127. zh-73534289 p27: a table row Word moves whole to the next page — DONE (2026-10-19)
 Owner: none (Windows 01QbbApP measured it, 2026-10-18)
 Documents: zh-73534289 (about 44 misses a page over pp28-33). Row 91
 ("強化資金規劃運用能力 | 其它 | 提供資金協助…") starts at 698 of 748 and Word
@@ -172,6 +172,10 @@ foot. Built as "a footer with any frame over the margin" it cost ~40 zh document
 margin), so the exact trigger (sized frame, its top over the margin by how much)
 is open. zh-73534289 went 82.7 -> 99.6 with it. Patch kept at the Windows box's
 scratch foot2.patch; not landed.
+Landed narrowed to a sized (w:w), raised (y < 0) footer frame over the margin
+(Windows 01QbbApP): zh-73534289 82.7 -> 99.6; the five other docs with such
+frames (zh-33d025f6, zh-3550642e, zh-6cd1befe, zh-749cb15a, zh-e0ca7252) as
+before; no other document has one.
 Then: the four compat flags off (v12) still moves row 120 whole. With the
 repeated header row off (v13) or every vMerge off (v14) the pages shift
 and row 120 no longer meets a page foot needing to part, so neither
