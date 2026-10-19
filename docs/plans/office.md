@@ -5703,6 +5703,17 @@ fitter dropped the paragraph's tail).
   else moved. (Its page 4 still sets all of note 3, where Word's falls
   0.8pt short of room for it.) No unit test: a mark's line is found by
   its text box, and the test process has no ICU to give one.
+- **A merged cell that states no top takes the table's line
+  (2026-10-19).** A cell merged down into a row rules it by the top line
+  its continuation states, though nothing is drawn there; one that states
+  no top at all now takes the table's line between rows, as any cell's
+  unstated top does. zh-db07d44e's indicator table merges its first
+  column down the rows, the other cells saying nil above and below, and
+  Word's print sets its rows of at least 22.7pt 23.2 apart; ours stood
+  22.7, two rows a page more. Its next table's continuations state nil
+  above, and Word's rows there are 22.7 — a stated nil stays none.
+  zh-db07d44e 33.9 -> 36.8, zh-d8247da5 93.3 -> 97.8, zh-33d025f6 +0.2;
+  nothing lower.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

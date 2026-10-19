@@ -791,6 +791,47 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(cell[0].style.pageBreakBefore)
     }
 
+    /// A cell merged down into a row rules it by its continuation's top
+    /// line, and one that states no top takes the table's line between
+    /// rows, drawn or not; one that states nil takes none (zh-db07d44e's
+    /// two tables: rows of at least 22.7pt 23.2 apart where the merged
+    /// column states nothing above, 22.7 where it states nil).
+    func testAMergedCellsUnstatedTopRulesItsRow() throws {
+        func pitch(_ continuationBorders: String) throws -> Double {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+            let di = entries.firstIndex { $0.name == "word/document.xml" }!
+            var xml = String(decoding: entries[di].data, as: UTF8.self)
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+            let nils = "<w:tcBorders><w:top w:val=\"nil\"/><w:bottom w:val=\"nil\"/></w:tcBorders>"
+            func row(_ first: String, _ text: String) -> String {
+                "<w:tr><w:trPr><w:trHeight w:val=\"454\"/></w:trPr>"
+                    + "<w:tc><w:tcPr><w:tcW w:w=\"1400\" w:type=\"dxa\"/>\(first)</w:tcPr><w:p/></w:tc>"
+                    + "<w:tc><w:tcPr><w:tcW w:w=\"5000\" w:type=\"dxa\"/>\(nils)</w:tcPr><w:p><w:pPr><w:spacing w:after=\"0\" w:line=\"360\" w:lineRule=\"exact\"/></w:pPr><w:r><w:t>\(text)</w:t></w:r></w:p></w:tc></w:tr>"
+            }
+            let line = "w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\""
+            xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+                "<w:tbl><w:tblPr><w:tblW w:w=\"6400\" w:type=\"dxa\"/><w:tblBorders><w:top \(line)/><w:left \(line)/><w:bottom \(line)/><w:right \(line)/><w:insideH \(line)/><w:insideV \(line)/></w:tblBorders><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+                + "<w:tblGrid><w:gridCol w:w=\"1400\"/><w:gridCol w:w=\"5000\"/></w:tblGrid>"
+                + row("<w:vMerge w:val=\"restart\"/>", "one") + row("<w:vMerge/>\(continuationBorders)", "two") + row("<w:vMerge/>\(continuationBorders)", "three")
+                + "</w:tbl><w:p/>")
+            entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let doc = try DocxFormat.read(try Zip.write(entries)).document
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            layout.pageSetup = .letter
+            layout.width = 612 * 96.0 / 72.0
+            layout.ensureLaidOut(doc)
+            func top(_ text: String) throws -> Double {
+                let k = try XCTUnwrap(doc.paragraphs.firstIndex { $0.text == text })
+                return layout.caretRect(RichPosition(paragraph: k, offset: 0), doc).top / theme.pixelsPerPoint
+            }
+            return try top("three") - top("two")
+        }
+        XCTAssertEqual(try pitch(""), 23.2, accuracy: 0.05, "no top stated: the table's half point")
+        XCTAssertEqual(try pitch("<w:tcBorders><w:top w:val=\"nil\"/></w:tcBorders>"), 22.7, accuracy: 0.05, "nil stated: none")
+    }
+
     /// A Wingdings bullet is as wide as Wingdings makes it, whatever the
     /// glyph drawn for it: zh-3fe252ff's 15pt "Ø" (0.794 em) ends short
     /// of the 42pt default stop from a 30pt first-line indent, and Word

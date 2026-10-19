@@ -2026,6 +2026,20 @@ public final class RichLayout {
                             let at = d.row - ref.row - 1
                             if at < ref.continuationBordersXML.count, let side = Self._cellSide(ref.continuationBordersXML[at], "top") {
                                 ruled = max(ruled, _px(Self._ruleRoom(side.style, side.width)))
+                            } else if !(at < ref.continuationBordersXML.count && (ref.continuationBordersXML[at]?.containsSubstring("<w:top ") ?? false)),
+                                      ts?.edges?.insideH ?? ((ts?.borders ?? false) && !(ts?.bordersFromCells ?? false)) {
+                                // (One that states no top at all takes the table's line
+                                // between rows, as any cell's unstated top
+                                // does: zh-db07d44e's indicator table, its
+                                // first column merged down the rows and
+                                // the others saying nil above and below,
+                                // has rows of at least 22.7pt 23.2 apart
+                                // in Word's print — the table's insideH
+                                // half point — and ours 22.7, two rows a
+                                // page more. Not one stating nil: its next
+                                // table's continuations say nil above, and
+                                // its rows stand 22.7 apart.)
+                                ruled = max(ruled, _px(Self._ruleRoom(ts?.edgeStyles["insideH"] ?? ts?.borderStyle, ts?.edgeWidths["insideH"] ?? ts?.borderWidth ?? 0.5)))
                             }
                         }
                         m -= 1
