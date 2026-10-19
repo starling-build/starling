@@ -248,7 +248,7 @@ something else.
 Twenty more (`random.seed(20261101)`, all printed), checked in. It starts
 at 90.0% (median 98.1). Its low ones, unclaimed: zh-884c6e3e 47.2 (5
 pages; Mac 01Xgpbk5 measured, released to lenovo-3: p2's "2.商业用房…按被" — ours squeezes "。" and "，" 2.1pt each to take "征", Word sends it on, though lab `lq3` in its own package takes the next ideograph up to half an em with "，，", "。，", and a leading "2." alike — so the line differs in its natural width somewhere, not the rule), zh-e74dd0a1 52.1 (134/132 pages),
-zh-c9f4d690 62.8 (Mac 01Xgpbk5 measured, handed to lenovo-3: under wordWrap 0 a paragraph ending "…等部门。 " — the "。" hanging past the margin — puts its ONE closing space on a line of its own in Word's print; `_looseWordOffsets` wraps closing spaces only from two, so p14 on runs a line early), zh-cfb32050 73.7, zh-e64d4997 84.2.
+zh-c9f4d690 62.8 (Mac 01Xgpbk5 measured, handed to lenovo-3: under wordWrap 0 a paragraph ending "…等部门。 " — the "。" hanging past the margin — puts its ONE closing space on a line of its own in Word's print; `_looseWordOffsets` wraps closing spaces only from two, so p14 on runs a line early), zh-cfb32050 73.7 (Mac 01Xgpbk5 measured, sent to lenovo-3: zh-TW 標楷體, mode 14, compressPunctuation — Word squeezes no mid-line "、" or "，" (all 16.4 apart on p3's "…得獎名"), ours squeezes both to 8.3 to take "額" and hang "。"; the T119 family, mid-line), zh-e64d4997 84.2 (Mac 01Xgpbk5 looked: zh-TW cell lines a character long in ours, "…歲出成" — likely the same squeeze as zh-cfb32050; released).
 
 ### Note from the Mac (2026-10-19): the zh corpus is 386 documents — a seventeenth sample
 Twenty more (`random.seed(20261031)`, all printed), checked in. It starts
