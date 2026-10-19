@@ -289,6 +289,8 @@ in Word's print; after "Note: " they part where they stand. Built that
 way; no document moved (s327 -> s328), and zh-76d361b2's own case is
 something else.
 
+### Claimed (Mac 01Xgpbk5, 2026-10-19): zh-d8247da5 91.9
+
 ### Note from the Mac (2026-10-19): the zh corpus is 466 documents — a twenty-first sample
 Twenty more (`random.seed(20261104)` among the 180 unprinted, 15 to 400 KB, all
 printed), checked in. It starts at 71.5% (median 91.4). Its low ones, unclaimed:
