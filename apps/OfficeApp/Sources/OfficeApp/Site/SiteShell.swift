@@ -203,7 +203,8 @@ final class SiteShellState: State<StatefulWidget> {
                 #if os(WASI)
                 if push { WebHistory.push(m.route(slug)) }
                 // The text layer for screen readers follows the page.
-                WebAccessibility.setDocumentText(SiteTextLayer.lines(of: page.document))
+                WebAccessibility.setDocumentText(SiteTextLayer.lines(of: page.document),
+                                                 downloads: m.exports == true ? m.exportPaths(slug) : nil)
                 #endif
                 if let id = self._pendingParagraph { self._pendingParagraph = nil; self._reveal(paragraphID: id) }
             case .failure(let e):
@@ -267,6 +268,8 @@ final class SiteShellState: State<StatefulWidget> {
     /// The page as a .docx: a download in a tab, a file in Documents natively.
     private func _exportDocx() {
         guard let slug = _slug else { return }
+        // The build left a static copy beside the page: a link, instantly.
+        if let m = _manifest, m.exports == true, !store.canEdit { hostOpenURL?(m.exportPaths(slug).docx); return }
         do {
             let data = try OfficeFormats.encode(_controller.document, as: "docx", pageSetup: _pageSetup ?? .letter)
             #if os(WASI)
@@ -289,6 +292,7 @@ final class SiteShellState: State<StatefulWidget> {
 
     private func _exportPDF() {
         guard let m = _manifest, let slug = _slug else { return }
+        if m.exports == true, !store.canEdit { hostOpenURL?(m.exportPaths(slug).pdf); setState { _status = "Opened \(slug).pdf" }; return }
         let title = m.node(slug)?.title ?? slug
         let target = homeDirectory() + "/Documents/" + slug + ".pdf"
         let ok = PdfExport.write(_controller.document, pageSetup: _pageSetup ?? .letter, theme: _theme, to: target, title: title)

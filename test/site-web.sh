@@ -111,16 +111,17 @@ rm -rf "$OUT/downloads2"; mkdir -p "$OUT/downloads2"
 URL="$URL/sample-paper/" "${DRIVE[@]}" downloads "$OUT/downloads2" wait 12000 eval "$STUB" \
     dblclick 843 597 wait 500 eval "starling.debug('selection')" chord ctrl c wait 500 eval "window.__copied" \
     click 893 220 wait 500 eval "window.__opened" \
-    click 814 220 wait 4000 eval "starling.debug('status')" \
+    click 814 220 wait 500 eval "window.__opened" \
+    click 749 220 wait 500 eval "window.__opened" \
     click 969 220 wait 500 type "Cryptographic Boundary" wait 800 eval "starling.debug('selection')" \
     > "$OUT/drive7.log" 2>&1
 F=(); while IFS= read -r l; do F+=("$l"); done < <(evals "$OUT/drive7.log")
 check "a double-click selects a word" "${F[1]:-}" '"BoringCrypto"'
 check "Ctrl+C puts the selection on the clipboard" "${F[2]:-}" '"BoringCrypto"'
 check "History opens the page's commits on GitHub" "${F[3]:-}" '"https://github.com/example/site/commits/main/pages/sample-paper.json"'
-check "Word says it exported" "${F[4]:-}" '"Exported sample-paper.docx"'
-check "and the .docx landed" "$(ls "$OUT/downloads2" 2>/dev/null | grep -c '^sample-paper.docx$')" 1
-check "find selects the first match of what is typed, case aside" "${F[5]:-}" '"cryptographic boundary"'
+check "Word opens the page's static .docx" "${F[4]:-}" '"/sample-paper/sample-paper.docx"'
+check "PDF opens the page's static PDF" "${F[5]:-}" '"/sample-paper/sample-paper.pdf"'
+check "find selects the first match of what is typed, case aside" "${F[6]:-}" '"cryptographic boundary"'
 # Link to paragraph: a click into the page, then the button; the address
 # bar gets #p=<id> and the clipboard the whole address.
 URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "$STUB" click 843 597 wait 300 \
@@ -129,16 +130,15 @@ URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "$STUB" click 843 597 wai
 L=(); while IFS= read -r l; do L+=("$l"); done < <(evals "$OUT/drive8.log")
 check "Link to paragraph puts #p=<id> in the address bar" "$(printf '%s' "${L[1]:-}" | grep -Ec '^"#p=[0-9]+"$')" 1
 check "and the whole address on the clipboard" "${L[2]:-}" true
-# The PDF button, with the download landing in OUT; the Contents panel's
-# first entry, clicked, moves the caret to the first heading.
-rm -rf "$OUT/downloads"; mkdir -p "$OUT/downloads"
-URL="$URL/sample-paper/" "${DRIVE[@]}" downloads "$OUT/downloads" wait 12000 \
+# The Contents panel's first entry, clicked, moves the caret to the first
+# heading. (The PDF and Word buttons open the build's static files, checked
+# above; the static PDF is served too.)
+URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 \
     click 520 220 wait 1500 click 1250 300 wait 1500 eval "starling.debug('caret')" shot "$OUT/6-contents.png" \
-    click 780 220 wait 30000 eval "starling.debug('status')" > "$OUT/drive5.log" 2>&1
+    > "$OUT/drive5.log" 2>&1
 C=(); while IFS= read -r l; do C+=("$l"); done < <(evals "$OUT/drive5.log")
 check "a contents entry moves the caret to its heading" "$(printf '%s' "${C[0]:-}" | grep -Ec '^"[1-9][0-9]*"$')" 1
-check "the PDF button says it exported" "${C[1]:-}" '"Exported sample-paper.pdf"'
-check "and the PDF is the same painter's pages" "$(ls "$OUT/downloads" 2>/dev/null | grep -c '^sample-paper.pdf$')" 1
+check "the page's static PDF is served" "$(curl -s -o /dev/null -w '%{http_code}' "$URL/sample-paper/sample-paper.pdf")" 200
 
 echo "── the same site under /demo/"
 URL="$URL/demo/about/" "${DRIVE[@]}" wait 9000 shot "$OUT/4-demo.png" \

@@ -43,6 +43,8 @@ struct SiteManifest: Codable {
     var home: String
     var pages: [SiteNode]
     var repository: String? = nil
+    /// The build wrote `<slug>/<slug>.pdf` and `.docx` beside each page.
+    var exports: Bool? = nil
 
     /// The tree, depth first, with each node's depth.
     func flattened() -> [(node: SiteNode, depth: Int)] {
@@ -64,6 +66,11 @@ struct SiteManifest: Codable {
     /// The route of a page under the base: the home page is the base itself.
     func route(_ slug: String) -> String {
         slug == home ? base : base + slug + "/"
+    }
+
+    /// The paths of a page's static exports under the site: PDF and Word.
+    func exportPaths(_ slug: String) -> (pdf: String, docx: String) {
+        (base + slug + "/" + slug + ".pdf", base + slug + "/" + slug + ".docx")
     }
 }
 
@@ -216,7 +223,16 @@ enum SiteBuilder {
     static func build(repo: String, out: String, web: String?, base: String?) throws -> Summary {
         let fm = FileManager.default
         let config = try readConfig(repo)
-        let manifest = manifest(from: config, base: base)
+        var manifest = manifest(from: config, base: base)
+        manifest.exports = true
+        // The painter's theme for the PDFs, as `--convert` makes it.
+        _ = OfficeFonts.register()
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        theme.disablesLigatures = true
         guard let web, fm.fileExists(atPath: web + "/index.html"), fm.fileExists(atPath: web + "/app.wasm") else {
             throw Failure("no web build to ship: pass --web <stage> or set STARLING_WEB_STAGE (build/web-app.sh OfficeApp --package apps/OfficeApp)")
         }
@@ -247,8 +263,18 @@ enum SiteBuilder {
         for (node, _) in manifest.flattened() {
             let src = repo + "/" + SiteFiles.pagePath(node.slug)
             let data = fm.contents(atPath: src) ?? Data(SiteFiles.emptyBody.utf8)
-            guard let doc = SiteFiles.decodePage(data)?.document else { throw Failure("\(src): not a page this build can read") }
+            guard let page = SiteFiles.decodePage(data) else { throw Failure("\(src): not a page this build can read") }
+            let doc = page.document
             try data.write(to: URL(fileURLWithPath: out + "/" + SiteFiles.pagePath(node.slug)), options: .atomic)
+            // The page as a PDF and as Word, static, beside its shell: a
+            // download for any reader, a link for crawlers and screen
+            // readers, and instant for the reader's buttons.
+            try fm.createDirectory(atPath: out + "/" + node.slug, withIntermediateDirectories: true)
+            let setup = page.pageSetup ?? .letter
+            if !PdfExport.write(doc, pageSetup: setup, theme: theme, to: out + "/" + node.slug + "/" + node.slug + ".pdf", title: node.title) {
+                throw Failure("\(node.slug): could not write its PDF")
+            }
+            try OfficeFormats.write(doc, to: out + "/" + node.slug + "/" + node.slug + ".docx", pageSetup: setup)
             let text = SiteFiles.plainText(doc)
             if !hasCJK, text.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { hasCJK = true }
             entries.append(SiteSearchEntry(slug: node.slug, title: node.title, text: text))
@@ -256,11 +282,11 @@ enum SiteBuilder {
                                             title: node.title, siteTitle: manifest.title,
                                             description: SiteFiles.summary(doc), text: text,
                                             lines: SiteShellPage.lines(of: doc),
-                                            nav: manifest.flattened().map { (title: $0.node.title, route: manifest.route($0.node.slug), depth: $0.depth) })
+                                            nav: manifest.flattened().map { (title: $0.node.title, route: manifest.route($0.node.slug), depth: $0.depth) },
+                                            downloads: manifest.exportPaths(node.slug))
             if node.slug == manifest.home {
                 try html.write(toFile: out + "/index.html", atomically: true, encoding: .utf8)
             }
-            try fm.createDirectory(atPath: out + "/" + node.slug, withIntermediateDirectories: true)
             try html.write(toFile: out + "/" + node.slug + "/index.html", atomically: true, encoding: .utf8)
             count += 1
         }
@@ -331,7 +357,8 @@ enum SiteShellPage {
 
     static func render(template: String, base: String, route: String, title: String, siteTitle: String,
                        description: String, text: String, lines: [(level: Int, text: String)] = [],
-                       nav: [(title: String, route: String, depth: Int)] = []) -> String {
+                       nav: [(title: String, route: String, depth: Int)] = [],
+                       downloads: (pdf: String, docx: String)? = nil) -> String {
         let desc = String(description.replacingOccurrences(of: "\n", with: " ").prefix(300))
         let full = title == siteTitle ? title : "\(title) — \(siteTitle)"
         let meta = """
@@ -370,8 +397,9 @@ enum SiteShellPage {
             // page and a screen reader can move between them.
             let links = nav.map { "<li>" + String(repeating: "&nbsp;&nbsp;", count: $0.depth) + "<a href=\"" + escape($0.route) + "\">" + escape($0.title) + "</a></li>" }.joined(separator: "\n")
             let navHTML = nav.isEmpty ? "" : "<nav aria-label=\"Pages\"><ul>\n" + links + "\n</ul></nav>\n"
+            let downloadsHTML = downloads.map { "<p class=\"starling-downloads\"><a href=\"" + escape($0.pdf) + "\">Download as PDF</a> · <a href=\"" + escape($0.docx) + "\">Download as Word</a></p>\n" } ?? ""
             html.replaceSubrange(r, with: "<body>\n" + style + "<main id=\"starling-text\" class=\"starling-sr\" aria-label=\"" + escape(siteTitle) + "\">\n" + navHTML
-                + "<article id=\"starling-article\" aria-label=\"" + escape(title) + "\">\n" + elements + "\n</article>\n</main>")
+                + "<article id=\"starling-article\" aria-label=\"" + escape(title) + "\">\n" + downloadsHTML + elements + "\n</article>\n</main>")
         }
         return html
     }

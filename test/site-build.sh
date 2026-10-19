@@ -51,6 +51,10 @@ check "a shell page resolves assets at the base" "$(grep -c '<base href="/">' "$
 check "the page's text layer is hidden HTML with headings" "$(grep -c '<article id="starling-article" aria-label="About">' "$DIST/about/index.html")" 1
 check "a heading is a heading there" "$(grep -c '^<h1>About</h1>$' "$DIST/about/index.html")" 1
 check "the site's pages are real links in it" "$(grep -c '<li>&nbsp;&nbsp;<a href="/publishing/">Publishing</a></li>' "$DIST/about/index.html")" 1
+check "and so are the page's downloads" "$(grep -c '<a href="/about/about.pdf">Download as PDF</a> · <a href="/about/about.docx">Download as Word</a>' "$DIST/about/index.html")" 1
+check "the build wrote the page as a PDF" "$(head -c 4 "$DIST/sample-paper/sample-paper.pdf" 2>/dev/null)" '%PDF'
+check "and as Word" "$(unzip -l "$DIST/sample-paper/sample-paper.docx" 2>/dev/null | grep -c 'word/document.xml')" 1
+check "the manifest says so" "$(json '["exports"]' < "$DIST/manifest.json")" True
 check "a paragraph is a paragraph" "$(grep -c '^<p>Pages are stored as the document model' "$DIST/about/index.html")" 1
 check "the home shell page is the first page's" "$(grep -o 'og:title" content="[^"]*"' "$DIST/index.html")" 'og:title" content="Welcome"'
 check "404 loads the app" "$(grep -c "args: \['--site'" "$DIST/404.html")" 1

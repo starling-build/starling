@@ -201,6 +201,15 @@ a real link, so crawlers reach the whole site from any page. Link to
 paragraph now copies the whole address (`starling_host_copy_location`,
 the tab's `location.href`) as well as putting `#p=<id>` in the bar.
 
+**Static exports (2026-10-19):** the build writes every page as
+`<slug>/<slug>.pdf` (the same painter, with the site's web faces) and
+`<slug>/<slug>.docx` beside its shell, links both from the text layer
+("Download as PDF · Download as Word", for crawlers, screen readers and
+scripts-off readers alike), and the reader's PDF and Word buttons open
+those files instead of rendering in the tab — instant where the in-tab
+PDF of a 24-page document took 15 s. The manifest says `exports: true`;
+over a clone the buttons still render locally.
+
 Not yet: a smaller stored form for table-heavy documents (above); the
 reader's controls for screen readers; a phone layout for the Writer's
 ribbon when editing (the reader is fine on a phone).

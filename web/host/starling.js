@@ -505,6 +505,16 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
       main.append(article);
     }
     article.replaceChildren(...lines.filter(l => l.length).map((line) => {
+      // "@\t<pdf>\t<docx>": the page's downloads, as links.
+      if (line.startsWith('@\t')) {
+        const [, pdf, docx] = line.split('\t');
+        const p = document.createElement('p');
+        p.className = 'starling-downloads';
+        const a = document.createElement('a'); a.href = pdf; a.textContent = 'Download as PDF';
+        const b = document.createElement('a'); b.href = docx; b.textContent = 'Download as Word';
+        p.append(a, ' · ', b);
+        return p;
+      }
       const tab = line.indexOf('\t');
       const level = tab >= 0 ? +line.slice(0, tab) : 0;
       const el = document.createElement(level >= 1 && level <= 3 ? `h${level}` : 'p');
