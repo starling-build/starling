@@ -369,7 +369,14 @@ fi
 #     addText", which reads as missing ICU data and is not.
 if [ "$OFFICE" = 1 ]; then
     step "unit tests: office"
-    out="$(as_user env -u LD_LIBRARY_PATH SWIFT="$SWIFT" \
+    # On a Mac the package links host_debug_arm64 by default, which goes
+    # stale behind host_release_arm64 (the one the apps are built against);
+    # a stale one fails the link and takes the debug binary with it.
+    OFFICE_ENGINE_ENV=""
+    if [ "$(uname)" = Darwin ] && [ -d "$REPO/engine/src/out/host_release_arm64" ]; then
+        OFFICE_ENGINE_ENV="STARLING_ENGINE_OUT=$REPO/engine/src/out/host_release_arm64 FLUTTER_SWIFT_ENGINE_OUT=$REPO/engine/src/out/host_release_arm64"
+    fi
+    out="$(as_user env -u LD_LIBRARY_PATH $OFFICE_ENGINE_ENV SWIFT="$SWIFT" \
         "$REPO/sdk/tools/run-tests.sh" --package-path "$REPO/apps/OfficeApp" 2>&1)" \
         || fails=$((fails + 1))
     echo "$out" | grep -vE "libxml2.so.2: no version information" \
