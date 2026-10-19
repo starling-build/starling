@@ -2451,6 +2451,10 @@ the same engine with and without it) made the corpus worse: 0.966 →
 rasterised layer drawn at the wrong scale (page_transparent_bitmap
 +15). Wants a blur that is not rasterised at all, or a raster DPI
 for the shadow layer alone.
+The sharp stand-in's strength, 0.35 of the shadow's alpha rather than
+0.45 (sweep 237): 45541's three copies −0.08 each, alterman +0.07 — its
+shadow the same 3 pt, blurred 3 pt, but light grey on white where
+45541's is black on dark blue. A trade between two decks; left at 0.45.
 
 **Tried and dropped, 2026-10-18: a path gradient's tile
 (`a:tileRect`).** ImportWordArtGradient's third box runs its tile a
