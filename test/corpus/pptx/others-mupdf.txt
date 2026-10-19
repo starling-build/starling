@@ -58,7 +58,6 @@ lo-ShapeTextInflateTop.pptx
 lo-TextFittingStored.pptx
 lo-accent-color.pptx
 lo-activex_checkbox.pptx
-lo-activex_combobox.pptx
 lo-activex_commandbutton.pptx
 lo-activex_fontproperties.pptx
 lo-activex_label.pptx
@@ -129,7 +128,6 @@ lo-n90190.pptx
 lo-n90223.pptx
 lo-n90223RT.pptx
 lo-n90255.pptx
-lo-narration-non-media-shape.pptx
 lo-numfmt.pptx
 lo-ole-emf_min.pptx
 lo-ole.pptx
@@ -148,7 +146,6 @@ lo-shape-text-glow-effect.pptx
 lo-shape-text-rotate.pptx
 lo-slide-section-test.pptx
 lo-slide-sections.pptx
-lo-slidenum_field.pptx
 lo-smartart-accent-process.pptx
 lo-smartart-autoTxRot.pptx
 lo-smartart-autofit-sync.pptx
@@ -296,7 +293,6 @@ lo-tdf148810_PARA_OUTLLEVEL.pptx
 lo-tdf148921.pptx
 lo-tdf148965.pptx
 lo-tdf148966.pptx
-lo-tdf149124.pptx
 lo-tdf149206.pptx
 lo-tdf149314.pptx
 lo-tdf149551_SmartArt_Gear.pptx
@@ -304,7 +300,6 @@ lo-tdf149551_SmartArt_Pie.pptx
 lo-tdf149551_SmartArt_Pyramid.pptx
 lo-tdf149551_SmartArt_Venn.pptx
 lo-tdf149588_transparentSolidFill.pptx
-lo-tdf149697.pptx
 lo-tdf149785.pptx
 lo-tdf149865.pptx
 lo-tdf149961-autofitIndentation.pptx
@@ -358,7 +353,6 @@ lo-tdf65724.pptx
 lo-tdf79007.pptx
 lo-tdf79082.pptx
 lo-tdf84205.pptx
-lo-tdf89449.pptx
 lo-tdf89927.pptx
 lo-tdf89928-blackWhiteEffectThreshold.pptx
 lo-tdf90626.pptx
@@ -440,7 +434,6 @@ present1.pptx
 radar-chart.pptx
 rain.pptx
 sample.pptx
-sample_pptx_grouping_issues.pptx
 scatter-chart.pptx
 shapes.pptx
 smartart-rotated-text.pptx
@@ -454,5 +447,4 @@ templatePPTWithOnlyOneText.pptx
 testPPT.pptx
 text-highlight.pptx
 themes.pptx
-tika-2605.pptx
 with_japanese.pptx

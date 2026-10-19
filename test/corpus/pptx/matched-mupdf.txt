@@ -6,6 +6,7 @@ EmbeddedAudio.pptx
 EmbeddedVideo.pptx
 SmartArt.pptx
 crop-to-0.pptx
+lo-activex_combobox.pptx
 lo-animation-sound-embedded.pptx
 lo-animation-sound-external.pptx
 lo-arc-validiert.pptx
@@ -22,12 +23,14 @@ lo-master-and-eleven-layouts.pptx
 lo-master-bg-color.pptx
 lo-media-placeholder.pptx
 lo-mirrored-graphic.pptx
+lo-narration-non-media-shape.pptx
 lo-narration.pptx
 lo-onemaster-twolayouts.pptx
 lo-picture-placeholder-custom-prompt.pptx
 lo-pres-with-notes.pptx
 lo-presetDashDot.pptx
 lo-shape-glow-effect.pptx
+lo-slidenum_field.pptx
 lo-tdf103473.pptx
 lo-tdf103792.pptx
 lo-tdf103876.pptx
@@ -63,6 +66,8 @@ lo-tdf140714.pptx
 lo-tdf144917.pptx
 lo-tdf147459.pptx
 lo-tdf148478_transitionMusic.pptx
+lo-tdf149124.pptx
+lo-tdf149697.pptx
 lo-tdf149803.pptx
 lo-tdf151547-transparent-white-text.pptx
 lo-tdf151767.pptx
@@ -78,6 +83,7 @@ lo-tdf163239_v2.pptx
 lo-tdf165670.pptx
 lo-tdf167214.pptx
 lo-tdf89064.pptx
+lo-tdf89449.pptx
 lo-tdf91060.pptx
 lo-tdf91999_rotateShape.pptx
 lo-tdf98477grow.pptx
@@ -93,3 +99,5 @@ oox-tdf144742_mathEqual_mathNotEqual.pptx
 oox-tdf147978_enhancedPath_subpath.pptx
 oox-tdf163803_image_with_fill.pptx
 picture-transparency.pptx
+sample_pptx_grouping_issues.pptx
+tika-2605.pptx
