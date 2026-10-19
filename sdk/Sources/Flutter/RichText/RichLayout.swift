@@ -5044,6 +5044,17 @@ public final class RichLayout {
                 }
                 var below = 0.0
                 var top = rule(c, "top")
+                // (Collapsed, a row's text stands under its thickest top
+                // line, whichever cell states it: zh-147bdae0's repeated
+                // header row rules its last cell's top 1.5pt and the rest
+                // 0.5, and every cell's text is 1pt lower in Word's print
+                // than under its own line — 序 at 109.4, ours 108.2.)
+                if theme.wordRules, ts.cellSpacing == nil {
+                    var k = i - 1
+                    while k >= 0, let d = document.paragraphs[k].cell, d.table == c.table, d.row == c.row { top = max(top, rule(d, "top")); k -= 1 }
+                    k = i + 1
+                    while k < count, let d = document.paragraphs[k].cell, d.table == c.table, d.row == c.row { top = max(top, rule(d, "top")); k += 1 }
+                }
                 // (The row above's bottom line, where this cell says none
                 // of its own, lies in this cell's top margin: room only
                 // for what of it the margin does not hold. Lab `bm` in
