@@ -103,6 +103,10 @@ struct Chart: Equatable {
     /// gives them (its first run's, else the title's default run
     /// properties); nil is PowerPoint's default for a chart title.
     var titleSize: Double? = nil
+    /// A size of a title's later paragraph where it differs from the
+    /// first's, by line of `title` (aascu 5864's 14 pt titles with a 12 pt
+    /// line under them).
+    var titleLineSizes: [Int: Double] = [:]
     var titleBold = false
     var titleColor: Color? = nil
     /// The title's own box (`c:title/c:spPr`): its fill, and its outline
@@ -450,6 +454,7 @@ struct Chart: Equatable {
     func statedTextScaled(by f: Double) -> Chart {
         var c = self
         c.titleSize = titleSize.map { $0 * f }
+        c.titleLineSizes = titleLineSizes.mapValues { $0 * f }
         c.legendSize = legendSize.map { $0 * f }
         c.valueLabelSize = valueLabelSize.map { $0 * f }
         c.categoryLabelSize = categoryLabelSize.map { $0 * f }
@@ -1108,6 +1113,7 @@ enum ChartXML {
         var title: String? = nil
         let deleted = chart.first("c:autoTitleDeleted")?["val"] == "1"
         var titleSize: Double? = nil, titleBold = false, titleColor: Color? = nil, titleFace: String? = nil
+        var titleLineSizes: [Int: Double] = [:]
         var titleAt: Offset? = nil
         if let t = chart.first("c:title") {
             // Line by line: a paragraph, or a break inside one, starts a new line.
@@ -1143,6 +1149,17 @@ enum ChartXML {
                 if let fill = layer.first("a:solidFill") { titleColor = color(fill) }
             }
             titleFace = layers.lazy.compactMap { $0.first("a:latin")?["typeface"] }.first
+            // A later paragraph in a size of its own: every line it makes.
+            if let first = titleSize, !paragraphs.isEmpty {
+                var line = 0
+                for p in paragraphs {
+                    let lines = 1 + p.children.filter { $0.name == "a:br" }.count
+                    if let sz = p.first("a:r")?.first("a:rPr")?["sz"].flatMap(Double.init).map({ $0 / 100 }), sz != first {
+                        for k in line ..< line + lines { titleLineSizes[k] = sz }
+                    }
+                    line += lines
+                }
+            }
         } else if !deleted && series.count == 1 && lines.isEmpty && named {
             // (A series with no name of its own gives no title: aascu
             // 5864's census chart has none in PowerPoint, where ours read
@@ -1202,6 +1219,7 @@ enum ChartXML {
             c.plainText = true
         }
         c.titleSize = titleSize
+        c.titleLineSizes = titleLineSizes
         c.titleAt = titleAt
         c.titleBold = titleBold
         c.titleColor = titleColor
@@ -1823,24 +1841,39 @@ enum ChartPainter {
         if let title = c.title, !title.isEmpty {
             // In the file's size, weight and colour where it gives them,
             // each line centred.
-            let tp = TextPainter(text: TextSpan(text: title, style: Flutter.TextStyle(
+            let titleStyle = Flutter.TextStyle(
                 color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? 18.6) * k),
                 fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain,
-                fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)),
-                textAlign: .center, textDirection: .ltr)
+                fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback)
+            // (A line in a size of its own, as its own span.)
+            let span: TextSpan
+            if c.titleLineSizes.isEmpty {
+                span = TextSpan(text: title, style: titleStyle)
+            } else {
+                let lines = title.components(separatedBy: "\n")
+                span = TextSpan(children: lines.enumerated().map { i, line in
+                    TextSpan(text: line + (i < lines.count - 1 ? "\n" : ""),
+                             style: c.titleLineSizes[i].map { Flutter.TextStyle(fontSize: max(3, $0 * k)) })
+                }, style: titleStyle)
+            }
+            // (As wide as its longest line, wrapped or not: a title placed
+            // by the file stands its widest line 3 pt into its box, and a
+            // wrapped one as wide as the room it wrapped in stood aascu
+            // 5864's 12 and 19 pt right of PowerPoint's.)
+            let tp = TextPainter(text: span, textAlign: .center, textDirection: .ltr, textWidthBasis: .longestLine)
             // No wider than four fifths of the chart: aascu 5864's 20 pt
             // title breaks before "at" in PowerPoint's print, its first
             // line 535 pt of a 696 pt chart, "at" taking it past 557.
             tp.layout(minWidth: 0, maxWidth: max(1, c.onSlide ? min(area.width, 0.8 * r.width) : area.width))
             // (Two points higher than the area's edge: where PowerPoint's
-            // sits. Or where the file places its box, 4.5 pt in and 1.5
+            // sits. Or where the file places its box, 3 pt in and 1.5
             // down, over the plot: LIBRE_OFFICE-100610's bar charts'
             // titles, across their bars.)
             // Its box, where it has one: 3 pt beside the text and 1.5 over
             // and under it (chart-tdf161607's black box ruled in red round
             // its 40 pt title, in Excel's print).
             if let at = c.titleAt {
-                placed = (tp, Offset(r.left + at.dx * r.width + 4.5 * k, r.top + at.dy * r.height + 1.5 * k))
+                placed = (tp, Offset(r.left + at.dx * r.width + 3 * k, r.top + at.dy * r.height + 1.5 * k))
             } else {
                 // (On a sheet 2.5 pt lower, and the plot under it with it:
                 // Excel's prints of eight titled charts, 13 to 40 pt, stand

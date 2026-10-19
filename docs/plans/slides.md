@@ -2548,6 +2548,21 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A chart title's lines in their own sizes, its box its longest line,
+2026-10-19** (sweep 249: corpus mean 0.9219 → 0.9217; LIBRE_OFFICE-100610
+−0.05, aascu 5864 −0.03, none other moved). aascu 5864's slide 16 has
+three charts titled "Average scores around age n", 14 pt, over "(relative
+to those with grad-school parents)", 12 pt: the whole title was drawn at
+the first run's 14, so its second line wrapped elsewhere. A later
+paragraph's own size now holds for its lines (`Chart.titleLineSizes`).
+And two of those titles are placed by the file (`manualLayout`): wrapped,
+the title's painter was as wide as the room it wrapped in, its lines
+centred in that, so they stood 12 and 19 pt right of PowerPoint's. The
+title is now as wide as its longest line, and that line stands 3 pt into
+the file's box — not the 4.5 fitted to these same charts when the wrap
+hid it; LIBRE_OFFICE-100610's five bar-chart titles, 1.5 pt right
+before, are now where PowerPoint's are.
+
 **Measured and left, 2026-10-19.** vertical-bracket-list's text box
 is 110.84 pt tall in PowerPoint's print, its text 65 pt: the text's
 own height (65 × 1.2 × 90% = 70.2) and its 20 pt margins, to half a
