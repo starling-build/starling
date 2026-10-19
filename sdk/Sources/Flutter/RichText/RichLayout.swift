@@ -6835,6 +6835,15 @@ public final class RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(heldKind ?? current ?? kind)))
                     inserts.append(offset)
                     afterHeld = false
+                } else if theme.wordRules, (before == "\u{2014}" && ch.isASCII && ch.isNumber && beforeBefore.map { $0.isASCII && $0.isNumber } == true)
+                            || (ch == "\u{2014}" && before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true) {
+                    // (Nor on either side of an em dash between digits — a span
+                    // of years: zh-b378d8c4's "（2021—2030年）" goes down whole
+                    // in Word's print, its "（" unable to end a line; the
+                    // engine parted it at the dash.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, !lineRulesOff, before == " ",
                           ch == "%" || ch == "‰" || ch == "℃" || Self._closingMarks.contains(ch) {
                     // (Nor after spaces before a mark no line may start
