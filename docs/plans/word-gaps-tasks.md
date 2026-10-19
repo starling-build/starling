@@ -3055,7 +3055,10 @@ without Taiwan's noLineBreaksBefore list, such a final mark gives nothing where 
 margin — the line's other marks must cover it (16 of 23.05 here, so refused). Tried and dropped on the way: a mode
 14/11 split (the Mac's lab pe2c: modes 14 and 11 alike), and the final never giving beside others (zh-64044a1d's
 "…措施事宜。" gives, its "宜" inside). Listed documents keep their own rules (zh-ae3d78ee 100 -> 25.3 without the
-!listed). Same-base sweep, 537 docs: zh-cfb32050 73.6 -> 76.4, nothing lower. zh-e64d4997 (cells) unmoved — open.
+!listed). Same-base sweep, 537 docs: zh-cfb32050 73.6 -> 76.4, nothing lower. zh-e64d4997 (cells) unmoved —
+its long cell line is "（歲入成長率÷ 歲出", the same PMingLiU "÷ " widths as zh-043aab43 (the Mac 011uWpmC's lab `hs`, parked:
+PMingLiU's own ASCII table fixes it and breaks four documents); its compat also says doNotUseEastAsianBreakRules
+and doNotWrapTextWithPunct. Released.
 
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
