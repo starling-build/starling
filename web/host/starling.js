@@ -544,14 +544,17 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     if (defaultFamily && families.includes(defaultFamily)) registerFont(bytes, SKWASM_FALLBACK_FAMILY);
   }
   // Glyph fallback: the families marked `fallback` are tried, in manifest
-  // order, for characters the requested family lacks (⌘ in a UI face).
-  for (const { families, fallback } of fonts) {
-    if (!fallback) continue;
-    const name = encoder.encode(families[0]);
+  // order, for characters the requested family lacks (⌘ in a UI face). A
+  // deferred one (Noto Sans SC) joins when a document has it fetched.
+  const registerFallback = (family) => {
+    const name = encoder.encode(family);
     const pointer = swift.starling_alloc(name.length);
     appBytes().set(name, pointer);
     swift.starling_font_fallback(pointer, name.length);
     swift.starling_free(pointer);
+  };
+  for (const { families, fallback } of fonts) {
+    if (fallback) registerFallback(families[0]);
   }
 
   const manifest = await fontManifest;
@@ -560,6 +563,7 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   }
   fontLoader = createFontLoader(manifest, {
     register: registerFont,
+    fallback: registerFallback,
     changed: () => swift.starling_fonts_changed(),
     status: state => { fontsPending = state.pending.length; onFontStatus?.(state); },
   });

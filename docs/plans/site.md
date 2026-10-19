@@ -116,6 +116,23 @@ continuation paragraphs and XML, borders XML) — the 临沧 notice is 4.0 MB
 same-as-previous-paragraph coding of `cell` would halve the latter. A
 model change, left for when the measured load in a tab says so.
 
+**Chinese in a tab.** The web build shipped no CJK face, so every
+Chinese character drew as a box — document and UI alike. `web/fonts/
+NotoSansSC-VariableFont_wght.ttf` (OFL, 18 MB) is in the font manifest
+as `?!`: deferred AND a glyph fallback. On the web `OfficeFonts.substitute`
+maps any Chinese face name (宋体, 仿宋, 黑体, Word's list, or any name
+with CJK characters) to "Noto Sans SC"; the paragraph builder asks the
+page for a family it lacks (`starling_host_request_font`), the loader
+fetches it, registers it, and — new — adds it to the glyph-fallback
+chain, so the sidebar's titles in Carlito draw too. A Latin-only page
+never fetches it (checked: `about` loads 0 Noto resources, the notice 1).
+One sans face stands in for 仿宋/宋体/黑体 alike; a serif (Noto Serif SC)
+is the next step for the official look, and so is measuring the
+pagination against Word's print of these documents with the web faces.
+Live from Pages, cold: the notice's JSON 149 KB in 0.2 s, the font 11.4 MB
+gzipped in 4.2 s, the page as 34 pages — the first Chinese page a visitor
+opens costs those four seconds once.
+
 **Trap, paid for twice tonight:** a NEW file under `sdk/` is not noticed by
 an incremental `swift build` in either scratch (`apps/OfficeApp/.build`
 and `.build-web-OfficeApp`): the build "completes" in a second, the app

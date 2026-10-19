@@ -58,6 +58,11 @@ enum OfficeFonts {
     /// the look of the name after that. Case-insensitive.
     static func substitute(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
+        #if os(WASI)
+        // The browser has no system faces: a Chinese face by any name is
+        // the one shipped (Noto Sans SC, fetched when first asked for).
+        if wordsOwn.contains(n) || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return "Noto Sans SC" }
+        #endif
         switch n {
         case "liberation sans", "arial", "helvetica", "helvetica neue", "tahoma",
              "segoe ui", "aptos", "arimo", "arial black":

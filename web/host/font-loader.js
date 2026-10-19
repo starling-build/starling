@@ -1,6 +1,6 @@
 // Deferred families are fetched as a unit so regular/bold/italic metrics arrive
 // together. Keep successful files across retries; never cache a failed request.
-export function createFontLoader(entries, { register, changed, status = () => {}, fetchBytes = async url => {
+export function createFontLoader(entries, { register, fallback = () => {}, changed, status = () => {}, fetchBytes = async url => {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url}: ${response.status}`);
   return new Uint8Array(await response.arrayBuffer());
@@ -25,6 +25,8 @@ export function createFontLoader(entries, { register, changed, status = () => {}
         if (!files.has(entry.url)) {
           const file = fetchBytes(entry.url).then(bytes => {
             for (const alias of entry.families) register(bytes, alias);
+            // A deferred glyph fallback joins the chain once it is here.
+            if (entry.fallback) fallback(entry.families[0]);
           }).catch(error => { files.delete(entry.url); throw error; });
           files.set(entry.url, file);
         }

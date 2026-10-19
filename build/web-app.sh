@@ -165,6 +165,10 @@ python3 "$REPO/build/tools/subset-web-icons.py" --check
 # the requested family lacks.
 FONTS=(
     "$REPO/sdk/Sources/FluentSystemIcons/Resources/Selawik-Regular.ttf=Selawik"
+    # Chinese: fetched when a document names a Chinese face (OfficeFonts
+    # maps 宋体, 仿宋, 黑体… to it on the web) and then a glyph fallback
+    # for every other family, so a page's title in the UI face draws too.
+    "$REPO/web/fonts/NotoSansSC-VariableFont_wght.ttf=Noto Sans SC?!"
     "$REPO/sdk/Sources/FluentSystemIcons/Resources/Selawik-Semibold.ttf=Selawik Semibold|Selawik"
     "$REPO/sdk/Sources/Flutter/Terminal/Fonts/DejaVuSans.ttf=DejaVu Sans!"
     "$REPO/sdk/Sources/CupertinoIcons/Resources/CupertinoIcons.ttf=CupertinoIcons"
@@ -226,9 +230,17 @@ fi
     first=1
     for entry in "${FONTS[@]}"; do
         src="${entry%%=*}"; family="${entry#*=}"
+        # `?` deferred until a document asks for the family, `!` a glyph
+        # fallback; both (`?!`) is a fallback fetched only when some
+        # document names the family — Noto Sans SC, 18 MB, for Chinese.
         fallback=""
-        case "$family" in *\?) family="${family%?}"; fallback=', "lazy": true' ;; esac
-        case "$family" in *!) family="${family%!}"; fallback=', "fallback": true' ;; esac
+        while :; do
+            case "$family" in
+                *\?) family="${family%?}"; fallback="$fallback"', "lazy": true' ;;
+                *!) family="${family%!}"; fallback="$fallback"', "fallback": true' ;;
+                *) break ;;
+            esac
+        done
         install -m 644 "$src" "$STAGE/fonts/"
         [ "$first" = 1 ] || echo ","
         first=0
