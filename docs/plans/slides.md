@@ -2548,6 +2548,13 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**A titled pie stands further under its title, 2026-10-19** (the 19
+chart decks: pie-chart 1.34 → 1.03, no other moved; corpus mean 0.9214 →
+0.9208). pie-chart's pie is 262.5 pt across in PowerPoint's print, its
+top 156.25; ours was 265.75 and 153.5: the room under the title 3.35 pt
+taller. A flat pie on a slide now stands 6.95 pt under its title, not
+the 3.6 measured on chart-slide-bg's column chart, which keeps it.
+
 **A legend beside the plot keys as a row does, 2026-10-19** (sweep 250:
 corpus mean 0.9217 → 0.9214; pie-chart −0.10, bar-chart, tdf149985 −0.03,
 aascu 5864, line-, radar-, scatter-chart −0.01; none worse). A column

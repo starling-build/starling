@@ -1889,7 +1889,10 @@ enum ChartPainter {
             // 8.5 from the plot — each where its text sits on the page.)
             // (A chartex chart's plot 2 pt nearer: 12.8 under the title's
             // baseline in Word's print of chartex's, a `c:` chart's 14.9.)
-            area = Rect.fromLTRB(area.left, area.top + tp.height + (c.chartex ? 1.6 : 3.6) * k, area.right, area.bottom)
+            // (A pie on a slide stands 7 under it: pie-chart's, its top
+            // 2.75 pt lower in PowerPoint's print and the pie 3.25 smaller.)
+            let pieOnSlide = c.onSlide && c.type == .pie && c.ofPie == nil && c.pieTilt == nil
+            area = Rect.fromLTRB(area.left, area.top + tp.height + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
             if placed == nil { tp.dispose() }
         }
 
