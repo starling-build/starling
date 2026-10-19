@@ -151,8 +151,23 @@ customers** — the two Chinese demo documents were removed from the demo
 (they proved the format work; `test/corpus/docx` still holds them), and
 the build ships the Chinese font only with a site that has Chinese text
 (`SiteBuilder.pruneFonts`), so a Western site's `docs/` never carries the
-18 MB. Not yet: delete/rename/reorder of pages (edit `site.json` by
-hand); a smaller stored form for table-heavy documents (above); text
-that selects into the browser's clipboard, browser find, a text layer for
-screen readers (the noscript text is for crawlers only); a phone layout
-for the Writer's ribbon when editing (the reader is fine on a phone).
+18 MB.
+
+**Later the same day:** Find in the page (the Find button or Ctrl+F;
+typing selects the first match, Next or Ctrl+G the next); Ctrl+C puts
+the selection on the system clipboard in a tab (`WebClipboard` in
+FlutterWeb behind `Clipboard.provider`, text and HTML through
+`navigator.clipboard`; a read answers empty when the browser refuses); a
+finger scrolls the document and a tap places the caret (RichEditable's
+touch path, confirmed on the user's iPhone); the read-only status page
+follows the view. Over a clone: Import .docx… (the file panel; the
+document becomes a page under the open one, ids assigned, page setup
+kept — `--site-import <repo> <file> [--title] [--under]` from a
+terminal), Rename, Delete (children move up). `test/site-web.sh` drives
+find, the double-click selection, a stubbed clipboard write and the
+touch drag; `test/site-build.sh` the import.
+
+Not yet: reorder of pages (edit `site.json` by hand); a smaller stored
+form for table-heavy documents (above); a text layer for screen readers
+(the noscript text is for crawlers only); a phone layout for the Writer's
+ribbon when editing (the reader is fine on a phone).
