@@ -155,6 +155,23 @@ w:p in paragraph-less cells (v10), outset borders as single (v11). Not
 yet: the compat flags (doNotSnapToGridInCell, growAutofit,
 doNotUseEastAsianBreakRules…), the repeated header row (tblHeader), the
 exact 16pt cell lines, a fresh table built in this package.
+Then (Windows 01QbbApP, 2026-10-19, labs ~/starling-doc-check/lab/rw2): it is the
+footer, not the table. In zh-73534289's package even a fresh one-row table a page
+and a half tall (M73c) skips page 1's 33 free lines and parts from page 2; in
+zh-eb54d3b0's package the same body parts on page 1. Bisected: its settings (X1,
+X2) and styles (X3) change nothing; its section does (X4). Within the section:
+no footer (X5) parts; margins of 1984 (X6) part; footer 200 twips up parts;
+bottom margin 1100 parts, 980 does not. Within the footer (a framePr paragraph
+holding "8-PAGE", w:w=11907 hAnchor=page x=1 y=-2 wrap=around vAnchor=text, then
+an empty Footer paragraph): the frame removed parts (X7); the frame without w:w,
+page x=1 y=-2, parts; w:w=3000 at page x=1 or centred on the margin, y=-2, does
+not; w:w=11907 with y=1 parts. So an explicitly sized footer frame raised above
+its anchor, reaching over the bottom margin, stops Word parting rows at the page's
+foot. Built as "a footer with any frame over the margin" it cost ~40 zh documents
+(100 -> 11-48: their page numbers are auto-sized frames, y=1, centred on the
+margin), so the exact trigger (sized frame, its top over the margin by how much)
+is open. zh-73534289 went 82.7 -> 99.6 with it. Patch kept at the Windows box's
+scratch foot2.patch; not landed.
 Then: the four compat flags off (v12) still moves row 120 whole. With the
 repeated header row off (v13) or every vMerge off (v14) the pages shift
 and row 120 no longer meets a page foot needing to part, so neither
