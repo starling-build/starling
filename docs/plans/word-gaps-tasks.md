@@ -3060,6 +3060,14 @@ its long cell line is "（歲入成長率÷ 歲出", the same PMingLiU "÷ " wid
 PMingLiU's own ASCII table fixes it and breaks four documents); its compat also says doNotUseEastAsianBreakRules
 and doNotWrapTextWithPunct. Released.
 
+### T132. rtl.docx: Arabic in the run's complex-script face — Times New Roman where Word lacks it — claimed
+Owner: session starling-office1-df (Linux dev box), from 2026-10-19 (the Windows box's measurement, 01QbbApP)
+Documents: rtl.docx (POI, 0%: 7 Word lines, ours 9).
+Known (Windows): runs say ascii/hAnsi Liberation Serif, cs "Noto Sans Arabic UI"; neither Word has that face and both
+draw the Arabic in Times New Roman (588 characters, 12pt). Ours never reads `complexFontFamily` for drawing: the
+Arabic goes to Liberation Serif (none) and then DejaVu Sans, wider. Linux: Word's Times Arabic is 0.953 of FreeSerif's
+(562 characters measured from Word's print); Noto Naskh Arabic is wider still.
+
 ### T45. zh-2b955411 p26: 9pt text over a 26pt paragraph mark sits 5pt low in Word — measured, released
 Owner: — (released by session 01Xgpbk5jLzrCcB28yZBzYHN, 2026-10-16)
 Labs `mk1`, `mk3` (Word 16, the document's package): a 26pt paragraph mark
