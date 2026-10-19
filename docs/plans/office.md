@@ -6444,6 +6444,17 @@ and the Windows box (Word for Windows, Windows 01QbbApP):
   print has SimSun.
   A reference print can be off for one document while the rest of its batch
   holds — zh-167ee06c's was, and it was reprinted.
+- **So the app has three sets of rules, `OFFICE_WORD_FONTS`.** `mac` is
+  Word for Mac's fallbacks — YaHei for every name it lacks — and is what
+  the corpus's references are printed with and every sweep runs under.
+  The default is the author's faces: 仿宋 and its names in Starling
+  FangSong, the 方正 titles at their own line, other missing names the
+  square face they were made in. `windows` is Word for Windows' fallbacks
+  on a stock machine — a missing name's font-table alternate where it
+  has that face (仿宋 for 仿宋_GB2312 is its cloud FangSong), else YaHei —
+  for comparing with its prints (Windows 01QbbApP, lab `fsw`: thirteen
+  such prints, 64.5% of their lines under the default, 84.8 under
+  `windows`).
 - **Embedding is rare.** Of the 131 WPS-made files in the corpus, 125 name a
   方正 or `_GB2312` face and 7 embed any font. WPS treats 方正小标宋 as a
   members' cloud font; without it WPS draws another face too.

@@ -110,8 +110,14 @@ worktree writes `~/starling-doc-check-<worktree>`), so they never clash.
 Ranked roughly by lines at stake. "Known" is what has been measured;
 start from there.
 
-### T129. Windows rules: an uninstalled face is its fontTable altName, as Word for Windows draws it
-Owner: session 01QbbApP (Windows box), from 2026-10-19 (from Mac 011uWpmC)
+### T129. Windows rules: an uninstalled face is its fontTable altName, as Word for Windows draws it — DONE (2026-10-19)
+Owner: none (Windows 01QbbApP built it, released)
+Built as the Mac (011uWpmC) decided: the default stays the author's faces,
+with the 方正 Song titles at their own 1.51-em line (8f250d91); Word for
+Windows' altName fallbacks are a mode of their own, OFFICE_WORD_FONTS=windows,
+for comparing with its prints: 13 of them, 64.5% -> 84.8 (zh-6cd1befe 100,
+zh-dc9cfa34 98.4, zh-ec1b6f63 99.7, zh-34a6519a 86.5). Mac output identical.
+Left under `windows`: zh-875759ff 31.6, zh-e7bdb543 4.9 (楷体_GB2312 -> KaiTi).
 Word for Windows follows w:altName for a face it lacks (仿宋_GB2312 -> 仿宋 -> FangSong;
 方正小标宋_GBK -> 微软雅黑): zh-f59a76e9's empty 方正小标宋_GBK line and
 zh-6cd1befe's p50 title are YaHei in its prints, ours `square` under the

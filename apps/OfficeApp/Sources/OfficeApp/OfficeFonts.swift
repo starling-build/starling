@@ -1133,6 +1133,29 @@ enum OfficeFonts {
                 return eastAsianFace(alt)
             }
         }
+        // (As Word for Windows sets it, a name it has no face for is its font
+        // table's alternate, where that is one it has — the other way round
+        // from Word for Mac, which never reads it — and YaHei where it is
+        // not. Word for Windows' prints (~/starling-doc-check/lab/fsw on the
+        // Windows box): zh-f59a76e9's 方正小标宋_GBK, alternate 微软雅黑, is
+        // YaHei, a 22pt line three 15.6 pitches; zh-34a6519a's 仿宋_GB2312,
+        // alternate 微软雅黑, is YaHei, 53 pages; zh-dc9cfa34's 方正仿宋_GBK,
+        // no alternate, is YaHei.)
+        let windowsHas = ["simsun", "宋体", "新宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "microsoft yahei", "微软雅黑",
+                          "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线"]
+        let windowsLacks = !windowsHas.contains(where: { n.containsSubstring($0) }) || has("_gb2312", "方正", "小标宋", "標楷")
+        if wordOnWindows, windowsLacks, ignoringEmbedding || !isEmbedded(family), let alt = altName(family) {
+            let a = alt.trimmingWhitespace().lowercased()
+            if a != n, windowsHas.contains(where: { a.containsSubstring($0) }),
+               !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { a.containsSubstring($0) }) {
+                return eastAsianFace(alt, ignoringEmbedding: ignoringEmbedding)
+            }
+        }
+        if wordOnWindows, windowsLacks, ignoringEmbedding || !isEmbedded(family) {
+            var standIn = yaHei
+            standIn.symbols = "SimSun"
+            return standIn
+        }
         if wordOnMac, ignoringEmbedding || !isEmbedded(family), !has("simsun", "宋体", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "mingliu", "細明體",
                            "幼圆", "全真楷書") || has("仿宋_gb2312", "楷体_gb2312", "kaiti_gb2312", "方正", "小标宋", "標楷") {
             var standIn = yaHei
@@ -1199,6 +1222,12 @@ enum OfficeFonts {
                                                     [0.2778, 0.5537, 0.8296, 0.7588, 0.5000, 0.7778, 1.0537, 1.3296, 0.7734, 0.5000, 0.7705, 1.0464])
 
     private static let wordOnMac = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "mac"
+    /// `OFFICE_WORD_FONTS=windows`: the faces Word for Windows sets on a
+    /// stock machine — a missing name's font-table alternate where that
+    /// is a face it has (仿宋 for 仿宋_GB2312 is its cloud FangSong), else
+    /// YaHei — to compare with its prints. The default is the faces the
+    /// author had (`fangSongFamily`, the 方正 titles' own line).
+    private static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
 
     /// The face a Song, Ming or Mincho name's ideographs are drawn in
     /// where the platform has none of those faces: Noto Serif CJK, in
@@ -1510,6 +1539,12 @@ enum OfficeFonts {
         let n = family.trimmingWhitespace().lowercased()
         if n == "仿宋" || n == "fangsong" { return starlingFangSong }
         guard !wordOnMac, !n.containsSubstring("华文"), !n.hasPrefix("st") else { return nil }
+        // (As Word for Windows sets it: a name it lacks is FangSong only
+        // where its font table gives 仿宋 for it — `wordOnWindows`.)
+        if wordOnWindows {
+            let a = altName(family)?.trimmingWhitespace().lowercased() ?? ""
+            return (a == "仿宋" || a == "fangsong") ? starlingFangSong : nil
+        }
         return n.containsSubstring("仿宋") || n.containsSubstring("fangsong") ? starlingFangSong : nil
     }
 
