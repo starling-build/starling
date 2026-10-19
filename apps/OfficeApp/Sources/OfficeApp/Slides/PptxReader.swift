@@ -1044,6 +1044,18 @@ struct PptxReader {
 
 /// Everything one slide's shapes resolve against.
 private struct SlideContext {
+    /// A group's child turned nearer upright on its side (45° to 135°, or
+    /// 225° to 315°) is scaled by the group with its axes swapped, its box
+    /// stored so: GroupTransform's 80° shape in a group squeezed to two
+    /// thirds of its height keeps its width and loses a third of its
+    /// length in PowerPoint's print, where ours squeezed it across.
+    static func swapGroupScale(_ m: inout ShapeState, sx: Double, sy: Double) {
+        guard sx > 0, sy > 0, abs(sx - sy) > 1e-9 else { return }
+        let r = (m.rotation.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+        guard (r >= 45 && r < 135) || (r >= 225 && r < 315) else { return }
+        m.frame = Rect.fromCenter(center: m.frame.center, width: m.frame.width * sy / sx, height: m.frame.height * sx / sy)
+    }
+
     /// An indent past the margin (a first-line indent, the paragraph's own)
     /// under a bullet, read as a hang of that much: PowerPoint keeps the
     /// bullet at the margin and starts the text at the indent, as with the
@@ -1229,6 +1241,7 @@ private struct SlideContext {
                         let degrees = (gx["rot"].flatMap(Double.init) ?? 0) / 60000
                         let rad = degrees * .pi / 180
                         let flipH = gx["flipH"] == "1", flipV = gx["flipV"] == "1"
+                        for k in members.indices { SlideContext.swapGroupScale(&members[k], sx: sx, sy: sy) }
                         obj.rendering = members.flatMap { m -> [ShapeState] in
                             // A member that is itself drawn through others
                             // (a nested turned group) hands those on; one
@@ -1275,7 +1288,10 @@ private struct SlideContext {
                                                r.width * sx, r.height * sy)
                     return transform?(mapped) ?? mapped
                 }
-                shapes(in: el, transform: map, into: &out, id: id, group: groupOf(el), groupFill: ownFill(el))
+                var members: [ShapeState] = []
+                shapes(in: el, transform: map, into: &members, id: id, group: groupOf(el), groupFill: ownFill(el))
+                for k in members.indices { SlideContext.swapGroupScale(&members[k], sx: sx, sy: sy) }
+                out += members
             case "mc:AlternateContent":
                 // The fallback is what an older reader would draw: keep the
                 // whole thing — and draw it as that fallback's shapes (or the

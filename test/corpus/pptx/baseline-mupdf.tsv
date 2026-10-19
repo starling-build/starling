@@ -361,7 +361,7 @@ lo-tdf148810_PARA_OUTLLEVEL.pptx	summary pages=1 worst=0.04% mean=0.04%
 lo-tdf148921.pptx	summary pages=1 worst=0.42% mean=0.42%
 lo-tdf148965.pptx	summary pages=3 worst=0.02% mean=0.01%
 lo-tdf148966.pptx	summary pages=1 worst=1.71% mean=1.71%
-lo-tdf149124.pptx	summary pages=1 worst=0.09% mean=0.09%
+lo-tdf149124.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf149206.pptx	summary pages=1 worst=3.39% mean=3.39%
 lo-tdf149314.pptx	summary pages=3 worst=0.40% mean=0.13%
 lo-tdf149551_SmartArt_Gear.pptx	summary pages=1 worst=0.23% mean=0.23%
@@ -505,7 +505,7 @@ oox-tdf131082.pptx	summary pages=1 worst=0.14% mean=0.14%
 oox-tdf139618_ImportWordArtGradient.pptx	summary pages=1 worst=11.94% mean=11.94%
 oox-tdf139618_ThemeColorTransparency.pptx	summary pages=1 worst=7.27% mean=7.27%
 oox-tdf139618_WordArtBitmapFill.pptx	summary pages=1 worst=19.21% mean=19.21%
-oox-tdf141463_GroupTransform.pptx	summary pages=1 worst=0.68% mean=0.68%
+oox-tdf141463_GroupTransform.pptx	summary pages=1 worst=0.18% mean=0.18%
 oox-tdf144742_funnel.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf144742_mathEqual_mathNotEqual.pptx	summary pages=1 worst=0.00% mean=0.00%
 oox-tdf147978_enhancedPath_subpath.pptx	summary pages=1 worst=0.00% mean=0.00%
@@ -535,7 +535,7 @@ present1.pptx	summary pages=1 worst=0.26% mean=0.26%
 radar-chart.pptx	summary pages=1 worst=1.23% mean=1.23%
 rain.pptx	summary pages=1 worst=0.12% mean=0.12%
 sample.pptx	summary pages=2 worst=1.12% mean=0.97%
-sample_pptx_grouping_issues.pptx	summary pages=1 worst=1.11% mean=1.11%
+sample_pptx_grouping_issues.pptx	summary pages=1 worst=0.00% mean=0.00%
 scatter-chart.pptx	summary pages=1 worst=0.69% mean=0.69%
 shapes.pptx	summary pages=6 worst=1.43% mean=0.44%
 smartart-rotated-text.pptx	summary pages=1 worst=0.55% mean=0.55%

@@ -2536,6 +2536,18 @@ Calibri put it right. Now a Slides theme's `exactLineDescentShare`
 (0.22, Carlito's) moves each such paragraph to that share; Word's is
 nil.
 
+**A group's child turned on its side scales with the axes swapped,
+2026-10-18** (sweep 234: corpus mean 0.9437 → 0.9406;
+sample_pptx_grouping_issues −1.11, GroupTransform 0.68 → 0.18,
+tdf149124 −0.09; none worse). A group scaled unevenly (GroupTransform's
+child space 4320000 tall drawn 2880000) scales a member turned 45° to
+135° (or 225° to 315°) with its width taking the group's vertical
+factor and its height the horizontal, as such a box is stored; ours
+scaled it along the group's axes, its 80° shape squeezed across where
+PowerPoint's loses a third of its length. Both the flattened and the
+turned-group paths now swap the factors for such members
+(`swapGroupScale`), about the member's centre.
+
 **A bulleted paragraph's first-line indent is a hang, 2026-10-18**
 (sweep 233: corpus mean 0.9443 → 0.9437; bullet-indent 1.08 → 0.74;
 nothing else moved). bullet-indent's first paragraph
