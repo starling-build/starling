@@ -5482,6 +5482,7 @@ public final class RichLayout {
         // its own, so each is widened by what its stop needs.
         var tabs: [Int: Double] = [:]
         var atMargin: Set<Int> = []
+        var leftTabs: Set<Int> = []    // tabs to a left stop
         _leaders[i] = []
         // (PowerPoint's the same way: its stops from the text's left, the
         // hanging indent first, then `defTabSz` apart — HowWeRefactor's
@@ -5525,6 +5526,7 @@ public final class RichLayout {
             func measure(_ wraps: [Int]) {
             tabs = [:]
             atMargin = []
+            leftTabs = []
             _leaders[i] = []
             var shift = 0.0
             var lastTab = 0
@@ -5584,6 +5586,7 @@ public final class RichLayout {
                 // print has them at 2.31, the line filled to the margin.)
                 extra = stop.alignment == .left ? max(0.5 - own, extra) : max(0, extra)
                 tabs[t] = extra
+                if stop.alignment == .left { leftTabs.insert(t) }
                 shift += extra
                 if let fill = stop.leader, fill != "none" {
                     let ch = ["dot": ".", "hyphen": "-", "underscore": "_", "middleDot": "\u{B7}", "heavy": "_"][fill] ?? "."
@@ -5805,7 +5808,7 @@ public final class RichLayout {
         // (A line with a tab in it is fitted like any other, its tabs
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
-        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs)
+        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs)
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
@@ -8459,7 +8462,7 @@ public final class RichLayout {
     /// In a table's cell no mark hangs; the marks inside a line give
     /// there as anywhere.
     private func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth width: Double,
-                                    first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:]) -> [Int: Double] {
+                                    first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = []) -> [Int: Double] {
         // (From Word 2013's layout on, only a justified paragraph's
         // lines are fitted — set left or centred, a mark neither hangs
         // nor gives. Before it, and that is most documents written
@@ -8528,6 +8531,10 @@ public final class RichLayout {
         let runRulesOff: (Int) -> Bool = { o in
             guard wordRules, o >= 0, o < runOf.count else { return false }
             return !Self._eastAsianLineRules(p.runs[runOf[o]].style, document, named: lineStyle)
+        }
+        let runLanguageNone: (Int) -> Bool = { o in
+            guard wordRules, o >= 0, o < runOf.count else { return false }
+            return Self._eastAsianLanguageNone(p.runs[runOf[o]].style, named: lineStyle)
         }
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
@@ -8882,7 +8889,16 @@ public final class RichLayout {
                     let alone = !(marks + own).contains { $0 != tail }
                     let centredKept = centredEnd && (paragraphEnd ? alone && p.style.eastAsian["w:overflowPunct"] != "0" : true)
                     let kept = centredKept || (hang > 0 && !(document.hangsHalf && squeezes && (document.compatibilityMode ?? 12) >= 15 && !closesUp(tail))) || (holdsFinal && (centredFinal || !(marks + own).contains { $0 != tail })) || (legacy && inCell && !document.marksSitLeft && Self._centredUnits.contains(units[tail]) && !endsParagraph)
-                    let all = (marks + own).filter { !kept || $0 != tail }
+                    // (A mark in text whose East Asian language is stated
+                    // as none gives nothing: zh-0513f641's body style "ad"
+                    // says `w:eastAsia` x-none, and Word's print leaves "維"
+                    // 5.7pt over a line whose "：" could give 7 — lab c0513
+                    // (Mac, Word 16): with a comma, under zh-CN defaults,
+                    // 2.9pt over, unnumbered, the same; the style saying
+                    // zh-TW, the colon gives and "維" is taken. Not en-US,
+                    // whose marks give: zh-c5b5087b's en-US body squeezes
+                    // its commas in Word's print — 95.4 -> 27.6 under it.)
+                    let all = (marks + own).filter { (!kept || $0 != tail) && !runLanguageNone($0) }
                     // (From 2013's layout on too, in the body: zh-4b8e0abc
                     // (mode 15) takes "PCR(共" 12.1 over with a full-width
                     // colon at its half and the four automatic spaces
@@ -9283,6 +9299,20 @@ public final class RichLayout {
             // (Spaces a line opens with are no characters of it, and
             // those it ends with stretch nothing.)
             if (a ..< piece.b).contains(where: { units[$0] == 0x20 }) { lineBlank = true }
+            // (What stands before a tab to a left stop gives nothing to
+            // what comes after it: the tab takes the text to its stop
+            // however narrow the marks before it are set. zh-499adba6's
+            // cell line "（六）<tab>推動…政策，…負擔制" leaves "度，" 7.1pt over
+            // for the next line in Word's print, the comma before it
+            // giving 6 — the label's "）" had given ours the rest. Not a
+            // right stop's, which what is before it does move:
+            // zh-ab1ea005's contents lines.)
+            let lastTab = theme.wordRules ? (a ..< piece.b).last(where: { units[$0] == 0x09 && leftTabs.contains($0) }) : nil
+            if lastTab != nil {
+                marks = []
+                spaces = []
+                wordSpaces = []
+            }
             for k in a ..< last {
                 if isSpace(units[k]) { if lineWide > 0 { lineOther = true } }
                 else {
@@ -9313,9 +9343,9 @@ public final class RichLayout {
                 for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
             }
             marks.append(contentsOf: own.filter { k in
-                k != lineOpener || !(Self._openingUnits.contains(units[k]) || (wideQuote(k) && (units[k] == 0x201C || units[k] == 0x2018)))
+                k > (lastTab ?? -1) && (k != lineOpener || !(Self._openingUnits.contains(units[k]) || (wideQuote(k) && (units[k] == 0x201C || units[k] == 0x2018))))
             })
-            spaces.append(contentsOf: ownSpaces)
+            spaces.append(contentsOf: ownSpaces.filter { $0 > (lastTab ?? -1) })
             if after > 0 { spaces.append(last - 1) }
             if piece.hard {
                 x = 0
@@ -9450,6 +9480,15 @@ public final class RichLayout {
             }
         }
         return document.eastAsianLineRules
+    }
+
+    /// Whether `run`'s East Asian language is stated as none (`x-none`),
+    /// by its own `w:lang`, else its paragraph style's.
+    static func _eastAsianLanguageNone(_ run: CharStyle, named: RichNamedStyle? = nil) -> Bool {
+        for xml in [run.keptXML, named?.char.keptXML].compactMap({ $0 }) {
+            if let r = xml.range(of: "w:eastAsia=\"") { return xml[r.upperBound...].hasPrefix("x-none") }
+        }
+        return false
     }
 
     static func closesUp(_ a: Character, _ b: Character, centred: Bool = false) -> Bool {

@@ -1689,6 +1689,87 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(kept, 33, "the 34th line goes over: under it, no room for the cell's 1.2pt margin")
     }
 
+    /// The first line's width, in points, of `text` in 12pt 宋体 laid out
+    /// `width` points wide, mode 14, compressing punctuation, set left.
+    private func firstLineWidth(_ text: String, width: Double, language: String? = nil, hangs: Bool = true) throws -> Double {
+        // (The fitter measures each character as the engine shapes it,
+        // which wants ICU's data in the bridge: without it every one is
+        // zero wide and nothing is ever over.)
+        let icu = ProcessInfo.processInfo.environment["STARLING_ICU"]
+            ?? ProcessInfo.processInfo.environment["FLUTTER_SWIFT_ENGINE_OUT"].map { $0 + "/icudtl.dat" }
+        guard let icu, FileManager.default.fileExists(atPath: icu) else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
+        _ = flutter.swift_bridge.InitializeICU(icu)
+        _ = OfficeFonts.register()
+        // (No other file's font table: a document read before this one
+        // leaves its names' alternates and entries noted.)
+        OfficeFonts.noteAltNames([:])
+        OfficeFonts.noteFontEntries([:])
+        OfficeFonts.noteEmbedded([])
+        OfficeFonts.noteEmbeddedFaces([:])
+        var style = CharStyle()
+        style.fontFamily = "宋体"
+        style.eastAsiaFontFamily = "宋体"
+        style.fontSize = 12
+        if let language { style.keptXML = "<w:lang w:eastAsia=\"\(language)\"/>" }
+        var p = RichParagraph(text: text, runs: [Run(length: text.utf16.count, style: style)])
+        // (Set left, as every paragraph is fitted before mode 15, so the
+        // line's width is what it holds.)
+        p.style.alignment = .left
+        if !hangs { p.style.eastAsian["w:overflowPunct"] = "0" }
+        var doc = RichDocument(paragraphs: [p])
+        doc.compatibilityMode = 14
+        doc.characterSpacingControl = "compressPunctuation"
+        doc.usesEastAsianLayout = true
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        theme.faceResolver = OfficeFonts.face
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: 1)
+        l.width = width * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        return (l.geometry(0).painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint
+    }
+
+    /// Whether the fitter can measure here: ICU's data must reach the bridge
+    /// before any paragraph is laid out in the process, and in a run of the
+    /// whole suite another test has laid one out first — every character
+    /// then measures zero wide and nothing is ever over. (Run these alone:
+    /// `--filter 'testAMarkBeforeATab|testAMarkInTextOfNo'`.)
+    private func requireFitterWidths() throws {
+        let twelve = String(repeating: "一", count: 12)
+        guard try firstLineWidth(twelve + "，" + twelve + "二三", width: 307, hangs: false) > 302 else {
+            throw XCTSkip("the fitter measured nothing: ICU's data came after a paragraph was laid out")
+        }
+    }
+
+    func testAMarkBeforeATabGivesNothingToWhatFollowsIt() throws {
+        try requireFitterWidths()
+        // zh-499adba6 p17: "（六）<tab>推動…政策，…負擔制" leaves "度，" 7.1pt over
+        // for the next line in Word's print: the comma after the tab can
+        // give 6, and the label's "）" before it nothing — the tab takes
+        // the text to its stop however narrow the label is set. (Its line
+        // is a cell's, where the last comma gives nothing; here, with no
+        // hang, it gives 6 too, and "度，" is 13 over.)
+        let ten = String(repeating: "一", count: 10), twelve = String(repeating: "二", count: 12)
+        let text = "（六）\t" + ten + "，" + twelve + "度，擴大"
+        XCTAssertLessThan(try firstLineWidth(text, width: 359, hangs: false), 355, "\"度，\" goes down: two commas cannot give 13")
+        // (Where all three marks follow the tab, they give it: 18 of room.)
+        XCTAssertGreaterThan(try firstLineWidth("一二三\t（六）" + String(repeating: "一", count: 7) + "，" + twelve + "度，擴大", width: 359, hangs: false), 358)
+    }
+
+    func testAMarkInTextOfNoEastAsianLanguageGivesNothing() throws {
+        try requireFitterWidths()
+        // zh-0513f641 p5: its body style says `w:eastAsia` x-none, and Word
+        // leaves "維" 5.7pt over a line whose "：" could give 7 (lab c0513,
+        // Mac: with the style saying zh-TW the colon gives, "維" taken).
+        let text = String(repeating: "一", count: 8) + "：" + String(repeating: "二", count: 16) + "維運"
+        // 25 characters of 14pt (12 here: 300pt) and "維" 5 over.
+        XCTAssertGreaterThan(try firstLineWidth(text, width: 307, language: "zh-TW"), 306, "taken, the colon giving")
+        XCTAssertLessThan(try firstLineWidth(text, width: 307, language: "x-none"), 301, "left: under no language the colon gives nothing")
+        XCTAssertGreaterThan(try firstLineWidth(text, width: 307, language: "en-US"), 306, "en-US gives as before: zh-c5b5087b")
+    }
+
     func testAHintedDegreeSignInSongTiIsAnEm() throws {
         // zh-cd8987db p7: "坡度＜25°的…", a run of 宋体 that says w:hint
         // eastAsia — Word sets its "°" in 宋体, 10.50 at 10.5pt; ours was the
