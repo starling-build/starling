@@ -3142,6 +3142,12 @@ regression for a document the line match scores 0 either way (its Arabic is read
 logical in ours). Wants a face whose joined forms map back (or ActualText spans), and on the Mac and Windows simply
 Times New Roman, which has Arabic — not tried there.
 
+### T138. zh-db07d44e p30: a cell line's "，" and "。" squeezed to 0.75 em (mode 15, zh-TW, compressPunctuation)
+Owner: starling-b2 (Linux slides session 01JsizVV), from 2026-10-19 — offered by starling-office1-df
+Documents: zh-db07d44e (33.8 → 36.8). 標楷體 12pt, jc both, cell 3545 twips: "範圍內每增(減)10%，加(減)1 分。" is one line
+in Word's print with "，" and "。" each 9pt, the ideographs 12 apart; ours keeps both at 12 and sends "分。" on. Many of
+its cells' lines are the same, and its rows part differently from p22 on.
+
 ### T137. Test bundle: ICU's data loaded before any test lays out text — DONE (2026-10-19)
 Owner: none (Linux slides session starling-b2, 01JsizVV, built it)
 In the OfficeApp test process ICU's data was never loaded, so the line fitter measured every character at zero
