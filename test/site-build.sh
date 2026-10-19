@@ -73,6 +73,14 @@ echo "── an edit, as the native app's Save writes it, then a rebuild"
 check "rebuild after the edit exits 0" "$?" 0
 check "the search index follows the edit" "$(python3 -c "import json; d=json.load(open('$OUT/repo/docs/search.json')); print([e for e in d if e['slug']=='about'][0]['text'][:5] != 'Pages')")" True
 
+echo "── import: a .docx becomes a page (what the Import button runs)"
+SLUG="$("$APP" --site-import "$SITE" "$REPO/apps/OfficeApp/Tests/OfficeAppTests/Fixtures/word-boringcrypto.docx" --title "Imported policy" --under getting-started 2>"$OUT/import.log")"
+check "site-import prints the new page's slug" "$SLUG" imported-policy
+check "the page file is there with its page setup" "$(json '["pageSetup"]["width"]' < "$SITE/pages/imported-policy.json" 2>/dev/null)" 612
+check "and it sits under its parent in site.json" "$(json '["pages"][1]["children"][-1]["slug"]' < "$SITE/site.json")" imported-policy
+SLUG2="$("$APP" --site-import "$SITE" "$REPO/apps/OfficeApp/Tests/OfficeAppTests/Fixtures/word-boringcrypto.docx" --title "Imported policy" 2>/dev/null)"
+check "a second page of the same title gets its own slug" "$SLUG2" imported-policy-2
+
 echo "── publish: build, commit, push to a bare remote (what the Publish button runs)"
 PUB="$OUT/pub"; REMOTE="$OUT/remote.git"
 cp -R "$REPO/examples/site" "$PUB"

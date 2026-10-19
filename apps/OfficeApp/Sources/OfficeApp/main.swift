@@ -188,6 +188,29 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-build"), i + 1 < Command
 //   --site-publish <repo> [--out <dir>] [--web <stage>] [-m <message>]
 //   what the reader's Publish button runs: build into <repo>/<out> (docs),
 //   git add -A, commit, push.
+//   --site-import <repo> <file.docx|rtf|md> [--title T] [--under slug]
+//   a document as a new page of the site (paragraph ids assigned, page
+//   setup kept); prints the slug.
+if let i = CommandLine.arguments.firstIndex(of: "--site-import"), i + 2 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    func option(_ name: String) -> String? {
+        guard let j = CommandLine.arguments.firstIndex(of: name), j + 1 < CommandLine.arguments.count else { return nil }
+        return CommandLine.arguments[j + 1]
+    }
+    let file = CommandLine.arguments[i + 2]
+    do {
+        var opened = try OfficeFormats.read(file)
+        opened.document.assignParagraphIDs()
+        let title = option("--title") ?? file.lastPathComponent.deletingPathExtension
+        let slug = try LocalSiteStore.addPage(repo: CommandLine.arguments[i + 1], title: title,
+                                              page: SitePage(document: opened.document, pageSetup: opened.pageSetup), under: option("--under"))
+        print(slug)
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-import failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
 if let i = CommandLine.arguments.firstIndex(of: "--site-publish"), i + 1 < CommandLine.arguments.count {
     initializeHeadlessText()
     func option(_ name: String) -> String? {

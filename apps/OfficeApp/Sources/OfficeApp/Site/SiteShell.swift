@@ -75,6 +75,15 @@ final class SiteShellState: State<StatefulWidget> {
     private let _publishMessage = TextEditingController()
     private var _newTitleOpen = false
     private let _newTitleField = TextEditingController()
+    private var _importOpen = false
+    private var _renameOpen = false
+    private let _renameField = TextEditingController()
+    private var _confirmDelete = false
+
+    // Find in the page.
+    private var _findOpen = false
+    private let _findField = TextEditingController()
+    private var _findStatus = ""
 
     // Search: nil when not searching, [] when nothing matched.
     private let _searchField = TextEditingController()
@@ -134,6 +143,7 @@ final class SiteShellState: State<StatefulWidget> {
             case "title": return self._manifest?.title
             case "view": return self.showPages ? "pages" : "flow"
             case "status": return self._status ?? ""
+            case "selection": return self._controller.selectedText
             case "pages": return "\(self._pageInfo.count)"
             case "page": return "\(self._pageInfo.page)"
             case "toc": return self._toc.map { "\($0.level)\t\($0.page ?? 0)\t\($0.text)" }.joined(separator: "\n")
@@ -307,6 +317,74 @@ final class SiteShellState: State<StatefulWidget> {
         }
     }
 
+    // MARK: Import, rename, delete, find
+
+    private func _importFile(_ path: String) {
+        setState { _importOpen = false }
+        do {
+            var opened = try OfficeFormats.read(path)
+            opened.document.assignParagraphIDs()
+            let title = path.lastPathComponent.deletingPathExtension
+            store.importPage(title: title, page: SitePage(document: opened.document, pageSetup: opened.pageSetup), under: _slug) { [weak self] r in
+                guard let self else { return }
+                switch r {
+                case .success(let slug): self._refreshManifest { self._load(slug, push: true) }
+                case .failure(let e): self.setState { self._status = "\(e)" }
+                }
+            }
+        } catch { setState { _status = "Could not read \(path.lastPathComponent): \(error)" } }
+    }
+
+    private func _rename() {
+        guard let slug = _slug else { return }
+        let title = _renameField.text.trimmingWhitespace()
+        guard !title.isEmpty else { return }
+        store.rename(slug, to: title) { [weak self] message in
+            guard let self else { return }
+            if let message { self.setState { self._status = message }; return }
+            self.setState { self._renameOpen = false }
+            self._refreshManifest { [weak self] in
+                guard let self, let m = self._manifest else { return }
+                hostSetWindowTitle?("\(title) — \(m.title)")
+            }
+        }
+    }
+
+    private func _deletePage() {
+        guard let slug = _slug, let m = _manifest else { return }
+        store.delete(slug) { [weak self] message in
+            guard let self else { return }
+            self.setState { self._confirmDelete = false }
+            if let message { self.setState { self._status = message }; return }
+            self._refreshManifest { [weak self] in
+                guard let self else { return }
+                self._load(self._manifest?.home ?? m.home, push: true)
+                self.setState { self._status = "Deleted the page." }
+            }
+        }
+    }
+
+    private func _findNext(backwards: Bool) {
+        let q = _findField.text
+        guard !q.isEmpty else { return }
+        if let sel = _controller.find(q, backwards: backwards) {
+            _controller.pendingReveal = .visible
+            _controller.selection = sel
+            setState { _findStatus = "" }
+        } else {
+            setState { _findStatus = "No matches" }
+        }
+    }
+
+    private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
+        guard mods.contains(.primary), let letter = KeyChordTracker.letter(key.logical) else { return false }
+        switch letter {
+        case "f": setState { _findOpen = true }; return true
+        case "g": if _findOpen { _findNext(backwards: mods.contains(.shift)) }; return _findOpen
+        default: return false
+        }
+    }
+
     private func _publish() {
         guard !_publishing else { return }
         setState { _publishing = true; _status = "Building and pushing…" }
@@ -364,6 +442,20 @@ final class SiteShellState: State<StatefulWidget> {
         }
         // Editing: the whole Writer, nothing of the site's chrome around it.
         if _editing, let writer = _writer { return writer }
+        #if !os(WASI)
+        if _importOpen {
+            // The file panel, in the reader's place: a document to become a page.
+            return ColoredBox(color: WikiAppearance.paper, child: Column(crossAxisAlignment: .stretch, children: [
+                _brandHeader(),
+                Expanded(child: Padding(padding: EdgeInsets(all: 24), child: FluentFilePanel(
+                    mode: .open, initialDirectory: homeDirectory() + "/Documents", extensions: OfficeFormats.readable,
+                    onDone: { [weak self] path in
+                        guard let self else { return }
+                        if let path { self._importFile(path) } else { self.setState { self._importOpen = false } }
+                    }))),
+            ]))
+        }
+        #endif
         var body: [Widget] = [Expanded(child: _reader(viewWidth: viewWidth))]
         if _tocOpen, !_compact { body.append(_contents(fluent)) }
         let main = Padding(padding: EdgeInsets(all: _compact ? 12 : 24), child: DecoratedBox(
@@ -479,9 +571,40 @@ final class SiteShellState: State<StatefulWidget> {
             items.append(Chrome.gap(8))
             items.append(Button(onPressed: { [weak self] in self?._exportPDF() }, child: Text("PDF")))
             items.append(Chrome.gap(8))
+            if _findOpen {
+                items.append(SizedBox(width: _compact ? 180 : 240, height: 46, child:
+                    WikiAppearance.field(_findField, placeholder: "Find in page", autofocus: true,
+                                         onChanged: { [weak self] _ in self?._findNext(backwards: false) },
+                                         onSubmitted: { [weak self] _ in self?._findNext(backwards: false) })))
+                items.append(Chrome.gap(4))
+                items.append(Button(onPressed: { [weak self] in self?._findNext(backwards: false) }, child: Text("Next")))
+                items.append(Chrome.gap(4))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._findOpen = false; self?._findStatus = "" } }, child: Text("Close")))
+                if !_findStatus.isEmpty {
+                    items.append(Chrome.gap(8))
+                    items.append(Text(_findStatus, style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted)))
+                }
+            } else {
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._findOpen = true } }, child: Text("Find")))
+            }
+            items.append(Chrome.gap(8))
         }
         if store.canEdit, _slug != nil {
-            if _publishOpen {
+            if _confirmDelete {
+                let title = _slug.flatMap { _manifest?.node($0)?.title } ?? ""
+                items.append(Text("Delete \"\(title)\"? Its pages move up a level.", style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted)))
+                items.append(Chrome.gap(12))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmDelete = false } }, child: Text("Keep")))
+                items.append(Chrome.gap(8))
+                items.append(FilledButton(onPressed: { [weak self] in self?._deletePage() }, child: Text("Delete")))
+            } else if _renameOpen {
+                items.append(SizedBox(width: _compact ? 220 : 320, height: 46, child:
+                    WikiAppearance.field(_renameField, placeholder: "Title", autofocus: true, onSubmitted: { [weak self] _ in self?._rename() })))
+                items.append(Chrome.gap(8))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._renameOpen = false } }, child: Text("Cancel")))
+                items.append(Chrome.gap(8))
+                items.append(FilledButton(onPressed: { [weak self] in self?._rename() }, child: Text("Rename")))
+            } else if _publishOpen {
                 items.append(SizedBox(width: _compact ? 220 : 360, height: 46, child:
                     WikiAppearance.field(_publishMessage, placeholder: "Commit message", autofocus: true, onSubmitted: { [weak self] _ in self?._publish() })))
                 items.append(Chrome.gap(8))
@@ -489,6 +612,18 @@ final class SiteShellState: State<StatefulWidget> {
                 items.append(Chrome.gap(8))
                 items.append(FilledButton(onPressed: _publishing ? nil : { [weak self] in self?._publish() }, child: Text(_publishing ? "Publishing…" : "Build, commit and push")))
             } else {
+                #if !os(WASI)
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._importOpen = true } }, child: Text("Import .docx…")))
+                items.append(Chrome.gap(8))
+                #endif
+                items.append(Button(onPressed: { [weak self] in
+                    guard let self else { return }
+                    self._renameField.text = self._slug.flatMap { self._manifest?.node($0)?.title } ?? ""
+                    self.setState { self._renameOpen = true }
+                }, child: Text("Rename")))
+                items.append(Chrome.gap(8))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmDelete = true } }, child: Text("Delete")))
+                items.append(Chrome.gap(8))
                 items.append(Button(onPressed: { [weak self] in self?.setState { self?._publishOpen = true } }, child: Text("Publish…")))
                 items.append(Chrome.gap(8))
                 items.append(FilledButton(onPressed: { [weak self] in self?._beginEdit() }, child: Text("Edit")))
@@ -525,6 +660,7 @@ final class SiteShellState: State<StatefulWidget> {
                 guard let self, self._pageInfo != (p, n) else { return }
                 self.setState { self._pageInfo = (p, n) }
             },
+            onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
             onLinkActivate: { [weak self] link in self?._followLink(link) })
     }
 

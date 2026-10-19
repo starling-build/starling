@@ -110,4 +110,12 @@ HOST(push_route) void starling_host_push_route(const void* utf8, uint32_t length
 // starling_text(utf8, length, milliseconds) and starling_key.
 HOST(soft_keyboard) void starling_host_soft_keyboard(uint32_t show);
 
+// The system clipboard (Clipboard.provider): text and, when there is one,
+// HTML written together; a read answers through our exported
+// starling_clipboard_text(id, utf8, length) — length 0 for nothing or
+// no permission.
+HOST(clipboard_write)
+void starling_host_clipboard_write(const void* utf8, uint32_t length, const void* html, uint32_t htmlLength);
+HOST(clipboard_read) void starling_host_clipboard_read(uint32_t id);
+
 #endif  // STARLING_SKWASM_BASE_H

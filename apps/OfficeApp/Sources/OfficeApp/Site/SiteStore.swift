@@ -29,12 +29,20 @@ protocol SiteStore: AnyObject {
     func createPage(title: String, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void)
     /// Build the site and push it; answers with nil, or what went wrong.
     func publish(message: String, _ done: @escaping (String?) -> Void)
+    /// A new page from a document (a .docx imported); answers with its slug.
+    func importPage(title: String, page: SitePage, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void)
+    func rename(_ slug: String, to title: String, _ done: @escaping (String?) -> Void)
+    /// Remove a page; its children move up to its parent.
+    func delete(_ slug: String, _ done: @escaping (String?) -> Void)
 }
 
 extension SiteStore {
     func save(_ slug: String, _ page: SitePage, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
     func createPage(title: String, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) { done(.failure(SiteError("This site is read-only here."))) }
     func publish(message: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
+    func importPage(title: String, page: SitePage, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) { done(.failure(SiteError("This site is read-only here."))) }
+    func rename(_ slug: String, to title: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
+    func delete(_ slug: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
 }
 
 /// The built site, by URL: `base` + manifest.json, pages/<slug>.json,
@@ -139,29 +147,80 @@ final class LocalSiteStore: SiteStore {
     }
 
     func createPage(title: String, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) {
+        var blank = RichDocument()
+        blank.styles = OfficeStyles.sheet
+        importPage(title: title, page: SitePage(document: blank, pageSetup: nil), under: parent, done)
+    }
+
+    /// Synchronous, for the command line too: the page's file written and
+    /// its node placed under `parent` (else at the top level).
+    static func addPage(repo: String, title: String, page: SitePage, under parent: String?) throws -> String {
+        var config = try SiteBuilder.readConfig(repo)
+        let taken = Set(SiteBuilder.manifest(from: config).flattened().map(\.node.slug))
+        var slug = SiteFiles.slug(for: title)
+        var n = 2
+        while taken.contains(slug) { slug = SiteFiles.slug(for: title) + "-\(n)"; n += 1 }
+        let node = SiteNode(slug: slug, title: title)
+        func insert(_ nodes: inout [SiteNode]) -> Bool {
+            for i in nodes.indices {
+                if nodes[i].slug == parent { nodes[i].children = (nodes[i].children ?? []) + [node]; return true }
+                var kids = nodes[i].children ?? []
+                if insert(&kids) { nodes[i].children = kids; return true }
+            }
+            return false
+        }
+        if parent == nil || !insert(&config.pages) { config.pages.append(node) }
+        try FileManager.default.createDirectory(atPath: repo + "/" + SiteFiles.pagesDir, withIntermediateDirectories: true)
+        try RichDocumentEnvelope.encode(page.document, pageSetup: page.pageSetup)
+            .write(to: URL(fileURLWithPath: repo + "/" + SiteFiles.pagePath(slug)), options: .atomic)
+        try SiteBuilder.writeConfig(config, to: repo)
+        return slug
+    }
+
+    func importPage(title: String, page: SitePage, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) {
+        do { done(.success(try Self.addPage(repo: repo, title: title, page: page, under: parent))) }
+        catch { done(.failure(SiteError("\(error)"))) }
+    }
+
+    func rename(_ slug: String, to title: String, _ done: @escaping (String?) -> Void) {
         do {
             var config = try SiteBuilder.readConfig(repo)
-            let taken = Set(SiteBuilder.manifest(from: config).flattened().map(\.node.slug))
-            var slug = SiteFiles.slug(for: title)
-            var n = 2
-            while taken.contains(slug) { slug = SiteFiles.slug(for: title) + "-\(n)"; n += 1 }
-            let node = SiteNode(slug: slug, title: title)
-            func insert(_ nodes: inout [SiteNode]) -> Bool {
+            func visit(_ nodes: inout [SiteNode]) -> Bool {
                 for i in nodes.indices {
-                    if nodes[i].slug == parent { nodes[i].children = (nodes[i].children ?? []) + [node]; return true }
+                    if nodes[i].slug == slug { nodes[i].title = title; return true }
                     var kids = nodes[i].children ?? []
-                    if insert(&kids) { nodes[i].children = kids; return true }
+                    if visit(&kids) { nodes[i].children = kids; return true }
                 }
                 return false
             }
-            if parent == nil || !insert(&config.pages) { config.pages.append(node) }
-            var blank = RichDocument()
-            blank.styles = OfficeStyles.sheet
-            try FileManager.default.createDirectory(atPath: repo + "/" + SiteFiles.pagesDir, withIntermediateDirectories: true)
-            try RichDocumentEnvelope.encode(blank).write(to: URL(fileURLWithPath: repo + "/" + SiteFiles.pagePath(slug)), options: .atomic)
+            guard visit(&config.pages) else { done("No page \(slug)."); return }
             try SiteBuilder.writeConfig(config, to: repo)
-            done(.success(slug))
-        } catch { done(.failure(SiteError("\(error)"))) }
+            done(nil)
+        } catch { done("\(error)") }
+    }
+
+    func delete(_ slug: String, _ done: @escaping (String?) -> Void) {
+        do {
+            var config = try SiteBuilder.readConfig(repo)
+            guard config.pages.count > 1 || config.pages.first?.slug != slug else { done("The only page stays."); return }
+            // The node goes; its children take its place, in order.
+            func visit(_ nodes: inout [SiteNode]) -> Bool {
+                for i in nodes.indices {
+                    if nodes[i].slug == slug {
+                        let kids = nodes[i].children ?? []
+                        nodes.replaceSubrange(i ... i, with: kids)
+                        return true
+                    }
+                    var kids = nodes[i].children ?? []
+                    if visit(&kids) { nodes[i].children = kids.isEmpty ? nil : kids; return true }
+                }
+                return false
+            }
+            guard visit(&config.pages) else { done("No page \(slug)."); return }
+            try SiteBuilder.writeConfig(config, to: repo)
+            try? FileManager.default.removeItem(atPath: repo + "/" + SiteFiles.pagePath(slug))
+            done(nil)
+        } catch { done("\(error)") }
     }
 
     func publish(message: String, _ done: @escaping (String?) -> Void) {

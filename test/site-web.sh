@@ -93,6 +93,18 @@ URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "starling.debug('page')" 
 T=(); while IFS= read -r l; do T+=("$l"); done < <(evals "$OUT/drive6.log")
 check "a page opens at its first page" "${T[0]:-}" '"1"'
 check "a finger drag scrolls the document" "${T[1]:-}" true
+# Find: the Find button opens a field after PDF; typing selects the first
+# match. Copy: a double-click selects a word, Ctrl+C puts it on the system
+# clipboard (stubbed here: the page's writeText records what it was given).
+STUB="navigator.clipboard.writeText = (t) => { window.__copied = t; return Promise.resolve(); }; 'stubbed'"
+URL="$URL/sample-paper/" "${DRIVE[@]}" wait 12000 eval "$STUB" \
+    dblclick 843 597 wait 500 eval "starling.debug('selection')" chord ctrl c wait 500 eval "window.__copied" \
+    click 812 220 wait 500 type "Cryptographic Boundary" wait 800 eval "starling.debug('selection')" \
+    > "$OUT/drive7.log" 2>&1
+F=(); while IFS= read -r l; do F+=("$l"); done < <(evals "$OUT/drive7.log")
+check "a double-click selects a word" "${F[1]:-}" '"BoringCrypto"'
+check "Ctrl+C puts the selection on the clipboard" "${F[2]:-}" '"BoringCrypto"'
+check "find selects the first match of what is typed, case aside" "${F[3]:-}" '"cryptographic boundary"'
 # The PDF button, with the download landing in OUT; the Contents panel's
 # first entry, clicked, moves the caret to the first heading.
 rm -rf "$OUT/downloads"; mkdir -p "$OUT/downloads"

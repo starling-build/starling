@@ -7,6 +7,7 @@
 //   click X Y            press and release the left button at CSS X,Y
 //   move X Y             move the pointer
 //   touchdrag X Y DX DY  one finger: down at X,Y, dragged by DX,DY, lifted
+//   dblclick X Y         two presses in quick succession (selects a word)
 //   type TEXT            each character as a key down (with text) and up
 //   press KEY            one key by name: Enter, Backspace, Tab, ArrowDown…
 //   chord ctrl|meta KEY  the key with Control or Meta held (chord ctrl s)
@@ -109,6 +110,14 @@ try {
       await mouse('mouseReleased', x, y); await sleep(300);
     } else if (op === 'move') {
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: +args.shift(), y: +args.shift(), buttons: 0 });
+    } else if (op === 'dblclick') {
+      const x = +args.shift(), y = +args.shift();
+      await mouse('mouseMoved', x, y); await sleep(50);
+      for (let i = 0; i < 2; i++) {
+        await mouse('mousePressed', x, y); await sleep(40);
+        await mouse('mouseReleased', x, y); await sleep(60);
+      }
+      await sleep(300);
     } else if (op === 'touchdrag') {
       const x = +args.shift(), y = +args.shift(), dx = +args.shift(), dy = +args.shift();
       await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });

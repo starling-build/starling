@@ -466,6 +466,29 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // once the app runs (below, with the input handlers).
   let softKeyboard = () => {};
   host.soft_keyboard = (show) => softKeyboard(show);
+  // The system clipboard. Writing needs a user gesture, which ⌘C is;
+  // reading asks the browser's permission (Chrome prompts once, Safari
+  // allows it from a gesture) and answers empty when refused.
+  host.clipboard_write = (pointer, length, htmlPointer, htmlLength) => {
+    const text = textIn(pointer, length);
+    const html = htmlLength ? textIn(htmlPointer, htmlLength) : '';
+    const fail = (error) => console.warn(`starling: clipboard write: ${error}`);
+    try {
+      if (html && window.ClipboardItem && navigator.clipboard?.write) {
+        navigator.clipboard.write([new ClipboardItem({
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' }),
+        })]).catch(() => navigator.clipboard.writeText(text).catch(fail));
+      } else {
+        navigator.clipboard?.writeText(text).catch(fail);
+      }
+    } catch (error) { fail(error); }
+  };
+  host.clipboard_read = (id) => {
+    const answer = (text) => transfer(encoder.encode(text), (pointer, length) => swift.starling_clipboard_text(id, pointer, length));
+    const read = navigator.clipboard?.readText ? navigator.clipboard.readText() : Promise.reject(new Error('no clipboard'));
+    read.then(answer).catch(() => answer(''));
+  };
   host.push_route = (pointer, length, replace) => {
     const route = textIn(pointer, length);
     try {

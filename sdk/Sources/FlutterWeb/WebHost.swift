@@ -45,6 +45,7 @@ public final class WebHost {
         // it when a text field here asks. Installed on every browser —
         // on a desktop it costs nothing and carries the browser's own
         // input method's text (starling_text) to the field.
+        Clipboard.provider = WebClipboard.shared
         SoftKeyboard.handler = SoftKeyboard.Handler(
             show: { [unowned self] in
                 self.softKeyboardShown = true
