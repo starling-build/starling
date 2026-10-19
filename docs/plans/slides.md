@@ -2548,6 +2548,22 @@ spacing only: highlight-test-case's green and yellow highlights in its
 table's first cell were drawn plain. They take strike-through, raised
 and lowered text, highlight, shadow and capitals now, as a text box's.
 
+**Measured and left, 2026-10-19.** vertical-bracket-list's text box
+is 110.84 pt tall in PowerPoint's print, its text 65 pt: the text's
+own height (65 × 1.2 × 90% = 70.2) and its 20 pt margins, to half a
+point — the box grows for its text, as its `rule type="h" val="INF"`
+lets it. Ours stays at its constraint's 101.3 (0.55 × 65 read as
+millimetres) and the reader shrinks the text to 59 pt to fit. Growing
+a `tx` node for its text wants the diagram engine to measure text,
+which it does not. Also: a diagram's bullet stands 22.5 pt before its
+text at 34 pt in accent-process, 32.4 at 65 in the bracket list, 25.4
+at 51 in bullet-list (ours, at 13.5 pt hanging, matches only the
+last), 11.6 at 33 in missing-bullet; no rule found. aascu 5864's 3-D
+column chart (no `c:style`) prints its gridlines #868686, ours 15%
+grey; drawn so, the page went 21.17 → 21.96, its gridlines being where
+ours are not. And a picture-filled WordArt (WordArtBitmapFill,
+deflate-inflate) differs by its band's curve, not its tiles.
+
 **A cycle's arrows on their chords, 2026-10-19** (sweep 248: corpus
 mean 0.9250 → 0.9219; smartart-multidirectional −0.98, smartart-cycle
 1.03 → 0.27, none other moved). Every arrow of smartart-cycle stood
