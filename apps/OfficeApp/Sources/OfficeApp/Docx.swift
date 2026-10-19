@@ -1004,6 +1004,26 @@ enum DocxFormat {
                     for k in before ..< paragraphs.count { paragraphs[k].keptTable = kid }
                     keptTables[kid]!.texts = paragraphs[before...].map(\.text)
                 }
+            case "w:tbl" where currentCell == nil && depth == 0 && Self._isInvisibleWrapper(node):
+                // A one-column table that draws nothing round tables of its
+                // own is a page's frame, and its tables are the body's:
+                // zh-e9616b2b is all one such cell (its only line an
+                // insideV, which one column never draws), and its 35-row
+                // checklist, flattened as a table in a cell is, ran four
+                // pages where Word's print parts it over two. Read as the
+                // body; the wrapper goes back as written while the text is.
+                let before = paragraphs.count
+                for tr in unwrapped(node, "w:tr") {
+                    for tc in unwrapped(tr, "w:tc") {
+                        for child in tc.children { walkBlock(child, indent: indent, depth: depth) }
+                    }
+                }
+                if paragraphs.count > before, let frag = _keptFragment(node, notes) {
+                    keptTableCount += 1
+                    let kid = "kc\(keptTableCount)"
+                    for k in before ..< paragraphs.count { paragraphs[k].keptTable = kid }
+                    keptTables[kid] = KeptTable(xml: frag.xml, rels: frag.rels, texts: paragraphs[before...].map(\.text))
+                }
             case "w:tbl":
                 tableCount += 1
                 let id = "t\(tableCount)"
@@ -3773,6 +3793,33 @@ enum DocxFormat {
     /// quick style, colours) — left out, a kept diagram named ids the save
     /// never wrote and its parts stayed behind.
     static let _relationshipAttributes = ["r:embed", "r:id", "r:link", "r:pict", "r:href", "r:dm", "r:lo", "r:qs", "r:cs"]
+
+    /// Whether a table is a one-column frame that draws nothing round
+    /// tables of its own: no style, no float, one grid column and one cell
+    /// a row, no shading, and no line one column can draw — its own lines
+    /// none, or inside-vertical ones only.
+    static func _isInvisibleWrapper(_ node: XNode) -> Bool {
+        guard let pr = node.first("w:tblPr"), pr.first("w:tblStyle") == nil, pr.first("w:tblpPr") == nil,
+              pr.first("w:shd") == nil,
+              node.first("w:tblGrid")?.all("w:gridCol").count == 1 else { return false }
+        func drawn(_ b: XNode?, except: Set<String>) -> Bool {
+            guard let b else { return false }
+            return b.children.contains { side in
+                !except.contains(side.name) && !["none", "nil"].contains(side["w:val"] ?? "none")
+            }
+        }
+        if drawn(pr.first("w:tblBorders"), except: ["w:insideV"]) { return false }
+        var nests = false
+        for tr in node.all("w:tr") {
+            let cells = tr.all("w:tc")
+            guard cells.count == 1, let tc = cells.first else { return false }
+            let tcPr = tc.first("w:tcPr")
+            if drawn(tcPr?.first("w:tcBorders"), except: []) { return false }
+            if let fill = tcPr?.first("w:shd")?["w:fill"], !["auto", "FFFFFF", "ffffff"].contains(fill) { return false }
+            if tc.all("w:tbl").isEmpty == false { nests = true }
+        }
+        return nests
+    }
 
     static func _keptFragment(_ node: XNode, _ notes: _Shared) -> (xml: String, rels: [KeptRel])? {
         var found: [KeptRel] = []

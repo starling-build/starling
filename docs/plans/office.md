@@ -6635,3 +6635,18 @@ stand at 481–530 for "— 1 —" and "— 11 —" alike — the squeeze, not a
 zh-9bcea239's VML "—10—" wraps its dash on every two-digit page with its fonts,
 rPr or compatibility mode (11, 12, 15) changed. Ours lays a paragraph that stays
 whole out past the box, the box as wide as on its first page.
+
+### A one-column table that draws nothing is the body (2026-10-18)
+
+zh-e9616b2b is all one table: one 9828-twip column, two rows, its only line an
+insideV (which one column never draws), and its three tables nested in the cells.
+Nested tables flatten (a long one does not part across pages as a block), so its
+35-row checklist ran as a column of cell paragraphs over four pages where Word's
+print sets it over two, and the document had 10 pages to Word's 6. A table with no
+style, no float, no shading, one grid column and one cell a row, drawing no line,
+and holding tables of its own is now read as the body it frames. The wrapper is
+kept and written back as it was while its text is (the `kc` path the column
+sections use), so a save still has it. Only one corpus file qualifies: drawing.docx's
+unbordered wrappers hold no qualifying shape and did not move. Sweep n367 against
+n366 on one base: zh-e9616b2b 63.1 → 93.8 (pages 6/6), nothing else moved.
+
