@@ -1650,7 +1650,11 @@ enum ChartXML {
                 sers += "<c:ser>\(head)\(dpts)<c:cat>\(catCache)</c:cat><c:val>\(val)</c:val></c:ser>"
             }
         }
-        let labels = c.dataLabels ? _labels : ""
+        // (A pie's says where its labels stand, as it was read: inside,
+        // as this app draws plain ones, or round it.)
+        let labels = !c.dataLabels ? "" : c.type.isPie
+            ? _labels.replacingAll("<c:showLegendKey", with: "<c:dLblPos val=\"\(c.pieLabelsAround ? "bestFit" : "ctr")\"/><c:showLegendKey")
+            : _labels
         let grouping = c.percent ? "percentStacked" : c.stacked ? "stacked" : (c.type == .column || c.type == .bar ? "clustered" : "standard")
         let ax = "<c:axId val=\"500000001\"/><c:axId val=\"500000002\"/>"
         var plot: String
