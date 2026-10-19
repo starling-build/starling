@@ -409,7 +409,9 @@ are not: (1) the boxes "2.初任教師…", "2.教師取得較高學歷…", "2.
 not 29pt from the page) side by side; ours reads them as nested blocks in the flow and stacks them. Only
 zh-291fcea7 (4) and zh-ad224275 (1) in the corpus have such tables. (2) With the whole table, the hexagon's
 fill is drawn and its text is not; with its row alone both are. Released: (1) needs a nested table read as a
-floating box (ImageFloat, x/y from tblpPr against the cell, the box growing to fit), (2) a paint-order look.
+floating box (ImageFloat, x/y from tblpPr against the cell, the box growing to fit), (2) a paint-order look. (Later: the text is lost only when row 0 — the flowchart's one tall row, nested tables
+and all — parts across pages; cut so that it fits one page, the hexagon's text is drawn. A float in a row that
+parts is where to look.)
 
 ### Note from the Mac (011uWpmC, 2026-10-18): zh-0243e7fc's p11 floating form — done (98.9)
 
