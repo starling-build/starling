@@ -19,7 +19,13 @@ more material. **New page +** asks for a title, then opens that page in Writer
 ready to type. **Back to preview** offers Save, Don't Save or Cancel when you
 have unsaved edits. Save writes back to the publication without asking for a
 new file name. Saving is local; publishing remains a separate action.
-**Page options** holds rename, ordering and deletion.
+**Page options** holds rename, ordering, deletion and **Make home page…**.
+Moving pages in the contents keeps the same home page. To change what opens
+at the website's main address, open the desired page and choose Make home page,
+then publish. Choose a different home before deleting the current one.
+Older publications retain their first page as home when first saved by the app.
+New **Link to paragraph** links use the page's own address so they survive a
+later home-page change; existing links to the website root still follow home.
 
 The preview shows the status of your saved publication:
 

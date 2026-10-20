@@ -86,6 +86,34 @@ class PublishingTests(unittest.TestCase):
         self.assertNotIn('manual', (self.out / 'search.json').read_text())
         self.assertEqual((self.out / 'CNAME').read_text(), 'publications.example.org\n')
 
+    def test_home_stays_fixed_when_contents_are_reordered(self):
+        self.build()
+        self.run_app('--site-move', self.repo, 'index', 'down')
+        saved = json.loads((self.repo / 'site.json').read_text())
+        self.assertEqual(saved['home'], 'index')
+        self.assertEqual(saved['pages'][0]['slug'], 'manual')
+        self.build()
+        manifest = json.loads((self.out / 'manifest.json').read_text())
+        self.assertEqual(manifest['home'], 'index')
+        self.assertIn('og:title" content="Home"', (self.out / 'index.html').read_text())
+        saved['home'] = 'manual'
+        (self.repo / 'site.json').write_text(json.dumps(saved))
+        self.build()
+        self.assertEqual(json.loads((self.out / 'manifest.json').read_text())['home'], 'manual')
+        self.assertIn('og:title" content="Manual"', (self.out / 'index.html').read_text())
+        # Both slug aliases still exist, including the old home's direct link.
+        for slug in ['index', 'manual']:
+            self.assertTrue((self.out / slug / 'index.html').exists())
+        self.assertEqual(json.loads((self.out / 'pages/index.json').read_text()), self.source)
+
+    def test_missing_explicit_home_preserves_previous_build(self):
+        self.build()
+        before = self.digest()
+        self.config['home'] = 'absent'
+        self.write_config()
+        self.build(ok=False)
+        self.assertEqual(self.digest(), before)
+
     def test_failed_build_preserves_every_previous_file(self):
         self.build()
         before = self.digest()

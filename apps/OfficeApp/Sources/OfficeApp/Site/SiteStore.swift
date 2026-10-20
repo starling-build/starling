@@ -38,6 +38,7 @@ protocol SiteStore: AnyObject {
     func delete(_ slug: String, _ done: @escaping (String?) -> Void)
     /// Move a page one place among its siblings (`by` -1 up, +1 down).
     func move(_ slug: String, by: Int, _ done: @escaping (String?) -> Void)
+    func setHome(_ slug: String, replacing expected: String, _ done: @escaping (String?) -> Void)
 }
 
 extension SiteStore {
@@ -50,6 +51,7 @@ extension SiteStore {
     func rename(_ slug: String, to title: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
     func delete(_ slug: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
     func move(_ slug: String, by: Int, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
+    func setHome(_ slug: String, replacing expected: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
 }
 
 /// The built site, by URL: `base` + manifest.json, pages/<slug>.json,
@@ -272,7 +274,8 @@ final class LocalSiteStore: SiteStore {
     func delete(_ slug: String, _ done: @escaping (String?) -> Void) {
         do {
             var config = try SiteBuilder.readConfig(repo)
-            guard config.pages.count > 1 || config.pages.first?.slug != slug else { done("The only page stays."); return }
+            guard SiteBuilder.manifest(from: config).flattened().count > 1 else { done("The only page stays."); return }
+            guard config.resolvedHome != slug else { done("Choose another home page before deleting this one."); return }
             // The node goes; its children take its place, in order.
             func visit(_ nodes: inout [SiteNode]) -> Bool {
                 for i in nodes.indices {
@@ -291,6 +294,22 @@ final class LocalSiteStore: SiteStore {
             try? FileManager.default.removeItem(atPath: repo + "/" + SiteFiles.pagePath(slug))
             done(nil)
         } catch { done("\(error)") }
+    }
+
+    func setHome(_ slug: String, replacing expected: String, _ done: @escaping (String?) -> Void) {
+        do { try Self.chooseHome(repo: repo, slug: slug, replacing: expected); done(nil) }
+        catch { done("\(error)") }
+    }
+
+    static func chooseHome(repo: String, slug: String, replacing expected: String) throws {
+        var config = try SiteBuilder.readConfig(repo)
+        guard config.resolvedHome == expected else {
+            throw SiteError("The home page changed outside this preview. Reopen the publication before choosing it again.")
+        }
+        guard SiteBuilder.manifest(from: config).node(slug) != nil else { throw SiteError("Choose a page in this publication.") }
+        _ = try SiteBuilder.validatedSources(repo: repo, config: config, web: nil)
+        config.home = slug
+        try SiteBuilder.writeConfig(config, to: repo)
     }
 
     func publish(message: String, progress: @escaping (SitePublishStage) -> Void, control: SitePublishControl, _ done: @escaping (SitePublishIssue?) -> Void) {

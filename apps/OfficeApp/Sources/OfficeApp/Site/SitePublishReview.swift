@@ -64,7 +64,7 @@ struct SitePublishReview {
         let settingsChanged = prior.map {
             $0.config.title != config.title || $0.config.base != config.base ||
             $0.config.url != config.url || $0.config.repository != config.repository ||
-            $0.config.pages != config.pages
+            $0.config.pages != config.pages || $0.config.resolvedHome != config.resolvedHome
         } ?? false
         return Self(title: config.title, pages: pages, removed: removed, compared: prior != nil, settingsChanged: settingsChanged)
     }

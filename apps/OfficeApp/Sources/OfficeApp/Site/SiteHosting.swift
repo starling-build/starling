@@ -101,6 +101,7 @@ enum SiteHosting {
             throw SiteError("The publication configuration is not an object.")
         }
         object["title"] = settings.title
+        object["home"] = expected.config.resolvedHome
         object["repository"] = settings.repository
         object["url"] = settings.url
         // Clearing a URL should not silently reset an existing project base.

@@ -103,6 +103,7 @@ final class SiteShellState: State<StatefulWidget> {
     private var _renameOpen = false
     private let _renameField = TextEditingController()
     private var _confirmDelete = false
+    private var _confirmHome: (slug: String, previous: String)?
 
     // Find in the page.
     private var _findOpen = false
@@ -200,6 +201,9 @@ final class SiteShellState: State<StatefulWidget> {
     private func _load(_ slug: String, push: Bool) {
         if _publishing { return }
         _revision = nil
+        _confirmHome = nil
+        _confirmDelete = false
+        _renameOpen = false
         guard let m = _manifest else { return }
         if _editing { _cancelEdit(reload: false) }
         guard m.node(slug) != nil else {
@@ -306,7 +310,7 @@ final class SiteShellState: State<StatefulWidget> {
             setState { _status = "Click into a paragraph first." }
             return
         }
-        let link = m.route(slug) + "#p=\(doc.paragraphs[i].id)"
+        let link = m.paragraphRoute(slug, id: doc.paragraphs[i].id)
         #if os(WASI)
         WebHistory.push(link, replace: true)
         WebClipboard.copyLocation()
@@ -583,6 +587,18 @@ final class SiteShellState: State<StatefulWidget> {
                 self._load(self._manifest?.home ?? m.home, push: true)
                 self.setState { self._status = "Deleted the page." }
             }
+        }
+    }
+
+    private func _setHome() {
+        guard let choice = _confirmHome else { return }
+        store.setHome(choice.slug, replacing: choice.previous) { [weak self] message in
+            guard let self else { return }
+            self.setState {
+                self._confirmHome = nil
+                self._status = message ?? "Home page saved locally. Publish to update the website."
+            }
+            self._refreshManifest()
         }
     }
 
@@ -899,6 +915,10 @@ final class SiteShellState: State<StatefulWidget> {
                 }, child: Text(_previewOriginal ? "View revised" : "View current")))
                 items.append(Button(onPressed: { [weak self] in self?._load(revision.slug, push: false) }, child: Text("Cancel update")))
                 items.append(FilledButton(onPressed: { [weak self] in self?._applyRevision() }, child: Text("Apply update")))
+            } else if _confirmHome != nil {
+                items.append(Text("After publishing, links to the website's main address will open this page. Page order stays the same.", style: WikiAppearance.text(14)))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmHome = nil } }, child: Text("Keep current home")))
+                items.append(FilledButton(onPressed: { [weak self] in self?._setHome() }, child: Text("Set as home page")))
             } else if _confirmDelete {
                 let title = _slug.flatMap { _manifest?.node($0)?.title } ?? ""
                 items.append(Text("Delete \"\(title)\"? Its pages move up a level.", style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted)))
@@ -959,6 +979,11 @@ final class SiteShellState: State<StatefulWidget> {
                     items.append(Button(onPressed: { [weak self] in self?._movePage(by: -1) }, child: Text("Move up")))
                     items.append(Chrome.gap(4))
                     items.append(Button(onPressed: { [weak self] in self?._movePage(by: 1) }, child: Text("Move down")))
+                    items.append(Chrome.gap(8))
+                    items.append(Button(onPressed: _slug == _manifest?.home ? nil : { [weak self] in
+                        guard let self, let slug = self._slug, let home = self._manifest?.home else { return }
+                        self.setState { self._confirmHome = (slug, home) }
+                    }, child: Text(_slug == _manifest?.home ? "Home page" : "Make home page…")))
                     items.append(Chrome.gap(8))
                 }
                 items.append(Button(onPressed: { [weak self] in self?._openPublish() }, child: Text("Publish…")))

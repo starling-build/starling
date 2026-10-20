@@ -102,6 +102,7 @@ final class SitePublishReviewTests: XCTestCase {
             try SiteBuilder.writeConfig(config, to: repo)
             try recordUpload(repo)
             config.pages.reverse()
+            config.home = "chapter"
             try SiteBuilder.writeConfig(config, to: repo)
             let moved = try read(repo)
             XCTAssertEqual(moved.pages.map(\.route), ["/", "/welcome/"])

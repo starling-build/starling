@@ -34,6 +34,37 @@ IME or phone input. Native tests/build and the optimized WebAssembly build
 pass (the final worker-stack fix is native-only). No live publication or
 deployment verification was performed.
 
+**Stable home and passage links (2026-10-20):** Home-page choice is independent
+of contents order. New publications store `home`; older configurations infer
+their original first page on read and pin that choice on the next configuration
+save. Merely opening a publication does not rewrite it. Reordering and renaming
+through the app preserve its home. A manual reorder of a legacy JSON file
+before this migration still follows the old first-page rule.
+
+Page options offers Make home page with an explanation of how the main website
+address changes after publication. Any included page, including a nested one,
+can be home without moving it in the contents. Deleting home requires selecting
+another home first. Invalid explicit home values fail build/review before
+replacing output. An obsolete home-change prompt is rejected if another edit
+changed the home meanwhile; navigating to another page clears pending rename,
+delete and home prompts.
+
+New paragraph links always use the page's existing `/<slug>/#p=…` route, including
+home, rather than its root alias. They survive subsequent home selection and
+ordering changes as long as the page slug and paragraph ID remain. Existing
+root links still follow home; there is no retrospective redirect or promise
+that removed/unmatched paragraphs survive a Word reimport. The builder continues
+to emit the slug route for every page as well as the root home route.
+
+Validation: home/review/hosting/recent-publication unit tests pass, including
+seven focused home tests. All 23 publishing integration tests pass, including
+reordering a legacy publication, rendering a new explicit home, retaining slug
+aliases and refusing a missing home without replacing previous output. A native
+walkthrough selected a new home and reordered it without uploading. The
+headless Chrome regression `test/site-home-web.py` copied a home-page paragraph
+link, rebuilt with a different home and reopened the saved link at the same
+paragraph. Native and optimized WebAssembly builds pass.
+
 **Review before publishing (2026-10-19):** Publish now opens a review of the
 whole publication before the change-description/upload form. First-time hosting
 setup still appears first when needed. The review lists every included website
@@ -302,7 +333,8 @@ pages/<slug>.json  each page as the document model (RichDocumentEnvelope)
 docs/              the build — what GitHub Pages serves (main branch, /docs)
 ```
 
-The first page in `site.json` is the home page. Routes are `/<slug>/`
+The `home` slug in `site.json` selects the home page; legacy files fall back to
+their first page until saved. Routes are `/<slug>/`
 under the base; the home page is the base itself. Slugs are flat (a
 child's route does not include its parent's).
 
@@ -683,8 +715,9 @@ evidence, with no new SaaS dependency in the public publishing core:
 The review above describes `b2230e59`; the implementation progress below
 supersedes those findings where indicated. Continue with guided author
 onboarding and accessible reader controls after the update/build gates pass.
-Deployment verification, draft metadata, explicit home selection and named
-editions remain planned; a push alone must not be described as live.
+Point-in-time deployment verification and explicit home selection are now
+implemented as recorded above. Draft metadata and named editions remain
+planned; a push alone must not be described as live.
 
 ### Market evidence and the author-update workflow
 

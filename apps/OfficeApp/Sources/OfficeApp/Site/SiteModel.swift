@@ -34,6 +34,9 @@ struct SiteConfig: Codable {
     /// the reader's History link opens a page's commits there.
     var repository: String? = nil
     var pages: [SiteNode]
+    /// Legacy files use their first page until the next save pins that choice.
+    var home: String? = nil
+    var resolvedHome: String { home ?? pages.first?.slug ?? "index" }
 }
 
 /// `manifest.json`, as the build writes it and the reader fetches it.
@@ -66,6 +69,12 @@ struct SiteManifest: Codable {
     /// The route of a page under the base: the home page is the base itself.
     func route(_ slug: String) -> String {
         slug == home ? base : base + slug + "/"
+    }
+
+    /// Every page has a slug alias, even the home page. Shared passage links
+    /// use it so choosing a different home does not retarget an existing link.
+    func paragraphRoute(_ slug: String, id: UInt32) -> String {
+        base + slug + "/#p=\(id)"
     }
 
     /// The paths of a page's static exports under the site: PDF and Word.
@@ -194,11 +203,18 @@ enum SiteBuilder {
     static func readConfig(_ repo: String) throws -> SiteConfig {
         let path = repo + "/" + SiteFiles.config
         guard let data = FileManager.default.contents(atPath: path) else { throw Failure("no \(SiteFiles.config) in \(repo)") }
-        do { return try JSONDecoder().decode(SiteConfig.self, from: data) }
+        do {
+            var config = try JSONDecoder().decode(SiteConfig.self, from: data)
+            // Capture the legacy choice before an author reorders/deletes nodes.
+            config.home = config.resolvedHome
+            return config
+        }
         catch { throw Failure("\(path): \(error)") }
     }
 
     static func writeConfig(_ config: SiteConfig, to repo: String) throws {
+        var config = config
+        config.home = config.resolvedHome
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(config).write(to: URL(fileURLWithPath: repo + "/" + SiteFiles.config), options: .atomic)
@@ -206,7 +222,7 @@ enum SiteBuilder {
 
     static func manifest(from config: SiteConfig, base: String? = nil) -> SiteManifest {
         SiteManifest(title: config.title, base: SiteFiles.normalizedBase(base ?? config.base),
-                     home: config.pages.first?.slug ?? "index", pages: config.pages,
+                     home: config.resolvedHome, pages: config.pages,
                      repository: config.repository?.trimmingWhitespace().isEmpty == false ? config.repository : nil)
     }
 
@@ -232,6 +248,9 @@ enum SiteBuilder {
         let reserved = Set(["pages", "fonts", "skwasm", "manifest.json", "search.json", "404.html", "index.html", "robots.txt", "sitemap.xml"]
             + ((web.flatMap { try? fm.contentsOfDirectory(atPath: $0) }) ?? []))
         guard !config.pages.isEmpty else { throw Failure("the site needs at least one page") }
+        guard manifest(from: config).node(config.resolvedHome) != nil else {
+            throw Failure("the home page must name a page in this publication")
+        }
         for (node, depth) in manifest(from: config).flattened() {
             guard !node.slug.isEmpty, node.slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }),
                   !reserved.contains(node.slug.lowercased()), slugs.insert(node.slug.lowercased()).inserted else {
