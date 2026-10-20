@@ -67,6 +67,20 @@ the app opens the setup guide automatically:
 Creating the repository, signing in and enabling Pages are still external steps.
 The generated `PUBLISHING.md` also describes this workflow.
 
+**Publish…** first opens **Review your publication** (after first-time setup
+when needed). It lists all website pages, their addresses and the home page.
+Use **Preview page** to inspect any page, then return to Publish. With a matching
+upload record, the review shows added, updated, unchanged and removed pages
+relative to the last upload from this device. Without one, pages are simply
+listed as included; this does not mean they have never been published.
+
+Publishing includes the whole publication and each page's Word/PDF downloads.
+A public hosting repository also exposes committed source files and history.
+Removed pages leave the current website after deployment; previous downloads,
+caches and repository history remain. **Continue to publish** opens the upload
+form without sending anything. Refresh the review after external edits:
+publishing rebuilds the latest saved files, rather than freezing the review.
+
 Publish checks local setup before building and sets the branch's upstream on
 the first push. It sends only the current commit to the configured origin
 branch, regardless of unrelated Git push defaults. A rejected push retains

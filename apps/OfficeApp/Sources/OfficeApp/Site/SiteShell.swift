@@ -62,6 +62,7 @@ final class SiteShellState: State<StatefulWidget> {
     private var _publicationStatus = "Checking saved publication…"
     private var _publicationCheck = 0
     #if !os(WASI)
+    private var _reviewOpen = false
     private var _liveCheck = 0
     private var _checkingLive = false
     private var _liveMessage: String?
@@ -610,6 +611,7 @@ final class SiteShellState: State<StatefulWidget> {
         setState {
             _publishOpen = true
             #if !os(WASI)
+            _reviewOpen = store is LocalSiteStore
             if let local = store as? LocalSiteStore, let config = try? SiteBuilder.readConfig(local.repo),
                (config.repository ?? "").trimmingWhitespace().isEmpty || (config.url ?? "").trimmingWhitespace().isEmpty {
                 _hostingOpen = true
@@ -713,6 +715,21 @@ final class SiteShellState: State<StatefulWidget> {
                 guard let self else { return }
                 self.setState { self._hostingOpen = false }
                 self._refreshManifest()
+            })
+        }
+        if _reviewOpen, let local = store as? LocalSiteStore {
+            return SitePublishReviewPanel(store: local, onBack: { [weak self] in
+                guard let self else { return }
+                self.setState { self._reviewOpen = false; self._publishOpen = false }
+                self._refreshManifest()
+            }, onContinue: { [weak self] in
+                guard let self else { return }
+                self.setState { self._reviewOpen = false; self._publishOpen = true }
+                self._refreshManifest()
+            }, onPreview: { [weak self] slug in
+                guard let self else { return }
+                self.setState { self._reviewOpen = false; self._publishOpen = false }
+                self._refreshManifest { [weak self] in self?._load(slug, push: true) }
             })
         }
         if _importOpen {
@@ -899,6 +916,8 @@ final class SiteShellState: State<StatefulWidget> {
             } else if _publishOpen {
                 #if !os(WASI)
                 if store is LocalSiteStore {
+                    items.append(Button(onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._reviewOpen = true } }, child: Text("Review publication…")))
+                    items.append(Chrome.gap(8))
                     items.append(Button(onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._hostingOpen = true } }, child: Text("Publishing settings…")))
                     items.append(Chrome.gap(8))
                     items.append(Button(onPressed: _publishing ? nil : { [weak self] in self?._refreshPublicationStatus() }, child: Text("Check publication status")))
@@ -957,7 +976,7 @@ final class SiteShellState: State<StatefulWidget> {
         heading += _websiteControls()
         heading += _publishFeedback()
         if _publishOpen {
-            heading += [Chrome.vgap(12), Text("Share the latest saved version of this publication. First time? Choose Publishing settings to set up its website address. After publishing, check the live page before sharing the link.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
+            heading += [Chrome.vgap(12), Text("Publish all \(_manifest?.flattened().count ?? 0) pages, including their Word and PDF downloads. After publishing, check the live website before sharing its link.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
         }
         if !items.isEmpty { heading += [Chrome.vgap(18), Wrap(spacing: 0, runSpacing: 8, children: items)] }
         return DecoratedBox(

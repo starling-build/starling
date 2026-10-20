@@ -34,6 +34,47 @@ IME or phone input. Native tests/build and the optimized WebAssembly build
 pass (the final worker-stack fix is native-only). No live publication or
 deployment verification was performed.
 
+**Review before publishing (2026-10-19):** Publish now opens a review of the
+whole publication before the change-description/upload form. First-time hosting
+setup still appears first when needed. The review lists every included website
+page, its route and home-page status, with a Preview page action. It explains
+that all these pages and their Word/PDF editions are included, and that a public
+hosting repository also exposes committed source files and history. This is a
+website-page inventory, not an audit of all files in Git history.
+
+Where a matching upload receipt and complete old public files exist, the review
+labels added, updated and unchanged pages and lists removed pages separately.
+It compares saved source with the generated pages in the recorded upload,
+not a later local commit or failed build. Title/content/route changes count as
+page updates; publication settings and navigation changes have a separate
+notice. Changed routes show the previous address. Missing or incompatible
+history yields “Included,” never a claim that every page is new or unpublished.
+The comparison says what was last sent from this checkout, not what is live.
+
+Continue to publish returns to the publishing form without uploading. Preview
+page returns to that page for inspection/editing. Review can be refreshed or
+reopened from the form. It describes saved files at review time; publication
+still rebuilds current saved files, so external edits are not frozen by this
+screen. Review and build share source-page validation and reject missing,
+invalid, duplicate, reserved or escaping page paths. This does not implement
+draft exclusion, a full content diff, redirects or automatic withdrawal of
+previous downloads/caches/history.
+
+Validation: seven review tests and all 21 publishing integration tests pass.
+Coverage includes initial/unknown history, nested pages, changed source despite
+a later local commit, addition/removal, title edits, home/base URL changes,
+changed destinations, incomplete/corrupt old builds and invalid source paths.
+A macOS scripted walkthrough inspected a three-page review with one addition,
+one update and one removal, continued without uploading, opened a different
+page from the review, and retained the change description when reopening it.
+Source/output files, the Git index and the upload receipt stayed unchanged.
+This used isolated local fixtures and fallback input; it did not exercise a
+real host or phone input.
+An additional walkthrough added a page externally while the review was open:
+Refresh showed four pages, and Continue reloaded the sidebar and upload form
+to the same count. Native and optimized WebAssembly builds pass; the final
+return-path refresh is native-only and was rebuilt and exercised natively.
+
 **Publishing progress and recovery (2026-10-19):** The author preview shows
 setup, website generation, saving history, uploading, and recording the upload
 as separate progress messages. Failure advice stays next to the publishing

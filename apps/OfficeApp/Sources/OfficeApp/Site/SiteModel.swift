@@ -222,6 +222,30 @@ enum SiteBuilder {
         return nil
     }
 
+    /// Shared by publication review and build, before either reads page paths.
+    /// This validates source input only; output/hosting checks still run at build.
+    static func validatedSources(repo: String, config: SiteConfig, web: String?) throws -> [(node: SiteNode, depth: Int, data: Data)] {
+        let fm = FileManager.default
+        let source = URL(fileURLWithPath: repo).standardizedFileURL.resolvingSymlinksInPath()
+        var result: [(node: SiteNode, depth: Int, data: Data)] = []
+        var slugs = Set<String>()
+        let reserved = Set(["pages", "fonts", "skwasm", "manifest.json", "search.json", "404.html", "index.html", "robots.txt", "sitemap.xml"]
+            + ((web.flatMap { try? fm.contentsOfDirectory(atPath: $0) }) ?? []))
+        guard !config.pages.isEmpty else { throw Failure("the site needs at least one page") }
+        for (node, depth) in manifest(from: config).flattened() {
+            guard !node.slug.isEmpty, node.slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }),
+                  !reserved.contains(node.slug.lowercased()), slugs.insert(node.slug.lowercased()).inserted else {
+                throw Failure("invalid, reserved or duplicate page slug: \(node.slug)")
+            }
+            let file = source.appendingPathComponent(SiteFiles.pagePath(node.slug)).resolvingSymlinksInPath()
+            guard (file.path == source.path || file.path.hasPrefix(source.path + "/")), let data = fm.contents(atPath: file.path), SiteFiles.decodePage(data) != nil else {
+                throw Failure("\(node.slug): missing, unreadable or invalid source page")
+            }
+            result.append((node, depth, data))
+        }
+        return result
+    }
+
     static func build(repo: String, out: String, web: String?, base: String?) throws -> Summary {
         let fm = FileManager.default
         let source = URL(fileURLWithPath: repo).standardizedFileURL.resolvingSymlinksInPath()
@@ -241,20 +265,7 @@ enum SiteBuilder {
             }
         }
         let config = try readConfig(repo)
-        var slugs = Set<String>()
-        let reserved = Set(["pages", "fonts", "skwasm", "manifest.json", "search.json", "404.html", "index.html", "robots.txt", "sitemap.xml"]
-            + ((web.flatMap { try? fm.contentsOfDirectory(atPath: $0) }) ?? []))
-        guard !config.pages.isEmpty else { throw Failure("the site needs at least one page") }
-        for (node, _) in manifest(from: config).flattened() {
-            guard !node.slug.isEmpty, node.slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }),
-                  !reserved.contains(node.slug.lowercased()), slugs.insert(node.slug.lowercased()).inserted else {
-                throw Failure("invalid, reserved or duplicate page slug: \(node.slug)")
-            }
-            let file = source.appendingPathComponent(SiteFiles.pagePath(node.slug)).resolvingSymlinksInPath()
-            guard contains(source, file), let data = fm.contents(atPath: file.path), SiteFiles.decodePage(data) != nil else {
-                throw Failure("\(node.slug): missing, unreadable or invalid source page")
-            }
-        }
+        _ = try validatedSources(repo: repo, config: config, web: web)
         if fm.fileExists(atPath: destination.path) {
             let existing = try fm.contentsOfDirectory(atPath: destination.path)
             guard existing.isEmpty || fm.fileExists(atPath: destination.appendingPathComponent(SiteFiles.manifest).path) else {
