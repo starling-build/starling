@@ -34,6 +34,30 @@ IME or phone input. Native tests/build and the optimized WebAssembly build
 pass (the final worker-stack fix is native-only). No live publication or
 deployment verification was performed.
 
+**Share a published page or passage (2026-10-20):** After Check live website
+confirms the uploaded marker, the native author preview offers Copy page link.
+Link to paragraph now copies a full published URL too, rather than displaying
+a local relative route. Before a successful check it directs the author to
+Check live website. Both links use the stable slug alias under the website's
+project path. The native read-only reader also copies a full passage URL without
+duplicating a project path.
+
+Before copying from a local publication, the app rechecks the recorded upload
+and website address, finds the page in that upload's manifest and compares its
+saved bytes, page title and publication title. Unsent pages/edits and missing
+paragraph IDs require publishing and checking the website first. Other pages
+may have pending edits without preventing a link to an unchanged uploaded page.
+These links describe the previously checked published version, not a new
+deployment check on every click. A later change at the host remains possible.
+
+Validation: six new page-link tests and the six live-marker tests pass, covering
+project-path URLs, stable passage links, unsent content/title changes, new and
+removed pages, missing paragraphs, stale verification, and escaping sources.
+A native walkthrough verified the instruction to check live before copying.
+Native build passes. This increment is native-only; the preceding optimized
+web build and browser passage-link regression remain applicable. Successful
+native copying against a production host has not been exercised.
+
 **Stable home and passage links (2026-10-20):** Home-page choice is independent
 of contents order. New publications store `home`; older configurations infer
 their original first page on read and pin that choice on the next configuration

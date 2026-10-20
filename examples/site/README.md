@@ -52,6 +52,12 @@ one new publish to add the version marker. Changing the website address needs
 a fresh publish before checking that address. Checks are not saved between
 sessions and do not create a hosting service or enable GitHub Pages for you.
 
+After checking the live website, use **Copy page link** to share the page you
+are viewing, or select a paragraph and choose **Link to paragraph**. These copy
+full addresses to the checked published version. If that page has saved edits,
+or the paragraph has not been uploaded, publish and check the website first.
+An unchanged page can still be shared when other pages have pending edits.
+
 When ready, choose **Publish**. If your publication has no website details,
 the app opens the setup guide automatically:
 

@@ -67,6 +67,7 @@ final class SiteShellState: State<StatefulWidget> {
     private var _checkingLive = false
     private var _liveMessage: String?
     private var _verifiedPublication: SiteLivePublication.Snapshot?
+    private var _copyingPageLink = false
     #endif
 
     // Pages or flow: the reader's choice, else pages on a desktop and flow
@@ -316,7 +317,13 @@ final class SiteShellState: State<StatefulWidget> {
         WebClipboard.copyLocation()
         setState { _status = "Link to this paragraph copied; the address bar has it too." }
         #else
-        setState { _status = "Link to this paragraph: \(store.base.hasPrefix("http") ? store.base.dropLast() + link : link)" }
+        if store is LocalSiteStore {
+            _copyPublishedPageLink(paragraph: doc.paragraphs[i].id)
+        } else if let base = URL(string: store.base), base.scheme == "https" || base.scheme == "http",
+                  let url = URL(string: link, relativeTo: base)?.absoluteURL {
+            Clipboard.setData(ClipboardData(text: url.absoluteString))
+            setState { _status = "Link to this paragraph copied." }
+        }
         #endif
     }
 
@@ -382,7 +389,7 @@ final class SiteShellState: State<StatefulWidget> {
     #if !os(WASI)
     private func _clearLiveCheck() {
         _liveCheck += 1
-        setState { _checkingLive = false; _liveMessage = nil; _verifiedPublication = nil }
+        setState { _checkingLive = false; _liveMessage = nil; _verifiedPublication = nil; _copyingPageLink = false }
     }
 
     private func _checkLiveWebsite() {
@@ -439,6 +446,34 @@ final class SiteShellState: State<StatefulWidget> {
             }
         }
     }
+
+    private func _copyPublishedPageLink(paragraph: UInt32? = nil) {
+        guard let local = store as? LocalSiteStore, let slug = _slug, !_publishing, !_copyingPageLink else { return }
+        guard let expected = _verifiedPublication else {
+            setState { _status = "Choose Check live website before sharing this page or paragraph." }
+            return
+        }
+        let check = _liveCheck
+        setState { _copyingPageLink = true; _status = "Checking the published page…" }
+        let worker = Thread { [weak self] in
+            let result = Result { try SitePublishedLink.prepare(repo: local.repo, out: local.out, verified: expected, slug: slug, paragraph: paragraph) }
+            DispatchQueue.main.async {
+                guard let self, self.mounted, self._liveCheck == check, self._slug == slug else { return }
+                self.setState {
+                    self._copyingPageLink = false
+                    switch result {
+                    case .success(let url):
+                        Clipboard.setData(ClipboardData(text: url.absoluteString))
+                        self._status = paragraph == nil ? "Link to the verified published page copied." : "Link to the verified published paragraph copied."
+                    case .failure(let error): self._status = "\(error)"
+                    }
+                }
+            }
+        }
+        worker.name = "Starling published page link"
+        worker.stackSize = 8 * 1024 * 1024
+        worker.start()
+    }
     #endif
 
     private func _websiteControls() -> [Widget] {
@@ -448,6 +483,7 @@ final class SiteShellState: State<StatefulWidget> {
         if _verifiedPublication != nil {
             buttons.append(Button(onPressed: { [weak self] in self?._useWebsiteLink(copy: false) }, child: Text("Open website")))
             buttons.append(Button(onPressed: { [weak self] in self?._useWebsiteLink(copy: true) }, child: Text("Copy website link")))
+            buttons.append(Button(onPressed: _copyingPageLink ? nil : { [weak self] in self?._copyPublishedPageLink() }, child: Text(_copyingPageLink ? "Checking page…" : "Copy page link")))
         }
         return (_liveMessage.map { [Chrome.vgap(8), Text($0, style: WikiAppearance.text(14, color: WikiAppearance.muted))] } ?? [])
             + [Chrome.vgap(12), Wrap(spacing: 8, runSpacing: 8, children: buttons)]
