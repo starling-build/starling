@@ -28,7 +28,7 @@ protocol SiteStore: AnyObject {
     /// A new page under `parent` (nil: top level); answers with its slug.
     func createPage(title: String, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void)
     /// Build and upload, with progress and actionable recovery guidance.
-    func publish(message: String, progress: @escaping (SitePublishStage) -> Void, _ done: @escaping (SitePublishIssue?) -> Void)
+    func publish(message: String, progress: @escaping (SitePublishStage) -> Void, control: SitePublishControl, _ done: @escaping (SitePublishIssue?) -> Void)
     /// A new page from a document (a .docx imported); answers with its slug.
     func importPage(title: String, page: SitePage, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void)
     func previewUpdate(_ slug: String, page: SitePage, _ done: @escaping (Result<SiteRevision, SiteError>) -> Void)
@@ -45,7 +45,7 @@ extension SiteStore {
     func applyUpdate(_ revision: SiteRevision, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
     func save(_ slug: String, _ page: SitePage, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
     func createPage(title: String, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) { done(.failure(SiteError("This site is read-only here."))) }
-    func publish(message: String, progress: @escaping (SitePublishStage) -> Void, _ done: @escaping (SitePublishIssue?) -> Void) { done(.setup("This site is read-only here.")) }
+    func publish(message: String, progress: @escaping (SitePublishStage) -> Void, control: SitePublishControl, _ done: @escaping (SitePublishIssue?) -> Void) { done(.setup("This site is read-only here.")) }
     func importPage(title: String, page: SitePage, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) { done(.failure(SiteError("This site is read-only here."))) }
     func rename(_ slug: String, to title: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
     func delete(_ slug: String, _ done: @escaping (String?) -> Void) { done("This site is read-only here.") }
@@ -293,12 +293,12 @@ final class LocalSiteStore: SiteStore {
         } catch { done("\(error)") }
     }
 
-    func publish(message: String, progress: @escaping (SitePublishStage) -> Void, _ done: @escaping (SitePublishIssue?) -> Void) {
+    func publish(message: String, progress: @escaping (SitePublishStage) -> Void, control: SitePublishControl, _ done: @escaping (SitePublishIssue?) -> Void) {
         progress(.checking)
         let repo = self.repo, out = self.out, web = self.webStage
         let worker = Thread {
             let problems = SiteHosting.readiness(repo: repo, web: web)
-            let result = problems.isEmpty ? Self.publishNow(repo: repo, out: out, web: web, message: message, progress: { stage in
+            let result = problems.isEmpty ? Self.publishNow(repo: repo, out: out, web: web, message: message, control: control, progress: { stage in
                 DispatchQueue.main.async { progress(stage) }
             }).issue : SitePublishIssue.setup(problems.joined(separator: " "))
             DispatchQueue.main.async { done(result) }
@@ -312,7 +312,7 @@ final class LocalSiteStore: SiteStore {
 
     /// Build, commit only the publication paths (preserving unrelated staged
     /// work), and push. A push is not proof the host deployed the revision.
-    static func publishNow(repo: String, out: String, web: String?, message: String, progress: ((SitePublishStage) -> Void)? = nil) -> SitePublishResult {
+    static func publishNow(repo: String, out: String, web: String?, message: String, control: SitePublishControl = SitePublishControl(), progress: ((SitePublishStage) -> Void)? = nil) -> SitePublishResult {
         progress?(.checking)
         let text = message.trimmingWhitespace().isEmpty ? "Update site" : message
         do {
@@ -357,8 +357,10 @@ final class LocalSiteStore: SiteStore {
             // Send a fixed revision so another local commit cannot cause
             // the receipt to describe a different upload.
             progress?(.uploading)
-            let push = git(["push", "--", "origin", revision + ":" + target], in: repo,
-                           environment: ["GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"])
+            let push = SiteGitUpload.push(repo: repo, revision: revision, target: target, control: control)
+            if let reason = push.stopped {
+                return .init(summary, reason == .cancelled ? .cancelled : .timedOut)
+            }
             if push.status != 0 { return .init(summary, .upload(output: push.output)) }
             progress?(.recording)
             // A SHA source does not set tracking like --set-upstream HEAD.

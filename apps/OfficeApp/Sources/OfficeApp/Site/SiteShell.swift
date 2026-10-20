@@ -89,6 +89,8 @@ final class SiteShellState: State<StatefulWidget> {
     private var _publishing = false
     private var _publishIssue: SitePublishIssue?
     private var _publishStage: SitePublishStage = .checking
+    private var _publishControl: SitePublishControl?
+    private var _stoppingUpload = false
     private let _publishMessage = TextEditingController()
     private var _newTitleOpen = false
     private let _newTitleField = TextEditingController()
@@ -621,13 +623,16 @@ final class SiteShellState: State<StatefulWidget> {
         #if !os(WASI)
         _clearLiveCheck()
         #endif
-        setState { _publishing = true; _publishIssue = nil; _publishStage = .checking; _status = _publishStage.message }
+        let control = SitePublishControl()
+        setState { _publishControl = control; _stoppingUpload = false; _publishing = true; _publishIssue = nil; _publishStage = .checking; _status = _publishStage.message }
         store.publish(message: _publishMessage.text, progress: { [weak self] stage in
             guard let self, self.mounted, self._publishing else { return }
             self.setState { self._publishStage = stage; self._status = stage.message }
-        }) { [weak self] issue in
+        }, control: control) { [weak self] issue in
             guard let self, self.mounted else { return }
             self.setState {
+                self._publishControl = nil
+                self._stoppingUpload = false
                 self._publishing = false
                 self._publishIssue = issue
                 self._status = issue?.title ?? "Sent to hosting. Choose Check live website to confirm the uploaded version."
@@ -640,7 +645,7 @@ final class SiteShellState: State<StatefulWidget> {
     private func _publishFeedback() -> [Widget] {
         guard store.canEdit else { return [] }
         if _publishing {
-            return [Chrome.vgap(12), Text(_publishStage.message, style: WikiAppearance.text(15, bold: true))]
+            return [Chrome.vgap(12), Text(_stoppingUpload && _publishStage == .uploading ? "Stopping upload…" : _publishStage.message, style: WikiAppearance.text(15, bold: true))]
         }
         guard let issue = _publishIssue else { return [] }
         var rows: [Widget] = [Chrome.vgap(14), Text(issue.title, style: WikiAppearance.text(16, bold: true)),
@@ -903,7 +908,15 @@ final class SiteShellState: State<StatefulWidget> {
                 items.append(SizedBox(width: _compact ? 220 : 360, height: 46, child:
                     WikiAppearance.field(_publishMessage, placeholder: "What changed? (optional)", autofocus: true, enabled: !_publishing, onSubmitted: { [weak self] _ in self?._publish() })))
                 items.append(Chrome.gap(8))
-                items.append(Button(onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._publishOpen = false } }, child: Text("Cancel")))
+                if _publishing && _publishStage == .uploading {
+                    items.append(Button(onPressed: _stoppingUpload ? nil : { [weak self] in
+                        guard let self else { return }
+                        self._publishControl?.cancel()
+                        self.setState { self._stoppingUpload = true; self._status = "Stopping upload…" }
+                    }, child: Text(_stoppingUpload ? "Stopping…" : "Stop upload")))
+                } else {
+                    items.append(Button(onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._publishOpen = false } }, child: Text("Cancel")))
+                }
                 items.append(Chrome.gap(8))
                 items.append(FilledButton(onPressed: _publishing ? nil : { [weak self] in self?._publish() }, child: Text(_publishing ? "Publishing…" : (_publishIssue?.retryTitle ?? "Publish"))))
             } else {

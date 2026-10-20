@@ -19,7 +19,7 @@ enum SitePublishStage {
 /// Recovery guidance is independent of Git's raw output, which can contain
 /// credentials, server-provided text, or internal paths.
 struct SitePublishIssue {
-    enum Kind { case setup, local, authentication, connection, remoteChanges, rejected, unconfirmed, sent }
+    enum Kind { case setup, local, authentication, connection, remoteChanges, rejected, unconfirmed, sent, cancelled, timedOut }
     let kind: Kind
     let title: String
     let guidance: String
@@ -44,6 +44,11 @@ struct SitePublishIssue {
     static func sent(_ detail: String) -> Self {
         .init(kind: .sent, title: "Sent to hosting; local setup needs attention.", guidance: detail + " The upload succeeded, but live deployment has not been verified.")
     }
+
+    static let cancelled = Self(kind: .cancelled, title: "Upload stopped on this device.",
+        guidance: "The remote result is unconfirmed: hosting may already have received data. Your saved writing and local history are still here. Try publishing again when you are ready.")
+    static let timedOut = Self(kind: .timedOut, title: "The upload exceeded its time limit.",
+        guidance: "Check your connection and hosting, then try publishing again. The remote result is unconfirmed: hosting may already have received data. Your saved writing and local history are still here.")
 
     /// Specific evidence wins over Git's generic trailing 'failed to push'.
     /// Unknown and connection failures do not prove the server rejected data.

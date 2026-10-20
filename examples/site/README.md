@@ -94,6 +94,13 @@ Git's raw upload errors are not displayed because they may include credentials
 or server-provided text. Git terminal credential prompts are disabled during
 upload; credential managers and SSH still use the computer's existing setup.
 
+During uploading, **Stop upload** stops the attempt on this device. Uploads also
+stop after five minutes. Stopping cannot recall data the server already received,
+so the app reports the remote result as unconfirmed. Your writing, local history,
+previous successful-upload record and change description are retained for retry.
+Preparing the website and saving local history must finish before Stop upload
+becomes available.
+
 The equivalent command creates a new folder under an existing parent:
 
     OfficeApp --site-create /path/to/parent "Product handbook" [--from manuscript.docx]

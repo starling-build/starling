@@ -50,7 +50,19 @@ push followed by a local bookkeeping failure remains explicitly “sent.” Fail
 pushes retain the previous successful receipt and the local commit. The push
 uses C locale and disables Git's terminal credential prompt with closed stdin;
 external credential helpers/SSH can still use their configured interaction.
-Whole-process cancellation and an upload deadline remain future work.
+During uploading, **Stop upload** stops the local Git process and its transport
+and helper children. Uploads also stop after five minutes. Both outcomes report
+the remote result as unconfirmed: the server may already have received data.
+Saved writing, local history and the previous successful receipt remain intact,
+and the change description remains available for retry. Website generation and
+saving local history are not cancellable.
+
+The native upload runner owns a separate process group, sends termination,
+then kills the group after a short grace period. Output capture is bounded and
+nonblocking, so noisy output or an inherited pipe cannot prevent the deadline
+from being checked. A completed Git exit observed before cancellation wins the
+race and follows the usual success/failure path. The UI stays responsive while
+the worker stops the upload.
 
 The native walkthrough exposed a pre-existing stack overflow while generating
 a site on a default Dispatch worker. Publishing now runs on a named thread
@@ -69,6 +81,16 @@ that redirected only the push transport to a local bare repository. No external
 repository, GitHub credentials, or production website was used. Native and
 optimized WebAssembly builds pass; the shared header was split into smaller
 layout expressions to satisfy the optimized web compiler.
+
+Upload-stop validation: eight additional native tests cover pre-launch
+cancellation, descendants that ignore termination, closed output, continuous
+output, inherited pipes, exit status, launch failure and conservative recovery
+messages. A macOS scripted walkthrough stopped an upload blocked in a local
+receive hook, confirmed the previous receipt was unchanged, then retried
+successfully and matched the new receipt to the bare repository's revision.
+The change description stayed visible throughout. This used the same isolated
+local transport wrapper; real hosting, Linux process handling and phone input
+were not exercised.
 
 **First-publish setup (2026-10-19):** Publish opens the setup guide automatically
 when repository or website details are missing. The guide follows three author
