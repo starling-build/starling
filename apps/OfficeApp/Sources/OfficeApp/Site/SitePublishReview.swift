@@ -20,6 +20,7 @@ struct SitePublishReview {
         let change: Change
         let references: [SiteReaderText.ReferenceIssue]
         let comparison: SiteReleaseComparison?
+        let heldDraft: SiteDrafts.Draft?
     }
     struct RemovedPage {
         let title: String
@@ -44,6 +45,7 @@ struct SitePublishReview {
     static func load(repo: String, out: String, web: String?) throws -> Self {
         let config = try SiteBuilder.readConfig(repo)
         let sources = try SiteBuilder.validatedSources(repo: repo, config: config, web: web)
+        let drafts = try SiteDrafts.loadAll(repo: repo)
         let current = SiteBuilder.manifest(from: config)
         let prior = baseline(repo: repo, out: out)
         let oldNodes = prior.map { Dictionary(uniqueKeysWithValues: $0.manifest.flattened().map { ($0.node.slug, $0.node) }) } ?? [:]
@@ -54,6 +56,8 @@ struct SitePublishReview {
             let route = current.route(node.slug)
             let change: Change
             let saved = SiteFiles.decodePage(source.data)
+            let draft = drafts[node.slug]
+            let working = draft.flatMap { SiteFiles.decodePage($0.working) } ?? saved
             // Identical uploaded bytes need no second document decode.
             let uploaded = prior?.bytes[node.slug].flatMap { data in
                 data == source.data ? saved : SiteFiles.decodePage(data)
@@ -65,10 +69,11 @@ struct SitePublishReview {
             return Page(slug: node.slug, title: node.title, depth: source.depth, route: route,
                         previousRoute: previousRoute != route ? previousRoute : nil,
                         isHome: node.slug == current.home, change: change,
-                        references: saved.map { SiteReaderText.referenceIssues(in: $0.document) } ?? [],
+                        references: working.map { SiteReaderText.referenceIssues(in: $0.document) } ?? [],
                         comparison: prior == nil ? nil : SiteReleaseComparison(
-                            previous: uploaded, current: saved,
-                            previousTitle: old?.title, currentTitle: node.title))
+                            previous: uploaded, current: working,
+                            previousTitle: old?.title, currentTitle: node.title),
+                        heldDraft: draft)
         }
         let slugs = Set(pages.map(\.slug))
         let removed = prior?.manifest.flattened().filter { !slugs.contains($0.node.slug) }.map {

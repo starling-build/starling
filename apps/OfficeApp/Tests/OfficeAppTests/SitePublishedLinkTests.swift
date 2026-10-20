@@ -68,6 +68,15 @@ final class SitePublishedLinkTests: XCTestCase {
         }
     }
 
+    func testHeldDraftCannotBeSharedAsThoughItIsTheVerifiedRelease() throws {
+        try withUploaded { repo, verified, id in
+            try SiteDrafts.start(repo: repo, out: "docs", slug: "welcome")
+            XCTAssertThrowsError(try SitePublishedLink.prepare(repo: repo, out: "docs", verified: verified, slug: "welcome", paragraph: id)) {
+                XCTAssertTrue(String(describing: $0).contains("separate local draft"))
+            }
+        }
+    }
+
     func testNewAndDeletedLocalPagesCannotBeSharedAsPublished() throws {
         try withUploaded { repo, verified, _ in
             var config = try SiteBuilder.readConfig(repo)

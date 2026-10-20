@@ -12,6 +12,9 @@ enum SitePublishedLink {
         guard !slug.isEmpty, slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else {
             throw SiteError("Choose a page in this publication.")
         }
+        guard try SiteDrafts.load(repo: repo, slug: slug) == nil else {
+            throw SiteError("You are previewing a separate local draft. Include it in the next publication and check the website before sharing this revision. Open website to read the previously uploaded version.")
+        }
         guard (try? SiteLivePublication.snapshot(repo: repo, out: out)) == verified else {
             throw SiteError("The publication or website details changed. Check the live website again before sharing.")
         }

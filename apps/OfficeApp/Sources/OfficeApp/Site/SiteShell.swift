@@ -69,6 +69,7 @@ final class SiteShellState: State<StatefulWidget> {
     private var _liveMessage: String?
     private var _verifiedPublication: SiteLivePublication.Snapshot?
     private var _copyingPageLink = false
+    private var _heldDraft = false
     #endif
 
     // Pages or flow: the reader's choice, else pages on a desktop and flow
@@ -383,14 +384,18 @@ final class SiteShellState: State<StatefulWidget> {
         _clearLiveCheck()
         _publicationCheck += 1
         setState { _publicationStatus = "Checking saved publication…" }
-        let check = _publicationCheck, repo = local.repo, out = local.out
-        DispatchQueue.global().async { [weak self] in
+        let check = _publicationCheck, repo = local.repo, out = local.out, slug = _slug
+        let worker = Thread { [weak self] in
             let message = SitePublicationState.status(repo: repo, out: out).message
+            let held = slug.flatMap { try? SiteDrafts.load(repo: repo, slug: $0) } != nil
             DispatchQueue.main.async {
                 guard let self, self.mounted, self._publicationCheck == check else { return }
-                self.setState { self._publicationStatus = message }
+                self.setState { self._publicationStatus = message; self._heldDraft = held }
             }
         }
+        worker.name = "Starling publication status"
+        worker.stackSize = 8 * 1024 * 1024
+        worker.start()
         #endif
     }
 
@@ -796,11 +801,15 @@ final class SiteShellState: State<StatefulWidget> {
             return SitePublishReviewPanel(store: local, onBack: { [weak self] in
                 guard let self else { return }
                 self.setState { self._reviewOpen = false; self._publishOpen = false }
-                self._refreshManifest()
+                self._refreshManifest { [weak self] in
+                    if let self, let slug = self._slug { self._load(slug, push: false) }
+                }
             }, onContinue: { [weak self] in
                 guard let self else { return }
                 self.setState { self._reviewOpen = false; self._publishOpen = true }
-                self._refreshManifest()
+                self._refreshManifest { [weak self] in
+                    if let self, let slug = self._slug { self._load(slug, push: false) }
+                }
             }, onPreview: { [weak self] slug, paragraphID in
                 guard let self else { return }
                 self.setState { self._reviewOpen = false; self._publishOpen = false }
@@ -1066,6 +1075,11 @@ final class SiteShellState: State<StatefulWidget> {
         if !identity.isEmpty { heading += [Chrome.vgap(8), Text(identity, style: WikiAppearance.text(14, color: WikiAppearance.muted))] }
         if store.canEdit {
             heading += [Chrome.vgap(12), Text(_publicationStatus, style: WikiAppearance.text(14, color: WikiAppearance.muted))]
+            #if !os(WASI)
+            if _heldDraft {
+                heading += [Chrome.vgap(8), Text("Separate local draft — publishing keeps the previously uploaded document until you include this draft in publication review.", style: WikiAppearance.text(14, bold: true))]
+            }
+            #endif
         }
         heading += _websiteControls()
         heading += _publishFeedback()

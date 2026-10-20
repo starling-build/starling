@@ -480,6 +480,76 @@ class PublishingTests(unittest.TestCase):
         self.git('merge-base', '--is-ancestor', committed, 'HEAD')
         self.assertEqual(self.git('rev-parse', '@{upstream}'), self.git('rev-parse', 'HEAD'))
 
+    def test_held_draft_survives_publishing_other_chapter_and_releases_only_when_included(self):
+        remote = self.setup_remote()
+        self.run_app('--site-publish', self.repo, '--web', STAGE)
+        released = (self.repo / 'pages/manual.json').read_bytes()
+        self.run_app('--site-draft', self.repo, 'manual', 'start')
+        marker = 'UNRELEASED-' + str(uuid.uuid4())
+        manuscript = self.root / 'future.md'
+        manuscript.write_text(marker)
+        self.run_app('--site-update', self.repo, 'manual', manuscript, '--apply')
+        draft = self.repo / '.git/starling-drafts/manual.json'
+        held = draft.read_bytes()
+        self.assertEqual(self.state(), 'held')
+        self.assertEqual((self.repo / 'pages/manual.json').read_bytes(), released)
+        other = self.root / 'released.md'
+        other.write_text('Welcome to the updated publication')
+        self.run_app('--site-update', self.repo, 'index', other, '--apply')
+        self.run_app('--site-publish', self.repo, '--web', STAGE)
+        self.assertEqual(draft.read_bytes(), held)
+        self.assertEqual(self.state(), 'held')
+        self.assertEqual((self.out / 'pages/manual.json').read_bytes(), released)
+        self.assertNotIn(marker, (self.out / 'manual/index.html').read_text())
+        self.assertNotIn(marker, (self.out / 'search.json').read_text())
+        uploaded = subprocess.check_output(['git', '--git-dir', str(remote), 'show', 'HEAD:pages/manual.json'])
+        self.assertEqual(uploaded, released)
+        # Examine every reachable remote blob, including history, rather than
+        # just the current website. Git metadata/draft records must not travel.
+        objects = subprocess.check_output(
+            ['git', '--git-dir', str(remote), 'rev-list', '--objects', '--all'], text=True).splitlines()
+        self.assertFalse(any('starling-drafts' in entry for entry in objects))
+        for entry in objects:
+            oid = entry.split()[0]
+            kind = subprocess.check_output(['git', '--git-dir', str(remote), 'cat-file', '-t', oid]).strip()
+            if kind == b'blob':
+                content = subprocess.check_output(['git', '--git-dir', str(remote), 'cat-file', 'blob', oid])
+                self.assertNotIn(marker.encode(), content)
+                self.assertNotEqual(content, held)
+        if os.name == 'posix':
+            import fcntl
+            with (self.repo / '.git/starling-drafts.lock').open('a+') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                result = self.run_app('--site-draft', self.repo, 'manual', 'include', ok=False)
+                self.assertIn('Another window', result)
+                self.assertEqual(draft.read_bytes(), held)
+                self.assertEqual((self.repo / 'pages/manual.json').read_bytes(), released)
+        self.run_app('--site-draft', self.repo, 'manual', 'include')
+        self.assertFalse(draft.exists())
+        self.assertEqual(self.state(), 'pending')
+        self.assertEqual((self.out / 'pages/manual.json').read_bytes(), released)
+        self.run_app('--site-publish', self.repo, '--web', STAGE)
+        self.assertEqual(self.state(), 'sent')
+        self.assertIn(marker, (self.out / 'manual/index.html').read_text())
+        self.assertIn(marker, (self.out / 'search.json').read_text())
+        self.assertIn(marker.encode(), subprocess.check_output(
+            ['git', '--git-dir', str(remote), 'show', 'HEAD:pages/manual.json']))
+
+    def test_changed_held_release_file_preserves_previous_build_and_remote(self):
+        remote = self.setup_remote()
+        self.run_app('--site-publish', self.repo, '--web', STAGE)
+        self.run_app('--site-draft', self.repo, 'manual', 'start')
+        before = self.digest()
+        receipt = (self.repo / '.git/starling-publish.json').read_bytes()
+        remote_head = subprocess.check_output(['git', '--git-dir', str(remote), 'rev-parse', 'HEAD'])
+        (self.repo / 'pages/manual.json').write_text('{}')
+        self.build(ok=False)
+        self.assertEqual(self.digest(), before)
+        self.run_app('--site-publish', self.repo, '--web', STAGE, ok=False)
+        self.assertEqual((self.repo / '.git/starling-publish.json').read_bytes(), receipt)
+        self.assertEqual(subprocess.check_output(['git', '--git-dir', str(remote), 'rev-parse', 'HEAD']), remote_head)
+        self.assertTrue((self.repo / '.git/starling-drafts/manual.json').is_file())
+
 
 if __name__ == '__main__':
     if not APP.is_file() or not (STAGE / 'app.wasm').is_file():

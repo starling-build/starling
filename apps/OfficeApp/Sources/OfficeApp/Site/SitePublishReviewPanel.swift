@@ -51,6 +51,29 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
         worker.start()
     }
 
+    private func changeDraft(slug: String, include: SiteDrafts.Draft? = nil) {
+        guard !busy else { return }
+        let store = panel.store
+        setState { busy = true; error = nil }
+        let worker = Thread { [weak self] in
+            let result = Result {
+                if let include { try SiteDrafts.include(repo: store.repo, expected: include) }
+                else { try SiteDrafts.start(repo: store.repo, out: store.out, slug: slug) }
+            }
+            DispatchQueue.main.async {
+                guard let self, self.mounted else { return }
+                self.setState { self.busy = false }
+                switch result {
+                case .success: self.refresh()
+                case .failure(let error): self.setState { self.error = "\(error)" }
+                }
+            }
+        }
+        worker.name = "Starling chapter draft"
+        worker.stackSize = 8 * 1024 * 1024
+        worker.start()
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
         if let comparison {
             let preview: ((UInt32?) -> Void)? = comparison.slug.map { slug in
@@ -62,7 +85,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
         }
         var rows: [Widget] = [
             Text("Review your publication", style: WikiAppearance.text(30, bold: true)), Chrome.vgap(10),
-            Text("Publishing shares every page listed here, not just the page you have open.", style: WikiAppearance.text()),
+            Text("Publishing shares every page listed here. A held draft keeps that page's previously uploaded document in the release.", style: WikiAppearance.text()),
             Chrome.vgap(16), Wrap(spacing: 12, runSpacing: 8, children: [
                 Button(onPressed: panel.onBack, child: Text("Back to preview")),
                 Button(onPressed: busy ? nil : { [weak self] in self?.refresh() }, child: Text("Refresh review")),
@@ -70,7 +93,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
             ]),
         ]
         if busy { rows += [Chrome.vgap(24), Text("Reading saved pages…", style: WikiAppearance.text())] }
-        if let error { rows += [Chrome.vgap(24), Text("Could not review the publication", style: WikiAppearance.text(20, bold: true)),
+        if let error { rows += [Chrome.vgap(24), Text("Publication needs attention", style: WikiAppearance.text(20, bold: true)),
                                 Chrome.vgap(8), Text(error, style: WikiAppearance.text())] }
         if let review {
             rows += [Chrome.vgap(24), Text(review.title, style: WikiAppearance.text(23, bold: true)),
@@ -92,6 +115,17 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                     Text(page.title + (page.isHome ? " · Home" : ""), style: WikiAppearance.text(18, bold: true)),
                     Chrome.vgap(6), Text(page.change.rawValue + " · " + page.route, style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                 ]
+                if let held = page.heldDraft {
+                    detail += [Chrome.vgap(10), Text("Draft held on this device", style: WikiAppearance.text(17, bold: true)),
+                               Chrome.vgap(6), Text("Publishing keeps the previously uploaded document. Preview, comparison and reference notices below show your separate draft. Titles and navigation are still included in the release.", style: WikiAppearance.text(14)),
+                               Chrome.vgap(8), Button(onPressed: busy ? nil : { [weak self] in
+                                   self?.changeDraft(slug: page.slug, include: held)
+                               }, child: Text("Include draft in next publication"))]
+                } else if page.change == .unchanged {
+                    detail += [Chrome.vgap(10), Text("Start a separate draft to keep writing while readers retain this uploaded document. It is saved only on this device; back up the entire publication folder, including its local history.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
+                               Chrome.vgap(8), Button(onPressed: busy ? nil : { [weak self] in self?.changeDraft(slug: page.slug) },
+                                                          child: Text("Start next draft"))]
+                }
                 if let route = page.previousRoute {
                     detail += [Chrome.vgap(6), Text("Previously: " + route + " — existing links may need updating.", style: WikiAppearance.text(14))]
                 }
@@ -119,8 +153,8 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                         }
                     }
                 }
-                detail += [Chrome.vgap(8), Button(onPressed: { [weak self] in self?.panel.onPreview(page.slug, nil) }, child: Text("Preview page"))]
-                if let comparison = page.comparison, page.change != .unchanged {
+                detail += [Chrome.vgap(8), Button(onPressed: busy ? nil : { [weak self] in self?.panel.onPreview(page.slug, nil) }, child: Text(page.heldDraft == nil ? "Preview page" : "Preview held draft"))]
+                if let comparison = page.comparison, page.change != .unchanged || page.heldDraft != nil {
                     detail += [Chrome.vgap(8), Button(onPressed: { [weak self] in
                         self?.setState { self?.comparison = (comparison, page.slug) }
                     }, child: Text("Compare saved changes"))]
@@ -140,7 +174,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                              }, child: Text("Review removed text"))]
                 }
             }
-            rows += [Chrome.vgap(24), FilledButton(onPressed: panel.onContinue, child: Text("Continue to publish"))]
+            rows += [Chrome.vgap(24), FilledButton(onPressed: busy ? nil : panel.onContinue, child: Text("Continue to publish"))]
         }
         return ColoredBox(color: WikiAppearance.paper, child: Padding(padding: EdgeInsets(all: 28), child:
             SingleChildScrollView(child: Column(crossAxisAlignment: .stretch, children: rows))))

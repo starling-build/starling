@@ -122,6 +122,31 @@ long revisions. **Review removed text** shows what was previously uploaded
 for a deleted page without restoring it. The comparison shows paragraph text;
 use the document preview to check formatting, images and layout.
 
+To keep writing ahead of readers, choose **Start next draft** on an unchanged,
+uploaded page in publication review. **Preview held draft → Edit document**
+opens your separate working revision. Save normally; the preview, local search
+and Update from Word use this draft. Publishing other changes keeps this page's
+previously uploaded document, including its web view and Word/PDF downloads.
+
+When that revision is ready, return to publication review and **Compare saved
+changes**. Choose **Include draft in next publication**, then review and publish.
+Including a draft saves the release choice locally; it does not upload anything.
+If another window changed the draft after your review, refresh before including
+it. If an editor was left open while its release choice changed elsewhere, save
+those edits as a separate copy before reopening the publication.
+
+Starting a separate draft requires a matching upload record, unchanged chapter
+content and no local commits since that upload. Publish or resolve existing
+changes first. This does not hide text already committed to repository history.
+Holding covers document content; page titles and navigation still publish.
+Brand-new pages are still included in the website.
+
+Held drafts are stored only in this checkout, under `.git/starling-drafts/`.
+Back up the entire publication folder, including `.git`; a Git clone or push
+does not back up held drafts. They are not automatically synced or encrypted.
+To share the older release while a draft is held, open the verified website;
+page/passage copying from the held preview does not claim the draft is live.
+
 When review finds **References to check**, use **Show references** to see the
 affected text, target and guidance. **Show in document** opens the passage when
 it can be identified uniquely; use **Preview page** for the whole document.

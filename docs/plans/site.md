@@ -18,12 +18,11 @@ Sequence the work:
 1. Compare saved revisions with the last recorded upload, including corrections,
    removed passages and changes outside paragraph text. This increment is
    described below.
-2. Design explicit release inclusion and draft retention. The current publisher
-   commits source and generated output together: hiding a page from navigation
-   or export would not make its source private. Do not offer a “private draft”
-   switch until the upload boundary and repository history implications are
-   addressed. Keep an already released chapter available while its next draft
-   is withheld.
+2. Explicit release inclusion and draft retention now cover the next revision
+   of an already uploaded chapter, as described below. New unpublished chapters
+   and private navigation metadata still need a separate author manifest.
+   The publisher commits source and generated output together: hiding a page
+   from navigation or export alone would not make its source private.
 3. Introduce a release overview with chapter, destination, audience, planned date
    and released revision. Scheduled, uploaded, verified live and manually
    recorded releases must remain distinct; dates alone are not a scheduler.
@@ -39,6 +38,60 @@ existing editor before requiring migration. Advanced lore management,
 multi-platform automation and payment tiers remain later work, not prerequisites
 for this first release-management workflow. These interviews have not happened;
 the market discussion is a hypothesis, not demand evidence.
+
+**Keep a chapter's next draft local (2026-10-20):** An unchanged uploaded page
+now offers Start next draft in publication review. Its working revision is
+stored atomically in a versioned record under this checkout's Git metadata,
+outside the tracked source and generated output. Reader preview, Writer saves,
+local search and Update from Word use that working revision; builds use the
+unchanged released source. The author preview and review explicitly identify
+held drafts. Compare saved changes compares their working text with the last
+upload. Include draft in next publication copies the reviewed working revision
+into the release source without building or uploading. A stale review cannot
+include a newer draft.
+
+The first implementation requires an unchanged source page, a matching upload
+receipt and HEAD equal to that uploaded revision when starting a draft. It
+does not move existing unpublished edits out of history or claim to make
+previously committed text private. Source equality is checked at build time;
+upload checks also reject a changed destination or intervening commits that
+altered a held chapter, including a change later reverted. A malformed,
+missing-source or unsupported draft record prevents build/upload rather than
+silently releasing newer content. A failed inclusion leaves the draft record
+intact and the same inclusion can be retried after the source write.
+
+Local draft transitions are serialized; macOS/Linux use a file lock between
+processes as well. Writer saves and prepared Word updates retain a storage
+identity, so an editor left open across another window's release choice cannot
+silently save into release files. Such edits remain open with recovery guidance.
+Copying a published page/passage link from a held-draft preview is rejected;
+Open website still opens the previously checked website. Deletion of a held
+page is blocked until its draft is explicitly included.
+
+This holds document content only. Page titles, navigation and publication
+details still belong to the release. New pages remain included in publishing.
+Draft records are local to this checkout, not cloned, synchronized, encrypted
+or archived after every save. Backups must include the whole publication
+folder and its Git metadata. Never present this as a private multi-device
+workspace or a complete serial scheduling system. New unpublished chapters,
+private author navigation, draft history and discard/recovery UI remain next.
+
+Validation: the native macOS build and 38 focused Swift tests pass. The full
+site-build suite passes, including 29 publication integration tests. After the
+final storage-identity and locking changes, the two affected integration cases
+passed again: publishing another chapter while retaining a draft, explicit
+inclusion and release, and refusing an externally changed release source.
+The tests inspect every reachable remote blob for unpublished draft text and
+verify that a competing process cannot include a locked draft. All remote writes
+target temporary local bare repositories.
+
+A native UI walkthrough started a draft, edited and saved it in Writer,
+compared it with the upload, and included it for the next publication. Source,
+generated output and upload receipt were checked at each transition; inclusion
+changed only the source and removed the draft record. This did not exercise
+mobile input, production hosting or Linux/Windows builds. The new implementation
+is native-only; the public WebAssembly reader was unchanged and was not rebuilt
+for this change.
 
 **Compare saved changes (2026-10-20):** Updated and added pages in publication
 review now open a read-only comparison of the saved draft and the exact page

@@ -267,6 +267,7 @@ enum SiteBuilder {
             }
             result.append((node, depth, data))
         }
+        try SiteDrafts.validateSources(repo: repo, slugs: Set(result.map(\.node.slug)), drafts: SiteDrafts.loadAll(repo: repo))
         return result
     }
 

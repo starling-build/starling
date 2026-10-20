@@ -8,12 +8,13 @@ import Foundation
 /// commit cannot create this evidence, and it never proves live deployment.
 enum SitePublicationState {
     enum Status: String {
-        case unknown, pending, sent
+        case unknown, pending, sent, held
         var message: String {
             switch self {
             case .unknown: return "Saved locally. No matching publish record on this device; live status is unknown."
             case .pending: return "Saved changes need publishing."
             case .sent: return "Saved version sent to hosting."
+            case .held: return "Website version sent to hosting. Separate draft revisions remain local."
             }
         }
     }
@@ -63,6 +64,7 @@ enum SitePublicationState {
 
     static func status(repo: String, out: String = "docs") -> Status {
         do {
+            let held = try !SiteDrafts.loadAll(repo: repo).isEmpty
             let receipt = try matchingReceipt(repo: repo, out: out)
             let paths = [SiteFiles.config, SiteFiles.pagesDir, out]
             // Working files vs the sent commit includes saved, committed-but-
@@ -73,7 +75,7 @@ enum SitePublicationState {
             // Include ignored files: .gitignore must not hide new pages.
             let added = LocalSiteStore.git(["--literal-pathspecs", "ls-files", "--others", "-z", "--"] + paths, in: repo)
             guard added.status == 0 else { return .unknown }
-            return added.output.isEmpty ? .sent : .pending
+            return added.output.isEmpty ? (held ? .held : .sent) : .pending
         } catch { return .unknown }
     }
 }

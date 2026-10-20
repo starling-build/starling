@@ -15,6 +15,11 @@ struct SiteRevision {
     let changed: Int
     let added: Int
     let removed: Int
+    #if !os(WASI)
+    /// Local owner storage at review time, so an import cannot cross from a
+    /// held draft into release files when another window includes the draft.
+    var storageID: String? = nil
+    #endif
 
     var summary: String {
         "\(retained) paragraph links retained; \(changed) matched paragraphs changed; \(added) new, \(removed) removed or unmatched."

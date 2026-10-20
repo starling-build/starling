@@ -238,11 +238,35 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-update"), i + 3 < Comman
         print(revision.summary)
         if CommandLine.arguments.contains("--apply") {
             try LocalSiteStore.applyUpdate(repo: CommandLine.arguments[i + 1], revision: revision)
-            print("Updated locally; page address unchanged. Publish when ready.")
+            let held = try SiteDrafts.load(repo: CommandLine.arguments[i + 1], slug: CommandLine.arguments[i + 2]) != nil
+            print(held ? "Updated the separate local draft. Include it in publication review when ready; publishing still uses the released document."
+                       : "Updated locally; page address unchanged. Publish when ready.")
         } else { print("Preview only; no files changed. Use --apply to replace the page, including local edits.") }
         exit(0)
     } catch {
         FileHandle.standardError.write("site-update failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+// --site-draft <repo> <slug> start|include [--out docs]
+// The same local release choice as publication review; neither action uploads.
+if let i = CommandLine.arguments.firstIndex(of: "--site-draft"), i + 3 < CommandLine.arguments.count {
+    do {
+        let repo = CommandLine.arguments[i + 1], slug = CommandLine.arguments[i + 2]
+        let out = CommandLine.arguments.firstIndex(of: "--out").flatMap { $0 + 1 < CommandLine.arguments.count ? CommandLine.arguments[$0 + 1] : nil } ?? "docs"
+        switch CommandLine.arguments[i + 3] {
+        case "start":
+            try SiteDrafts.start(repo: repo, out: out, slug: slug)
+            print("Separate local draft started. Publishing keeps the previously uploaded document.")
+        case "include":
+            guard let draft = try SiteDrafts.load(repo: repo, slug: slug) else { throw SiteError("This page has no separate draft.") }
+            try SiteDrafts.include(repo: repo, expected: draft)
+            print("Saved draft included in the next publication. Nothing has been uploaded.")
+        default: throw SiteError("Choose start or include.")
+        }
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-draft failed: \(error)\n".data(using: .utf8)!)
         exit(1)
     }
 }

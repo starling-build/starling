@@ -115,6 +115,7 @@ final class LocalSiteStore: SiteStore {
     let webStage: String?
     let base = "/"
     let canEdit = true
+    private var openedStorage: [String: String] = [:]
 
     init(repo: String, out: String = "docs", webStage: String? = nil) {
         self.repo = repo.hasSuffix("/") ? String(repo.dropLast()) : repo
@@ -128,17 +129,21 @@ final class LocalSiteStore: SiteStore {
     }
 
     func page(_ slug: String, _ done: @escaping (Result<SitePage, SiteError>) -> Void) {
-        let path = repo + "/" + SiteFiles.pagePath(slug)
-        let data = FileManager.default.contents(atPath: path) ?? Data(SiteFiles.emptyBody.utf8)
-        done(SiteFiles.decodePage(data).map { .success($0) } ?? .failure(SiteError("\(path): not a page this build can read.")))
+        do {
+            let snapshot = try SiteDrafts.workingSnapshot(repo: repo, slug: slug)
+            openedStorage[slug] = snapshot.storageID
+            let data = snapshot.data
+            done(SiteFiles.decodePage(data).map { .success($0) } ?? .failure(SiteError("This page cannot be read by this build.")))
+        } catch { done(.failure(SiteError("\(error)"))) }
     }
 
     func search(_ done: @escaping (Result<[SiteSearchEntry], SiteError>) -> Void) {
         do {
             let config = try SiteBuilder.readConfig(repo)
+            let drafts = try SiteDrafts.loadAll(repo: repo)
             var entries: [SiteSearchEntry] = []
             for (node, _) in SiteBuilder.manifest(from: config).flattened() {
-                let data = FileManager.default.contents(atPath: repo + "/" + SiteFiles.pagePath(node.slug)) ?? Data(SiteFiles.emptyBody.utf8)
+                let data = drafts[node.slug]?.working ?? FileManager.default.contents(atPath: repo + "/" + SiteFiles.pagePath(node.slug)) ?? Data(SiteFiles.emptyBody.utf8)
                 let text = SiteFiles.decodePage(data).map { SiteFiles.plainText($0.document) } ?? ""
                 entries.append(SiteSearchEntry(slug: node.slug, title: node.title, text: text))
             }
@@ -148,11 +153,10 @@ final class LocalSiteStore: SiteStore {
 
     func save(_ slug: String, _ page: SitePage, _ done: @escaping (String?) -> Void) {
         do {
-            let path = repo + "/" + SiteFiles.pagePath(slug)
-            try FileManager.default.createDirectory(atPath: repo + "/" + SiteFiles.pagesDir, withIntermediateDirectories: true)
-            try RichDocumentEnvelope.encode(page.document, pageSetup: page.pageSetup).write(to: URL(fileURLWithPath: path), options: .atomic)
+            try SiteDrafts.save(RichDocumentEnvelope.encode(page.document, pageSetup: page.pageSetup),
+                                repo: repo, slug: slug, expectedStorageID: openedStorage[slug])
             done(nil)
-        } catch { done("Could not save this page. Check that the publication folder is available and writable, then try again. Your edits are still open.") }
+        } catch { done("Could not save this page: \(error) Your edits are still open.") }
     }
 
     func createPage(title: String, under parent: String?, _ done: @escaping (Result<String, SiteError>) -> Void) {
@@ -196,12 +200,12 @@ final class LocalSiteStore: SiteStore {
               !slug.isEmpty, slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else {
             throw SiteError("No valid page \(slug).")
         }
-        let root = URL(fileURLWithPath: repo).standardizedFileURL.resolvingSymlinksInPath()
-        let source = root.appendingPathComponent(SiteFiles.pagePath(slug)).resolvingSymlinksInPath()
-        guard source.path.hasPrefix(root.path + "/") else { throw SiteError("The page source is outside this site.") }
-        let data = try Data(contentsOf: source)
+        let snapshot = try SiteDrafts.workingSnapshot(repo: repo, slug: slug)
+        let data = snapshot.data
         guard let original = SiteFiles.decodePage(data) else { throw SiteError("Cannot read the current page.") }
-        return SiteRevision(slug: slug, original: original, incoming: page, originalBytes: data)
+        var revision = SiteRevision(slug: slug, original: original, incoming: page, originalBytes: data)
+        revision.storageID = snapshot.storageID
+        return revision
     }
 
     static func applyUpdate(repo: String, revision: SiteRevision) throws {
@@ -209,8 +213,8 @@ final class LocalSiteStore: SiteStore {
         guard current.originalBytes == revision.originalBytes else {
             throw SiteError("This page changed since the preview. Open the revised file again to review the latest changes.")
         }
-        try RichDocumentEnvelope.encode(revision.replacement.document, pageSetup: revision.replacement.pageSetup)
-            .write(to: URL(fileURLWithPath: repo + "/" + SiteFiles.pagePath(revision.slug)), options: .atomic)
+        try SiteDrafts.save(RichDocumentEnvelope.encode(revision.replacement.document, pageSetup: revision.replacement.pageSetup),
+                            repo: repo, slug: revision.slug, expectedStorageID: revision.storageID)
     }
 
     func previewUpdate(_ slug: String, page: SitePage, _ done: @escaping (Result<SiteRevision, SiteError>) -> Void) {
@@ -273,6 +277,9 @@ final class LocalSiteStore: SiteStore {
 
     func delete(_ slug: String, _ done: @escaping (String?) -> Void) {
         do {
+            guard try SiteDrafts.load(repo: repo, slug: slug) == nil else {
+                done("This page has a separate local draft. Include it in the saved publication before deleting the page."); return
+            }
             var config = try SiteBuilder.readConfig(repo)
             guard SiteBuilder.manifest(from: config).flattened().count > 1 else { done("The only page stays."); return }
             guard config.resolvedHome != slug else { done("Choose another home page before deleting this one."); return }
@@ -356,6 +363,7 @@ final class LocalSiteStore: SiteStore {
             let destination = try SitePublicationState.destination(repo: repo)
             let branch = git(["symbolic-ref", "--quiet", "--short", "HEAD"], in: repo).output.trimmingWhitespace()
             let target = String(pushArguments.last!.dropFirst("HEAD:".count))
+            try SiteDrafts.validateUpload(repo: repo, out: out)
             progress?(.building)
             let built = try SiteBuilder.build(repo: repo, out: repo + "/" + out, web: web, base: nil)
             let summary = "\(built.pages) pages built into \(out)/"
@@ -373,6 +381,7 @@ final class LocalSiteStore: SiteStore {
             let head = git(["rev-parse", "--verify", "HEAD"], in: repo)
             guard head.status == 0 else { return .init(summary, .local("Could not identify the saved publication revision.")) }
             let revision = head.output.trimmingWhitespace()
+            try SiteDrafts.validateUpload(repo: repo, out: out)
             // Send a fixed revision so another local commit cannot cause
             // the receipt to describe a different upload.
             progress?(.uploading)
