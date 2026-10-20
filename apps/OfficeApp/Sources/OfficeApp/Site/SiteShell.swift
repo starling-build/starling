@@ -518,7 +518,8 @@ final class SiteShellState: State<StatefulWidget> {
                     done(message)
                 }
             },
-            close: { [weak self] in self?._cancelEdit(reload: true) }, returnLabel: "Back to preview"))
+            close: { [weak self] in self?._cancelEdit(reload: true) }, returnLabel: "Back to preview",
+            initialSelection: _controller.selection))
         setState { _editing = true; _writer = writer }
     }
 

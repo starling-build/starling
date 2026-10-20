@@ -111,7 +111,8 @@ listed as included; this does not mean they have never been published.
 When review finds **References to check**, use **Show references** to see the
 affected text, target and guidance. **Show in document** opens the passage when
 it can be identified uniquely; use **Preview page** for the whole document.
-Check or edit the reference, save, then refresh the review. These notices cover
+**Edit document** keeps that selection in Writer. Check or edit the reference,
+save, then refresh the review. These notices cover
 what the web text view can follow, including missing bookmarks and links to
 source files. They do not check whether an external website is online and do
 not prevent publishing.

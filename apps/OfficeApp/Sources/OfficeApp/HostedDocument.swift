@@ -25,4 +25,6 @@ struct HostedDocument {
     let close: () -> Void
     /// Optional task-specific destination, e.g. a publication preview.
     var returnLabel: String? = nil
+    /// Continue editing the passage the owner was showing.
+    var initialSelection: RichSelection? = nil
 }

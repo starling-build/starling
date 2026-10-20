@@ -110,6 +110,20 @@ final class OfficeShellState: State<StatefulWidget> {
         let env = ProcessInfo.processInfo.environment
         if let hosted = (widget as! OfficeShell).hosted {
             controller.load(hosted.document)
+            if let selection = hosted.initialSelection {
+                controller.selection = selection
+                let expectedSelection = controller.selection
+                let revision = controller.revision
+                // Reveal after the editor has a viewport. A newer edit or
+                // caret move takes precedence over this initial placement.
+                FrameCallbackScheduler.shared.addPostFrameCallback { [weak self] _ in
+                    guard let self, self.mounted, self.controller.revision == revision,
+                          self.controller.selection == expectedSelection else { return }
+                    self.controller.pendingReveal = .top
+                    self.controller.notifyListeners()
+                }
+                PlatformDispatcher.instance.scheduleFrame()
+            }
             if let setup = hosted.pageSetup { session.pageSetup = setup }
             session.titleOverride = hosted.title
             session.hostName = hosted.ownerName

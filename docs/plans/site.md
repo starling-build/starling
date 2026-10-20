@@ -34,6 +34,21 @@ IME or phone input. Native tests/build and the optimized WebAssembly build
 pass (the final worker-stack fix is native-only). No live publication or
 deployment verification was performed.
 
+**Edit the reviewed passage (2026-10-20):** Edit document now carries the
+preview's selection into hosted Writer and reveals it after layout. This
+completes the reference-correction path: Review → Show in document → Edit
+document → correct the link → Save → Back to preview → Review. A newer caret
+move or edit takes precedence over the initial reveal. Hosted documents with
+no requested selection keep their existing behavior.
+
+Validation: a native walkthrough selected a flagged reference, opened Writer,
+changed its destination through the Link field, saved and reopened publication
+review. The notice count dropped from three to two. Assertions checked that all
+paragraph text and identities, other link targets, configuration and upload
+receipt were unchanged. Merely opening the selected passage did not dirty the
+document. Native and optimized Wasm builds pass. This walkthrough used the
+in-app fallback key driver, not native IME composition or a phone.
+
 **Author reference review (2026-10-20):** Review your publication now identifies
 references that cannot be followed in the text view: missing or ambiguous
 bookmark targets, references to other source files, unsupported address types
