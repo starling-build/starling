@@ -143,6 +143,52 @@ class PublishingTests(unittest.TestCase):
         self.build(ok=False)
         self.assertEqual(self.digest(), before)
 
+    def test_public_addresses_match_aliases_previews_and_sitemap(self):
+        self.config.update(base='/handbook/', url='https://example.org/handbook/')
+        self.write_config()
+        self.build()
+        def canonical(path, url):
+            html = (self.out / path).read_text()
+            self.assertIn(f'<link rel="canonical" href="{url}">', html)
+            self.assertIn(f'<meta property="og:url" content="{url}">', html)
+        canonical('index.html', 'https://example.org/handbook/')
+        canonical('index/index.html', 'https://example.org/handbook/')
+        canonical('manual/index.html', 'https://example.org/handbook/manual/')
+        sitemap = (self.out / 'sitemap.xml').read_text()
+        self.assertIn('<loc>https://example.org/handbook/</loc>', sitemap)
+        self.assertIn('<loc>https://example.org/handbook/manual/</loc>', sitemap)
+        self.assertNotIn('/handbook/handbook/', sitemap)
+        self.assertIn('Sitemap: https://example.org/handbook/sitemap.xml', (self.out / 'robots.txt').read_text())
+        missing = (self.out / '404.html').read_text()
+        self.assertIn('<meta name="robots" content="noindex">', missing)
+        self.assertNotIn('rel="canonical"', missing)
+        # Choosing a different home updates both root and slug aliases together.
+        self.config['home'] = 'manual'
+        self.write_config()
+        self.build()
+        canonical('manual/index.html', 'https://example.org/handbook/')
+        canonical('index/index.html', 'https://example.org/handbook/index/')
+        canonical('index.html', 'https://example.org/handbook/')
+        self.config.pop('url')
+        self.write_config()
+        self.build()
+        self.assertNotIn('rel="canonical"', (self.out / 'index.html').read_text())
+        self.assertFalse((self.out / 'sitemap.xml').exists())
+        self.assertFalse((self.out / 'robots.txt').exists())
+
+    def test_local_build_has_no_invented_public_address(self):
+        self.build()
+        self.assertNotIn('rel="canonical"', (self.out / 'index.html').read_text())
+        self.assertFalse((self.out / 'sitemap.xml').exists())
+        # Do not copy credentials from a hand-edited configuration into metadata.
+        self.config['url'] = 'https://author:private@example.org/'
+        self.write_config()
+        self.build()
+        html = (self.out / 'index.html').read_text()
+        self.assertNotIn('rel="canonical"', html)
+        self.assertNotIn('author:private', html)
+        self.assertFalse((self.out / 'sitemap.xml').exists())
+
     def test_failed_build_preserves_every_previous_file(self):
         self.build()
         before = self.digest()

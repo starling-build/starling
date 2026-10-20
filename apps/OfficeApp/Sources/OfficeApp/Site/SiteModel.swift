@@ -384,7 +384,8 @@ enum SiteBuilder {
                                             description: node.slug == manifest.home ? (config.details?.summary ?? SiteFiles.summary(doc)) : SiteFiles.summary(doc), text: text,
                                             lines: SiteShellPage.lines(of: doc),
                                             nav: manifest.flattened().map { (title: $0.node.title, route: manifest.route($0.node.slug), depth: $0.depth) },
-                                            downloads: manifest.exportPaths(node.slug), details: config.details)
+                                            downloads: manifest.exportPaths(node.slug), details: config.details,
+                                            canonical: SitePublicAddress.url(website: config.url, route: manifest.route(node.slug)))
             if node.slug == manifest.home {
                 try html.write(toFile: out + "/index.html", atomically: true, encoding: .utf8)
             }
@@ -395,7 +396,7 @@ enum SiteBuilder {
         try SiteShellPage.render(template: template, base: manifest.base, route: manifest.base, title: manifest.title,
                                  siteTitle: manifest.title, description: "", text: "This page could not be found. Choose a page from the publication.",
                                  nav: manifest.flattened().map { (title: $0.node.title, route: manifest.route($0.node.slug), depth: $0.depth) },
-                                 details: config.details)
+                                 details: config.details, indexable: false)
             .write(toFile: out + "/404.html", atomically: true, encoding: .utf8)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -404,13 +405,14 @@ enum SiteBuilder {
         // Pages would otherwise run the folder through Jekyll.
         fm.createFile(atPath: out + "/.nojekyll", contents: Data())
         // A sitemap and a robots.txt for crawlers, when the site knows its address.
-        if let url = config.url?.trimmingWhitespace(), !url.isEmpty {
-            let origin = url.hasSuffix("/") ? String(url.dropLast()) : url
-            let host = origin.hasSuffix(manifest.base.dropLast()) && manifest.base != "/" ? String(origin.dropLast(manifest.base.count - 1)) : origin
-            let locs = manifest.flattened().map { "  <url><loc>\(SiteShellPage.escape(host + manifest.route($0.node.slug)))</loc></url>" }
+        if let sitemapURL = SitePublicAddress.url(website: config.url, route: manifest.base + "sitemap.xml") {
+            let locs = manifest.flattened().compactMap { entry -> String? in
+                guard let url = SitePublicAddress.url(website: config.url, route: manifest.route(entry.node.slug)) else { return nil }
+                return "  <url><loc>\(SiteShellPage.escape(url.absoluteString))</loc></url>"
+            }
             let sitemap = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n" + locs.joined(separator: "\n") + "\n</urlset>\n"
             try sitemap.write(toFile: out + "/sitemap.xml", atomically: true, encoding: .utf8)
-            try "User-agent: *\nAllow: /\nSitemap: \(host)\(manifest.base)sitemap.xml\n".write(toFile: out + "/robots.txt", atomically: true, encoding: .utf8)
+            try "User-agent: *\nAllow: /\nSitemap: \(sitemapURL.absoluteString)\n".write(toFile: out + "/robots.txt", atomically: true, encoding: .utf8)
         }
         // The Chinese face (18 MB) ships only with a site that has Chinese
         // text somewhere; a site without any gets neither the file nor its
@@ -460,7 +462,8 @@ enum SiteShellPage {
     static func render(template: String, base: String, route: String, title: String, siteTitle: String,
                        description: String, text: String, lines: [(level: Int, text: String)] = [],
                        nav: [(title: String, route: String, depth: Int)] = [],
-                       downloads: (pdf: String, docx: String)? = nil, details: SitePublicationDetails? = nil) -> String {
+                       downloads: (pdf: String, docx: String)? = nil, details: SitePublicationDetails? = nil,
+                       canonical: URL? = nil, indexable: Bool = true) -> String {
         let desc = String(description.replacingOccurrences(of: "\n", with: " ").prefix(300))
         let full = title == siteTitle ? title : "\(title) — \(siteTitle)"
         var meta = """
@@ -472,6 +475,11 @@ enum SiteShellPage {
         <meta name="starling-route" content="\(escape(route))">
 
         """
+        if !indexable { meta += "<meta name=\"robots\" content=\"noindex\">\n" }
+        else if let canonical {
+            let address = escape(canonical.absoluteString)
+            meta += "<link rel=\"canonical\" href=\"\(address)\">\n<meta property=\"og:url\" content=\"\(address)\">\n"
+        }
         if let byline = details?.byline { meta += "<meta name=\"author\" content=\"\(escape(byline))\">\n" }
         if let edition = details?.edition { meta += "<meta name=\"starling-edition\" content=\"\(escape(edition))\">\n" }
         if let rights = details?.rights { meta += "<meta name=\"copyright\" content=\"\(escape(rights))\">\n" }

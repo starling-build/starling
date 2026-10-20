@@ -34,6 +34,28 @@ IME or phone input. Native tests/build and the optimized WebAssembly build
 pass (the final worker-stack fix is native-only). No live publication or
 deployment verification was performed.
 
+**Public page addresses (2026-10-20):** Published shell pages now carry a
+canonical address and matching `og:url` when a website address is configured.
+The root home page and its slug alias identify the same canonical page.
+Sitemaps and robots.txt use the same address construction: the saved website
+origin plus the build's route, including an explicit `--base` override. A
+project path is never appended twice. Changing home updates root/alias
+metadata together; clearing the website address removes prior metadata and
+sitemap artifacts on rebuild.
+
+Local publications do not invent a public address. Credentials, queries,
+fragments and unsupported URL schemes are rejected for metadata generation.
+The generated missing-page shell has `noindex` and never claims the home page
+as its canonical address. Date and preview-image metadata remain pending;
+the build timestamp is not treated as an author's publication date.
+
+Validation: 13 address/details unit tests pass. `test/site-build.sh` passes
+its build/import/move/local-push checks and all 27 publishing integration
+tests. Coverage includes root/project/custom-origin URLs, Unicode routes,
+explicit base overrides, home changes, removal of obsolete metadata and
+omission of credential-bearing addresses. Native build passes; this change
+does not alter Wasm application code or contact the configured website.
+
 **Readable publication fallback (2026-10-20):** Generated publication pages
 show their text immediately, before the interactive reader loads. Navigation,
 publication details and PDF/Word links work with scripts disabled and with
