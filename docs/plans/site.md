@@ -34,6 +34,41 @@ IME or phone input. Native tests/build and the optimized WebAssembly build
 pass (the final worker-stack fix is native-only). No live publication or
 deployment verification was performed.
 
+**Publication details (2026-10-20):** Authors can add an optional byline/publisher,
+short description, edition label, language code and rights statement through
+Publication details in the preview. Saving patches the local configuration,
+preserves unrelated keys and rejects a form whose configuration changed
+elsewhere. It neither edits document bytes nor uploads, signs in, or copies a
+Git identity into the public byline. Empty fields remove the corresponding
+values. Details have their own versioned schema; legacy publications with no
+details remain readable and unsupported versions fail before build output is
+replaced.
+
+Byline and edition appear in the reader header. About publication shows all
+provided details. Generated HTML carries escaped author, edition and rights
+metadata and an accessible/fallback description of the publication. A supplied
+language code updates the shell's language; a short description overrides the
+home page's link-preview description while other pages keep their own summaries.
+The generated manifest carries the same information for the Swift/Wasm reader.
+Changing details appears in publication review and prevents a new page-share
+link from claiming those unsent details are already published.
+
+An edition label is descriptive text, not an archived release or immutable
+citation. This implements publication metadata only: page-level draft exclusion,
+archived editions, and changing document contents/styles from these fields
+remain outside this increment.
+
+Validation: 21 details/review/published-link unit tests and all 25 publishing
+integration tests pass. They cover old schemas, clearing fields, validation,
+stale writes, unknown-key preservation, escaped HTML, failed builds, and
+publication details reaching the manifest and shell without modifying source
+documents. A native walkthrough saved all fields and displayed the byline and
+edition; fixed-height inputs prevent movement as empty fields become filled.
+Headless Chrome opened the generated Swift/Wasm reader and About view and
+checked language, author metadata and fallback detail text. Native and optimized
+WebAssembly builds pass; the final input-height adjustment is native-only.
+All hosting used local fixtures; no production publication was made.
+
 **Share a published page or passage (2026-10-20):** After Check live website
 confirms the uploaded marker, the native author preview offers Copy page link.
 Link to paragraph now copies a full published URL too, rather than displaying
@@ -740,8 +775,9 @@ The review above describes `b2230e59`; the implementation progress below
 supersedes those findings where indicated. Continue with guided author
 onboarding and accessible reader controls after the update/build gates pass.
 Point-in-time deployment verification and explicit home selection are now
-implemented as recorded above. Draft metadata and named editions remain
-planned; a push alone must not be described as live.
+implemented as recorded above, as are optional publication details. Draft
+exclusion and archived editions remain planned; a push alone must not be
+described as live.
 
 ### Market evidence and the author-update workflow
 

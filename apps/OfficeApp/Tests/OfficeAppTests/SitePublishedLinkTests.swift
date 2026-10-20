@@ -117,4 +117,15 @@ final class SitePublishedLinkTests: XCTestCase {
             XCTAssertThrowsError(try SitePublishedLink.prepare(repo: repo, out: "docs", verified: verified, slug: "welcome"))
         }
     }
+
+    func testUnsentPublicationDetailsRequirePublishingBeforeSharing() throws {
+        try withUploaded { repo, verified, _ in
+            var config = try SiteBuilder.readConfig(repo)
+            config.details = .init(byline: "A newly credited author")
+            try SiteBuilder.writeConfig(config, to: repo)
+            XCTAssertThrowsError(try SitePublishedLink.prepare(repo: repo, out: "docs", verified: verified, slug: "welcome")) {
+                XCTAssertTrue(String(describing: $0).contains("saved changes"))
+            }
+        }
+    }
 }

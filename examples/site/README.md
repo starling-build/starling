@@ -27,6 +27,13 @@ Older publications retain their first page as home when first saved by the app.
 New **Link to paragraph** links use the page's own address so they survive a
 later home-page change; existing links to the website root still follow home.
 
+Use **Publication details…** to add a byline, short description, edition label,
+language code and rights statement. Save locally, then publish. Readers see
+the byline and edition above the document and can open **About publication**
+for the full details. The description also supplies the home page's link
+preview. Empty fields remove their values. An edition label does not archive
+an older version.
+
 The preview shows the status of your saved publication:
 
 - **Saved locally; no matching publish record**: this checkout has no usable

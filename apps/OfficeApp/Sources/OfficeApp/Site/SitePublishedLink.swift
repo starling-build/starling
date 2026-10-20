@@ -36,7 +36,7 @@ enum SitePublishedLink {
             throw SiteError("The saved page is unavailable. Reopen the publication before sharing it.")
         }
         let uploaded = try sent(out + "/" + SiteFiles.pagePath(slug))
-        guard local == uploaded, current.title == published.title, config.title == manifest.title else {
+        guard local == uploaded, current.title == published.title, config.title == manifest.title, config.details == manifest.details else {
             throw SiteError("This page has saved changes. Publish them and check the live website before copying its link.")
         }
         if let paragraph {

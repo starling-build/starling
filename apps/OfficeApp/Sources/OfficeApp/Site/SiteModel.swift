@@ -36,6 +36,7 @@ struct SiteConfig: Codable {
     var pages: [SiteNode]
     /// Legacy files use their first page until the next save pins that choice.
     var home: String? = nil
+    var details: SitePublicationDetails? = nil
     var resolvedHome: String { home ?? pages.first?.slug ?? "index" }
 }
 
@@ -48,6 +49,7 @@ struct SiteManifest: Codable {
     var repository: String? = nil
     /// The build wrote `<slug>/<slug>.pdf` and `.docx` beside each page.
     var exports: Bool? = nil
+    var details: SitePublicationDetails? = nil
 
     /// The tree, depth first, with each node's depth.
     func flattened() -> [(node: SiteNode, depth: Int)] {
@@ -207,6 +209,7 @@ enum SiteBuilder {
             var config = try JSONDecoder().decode(SiteConfig.self, from: data)
             // Capture the legacy choice before an author reorders/deletes nodes.
             config.home = config.resolvedHome
+            config.details = try config.details?.validated()
             return config
         }
         catch { throw Failure("\(path): \(error)") }
@@ -223,7 +226,8 @@ enum SiteBuilder {
     static func manifest(from config: SiteConfig, base: String? = nil) -> SiteManifest {
         SiteManifest(title: config.title, base: SiteFiles.normalizedBase(base ?? config.base),
                      home: config.resolvedHome, pages: config.pages,
-                     repository: config.repository?.trimmingWhitespace().isEmpty == false ? config.repository : nil)
+                     repository: config.repository?.trimmingWhitespace().isEmpty == false ? config.repository : nil,
+                     details: config.details)
     }
 
     /// The web build to ship: `--web`, else `STARLING_WEB_STAGE`, else the
@@ -248,6 +252,7 @@ enum SiteBuilder {
         let reserved = Set(["pages", "fonts", "skwasm", "manifest.json", "search.json", "404.html", "index.html", "robots.txt", "sitemap.xml"]
             + ((web.flatMap { try? fm.contentsOfDirectory(atPath: $0) }) ?? []))
         guard !config.pages.isEmpty else { throw Failure("the site needs at least one page") }
+        _ = try config.details?.validated()
         guard manifest(from: config).node(config.resolvedHome) != nil else {
             throw Failure("the home page must name a page in this publication")
         }
@@ -376,10 +381,10 @@ enum SiteBuilder {
             entries.append(SiteSearchEntry(slug: node.slug, title: node.title, text: text))
             let html = SiteShellPage.render(template: template, base: manifest.base, route: manifest.route(node.slug),
                                             title: node.title, siteTitle: manifest.title,
-                                            description: SiteFiles.summary(doc), text: text,
+                                            description: node.slug == manifest.home ? (config.details?.summary ?? SiteFiles.summary(doc)) : SiteFiles.summary(doc), text: text,
                                             lines: SiteShellPage.lines(of: doc),
                                             nav: manifest.flattened().map { (title: $0.node.title, route: manifest.route($0.node.slug), depth: $0.depth) },
-                                            downloads: manifest.exportPaths(node.slug))
+                                            downloads: manifest.exportPaths(node.slug), details: config.details)
             if node.slug == manifest.home {
                 try html.write(toFile: out + "/index.html", atomically: true, encoding: .utf8)
             }
@@ -388,7 +393,7 @@ enum SiteBuilder {
         }
         // An unknown route still loads the app, which says what it could not find.
         try SiteShellPage.render(template: template, base: manifest.base, route: manifest.base, title: manifest.title,
-                                 siteTitle: manifest.title, description: "", text: "")
+                                 siteTitle: manifest.title, description: "", text: "", details: config.details)
             .write(toFile: out + "/404.html", atomically: true, encoding: .utf8)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -454,10 +459,10 @@ enum SiteShellPage {
     static func render(template: String, base: String, route: String, title: String, siteTitle: String,
                        description: String, text: String, lines: [(level: Int, text: String)] = [],
                        nav: [(title: String, route: String, depth: Int)] = [],
-                       downloads: (pdf: String, docx: String)? = nil) -> String {
+                       downloads: (pdf: String, docx: String)? = nil, details: SitePublicationDetails? = nil) -> String {
         let desc = String(description.replacingOccurrences(of: "\n", with: " ").prefix(300))
         let full = title == siteTitle ? title : "\(title) — \(siteTitle)"
-        let meta = """
+        var meta = """
         <meta property="og:type" content="article">
         <meta property="og:site_name" content="\(escape(siteTitle))">
         <meta property="og:title" content="\(escape(title))">
@@ -466,7 +471,17 @@ enum SiteShellPage {
         <meta name="starling-route" content="\(escape(route))">
 
         """
+        if let byline = details?.byline { meta += "<meta name=\"author\" content=\"\(escape(byline))\">\n" }
+        if let edition = details?.edition { meta += "<meta name=\"starling-edition\" content=\"\(escape(edition))\">\n" }
+        if let rights = details?.rights { meta += "<meta name=\"copyright\" content=\"\(escape(rights))\">\n" }
         var html = template
+        if let language = details?.language, let range = html.range(of: #"<html\b[^>]*>"#, options: .regularExpression) {
+            var tag = String(html[range])
+            if let lang = tag.range(of: #"\blang\s*=\s*("[^"]*"|'[^']*')"#, options: .regularExpression) {
+                tag.replaceSubrange(lang, with: "lang=\"\(escape(language))\"")
+            } else { tag.insert(contentsOf: " lang=\"\(escape(language))\"", at: tag.index(before: tag.endIndex)) }
+            html.replaceSubrange(range, with: tag)
+        }
         if let r = html.range(of: "<head>") { html.replaceSubrange(r, with: "<head>\n<base href=\"\(escape(base))\">") }
         if let r = html.range(of: "<title>") { html.replaceSubrange(r, with: meta + "<title>") }
         else if let r = html.range(of: "</head>") { html.replaceSubrange(r, with: meta + "</head>") }
@@ -481,7 +496,7 @@ enum SiteShellPage {
         // HTML for screen readers and crawlers (the canvas is a picture to
         // both), shown plainly when scripts are off. The app replaces it
         // as the reader moves between pages.
-        if !text.isEmpty, let r = html.range(of: "<body>") {
+        if (!text.isEmpty || details?.hasContent == true), let r = html.range(of: "<body>") {
             let all = lines.isEmpty ? text.split(separator: "\n").map { (level: 0, text: String($0)) } : lines
             let elements = all.map { line -> String in
                 let tag = (1 ... 3).contains(line.level) ? "h\(line.level)" : "p"
@@ -494,8 +509,10 @@ enum SiteShellPage {
             let links = nav.map { "<li>" + String(repeating: "&nbsp;&nbsp;", count: $0.depth) + "<a href=\"" + escape($0.route) + "\">" + escape($0.title) + "</a></li>" }.joined(separator: "\n")
             let navHTML = nav.isEmpty ? "" : "<nav aria-label=\"Pages\"><ul>\n" + links + "\n</ul></nav>\n"
             let downloadsHTML = downloads.map { "<p class=\"starling-downloads\"><a href=\"" + escape($0.pdf) + "\">Download as PDF</a> · <a href=\"" + escape($0.docx) + "\">Download as Word</a></p>\n" } ?? ""
+            let detailFields = [details?.byline, details?.summary, details?.edition, details?.rights].compactMap { $0 }
+            let detailsHTML = detailFields.isEmpty ? "" : "<aside aria-label=\"About this publication\">" + detailFields.map { "<p>" + escape($0) + "</p>" }.joined() + "</aside>\n"
             html.replaceSubrange(r, with: "<body>\n" + style + "<main id=\"starling-text\" class=\"starling-sr\" aria-label=\"" + escape(siteTitle) + "\">\n" + navHTML
-                + "<article id=\"starling-article\" aria-label=\"" + escape(title) + "\">\n" + downloadsHTML + elements + "\n</article>\n</main>")
+                + detailsHTML + "<article id=\"starling-article\" aria-label=\"" + escape(title) + "\">\n" + downloadsHTML + elements + "\n</article>\n</main>")
         }
         return html
     }

@@ -63,6 +63,7 @@ final class SiteShellState: State<StatefulWidget> {
     private var _publicationCheck = 0
     #if !os(WASI)
     private var _reviewOpen = false
+    private var _detailsOpen = false
     private var _liveCheck = 0
     private var _checkingLive = false
     private var _liveMessage: String?
@@ -101,6 +102,7 @@ final class SiteShellState: State<StatefulWidget> {
     private var _revision: SiteRevision?
     private var _previewOriginal = false
     private var _pageActionsOpen = false
+    private var _aboutPublication = false
     private var _renameOpen = false
     private let _renameField = TextEditingController()
     private var _confirmDelete = false
@@ -479,7 +481,10 @@ final class SiteShellState: State<StatefulWidget> {
     private func _websiteControls() -> [Widget] {
         #if !os(WASI)
         guard store is LocalSiteStore else { return [] }
-        var buttons: [Widget] = [Button(onPressed: _publishing || _checkingLive ? nil : { [weak self] in self?._checkLiveWebsite() }, child: Text(_checkingLive ? "Checking website…" : "Check live website"))]
+        var buttons: [Widget] = [
+            Button(onPressed: _publishing || _checkingLive ? nil : { [weak self] in self?._checkLiveWebsite() }, child: Text(_checkingLive ? "Checking website…" : "Check live website")),
+            Button(onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._detailsOpen = true } }, child: Text("Publication details…")),
+        ]
         if _verifiedPublication != nil {
             buttons.append(Button(onPressed: { [weak self] in self?._useWebsiteLink(copy: false) }, child: Text("Open website")))
             buttons.append(Button(onPressed: { [weak self] in self?._useWebsiteLink(copy: true) }, child: Text("Copy website link")))
@@ -761,7 +766,18 @@ final class SiteShellState: State<StatefulWidget> {
         }
         // Editing: the whole Writer, nothing of the site's chrome around it.
         if _editing, let writer = _writer { return writer }
+        if _aboutPublication, let details = _manifest?.details {
+            return SitePublicationAbout(title: _manifest?.title ?? "Publication", details: details,
+                                        onClose: { [weak self] in self?.setState { self?._aboutPublication = false } })
+        }
         #if !os(WASI)
+        if _detailsOpen, let local = store as? LocalSiteStore {
+            return SitePublicationDetailsPanel(repo: local.repo, onClose: { [weak self] in
+                guard let self else { return }
+                self.setState { self._detailsOpen = false }
+                self._refreshManifest()
+            })
+        }
         if _hostingOpen, let local = store as? LocalSiteStore {
             return SiteHostingPanel(store: local, onClose: { [weak self] in
                 guard let self else { return }
@@ -923,6 +939,10 @@ final class SiteShellState: State<StatefulWidget> {
                 items.append(Button(onPressed: { [weak self] in self?._openHistory() }, child: Text("History")))
                 items.append(Chrome.gap(8))
             }
+            if _manifest?.details?.hasContent == true {
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._aboutPublication = true } }, child: Text("About publication")))
+                items.append(Chrome.gap(8))
+            }
             if _findOpen {
                 items.append(SizedBox(width: _compact ? 180 : 240, height: 46, child:
                     WikiAppearance.field(_findField, placeholder: "Find in page", autofocus: true,
@@ -1031,6 +1051,8 @@ final class SiteShellState: State<StatefulWidget> {
             Text(_manifest?.title ?? "Site", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.blue)),
             Chrome.vgap(8), Text(title, style: WikiAppearance.text(_compact ? 25 : 32, bold: true)),
         ]
+        let identity = [_manifest?.details?.byline, _manifest?.details?.edition].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        if !identity.isEmpty { heading += [Chrome.vgap(8), Text(identity, style: WikiAppearance.text(14, color: WikiAppearance.muted))] }
         if store.canEdit {
             heading += [Chrome.vgap(12), Text(_publicationStatus, style: WikiAppearance.text(14, color: WikiAppearance.muted))]
         }

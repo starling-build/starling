@@ -114,6 +114,35 @@ class PublishingTests(unittest.TestCase):
         self.build(ok=False)
         self.assertEqual(self.digest(), before)
 
+    def test_publication_details_reach_reader_and_html_without_changing_source(self):
+        original = (self.repo / 'pages/index.json').read_bytes()
+        details = {'version': 1, 'byline': 'Author & Press', 'summary': 'A guide for readers',
+                   'edition': 'Second edition', 'language': 'fr-CA', 'rights': 'Copyright <Author>'}
+        self.config['details'] = details
+        self.write_config()
+        self.build()
+        self.assertEqual(json.loads((self.out / 'manifest.json').read_text())['details'], details)
+        home = (self.out / 'index.html').read_text()
+        self.assertIn('lang="fr-CA"', home)
+        self.assertIn('name="author" content="Author &amp; Press"', home)
+        self.assertIn('name="description" content="A guide for readers"', home)
+        self.assertIn('Copyright &lt;Author&gt;', home)
+        self.assertIn('Second edition', (self.out / 'manual/index.html').read_text())
+        self.assertEqual(original, (self.repo / 'pages/index.json').read_bytes())
+        self.config.pop('details')
+        self.write_config()
+        self.build()
+        self.assertNotIn('details', json.loads((self.out / 'manifest.json').read_text()))
+        self.assertNotIn('Author &amp; Press', (self.out / 'index.html').read_text())
+
+    def test_unsupported_details_version_preserves_previous_build(self):
+        self.build()
+        before = self.digest()
+        self.config['details'] = {'version': 2, 'byline': 'Future schema'}
+        self.write_config()
+        self.build(ok=False)
+        self.assertEqual(self.digest(), before)
+
     def test_failed_build_preserves_every_previous_file(self):
         self.build()
         before = self.digest()

@@ -69,7 +69,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                 rows += [Chrome.vgap(6), Text("Compared with the last upload recorded on this device. This does not confirm what is live on the website.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
             }
             if review.settingsChanged {
-                rows += [Chrome.vgap(10), Text("The publication title, address or navigation has also changed.", style: WikiAppearance.text(15, bold: true))]
+                rows += [Chrome.vgap(10), Text("The publication details, address or navigation have also changed.", style: WikiAppearance.text(15, bold: true))]
             }
             rows += [Chrome.vgap(12), Text("Each included page has a web reading view and Word and PDF downloads. If your hosting repository is public, its source files and history are public too, including other files already committed there.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                      Chrome.vgap(8), Text("This is a review of saved website pages. Refresh after changes made outside the app; publishing rebuilds the latest saved files.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
