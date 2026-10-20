@@ -23,4 +23,6 @@ struct HostedDocument {
     let save: (RichDocument, PageSetup, @escaping (String?) -> Void) -> Void
     /// Leave the document; the owner shows whatever it shows next.
     let close: () -> Void
+    /// Optional task-specific destination, e.g. a publication preview.
+    var returnLabel: String? = nil
 }

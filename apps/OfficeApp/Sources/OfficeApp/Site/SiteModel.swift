@@ -224,6 +224,70 @@ enum SiteBuilder {
 
     static func build(repo: String, out: String, web: String?, base: String?) throws -> Summary {
         let fm = FileManager.default
+        let source = URL(fileURLWithPath: repo).standardizedFileURL.resolvingSymlinksInPath()
+        let destination = URL(fileURLWithPath: out).standardizedFileURL.resolvingSymlinksInPath()
+        func contains(_ parent: URL, _ child: URL) -> Bool {
+            child.path == parent.path || child.path.hasPrefix(parent.path + "/")
+        }
+        guard !contains(destination, source),
+              !contains(source.appendingPathComponent("pages"), destination),
+              !contains(source.appendingPathComponent(".git"), destination) else {
+            throw Failure("output must not overlap the repository, its pages or Git metadata")
+        }
+        if let web {
+            let assets = URL(fileURLWithPath: web).standardizedFileURL.resolvingSymlinksInPath()
+            guard !contains(destination, assets), !contains(assets, destination) else {
+                throw Failure("output must not overlap the web build")
+            }
+        }
+        let config = try readConfig(repo)
+        var slugs = Set<String>()
+        let reserved = Set(["pages", "fonts", "skwasm", "manifest.json", "search.json", "404.html", "index.html", "robots.txt", "sitemap.xml"]
+            + ((web.flatMap { try? fm.contentsOfDirectory(atPath: $0) }) ?? []))
+        guard !config.pages.isEmpty else { throw Failure("the site needs at least one page") }
+        for (node, _) in manifest(from: config).flattened() {
+            guard !node.slug.isEmpty, node.slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }),
+                  !reserved.contains(node.slug.lowercased()), slugs.insert(node.slug.lowercased()).inserted else {
+                throw Failure("invalid, reserved or duplicate page slug: \(node.slug)")
+            }
+            let file = source.appendingPathComponent(SiteFiles.pagePath(node.slug)).resolvingSymlinksInPath()
+            guard contains(source, file), let data = fm.contents(atPath: file.path), SiteFiles.decodePage(data) != nil else {
+                throw Failure("\(node.slug): missing, unreadable or invalid source page")
+            }
+        }
+        if fm.fileExists(atPath: destination.path) {
+            let existing = try fm.contentsOfDirectory(atPath: destination.path)
+            guard existing.isEmpty || fm.fileExists(atPath: destination.appendingPathComponent(SiteFiles.manifest).path) else {
+                throw Failure("refusing to build into \(out): it has files and no \(SiteFiles.manifest) — not a site build")
+            }
+        }
+        let parent = destination.deletingLastPathComponent()
+        try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+        let staging = parent.appendingPathComponent(".starling-build-" + UUID().uuidString)
+        let backup = parent.appendingPathComponent(".starling-backup-" + UUID().uuidString)
+        defer { try? fm.removeItem(at: staging) }
+        let summary = try buildContents(repo: repo, out: staging.path, web: web, base: base)
+        // A public identifier for this exact built version, installed with its files.
+        try JSONEncoder().encode(SiteLivePublication.Marker(version: 1, build: UUID().uuidString))
+            .write(to: staging.appendingPathComponent(SiteLivePublication.markerFile), options: .atomic)
+        // GitHub Pages' custom-domain setting is hosting configuration.
+        let cname = destination.appendingPathComponent("CNAME")
+        if let data = fm.contents(atPath: cname.path) {
+            try data.write(to: staging.appendingPathComponent("CNAME"), options: .atomic)
+        }
+        let hadOutput = fm.fileExists(atPath: destination.path)
+        if hadOutput { try fm.moveItem(at: destination, to: backup) }
+        do { try fm.moveItem(at: staging, to: destination) }
+        catch {
+            if hadOutput { try fm.moveItem(at: backup, to: destination) }
+            throw error
+        }
+        if hadOutput { try? fm.removeItem(at: backup) }
+        return Summary(pages: summary.pages, out: out, base: summary.base)
+    }
+
+    private static func buildContents(repo: String, out: String, web: String?, base: String?) throws -> Summary {
+        let fm = FileManager.default
         let config = try readConfig(repo)
         var manifest = manifest(from: config, base: base)
         manifest.exports = true
@@ -264,7 +328,7 @@ enum SiteBuilder {
         var hasCJK = false
         for (node, _) in manifest.flattened() {
             let src = repo + "/" + SiteFiles.pagePath(node.slug)
-            let data = fm.contents(atPath: src) ?? Data(SiteFiles.emptyBody.utf8)
+            guard let data = fm.contents(atPath: src) else { throw Failure("\(src): missing source page") }
             guard let page = SiteFiles.decodePage(data) else { throw Failure("\(src): not a page this build can read") }
             let doc = page.document
             try data.write(to: URL(fileURLWithPath: out + "/" + SiteFiles.pagePath(node.slug)), options: .atomic)

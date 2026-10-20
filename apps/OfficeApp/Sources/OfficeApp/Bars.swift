@@ -44,9 +44,9 @@ final class TitleRow: StatelessWidget {
                 FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 10, bottom: 0),
                     child: Row(mainAxisSize: .min, children: [
                         Icon(FluentSystemIcons.back, size: 16, color: white), Chrome.gap(6),
-                        Text("Back to \(host)", style: captionStyle, softWrap: false),
+                        Text(session.hostReturnLabel ?? "Back to \(host)", style: captionStyle, softWrap: false),
                     ])),
-                    tip: "Back to the \(host)", width: nil, height: 32, onAccent: true,
+                    tip: session.hostReturnLabel ?? "Back to the \(host)", width: nil, height: 32, onAccent: true,
                     action: { [session] in session.onClose?() }),
                 Chrome.gap(12),
             ]

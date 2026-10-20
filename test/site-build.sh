@@ -123,6 +123,9 @@ check "under the message given" "$(git -C "$REMOTE" log -1 --format=%s)" 'about,
 "$APP" --site-publish "$PUB" --web "$STAGE" -m "nothing new" > "$OUT/publish2.log" 2>&1
 check "a publish with nothing to commit still exits 0" "$?" 0
 
+echo "── publication updates and output replacement"
+python3 "$REPO/test/site-publishing.py" || fail "publication regressions"
+
 echo
 if [ $fails -eq 0 ]; then echo "site-build: all passed"; else echo "site-build: $fails failed"; fi
 [ $fails -eq 0 ]

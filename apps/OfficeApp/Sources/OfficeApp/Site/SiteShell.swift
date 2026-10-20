@@ -36,11 +36,13 @@ final class SiteRoot: StatelessWidget {
 final class SiteShell: StatefulWidget {
     let store: SiteStore
     let route: String
+    let startEditing: Bool
     /// Set when Writer opened the site from Backstage: "Close site" returns there.
     let onLeave: (() -> Void)?
-    init(store: SiteStore, route: String, onLeave: (() -> Void)? = nil) {
+    init(store: SiteStore, route: String, startEditing: Bool = false, onLeave: (() -> Void)? = nil) {
         self.store = store
         self.route = route
+        self.startEditing = startEditing
         self.onLeave = onLeave
         super.init()
     }
@@ -57,6 +59,14 @@ final class SiteShellState: State<StatefulWidget> {
     private var _pageSetup: PageSetup?
     private var _loading = false
     private var _status: String?
+    private var _publicationStatus = "Checking saved publication…"
+    private var _publicationCheck = 0
+    #if !os(WASI)
+    private var _liveCheck = 0
+    private var _checkingLive = false
+    private var _liveMessage: String?
+    private var _verifiedPublication: SiteLivePublication.Snapshot?
+    #endif
 
     // Pages or flow: the reader's choice, else pages on a desktop and flow
     // on a phone, and flow always for a page with no page setup.
@@ -72,13 +82,21 @@ final class SiteShellState: State<StatefulWidget> {
 
     // Editing (the whole Writer) and publishing, over a writable store.
     private var _editing = false
+    private var _editOnNextLoad = false
     private var _writer: OfficeShell?
+    private var _hostingOpen = false
     private var _publishOpen = false
     private var _publishing = false
+    private var _publishIssue: SitePublishIssue?
+    private var _publishStage: SitePublishStage = .checking
     private let _publishMessage = TextEditingController()
     private var _newTitleOpen = false
     private let _newTitleField = TextEditingController()
     private var _importOpen = false
+    private var _updateImport = false
+    private var _revision: SiteRevision?
+    private var _previewOriginal = false
+    private var _pageActionsOpen = false
     private var _renameOpen = false
     private let _renameField = TextEditingController()
     private var _confirmDelete = false
@@ -102,6 +120,7 @@ final class SiteShellState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        _editOnNextLoad = (widget as! SiteShell).startEditing
         _ = OfficeFonts.register()
         _previousMetrics = PlatformDispatcher.instance.onMetricsChanged
         PlatformDispatcher.instance.onMetricsChanged = { [weak self] in
@@ -176,6 +195,8 @@ final class SiteShellState: State<StatefulWidget> {
     }
 
     private func _load(_ slug: String, push: Bool) {
+        if _publishing { return }
+        _revision = nil
         guard let m = _manifest else { return }
         if _editing { _cancelEdit(reload: false) }
         guard m.node(slug) != nil else {
@@ -197,8 +218,14 @@ final class SiteShellState: State<StatefulWidget> {
                     if self._compact { self._navigationOpen = false }
                 }
                 self._controller.load(page.document)
+                #if !os(WASI)
+                if let local = self.store as? LocalSiteStore {
+                    SiteRecent().remember(repo: local.repo, slug: slug)
+                }
+                #endif
                 self._controller.readOnly = true
                 self._computeContents()
+                self._refreshPublicationStatus()
                 // The tab's (window's) title follows the page, as the shell
                 // page's did before the app started.
                 let title = m.node(slug)?.title ?? slug
@@ -210,6 +237,10 @@ final class SiteShellState: State<StatefulWidget> {
                                                  downloads: m.exports == true ? m.exportPaths(slug) : nil)
                 #endif
                 if let id = self._pendingParagraph { self._pendingParagraph = nil; self._reveal(paragraphID: id) }
+                if self._editOnNextLoad {
+                    self._editOnNextLoad = false
+                    self._beginEdit()
+                }
             case .failure(let e):
                 self.setState { self._loading = false; self._status = "\(e)" }
             }
@@ -319,9 +350,103 @@ final class SiteShellState: State<StatefulWidget> {
     private func _refreshManifest(then: @escaping () -> Void = {}) {
         store.manifest { [weak self] r in
             guard let self else { return }
-            if case .success(let m) = r { self.setState { self._manifest = m }; self._entries = nil }
+            if case .success(let m) = r { self.setState { self._manifest = m }; self._entries = nil; self._refreshPublicationStatus() }
             then()
         }
+    }
+
+    private func _refreshPublicationStatus() {
+        #if !os(WASI)
+        guard let local = store as? LocalSiteStore else { return }
+        _clearLiveCheck()
+        _publicationCheck += 1
+        setState { _publicationStatus = "Checking saved publication…" }
+        let check = _publicationCheck, repo = local.repo, out = local.out
+        DispatchQueue.global().async { [weak self] in
+            let message = SitePublicationState.status(repo: repo, out: out).message
+            DispatchQueue.main.async {
+                guard let self, self.mounted, self._publicationCheck == check else { return }
+                self.setState { self._publicationStatus = message }
+            }
+        }
+        #endif
+    }
+
+    #if !os(WASI)
+    private func _clearLiveCheck() {
+        _liveCheck += 1
+        setState { _checkingLive = false; _liveMessage = nil; _verifiedPublication = nil }
+    }
+
+    private func _checkLiveWebsite() {
+        guard let local = store as? LocalSiteStore, !_publishing, !_checkingLive else { return }
+        _refreshPublicationStatus()
+        let check = _liveCheck, repo = local.repo, out = local.out
+        setState { _checkingLive = true; _liveMessage = "Checking the website's uploaded version…" }
+        DispatchQueue.global().async { [weak self] in
+            func finish(_ result: Result<URL, SiteError>, expected: SiteLivePublication.Snapshot?) {
+                // A second publish or changed destination must invalidate an in-flight response.
+                let stillCurrent = expected != nil && (try? SiteLivePublication.snapshot(repo: repo, out: out)) == expected
+                DispatchQueue.main.async {
+                    guard let self, self.mounted, self._liveCheck == check else { return }
+                    self.setState {
+                        self._checkingLive = false
+                        switch result {
+                        case .success where stillCurrent:
+                            self._verifiedPublication = expected
+                            let time = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)
+                            self._liveMessage = "Website confirmed the last uploaded version at \(time). Open it to review before sharing."
+                        case .success:
+                            self._liveMessage = "Publishing details changed during this check. Check the website again."
+                        case .failure(let error): self._liveMessage = error.description
+                        }
+                    }
+                }
+            }
+            do {
+                let expected = try SiteLivePublication.snapshot(repo: repo, out: out)
+                SiteLivePublication.check(expected) { finish($0, expected: expected) }
+            } catch {
+                finish(.failure(SiteError("\(error)")), expected: nil)
+            }
+        }
+    }
+
+    private func _useWebsiteLink(copy: Bool) {
+        guard let expected = _verifiedPublication, let local = store as? LocalSiteStore else { return }
+        let check = _liveCheck, repo = local.repo, out = local.out
+        DispatchQueue.global().async { [weak self] in
+            let current = try? SiteLivePublication.snapshot(repo: repo, out: out)
+            DispatchQueue.main.async {
+                guard let self, self.mounted, self._liveCheck == check else { return }
+                guard current == expected else {
+                    self._clearLiveCheck()
+                    self.setState { self._liveMessage = "Publishing details changed. Check the website again before sharing." }
+                    return
+                }
+                let link = expected.website.absoluteString
+                if copy {
+                    Clipboard.setData(ClipboardData(text: link))
+                    self.setState { self._status = "Website link copied." }
+                } else { hostOpenURL?(link) }
+            }
+        }
+    }
+    #endif
+
+    private func _websiteControls() -> [Widget] {
+        #if !os(WASI)
+        guard store is LocalSiteStore else { return [] }
+        var buttons: [Widget] = [Button(onPressed: _publishing || _checkingLive ? nil : { [weak self] in self?._checkLiveWebsite() }, child: Text(_checkingLive ? "Checking website…" : "Check live website"))]
+        if _verifiedPublication != nil {
+            buttons.append(Button(onPressed: { [weak self] in self?._useWebsiteLink(copy: false) }, child: Text("Open website")))
+            buttons.append(Button(onPressed: { [weak self] in self?._useWebsiteLink(copy: true) }, child: Text("Copy website link")))
+        }
+        return (_liveMessage.map { [Chrome.vgap(8), Text($0, style: WikiAppearance.text(14, color: WikiAppearance.muted))] } ?? [])
+            + [Chrome.vgap(12), Wrap(spacing: 8, runSpacing: 8, children: buttons)]
+        #else
+        return []
+        #endif
     }
 
     // MARK: Editing
@@ -331,7 +456,7 @@ final class SiteShellState: State<StatefulWidget> {
         let doc = _controller.document
         let title = m.node(slug)?.title ?? slug
         let writer = OfficeShell(initialPath: nil, hosted: HostedDocument(
-            title: title, document: doc, pageSetup: _pageSetup, ownerName: "site",
+            title: title, document: doc, pageSetup: _pageSetup, ownerName: "publication",
             save: { [weak self] doc, setup, done in
                 guard let self else { done("The site reader went away."); return }
                 self.store.save(slug, SitePage(document: doc, pageSetup: setup)) { [weak self] message in
@@ -339,7 +464,7 @@ final class SiteShellState: State<StatefulWidget> {
                     done(message)
                 }
             },
-            close: { [weak self] in self?._cancelEdit(reload: true) }))
+            close: { [weak self] in self?._cancelEdit(reload: true) }, returnLabel: "Back to preview"))
         setState { _editing = true; _writer = writer }
     }
 
@@ -351,13 +476,14 @@ final class SiteShellState: State<StatefulWidget> {
     }
 
     private func _createPage(_ title: String) {
+        guard !_publishing else { return }
         let t = title.trimmingWhitespace()
         guard !t.isEmpty else { return }
         store.createPage(title: t, under: _slug) { [weak self] r in
             guard let self else { return }
             switch r {
             case .success(let slug):
-                self.setState { self._newTitleOpen = false; self._newTitleField.text = "" }
+                self.setState { self._newTitleOpen = false; self._newTitleField.text = ""; self._editOnNextLoad = true }
                 self._refreshManifest { self._load(slug, push: true) }
             case .failure(let e): self.setState { self._status = "\(e)" }
             }
@@ -370,6 +496,19 @@ final class SiteShellState: State<StatefulWidget> {
         setState { _importOpen = false }
         do {
             var opened = try OfficeFormats.read(path)
+            if _updateImport, let slug = _slug {
+                _updateImport = false
+                store.previewUpdate(slug, page: SitePage(document: opened.document, pageSetup: opened.pageSetup)) { [weak self] result in
+                    guard let self else { return }
+                    switch result {
+                    case .success(let revision):
+                        self.setState { self._revision = revision; self._previewOriginal = false }
+                        self._showRevision()
+                    case .failure(let error): self.setState { self._status = "\(error)" }
+                    }
+                }
+                return
+            }
             opened.document.assignParagraphIDs()
             let title = path.lastPathComponent.deletingPathExtension
             store.importPage(title: title, page: SitePage(document: opened.document, pageSetup: opened.pageSetup), under: _slug) { [weak self] r in
@@ -380,6 +519,30 @@ final class SiteShellState: State<StatefulWidget> {
                 }
             }
         } catch { setState { _status = "Could not read \(path.lastPathComponent): \(error)" } }
+    }
+
+    private func _showRevision() {
+        guard let revision = _revision else { return }
+        let page = _previewOriginal ? revision.original : revision.replacement
+        _controller.load(page.document)
+        _controller.readOnly = true
+        setState {
+            _pageSetup = page.pageSetup
+            _pageInfo = (1, 1)
+            _status = (_previewOriginal ? "Current saved document. " : "Revised document preview. ") + revision.summary
+        }
+        _computeContents()
+    }
+
+    private func _applyRevision() {
+        guard let revision = _revision else { return }
+        store.applyUpdate(revision) { [weak self] error in
+            guard let self else { return }
+            if let error { self.setState { self._status = error }; return }
+            self._entries = nil
+            self._load(revision.slug, push: false)
+            self.setState { self._status = "Updated locally. The page address is unchanged. Publish when ready." }
+        }
     }
 
     private func _rename() {
@@ -441,17 +604,58 @@ final class SiteShellState: State<StatefulWidget> {
         }
     }
 
+    private func _openPublish() {
+        setState {
+            _publishOpen = true
+            #if !os(WASI)
+            if let local = store as? LocalSiteStore, let config = try? SiteBuilder.readConfig(local.repo),
+               (config.repository ?? "").trimmingWhitespace().isEmpty || (config.url ?? "").trimmingWhitespace().isEmpty {
+                _hostingOpen = true
+            }
+            #endif
+        }
+    }
+
     private func _publish() {
         guard !_publishing else { return }
-        setState { _publishing = true; _status = "Building and pushing…" }
-        store.publish(message: _publishMessage.text) { [weak self] message in
-            guard let self else { return }
+        #if !os(WASI)
+        _clearLiveCheck()
+        #endif
+        setState { _publishing = true; _publishIssue = nil; _publishStage = .checking; _status = _publishStage.message }
+        store.publish(message: _publishMessage.text, progress: { [weak self] stage in
+            guard let self, self.mounted, self._publishing else { return }
+            self.setState { self._publishStage = stage; self._status = stage.message }
+        }) { [weak self] issue in
+            guard let self, self.mounted else { return }
             self.setState {
                 self._publishing = false
-                self._status = message ?? "Published."
-                if message == nil { self._publishOpen = false; self._publishMessage.text = "" }
+                self._publishIssue = issue
+                self._status = issue?.title ?? "Sent to hosting. Choose Check live website to confirm the uploaded version."
+                if issue == nil { self._publishOpen = false; self._publishMessage.text = "" }
             }
+            self._refreshPublicationStatus()
         }
+    }
+
+    private func _publishFeedback() -> [Widget] {
+        guard store.canEdit else { return [] }
+        if _publishing {
+            return [Chrome.vgap(12), Text(_publishStage.message, style: WikiAppearance.text(15, bold: true))]
+        }
+        guard let issue = _publishIssue else { return [] }
+        var rows: [Widget] = [Chrome.vgap(14), Text(issue.title, style: WikiAppearance.text(16, bold: true)),
+                              Chrome.vgap(6), Text(issue.guidance, style: WikiAppearance.text(14, color: WikiAppearance.muted))]
+        if let url = issue.helpURL {
+            rows += [Chrome.vgap(8), Wrap(children: [Button(onPressed: { hostOpenURL?(url) }, child: Text("GitHub sign-in help"))])]
+        }
+        #if !os(WASI)
+        if issue.kind == .setup, store is LocalSiteStore {
+            rows += [Chrome.vgap(8), Wrap(children: [Button(onPressed: { [weak self] in
+                self?.setState { self?._publishOpen = true; self?._hostingOpen = true }
+            }, child: Text("Finish publishing setup"))])]
+        }
+        #endif
+        return rows
     }
 
     // MARK: Search
@@ -499,12 +703,20 @@ final class SiteShellState: State<StatefulWidget> {
         // Editing: the whole Writer, nothing of the site's chrome around it.
         if _editing, let writer = _writer { return writer }
         #if !os(WASI)
+        if _hostingOpen, let local = store as? LocalSiteStore {
+            return SiteHostingPanel(store: local, onClose: { [weak self] in
+                guard let self else { return }
+                self.setState { self._hostingOpen = false }
+                self._refreshManifest()
+            })
+        }
         if _importOpen {
             // The file panel, in the reader's place: a document to become a page.
             return ColoredBox(color: WikiAppearance.paper, child: Column(crossAxisAlignment: .stretch, children: [
                 _brandHeader(),
                 Expanded(child: Padding(padding: EdgeInsets(all: 24), child: FluentFilePanel(
-                    mode: .open, initialDirectory: homeDirectory() + "/Documents", extensions: OfficeFormats.readable,
+                    mode: .open, initialDirectory: (store as? LocalSiteStore)?.repo ?? homeDirectory() + "/Documents",
+                    extensions: _updateImport ? ["docx"] : OfficeFormats.readable,
                     onDone: { [weak self] path in
                         guard let self else { return }
                         if let path { self._importFile(path) } else { self.setState { self._importOpen = false } }
@@ -549,7 +761,7 @@ final class SiteShellState: State<StatefulWidget> {
         } else if let leave = (widget as! SiteShell).onLeave {
             items.append(Text("LOCAL COPY", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.muted)))
             items.append(Chrome.gap(16))
-            items.append(Button(onPressed: { leave() }, child: Text("Close site")))
+            items.append(Button(onPressed: _publishing ? nil : { leave() }, child: Text("Close publication")))
         } else {
             items.append(Text(store.canEdit ? "LOCAL COPY" : "PUBLISHED", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.muted)))
         }
@@ -569,7 +781,7 @@ final class SiteShellState: State<StatefulWidget> {
         ]
         if store.canEdit {
             header.append(Padding(padding: EdgeInsets(horizontal: 20), child: FilledButton(
-                onPressed: { [weak self] in self?.setState { self?._newTitleOpen.toggle() } }, child: Text("New page +"))))
+                onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._newTitleOpen.toggle() } }, child: Text("New page +"))))
             header.append(Chrome.vgap(16))
             if _newTitleOpen {
                 header.append(Padding(padding: EdgeInsets(left: 20, top: 0, right: 20, bottom: 12), child:
@@ -618,9 +830,9 @@ final class SiteShellState: State<StatefulWidget> {
         var items: [Widget] = []
         if _slug != nil {
             if _pageSetup != nil {
-                items.append(Button(onPressed: showPages ? nil : { [weak self] in self?.setState { self?._viewPages = true } }, child: Text("Pages")))
+                items.append(Button(onPressed: showPages ? nil : { [weak self] in self?.setState { self?._viewPages = true } }, child: Text(store.canEdit ? "Page preview" : "Pages")))
                 items.append(Chrome.gap(4))
-                items.append(Button(onPressed: showPages ? { [weak self] in self?.setState { self?._viewPages = false } } : nil, child: Text("Flow")))
+                items.append(Button(onPressed: showPages ? { [weak self] in self?.setState { self?._viewPages = false } } : nil, child: Text(store.canEdit ? "Reading view" : "Flow")))
                 items.append(Chrome.gap(8))
             }
             if !_toc.isEmpty {
@@ -656,7 +868,16 @@ final class SiteShellState: State<StatefulWidget> {
             items.append(Chrome.gap(8))
         }
         if store.canEdit, _slug != nil {
-            if _confirmDelete {
+            if let revision = _revision {
+                items.append(Text("Review the revised document before replacing this page. Local edits will be replaced.", style: WikiAppearance.text(14)))
+                items.append(Button(onPressed: { [weak self] in
+                    guard let self else { return }
+                    self.setState { self._previewOriginal.toggle() }
+                    self._showRevision()
+                }, child: Text(_previewOriginal ? "View revised" : "View current")))
+                items.append(Button(onPressed: { [weak self] in self?._load(revision.slug, push: false) }, child: Text("Cancel update")))
+                items.append(FilledButton(onPressed: { [weak self] in self?._applyRevision() }, child: Text("Apply update")))
+            } else if _confirmDelete {
                 let title = _slug.flatMap { _manifest?.node($0)?.title } ?? ""
                 items.append(Text("Delete \"\(title)\"? Its pages move up a level.", style: fluent.typography.caption?.copyWith(color: WikiAppearance.muted)))
                 items.append(Chrome.gap(12))
@@ -671,40 +892,65 @@ final class SiteShellState: State<StatefulWidget> {
                 items.append(Chrome.gap(8))
                 items.append(FilledButton(onPressed: { [weak self] in self?._rename() }, child: Text("Rename")))
             } else if _publishOpen {
+                #if !os(WASI)
+                if store is LocalSiteStore {
+                    items.append(Button(onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._hostingOpen = true } }, child: Text("Publishing settings…")))
+                    items.append(Chrome.gap(8))
+                    items.append(Button(onPressed: _publishing ? nil : { [weak self] in self?._refreshPublicationStatus() }, child: Text("Check publication status")))
+                    items.append(Chrome.gap(8))
+                }
+                #endif
                 items.append(SizedBox(width: _compact ? 220 : 360, height: 46, child:
-                    WikiAppearance.field(_publishMessage, placeholder: "Commit message", autofocus: true, onSubmitted: { [weak self] _ in self?._publish() })))
+                    WikiAppearance.field(_publishMessage, placeholder: "What changed? (optional)", autofocus: true, enabled: !_publishing, onSubmitted: { [weak self] _ in self?._publish() })))
                 items.append(Chrome.gap(8))
                 items.append(Button(onPressed: _publishing ? nil : { [weak self] in self?.setState { self?._publishOpen = false } }, child: Text("Cancel")))
                 items.append(Chrome.gap(8))
-                items.append(FilledButton(onPressed: _publishing ? nil : { [weak self] in self?._publish() }, child: Text(_publishing ? "Publishing…" : "Build, commit and push")))
+                items.append(FilledButton(onPressed: _publishing ? nil : { [weak self] in self?._publish() }, child: Text(_publishing ? "Publishing…" : (_publishIssue?.retryTitle ?? "Publish"))))
             } else {
                 #if !os(WASI)
-                items.append(Button(onPressed: { [weak self] in self?.setState { self?._importOpen = true } }, child: Text("Import .docx…")))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._updateImport = false; self?._importOpen = true } }, child: Text("Add a Word document…")))
+                items.append(Chrome.gap(8))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._updateImport = true; self?._importOpen = true } }, child: Text("Update from Word…")))
                 items.append(Chrome.gap(8))
                 #endif
-                items.append(Button(onPressed: { [weak self] in
-                    guard let self else { return }
-                    self._renameField.text = self._slug.flatMap { self._manifest?.node($0)?.title } ?? ""
-                    self.setState { self._renameOpen = true }
-                }, child: Text("Rename")))
+                items.append(Button(onPressed: { [weak self] in self?.setState { self?._pageActionsOpen.toggle() } }, child: Text(_pageActionsOpen ? "Hide page options" : "Page options")))
                 items.append(Chrome.gap(8))
-                items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmDelete = true } }, child: Text("Delete")))
+                if _pageActionsOpen {
+                    items.append(Button(onPressed: { [weak self] in
+                        guard let self else { return }
+                        self._renameField.text = self._slug.flatMap { self._manifest?.node($0)?.title } ?? ""
+                        self.setState { self._renameOpen = true }
+                    }, child: Text("Rename")))
+                    items.append(Chrome.gap(8))
+                    items.append(Button(onPressed: { [weak self] in self?.setState { self?._confirmDelete = true } }, child: Text("Delete")))
+                    items.append(Chrome.gap(8))
+                    items.append(Button(onPressed: { [weak self] in self?._movePage(by: -1) }, child: Text("Move up")))
+                    items.append(Chrome.gap(4))
+                    items.append(Button(onPressed: { [weak self] in self?._movePage(by: 1) }, child: Text("Move down")))
+                    items.append(Chrome.gap(8))
+                }
+                items.append(Button(onPressed: { [weak self] in self?._openPublish() }, child: Text("Publish…")))
                 items.append(Chrome.gap(8))
-                items.append(Button(onPressed: { [weak self] in self?._movePage(by: -1) }, child: Text("Move up")))
-                items.append(Chrome.gap(4))
-                items.append(Button(onPressed: { [weak self] in self?._movePage(by: 1) }, child: Text("Move down")))
-                items.append(Chrome.gap(8))
-                items.append(Button(onPressed: { [weak self] in self?.setState { self?._publishOpen = true } }, child: Text("Publish…")))
-                items.append(Chrome.gap(8))
-                items.append(FilledButton(onPressed: { [weak self] in self?._beginEdit() }, child: Text("Edit")))
+                items.append(FilledButton(onPressed: { [weak self] in self?._beginEdit() }, child: Text("Edit document")))
             }
         }
+        var heading: [Widget] = [
+            Text(_manifest?.title ?? "Site", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.blue)),
+            Chrome.vgap(8), Text(title, style: WikiAppearance.text(_compact ? 25 : 32, bold: true)),
+        ]
+        if store.canEdit {
+            heading += [Chrome.vgap(12), Text(_publicationStatus, style: WikiAppearance.text(14, color: WikiAppearance.muted))]
+        }
+        heading += _websiteControls()
+        heading += _publishFeedback()
+        if _publishOpen {
+            heading += [Chrome.vgap(12), Text("Share the latest saved version of this publication. First time? Choose Publishing settings to set up its website address. After publishing, check the live page before sharing the link.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
+        }
+        if !items.isEmpty { heading += [Chrome.vgap(18), Wrap(spacing: 0, runSpacing: 8, children: items)] }
         return DecoratedBox(
             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: WikiAppearance.line, width: 1))),
-            child: Padding(padding: EdgeInsets(all: _compact ? 16 : 24), child: Column(crossAxisAlignment: .stretch, children: [
-                Text(_manifest?.title ?? "Site", style: WikiAppearance.text(13, bold: true, color: WikiAppearance.blue)),
-                Chrome.vgap(8), Text(title, style: WikiAppearance.text(_compact ? 25 : 32, bold: true)),
-            ] + (items.isEmpty ? [] : [Chrome.vgap(18), Wrap(spacing: 0, runSpacing: 8, children: items)]))))
+            child: Padding(padding: EdgeInsets(all: _compact ? 16 : 24), child:
+                Column(crossAxisAlignment: .stretch, children: heading)))
     }
 
     private func _reader(viewWidth: Double) -> Widget {
@@ -782,7 +1028,7 @@ final class SiteShellState: State<StatefulWidget> {
         var parts: [String] = []
         if showPages { parts.append("Page \(_pageInfo.page) of \(_pageInfo.count)") }
         if let s = _status { parts.append(s) }
-        else if store.canEdit { parts.append("Local copy — Publish builds docs/, commits and pushes.") }
+        else if store.canEdit { parts.append("Local draft preview — edit and review here, then publish when ready.") }
         return DecoratedBox(
             decoration: BoxDecoration(border: Border(top: BorderSide(color: WikiAppearance.line, width: 1))),
             child: Padding(padding: EdgeInsets(left: 20, top: 10, right: 20, bottom: 10),

@@ -185,6 +185,22 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-build"), i + 1 < Command
         exit(1)
     }
 }
+// Create a local publication; no network, commit, or remote configuration.
+if let i = CommandLine.arguments.firstIndex(of: "--site-create"), i + 2 < CommandLine.arguments.count {
+    do {
+        var source: String?
+        if let flag = CommandLine.arguments.firstIndex(of: "--from"), flag + 1 < CommandLine.arguments.count {
+            source = CommandLine.arguments[flag + 1]
+            initializeHeadlessText()
+        }
+        let path = try SiteCreation.create(title: CommandLine.arguments[i + 2], parent: CommandLine.arguments[i + 1], source: source)
+        print("Created local publication: \(path)\nOpen site.json in Writer. Nothing has been uploaded.")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-create failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
 //   --site-publish <repo> [--out <dir>] [--web <stage>] [-m <message>]
 //   what the reader's Publish button runs: build into <repo>/<out> (docs),
 //   git add -A, commit, push.
@@ -211,6 +227,25 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-import"), i + 2 < Comman
         exit(1)
     }
 }
+// Preview a revised source against an existing page; --apply saves locally.
+// Publishing is a separate operation. The page URL/tree/title stay unchanged.
+if let i = CommandLine.arguments.firstIndex(of: "--site-update"), i + 3 < CommandLine.arguments.count {
+    initializeHeadlessText()
+    do {
+        let opened = try OfficeFormats.read(CommandLine.arguments[i + 3])
+        let revision = try LocalSiteStore.prepareUpdate(repo: CommandLine.arguments[i + 1], slug: CommandLine.arguments[i + 2],
+            page: SitePage(document: opened.document, pageSetup: opened.pageSetup))
+        print(revision.summary)
+        if CommandLine.arguments.contains("--apply") {
+            try LocalSiteStore.applyUpdate(repo: CommandLine.arguments[i + 1], revision: revision)
+            print("Updated locally; page address unchanged. Publish when ready.")
+        } else { print("Preview only; no files changed. Use --apply to replace the page, including local edits.") }
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("site-update failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
 //   --site-move <repo> <slug> up|down   one place among its siblings
 if let i = CommandLine.arguments.firstIndex(of: "--site-move"), i + 3 < CommandLine.arguments.count {
     do {
@@ -222,6 +257,13 @@ if let i = CommandLine.arguments.firstIndex(of: "--site-move"), i + 3 < CommandL
         FileHandle.standardError.write("site-move failed: \(error)\n".data(using: .utf8)!)
         exit(1)
     }
+}
+// Inspect local publishing evidence without accessing the network.
+if let i = CommandLine.arguments.firstIndex(of: "--site-status"), i + 1 < CommandLine.arguments.count {
+    let out = CommandLine.arguments.firstIndex(of: "--out").flatMap { $0 + 1 < CommandLine.arguments.count ? CommandLine.arguments[$0 + 1] : nil } ?? "docs"
+    let status = SitePublicationState.status(repo: CommandLine.arguments[i + 1], out: out)
+    print("\(status.rawValue): \(status.message)")
+    exit(0)
 }
 if let i = CommandLine.arguments.firstIndex(of: "--site-publish"), i + 1 < CommandLine.arguments.count {
     initializeHeadlessText()

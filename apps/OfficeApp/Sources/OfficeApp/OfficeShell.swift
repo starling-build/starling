@@ -20,17 +20,19 @@ final class OfficeShell: StatefulWidget {
     /// Start on a blank document, not on the welcome page or a recovery
     /// copy: the window came here from Slides' "Blank document".
     let startBlank: Bool
+    let startHome: Bool
     /// A document owned by something other than a file (a wiki page):
     /// opened as given, saved back to its owner, closed to its owner.
     let hosted: HostedDocument?
     /// Backstage's "Open site…" picked a site folder: the window becomes
     /// its reader (OfficeRoot).
-    let onOpenSite: ((String) -> Void)?
+    let onOpenSite: ((String, Bool) -> Void)?
 
-    init(initialPath: String?, startBlank: Bool = false, hosted: HostedDocument? = nil,
-         onSwitch: ((DocumentKind, String?) -> Void)? = nil, onOpenSite: ((String) -> Void)? = nil) {
+    init(initialPath: String?, startBlank: Bool = false, startHome: Bool = false, hosted: HostedDocument? = nil,
+         onSwitch: ((DocumentKind, String?) -> Void)? = nil, onOpenSite: ((String, Bool) -> Void)? = nil) {
         self.initialPath = initialPath
         self.startBlank = startBlank
+        self.startHome = startHome
         self.hosted = hosted
         self.onSwitch = onSwitch
         self.onOpenSite = onOpenSite
@@ -111,6 +113,8 @@ final class OfficeShellState: State<StatefulWidget> {
             if let setup = hosted.pageSetup { session.pageSetup = setup }
             session.titleOverride = hosted.title
             session.hostName = hosted.ownerName
+            session.hostReturnLabel = hosted.returnLabel
+            session.onSaveBeforeLeaving = { [weak self] next in self?._save(afterSaving: next) }
             // The way back asks about unsaved changes first, as Close does.
             session.onClose = { [weak self] in self?.session.replacing { hosted.close() } }
         } else if let pages = env["OFFICE_DEMO_PAGES"].flatMap(Int.init), pages > 0 {
@@ -138,6 +142,7 @@ final class OfficeShellState: State<StatefulWidget> {
             _probePlatformMessages()
         }
         _savedRevision = controller.revision
+        if (widget as! OfficeShell).startHome { _backstage = .home }
         session.summary = session.summarize()
         controller.addListener { [weak self] in
             guard let self else { return }
@@ -492,20 +497,25 @@ final class OfficeShellState: State<StatefulWidget> {
         _flash("Opened \(path.lastPathComponent)")
     }
 
-    private func _save() {
+    private func _save(afterSaving: (() -> Void)? = nil) {
         if let hosted = (widget as! OfficeShell).hosted {
             // The owner stores it (a wiki page: a new version). Export is
             // still the way to a .docx.
             let revision = controller.revision
             hosted.save(controller.document, session.pageSetup) { [weak self] message in
-                guard let self else { return }
-                if let message { self._flash(message); return }
+                guard let self, self.mounted else { return }
+                if let message {
+                    self.setState { self._backstage = nil }
+                    self._flash(message)
+                    return
+                }
                 self._savedRevision = revision
                 self.setState {
                     self.session.dirty = self.controller.revision != revision
                     self._backstage = nil
                 }
                 self._flash("Saved to the \(hosted.ownerName)")
+                if !self.session.dirty { afterSaving?() }
             }
             return
         }
@@ -974,7 +984,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 onOpenPath: { [weak self] path in self?._open(path) },
                 onSavePath: { [weak self] path in self?._saveTo(path) },
                 onPicturePath: { [weak self] path in self?._insertPicture(path) },
-                onOpenSite: { [weak self] dir in (self?.widget as? OfficeShell)?.onOpenSite?(dir) })),
+                onOpenSite: (widget as? OfficeShell)?.onOpenSite)),
         ])
     }
 

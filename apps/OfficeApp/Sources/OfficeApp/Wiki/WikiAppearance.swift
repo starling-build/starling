@@ -43,10 +43,10 @@ enum WikiAppearance {
     }
     static let buttons = ButtonThemeData(defaultButtonStyle: button(), filledButtonStyle: button(primary: true))
     static func field(_ controller: TextEditingController, placeholder: String, obscure: Bool = false,
-                      autofocus: Bool = false, onChanged: ((String) -> Void)? = nil,
+                      autofocus: Bool = false, enabled: Bool = true, onChanged: ((String) -> Void)? = nil,
                       onSubmitted: ((String) -> Void)? = nil) -> Widget {
         SizedBox(height: 46, child: FluentTextBox(controller: controller, placeholderText: placeholder,
-            onChanged: onChanged, onSubmitted: onSubmitted, style: text(17),
+            onChanged: onChanged, onSubmitted: onSubmitted, enabled: enabled, style: text(17),
             padding: EdgeInsets(horizontal: 12, vertical: 11), obscureText: obscure,
             decoration: BoxDecoration(color: white, border: Border.all(color: line), borderRadius: BorderRadius.circular(6)),
             focusedDecoration: BoxDecoration(color: white, border: Border.all(color: blue), borderRadius: BorderRadius.circular(6)),

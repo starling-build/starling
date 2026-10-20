@@ -134,6 +134,7 @@ final class OfficeSession {
     /// Set for a hosted document: the owner to go back to, by name, and
     /// the way back. The title bar shows "Back to <owner>" when set.
     var hostName: String? = nil
+    var hostReturnLabel: String? = nil
     var onClose: (() -> Void)?
 
     // Set by the shell.
@@ -152,6 +153,9 @@ final class OfficeSession {
     /// What was asked for while the document had unsaved changes — a new
     /// one, another file — held until Backstage's question is answered.
     var unsavedPrompt: (() -> Void)? = nil
+    /// Hosted documents save to their owner, which may answer asynchronously.
+    /// Invoke the continuation only after a successful save of current edits.
+    var onSaveBeforeLeaving: ((@escaping () -> Void) -> Void)?
     /// Run `action`, which replaces the open document: at once when there
     /// is nothing to lose, otherwise after Backstage has asked.
     func replacing(_ action: @escaping () -> Void) {
@@ -164,6 +168,8 @@ final class OfficeSession {
     /// document (or in the untitled slot) goes with the changes, or the
     /// next launch would restore what was just let go.
     func discardRecoveryCopy() {
+        // Hosted documents never create the untitled file's recovery copy.
+        guard hostName == nil else { return }
         #if !os(WASI)
         let ext: String
         switch kind {
