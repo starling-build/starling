@@ -391,9 +391,11 @@ enum SiteBuilder {
             try html.write(toFile: out + "/" + node.slug + "/index.html", atomically: true, encoding: .utf8)
             count += 1
         }
-        // An unknown route still loads the app, which says what it could not find.
+        // Unknown routes remain navigable even when the app cannot load.
         try SiteShellPage.render(template: template, base: manifest.base, route: manifest.base, title: manifest.title,
-                                 siteTitle: manifest.title, description: "", text: "", details: config.details)
+                                 siteTitle: manifest.title, description: "", text: "This page could not be found. Choose a page from the publication.",
+                                 nav: manifest.flattened().map { (title: $0.node.title, route: manifest.route($0.node.slug), depth: $0.depth) },
+                                 details: config.details)
             .write(toFile: out + "/404.html", atomically: true, encoding: .utf8)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -436,9 +438,8 @@ enum SiteBuilder {
 }
 
 /// The shell page: the app's index.html with the route, the base, and the
-/// page's title and summary in meta tags, so a link unfurls. The body stays
-/// the canvas; the page's text rides in <noscript> for crawlers and
-/// readers with scripts off, which is text, not layout.
+/// page's title and summary in meta tags, so a link unfurls. Readable HTML
+/// is available before the interactive reader starts and if it cannot load.
 enum SiteShellPage {
     static func escape(_ s: String) -> String {
         var out = ""
@@ -492,18 +493,14 @@ enum SiteShellPage {
         if let r = html.range(of: "args: [],") {
             html.replaceSubrange(r, with: "args: ['--site', '\(escape(base))'],")
         }
-        // The text layer: the page's paragraphs and headings as hidden
-        // HTML for screen readers and crawlers (the canvas is a picture to
-        // both), shown plainly when scripts are off. The app replaces it
-        // as the reader moves between pages.
-        if (!text.isEmpty || details?.hasContent == true), let r = html.range(of: "<body>") {
+        // Keep navigation and downloads available even for empty documents.
+        // The app replaces the article as the reader moves between pages.
+        if let r = html.range(of: "<body>") {
             let all = lines.isEmpty ? text.split(separator: "\n").map { (level: 0, text: String($0)) } : lines
             let elements = all.map { line -> String in
                 let tag = (1 ... 3).contains(line.level) ? "h\(line.level)" : "p"
                 return "<\(tag)>\(escape(line.text))</\(tag)>"
             }.joined(separator: "\n")
-            let style = "<style>.starling-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}</style>\n"
-                + "<noscript><style>.starling-sr{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;padding:16px;font:16px system-ui,sans-serif;color:#eee}</style></noscript>\n"
             // The site's pages as real links, so a crawler reaches every
             // page and a screen reader can move between them.
             let links = nav.map { "<li>" + String(repeating: "&nbsp;&nbsp;", count: $0.depth) + "<a href=\"" + escape($0.route) + "\">" + escape($0.title) + "</a></li>" }.joined(separator: "\n")
@@ -511,7 +508,7 @@ enum SiteShellPage {
             let downloadsHTML = downloads.map { "<p class=\"starling-downloads\"><a href=\"" + escape($0.pdf) + "\">Download as PDF</a> · <a href=\"" + escape($0.docx) + "\">Download as Word</a></p>\n" } ?? ""
             let detailFields = [details?.byline, details?.summary, details?.edition, details?.rights].compactMap { $0 }
             let detailsHTML = detailFields.isEmpty ? "" : "<aside aria-label=\"About this publication\">" + detailFields.map { "<p>" + escape($0) + "</p>" }.joined() + "</aside>\n"
-            html.replaceSubrange(r, with: "<body>\n" + style + "<main id=\"starling-text\" class=\"starling-sr\" aria-label=\"" + escape(siteTitle) + "\">\n" + navHTML
+            html.replaceSubrange(r, with: "<body class=\"starling-publication\">\n" + SiteReaderFallback.markup + "<main id=\"starling-text\" class=\"starling-sr\" aria-label=\"" + escape(siteTitle) + "\">\n" + navHTML
                 + detailsHTML + "<article id=\"starling-article\" aria-label=\"" + escape(title) + "\">\n" + downloadsHTML + elements + "\n</article>\n</main>")
         }
         return html

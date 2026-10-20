@@ -34,6 +34,37 @@ IME or phone input. Native tests/build and the optimized WebAssembly build
 pass (the final worker-stack fix is native-only). No live publication or
 deployment verification was performed.
 
+**Readable publication fallback (2026-10-20):** Generated publication pages
+show their text immediately, before the interactive reader loads. Navigation,
+publication details and PDF/Word links work with scripts disabled and with
+failed app, renderer or font requests. Empty documents retain their navigation
+and downloads; the generated missing-page screen offers publication links.
+
+Readers can choose Keep reading text while loading, or Read text after the
+reader opens. Following links in text view carries that preference. Interacting
+with or scrolling the text while loading prevents an automatic switch away
+from it. Known startup/runtime failures return to text without replacing the
+publication title with an error title or exposing a stack trace in the page.
+The generic app host still reports errors to the developer console.
+
+This uses generated HTML and a small host adapter, with the application still
+implemented in Swift/Wasm. The text view preserves the existing paragraphs
+and headings; rich links/lists/tables/image alternatives and full assistive
+technology testing remain pending. It does not claim visual equivalence with
+the document layout. Downloads provide the original page-oriented output.
+
+Validation: all 25 publishing integration tests and seven publication-details
+unit tests pass. `test/site-fallback-web.py` drives isolated Chrome instances
+with failed host module, application, renderer and font requests, and scripts
+disabled. It follows page links and fetches valid PDF/Word files, tests empty
+and missing-page output, switches a healthy reader between views, simulates a
+runtime error and checks keyboard focus on visible links. The existing copied
+home-passage regression still passes. Native builds pass; the browser uses the
+previously validated optimized Wasm application with the updated host. These
+changes affect native HTML generation and host glue, not Wasm Swift code.
+Manual screenshot inspection covers the text view; Safari/Firefox and real
+assistive technology testing remain pending.
+
 **Publication details (2026-10-20):** Authors can add an optional byline/publisher,
 short description, edition label, language code and rights statement through
 Publication details in the preview. Saving patches the local configuration,
@@ -716,9 +747,9 @@ minutes once host credentials are available; record setup time separately.
   find a passage, move to it, copy its link and obtain a download without
   using the canvas visually. Do not claim accessibility conformance from
   the current hidden text layer alone.
-- Preserve a readable fallback when Wasm fails or is unavailable, not
-  only when JavaScript is disabled. Verify document and download access
-  with failed module/font requests and with scripts off.
+- The initial readable fallback is implemented (see 2026-10-20 above).
+  Extend its document semantics and validate assistive technology behavior;
+  keep failed module/font requests and scripts-off access in regression tests.
 - Establish a small, licensed publishing corpus from pilot material:
   a manual, a report with footnotes, and a handbook with long tables and
   images. Compare desktop pages and exported PDF with Microsoft-rendered

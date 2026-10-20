@@ -33,6 +33,8 @@
 // http://127.0.0.1:8137/), W and H (the window, default 1400×900 — Chrome
 // lays out nothing narrower than 500), DPR, CHROME (the binary),
 // CHROME_PROFILE (a user-data dir; the default is under the OS temp dir),
+// BLOCK_URLS (JSON array of CDP URL patterns to fail before navigation),
+// DISABLE_SCRIPTS=1 (disable page scripts before navigation),
 // PORT (the DevTools port, default 9333 — a crashed run leaves its Chrome
 // on the port, and the next attaches to the stale target and hangs; this
 // script kills what it started, `pkill -f remote-debugging-port=9333` for
@@ -90,6 +92,11 @@ const send = (method, params = {}) => new Promise((resolve, reject) => {
 });
 await send('Runtime.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: +(process.env.DPR || 1), mobile: false });
+if (process.env.BLOCK_URLS) {
+  await send('Network.enable');
+  await send('Network.setBlockedURLs', { urls: JSON.parse(process.env.BLOCK_URLS) });
+}
+if (process.env.DISABLE_SCRIPTS === '1') await send('Emulation.setScriptExecutionDisabled', { value:true });
 await send('Page.navigate', { url: process.env.URL || 'http://127.0.0.1:8137/' });
 await sleep(3000);
 const mouse = async (type, x, y, button = 'left') =>

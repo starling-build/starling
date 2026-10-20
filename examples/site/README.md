@@ -34,6 +34,15 @@ for the full details. The description also supplies the home page's link
 preview. Empty fields remove their values. An edition label does not archive
 an older version.
 
+Published pages show readable text while the interactive reader opens.
+**Keep reading text** keeps that view; once the reader is ready, **Open
+interactive reader** switches to the document layout. **Read text** switches
+back. Following a page link from text view keeps that preference. If scripts,
+the app or its required fonts cannot load, the text, page navigation and
+Word/PDF downloads remain available. Empty pages still offer navigation and
+downloads. Text view currently preserves paragraphs and headings; use the
+document downloads for original layout and features such as tables and images.
+
 The preview shows the status of your saved publication:
 
 - **Saved locally; no matching publish record**: this checkout has no usable

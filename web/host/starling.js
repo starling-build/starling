@@ -656,7 +656,9 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
     // size the canvas to what is actually visible so the app lays out
     // above the keyboard instead of under it.
     const visual = window.visualViewport;
-    if (visual && visual.height < window.innerHeight - 1) {
+    const readingText = document.body.classList.contains('starling-publication')
+      && !document.body.classList.contains('starling-interactive');
+    if (!readingText && visual && visual.height < window.innerHeight - 1) {
       canvas.style.height = `${visual.height}px`;
       window.scrollTo(0, 0);
     } else {
