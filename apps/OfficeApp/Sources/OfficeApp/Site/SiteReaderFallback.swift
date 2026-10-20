@@ -17,6 +17,8 @@ enum SiteReaderFallback {
       .starling-publication #starling-text aside { color:#4e5c73; border-bottom:1px solid #dbe0eb; }
       .starling-publication #starling-text h1,.starling-publication #starling-text h2,
       .starling-publication #starling-text h3 { line-height:1.25; }
+      .starling-publication #starling-article > p,.starling-publication #starling-article > h1,
+      .starling-publication #starling-article > h2,.starling-publication #starling-article > h3 { white-space:pre-wrap; }
       .starling-publication #starling-text li { margin:8px 0; }
       .starling-publication #starling-text .starling-downloads { font-size:16px; }
       .starling-publication:not(.starling-interactive) #starling { position:fixed; inset:0; visibility:hidden; }
@@ -53,8 +55,9 @@ enum SiteReaderFallback {
       button.hidden = false;
       status.textContent = 'Opening the interactive reader. You can read the text now or use the downloads for the original page layout.';
       const preserveTextNavigation = () => {
-        for (const link of document.querySelectorAll('#starling-text nav a')) {
+        for (const link of document.querySelectorAll('#starling-text nav a, #starling-article a')) {
           const url = new URL(link.href);
+          if (!link.closest('nav') && !(url.origin === location.origin && /^#p=[0-9]+$/.test(url.hash))) continue;
           url.searchParams.set('reader', 'text');
           link.href = url.href;
         }

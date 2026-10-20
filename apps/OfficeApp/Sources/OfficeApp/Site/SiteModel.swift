@@ -5,9 +5,9 @@
 // orders its pages, `pages/<slug>.json` holds each page as the document
 // model (RichDocumentEnvelope), and the built site — the wasm Writer, the
 // pages, a manifest, a search index and one shell page per route — is a
-// folder GitHub Pages serves. Nothing of a page is rendered as HTML: the
-// shell page carries the title and summary in meta tags for link
-// previews, and the Writer draws the page.
+// folder GitHub Pages serves. Writer draws the document layout; generated
+// HTML supplies metadata and a semantic text view while it loads or when
+// the reader chooses text.
 //
 // The model here compiles for the browser too; the builder is native only.
 
@@ -385,7 +385,8 @@ enum SiteBuilder {
                                             lines: SiteShellPage.lines(of: doc),
                                             nav: manifest.flattened().map { (title: $0.node.title, route: manifest.route($0.node.slug), depth: $0.depth) },
                                             downloads: manifest.exportPaths(node.slug), details: config.details,
-                                            canonical: SitePublicAddress.url(website: config.url, route: manifest.route(node.slug)))
+                                            canonical: SitePublicAddress.url(website: config.url, route: manifest.route(node.slug)),
+                                            readerText: SiteReaderText(document: doc, route: manifest.base + node.slug + "/"))
             if node.slug == manifest.home {
                 try html.write(toFile: out + "/index.html", atomically: true, encoding: .utf8)
             }
@@ -463,7 +464,7 @@ enum SiteShellPage {
                        description: String, text: String, lines: [(level: Int, text: String)] = [],
                        nav: [(title: String, route: String, depth: Int)] = [],
                        downloads: (pdf: String, docx: String)? = nil, details: SitePublicationDetails? = nil,
-                       canonical: URL? = nil, indexable: Bool = true) -> String {
+                       canonical: URL? = nil, indexable: Bool = true, readerText: SiteReaderText? = nil) -> String {
         let desc = String(description.replacingOccurrences(of: "\n", with: " ").prefix(300))
         let full = title == siteTitle ? title : "\(title) — \(siteTitle)"
         var meta = """
@@ -505,7 +506,7 @@ enum SiteShellPage {
         // The app replaces the article as the reader moves between pages.
         if let r = html.range(of: "<body>") {
             let all = lines.isEmpty ? text.split(separator: "\n").map { (level: 0, text: String($0)) } : lines
-            let elements = all.map { line -> String in
+            let elements = readerText?.html ?? all.map { line -> String in
                 let tag = (1 ... 3).contains(line.level) ? "h\(line.level)" : "p"
                 return "<\(tag)>\(escape(line.text))</\(tag)>"
             }.joined(separator: "\n")

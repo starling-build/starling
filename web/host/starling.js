@@ -489,7 +489,14 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
   // writes the first page's into the shell; the app replaces it as the
   // reader moves between pages.
   host.set_document_text = (pointer, length) => {
-    const lines = textIn(pointer, length).split('\n');
+    const payload = textIn(pointer, length);
+    let content;
+    if (payload.startsWith('!json\n')) {
+      try {
+        content = JSON.parse(payload.slice(6));
+        if (content.version !== 1 || !Array.isArray(content.paragraphs)) throw new Error('unknown document text version');
+      } catch (error) { console.warn('starling: could not read document text', error); return; }
+    }
     let main = document.getElementById('starling-text');
     if (!main) {
       main = document.createElement('main');
@@ -504,7 +511,54 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
       article.id = 'starling-article';
       main.append(article);
     }
-    article.replaceChildren(...lines.filter(l => l.length).map((line) => {
+    if (content) {
+      const nodes = [];
+      const safeLink = value => {
+        if (typeof value !== 'string' || /[\x00-\x1f\x7f]/.test(value)) return null;
+        if (/^#p=[1-9][0-9]*$/.test(value)) return value;
+        if (value.startsWith('/') && !value.startsWith('//') && !value.includes('\\')) {
+          const url = new URL(value, location.href);
+          if (url.origin === location.origin) return url.href;
+          return null;
+        }
+        try {
+          const url = new URL(value);
+          return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.href : null;
+        } catch { return null; }
+      };
+      if (content.downloads) {
+        const p = document.createElement('p'); p.className = 'starling-downloads';
+        for (const [kind, label] of [['pdf', 'Download as PDF'], ['docx', 'Download as Word']]) {
+          const path = content.downloads[kind];
+          // Downloads are site-relative generated paths, never a new origin.
+          if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')
+            || path.includes('\\') || /[\x00-\x1f\x7f]/.test(path)) continue;
+          if (p.childNodes.length) p.append(' · ');
+          const a = document.createElement('a'); a.href = path; a.textContent = label; p.append(a);
+        }
+        nodes.push(p);
+      }
+      const ids = new Set();
+      for (const paragraph of content.paragraphs) {
+        const level = paragraph.level;
+        const p = document.createElement(Number.isInteger(level) && level >= 1 && level <= 3 ? `h${level}` : 'p');
+        if (Number.isInteger(paragraph.id) && paragraph.id > 0 && paragraph.id <= 0xffffffff && !ids.has(paragraph.id)) {
+          p.id = `p=${paragraph.id}`; ids.add(paragraph.id);
+        }
+        for (const span of paragraph.spans || []) {
+          if (typeof span.text !== 'string') continue;
+          const link = safeLink(span.link);
+          if (link) {
+            const a = document.createElement('a'); a.href = link; a.textContent = span.text; p.append(a);
+          } else { p.append(document.createTextNode(span.text)); }
+        }
+        nodes.push(p);
+      }
+      if (typeof content.title === 'string') article.setAttribute('aria-label', content.title);
+      article.replaceChildren(...nodes);
+      return;
+    }
+    article.replaceChildren(...payload.split('\n').filter(l => l.length).map((line) => {
       // "@\t<pdf>\t<docx>": the page's downloads, as links.
       if (line.startsWith('@\t')) {
         const [, pdf, docx] = line.split('\t');

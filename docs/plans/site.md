@@ -34,6 +34,32 @@ IME or phone input. Native tests/build and the optimized WebAssembly build
 pass (the final worker-stack fix is native-only). No live publication or
 deployment verification was performed.
 
+**References in text view (2026-10-20):** Generated text and the live reader's
+text layer now share a structured document representation. HTTP(S) and email
+references remain real links. Known document bookmarks resolve to the
+document's paragraph IDs; their links include the page's own route so a
+chapter reference does not resolve against the publication root. Paragraph
+IDs also supply HTML anchors for shared passage links. Unknown bookmarks
+and unmapped relative file references retain readable text.
+
+Text and link attributes are escaped in generated HTML. The live host creates
+DOM nodes from versioned JSON using text nodes, never document-authored HTML.
+Executable/file URL schemes are not made clickable. Duplicate or absent
+paragraph IDs do not create conflicting anchors. Invalid formatting runs fall
+back to the paragraph's complete text, including surrogate pairs, instead of
+losing content. This still does not reconstruct list/table/image semantics;
+those and real screen-reader testing remain pending.
+
+Validation: 19 focused reader-text/address/details unit tests pass, including
+Unicode boundaries, malformed runs, escaped text, link schemes, bookmark
+mapping and duplicate IDs. Native and optimized Wasm builds pass (20.72 MB
+Wasm, 6.31 MB Brotli). The site-build suite and all 27 publishing regressions
+pass. Chrome verifies references and anchors with five runtime/script failure
+cases, the healthy reader, keyboard focus and bookmark activation on a nested
+chapter while retaining text view. The copied-home-passage regression also
+passes. Screenshot inspection confirms the text view. The final preference
+adjustment changes native-generated host markup only.
+
 **Public page addresses (2026-10-20):** Published shell pages now carry a
 canonical address and matching `og:url` when a website address is configured.
 The root home page and its slug alias identify the same canonical page.
@@ -70,9 +96,9 @@ publication title with an error title or exposing a stack trace in the page.
 The generic app host still reports errors to the developer console.
 
 This uses generated HTML and a small host adapter, with the application still
-implemented in Swift/Wasm. The text view preserves the existing paragraphs
-and headings; rich links/lists/tables/image alternatives and full assistive
-technology testing remain pending. It does not claim visual equivalence with
+implemented in Swift/Wasm. Paragraph/reference support is described above;
+list/table/image semantics and full assistive technology testing remain
+pending. It does not claim visual equivalence with
 the document layout. Downloads provide the original page-oriented output.
 
 Validation: all 25 publishing integration tests and seven publication-details
@@ -764,7 +790,8 @@ minutes once host credentials are available; record setup time separately.
 
 - Expose navigation, search, contents, view switches and downloads to
   keyboard and screen readers, with visible focus. Extend the text layer
-  with actual links, lists, tables and image alternatives. Test VoiceOver
+  with lists, tables and image alternatives; web/email links and document
+  bookmark targets now work as described above. Test VoiceOver
   with Safari and NVDA with a supported Windows browser; a reader must
   find a passage, move to it, copy its link and obtain a download without
   using the canvas visually. Do not claim accessibility conformance from

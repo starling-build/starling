@@ -40,8 +40,10 @@ interactive reader** switches to the document layout. **Read text** switches
 back. Following a page link from text view keeps that preference. If scripts,
 the app or its required fonts cannot load, the text, page navigation and
 Word/PDF downloads remain available. Empty pages still offer navigation and
-downloads. Text view currently preserves paragraphs and headings; use the
-document downloads for original layout and features such as tables and images.
+downloads. Text view preserves paragraphs, headings, web/email references and
+links to known document bookmarks. Relative links to other source files remain
+text until those files have a website mapping. Use the document downloads for
+original layout and features such as tables and images.
 With a saved Website address, published pages also include canonical addresses
 and link-preview URLs. The root home page and its direct page address identify
 the same page to search engines. Rebuild/publish after changing the website

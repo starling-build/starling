@@ -159,6 +159,13 @@ func starlingClipboardText(_ id: UInt32, _ bytes: UnsafePointer<UInt8>?, _ count
 
 /// What the page keeps beside the canvas for screen readers and crawlers.
 public enum WebAccessibility {
+    /// Structured text supplied by the application. The host constructs DOM
+    /// elements from the versioned JSON payload, never from authored HTML.
+    public static func setDocumentContent(_ json: String) {
+        var payload = "!json\n" + json
+        payload.withUTF8 { starling_host_set_document_text($0.baseAddress, UInt32($0.count)) }
+    }
+
     /// The open document's text: each line a paragraph, with its heading
     /// level (0 for none, 1-3). Replaces what the shell page carried.
     public static func setDocumentText(_ lines: [(level: Int, text: String)], downloads: (pdf: String, docx: String)? = nil) {

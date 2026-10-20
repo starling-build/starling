@@ -243,8 +243,12 @@ final class SiteShellState: State<StatefulWidget> {
                 #if os(WASI)
                 if push { WebHistory.push(m.route(slug)) }
                 // The text layer for screen readers follows the page.
-                WebAccessibility.setDocumentText(SiteTextLayer.lines(of: page.document),
-                                                 downloads: m.exports == true ? m.exportPaths(slug) : nil)
+                let downloads = m.exports == true ? m.exportPaths(slug) : nil
+                if let content = SiteReaderText(document: page.document, title: title, route: m.base + slug + "/", downloads: downloads).json() {
+                    WebAccessibility.setDocumentContent(content)
+                } else {
+                    WebAccessibility.setDocumentText(SiteTextLayer.lines(of: page.document), downloads: downloads)
+                }
                 #endif
                 if let id = self._pendingParagraph { self._pendingParagraph = nil; self._reveal(paragraphID: id) }
                 if self._editOnNextLoad {
