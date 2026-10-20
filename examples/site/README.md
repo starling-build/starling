@@ -108,6 +108,14 @@ upload record, the review shows added, updated, unchanged and removed pages
 relative to the last upload from this device. Without one, pages are simply
 listed as included; this does not mean they have never been published.
 
+When review finds **References to check**, use **Show references** to see the
+affected text, target and guidance. **Show in document** opens the passage when
+it can be identified uniquely; use **Preview page** for the whole document.
+Check or edit the reference, save, then refresh the review. These notices cover
+what the web text view can follow, including missing bookmarks and links to
+source files. They do not check whether an external website is online and do
+not prevent publishing.
+
 Publishing includes the whole publication and each page's Word/PDF downloads.
 A public hosting repository also exposes committed source files and history.
 Removed pages leave the current website after deployment; previous downloads,

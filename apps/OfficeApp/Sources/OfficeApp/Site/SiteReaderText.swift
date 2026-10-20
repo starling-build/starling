@@ -28,14 +28,9 @@ struct SiteReaderText: Codable {
     init(document: RichDocument, title: String? = nil, route: String? = nil, downloads: (pdf: String, docx: String)? = nil) {
         self.title = title
         self.downloads = downloads.map { Downloads(pdf: $0.pdf, docx: $0.docx) }
-        let ids = Set(document.paragraphs.map(\.id).filter { $0 != 0 })
-        var bookmarks: [String: UInt32] = [:]
-        for paragraph in document.paragraphs where paragraph.id != 0 {
-            for name in paragraph.bookmarks where bookmarks[name] == nil { bookmarks[name] = paragraph.id }
-        }
-        var seen = Set<UInt32>()
+        let (ids, bookmarks) = Self.linkContext(document)
         paragraphs = document.paragraphs.map { paragraph in
-            let id = paragraph.id != 0 && seen.insert(paragraph.id).inserted ? paragraph.id : nil
+            let id = ids.contains(paragraph.id) ? paragraph.id : nil
             let level = paragraph.style.named == "Title" ? 1 : (paragraph.style.heading.map { min(3, max(1, $0)) } ?? 0)
             let units = Array(paragraph.text.utf16)
             var spans: [Span] = []
@@ -55,6 +50,25 @@ struct SiteReaderText: Codable {
             if !valid || offset != units.count { spans = [Span(text: paragraph.text, link: nil)] }
             return Paragraph(id: id, level: level, spans: spans)
         }
+    }
+
+    /// An ambiguous identifier cannot safely identify a passage. Keep its
+    /// reference as text rather than choosing whichever occurrence came first.
+    private static func linkContext(_ document: RichDocument) -> (Set<UInt32>, [String: UInt32]) {
+        var counts: [UInt32: Int] = [:]
+        for paragraph in document.paragraphs where paragraph.id != 0 { counts[paragraph.id, default: 0] += 1 }
+        let ids = Set(counts.filter { $0.value == 1 }.map(\.key))
+        var bookmarks: [String: UInt32] = [:]
+        var ambiguous = Set<String>()
+        for paragraph in document.paragraphs {
+            for name in Set(paragraph.bookmarks) {
+                guard ids.contains(paragraph.id) else { ambiguous.insert(name); continue }
+                if let previous = bookmarks[name], previous != paragraph.id { ambiguous.insert(name) }
+                else { bookmarks[name] = paragraph.id }
+            }
+        }
+        for name in ambiguous { bookmarks[name] = nil }
+        return (ids, bookmarks)
     }
 
     private static func link(_ input: String?, bookmarks: [String: UInt32], ids: Set<UInt32>, route: String?) -> String? {
@@ -105,3 +119,57 @@ struct SiteReaderText: Codable {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 }
+
+#if !os(WASI)
+extension SiteReaderText {
+    struct ReferenceIssue {
+        enum Kind: Equatable {
+            case missingBookmark, sourceFile, unsupportedAddress, formatting
+
+            var guidance: String {
+                switch self {
+                case .missingBookmark: return "This bookmark target could not be found in text view. Check the bookmark and save the document again."
+                case .sourceFile: return "This link points to another file or uses a relative address. Replace it with the page's full website address."
+                case .unsupportedAddress: return "Text view supports web and email addresses. Check or replace this reference."
+                case .formatting: return "The paragraph's formatting needs repair before text view can preserve this link."
+                }
+            }
+        }
+        var target: String
+        var excerpt: String
+        var kind: Kind
+        var paragraphID: UInt32?
+    }
+
+    /// Local author guidance only. These diagnostic targets are not added to
+    /// the public text payload, and this inspection never rewrites a document.
+    static func referenceIssues(in document: RichDocument) -> [ReferenceIssue] {
+        let rendered = SiteReaderText(document: document)
+        let (ids, bookmarks) = linkContext(document)
+        var issues: [ReferenceIssue] = []
+        for (index, paragraph) in document.paragraphs.enumerated() {
+            var seen = Set<String>()
+            for run in paragraph.runs {
+                guard let raw = run.style.link else { continue }
+                let target = raw.trimmingWhitespace()
+                guard !target.isEmpty, seen.insert(target).inserted else { continue }
+                let kind: ReferenceIssue.Kind
+                if let supported = link(raw, bookmarks: bookmarks, ids: ids, route: nil) {
+                    if rendered.paragraphs[index].spans.contains(where: { $0.link == supported }) { continue }
+                    kind = .formatting
+                } else if target.hasPrefix("#") {
+                    kind = .missingBookmark
+                } else if let scheme = URLComponents(string: target)?.scheme, scheme.lowercased() != "file" {
+                    kind = .unsupportedAddress
+                } else {
+                    kind = .sourceFile
+                }
+                let excerpt = String(paragraph.text.replacingOccurrences(of: "\n", with: " ").prefix(140))
+                issues.append(ReferenceIssue(target: target, excerpt: excerpt, kind: kind,
+                                             paragraphID: ids.contains(paragraph.id) ? paragraph.id : nil))
+            }
+        }
+        return issues
+    }
+}
+#endif

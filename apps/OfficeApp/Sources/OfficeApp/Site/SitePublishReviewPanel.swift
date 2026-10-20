@@ -9,9 +9,9 @@ final class SitePublishReviewPanel: StatefulWidget {
     let store: LocalSiteStore
     let onBack: () -> Void
     let onContinue: () -> Void
-    let onPreview: (String) -> Void
+    let onPreview: (String, UInt32?) -> Void
     init(store: LocalSiteStore, onBack: @escaping () -> Void, onContinue: @escaping () -> Void,
-         onPreview: @escaping (String) -> Void) {
+         onPreview: @escaping (String, UInt32?) -> Void) {
         self.store = store; self.onBack = onBack; self.onContinue = onContinue; self.onPreview = onPreview
         super.init()
     }
@@ -23,6 +23,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
     private var review: SitePublishReview?
     private var busy = false
     private var error: String?
+    private var referenceDetails = Set<String>()
 
     override func initState() { super.initState(); refresh() }
 
@@ -71,6 +72,9 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
             if review.settingsChanged {
                 rows += [Chrome.vgap(10), Text("The publication details, address or navigation have also changed.", style: WikiAppearance.text(15, bold: true))]
             }
+            if review.referenceCount > 0 {
+                rows += [Chrome.vgap(10), Text("\(review.referenceCount) reference\(review.referenceCount == 1 ? "" : "s") to check in text view. Open the details below to see which documents need attention.", style: WikiAppearance.text(15, bold: true))]
+            }
             rows += [Chrome.vgap(12), Text("Each included page has a web reading view and Word and PDF downloads. If your hosting repository is public, its source files and history are public too, including other files already committed there.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                      Chrome.vgap(8), Text("This is a review of saved website pages. Refresh after changes made outside the app; publishing rebuilds the latest saved files.", style: WikiAppearance.text(14, color: WikiAppearance.muted)),
                      Chrome.vgap(20)]
@@ -82,7 +86,31 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                 if let route = page.previousRoute {
                     detail += [Chrome.vgap(6), Text("Previously: " + route + " — existing links may need updating.", style: WikiAppearance.text(14))]
                 }
-                detail += [Chrome.vgap(8), Button(onPressed: { [weak self] in self?.panel.onPreview(page.slug) }, child: Text("Preview page"))]
+                if !page.references.isEmpty {
+                    let expanded = referenceDetails.contains(page.slug)
+                    detail += [Chrome.vgap(10), Text("\(page.references.count) reference\(page.references.count == 1 ? "" : "s") to check", style: WikiAppearance.text(16, bold: true)),
+                               Chrome.vgap(6), Button(onPressed: { [weak self] in
+                                   guard let self else { return }
+                                   self.setState {
+                                       if expanded { self.referenceDetails.remove(page.slug) }
+                                       else { self.referenceDetails.insert(page.slug) }
+                                   }
+                               }, child: Text(expanded ? "Hide references" : "Show references"))]
+                    if expanded {
+                        detail += [Chrome.vgap(8), Text("These references stay as text in text view. Review them in the document; you can still publish.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
+                        for issue in page.references {
+                            let target = String(issue.target.replacingOccurrences(of: "\n", with: " ").prefix(200))
+                            detail += [Chrome.vgap(12), Text(issue.excerpt.isEmpty ? "Reference in an empty paragraph" : issue.excerpt, style: WikiAppearance.text(15, bold: true)),
+                                       Chrome.vgap(4), Text(target, style: WikiAppearance.text(14, color: WikiAppearance.muted)),
+                                       Chrome.vgap(4), Text(issue.kind.guidance, style: WikiAppearance.text(14))]
+                            if let id = issue.paragraphID {
+                                detail += [Chrome.vgap(6), Button(onPressed: { [weak self] in self?.panel.onPreview(page.slug, id) },
+                                                                 child: Text("Show in document"))]
+                            }
+                        }
+                    }
+                }
+                detail += [Chrome.vgap(8), Button(onPressed: { [weak self] in self?.panel.onPreview(page.slug, nil) }, child: Text("Preview page"))]
                 rows += [DecoratedBox(decoration: BoxDecoration(color: WikiAppearance.white, border: Border.all(color: WikiAppearance.line),
                             borderRadius: BorderRadius.circular(8)),
                             child: Padding(padding: EdgeInsets(all: 16), child: Column(crossAxisAlignment: .stretch, children: detail))), Chrome.vgap(10)]

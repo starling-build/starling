@@ -34,6 +34,36 @@ IME or phone input. Native tests/build and the optimized WebAssembly build
 pass (the final worker-stack fix is native-only). No live publication or
 deployment verification was performed.
 
+**Author reference review (2026-10-20):** Review your publication now identifies
+references that cannot be followed in the text view: missing or ambiguous
+bookmark targets, references to other source files, unsupported address types
+and formatting damage that prevents a link from being preserved. Each affected
+page has Show references with a paragraph excerpt, target and repair guidance.
+Show in document opens the identified passage in the author preview when it
+has a unique saved identity. Otherwise the page preview remains available.
+These notices do not block publishing.
+
+The inspection uses saved source bytes and does not edit, upload or fetch any
+document. Refreshing review after a correction removes resolved notices.
+Repeated formatting runs for one target in a paragraph produce one notice.
+Diagnostic targets are local author-review data, not extra fields in the
+public text payload. This does not change which source files Git publishing
+uploads. It is not a live URL availability check.
+
+This work also rejects ambiguous passage identity consistently: generated
+HTML, bookmark links, the reader's passage navigation and new copied links
+must not silently choose the first of several matching paragraphs. A normal
+page link remains available when a passage cannot be identified uniquely.
+
+Validation: 25 reader-text/review/published-link unit tests pass. They cover
+issue classification, grouping, unchanged source/receipt state, corrected
+references, unique passage targets and ambiguous bookmark/paragraph identity.
+A native walkthrough expanded the issue list and selected the intended passage
+through Show in document without modifying the source, configuration or receipt.
+Chrome checks the normal text reader, bookmark navigation, a saved passage after
+home changes and refusal to select an ambiguous passage. Native and optimized
+Wasm builds pass. No configured hosting service was contacted.
+
 **References in text view (2026-10-20):** Generated text and the live reader's
 text layer now share a structured document representation. HTTP(S) and email
 references remain real links. Known document bookmarks resolve to the

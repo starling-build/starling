@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import XCTest
+import Flutter
 @testable import OfficeApp
 
 #if !os(WASI)
@@ -125,6 +126,29 @@ final class SitePublishReviewTests: XCTestCase {
             XCTAssertEqual(review.pages[0].change, .updated)
             XCTAssertNil(review.pages[0].previousRoute)
             XCTAssertTrue(review.settingsChanged)
+        }
+    }
+
+    func testReferenceGuidanceUsesSavedContentAndClearsWhenTheAuthorFixesIt() throws {
+        try withPublication { repo in
+            let path = URL(fileURLWithPath: repo + "/pages/welcome.json")
+            var style = CharStyle.plain; style.link = "appendix.docx"
+            var document = RichDocument(paragraphs: [RichParagraph(text: "Read the appendix", charStyle: style)])
+            try RichDocumentEnvelope.encode(document).write(to: path)
+            try recordUpload(repo)
+            let before = try Data(contentsOf: path)
+            let status = LocalSiteStore.git(["status", "--porcelain=v1"], in: repo).output
+            let review = try read(repo)
+            XCTAssertEqual(review.referenceCount, 1)
+            XCTAssertEqual(review.pages[0].change, .unchanged)
+            XCTAssertEqual(review.pages[0].references[0].target, "appendix.docx")
+            XCTAssertEqual(try Data(contentsOf: path), before)
+            XCTAssertEqual(LocalSiteStore.git(["status", "--porcelain=v1"], in: repo).output, status)
+            document.paragraphs[0].runs[0].style.link = "https://example.org/appendix/"
+            try RichDocumentEnvelope.encode(document).write(to: path)
+            let fixed = try read(repo)
+            XCTAssertEqual(fixed.referenceCount, 0)
+            XCTAssertEqual(fixed.pages[0].change, .updated)
         }
     }
 

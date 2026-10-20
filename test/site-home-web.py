@@ -4,6 +4,7 @@
 Uses the native app, current web stage and headless Chrome; serves only localhost.
 """
 import json
+import copy
 import os
 from pathlib import Path
 import shutil
@@ -78,6 +79,16 @@ with tempfile.TemporaryDirectory(prefix="starling-home-web-") as folder:
                        "eval", "[starling.debug('slug'), starling.debug('caret'), location.pathname]")
         assert values[-1] == ["sample-paper", paragraph, "/sample-paper/"], values
         print("PASS: a home-page passage link still opens the same paragraph after home changes")
+        source = repo / "pages/sample-paper.json"
+        document = json.loads(source.read_text())
+        target = next(p for p in document["document"]["paragraphs"] if p["id"] == int(paragraph))
+        document["document"]["paragraphs"].append(copy.deepcopy(target))
+        source.write_text(json.dumps(document))
+        build()
+        values = drive(copied, "wait", "12000",
+                       "eval", "[starling.debug('status'), document.getElementById('p=' + " + json.dumps(paragraph) + ") !== null]")
+        assert values[-1] == ["This passage link could not be matched to a single paragraph.", False], values
+        print("PASS: an ambiguous passage identity is reported instead of selecting an arbitrary paragraph")
     finally:
         server.terminate()
         server.wait(timeout=5)

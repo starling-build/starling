@@ -41,8 +41,8 @@ enum SitePublishedLink {
         }
         if let paragraph {
             guard paragraph != 0, let page = SiteFiles.decodePage(uploaded),
-                  page.document.paragraphs.contains(where: { $0.id == paragraph }) else {
-                throw SiteError("This paragraph is not in the verified publication. Publish and check the website before sharing it.")
+                  page.document.paragraphs.filter({ $0.id == paragraph }).count == 1 else {
+                throw SiteError("This link does not identify a single passage in the published page. Share the page link, or update and publish the document first.")
             }
         }
         // A slug alias exists for home too; never attach passage links to a

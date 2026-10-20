@@ -74,9 +74,27 @@ final class SiteReaderTextTests: XCTestCase {
         var second = RichParagraph(text: "Second"); second.id = 12
         let third = RichParagraph(text: "Third")
         let content = SiteReaderText(document: RichDocument(paragraphs: [first, second, third]))
-        XCTAssertEqual(content.paragraphs.map(\.id), [12, nil, nil])
-        XCTAssertEqual(content.html.components(separatedBy: #"id="p=12""#).count, 2)
+        XCTAssertEqual(content.paragraphs.map(\.id), [nil, nil, nil])
+        XCTAssertFalse(content.html.contains(#"id="p=12""#))
         XCTAssertFalse(content.html.contains("p=0"))
+    }
+
+    func testAmbiguousBookmarksAndParagraphIDsCannotPointAtAnArbitraryPassage() {
+        var a = RichParagraph(text: "First"); a.id = 10; a.bookmarks = ["ambiguous-name"]
+        var b = RichParagraph(text: "Second"); b.id = 20; b.bookmarks = ["ambiguous-name"]
+        var c = RichParagraph(text: "Third"); c.id = 10; c.bookmarks = ["ambiguous-id"]
+        let references = ["#ambiguous-name", "#ambiguous-id", "#p=10"].map {
+            RichParagraph(text: "Ambiguous reference", charStyle: style($0))
+        }
+        let document = RichDocument(paragraphs: [a, b, c] + references)
+        let content = SiteReaderText(document: document)
+        XCTAssertTrue(content.paragraphs.suffix(3).allSatisfy { $0.spans[0].link == nil })
+        XCTAssertEqual(SiteReaderText.referenceIssues(in: document).map(\.kind),
+                       [.missingBookmark, .missingBookmark, .missingBookmark])
+        // Duplicate bookmark names also remain ambiguous with unique IDs.
+        c.id = 30
+        let uniqueIDs = SiteReaderText(document: RichDocument(paragraphs: [a, b, c, references[0]]))
+        XCTAssertNil(uniqueIDs.paragraphs.last?.spans[0].link)
     }
 
     func testStructuredPayloadPreservesHeadingDownloadsAndArticleLabel() throws {
@@ -91,5 +109,35 @@ final class SiteReaderTextTests: XCTestCase {
         XCTAssertEqual(decoded.paragraphs[0].level, 2)
         XCTAssertEqual(decoded.downloads?.pdf, "/book/chapter/chapter.pdf")
         XCTAssertTrue(content.html.contains("<h2>Heading</h2>"))
+    }
+
+    func testAuthorReviewIdentifiesUnsupportedReferencesWithoutChangingPublicPayload() throws {
+        var target = RichParagraph(text: "Heading"); target.id = 32; target.bookmarks = ["known"]
+        let references = ["https://example.org/", "mailto:author@example.org", "#known", "#missing",
+                          "appendix.docx", "file:///drafts/notes.docx", "javascript:alert(1)"]
+        let document = RichDocument(paragraphs: [target] + references.map { RichParagraph(text: "See reference", charStyle: style($0)) })
+        let before = try RichDocumentEnvelope.encode(document)
+        let issues = SiteReaderText.referenceIssues(in: document)
+        XCTAssertEqual(issues.map(\.target), ["#missing", "appendix.docx", "file:///drafts/notes.docx", "javascript:alert(1)"])
+        XCTAssertEqual(issues.map(\.kind), [.missingBookmark, .sourceFile, .sourceFile, .unsupportedAddress])
+        XCTAssertEqual(try RichDocumentEnvelope.encode(document), before)
+        let payload = Data(try XCTUnwrap(SiteReaderText(document: document).json()).utf8)
+        let object = try JSONSerialization.jsonObject(with: payload)
+        let normalized = try JSONSerialization.data(withJSONObject: object, options: [.withoutEscapingSlashes])
+        XCTAssertFalse(String(decoding: normalized, as: UTF8.self).contains("file:///drafts/notes.docx"))
+    }
+
+    func testAuthorReviewDeduplicatesFormattingRunsAndNoticesDamagedLinkedText() {
+        var italic = style("appendix.docx"); italic.italic = true
+        let split = RichParagraph(text: "Read this", runs: [Run(length: 5, style: style("appendix.docx")), Run(length: 4, style: italic)])
+        var damaged = RichParagraph(text: "🕊ABC")
+        damaged.runs = [Run(length: 1, style: style("https://example.org")), Run(length: 4)]
+        let issues = SiteReaderText.referenceIssues(in: RichDocument(paragraphs: [split, damaged]))
+        XCTAssertEqual(issues.count, 2)
+        XCTAssertEqual(issues.map(\.kind), [.sourceFile, .formatting])
+        XCTAssertEqual(issues[0].excerpt, "Read this")
+        XCTAssertNil(issues[0].paragraphID)
+        var identified = split; identified.id = 55
+        XCTAssertEqual(SiteReaderText.referenceIssues(in: RichDocument(paragraphs: [identified]))[0].paragraphID, 55)
     }
 }

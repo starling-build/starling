@@ -282,10 +282,12 @@ final class SiteShellState: State<StatefulWidget> {
     /// as "here".
     private func _reveal(paragraphID id: UInt32) {
         let doc = _controller.document
-        guard id != 0, let i = doc.paragraphs.firstIndex(where: { $0.id == id }) else {
-            setState { _status = "The link named a paragraph this page no longer has." }
+        let matches = doc.paragraphs.indices.filter { doc.paragraphs[$0].id == id }
+        guard id != 0, matches.count == 1 else {
+            setState { _status = "This passage link could not be matched to a single paragraph." }
             return
         }
+        let i = matches[0]
         // Selected with the caret at its START, and that start scrolled to
         // the top: a selection whose caret sat at the end would be revealed
         // by its end, and the paragraph would land at the foot of the view.
@@ -798,10 +800,14 @@ final class SiteShellState: State<StatefulWidget> {
                 guard let self else { return }
                 self.setState { self._reviewOpen = false; self._publishOpen = true }
                 self._refreshManifest()
-            }, onPreview: { [weak self] slug in
+            }, onPreview: { [weak self] slug, paragraphID in
                 guard let self else { return }
                 self.setState { self._reviewOpen = false; self._publishOpen = false }
-                self._refreshManifest { [weak self] in self?._load(slug, push: true) }
+                self._refreshManifest { [weak self] in
+                    guard let self else { return }
+                    self._pendingParagraph = paragraphID
+                    self._load(slug, push: true)
+                }
             })
         }
         if _importOpen {

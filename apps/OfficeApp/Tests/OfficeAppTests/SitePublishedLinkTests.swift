@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import XCTest
+import Flutter
 @testable import OfficeApp
 
 final class SitePublishedLinkTests: XCTestCase {
     // The caller supplies a previously checked snapshot. HTTPS marker checking
     // is tested separately with URLProtocol; these fixtures never use a host.
-    private func withUploaded(_ body: (String, SiteLivePublication.Snapshot, UInt32) throws -> Void) throws {
+    private func withUploaded(duplicateParagraphID: Bool = false, _ body: (String, SiteLivePublication.Snapshot, UInt32) throws -> Void) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -16,9 +17,15 @@ final class SitePublishedLinkTests: XCTestCase {
         config.url = "https://author.example/manual/"
         config.base = "/manual/"
         try SiteBuilder.writeConfig(config, to: repo)
-        let data = try Data(contentsOf: URL(fileURLWithPath: repo + "/pages/welcome.json"))
-        let page = try XCTUnwrap(SiteFiles.decodePage(data))
+        let source = URL(fileURLWithPath: repo + "/pages/welcome.json")
+        var data = try Data(contentsOf: source)
+        var page = try XCTUnwrap(SiteFiles.decodePage(data))
         let id = try XCTUnwrap(page.document.paragraphs.first?.id)
+        if duplicateParagraphID {
+            page.document.paragraphs.append(page.document.paragraphs[0])
+            data = try RichDocumentEnvelope.encode(page.document, pageSetup: page.pageSetup)
+            try data.write(to: source)
+        }
         let out = URL(fileURLWithPath: repo + "/docs")
         try FileManager.default.createDirectory(at: out.appendingPathComponent("pages"), withIntermediateDirectories: true)
         try data.write(to: out.appendingPathComponent("pages/welcome.json"))
@@ -125,6 +132,15 @@ final class SitePublishedLinkTests: XCTestCase {
             try SiteBuilder.writeConfig(config, to: repo)
             XCTAssertThrowsError(try SitePublishedLink.prepare(repo: repo, out: "docs", verified: verified, slug: "welcome")) {
                 XCTAssertTrue(String(describing: $0).contains("saved changes"))
+            }
+        }
+    }
+
+    func testAmbiguousPassageIdentityCannotProduceAMisleadingSharedLink() throws {
+        try withUploaded(duplicateParagraphID: true) { repo, verified, id in
+            XCTAssertNoThrow(try SitePublishedLink.prepare(repo: repo, out: "docs", verified: verified, slug: "welcome"))
+            XCTAssertThrowsError(try SitePublishedLink.prepare(repo: repo, out: "docs", verified: verified, slug: "welcome", paragraph: id)) {
+                XCTAssertTrue(String(describing: $0).contains("single passage"))
             }
         }
     }

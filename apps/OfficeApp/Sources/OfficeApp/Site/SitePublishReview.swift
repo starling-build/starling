@@ -18,6 +18,7 @@ struct SitePublishReview {
         let previousRoute: String?
         let isHome: Bool
         let change: Change
+        let references: [SiteReaderText.ReferenceIssue]
     }
     struct RemovedPage {
         let title: String
@@ -28,6 +29,7 @@ struct SitePublishReview {
     let removed: [RemovedPage]
     let compared: Bool
     let settingsChanged: Bool
+    var referenceCount: Int { pages.reduce(0) { $0 + $1.references.count } }
 
     var summary: String {
         let count = "\(pages.count) website page\(pages.count == 1 ? "" : "s")"
@@ -55,7 +57,8 @@ struct SitePublishReview {
             else { change = .unchanged }
             return Page(slug: node.slug, title: node.title, depth: source.depth, route: route,
                         previousRoute: previousRoute != route ? previousRoute : nil,
-                        isHome: node.slug == current.home, change: change)
+                        isHome: node.slug == current.home, change: change,
+                        references: SiteFiles.decodePage(source.data).map { SiteReaderText.referenceIssues(in: $0.document) } ?? [])
         }
         let slugs = Set(pages.map(\.slug))
         let removed = prior?.manifest.flattened().filter { !slugs.contains($0.node.slug) }.map {

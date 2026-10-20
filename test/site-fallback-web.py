@@ -5,6 +5,7 @@ Builds a temporary publication and uses isolated headless Chrome on localhost.
 Requires the native OfficeApp and a current web stage.
 """
 import copy
+import argparse
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,9 @@ import urllib.request
 ROOT = Path(__file__).resolve().parent.parent
 APP = Path(os.environ.get("OFFICE_APP", ROOT / "apps/OfficeApp/.build/debug/OfficeApp"))
 STAGE = Path(os.environ.get("STAGE", ROOT / ".stage-web-OfficeApp"))
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--healthy-only", action="store_true", help="Run reader, text preference and bookmark checks without failure injection")
+options = parser.parse_args()
 
 
 def free_port():
@@ -103,6 +107,8 @@ with tempfile.TemporaryDirectory(prefix="starling-fallback-web-") as folder:
             ("missing-font", ["*/fonts/*.ttf"], True),
             ("scripts-off", [], False),
         ]
+        if options.healthy_only:
+            cases = []
         for name, blocked, scripts in cases:
             value = drive(name, blocked=blocked, scripts=scripts, actions=("wait", "8000", "eval", state))[-1]
             assert value["readable"] and not value["interactive"], (name, value)
@@ -128,7 +134,7 @@ with tempfile.TemporaryDirectory(prefix="starling-fallback-web-") as folder:
                                                  origin + "/handbook/chapter/?reader=text#p=1511220328"], (name, next_page)
             print("PASS:", name, "leaves readable text, navigation and PDF/Word downloads", flush=True)
 
-        for name, path in [("empty", "/handbook/empty/"), ("unknown", "/handbook/404.html")]:
+        for name, path in ([] if options.healthy_only else [("empty", "/handbook/empty/"), ("unknown", "/handbook/404.html")]):
             value = drive(name, path=path, scripts=False, actions=("eval", state))[-1]
             assert value["readable"] and len(value["nav"]) == 3, value
             if name == "empty":
