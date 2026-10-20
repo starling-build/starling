@@ -55,6 +55,7 @@ final class SitePublishReviewTests: XCTestCase {
             let before = LocalSiteStore.git(["status", "--porcelain=v1", "--untracked-files=all"], in: repo).output
             let review = try read(repo)
             XCTAssertFalse(review.compared)
+            XCTAssertTrue(review.pages.allSatisfy { $0.comparison == nil })
             XCTAssertEqual(review.pages.map(\.change), [.included, .included])
             XCTAssertEqual(review.pages.map(\.route), ["/handbook/", "/handbook/chapter/"])
             XCTAssertEqual(review.pages.map(\.depth), [0, 1])
@@ -126,6 +127,20 @@ final class SitePublishReviewTests: XCTestCase {
             XCTAssertEqual(review.pages[0].change, .updated)
             XCTAssertNil(review.pages[0].previousRoute)
             XCTAssertTrue(review.settingsChanged)
+            XCTAssertTrue(try XCTUnwrap(review.pages[0].comparison).passages.isEmpty)
+        }
+    }
+
+    func testRenamingAnEmptyLegacyPageDoesNotInventParagraphEdits() throws {
+        try withPublication { repo in
+            try Data("{}".utf8).write(to: URL(fileURLWithPath: repo + "/pages/welcome.json"))
+            try recordUpload(repo)
+            var config = try SiteBuilder.readConfig(repo)
+            config.pages[0].title = "Renamed empty chapter"
+            try SiteBuilder.writeConfig(config, to: repo)
+            let comparison = try XCTUnwrap(read(repo).pages[0].comparison)
+            XCTAssertTrue(comparison.passages.isEmpty)
+            XCTAssertNotEqual(comparison.previousTitle, comparison.currentTitle)
         }
     }
 
@@ -178,6 +193,60 @@ final class SitePublishReviewTests: XCTestCase {
             try SitePublicationState.record(repo: repo, revision: LocalSiteStore.git(["rev-parse", "HEAD"], in: repo).output.trimmingWhitespace(),
                                             destination: SitePublicationState.destination(repo: repo), target: "refs/heads/main", out: "docs")
             XCTAssertFalse(try read(repo).compared)
+        }
+    }
+
+    func testComparisonUsesUploadedArtifactAndRetainsReviewSnapshotAfterLaterEdits() throws {
+        try withPublication { repo in
+            let source = URL(fileURLWithPath: repo + "/pages/welcome.json")
+            var paragraph = RichParagraph(text: "Readers received this.")
+            paragraph.id = 123
+            let uploaded = RichDocument(paragraphs: [paragraph])
+            try RichDocumentEnvelope.encode(uploaded).write(to: source)
+            try recordUpload(repo)
+            let receipt = try Data(contentsOf: SitePublicationState.receiptURL(repo: repo))
+            // A later local commit and build must not replace the sent baseline.
+            paragraph = RichParagraph(text: "Saved revision."); paragraph.id = 123
+            let draft = try RichDocumentEnvelope.encode(RichDocument(paragraphs: [paragraph]))
+            try draft.write(to: source)
+            try draft.write(to: URL(fileURLWithPath: repo + "/docs/pages/welcome.json"))
+            XCTAssertEqual(LocalSiteStore.git(["add", "."], in: repo).status, 0)
+            XCTAssertEqual(LocalSiteStore.git(["commit", "-qm", "Unsent local rebuild"], in: repo).status, 0)
+            let beforeStatus = LocalSiteStore.git(["status", "--porcelain=v1"], in: repo).output
+            let review = try read(repo)
+            let comparison = try XCTUnwrap(review.pages[0].comparison)
+            XCTAssertEqual(comparison.passages.count, 1)
+            XCTAssertEqual(comparison.passages[0].before, "Readers received this.")
+            XCTAssertEqual(comparison.passages[0].after, "Saved revision.")
+            XCTAssertEqual(comparison.passages[0].paragraphID, 123)
+            XCTAssertEqual(try Data(contentsOf: source), draft)
+            XCTAssertEqual(try Data(contentsOf: SitePublicationState.receiptURL(repo: repo)), receipt)
+            XCTAssertEqual(LocalSiteStore.git(["status", "--porcelain=v1"], in: repo).output, beforeStatus)
+            paragraph = RichParagraph(text: "A still newer draft."); paragraph.id = 123
+            try RichDocumentEnvelope.encode(RichDocument(paragraphs: [paragraph])).write(to: source)
+            XCTAssertEqual(comparison.passages[0].after, "Saved revision.")
+            XCTAssertEqual(try read(repo).pages[0].comparison?.passages[0].after, "A still newer draft.")
+            XCTAssertEqual(LocalSiteStore.git(["remote", "set-url", "origin", "/another.git"], in: repo).status, 0)
+            XCTAssertNil(try read(repo).pages[0].comparison)
+        }
+    }
+
+    func testRemovedTextRemainsReviewableAfterSourceAndLocalOutputAreDeleted() throws {
+        try withPublication { repo in
+            var config = try SiteBuilder.readConfig(repo)
+            let path = URL(fileURLWithPath: repo + "/pages/chapter.json")
+            try RichDocumentEnvelope.encode(RichDocument(paragraphs: [RichParagraph(text: "Old chapter ending")])).write(to: path)
+            config.pages.append(SiteNode(slug: "chapter", title: "Chapter"))
+            try SiteBuilder.writeConfig(config, to: repo)
+            try recordUpload(repo)
+            config.pages.removeLast()
+            try SiteBuilder.writeConfig(config, to: repo)
+            try FileManager.default.removeItem(at: path)
+            try FileManager.default.removeItem(atPath: repo + "/docs/pages/chapter.json")
+            let removed = try XCTUnwrap(read(repo).removed.first)
+            XCTAssertEqual(removed.comparison.passages.map(\.before), ["Old chapter ending"])
+            XCTAssertEqual(removed.comparison.passages.map(\.kind), [.removed])
+            XCTAssertNil(removed.comparison.currentTitle)
         }
     }
 

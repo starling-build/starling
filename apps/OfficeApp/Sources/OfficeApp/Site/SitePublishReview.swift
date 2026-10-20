@@ -19,10 +19,12 @@ struct SitePublishReview {
         let isHome: Bool
         let change: Change
         let references: [SiteReaderText.ReferenceIssue]
+        let comparison: SiteReleaseComparison?
     }
     struct RemovedPage {
         let title: String
         let route: String
+        let comparison: SiteReleaseComparison
     }
     let title: String
     let pages: [Page]
@@ -51,6 +53,11 @@ struct SitePublishReview {
             let previousRoute = old.flatMap { prior?.manifest.route($0.slug) }
             let route = current.route(node.slug)
             let change: Change
+            let saved = SiteFiles.decodePage(source.data)
+            // Identical uploaded bytes need no second document decode.
+            let uploaded = prior?.bytes[node.slug].flatMap { data in
+                data == source.data ? saved : SiteFiles.decodePage(data)
+            }
             if prior == nil { change = .included }
             else if old == nil { change = .added }
             else if old?.title != node.title || prior?.bytes[node.slug] != source.data || previousRoute != route { change = .updated }
@@ -58,11 +65,17 @@ struct SitePublishReview {
             return Page(slug: node.slug, title: node.title, depth: source.depth, route: route,
                         previousRoute: previousRoute != route ? previousRoute : nil,
                         isHome: node.slug == current.home, change: change,
-                        references: SiteFiles.decodePage(source.data).map { SiteReaderText.referenceIssues(in: $0.document) } ?? [])
+                        references: saved.map { SiteReaderText.referenceIssues(in: $0.document) } ?? [],
+                        comparison: prior == nil ? nil : SiteReleaseComparison(
+                            previous: uploaded, current: saved,
+                            previousTitle: old?.title, currentTitle: node.title))
         }
         let slugs = Set(pages.map(\.slug))
         let removed = prior?.manifest.flattened().filter { !slugs.contains($0.node.slug) }.map {
-            RemovedPage(title: $0.node.title, route: prior!.manifest.route($0.node.slug))
+            RemovedPage(title: $0.node.title, route: prior!.manifest.route($0.node.slug),
+                        comparison: SiteReleaseComparison(
+                            previous: prior!.bytes[$0.node.slug].flatMap { SiteFiles.decodePage($0) }, current: nil,
+                            previousTitle: $0.node.title, currentTitle: nil))
         } ?? []
         let settingsChanged = prior.map {
             $0.config.title != config.title || $0.config.base != config.base ||

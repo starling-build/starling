@@ -1,11 +1,73 @@
 # A site from a repository
 
-**Current priority: the writer's journey (2026-10-19).** Judge the product by
+**Current priority: the writer's journey (2026-10-20).** Judge the product by
 whether an author can bring an existing manuscript, review it, edit it, share
 it, and revise it later. The default journey is **Word document or blank →
 local draft → reader preview → publish → update at the same link**. Hosting
 and Git are supporting setup exposed at publishing time. Additional hosting
 infrastructure is not the next product milestone by itself.
+
+**Direction: writing ahead of publication.** The next author workflow is a
+manuscript whose saved draft can advance while readers retain an earlier
+released version. Build around the questions “What changed?” and “Which
+version did readers receive?” Keep saved, uploaded, and verified-live evidence
+distinct. A local save must never silently publish an edit.
+
+Sequence the work:
+
+1. Compare saved revisions with the last recorded upload, including corrections,
+   removed passages and changes outside paragraph text. This increment is
+   described below.
+2. Design explicit release inclusion and draft retention. The current publisher
+   commits source and generated output together: hiding a page from navigation
+   or export would not make its source private. Do not offer a “private draft”
+   switch until the upload boundary and repository history implications are
+   addressed. Keep an already released chapter available while its next draft
+   is withheld.
+3. Introduce a release overview with chapter, destination, audience, planned date
+   and released revision. Scheduled, uploaded, verified live and manually
+   recorded releases must remain distinct; dates alone are not a scheduler.
+4. Make publishing to the author's own site dependable, then evaluate one
+   external destination with active writers and supported publishing access.
+   Do not promise automated Royal Road/Ream/Substack distribution based on
+   undocumented endpoints.
+
+Validate the product hypothesis with 5–10 active serial writers completing a
+release and a later correction. Record time, formatting repairs, missed updates,
+remaining chapter buffer and tools they need to retain. Test use alongside an
+existing editor before requiring migration. Advanced lore management,
+multi-platform automation and payment tiers remain later work, not prerequisites
+for this first release-management workflow. These interviews have not happened;
+the market discussion is a hypothesis, not demand evidence.
+
+**Compare saved changes (2026-10-20):** Updated and added pages in publication
+review now open a read-only comparison of the saved draft and the exact page
+artifact in the last matching upload. Removed pages retain Review removed text
+even after their working source and local build output are deleted. A later
+local commit or rebuild cannot replace the upload baseline. Without a usable
+matching record, comparison is unavailable rather than inventing an unpublished
+state.
+
+The comparison shows complete before/after paragraph text, additions, removals,
+paragraph-detail changes, relative paragraph reordering, page layout and
+document-level changes. Matching uses unique persistent identities, with unique
+exact text as a fallback after imports. It does not guess relationships between
+unidentified edited passages. Paragraph details include links, formatting,
+bookmarks and embedded content; this is not a visual layout or character-level
+diff. Ten changes are displayed at a time. Show in saved draft selects a uniquely
+identified current passage and carries that selection through Edit document.
+Comparison retains the review snapshot; refresh review after external changes.
+It does not restore files, upload, or claim the uploaded version is live.
+
+Validation: 33 focused comparison/review/shared-link/live-marker tests pass,
+including a 10,000-paragraph manuscript, duplicate/missing identities, empty
+legacy documents, formatting-only changes, deleted source/output and unsent
+local commits/rebuilds. Native walkthroughs verify before/after text, selecting
+the changed passage in preview and Writer, pagination and returning to review;
+saved source, configuration, uploaded files and the receipt stay unchanged.
+The native build passes. These changes are native author UI/model code behind
+`!os(WASI)`; the public reader is unchanged. No production host was contacted.
+This is scripted desktop validation, not external author or mobile testing.
 
 The current pass starts a publication directly from a Word document, keeps
 the original untouched, puts document editing and reading previews first,

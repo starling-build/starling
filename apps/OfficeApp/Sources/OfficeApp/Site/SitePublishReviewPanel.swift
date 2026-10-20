@@ -24,6 +24,7 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
     private var busy = false
     private var error: String?
     private var referenceDetails = Set<String>()
+    private var comparison: (value: SiteReleaseComparison, slug: String?)?
 
     override func initState() { super.initState(); refresh() }
 
@@ -51,6 +52,14 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        if let comparison {
+            let preview: ((UInt32?) -> Void)? = comparison.slug.map { slug in
+                { [weak self] id in self?.panel.onPreview(slug, id) }
+            }
+            return SiteReleaseComparisonPanel(comparison: comparison.value,
+                                              onBack: { [weak self] in self?.setState { self?.comparison = nil } },
+                                              onPreview: preview)
+        }
         var rows: [Widget] = [
             Text("Review your publication", style: WikiAppearance.text(30, bold: true)), Chrome.vgap(10),
             Text("Publishing shares every page listed here, not just the page you have open.", style: WikiAppearance.text()),
@@ -111,6 +120,11 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                     }
                 }
                 detail += [Chrome.vgap(8), Button(onPressed: { [weak self] in self?.panel.onPreview(page.slug, nil) }, child: Text("Preview page"))]
+                if let comparison = page.comparison, page.change != .unchanged {
+                    detail += [Chrome.vgap(8), Button(onPressed: { [weak self] in
+                        self?.setState { self?.comparison = (comparison, page.slug) }
+                    }, child: Text("Compare saved changes"))]
+                }
                 rows += [DecoratedBox(decoration: BoxDecoration(color: WikiAppearance.white, border: Border.all(color: WikiAppearance.line),
                             borderRadius: BorderRadius.circular(8)),
                             child: Padding(padding: EdgeInsets(all: 16), child: Column(crossAxisAlignment: .stretch, children: detail))), Chrome.vgap(10)]
@@ -120,7 +134,10 @@ private final class _SitePublishReviewState: State<StatefulWidget> {
                          Chrome.vgap(8), Text("These pages and their downloads will leave the current website after deployment. Previous downloads, caches and repository history are not erased.", style: WikiAppearance.text(14, color: WikiAppearance.muted))]
                 for page in review.removed {
                     rows += [Chrome.vgap(12), Text(page.title, style: WikiAppearance.text(17, bold: true)),
-                             Chrome.vgap(4), Text(page.route, style: WikiAppearance.text(14))]
+                             Chrome.vgap(4), Text(page.route, style: WikiAppearance.text(14)),
+                             Chrome.vgap(8), Button(onPressed: { [weak self] in
+                                 self?.setState { self?.comparison = (page.comparison, nil) }
+                             }, child: Text("Review removed text"))]
                 }
             }
             rows += [Chrome.vgap(24), FilledButton(onPressed: panel.onContinue, child: Text("Continue to publish"))]

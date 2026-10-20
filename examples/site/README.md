@@ -108,6 +108,20 @@ upload record, the review shows added, updated, unchanged and removed pages
 relative to the last upload from this device. Without one, pages are simply
 listed as included; this does not mean they have never been published.
 
+For an updated or added page, choose **Compare saved changes** to see the last
+uploaded text and your saved draft. The comparison identifies edited, added
+and removed paragraphs and flags changes to formatting, links, paragraph order,
+document settings and page layout. It compares against the recorded upload,
+even if you have built or committed a newer version locally. It does not check
+what is live on the website.
+
+Use **Show in saved draft** to select a changed passage, then **Edit document**
+to revise it in Writer. **Back to review** retains the comparison you opened;
+refresh review to include later file changes. **Next changes** steps through
+long revisions. **Review removed text** shows what was previously uploaded
+for a deleted page without restoring it. The comparison shows paragraph text;
+use the document preview to check formatting, images and layout.
+
 When review finds **References to check**, use **Show references** to see the
 affected text, target and guidance. **Show in document** opens the passage when
 it can be identified uniquely; use **Preview page** for the whole document.
