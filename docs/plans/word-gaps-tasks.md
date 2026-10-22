@@ -61,7 +61,7 @@ Word prints happen only on the Mac: ask before printing, one at a time.
 - e. 60316: the header divider's relative height/vertical alignment.
   Owner: proposed macOS-doc.
 - f. drawing.docx p9: nested-table banner 5.4pt right (T142's autofit
-  parent). Owner: proposed lenovo-3.
+  parent). Owner: Linux 017F2GnT (lenovo-2), 2026-10-22.
 - g. Near-100 (form_footnotes 97.7, bib-chernigovka 99.6, bug59058
   99.9): read the geometry; say which are PDFKit grouping and which are
   layout. Owner: Linux 017F2GnT (lenovo-2), 2026-10-22. Findings: under
