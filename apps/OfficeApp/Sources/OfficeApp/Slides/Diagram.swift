@@ -203,10 +203,18 @@ final class DgmPresNode {
         // there too: vProcess5's middle box, set by `ctrX`, and its arrow,
         // by `r`, read as at 0, and the text boxes measured from them
         // collapsed to nothing — smartart-cnt's "a", "b", "c" at 5 pt.)
-        case "l": v = laidOut ? rect.left - px
-            : (vals["l"] ?? vals["ctrX"].map { $0 - (value("w") ?? 0) / 2 } ?? vals["r"].map { $0 - (value("w") ?? 0) } ?? 0)
-        case "t": v = laidOut ? rect.top - py
-            : (vals["t"] ?? vals["ctrY"].map { $0 - (value("h") ?? 0) / 2 } ?? vals["b"].map { $0 - (value("h") ?? 0) } ?? 0)
+        case "l":
+            if laidOut { v = rect.left - px }
+            else if let left = vals["l"] { v = left }
+            else if let center = vals["ctrX"] { v = center - (value("w") ?? 0) / 2 }
+            else if let right = vals["r"] { v = right - (value("w") ?? 0) }
+            else { v = 0 }
+        case "t":
+            if laidOut { v = rect.top - py }
+            else if let top = vals["t"] { v = top }
+            else if let center = vals["ctrY"] { v = center - (value("h") ?? 0) / 2 }
+            else if let bottom = vals["b"] { v = bottom - (value("h") ?? 0) }
+            else { v = 0 }
         case "r": v = laidOut ? rect.right - px : (vals["r"] ?? (value("l")! + (value("w") ?? 0)))
         case "b": v = laidOut ? rect.bottom - py : (vals["b"] ?? (value("t")! + (value("h") ?? 0)))
         case "ctrX": v = laidOut ? rect.center.dx - px : (vals["ctrX"] ?? (value("l")! + (value("w") ?? 0) / 2))
