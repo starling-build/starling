@@ -64,7 +64,18 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   parent). Owner: proposed lenovo-3.
 - g. Near-100 (form_footnotes 97.7, bib-chernigovka 99.6, bug59058
   99.9): read the geometry; say which are PDFKit grouping and which are
-  layout. Owner: proposed lenovo-2.
+  layout. Owner: Linux 017F2GnT (lenovo-2), 2026-10-22. Findings: under
+  PyMuPDF (the Linux scorer) bib-chernigovka and bug59058 are 100.0 —
+  every line Word prints we set at its place, so the Mac's misses there
+  are PDFKit's grouping. form_footnotes is 98.8 here, one line missed,
+  and it is ours: p2's "☐ Yes ☐ No" (and every checkbox) is a text "☐"
+  in ours, a drawn 9.36pt square with no text in Word's print — so our
+  line's text opens with "☐" where Word's opens with "Yes" — and Word's
+  auto-sized FORMCHECKBOX advances 11.5pt at 10pt (1.06 + 9.36 + 1.08)
+  where our glyph advances 8.96 (11.87 in the table cells of p2), "Yes"
+  2.5pt left of Word's. A fix draws the box as a square object of that
+  advance, not a character: only form_footnotes and checkboxes carry
+  FORMCHECKBOX in the corpus. Not built; released.
 - 60329 12.6% is Word's clipped print of landscape content, not ours.
 
 ### T142. Nested-table sizing — fixed-parent fix landed; remaining work released
