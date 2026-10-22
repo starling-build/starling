@@ -107,7 +107,11 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   its child (nested-minima's 241.5 untouched); no line score moved. Left:
   Word clips a picture to the cell it overflows (the 175.5pt picture
   ends at 552.72, the logo at 381.12 in Word's print); ours draws them
-  whole. Owner: Windows 01QbbApP, 2026-10-22 (labs on Word for Windows).
+  whole. Owner: Windows 01QbbApP, 2026-10-22 — DONE: cut at the cell's
+  edge (not the text's), sideways only; the logo now ends at 381.2 and the
+  picture at 552.8. Lab dr/clip1 (Word for Windows): fixed cells match to
+  0.5pt. Left: an autofit cell grows to its picture in Word (lab C: 339pt)
+  while our _minContent counts only text.
 - g. Near-100 (form_footnotes 97.7, bib-chernigovka 99.6, bug59058
   99.9): read the geometry; say which are PDFKit grouping and which are
   layout. Owner: Linux 017F2GnT (lenovo-2), 2026-10-22. Findings: under
