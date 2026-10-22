@@ -1651,9 +1651,19 @@ enum OfficeFonts {
     }
 
     nonisolated(unsafe) private static var _registered = false
+    nonisolated(unsafe) private static var _registrationSucceeded = false
+
+    #if canImport(ObjectiveC)
+    private final class ResourceOwner: NSObject {}
+    #endif
 
     private static func _bundle(_ name: String) -> Bundle? {
         var roots: [URL] = []
+        #if canImport(ObjectiveC)
+        // Under XCTest this module is in the test bundle, while main is
+        // Xcode's test runner. SwiftPM puts our resources beside the code.
+        if let resources = Bundle(for: ResourceOwner.self).resourceURL { roots.append(resources) }
+        #endif
         if let resources = Bundle.main.resourceURL { roots.append(resources) }
         roots.append(Bundle.main.bundleURL)
         roots.append(Bundle.main.bundleURL.appendingPathComponent("Contents/Resources"))
@@ -1691,7 +1701,7 @@ enum OfficeFonts {
 
     @discardableResult
     static func register() -> Bool {
-        if _registered { return true }
+        if _registered { return _registrationSucceeded }
         _registered = true
         #if os(WASI)
         // The page preloads UI/default faces. Other document families are
@@ -1699,6 +1709,7 @@ enum OfficeFonts {
         // once registered (build/web-app.sh writes fonts/manifest.json,
         // with `wordSans` and `wordSerif` among them, made as below).
         _gapAboveLoaded = true
+        _registrationSucceeded = true
         return true
         #else
         // (#else, not an early return: the body below names FileHandle,
@@ -1752,12 +1763,15 @@ enum OfficeFonts {
             FileHandle.standardError.write("[Office] font bundle not found; documents use the engine's default face\n".data(using: .utf8)!)
             return false
         }
+        // Xcode's SwiftPM backend uses Contents/Resources; the native
+        // backend and our staged app use a flat resource bundle.
+        let resources = bundle.resourceURL ?? bundle.bundleURL
         var ok = true
         var gapAboveFailed = false
         for (file, family) in [("LiberationSans", sans), ("LiberationSerif", serif), ("LiberationMono", mono),
                                ("Carlito", calibri), ("Caladea", cambria), ("DejaVuSans", verdana)] {
             for variant in ["Regular", "Bold", "Italic", "BoldItalic"] {
-                let path = bundle.bundleURL.appendingPathComponent("fonts/\(file)-\(variant).ttf").path
+                let path = resources.appendingPathComponent("fonts/\(file)-\(variant).ttf").path
                 if !flutter.swift_bridge.LoadFontFromFile(path, family) {
                     ok = false
                     FileHandle.standardError.write("[Office] could not load \(path)\n".data(using: .utf8)!)
@@ -1774,7 +1788,7 @@ enum OfficeFonts {
         }
         _gapAboveLoaded = !gapAboveFailed
         // 仿宋's ideographs in a 仿宋 face (`fangSongFamily`).
-        let fangSong = bundle.bundleURL.appendingPathComponent("fonts/StarlingFangSong-Regular.ttf").path
+        let fangSong = resources.appendingPathComponent("fonts/StarlingFangSong-Regular.ttf").path
         if FileManager.default.fileExists(atPath: fangSong) {
             if flutter.swift_bridge.LoadFontFromFile(fangSong, starlingFangSong) {
                 _fangSongLoaded = true
@@ -1788,12 +1802,13 @@ enum OfficeFonts {
         // Slides' free faces (Resources/fonts/README.md), each file under
         // the family `SlideFonts.resolve` names.
         for (file, family) in slideFaces {
-            let path = bundle.bundleURL.appendingPathComponent("fonts/\(file)").path
+            let path = resources.appendingPathComponent("fonts/\(file)").path
             if !flutter.swift_bridge.LoadFontFromFile(path, family) {
                 ok = false
                 FileHandle.standardError.write("[Office] could not load \(path)\n".data(using: .utf8)!)
             }
         }
+        _registrationSucceeded = ok
         return ok
         #endif
     }

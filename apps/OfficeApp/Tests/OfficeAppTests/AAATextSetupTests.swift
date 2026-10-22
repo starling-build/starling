@@ -35,4 +35,9 @@ final class AAATextSetupTests: XCTestCase {
     func testICUDataIsLoadedBeforeAnyTextIsLaidOut() throws {
         guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU or FLUTTER_SWIFT_ENGINE_OUT)") }
     }
+
+    func testBundledOfficeFontsLoadBeforeLayoutTests() {
+        XCTAssertTrue(OfficeFonts.register(), "layout tests must use the shipped fonts, not a system fallback")
+        XCTAssertTrue(OfficeFonts.register(), "repeated registration reports the same result")
+    }
 }

@@ -29,8 +29,10 @@ no score. The loop that has worked:
    sweep, and keep only changes where nothing goes down (or say why).
    Convert with `OFFICE_WORD_FONTS=mac`. On macOS there is no `timeout`
    command: a sweep loop using it converts nothing.
-5. `test/run.sh --office`: one known failure,
-   `LineHeightTests.testSingleSpacingIsTheFacesNaturalHeight`.
+5. `test/run.sh --office` (or the release Office tests plus the repository
+   checks). As of 2026-10-21 all 444 Office tests pass on the Mac; the old
+   LineHeightTests failure came from missing font resources under XCTest.
+   Keep the bundled-font startup test passing; do not waive that failure.
 6. One fix per commit; fetch and rebase on `office` before every push.
 
 On the Windows box the line match reads the PDFs with PyMuPDF (c4a931e5),
@@ -82,8 +84,14 @@ content), delins (balloon order), chartex (sunburst fallback-image labels).
 Near-100 residuals: PDFKit grouping in bug57031, bug59058, bib-chernigovka
 and form_footnotes; bug65649 has four real ~5pt shifts in centred cells
 at the page foot. Visual-only: 60316's relative-height header divider.
-Font resource lookup under the Swift 6.4 XCTest bundle is being fixed:
-the supposedly known line-height failure used unregistered fonts.
+Font resource lookup fixed for Swift 6.4/XCTest and nested bundles:
+444/444 Office tests pass, including the formerly known line-height failure.
+The bare release converter loads its fonts without a symlink. Repository
+lint and the four matcher tests pass. Broader Mac checks still fail at
+termd's PTY session, terminal auto-answer's child process, and the web-size
+gate (swift-6.4-RELEASE_wasm SDK missing); none are waived as passing.
+Logs: /tmp/starling-poi-fixes/resources. Final staged sweep:
+/tmp/starling-poi-fixes/final (same fonts as the oracle sweep).
 
 
 ## Done on 2026-10-14 (session 011uWpmCQYr9neyJ1V1gzrrb)

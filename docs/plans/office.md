@@ -6844,3 +6844,14 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   the three fixes move 55966, 60316 and rtl to 100%; all 574 other scores
   are unchanged. Final POI mean 90.7% including nine textless references,
   98.7% over 102 text-bearing files; 99 at least 95%, 111 page counts match.
+
+- **Office resources load under Xcode SwiftPM and XCTest (2026-10-21).**
+  Resource lookup now also checks the bundle containing the Office module,
+  not only Bundle.main (Xcode's runner during tests), and reads fonts from
+  `Bundle.resourceURL`. That covers Xcode's Contents/Resources layout and
+  the native backend's flat bundle without a symlink. Repeated registration
+  reports the original result instead of claiming success after a failed
+  load. An early integration test requires the shipped faces before layout
+  tests. All 444 Office tests now pass: the old 1.18-versus-1.15 line-height
+  failure was the system fallback caused by a missing font bundle. The bare
+  release converter also loads its fonts without the staging workaround.
