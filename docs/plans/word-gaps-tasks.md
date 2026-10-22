@@ -30,7 +30,7 @@ no score. The loop that has worked:
    Convert with `OFFICE_WORD_FONTS=mac`. On macOS there is no `timeout`
    command: a sweep loop using it converts nothing.
 5. `test/run.sh --office` (or the release Office tests plus the repository
-   checks). As of 2026-10-22 all 448 Office tests pass on the Mac; the old
+   checks). As of 2026-10-22 all 451 Office tests pass on the Mac; the old
    LineHeightTests failure came from missing font resources under XCTest.
    Keep the bundled-font startup test passing; do not waive that failure.
 6. One fix per commit; fetch and rebase on `office` before every push.
@@ -45,21 +45,36 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
-### T141. POI picture-header tabs — in progress
-Owner: Codex Mac, starling worktree, 2026-10-22
-Documents: issue_51265_3; then related image/header positioning gaps.
-Baseline: ebf9faf6, /tmp/starling-poi-fixes/split-cell/sweep, same engine
-and OFFICE_WORD_FONTS=mac. Investigate why a trailing header tab adds an
-extra line and why tabs shift the header pictures right. Use Word labs,
-regression tests, image coordinates and the full 577-document sweep.
+### T141. POI picture layout — two fixes landed; remaining work released
+Owner: none — Codex Mac released remaining investigation, 2026-10-22
+Worktree: starling, branch office. Baseline ebf9faf6; same engine and
+OFFICE_WORD_FONTS=mac throughout.
 
-First fix verified: picture tabs no longer shift the header right or add
-an extra line. issue_51265_3's first body image y213.31 ->121.55 (Word121.40),
-all seven images retained. Scope excludes opaque VML objects after the
-first sweep caught a regression in zh-7773163d; the corrected sweep has
-no line-score or page-count changes across all 577 documents. 448 Office
-tests and lint pass. Artifacts: /tmp/starling-poi-fixes/picture-header,
-final sweep-scoped. Next: read and lay out left/right inline effect extents.
+- c4b68617: picture-only tab rows use spacing placeholders. The first
+  body image in issue_51265_3 moves y213.31 ->121.55 (Word121.40), all
+  seven images retained. Opaque VML objects retain text-tab metrics;
+  the first broader attempt regressed zh-7773163d and was rejected.
+- 7b3b98b6: retain and lay out horizontal inline effect extents, including
+  character borders. All 1/2/7 images in issue_51265_1/2/3 match Word's
+  bounds within 0.05/0.11/0.36pt. Border labs agree within 0.25pt.
+
+451 Office tests and lint pass. Each fix has a full 577-document sweep;
+line scores, physical page counts and image counts are unchanged. POI
+text-bearing mean remains 98.7%; nine textless files remain N/A. Final
+artifacts: /tmp/starling-poi-fixes/picture-header/sweep-scoped and
+/tmp/starling-poi-fixes/picture-effects/sweep. Reports and Word lab inputs
+are retained; redundant earlier generated PDFs were deleted after a
+full disk interrupted a sweep, then all 577 conversions were rerun.
+Browser/WASM was not validated.
+
+Remaining visual tradeoff, not claimed: drawing page 9's nested percentage
+table shifts its right-aligned banner 1.5pt further right when a neighbour's
+picture effect enters the width measure (error 3.90 ->5.40pt). Word's
+zero-horizontal-effects lab keeps that banner's right edge fixed. The
+picture extent rule is verified; the nested-table width/overflow rule
+still needs work. See office.md and picture-effects/drawing-*. Do not
+summarize this batch as free of visual regressions. Other open POI gaps
+remain listed in T140; T15's existing chart owner still applies.
 
 ### T140. POI matching — four fixes landed; remaining work released
 Owner: none — Codex Mac released remaining investigation, 2026-10-21
@@ -108,11 +123,11 @@ Remaining, not claimed here:
   Keep that oracle defect separate from renderer defects.
 - Near-100: PDFKit grouping in bug57031, bug59058, bib-chernigovka and
   form_footnotes; inspect geometry before treating these as layout bugs.
-- Visual: 60316's relative-height/vertically aligned header divider;
-  issue_51265_3's header tabs add ~89pt before its body images and shift
-  header pictures ~28–30pt right. TestTableColumns borders/positions and
-  smaller picture offsets still need work. Nine textless files are N/A,
-  not line-match successes; contact sheet: textless-comparison.png.
+- Visual: 60316's relative-height/vertically aligned header divider and
+  TestTableColumns borders/positions still need work. T141 fixes the
+  issue_51265 image/header gaps and records a remaining nested-table
+  banner alignment tradeoff. Nine textless files are N/A, not line-match
+  successes; initial contact sheet: textless-comparison.png.
 
 
 ## Done on 2026-10-14 (session 011uWpmCQYr9neyJ1V1gzrrb)
