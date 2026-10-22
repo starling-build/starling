@@ -3086,8 +3086,17 @@ public final class RichLayout {
                 // the file says a row is: the second half of a row of
                 // 28.5pt at least is 28.75 at the head of Word's page.)
                 // (With the line it opens with: 29.4 from the page's head.)
+                // (Its cells' margins on top of the height, as the whole
+                // row's are — labs `rm1`-`rm3`: an "at least" height is
+                // the room between the margins. zh-b378d8c4's 专栏5, one
+                // row of at least 132.05pt with 15-twip margins parted
+                // over pages 12 and 13, goes on 134.4pt down page 13 in
+                // Word's print; ours, without the margins, 133.0, and the
+                // page after it a line long.)
+                let margins = theme.wordRules
+                    ? columns.map { column -> Double in let d0 = _cells[column.members[0]]!; return d0.pad.top + d0.pad.bottom }.max() ?? 0 : 0
                 let stated = ts.rowsExactHeight.contains(c.row) || ts.rowHeights[c.row] == nil ? 0
-                    : min(c.ownRowHeight, _px(ts.rowHeights[c.row]!) + max(0, c.rules - c.ruleBelow))
+                    : min(c.ownRowHeight, _px(ts.rowHeights[c.row]!) + max(c.rules - c.ruleBelow, margins - c.ruleBelow, 0))
                 // (And no shorter than a cell merged down into it whose
                 // text went over with it, as a whole row is not — see
                 // `pageHeight`: zh-e6d54ae4's "（三）注重服務人員…" is merged

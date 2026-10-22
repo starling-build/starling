@@ -5799,6 +5799,15 @@ fitter dropped the paragraph's tail).
   Word's print). Banner now 391.55-552.8; no line score moved. Left:
   Word clips a picture to the cell it overflows (the 175.5pt one and the
   logo end at their cells' edges in Word's print); ours draws it whole.
+- **A row's part over the page keeps its cells' margins (2026-10-22).**
+  What goes over of a parted row is a row again, no shorter than the
+  height the file states — and, as for the whole row (labs `rm1`-`rm3`:
+  an "at least" height is the room between the cells' margins), with
+  the margins on top of it. zh-b378d8c4's 专栏5, one row of at least
+  132.05pt with 15-twip margins, parts over pages 12 and 13; its part on
+  page 13 is 134.4pt in Word's print, 133.0 in ours, and the page after
+  it took the 22pt line Word sends on — every page after a line out.
+  zh-b378d8c4 39.1 -> 100; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's
