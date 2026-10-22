@@ -45,6 +45,15 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
+### T144. zh-6a4fc013 gained a page (26 -> 27) at 58b0cbd8 (T135/T136)
+Owner: proposed lenovo-3 (01Ak4ibJ, its author); unclaimed until confirmed.
+Bisected on the Mac (OFFICE_WORD_FONTS=mac, the one document):
+97f8a42b 54.2% 26/26 pages, 58b0cbd8 51.5% 27 pages (Word 26). The Thai
+document (TH Sarabun New / 標楷體, mode 15, compressPunctuation) first
+parts on page 16 (0-based), y -670: an answer paragraph after "ตอบ:"
+wraps a word earlier, and the drift adds a page. Likely a mark in a Thai
+(cs / x-none) run that no longer gives under T136's rule.
+
 ### T143. POI gaps after n377 — split across sessions (2026-10-22)
 Coordinator: starling-bd (session 011uWpmCQYr9neyJ1V1gzrrb, Mac).
 Sweep n377 at afd9a7ac: text-bearing POI 98.7%, 111/111 page counts.
