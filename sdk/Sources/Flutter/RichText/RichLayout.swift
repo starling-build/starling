@@ -939,6 +939,7 @@ public final class RichLayout {
     private var _imageDrop: [Double] = []
     /// Per paragraph, its inline pictures in placeholder order.
     private var _inline: [[ImageAttachment]] = []
+    private var _inlineBoxes: [[Int]] = []
     /// A picture paragraph's float, when its picture is anchored.
     private var _floats: [ImageFloat?] = []
     private var _floatImages: [ImageAttachment?] = []
@@ -1183,6 +1184,7 @@ public final class RichLayout {
         _imageShift = Array(repeating: 0, count: n)
         _imageDrop = Array(repeating: 0, count: n)
         _inline = Array(repeating: [], count: n)
+        _inlineBoxes = Array(repeating: [], count: n)
         _floats = Array(repeating: nil, count: n)
         _floatImages = Array(repeating: nil, count: n)
         _cells = Array(repeating: nil, count: n)
@@ -1254,6 +1256,7 @@ public final class RichLayout {
                 _imageShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _imageDrop.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inline.insert(contentsOf: Array(repeating: [], count: n), at: at)
+                _inlineBoxes.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _floats.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _floatImages.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _cells.insert(contentsOf: Array(repeating: nil, count: n), at: at)
@@ -1289,6 +1292,7 @@ public final class RichLayout {
                 _imageShift.removeSubrange(at ..< end)
                 _imageDrop.removeSubrange(at ..< end)
                 _inline.removeSubrange(at ..< end)
+                _inlineBoxes.removeSubrange(at ..< end)
                 _floats.removeSubrange(at ..< end)
                 _floatImages.removeSubrange(at ..< end)
                 _cells.removeSubrange(at ..< end)
@@ -5499,6 +5503,7 @@ public final class RichLayout {
         // sets what follows about it. The engine gives a tab no width of
         // its own, so each is widened by what its stop needs.
         var tabs: [Int: Double] = [:]
+        let pictureTabs = Self._picturesAndTabs(p)
         var atMargin: Set<Int> = []
         var leftTabs: Set<Int> = []    // tabs to a left stop
         _leaders[i] = []
@@ -5603,6 +5608,11 @@ public final class RichLayout {
                 // their quarter — so "выполнения" went over. Word's
                 // print has them at 2.31, the line filled to the margin.)
                 extra = stop.alignment == .left ? max(0.5 - own, extra) : max(0, extra)
+                // Trailing tabs do not open an empty line beyond the
+                // margin. Keep their stops within the remaining width.
+                if theme.wordRules, pictureTabs, units[(t + 1)...].allSatisfy({ $0 == 0x09 }) {
+                    extra = min(extra, max(0, ownLeft + textWidth - x) - own)
+                }
                 tabs[t] = extra
                 if stop.alignment == .left { leftTabs.insert(t) }
                 shift += extra
@@ -5814,6 +5824,7 @@ public final class RichLayout {
         }
         for item in inline { if let image = item.image { _ensureDecoded(image) } }
         _inline[i] = inline.compactMap(\.image)
+        _inlineBoxes[i] = inline.indices.filter { inline[$0].image != nil }
         _floats[i] = p.image?.float
         _floatImages[i] = p.image?.float != nil ? p.image : nil
         var painter = laidOut(span)
@@ -6148,7 +6159,10 @@ public final class RichLayout {
         // minutes typed with a tab after each full stop are a line
         // longer wherever the sentence filled its line. The engine
         // hangs a tab at a line's end like a space.
-        if theme.wordRules, p.image == nil, p.text.utf16.count > 1, p.text.utf16.last == 0x09,
+        // Picture-only tab rows do not take that extra line: Word's
+        // issue_51265_3 header ends at its pictures' baseline, with or
+        // without its final tab.
+        if theme.wordRules, !pictureTabs, p.image == nil, p.text.utf16.count > 1, p.text.utf16.last == 0x09,
            let lastLine = painter.computeLineMetrics().last {
             let units = Array(p.text.utf16)
             var k = units.count - 1
@@ -6387,6 +6401,14 @@ public final class RichLayout {
             if let frame = style.frame, frame.verticalAnchor == "text", frame.verticalAlign == nil { _spaceBefore[i] = before + push + _px(frame.y) }
         }
         _topsValid = false
+    }
+
+    private static func _picturesAndTabs(_ p: RichParagraph) -> Bool {
+        // Opaque objects keep text-tab metrics: the legacy VML arrows
+        // in zh-7773163d need that descent before the following boxes.
+        !p.inlineImages.isEmpty && p.text.utf16.contains(0x09)
+            && p.inlineImages.values.allSatisfy { !$0.data.isEmpty && $0.float == nil && $0.baseline == nil }
+            && p.text.utf16.allSatisfy { $0 == 0xFFFC || $0 == 0x09 }
     }
 
     private static func _textAlign(_ a: ParagraphAlignment) -> TextAlign {
@@ -7421,6 +7443,11 @@ public final class RichLayout {
         }
         var pos = 0
         let utf16 = p.text.utf16
+        // On a line of pictures, tabs are horizontal gaps, not text with
+        // an ascent/descent or letter spacing. Letter-spacing a tab after
+        // the first placeholder shifts the entire line by half that gap
+        // in the engine; it also adds text descent below the pictures.
+        let pictureTabs = theme.wordRules && !adjust.isEmpty && Self._picturesAndTabs(p)
         for run in p.runs where run.length > 0 {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
@@ -7516,6 +7543,17 @@ public final class RichLayout {
                    pos < units.count, units[units.index(units.startIndex, offsetBy: pos)] == 0x20 {
                     children.append(TextSpan(text: "\n", style: style))
                     inserts.append(pos)
+                }
+                continue
+            }
+            if pictureTabs, p.text[a ..< b].allSatisfy({ $0 == "\t" }) {
+                let style = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let own = _glyphWidth(style, "\t")
+                for offset in (pos - run.length) ..< pos {
+                    children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
+                    inline.append((nil, PlaceholderDimensions(size: Size(max(0, own + (adjust[offset] ?? 0)), 0),
+                                                              alignment: PlaceholderAlignment.baseline,
+                                                              baseline: TextBaseline.alphabetic, baselineOffset: 0)))
                 }
                 continue
             }
@@ -10919,8 +10957,10 @@ public final class RichLayout {
             for leader in _leaders[i] { drawLeader(leader) }
         }
         if i < _inline.count, !_inline[i].isEmpty, let all = g.painter.inlinePlaceholderBoxes {
-            let boxes = all.dropFirst(_lead(i))
-            for (k, box) in boxes.enumerated() where k < _inline[i].count {
+            for k in _inline[i].indices {
+                let slot = _inlineBoxes[i][k]
+                guard slot < all.count else { continue }
+                let box = all[slot]
                 let image = _inline[i][k]
                 var rect = box.toRect().shift(Offset(g.textLeft, g.inkTop))
                 if theme.wordRules, let float = image.float, !float.takesRoom {

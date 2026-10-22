@@ -6896,3 +6896,29 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   border/position work. These nine samples remain N/A for line matching,
   not 100% successes. PDFs/contact sheet: `/tmp/starling-poi-fixes`,
   tab-isolation labs: `picture-header`.
+
+
+- **Picture-only tab rows use spacing boxes (2026-10-22).**
+  `issue_51265_3` has three header pictures at left, centre and right tab
+  stops, then a final tab. Letter-spacing the tabs shifted the entire
+  picture line about 28–30pt right. A separate trailing-tab workaround
+  added another picture-height line even though the engine reported one
+  line; text descent under the tabs added more height. Word prints the
+  original and a lab with its final tab removed identically.
+  For rows containing only inline pictures with image data and tabs, tabs occupy
+  zero-height placeholders; trailing gaps end at the margin, and the
+  extra-line workaround does not apply. Image painting maps each picture
+  to its actual placeholder, including when paragraphs are inserted or
+  removed. The first body picture moves from y213.31 to y121.55, against
+  Word121.40; all seven pictures remain visible. Small horizontal offsets
+  remain because inline left/right effect extents are not yet read.
+  Opaque objects keep text-tab metrics: applying the same change to
+  zh-7773163d's legacy VML arrow rows lost their descent and moved the
+  following text boxes up 3–7pt. The full sweep caught that regression.
+  Labs and PDFs: `/tmp/starling-poi-fixes/picture-header`.
+  Validation: 448 Office tests and repository lint pass. All 577 line
+  scores and physical page counts are unchanged from split-cell/sweep;
+  image-box comparison changes only issue_51265_3 and keeps all seven
+  images. The Chinese VML document's PDFKit text rows are identical to
+  baseline. Final sweep: `picture-header/sweep-scoped`; the earlier
+  `picture-header/sweep` records the rejected broader change.
