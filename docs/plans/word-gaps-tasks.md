@@ -510,7 +510,7 @@ zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match
 Twenty more (`random.seed(20261105)` among the 160 unprinted, 15 to 400 KB, drawn by
 docxcorp id, all printed), checked in. It starts at 84.7% (median 98.9). Its low ones,
 unclaimed: zh-2b21a9d4 32.8 (DONE Mac 01Xgpbk5 → 100: a page-anchored table whose row opens with a page break stands on the page the break opens, not over the page before), zh-20d0e98f 37.2 (DONE Mac 01Xgpbk5 → 98.6, 13/13 pages: a line may part after "%" before an opening mark — "…）×100%" / "【107年："), zh-b58b4f0c 37.8 (T145, Linux office1 01Ak4ibJ: 99.8 now — a number that fits parts after its hyphen; released),
-zh-4feaa34c 41.3 (11/10 pages; CLAIMED Mac 01Xgpbk5), zh-f2ca3070 65.2 (37 pages; CLAIMED Linux 017F2GnT 2026-10-22), zh-74b34f3b 92.6.
+zh-4feaa34c 41.3 (11/10 pages; Mac 01Xgpbk5 looked, released: the drifting fallback again — Word sets every 楷体_GB2312 run in Arial Unicode MS, the bold header's at 12.24pt a character, so "序号" (24.5pt) wraps in its 24.45pt cell, and the taller header row repeats on every page; a reprint today agrees, and zh-78729cf9 reprinted alongside is Arial Unicode too where its 10-17 reference is YaHei; nothing to model), zh-f2ca3070 65.2 (37 pages; CLAIMED Linux 017F2GnT 2026-10-22), zh-74b34f3b 92.6 (CLAIMED Mac 01Xgpbk5).
 
 ### Note from the Mac (2026-10-19): the zh corpus is 466 documents — a twenty-first sample
 Twenty more (`random.seed(20261104)` among the 180 unprinted, 15 to 400 KB, all
