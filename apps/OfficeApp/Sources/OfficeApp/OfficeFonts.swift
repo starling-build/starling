@@ -1663,6 +1663,12 @@ enum OfficeFonts {
         // Under XCTest this module is in the test bundle, while main is
         // Xcode's test runner. SwiftPM puts our resources beside the code.
         if let resources = Bundle(for: ResourceOwner.self).resourceURL { roots.append(resources) }
+        // (And beside the test bundle: the command line's `swift test` puts
+        // OfficeApp_OfficeApp.bundle in .build/<config>, next to
+        // OfficeAppPackageTests.xctest, not inside it, and the runner is
+        // /usr/bin/xctest — no shipped font loaded, and layout tests ran
+        // on the system's faces.)
+        roots.append(Bundle(for: ResourceOwner.self).bundleURL.deletingLastPathComponent())
         #endif
         if let resources = Bundle.main.resourceURL { roots.append(resources) }
         roots.append(Bundle.main.bundleURL)
