@@ -8802,6 +8802,7 @@ public final class RichLayout {
         var marks: [Int] = []   // this line's marks that still have their whole em
         var spaces: [Int] = []  // this line's characters with an automatic space after them
         var opening = true      // nothing on the line yet
+        var lineRaised = false  // a raised number the line opens with (see below)
         var lineWide = 0        // this line's characters, and whether it has spaces among them
         var lineEms = 0.0       // … and their ems, summed
         var lineLatin = false   // … and whether any is not East Asian (see `edge`)
@@ -9405,7 +9406,7 @@ public final class RichLayout {
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineBlank = false }
+                    if piece.hard { x = 0; opening = true; lineWide = 0; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineBlank = false; lineRaised = false }
                     continue
                 }
             }
@@ -9425,6 +9426,7 @@ public final class RichLayout {
                 lineOther = false
                 lineBlank = false
                 lineSpaced = false
+                lineRaised = false
             }
             // (An opening mark a line starts with keeps its blank half:
             // squeezing it there is what `w:topLinePunct` asks for, and
@@ -9440,7 +9442,7 @@ public final class RichLayout {
             // the line: zh-70094a34's clauses open "\u{3000}\u{3000}（二）…",
             // and Word's print takes "…设施区域范围内，" 21.75pt over with
             // that "（" giving its half, where ours sent "内，" down.)
-            let lineOpener = lineWide == 0 ? (a ..< last).first { units[$0] != 0x20 && units[$0] != 0x09 } : nil
+            let lineOpener = lineWide == 0 && !lineRaised ? (a ..< last).first { units[$0] != 0x20 && units[$0] != 0x09 } : nil
             // (Spaces a line opens with are no characters of it, and
             // those it ends with stretch nothing.)
             if (a ..< piece.b).contains(where: { units[$0] == 0x20 }) { lineBlank = true }
@@ -9460,6 +9462,14 @@ public final class RichLayout {
             }
             for k in a ..< last {
                 if isSpace(units[k]) { if lineWide > 0 { lineOther = true } }
+                // (A raised number a line opens with — a note's own — is no
+                // character of it, and the space after it no word space:
+                // zh-344a8d08's footnote "2 「嚴重…規定」之相關規定。" (mode 15)
+                // squeezes its "「", "」" and "。" to keep "定。" in Word's
+                // print, where a word space would leave the corner brackets
+                // nothing to give, lab `sq-sp`; nor is the "「" after it the
+                // line's opener, which keeps its blank half.)
+                else if theme.wordRules, lineWide == 0, k < runOf.count, p.runs[runOf[k]].style.script == .superscript { lineRaised = true }
                 else {
                     // (A run of Latin characters — a number, a word — is
                     // one character of the line, of its run's em: lab
@@ -9504,6 +9514,7 @@ public final class RichLayout {
                 lineOther = false
                 lineBlank = false
                 lineSpaced = false
+                lineRaised = false
             }
         }
         // What opens a line and gives some of itself there (a mark of

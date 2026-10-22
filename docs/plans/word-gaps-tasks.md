@@ -106,6 +106,19 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   457 Office tests pass on starling-bd's checkout.
 - 60329 12.6% is Word's clipped print of landscape content, not ours.
 
+### T144. A note's raised number is no character of its line — DONE (2026-10-22)
+Owner: none (Linux office1 01Ak4ibJ built it, from Linux 017F2GnT's measure and the Mac 01Xgpbk5's lab fn344)
+Documents: zh-344a8d08 (footnote 2, p4).
+"2 「嚴重特殊傳染性肺炎(COVID-19)…裁罰規定」之相關規定。" (style afa 10pt, jc both; the file is mode 15, its Normal
+overflowPunct 0) is one line in Word's print, "「", "」" and "。" squeezed by ~4 each. Ours sent "定。" on: the space
+after the raised "2" made it a line with a word space, where corner brackets give nothing (lab `sq-sp`), and the "「"
+was the line's opener, which keeps its blank half. A raised (superscript) run a line opens with now counts as no
+character of it. Lab fn344 (Mac): the hang seen was this squeeze — T119's lab `lp` is mode 14 and stands. Same-base
+sweep, 577 documents: nothing else moved; zh-344a8d08 25.9 -> 25.5, its note 2 now one line as Word's, because ours
+then fits all three lines of note 3 on p4 where Word carries the third to p5 — our notes stand 17.7pt higher than
+Word's under the separator, the placement residual Linux 017F2GnT has on the board and is taking next (agreed: land
+it as is).
+
 ### T142. Nested-table sizing — fixed-parent fix landed; remaining work released
 Owner: none — Codex Mac released remaining investigation, 2026-10-22
 Worktree: starling, branch office; baseline e0edc780.

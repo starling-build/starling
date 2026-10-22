@@ -1930,6 +1930,52 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try lines("一二三四五，六七八九分。", cellTwips: twips(9 * 12.0 + 12 + 12 + 12 - 12.75)), 2, "no space before it to give")
     }
 
+    func testANotesRaisedNumberIsNoCharacterOfItsLine() throws {
+        // zh-344a8d08's footnote 2 (mode 15, overflowPunct 0, justified):
+        // "2 「…規定」之相關規定。" is one line in Word's print, its "「", "」" and
+        // "。" squeezed. The space after the raised "2" is no word space (one
+        // would leave the corner brackets nothing to give, lab `sq-sp`), and
+        // the "「" no opener of the line (which keeps its blank half).
+        try requireFitterWidths()
+        func lines(_ text: String, raised: Bool, width: Double) -> Int {
+            var plain = CharStyle()
+            plain.fontFamily = "宋体"
+            plain.eastAsiaFontFamily = "宋体"
+            plain.fontSize = 12
+            plain.keptXML = "<w:lang w:eastAsia=\"zh-TW\"/>"
+            var number = plain
+            number.script = raised ? .superscript : .normal
+            var p = RichParagraph(text: "2 " + text, runs: [Run(length: 1, style: number), Run(length: text.utf16.count + 1, style: plain)])
+            p.style.alignment = .justify
+            p.style.eastAsian["w:overflowPunct"] = "0"
+            var doc = RichDocument(paragraphs: [p])
+            doc.compatibilityMode = 15
+            doc.characterSpacingControl = "compressPunctuation"
+            doc.usesEastAsianLayout = true
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: 1)
+            l.width = width * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return l.geometry(0).painter.computeLineMetrics().count
+        }
+        let text = "「" + String(repeating: "一", count: 20) + "」" + String(repeating: "二", count: 5) + "定。"
+        // (Its natural width: one line on a wide page.)
+        let wide = 2000.0
+        XCTAssertEqual(lines(text, raised: true, width: wide), 1)
+        // 29 characters of 12 and "2 ": the line 10pt short of all of it — the
+        // "。"'s half gives 6, the three marks' halves 18.
+        let probe = TextPainter(text: TextSpan(text: "2 ", style: TextStyle(fontSize: 12)), textDirection: .ltr)
+        probe.layout(minWidth: 0, maxWidth: 1000)
+        let natural = 29 * 12 + probe.width / RichTextTheme(fontFamily: OfficeFonts.defaultFamily).pixelsPerPoint
+        probe.dispose()
+        XCTAssertEqual(lines(text, raised: true, width: natural - 10), 1, "the brackets and the stop give: the number is no character")
+        XCTAssertEqual(lines(text, raised: false, width: natural - 10), 2, "a plain \"2\" and its space are a word: the brackets give nothing")
+    }
+
     func testAMarkInTextOfNoEastAsianLanguageGivesNothing() throws {
         try requireFitterWidths()
         // zh-0513f641 p5: its body style says `w:eastAsia` x-none, and Word
