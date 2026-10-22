@@ -52,6 +52,13 @@ enum SiteReaderFallback {
       const status = document.getElementById('starling-reader-status');
       let ready = false, failed = false;
       let keepText = new URLSearchParams(location.search).get('reader') === 'text';
+      // Only the reader's own scrolling pins the text view: the browser's
+      // jump to a #p= anchor is not a choice, and the interactive reader
+      // reveals that paragraph itself.
+      let userInput = false;
+      for (const kind of ['pointerdown', 'wheel', 'keydown', 'touchstart']) {
+        window.addEventListener(kind, () => { userInput = true; }, { capture:true, passive:true });
+      }
       button.hidden = false;
       status.textContent = 'Opening the interactive reader. You can read the text now or use the downloads for the original page layout.';
       const preserveTextNavigation = () => {
@@ -74,7 +81,7 @@ enum SiteReaderFallback {
       document.addEventListener('focusin', event => {
         if (event.target.closest('#starling-text')) pinText();
       });
-      window.addEventListener('scroll', () => { if (window.scrollY > 0) pinText(); }, { passive:true });
+      window.addEventListener('scroll', () => { if (userInput && window.scrollY > 0) pinText(); }, { passive:true });
       button.addEventListener('click', () => {
         if (body.classList.contains('starling-interactive') || !ready) {
           pinText();
@@ -94,7 +101,7 @@ enum SiteReaderFallback {
         if (failed) return;
         ready = true;
         button.disabled = false;
-        if (!keepText && window.scrollY === 0) body.classList.add('starling-interactive');
+        if (!keepText) { body.classList.add('starling-interactive'); window.scrollTo(0, 0); }
         else preserveTextNavigation();
         button.textContent = body.classList.contains('starling-interactive') ? 'Read text' : 'Open interactive reader';
         status.textContent = 'Text view. Use the document downloads for the original page layout.';

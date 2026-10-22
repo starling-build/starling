@@ -83,6 +83,13 @@ struct SiteManifest: Codable {
     func exportPaths(_ slug: String) -> (pdf: String, docx: String) {
         (base + slug + "/" + slug + ".pdf", base + slug + "/" + slug + ".docx")
     }
+
+    /// A page's commits on GitHub, when the site names its repository.
+    func historyURL(_ slug: String) -> String? {
+        guard let repo = repository?.trimmingWhitespace(), !repo.isEmpty else { return nil }
+        let base = repo.hasSuffix("/") ? String(repo.dropLast()) : repo
+        return base + "/commits/main/" + SiteFiles.pagePath(slug)
+    }
 }
 
 /// A page as stored: the document and, when it came from a paged file,
@@ -393,7 +400,8 @@ enum SiteBuilder {
                                             nav: manifest.flattened().map { (title: $0.node.title, route: manifest.route($0.node.slug), depth: $0.depth) },
                                             downloads: manifest.exportPaths(node.slug), details: config.details,
                                             canonical: SitePublicAddress.url(website: config.url, route: manifest.route(node.slug)),
-                                            readerText: SiteReaderText(document: doc, route: manifest.base + node.slug + "/"))
+                                            readerText: SiteReaderText(document: doc, route: manifest.base + node.slug + "/"),
+                                            history: manifest.historyURL(node.slug))
             if node.slug == manifest.home {
                 try html.write(toFile: out + "/index.html", atomically: true, encoding: .utf8)
             }
@@ -471,7 +479,8 @@ enum SiteShellPage {
                        description: String, text: String, lines: [(level: Int, text: String)] = [],
                        nav: [(title: String, route: String, depth: Int)] = [],
                        downloads: (pdf: String, docx: String)? = nil, details: SitePublicationDetails? = nil,
-                       canonical: URL? = nil, indexable: Bool = true, readerText: SiteReaderText? = nil) -> String {
+                       canonical: URL? = nil, indexable: Bool = true, readerText: SiteReaderText? = nil,
+                       history: String? = nil) -> String {
         let desc = String(description.replacingOccurrences(of: "\n", with: " ").prefix(300))
         let full = title == siteTitle ? title : "\(title) — \(siteTitle)"
         var meta = """
@@ -521,7 +530,14 @@ enum SiteShellPage {
             // page and a screen reader can move between them.
             let links = nav.map { "<li>" + String(repeating: "&nbsp;&nbsp;", count: $0.depth) + "<a href=\"" + escape($0.route) + "\">" + escape($0.title) + "</a></li>" }.joined(separator: "\n")
             let navHTML = nav.isEmpty ? "" : "<nav aria-label=\"Pages\"><ul>\n" + links + "\n</ul></nav>\n"
-            let downloadsHTML = downloads.map { "<p class=\"starling-downloads\"><a href=\"" + escape($0.pdf) + "\">Download as PDF</a> · <a href=\"" + escape($0.docx) + "\">Download as Word</a></p>\n" } ?? ""
+            var downloadsHTML = ""
+            if let d = downloads {
+                var parts: [String] = []
+                parts.append("<a href=\"" + escape(d.pdf) + "\">Download as PDF</a>")
+                parts.append("<a href=\"" + escape(d.docx) + "\">Download as Word</a>")
+                if let h = history { parts.append("<a href=\"" + escape(h) + "\">History</a>") }
+                downloadsHTML = "<p class=\"starling-downloads\">" + parts.joined(separator: " · ") + "</p>\n"
+            }
             let detailFields = [details?.byline, details?.summary, details?.edition, details?.rights].compactMap { $0 }
             let detailsHTML = detailFields.isEmpty ? "" : "<aside aria-label=\"About this publication\">" + detailFields.map { "<p>" + escape($0) + "</p>" }.joined() + "</aside>\n"
             html.replaceSubrange(r, with: "<body class=\"starling-publication\">\n" + SiteReaderFallback.markup + "<main id=\"starling-text\" class=\"starling-sr\" aria-label=\"" + escape(siteTitle) + "\">\n" + navHTML

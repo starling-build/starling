@@ -19,15 +19,18 @@ struct SiteReaderText: Codable {
     struct Downloads: Codable {
         var pdf: String
         var docx: String
+        /// The page's commits on GitHub, when the site names its repository.
+        var history: String?
     }
     var version = 1
     var title: String?
     var paragraphs: [Paragraph]
     var downloads: Downloads?
 
-    init(document: RichDocument, title: String? = nil, route: String? = nil, downloads: (pdf: String, docx: String)? = nil) {
+    init(document: RichDocument, title: String? = nil, route: String? = nil, downloads: (pdf: String, docx: String)? = nil,
+         history: String? = nil) {
         self.title = title
-        self.downloads = downloads.map { Downloads(pdf: $0.pdf, docx: $0.docx) }
+        self.downloads = downloads.map { Downloads(pdf: $0.pdf, docx: $0.docx, history: history) }
         let (ids, bookmarks) = Self.linkContext(document)
         paragraphs = document.paragraphs.map { paragraph in
             let id = ids.contains(paragraph.id) ? paragraph.id : nil

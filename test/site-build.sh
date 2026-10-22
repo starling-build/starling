@@ -73,6 +73,7 @@ p=sys.argv[1]; d=json.load(open(p)); d['url']='https://example.github.io'; d['re
 PYX
 "$APP" --site-build "$SITE" --web "$STAGE" > "$OUT/build-sitemap.log" 2>&1
 check "the manifest names the repository for the History link" "$(json '["repository"]' < "$DIST/manifest.json")" https://github.com/example/site
+check "and the text layer links the page's history" "$(grep -c '<a href="https://github.com/example/site/commits/main/pages/about.json">History</a>' "$DIST/about/index.html")" 1
 check "sitemap.xml lists the pages" "$(grep -c '<loc>https://example.github.io/publishing/</loc>' "$DIST/sitemap.xml")" 1
 check "the home page is the root" "$(grep -c '<loc>https://example.github.io/</loc>' "$DIST/sitemap.xml")" 1
 check "robots.txt points at it" "$(grep -c 'Sitemap: https://example.github.io/sitemap.xml' "$DIST/robots.txt")" 1

@@ -1034,6 +1034,19 @@ those files instead of rendering in the tab — instant where the in-tab
 PDF of a 24-page document took 15 s. The manifest says `exports: true`;
 over a clone the buttons still render locally.
 
+**The text view and #p= links (2026-10-22):** the text view that stands
+in before the interactive reader opens stayed on screen for every `#p=`
+link — the browser's jump to the anchor counted as the reader's scrolling
+and pinned it, so a paragraph link showed the page as HTML text, which the
+no-HTML rule forbids. Only the reader's own input (a pointer, a wheel, a
+key, a touch) pins the text view now; the interactive reader then reveals
+the paragraph itself. `test/site-fallback-web.py` still passes.
+
+**History in the text layer (2026-10-22):** the page's commits link
+rides beside the downloads in the hidden layer, static and live
+(`SiteReaderText.Downloads.history`), so a screen reader or a crawler
+reaches a page's history without the canvas.
+
 **Links in a page (2026-10-19, late):** a read-only document follows a
 plain click on a link (editing keeps Word's ⌘-click); one of the site's
 own routes opens in place, anything else in a new tab (`hostOpenURL`,

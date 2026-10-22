@@ -536,6 +536,17 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], args 
           if (p.childNodes.length) p.append(' · ');
           const a = document.createElement('a'); a.href = path; a.textContent = label; p.append(a);
         }
+        // The page's history is an absolute https address (GitHub).
+        const history = content.downloads.history;
+        if (typeof history === 'string') {
+          try {
+            const url = new URL(history);
+            if (url.protocol === 'https:') {
+              if (p.childNodes.length) p.append(' · ');
+              const h = document.createElement('a'); h.href = url.href; h.textContent = 'History'; p.append(h);
+            }
+          } catch {}
+        }
         nodes.push(p);
       }
       const ids = new Set();

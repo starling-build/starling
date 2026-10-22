@@ -247,7 +247,8 @@ final class SiteShellState: State<StatefulWidget> {
                 if push { WebHistory.push(m.route(slug)) }
                 // The text layer for screen readers follows the page.
                 let downloads = m.exports == true ? m.exportPaths(slug) : nil
-                if let content = SiteReaderText(document: page.document, title: title, route: m.base + slug + "/", downloads: downloads).json() {
+                if let content = SiteReaderText(document: page.document, title: title, route: m.base + slug + "/", downloads: downloads,
+                                                history: m.historyURL(slug)).json() {
                     WebAccessibility.setDocumentContent(content)
                 } else {
                     WebAccessibility.setDocumentText(SiteTextLayer.lines(of: page.document), downloads: downloads)
