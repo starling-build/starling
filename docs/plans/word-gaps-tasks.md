@@ -43,6 +43,19 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
+### T140. POI placeholder controls and remaining line-match misses — in progress
+Owner: Codex Mac, starling worktree, 2026-10-21
+Documents: 55966 first (33.3%); then remaining POI misses, coordinating
+with existing owners before taking their tasks.
+Baseline: office fbcab79b, staged release converter with verified fonts,
+OFFICE_WORD_FONTS=mac; 111 POI documents, mean 89.8%, median 100%,
+97 at least 95%, all physical page counts match. Nine references have
+no extractable text; the 102 text-bearing documents average 97.7%.
+Evidence: /tmp/starling-word-audit-20261021. Establish Word's placeholder
+reuse rule with lab variants before changing import; sweep all 577
+reference documents after each fix. Keep print/reference and extraction
+limitations distinct from renderer defects.
+
 ## Done on 2026-10-14 (session 011uWpmCQYr9neyJ1V1gzrrb)
 
 Each has its entry in `office.md`.
