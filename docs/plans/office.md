@@ -6962,3 +6962,47 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   earlier pagination geometry, so its y positions are not used as a new
   reference. Initial sweep ran out of disk; redundant intermediate PDFs
   were removed and the final sweep regenerated all 577 successfully.
+
+- **A fixed parent constrains its nested table (2026-10-22, T142).**
+  Word labs in `/tmp/starling-poi-fixes/nested-table` isolate the page-9
+  drawing banner from its larger document. A separate confirmed rule:
+  a 200pt nested table in a fixed parent keeps its preferred width when
+  it contains a 240pt picture with 1.5pt left effect spacing. The picture
+  overflows; it does not widen the nested table to 241.5pt. The same
+  applies to a long text word. A 100% nested table uses its parent's
+  available cell width (200 or 300pt), and 42.74% of a 200pt parent is
+  85.5pt, even when the saved child grid is 200pt. An autofitting parent
+  can instead grow to 241.5pt; the fixed-parent rule must not apply there.
+  `_textBox` passes the fixed-parent context and current cell text width
+  to the child's layout; percentage widths may shrink below the saved
+  grid in this context, and the child does not independently autofit.
+  This is layout context only; the nested table's saved properties stay
+  unchanged. The cache includes the current available width and context.
+  In `nested-minima`, all nine marker right edges agree with Word within
+  0.06pt; six formerly wrong cases improve, three autofitting-parent
+  controls stay unchanged. Tests exercise explicit widths, percentages
+  above/below the saved grid width, and the autofitting-parent control.
+
+  The original drawing banner is still unresolved: its parent autofits.
+  Writer grows its nested grid from [0.3,171.3] to [0,177]pt, while Word
+  retains the narrow first column and lets the 175.5pt picture plus its
+  1.5pt effect overflow the second. Removing the neighboring logo lets
+  Word redistribute the parent columns and fit that picture, while the
+  smaller banner still ends at the parent's right edge. Parent and child
+  sizing must be coordinated; suppressing every nested autofit would
+  break the controls. Changing parent cell percentage preferences to
+  auto does not explain the difference. Additional wide-image/long-word
+  labs keep a 468pt table at the page width, including with `noWrap`, but
+  older `caplong`/`at*` labs can exceed the page; a universal page-width
+  cap is not justified. Measurements and reproducible package-building
+  scripts are retained with the labs.
+  Validation: all 454 Office tests and repository lint pass. Full
+  577-document sweep converts every file successfully; per-file line
+  scores, physical page counts, image counts and image bounds are
+  unchanged from picture-effects/sweep. The three corpus documents with
+  explicit fixed parents also retain identical text-word bounds. POI
+  text-bearing mean remains 98.7%; nine textless files remain N/A.
+  Artifacts: `nested-table/sweep/comparison.txt`, `image-comparison.json`,
+  `fixed-parent-text-comparison.json` and `tests-final.log` under the lab
+  directory above. This fixes the isolated fixed-parent cases, not the
+  original autofitting-parent banner or a corpus line-score gap.

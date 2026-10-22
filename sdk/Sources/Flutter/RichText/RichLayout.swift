@@ -1031,6 +1031,7 @@ public final class RichLayout {
     private var _rowTops: [Double] = []
     private var _flowHeight = 0.0
     private var _columnWidths: [String: [Double]] = [:]   // px, per table
+    private var _nestedInFixedTable = false
     private var _tableFlowWidth: [String: Double] = [:]   // px: the column each table is laid out in
     /// Points: how far a table of cell spacing is set out before Word 2013's
     /// layout — its first cell's whole text inset (`_tableLeft`).
@@ -1572,7 +1573,7 @@ public final class RichLayout {
                         // fixed one too: zh-540dc149's form says 98% of
                         // 640.6pt and Word rules its 638.6pt grid, where ours,
                         // 627.7 wide, wrapped its cells a word early.)
-                        if theme.wordRules, scale < 1 { scale = 1 }
+                        if theme.wordRules, !_nestedInFixedTable, scale < 1 { scale = 1 }
                     }
                     else if let w = ts.width {
                         scale = (theme.wordRules ? _px(w) : min(width, _px(w))) / _px(sum)
@@ -1602,7 +1603,7 @@ public final class RichLayout {
                 // makes 1269.9999…, and bug57031's autofit column, exactly
                 // as wide as "Transform", lost a pixel and wrapped it.)
                 widths[c.table] = pts.map { (_px($0) * scale + 0.001).rounded(.down) }
-                if theme.wordRules, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
+                if theme.wordRules, !_nestedInFixedTable, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
                    !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
                     widths[c.table] = _autofit(c.table, base, document)
                 }
@@ -11290,8 +11291,17 @@ public final class RichLayout {
 
     private func _textBox(_ image: ImageAttachment, _ document: RichDocument) -> _HeaderFooter? {
         guard theme.wordRules, let box = image.textBox else { return nil }
-        let grid = image.name == "combine" && !box.growsToFit ? (pitch: nil, chars: nil) : _grid(_paragraphHolding(image.id, document), document)
-        let key = "\(image.id)|\(image.width)|\(scale)|\(box.hashValue)|\(grid.pitch ?? 0)|\(grid.chars ?? 0)"
+        let holding = _paragraphHolding(image.id, document)
+        let grid = image.name == "combine" && !box.growsToFit ? (pitch: nil, chars: nil) : _grid(holding, document)
+        // A fixed parent sets its nested table's available width. Word
+        // keeps the child's preferred width, even when an inline picture
+        // or a long word overflows it; a percentage is of the parent
+        // cell, not the child's saved grid (nested-minima Word labs).
+        let fixedParent = box.growsToFit && holding.flatMap { document.paragraphs[$0].cell }.map {
+            _nestedInFixedTable || document.tableStyles[$0.table]?.fixedLayout == true
+        } == true
+        let boxWidth = fixedParent && holding != nil ? _textWidth[holding!] / _px(1) : image.width
+        let key = "\(image.id)|\(boxWidth)|\(fixedParent)|\(scale)|\(box.hashValue)|\(grid.pitch ?? 0)|\(grid.chars ?? 0)"
         if let hit = _textBoxCache[key] { return hit }
         var sub = RichDocument(paragraphs: box.paragraphs)
         sub.styles = document.styles
@@ -11348,8 +11358,9 @@ public final class RichLayout {
         }
         var layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
+        layout._nestedInFixedTable = fixedParent
         // (Turned, its lines run along the box's height.)
-        layout.width = box.textDirection == .horizontal ? max(1, _px(image.width - box.insetLeft - box.insetRight))
+        layout.width = box.textDirection == .horizontal ? max(1, _px(boxWidth - box.insetLeft - box.insetRight))
             : max(1, _px(image.height - box.insetTop - box.insetBottom))
         layout.ensureLaidOut(sub)
         // (The later boxes of a group, each from its own place in it:

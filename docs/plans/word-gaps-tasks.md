@@ -30,7 +30,7 @@ no score. The loop that has worked:
    Convert with `OFFICE_WORD_FONTS=mac`. On macOS there is no `timeout`
    command: a sweep loop using it converts nothing.
 5. `test/run.sh --office` (or the release Office tests plus the repository
-   checks). As of 2026-10-22 all 451 Office tests pass on the Mac; the old
+   checks). As of 2026-10-22 all 454 Office tests pass on the Mac; the old
    LineHeightTests failure came from missing font resources under XCTest.
    Keep the bundled-font startup test passing; do not waive that failure.
 6. One fix per commit; fetch and rebase on `office` before every push.
@@ -45,13 +45,23 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
-### T142. Nested percentage-table banner alignment in drawing.docx — claimed
+### T142. Nested-table sizing — fixed-parent rule built; parent autofit remains
 Owner: Codex Mac, 2026-10-22
 Worktree: starling, branch office; baseline e0edc780.
-Investigate page 9's right-aligned slogan banner: horizontal image effects
-moved it 1.5pt farther right (5.4pt from Word). Derive the nested table
-width/alignment rule with Word labs; preserve the corrected neighboring
-logo, then run the full Office tests and 577-document sweep.
+Word labs found and separated a fixed-parent bug: nested tables widened
+for oversized content and computed percentages from their saved grids.
+The fix keeps explicit child widths and resolves percentages against the
+parent's cell width. Nine Word lab cases match marker edges within 0.06pt;
+all seven lab pictures match bounds within 0.01pt. Three regressions added;
+454 Office tests and repository lint pass. Full 577-document sweep has
+zero conversion failures and unchanged per-file line scores, page counts,
+image counts and image bounds. POI text-bearing mean remains 98.7%.
+Final sweep: /tmp/starling-poi-fixes/nested-table/sweep.
+
+The original drawing page 9 banner remains 5.4pt right of Word: that parent
+autofits. Its parent and nested minimum/preferred widths need coordinated
+sizing; a universal nested-table or page-width cap fails other Word labs.
+Evidence, scripts and measurements: /tmp/starling-poi-fixes/nested-table.
 
 ### T141. POI picture layout — two fixes landed; remaining work released
 Owner: none — Codex Mac released remaining investigation, 2026-10-22
