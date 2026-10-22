@@ -832,8 +832,10 @@ public struct ImageAttachment: Hashable, Sendable {
     /// "tab1", 72.75pt in a 0.75pt grey frame, stands on a line of 75 in
     /// Word's print (with its effect extent below).
     public var frame: BorderLine? = nil
-    /// How far an inline picture's drawn effects reach above and below its
-    /// box (`wp:effectExtent`'s `t` and `b`, points): its line holds them.
+    /// How far an inline picture's effects reach past each edge of its
+    /// box (`wp:effectExtent`, points): its line holds all four sides.
+    public var effectLeft = 0.0
+    public var effectRight = 0.0
     public var effectTop = 0.0
     /// Where the object's own baseline stands, in points from its top,
     /// where it has one (an equation's): set in a line, it stands there.

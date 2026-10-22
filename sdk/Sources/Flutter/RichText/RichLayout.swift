@@ -6204,10 +6204,10 @@ public final class RichLayout {
             // left in ours. One wider than the line keeps to its left.)
             // (Its line holds its character border and its effects too,
             // and the border stands beside it as well.)
-            let room = theme.wordRules && image.float == nil ? _pictureRoom(image) : (top: 0.0, bottom: 0.0, side: 0.0)
+            let room = theme.wordRules && image.float == nil ? _pictureRoom(image) : (top: 0.0, bottom: 0.0, left: 0.0, right: 0.0)
             _imageDrop[i] = room.top
-            let spare = theme.wordRules ? max(0, textWidth - w.rounded() - 2 * room.side) : 0
-            _imageShift[i] = (style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0) + room.side
+            let spare = theme.wordRules ? max(0, textWidth - w.rounded() - room.left - room.right) : 0
+            _imageShift[i] = (style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0) + room.left
             // A floating object stands clear of the flow: its paragraph
             // is the height of its (empty) line, as Word sets it.
             if theme.wordRules, let float = image.float, !float.takesRoom {} else { bodyHeight = (h + room.top + room.bottom).rounded() }
@@ -7467,7 +7467,7 @@ public final class RichLayout {
                 // (With its character border and effects round it.)
                 if theme.wordRules, image.float == nil {
                     let room = _pictureRoom(image)
-                    w += 2 * room.side
+                    w += room.left + room.right
                     h += room.top + room.bottom
                 }
                 let size = Size(w.rounded(), h.rounded())
@@ -10980,7 +10980,7 @@ public final class RichLayout {
                 let paint = Paint()
                 if theme.wordRules, image.float == nil {
                     let room = _pictureRoom(image)
-                    rect = Rect.fromLTRB(rect.left + room.side, rect.top + room.top, rect.right - room.side, rect.bottom - room.bottom)
+                    rect = Rect.fromLTRB(rect.left + room.left, rect.top + room.top, rect.right - room.right, rect.bottom - room.bottom)
                 }
                 if let decoded = _decoded[image.id] {
                     _drawPicture(decoded, image, rect, canvas)
@@ -11544,16 +11544,17 @@ public final class RichLayout {
     }
 
     /// The room a picture in the line takes round its box, in pixels:
-    /// its effect extent above and below, and its run's character border
+    /// its effect extent on each side, and its run's character border
     /// (`ImageAttachment.frame`) `space + width` out on every side.
     /// (Only at the size the file gave it: resized in the editor, the
     /// picture is written afresh, without either.)
-    func _pictureRoom(_ image: ImageAttachment) -> (top: Double, bottom: Double, side: Double) {
+    func _pictureRoom(_ image: ImageAttachment) -> (top: Double, bottom: Double, left: Double, right: Double) {
         // (Not once resized: its effect extent was the old size's. A kept
         // object, a chart, has no source size and keeps its own.)
-        guard image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height) else { return (0, 0, 0) }
+        guard image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height) else { return (0, 0, 0, 0) }
         let frame = image.frame.map { _px($0.space + $0.width) } ?? 0
-        return (_px(image.effectTop) + frame, _px(image.effectBottom) + frame, frame)
+        return (_px(image.effectTop) + frame, _px(image.effectBottom) + frame,
+                _px(image.effectLeft) + frame, _px(image.effectRight) + frame)
     }
 
     /// A picture's character border, round `box` (the picture's own) and
@@ -11565,8 +11566,11 @@ public final class RichLayout {
         paint.style = .stroke
         paint.strokeWidth = _px(frame.width)
         paint.color = frame.color ?? theme.textColor
-        canvas.drawRect(Rect.fromLTRB(box.left - out, box.top - _px(image.effectTop) - out,
-                                      box.right + out, box.bottom + _px(image.effectBottom) + out), paint)
+        let originalSize = image.sourceWidth == nil || (image.sourceWidth == image.width && image.sourceHeight == image.height)
+        let left = image.float == nil && originalSize ? _px(image.effectLeft) : 0
+        let right = image.float == nil && originalSize ? _px(image.effectRight) : 0
+        canvas.drawRect(Rect.fromLTRB(box.left - left - out, box.top - _px(image.effectTop) - out,
+                                      box.right + right + out, box.bottom + _px(image.effectBottom) + out), paint)
     }
 
     /// Whether a floating picture is turned by an odd number of quarters.

@@ -6922,3 +6922,43 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   images. The Chinese VML document's PDFKit text rows are identical to
   baseline. Final sweep: `picture-header/sweep-scoped`; the earlier
   `picture-header/sweep` records the rejected broader change.
+
+- **Inline pictures reserve their left and right effect extents (2026-10-22).**
+  Writer already read `wp:effectExtent` above and below pictures, but
+  dropped its left/right values. `issue_51265_1/2/3` therefore placed
+  pictures 1.5pt too far left; adjacent pictures accumulated that error.
+  Word labs with horizontal extents zeroed confirm the rule: the first
+  picture shifts by its left extent, a centred picture by half of left
+  minus right, and a right-aligned picture by its right extent. Both
+  sides contribute to the width that the line and tab stops reserve.
+  The reader now retains both values for inline pictures and objects;
+  standalone and inline layout include them, and painting insets the
+  picture by the corresponding side. A character border encloses the
+  effects: the frame-effects Word lab adds 12pt left and 6pt right,
+  moving the picture 12pt and widening the frame by 18pt. Resized
+  pictures drop their old spacing, floating placement stays unchanged,
+  and the original values survive a DOCX save through the kept markup.
+  Direct PDF checks retain all 1/2/7 images in the three POI documents;
+  maximum image-coordinate errors against Word are 0.05/0.11/0.36pt.
+  The two border labs match frame bounds within 0.25pt. Artifacts:
+  `/tmp/starling-poi-fixes/picture-effects`, including measurements.json
+  and frame-measurements.json. Alignment, adjacent pictures, resizing
+  and DOCX round trip are covered by tests.
+  Validation: all 451 Office tests and repository lint pass. Full
+  577-document sweep: every line score, physical page count and image
+  count is unchanged against picture-header/sweep-scoped. Thirteen files
+  have adjusted picture boxes; see image-comparison.json and
+  changed-image-word-comparison.json. POI text-bearing mean stays 98.7%.
+  This is not a claim that every picture moved closer to Word: drawing
+  page 9's right-aligned 161.25pt banner has no effects of its own, but
+  moves with its containing percentage table. Its right-edge error grows
+  3.90 ->5.40pt when the neighbouring picture's 1.5pt left extent enters
+  the table's minimum-content width. Word's zero-horizontal-effects lab
+  keeps that banner at x391.55/right552.80; Writer still expands this
+  overfull nested table. Keep the verified picture extent rule and track
+  the table-width/overflow rule separately; do not call the result free
+  of visual regressions. Other existing page-9 gaps include transparent
+  spacer pictures and vertical offsets. The zero-effects lab also changes
+  earlier pagination geometry, so its y positions are not used as a new
+  reference. Initial sweep ran out of disk; redundant intermediate PDFs
+  were removed and the final sweep regenerated all 577 successfully.

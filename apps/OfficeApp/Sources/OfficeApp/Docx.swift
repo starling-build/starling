@@ -3087,6 +3087,8 @@ enum DocxFormat {
             // zh-547fc43c's 233.75pt chart and 1.75pt of effects take 16
             // pitches of a 15.6pt grid in Word's print, not 15.)
             if let effect = node.descendant("wp:inline")?.first("wp:effectExtent") {
+                att.effectLeft = max(0, (Double(effect["l"] ?? "") ?? 0) / 12700)
+                att.effectRight = max(0, (Double(effect["r"] ?? "") ?? 0) / 12700)
                 att.effectTop = max(0, (Double(effect["t"] ?? "") ?? 0) / 12700)
                 att.effectBottom = max(0, (Double(effect["b"] ?? "") ?? 0) / 12700)
             }
@@ -3373,6 +3375,8 @@ enum DocxFormat {
             // crop), used while the editor has not resized it.
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
             if let effect = drawing.descendant("wp:effectExtent") {
+                att.effectLeft = max(0, (Double(effect["l"] ?? "") ?? 0) / 12700)
+                att.effectRight = max(0, (Double(effect["r"] ?? "") ?? 0) / 12700)
                 att.effectTop = max(0, (Double(effect["t"] ?? "") ?? 0) / 12700)
                 att.effectBottom = max(0, (Double(effect["b"] ?? "") ?? 0) / 12700)
             }
