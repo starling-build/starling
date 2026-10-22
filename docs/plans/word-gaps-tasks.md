@@ -457,7 +457,8 @@ something else.
 
 ### Looked at (Mac 01Xgpbk5, 2026-10-19): zh-d8247da5 91.9 — released: 3 of 37 lines, all in its landscape form's dense cells ("房屋坐落門牌編號…", "減半使用執照用途別"), where the reader groups neighbouring cells' text differently; not layout
 
-### Claimed (Mac 01Xgpbk5, 2026-10-22): zh-afdd4a7e 93.6, zh-340d52e9 75.6 (agreed with starling-bd)
+### Claimed (Mac 01Xgpbk5, 2026-10-22): zh-340d52e9 75.6 (agreed with starling-bd)
+zh-afdd4a7e 93.6 — looked, released: reader, not layout. Its table cells match Word's to 0.8pt, but PDFKit reads ours with text repeated ("查\n調" four times where "調查" stands once per row, "%%%%"); every glyph is drawn once (get_texttrace). Ours are Skia's Type3 fonts, FontMatrix [.001 0 0 -.001] and FontBBox like [35 105 965 -828], y running down, and PDFKit mis-groups them across rows; Word's embedded PMingLiU reads clean. The same repeats show in ~10 more of our PDFs (zh-e49d7943, zh-05315c2a, zh-57d7a0ea, zh-86aae09f…) and would in Preview's copy and paste too. A fix would be in the engine's Skia PDF backend (starling-engine), not here.
 
 ### Note from the Mac (2026-10-19): the zh corpus is 466 documents — a twenty-first sample
 Twenty more (`random.seed(20261104)` among the 180 unprinted, 15 to 400 KB, all
