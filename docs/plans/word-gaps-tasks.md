@@ -45,6 +45,14 @@ out-dir on `PATH` and `STARLING_ICU` to run.
 Standing, at 92c1b88a (2026-10-14): Chinese sample 79.6% of Word's lines
 (median 92.9%, 57 of 68 with Word's page count); POI set 66.6%.
 
+### T142. Nested percentage-table banner alignment in drawing.docx — claimed
+Owner: Codex Mac, 2026-10-22
+Worktree: starling, branch office; baseline e0edc780.
+Investigate page 9's right-aligned slogan banner: horizontal image effects
+moved it 1.5pt farther right (5.4pt from Word). Derive the nested table
+width/alignment rule with Word labs; preserve the corrected neighboring
+logo, then run the full Office tests and 577-document sweep.
+
 ### T141. POI picture layout — two fixes landed; remaining work released
 Owner: none — Codex Mac released remaining investigation, 2026-10-22
 Worktree: starling, branch office. Baseline ebf9faf6; same engine and
