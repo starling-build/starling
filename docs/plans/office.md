@@ -6811,3 +6811,15 @@ zh-9ba2ead7 73.0 → 91.3, zh-27fc8f9d 96.4 → 97.6, nothing lower.
   Same-engine, same-font sweep: 55966 33.3 -> 100%; all 576 other documents
   unchanged. POI mean 89.8 -> 90.4% including nine textless references;
   98/111 now at least 95%, all page counts still match.
+
+- **Drawing positions inside compatibility markup (2026-10-21).**
+  A `wp:anchor` can put `wp:positionH` or `wp:positionV` inside
+  `mc:AlternateContent`: a wp14 percentage position in Choice, and an
+  ordinary EMU position in Fallback. The reader now takes that fallback
+  when no direct position is present. 60316's sidebar moves from the body
+  column (x 238pt, overlapping its paragraphs) to x 36pt at the page's
+  left. Its line match is 97.0 -> 100%; all other 576 reference documents
+  unchanged. Visual comparison still finds its header divider too short:
+  percentage size `wp14:sizeRelV` and header vertical alignment are not
+  handled by this position-reading fix. Regression tests cover both axes
+  and precedence of a direct position over alternate content.

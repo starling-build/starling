@@ -578,6 +578,32 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(Set(names).count, names.count, "\(names)")
     }
 
+    /// 60316's sidebar: a percentage position's compatibility fallback
+    /// is a page-relative offset, not the default body-column origin.
+    func testDrawingPositionInAlternateContent() throws {
+        let xml = """
+        <wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent><mc:Choice Requires="wp14"><wp:positionH relativeFrom="page"><wp14:pctPosHOffset>5900</wp14:pctPosHOffset></wp:positionH></mc:Choice><mc:Fallback><wp:positionH relativeFrom="page"><wp:posOffset>458470</wp:posOffset></wp:positionH></mc:Fallback></mc:AlternateContent>
+          <mc:AlternateContent><mc:Choice Requires="wp14"><wp:positionV relativeFrom="margin"><wp14:pctPosVOffset>10000</wp14:pctPosVOffset></wp:positionV></mc:Choice><mc:Fallback><wp:positionV relativeFrom="margin"><wp:posOffset>914400</wp:posOffset></wp:positionV></mc:Fallback></mc:AlternateContent>
+          <wp:wrapSquare wrapText="bothSides"/>
+        </wp:anchor>
+        """
+        let node = try XCTUnwrap(XNode.parse(Data(xml.utf8)))
+        let floating = try XCTUnwrap(DocxFormat._float(node))
+        XCTAssertEqual(floating.horizontalFrom, "page")
+        XCTAssertEqual(floating.x, 36.1, accuracy: 0.001)
+        XCTAssertEqual(floating.verticalFrom, "margin")
+        XCTAssertEqual(floating.y, 72, accuracy: 0.001)
+        XCTAssertTrue(floating.wraps)
+        // A direct position still takes precedence; an unrelated nested
+        // drawing's position must not be picked up by a descendant search.
+        let direct = try XCTUnwrap(XNode.parse(Data("<wp:positionH relativeFrom=\"column\"><wp:align>right</wp:align></wp:positionH>".utf8)))
+        node.children.append(direct)
+        XCTAssertEqual(DocxFormat._float(node)?.horizontalFrom, "column")
+        XCTAssertEqual(DocxFormat._float(node)?.horizontalAlign, "right")
+        XCTAssertEqual(DocxFormat._float(node)?.x, 0)
+    }
+
     func testPageBreakEndingAParagraphLeavesNoEmptyLine() throws {
         var doc = RichDocument(paragraphs: [RichParagraph(text: "one"), RichParagraph(text: "BREAK"), RichParagraph(text: "two")])
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))

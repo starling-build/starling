@@ -2188,12 +2188,21 @@ enum DocxFormat {
     static func _float(_ node: XNode) -> ImageFloat? {
         if let anchor = node.name == "wp:anchor" ? node : node.descendant("wp:anchor") {
             var f = ImageFloat()
-            if let h = anchor.first("wp:positionH") {
+            // Word can wrap either position in AlternateContent, with a
+            // wp14 percentage in Choice and a point offset in Fallback.
+            // We do not interpret percentage positions yet. Read their
+            // fallback instead of dropping the position altogether:
+            // 60316's page-anchored sidebar landed in the body column.
+            func position(_ name: String) -> XNode? {
+                anchor.first(name) ?? anchor.all("mc:AlternateContent")
+                    .compactMap { $0.first("mc:Fallback")?.first(name) }.first
+            }
+            if let h = position("wp:positionH") {
                 f.horizontalFrom = h["relativeFrom"] ?? "column"
                 if let v = Double(h.first("wp:posOffset")?.text ?? "") { f.x = v / 12700 }
                 f.horizontalAlign = h.first("wp:align")?.text
             }
-            if let v = anchor.first("wp:positionV") {
+            if let v = position("wp:positionV") {
                 f.verticalFrom = v["relativeFrom"] ?? "paragraph"
                 if let o = Double(v.first("wp:posOffset")?.text ?? "") { f.y = o / 12700 }
                 f.verticalAlign = v.first("wp:align")?.text

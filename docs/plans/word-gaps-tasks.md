@@ -59,8 +59,12 @@ Progress 2026-10-21: named inline placeholder reuse implemented and tested.
 55966 33.3 -> 100%; all 576 other reference documents unchanged in a full
 font-verified sweep. 441 unit tests: placeholder regression passes; known
 line-height failure plus a Cocoa spelling-service failure (being checked).
-Next: 60316's sidebar misses `wp:positionH` inside AlternateContent and
-paints over the body; resolving its compatibility position fallback.
+60316 position fallback fixed: 97.0 -> 100%, sidebar in its own column;
+all other 576 documents unchanged. Its header divider still needs relative
+sizing and vertical alignment (visual, not a line-match miss).
+442 unit tests: only the known line-height failure; the transient Cocoa
+spelling failure did not recur. Next: T132's released Arabic-font task,
+use the requested complex-script face for explicitly right-to-left runs.
 
 ## Done on 2026-10-14 (session 011uWpmCQYr9neyJ1V1gzrrb)
 
