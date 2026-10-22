@@ -238,7 +238,8 @@ Excel was found to do, each checked on its workbook and its neighbours:
 the same base; the commits give the numbers):
 
 - *Fitting.* A wrapped row is fitted in its column's width on the
-  screen (whole pixels at 192 dpi), narrower than on paper
+  screen (whole pixels at 192 dpi) less the cell's padding (as a General
+  number's, 2⌈d/4⌉+1 px: CVLKRA-KYC), narrower than on paper
   (lo-tdf100034's two-line note). A printer's line between measured
   font sizes is the next dot up (49609's Microsoft Sans Serif 8.25).
 - *Cells.* A General number on paper holds the column's characters less
@@ -274,8 +275,14 @@ the same base; the commits give the numbers):
   usual prefixes; a title that says nothing of its look is 18 pt, not
   bold, axis titles too (chart-tdf119138, whose four charts were not
   drawn). A title's own box (fill, line, dash) and a pie's series outline
-  are drawn. Open: a chart title 2.3 pt higher than Excel's
-  (chart-tdf135184); treemaps (hierarchical categories, squarified).
+  are drawn. A sheet's chart title (and plot under it) stands 2.5 pt
+  lower than PowerPoint's; a pie whose labels stand round it gives them a
+  line a side. Open: treemaps (hierarchical categories, squarified).
+  Open, fitting: a wrapped word too long for its column breaks inside
+  in Excel's screen layout otherwise than in ours, which measures the
+  printed face against the screen's width: LIBRE_OFFICE-116306-0's
+  "NONKQUB|ELA/NTLO…" fits five lines in Excel, seven in ours; 52716's
+  e-mail addresses likewise.
   Open: chart-fdo78080's chart (LibreOffice's: no c:title, no
   autoTitleDeleted, no varyColors) has no title in Excel's print and a
   legend of its points; ours titles it "col1" as PowerPoint would. One
