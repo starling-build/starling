@@ -5823,6 +5823,17 @@ fitter dropped the paragraph's tail).
   page 13 is 134.4pt in Word's print, 133.0 in ours, and the page after
   it took the 22pt line Word sends on — every page after a line out.
   zh-b378d8c4 39.1 -> 100; nothing else moved.
+- **A footnote's mark is on the line the page counts (2026-10-22).**
+  Where a note fits is measured from the foot of the line its mark is
+  on. Two ways that line was lost: a mark raised out of its line
+  (`_paintScripts`) has no box there, and such a note was taken for one
+  of no line and reserved whole — its line is now its neighbour's; and
+  the line's foot was the engine's own line, short of the whole pitches
+  a grid gives it. zh-344a8d08's note 3 is marked in a 16pt line of two
+  22.85pt pitches, 45.7, whose engine line is 37.5: the note fit whole
+  under it by 4pt in ours, and goes over by 4 in Word's print, its third
+  line on page 5 (T144's one-line note 2 had left it the room).
+  zh-344a8d08 25.5 -> 26.5; nothing else moved.
 - **A border of none is no border (2026-10-18).** Under balanced widths
   the automatic space doubles inside text ruled round (labs `ap1`-`ap4`),
   and the test was only that the run carried a `<w:bdr>`. zh-f10c8f34's

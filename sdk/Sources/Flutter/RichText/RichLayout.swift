@@ -11408,12 +11408,30 @@ public final class RichLayout {
             if let n = run.style.note, n.kind == .footnote, n.id == id {
                 let g = geometry(i)
                 let m = _map(i).painter(at)
-                guard let box = g.painter.getBoxesForSelection(TextSelection(baseOffset: m, extentOffset: m + max(1, run.length))).first else { return nil }
+                // (A mark raised out of its line, `_paintScripts`'s, has no
+                // box of its own there: the character beside it stands on
+                // its line. zh-344a8d08's footnotes 2 and 3 were taken for
+                // marks of no line, reserved whole, and note 3's three
+                // lines all stood on page 4, where Word's print parts it.)
+                func boxOf(_ from: Int, _ to: Int) -> TextBox? {
+                    guard from >= 0, to > from else { return nil }
+                    return g.painter.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: to)).first
+                }
+                guard let box = boxOf(m, m + max(1, run.length)) ?? (theme.wordRules ? boxOf(m - 1, m) ?? boxOf(m + max(1, run.length), m + max(1, run.length) + 1) : nil)
+                else { return nil }
                 let lines = g.painter.computeLineMetrics()
+                // (Where the line ends as the page counts it — on a grid,
+                // its whole pitches, not the engine's own line: zh-344a8d08's
+                // note 3 is marked in a 16pt line of two 22.85pt pitches,
+                // 45.7, whose engine line is 37.5; the note fit under it by
+                // 4pt in ours and goes over by 4 in Word's print.)
+                let bottoms = theme.wordRules ? Self._lineBottoms(g.painter) : []
                 var bottom = box.bottom
-                for metrics in lines where metrics.lineNumber >= 0 {
+                for (k, metrics) in lines.enumerated() where metrics.lineNumber >= 0 {
                     let top = metrics.baseline - metrics.ascent
-                    if box.top >= top - 0.5, box.top < top + metrics.height - 0.5 { bottom = max(bottom, top + metrics.height) }
+                    if box.top >= top - 0.5, box.top < top + metrics.height - 0.5 {
+                        bottom = max(bottom, k < bottoms.count ? bottoms[k] : top + metrics.height)
+                    }
                 }
                 return (g.textTop + box.top, g.textTop + bottom)
             }
