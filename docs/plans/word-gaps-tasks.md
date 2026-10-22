@@ -130,6 +130,10 @@ Word prints happen only on the Mac: ask before printing, one at a time.
   Owner: none. A checkbox is a "☐" character in the model and the writer
   saves every ☐ as a checkbox field, so drawing it as a box is a model
   change for one line in one file; not started.
+- i. An autofit table cell holding only a picture grows its column to the
+  picture plus the cell margins in Word (lab dr/clip1 case C: 339pt);
+  ours keeps the column and cuts the picture, because _minContent and
+  _autofit count only text. Owner: Windows 01QbbApP, 2026-10-22.
 - Test note: the font-bundle test failures were fixed by macos-ios;
   457 Office tests pass on starling-bd's checkout.
 - 60329 12.6% is Word's clipped print of landscape content, not ours.
